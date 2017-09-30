@@ -1,0 +1,50 @@
+[package]
+name = "actix-http"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix http support"
+readme = "README.md"
+keywords = ["actor", "http"]
+homepage = "https://github.com/fafhrd91/actix-http"
+repository = "https://github.com/fafhrd91/actix-http.git"
+documentation = "https://fafhrd91.github.io/actix-http/actix-http/"
+categories = ["network-programming", "asynchronous"]
+license = "Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+build = "build.rs"
+
+[lib]
+name = "actix_http"
+path = "src/lib.rs"
+
+[dependencies]
+# tokio
+bytes = "0.4"
+mio = "0.6"
+futures = "0.1"
+tokio-core = "0.1"
+tokio-io = "0.1"
+tokio-signal = "0.1"
+tokio-uds = "0.1"
+
+# logging
+time = "*"
+log = "0.3"
+syslog = "3.2"
+env_logger = "0.4"
+
+[dependencies.actix]
+#path = "../actix"
+git = "https://github.com/fafhrd91/actix.git"
+features = ["signal"]
+
+[dev-dependencies]
+skeptic = "0.13"
+
+[build-dependencies]
+skeptic = "0.13"
+
+[profile.release]
+lto = true
+opt-level = 3
+debug = true
