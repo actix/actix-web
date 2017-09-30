@@ -17,8 +17,7 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - make test
-  # - make clippy
+  - cargo test
 
 # Upload docs
 after_success:

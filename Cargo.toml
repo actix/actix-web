@@ -24,14 +24,9 @@ mio = "0.6"
 futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
-tokio-signal = "0.1"
-tokio-uds = "0.1"
 
-# logging
-time = "*"
+# other
 log = "0.3"
-syslog = "3.2"
-env_logger = "0.4"
 
 [dependencies.actix]
 #path = "../actix"
