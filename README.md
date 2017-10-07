@@ -1,6 +1,6 @@
 # Actix Http [![Build Status](https://travis-ci.org/fafhrd91/actix-http.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
 
-Actix http is a http framework for Actix framework.
+Actix http is a server http framework for Actix framework.
 
 * [API Documentation](http://fafhrd91.github.io/actix-http/actix_http/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-http)
@@ -10,6 +10,11 @@ Actix http is a http framework for Actix framework.
 
 Actix Http is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
 
+## Features
+
+  * HTTP 1.1 and 1.0 support
+  * Streaming and pipelining support
+  * Configurable request routing
 
 ## Usage
 
