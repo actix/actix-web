@@ -20,3 +20,56 @@ To use `actix-http`, add this to your `Cargo.toml`:
 actix-http = { git = "https://github.com/fafhrd91/actix-http.git" }
 ```
 
+## Example
+
+```rust
+extern crate actix;
+extern crate actix_http;
+extern crate futures;
+use std::net;
+use std::str::FromStr;
+
+use actix::prelude::*;
+use actix_http::*;
+
+// Route
+struct MyRoute;
+
+impl Actor for MyRoute {
+    type Context = HttpContext<Self>;
+}
+
+impl Route for MyRoute {
+    type State = ();
+
+    fn request(req: HttpRequest,
+               payload: Option<Payload>,
+               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+    {
+        Self::http_reply(req, httpcodes::HTTPOk)
+    }
+}
+
+fn main() {
+    let system = System::new("test".to_owned());
+
+    // create routing map with `MyRoute` route
+    let mut routes = RoutingMap::default();
+    routes.add_resource("/")
+        .post::<MyRoute>();
+
+    // start http server
+    let http = HttpServer::new(routes);
+    http.serve::<()>(
+        &net::SocketAddr::from_str("127.0.0.1:8880").unwrap()).unwrap();
+
+    // stop system
+    Arbiter::handle().spawn_fn(|| {
+        Arbiter::system().send(msgs::SystemExit(0));
+        futures::future::ok(())
+    });
+
+    system.run();
+    println!("Done");
+}
+```
