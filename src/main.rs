@@ -21,13 +21,13 @@ impl Route for MyRoute {
 
     fn request(req: HttpRequest,
                payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> HttpResponse<Self>
+               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
     {
         if let Some(pl) = payload {
             ctx.add_stream(pl);
-            HttpResponse::Stream(MyRoute{req: Some(req)})
+            HttpMessage::Stream(MyRoute{req: Some(req)})
         } else {
-            HttpResponse::Reply(req, httpcodes::HTTPOk)
+            HttpMessage::Reply(req, httpcodes::HTTPOk)
         }
     }
 }

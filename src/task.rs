@@ -13,7 +13,7 @@ use hyper::header::{Date, Connection, ContentType,
 
 use date;
 use route::Frame;
-use httpmessage::{Body, HttpMessage};
+use httpmessage::{Body, HttpResponse};
 
 type FrameStream = Stream<Item=Frame, Error=io::Error>;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -57,7 +57,7 @@ pub struct Task {
 
 impl Task {
 
-    pub(crate) fn reply(msg: HttpMessage, body: Option<Bytes>) -> Self {
+    pub(crate) fn reply(msg: HttpResponse, body: Option<Bytes>) -> Self {
         let mut frames = VecDeque::new();
         if let Some(body) = body {
             frames.push_back(Frame::Message(msg));
@@ -90,7 +90,7 @@ impl Task {
         }
     }
 
-    fn prepare(&mut self, mut msg: HttpMessage)
+    fn prepare(&mut self, mut msg: HttpResponse)
     {
         trace!("Prepare message status={:?}", msg.status);
 

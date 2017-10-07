@@ -9,13 +9,13 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell};
 
 use route::{Route, Frame};
-use httpmessage::HttpMessage;
+use httpmessage::HttpResponse;
 
 
 /// Actor execution context
 pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
 {
-    act: A,
+    act: Option<A>,
     state: ActorState,
     items: Vec<Box<ActorFuture<Item=(), Error=(), Actor=A>>>,
     address: ActorAddressCell<A>,
@@ -60,6 +60,7 @@ impl<A> AsyncActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + R
     }
 }
 
+#[doc(hidden)]
 impl<A> AsyncContextApi<A> for HttpContext<A> where A: Actor<Context=Self> + Route {
     fn address_cell(&mut self) -> &mut ActorAddressCell<A> {
         &mut self.address
@@ -68,10 +69,10 @@ impl<A> AsyncContextApi<A> for HttpContext<A> where A: Actor<Context=Self> + Rou
 
 impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
-    pub(crate) fn new(act: A, state: Rc<<A as Route>::State>) -> HttpContext<A>
+    pub(crate) fn new(state: Rc<<A as Route>::State>) -> HttpContext<A>
     {
         HttpContext {
-            act: act,
+            act: None,
             state: ActorState::Started,
             items: Vec::new(),
             address: ActorAddressCell::new(),
@@ -80,8 +81,8 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
         }
     }
 
-    pub(crate) fn replace_actor(&mut self, srv: A) -> A {
-        std::mem::replace(&mut self.act, srv)
+    pub(crate) fn set_actor(&mut self, act: A) {
+        self.act = Some(act)
     }
 }
 
@@ -93,7 +94,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
     
     /// Start response processing
-    pub fn start(&mut self, response: HttpMessage) {
+    pub fn start(&mut self, response: HttpResponse) {
         self.stream.push_back(Frame::Message(response))
     }
 
@@ -102,18 +103,26 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
         self.stream.push_back(Frame::Payload(Some(data)))
     }
 
-    /// Completed
+    /// Indicate end of streamimng payload
     pub fn write_eof(&mut self) {
         self.stream.push_back(Frame::Payload(None))
     }
 }
 
+#[doc(hidden)]
 impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
 {
     type Item = Frame;
     type Error = std::io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if self.act.is_none() {
+            return Ok(Async::NotReady)
+        }
+
+        let act: &mut A = unsafe {
+            std::mem::transmute(self.act.as_mut().unwrap() as &mut A)
+        };
         let ctx: &mut HttpContext<A> = unsafe {
             std::mem::transmute(self as &mut HttpContext<A>)
         };
@@ -121,11 +130,11 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
         // update state
         match self.state {
             ActorState::Started => {
-                Actor::started(&mut self.act, ctx);
+                Actor::started(act, ctx);
                 self.state = ActorState::Running;
             },
             ActorState::Stopping => {
-                Actor::stopping(&mut self.act, ctx);
+                Actor::stopping(act, ctx);
             }
             _ => ()
         }
@@ -134,7 +143,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
         loop {
             let mut not_ready = true;
 
-            if let Ok(Async::Ready(_)) = self.address.poll(&mut self.act, ctx) {
+            if let Ok(Async::Ready(_)) = self.address.poll(act, ctx) {
                 not_ready = false
             }
 
@@ -146,7 +155,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
                     break
                 }
 
-                let (drop, item) = match self.items[idx].poll(&mut self.act, ctx) {
+                let (drop, item) = match self.items[idx].poll(act, ctx) {
                     Ok(val) => match val {
                         Async::Ready(_) => {
                             not_ready = false;
@@ -194,7 +203,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
             match self.state {
                 ActorState::Stopped => {
                     self.state = ActorState::Stopped;
-                    Actor::stopped(&mut self.act, ctx);
+                    Actor::stopped(act, ctx);
                     return Ok(Async::Ready(None))
                 },
                 ActorState::Stopping => {
@@ -204,11 +213,11 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
                             continue
                         } else {
                             self.state = ActorState::Stopped;
-                            Actor::stopped(&mut self.act, ctx);
+                            Actor::stopped(act, ctx);
                             return Ok(Async::Ready(None))
                         }
                     } else {
-                        Actor::stopping(&mut self.act, ctx);
+                        Actor::stopping(act, ctx);
                         prep_stop = true;
                         continue
                     }
@@ -216,7 +225,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
                 ActorState::Running => {
                     if !self.address.connected() && self.items.is_empty() {
                         self.state = ActorState::Stopping;
-                        Actor::stopping(&mut self.act, ctx);
+                        Actor::stopping(act, ctx);
                         prep_stop = true;
                         continue
                     }

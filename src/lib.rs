@@ -30,10 +30,10 @@ mod server;
 
 pub mod httpcodes;
 pub use application::HttpApplication;
-pub use route::{Route, RouteFactory, Payload, PayloadItem, Frame};
-pub use resource::{HttpResource, HttpResponse};
+pub use route::{Route, RouteFactory, RouteHandler, Payload, PayloadItem};
+pub use resource::{HttpMessage, HttpResource};
 pub use server::HttpServer;
 pub use context::HttpContext;
 pub use router::RoutingMap;
 pub use route_recognizer::Params;
-pub use httpmessage::{HttpRequest, HttpMessage, IntoHttpMessage};
+pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};

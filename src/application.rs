@@ -39,6 +39,8 @@ impl<S> HttpApplication<S> where S: 'static
 }
 
 impl HttpApplication<()> {
+
+    /// Create `HttpApplication` with no state
     pub fn no_state() -> Self {
         HttpApplication {
             state: (),
@@ -50,6 +52,9 @@ impl HttpApplication<()> {
 
 impl<S> HttpApplication<S> where S: 'static {
 
+    /// Create http application with specific state. State is shared with all
+    /// routes within same application and could be
+    /// accessed with `HttpContext::state()` method.
     pub fn new(state: S) -> HttpApplication<S> {
         HttpApplication {
             state: state,
@@ -58,6 +63,7 @@ impl<S> HttpApplication<S> where S: 'static {
         }
     }
 
+    /// Add resource by path.
     pub fn add<P: ToString>(&mut self, path: P) -> &mut HttpResource<S>
     {
         let path = path.to_string();
@@ -70,7 +76,7 @@ impl<S> HttpApplication<S> where S: 'static {
         self.resources.get_mut(&path).unwrap()
     }
 
-    /// Default resource
+    /// Default resource is used if no matched route could be found.
     pub fn default(&mut self) -> &mut HttpResource<S> {
         &mut self.default
     }

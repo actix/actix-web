@@ -4,6 +4,7 @@ Actix http is a http framework for Actix framework.
 
 * [API Documentation](http://fafhrd91.github.io/actix-http/actix_http/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-http)
+* Minimum supported Rust version: 1.20 or later
 
 ---
 

@@ -5,7 +5,7 @@ use http::StatusCode;
 
 use task::Task;
 use route::{Payload, RouteHandler};
-use httpmessage::{Body, HttpRequest, HttpMessage, IntoHttpMessage};
+use httpmessage::{Body, HttpRequest, HttpResponse, IntoHttpResponse};
 
 pub struct StaticResponse(StatusCode);
 
@@ -20,12 +20,12 @@ pub const HTTPMethodNotAllowed: StaticResponse = StaticResponse(StatusCode::METH
 impl<S> RouteHandler<S> for StaticResponse {
     fn handle(&self, req: HttpRequest, _: Option<Payload>, _: Rc<S>) -> Task
     {
-        Task::reply(HttpMessage::new(req, self.0, Body::Empty), None)
+        Task::reply(HttpResponse::new(req, self.0, Body::Empty), None)
     }
 }
 
-impl IntoHttpMessage for StaticResponse {
-    fn into_response(self, req: HttpRequest) -> HttpMessage {
-        HttpMessage::new(req, self.0, Body::Empty)
+impl IntoHttpResponse for StaticResponse {
+    fn into_response(self, req: HttpRequest) -> HttpResponse {
+        HttpResponse::new(req, self.0, Body::Empty)
     }
 }

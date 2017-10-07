@@ -161,15 +161,22 @@ impl HttpRequest {
     }
 }
 
+/// Represents various types of http message body.
 #[derive(Debug)]
 pub enum Body {
+    /// Empty response. `Content-Length` header is set to `0`
     Empty,
+    /// Specific response body. `Content-Length` header is set to length of bytes.
     Binary(Bytes),
+    /// Streaming response body with specified length.
     Length(u64),
+    /// Unspecified streaming response. Developer is responsible for setting
+    /// right `Content-Length` or `Transfer-Encoding` headers.
     Streaming,
 }
 
 impl Body {
+    /// Does this body have payload.
     pub fn has_body(&self) -> bool {
         match *self {
             Body::Length(_) | Body::Streaming => true,
@@ -178,13 +185,15 @@ impl Body {
     }
 }
 
-pub trait IntoHttpMessage {
-    fn into_response(self, req: HttpRequest) -> HttpMessage;
+/// Implements by something that can be converted to `HttpMessage`
+pub trait IntoHttpResponse {
+    /// Convert into response.
+    fn into_response(self, req: HttpRequest) -> HttpResponse;
 }
 
 #[derive(Debug)]
 /// An HTTP Response
-pub struct HttpMessage {
+pub struct HttpResponse {
     request: HttpRequest,
     pub version: Version,
     pub headers: Headers,
@@ -195,7 +204,7 @@ pub struct HttpMessage {
     compression: Option<Encoding>,
 }
 
-impl Message for HttpMessage {
+impl Message for HttpResponse {
     fn version(&self) -> Version {
         self.version
     }
@@ -204,12 +213,12 @@ impl Message for HttpMessage {
     }
 }
 
-impl HttpMessage {
-    /// Constructs a default response
+impl HttpResponse {
+    /// Constructs a response
     #[inline]
-    pub fn new(request: HttpRequest, status: StatusCode, body: Body) -> HttpMessage {
+    pub fn new(request: HttpRequest, status: StatusCode, body: Body) -> HttpResponse {
         let version = request.version;
-        HttpMessage {
+        HttpResponse {
             request: request,
             version: version,
             headers: Default::default(),
@@ -296,10 +305,12 @@ impl HttpMessage {
         }
     }
 
+    /// Get body os this response
     pub fn body(&self) -> &Body {
         &self.body
     }
 
+    /// Set a body and return previous body value
     pub fn set_body<B: Into<Body>>(&mut self, body: B) -> Body {
         mem::replace(&mut self.body, body.into())
     }

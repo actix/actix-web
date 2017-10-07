@@ -10,6 +10,7 @@ use task::Task;
 use reader::Reader;
 use router::{Router, RoutingMap};
 
+/// An HTTP Server.
 pub struct HttpServer {
     router: Rc<Router>,
 }
@@ -19,10 +20,12 @@ impl Actor for HttpServer {
 }
 
 impl HttpServer {
+    /// Create new http server with specified `RoutingMap`
     pub fn new(routes: RoutingMap) -> Self {
         HttpServer {router: Rc::new(routes.into_router())}
     }
 
+    /// Start listening for incomming connections.
     pub fn serve<Addr>(self, addr: &net::SocketAddr) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>
     {
