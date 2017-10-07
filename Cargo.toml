@@ -17,16 +17,29 @@ build = "build.rs"
 name = "actix_http"
 path = "src/lib.rs"
 
+[[bin]]
+name = "test"
+path = "src/main.rs"
+
 [dependencies]
+time = "0.1"
+http = "0.1"
+httparse = "*"
+hyper = "0.11"
+route-recognizer = "0.1"
+
 # tokio
 bytes = "0.4"
-mio = "0.6"
 futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
+tokio-proto = "0.1"
 
 # other
 log = "0.3"
+env_logger = "*"
+
+#actix = { git="https://github.com/fafhrd91/actix.git" }
 
 [dependencies.actix]
 #path = "../actix"
