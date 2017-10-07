@@ -100,10 +100,8 @@ impl<A> HttpMessage<A> where A: Actor<Context=HttpContext<A>> + Route
         HttpMessage(HttpMessageItem::Actor(act))
     }
 
-    /// Create response with empty body
-    pub fn reply<I>(req: HttpRequest, msg: I) -> Self
-        where I: IntoHttpResponse
-    {
+    /// Send response
+    pub fn reply<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
         HttpMessage(HttpMessageItem::Message(msg.into_response(req)))
     }
 
