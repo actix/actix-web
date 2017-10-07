@@ -62,12 +62,12 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
     }
 
     /// Create async response
-    fn stream(act: Self) -> HttpMessage<Self> {
+    fn http_stream(act: Self) -> HttpMessage<Self> {
         HttpMessage::stream(act)
     }
 
     /// Create response
-    fn reply<I>(req: HttpRequest, msg: I) -> HttpMessage<Self>
+    fn http_reply<I>(req: HttpRequest, msg: I) -> HttpMessage<Self>
         where I: IntoHttpResponse
     {
         HttpMessage::reply(req, msg)

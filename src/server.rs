@@ -58,7 +58,7 @@ impl Handler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {
                         items: VecDeque::new(),
                         inactive: Vec::new(),
             });
-        Response::Empty()
+        Self::empty()
     }
 }
 

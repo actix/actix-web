@@ -25,9 +25,9 @@ impl Route for MyRoute {
     {
         if let Some(pl) = payload {
             ctx.add_stream(pl);
-            Self::stream(MyRoute{req: Some(req)})
+            Self::http_stream(MyRoute{req: Some(req)})
         } else {
-            Self::reply(req, httpcodes::HTTPOk)
+            Self::http_reply(req, httpcodes::HTTPOk)
         }
     }
 }
@@ -49,7 +49,7 @@ impl Handler<PayloadItem> for MyRoute {
             ctx.write_eof();
         }
 
-        Response::Empty()
+        Self::empty()
     }
 }
 

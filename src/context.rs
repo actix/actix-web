@@ -75,7 +75,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
             act: None,
             state: ActorState::Started,
             items: Vec::new(),
-            address: ActorAddressCell::new(),
+            address: ActorAddressCell::default(),
             stream: VecDeque::new(),
             app_state: state,
         }
