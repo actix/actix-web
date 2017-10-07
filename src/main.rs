@@ -25,9 +25,9 @@ impl Route for MyRoute {
     {
         if let Some(pl) = payload {
             ctx.add_stream(pl);
-            HttpMessage::Stream(MyRoute{req: Some(req)})
+            Self::stream(MyRoute{req: Some(req)})
         } else {
-            HttpMessage::Reply(req, httpcodes::HTTPOk)
+            Self::reply(req, httpcodes::HTTPOk)
         }
     }
 }

@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use actix::Actor;
-use bytes::Bytes;
 use http::Method;
 
 use task::Task;
@@ -88,7 +87,7 @@ impl<S: 'static> RouteHandler<S> for HttpResource<S> {
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 enum HttpMessageItem<A> where A: Actor<Context=HttpContext<A>> + Route {
-    Message(HttpResponse, Option<Bytes>),
+    Message(HttpResponse),
     Actor(A),
 }
 
@@ -97,27 +96,21 @@ pub struct HttpMessage<A: Actor<Context=HttpContext<A>> + Route> (HttpMessageIte
 impl<A> HttpMessage<A> where A: Actor<Context=HttpContext<A>> + Route
 {
     /// Create async response
-    #[allow(non_snake_case)]
-    pub fn Stream(act: A) -> Self {
+    pub fn stream(act: A) -> Self {
         HttpMessage(HttpMessageItem::Actor(act))
     }
 
-    #[allow(non_snake_case)]
-    pub fn Reply<I>(req: HttpRequest, msg: I) -> Self
+    /// Create response with empty body
+    pub fn reply<I>(req: HttpRequest, msg: I) -> Self
         where I: IntoHttpResponse
     {
-        HttpMessage(HttpMessageItem::Message(msg.into_response(req), None))
-    }
-
-    #[allow(non_snake_case)]
-    pub fn ReplyMessage(msg: HttpResponse, body: Option<Bytes>) -> Self {
-        HttpMessage(HttpMessageItem::Message(msg, body))
+        HttpMessage(HttpMessageItem::Message(msg.into_response(req)))
     }
 
     pub(crate) fn into(self, mut ctx: HttpContext<A>) -> Task {
         match self.0 {
-            HttpMessageItem::Message(msg, body) => {
-                Task::reply(msg, body)
+            HttpMessageItem::Message(msg) => {
+                Task::reply(msg)
             },
             HttpMessageItem::Actor(act) => {
                 ctx.set_actor(act);

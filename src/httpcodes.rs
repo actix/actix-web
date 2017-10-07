@@ -20,7 +20,7 @@ pub const HTTPMethodNotAllowed: StaticResponse = StaticResponse(StatusCode::METH
 impl<S> RouteHandler<S> for StaticResponse {
     fn handle(&self, req: HttpRequest, _: Option<Payload>, _: Rc<S>) -> Task
     {
-        Task::reply(HttpResponse::new(req, self.0, Body::Empty), None)
+        Task::reply(HttpResponse::new(req, self.0, Body::Empty))
     }
 }
 

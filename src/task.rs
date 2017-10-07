@@ -4,7 +4,7 @@ use std::fmt::Write;
 use std::collections::VecDeque;
 
 use http::{StatusCode, Version};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
 use tokio_core::net::TcpStream;
 
@@ -57,15 +57,10 @@ pub struct Task {
 
 impl Task {
 
-    pub(crate) fn reply(msg: HttpResponse, body: Option<Bytes>) -> Self {
+    pub(crate) fn reply(msg: HttpResponse) -> Self {
         let mut frames = VecDeque::new();
-        if let Some(body) = body {
-            frames.push_back(Frame::Message(msg));
-            frames.push_back(Frame::Payload(Some(body)));
-            frames.push_back(Frame::Payload(None));
-        } else {
-            frames.push_back(Frame::Message(msg));
-        }
+        frames.push_back(Frame::Message(msg));
+        frames.push_back(Frame::Payload(None));
 
         Task {
             state: TaskRunningState::Running,

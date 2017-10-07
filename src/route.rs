@@ -8,7 +8,7 @@ use futures::unsync::mpsc::Receiver;
 use task::Task;
 use context::HttpContext;
 use resource::HttpMessage;
-use httpmessage::{HttpRequest, HttpResponse};
+use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
 
 /// Stream of `PayloadItem`'s
 pub type Payload = Receiver<PayloadItem>;
@@ -59,6 +59,18 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
 
     fn factory() -> RouteFactory<Self, Self::State> {
         RouteFactory(PhantomData)
+    }
+
+    /// Create async response
+    fn stream(act: Self) -> HttpMessage<Self> {
+        HttpMessage::stream(act)
+    }
+
+    /// Create response
+    fn reply<I>(req: HttpRequest, msg: I) -> HttpMessage<Self>
+        where I: IntoHttpResponse
+    {
+        HttpMessage::reply(req, msg)
     }
 }
 
