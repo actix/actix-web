@@ -1,14 +1,77 @@
-//! `WebSocket` context implementation
-
-#![allow(dead_code, unused_variables, unused_imports)]
-
-use std::io;
+//! `WebSocket` support for Actix
+//!
+//! To setup a `WebSocket`, first do web socket handshake then on success convert `Payload`
+//! into a `WsStream` stream and then use `WsWriter` to communicate with the peer.
+//!
+//! ## Example
+//!
+//! ```rust
+//! extern crate actix;
+//! extern crate actix_http;
+//! use actix::prelude::*;
+//! use actix_http::*;
+//!
+//! // WebSocket Route
+//! struct WsRoute;
+//!
+//! impl Actor for WsRoute {
+//!     type Context = HttpContext<Self>;
+//! }
+//!
+//! impl Route for WsRoute {
+//!     type State = ();
+//!
+//!     fn request(req: HttpRequest, payload: Option<Payload>,
+//!                ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+//!     {
+//!         if let Some(payload) = payload {
+//!             // WebSocket handshake
+//!             match ws::handshake(req) {
+//!                 Ok(resp) => {
+//!                     // Send handshake response to peer
+//!                     ctx.start(resp);
+//!                     // Map Payload into WsStream
+//!                     ctx.add_stream(ws::WsStream::new(payload));
+//!                     // Start ws messages processing
+//!                     HttpMessage::stream(WsRoute)
+//!                 },
+//!                 Err(err) =>
+//!                     HttpMessage::reply(err)
+//!             }
+//!         } else {
+//!             HttpMessage::reply_with(req, httpcodes::HTTPBadRequest)
+//!         }
+//!     }
+//! }
+//!
+//! // Define Handler for ws::Message message
+//! impl StreamHandler<ws::Message> for WsRoute {}
+//!
+//! impl Handler<ws::Message> for WsRoute {
+//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
+//!               -> Response<Self, ws::Message>
+//!     {
+//!         match msg {
+//!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
+//!             ws::Message::Text(text) => ws::WsWriter::text(ctx, text),
+//!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+//!             _ => (),
+//!         }
+//!         Self::empty()
+//!     }
+//! }
+//!
+//! impl ResponseType<ws::Message> for WsRoute {
+//!     type Item = ();
+//!     type Error = ();
+//! }
+//!
+//! fn main() {}
+//! ```
 use std::vec::Vec;
-use std::borrow::Cow;
-
 use http::{Method, StatusCode};
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Poll, Stream};
 use hyper::header;
 
 use actix::Actor;
@@ -19,12 +82,25 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
 use httpmessage::{Body, ConnectionType, HttpRequest, HttpResponse, IntoHttpResponse};
 
 use wsframe;
-pub use wsproto::*;
+use wsproto::*;
 
-header! { (WebSocketAccept, "SEC-WEBSOCKET-ACCEPT") => [String] }
-header! { (WebSocketKey, "SEC-WEBSOCKET-KEY") => [String] }
-header! { (WebSocketVersion, "SEC-WEBSOCKET-VERSION") => [String] }
-header! { (WebSocketProtocol, "SEC-WEBSOCKET-PROTOCOL") => [String] }
+#[doc(hidden)]
+header! {
+    /// SEC-WEBSOCKET-ACCEPT header
+    (WebSocketAccept, "SEC-WEBSOCKET-ACCEPT") => [String]
+}
+header! {
+    /// SEC-WEBSOCKET-KEY header
+    (WebSocketKey, "SEC-WEBSOCKET-KEY") => [String]
+}
+header! {
+    /// SEC-WEBSOCKET-VERSION header
+    (WebSocketVersion, "SEC-WEBSOCKET-VERSION") => [String]
+}
+header! {
+    /// SEC-WEBSOCKET-PROTOCOL header
+    (WebSocketProtocol, "SEC-WEBSOCKET-PROTOCOL") => [String]
+}
 
 
 #[derive(Debug)]
@@ -38,24 +114,15 @@ pub enum Message {
     Error
 }
 
-#[derive(Debug)]
-pub enum SendMessage {
-    Text(String),
-    Binary(Vec<u8>),
-    Close(CloseCode),
-    Ping,
-    Pong,
-}
-
-/// Prepare `WebSocket` handshake.
+/// Prepare `WebSocket` handshake response.
 ///
-/// It return HTTP response code, response headers, websocket parser,
-/// websocket writer. It does not perform any IO.
+/// This function returns handshake HttpResponse, ready to send to peer.
+/// It does not perform any IO.
 ///
-/// `protocols` is a sequence of known protocols. On successful handshake,
-/// the returned response headers contain the first protocol in this list
-/// which the server also knows.
-pub fn do_handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
+// /// `protocols` is a sequence of known protocols. On successful handshake,
+// /// the returned response headers contain the first protocol in this list
+// /// which the server also knows.
+pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(HTTPMethodNotAllowed.response(req))
@@ -116,7 +183,7 @@ pub fn do_handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
 }
 
 
-/// Struct represent stream of `ws::Message` items
+/// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream {
     rx: Payload,
     buf: BytesMut,
@@ -154,7 +221,7 @@ impl Stream for WsStream {
             match wsframe::Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
                     trace!("Frame {}", frame);
-                    let (finished, opcode, payload) = frame.unpack();
+                    let (_finished, opcode, payload) = frame.unpack();
 
                     match opcode {
                         OpCode::Continue => continue,
@@ -174,7 +241,7 @@ impl Stream for WsStream {
                             match String::from_utf8(payload) {
                                 Ok(s) =>
                                     return Ok(Async::Ready(Some(Message::Text(s)))),
-                                Err(err) =>
+                                Err(_) =>
                                     return Ok(Async::Ready(Some(Message::Error))),
                             }
                         }
@@ -185,7 +252,7 @@ impl Stream for WsStream {
                 } else {
                     return Ok(Async::NotReady)
                 },
-                Err(err) =>
+                Err(_) =>
                     return Err(()),
             }
         }
@@ -198,6 +265,7 @@ pub struct WsWriter;
 
 impl WsWriter {
 
+    /// Send text frame
     pub fn text<A>(ctx: &mut HttpContext<A>, text: String)
         where A: Actor<Context=HttpContext<A>> + Route
     {
@@ -210,6 +278,7 @@ impl WsWriter {
         );
     }
 
+    /// Send binary frame
     pub fn binary<A>(ctx: &mut HttpContext<A>, data: Vec<u8>)
         where A: Actor<Context=HttpContext<A>> + Route
     {
@@ -222,6 +291,7 @@ impl WsWriter {
         );
     }
 
+    /// Send ping frame
     pub fn ping<A>(ctx: &mut HttpContext<A>, message: String)
         where A: Actor<Context=HttpContext<A>> + Route
     {
@@ -234,6 +304,7 @@ impl WsWriter {
         )
     }
 
+    /// Send pong frame
     pub fn pong<A>(ctx: &mut HttpContext<A>, message: String)
         where A: Actor<Context=HttpContext<A>> + Route
     {

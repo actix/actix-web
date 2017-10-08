@@ -67,7 +67,7 @@ impl Route for MyWS {
                ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
     {
         if let Some(payload) = payload {
-            match ws::do_handshake(req) {
+            match ws::handshake(req) {
                 Ok(resp) => {
                     ctx.start(resp);
                     ctx.add_stream(ws::WsStream::new(payload));

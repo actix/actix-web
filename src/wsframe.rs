@@ -25,7 +25,7 @@ fn generate_mask() -> [u8; 4] {
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug, Clone)]
-pub struct Frame {
+pub(crate) struct Frame {
     finished: bool,
     rsv1: bool,
     rsv2: bool,

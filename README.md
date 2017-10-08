@@ -51,7 +51,7 @@ impl Route for MyRoute {
     fn request(req: HttpRequest, payload: Option<Payload>,
                ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
     {
-        Self::http_reply(req, httpcodes::HTTPOk)
+        HttpMessage::reply_with(req, httpcodes::HTTPOk)
     }
 }
 
