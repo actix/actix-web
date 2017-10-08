@@ -15,7 +15,7 @@ Actix Http is licensed under the [Apache-2.0 license](http://opensource.org/lice
   * HTTP 1.1 and 1.0 support
   * Streaming and pipelining support
   * [WebSockets support](https://fafhrd91.github.io/actix-http/actix_http/ws/index.html)
-  * Configurable request routing
+  * [Configurable request routing](https://fafhrd91.github.io/actix-http/actix_http/struct.RoutingMap.html)
 
 ## Usage
 
