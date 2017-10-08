@@ -120,6 +120,7 @@ impl Reader {
             match self.decode()? {
                 Decoding::Paused => return Ok(Async::NotReady),
                 Decoding::Ready => {
+                    println!("decode ready");
                     self.payload = None;
                     break
                 },
@@ -149,6 +150,7 @@ impl Reader {
                                 Decoding::Paused =>
                                     break,
                                 Decoding::Ready => {
+                                    println!("decoded 3");
                                     self.payload = None;
                                     break
                                 },
@@ -280,12 +282,14 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
     });
 
     let msg = HttpRequest::new(method, uri, version, headers);
-
-    let _upgrade = msg.is_upgrade();
+    let upgrade = msg.is_upgrade() || *msg.method() == Method::CONNECT;
     let chunked = msg.is_chunked()?;
 
+    if upgrade {
+        Ok(Some((msg, Some(Decoder::eof()))))
+    }
     // Content-Length
-    if let Some(&ContentLength(len)) = msg.headers().get() {
+    else if let Some(&ContentLength(len)) = msg.headers().get() {
         if chunked {
             return Err(Error::Header)
         }

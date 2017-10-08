@@ -4,12 +4,16 @@
 extern crate log;
 extern crate time;
 extern crate bytes;
+extern crate rand;
+extern crate sha1;
 #[macro_use]
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_proto;
+#[macro_use]
 extern crate hyper;
+extern crate unicase;
 extern crate http;
 extern crate httparse;
 extern crate route_recognizer;
@@ -27,6 +31,10 @@ mod router;
 mod task;
 mod reader;
 mod server;
+
+pub mod ws;
+mod wsframe;
+mod wsproto;
 
 pub mod httpcodes;
 pub use application::HttpApplication;

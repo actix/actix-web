@@ -14,6 +14,7 @@ Actix Http is licensed under the [Apache-2.0 license](http://opensource.org/lice
 
   * HTTP 1.1 and 1.0 support
   * Streaming and pipelining support
+  * WebSockets support
   * Configurable request routing
 
 ## Usage
@@ -47,8 +48,7 @@ impl Actor for MyRoute {
 impl Route for MyRoute {
     type State = ();
 
-    fn request(req: HttpRequest,
-               payload: Option<Payload>,
+    fn request(req: HttpRequest, payload: Option<Payload>,
                ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
     {
         Self::http_reply(req, httpcodes::HTTPOk)
@@ -60,7 +60,8 @@ fn main() {
 
     // create routing map with `MyRoute` route
     let mut routes = RoutingMap::default();
-    routes.add_resource("/")
+    routes
+      .add_resource("/")
         .post::<MyRoute>();
 
     // start http server

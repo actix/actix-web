@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_variables)]
 extern crate actix;
 extern crate actix_http;
 extern crate tokio_core;
@@ -25,9 +25,9 @@ impl Route for MyRoute {
     {
         if let Some(pl) = payload {
             ctx.add_stream(pl);
-            Self::http_stream(MyRoute{req: Some(req)})
+            HttpMessage::stream(MyRoute{req: Some(req)})
         } else {
-            Self::http_reply(req, httpcodes::HTTPOk)
+            HttpMessage::reply_with(req, httpcodes::HTTPOk)
         }
     }
 }
@@ -45,10 +45,61 @@ impl Handler<PayloadItem> for MyRoute {
     {
         println!("CHUNK: {:?}", msg);
         if let Some(req) = self.req.take() {
-            ctx.start(httpcodes::HTTPOk.into_response(req));
+            ctx.start(httpcodes::HTTPOk.response(req));
             ctx.write_eof();
         }
 
+        Self::empty()
+    }
+}
+
+struct MyWS {}
+
+impl Actor for MyWS {
+    type Context = HttpContext<Self>;
+}
+
+impl Route for MyWS {
+    type State = ();
+
+    fn request(req: HttpRequest,
+               payload: Option<Payload>,
+               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+    {
+        if let Some(payload) = payload {
+            match ws::do_handshake(req) {
+                Ok(resp) => {
+                    ctx.start(resp);
+                    ctx.add_stream(ws::WsStream::new(payload));
+                    HttpMessage::stream(MyWS{})
+                },
+                Err(err) =>
+                    HttpMessage::reply(err)
+            }
+        } else {
+            HttpMessage::reply_with(req, httpcodes::HTTPBadRequest)
+        }
+    }
+}
+
+impl ResponseType<ws::Message> for MyWS {
+    type Item = ();
+    type Error = ();
+}
+
+impl StreamHandler<ws::Message> for MyWS {}
+
+impl Handler<ws::Message> for MyWS {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
+              -> Response<Self, ws::Message>
+    {
+        println!("WS: {:?}", msg);
+        match msg {
+            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
+            ws::Message::Text(text) => ws::WsWriter::text(ctx, text),
+            ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+            _ => (),
+        }
         Self::empty()
     }
 }
@@ -70,6 +121,9 @@ fn main() {
 
     routes.add_resource("/test")
         .post::<MyRoute>();
+
+    routes.add_resource("/ws/")
+        .get::<MyWS>();
 
     let http = HttpServer::new(routes);
     http.serve::<()>(

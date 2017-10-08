@@ -8,8 +8,9 @@ use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
 use tokio_core::net::TcpStream;
 
-use hyper::header::{Date, Connection, ContentType,
-                    ContentLength, Encoding, TransferEncoding};
+use unicase::Ascii;
+use hyper::header::{Date, Connection, ConnectionOption,
+                    ContentType, ContentLength, Encoding, TransferEncoding};
 
 use date;
 use route::Frame;
@@ -53,6 +54,7 @@ pub struct Task {
     stream: Option<Box<FrameStream>>,
     encoder: Encoder,
     buffer: BytesMut,
+    upgraded: bool,
 }
 
 impl Task {
@@ -69,6 +71,7 @@ impl Task {
             stream: None,
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
+            upgraded: false,
         }
     }
 
@@ -82,6 +85,7 @@ impl Task {
             stream: Some(Box::new(stream)),
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
+            upgraded: false,
         }
     }
 
@@ -90,7 +94,8 @@ impl Task {
         trace!("Prepare message status={:?}", msg.status);
 
         let mut extra = 0;
-        let body = msg.set_body(Body::Empty);
+        let body = msg.replace_body(Body::Empty);
+
         match body {
             Body::Empty => {
                 if msg.chunked() {
@@ -126,21 +131,24 @@ impl Task {
                     self.encoder = Encoder::eof();
                 }
             }
-        }
-
-        // keep-alive
-        if !msg.headers.has::<Connection>() {
-            if msg.keep_alive() {
-                if msg.version < Version::HTTP_11 {
-                    msg.headers.set(Connection::keep_alive());
-                }
-            } else if msg.version >= Version::HTTP_11 {
-                msg.headers.set(Connection::close());
+            Body::Upgrade => {
+                msg.headers.set(Connection(vec![
+                        ConnectionOption::ConnectionHeader(Ascii::new("upgrade".to_owned()))]));
+                self.encoder = Encoder::eof();
             }
         }
 
+        // keep-alive
+        if msg.keep_alive() {
+            if msg.version < Version::HTTP_11 {
+                msg.headers.set(Connection::keep_alive());
+            }
+        } else if msg.version >= Version::HTTP_11 {
+            msg.headers.set(Connection::close());
+        }
+
         // render message
-        let init_cap = 30 + msg.headers.len() * AVERAGE_HEADER_SIZE + extra;
+        let init_cap = 100 + msg.headers.len() * AVERAGE_HEADER_SIZE + extra;
         self.buffer.reserve(init_cap);
 
         if msg.version == Version::HTTP_11 && msg.status == StatusCode::OK {
@@ -149,6 +157,7 @@ impl Task {
         } else {
             let _ = write!(self.buffer, "{:?} {}\r\n{}", msg.version, msg.status, msg.headers);
         }
+
         // using http::h1::date is quite a lot faster than generating
         // a unique Date header each time like req/s goes up about 10%
         if !msg.headers.has::<Date>() {
@@ -169,7 +178,7 @@ impl Task {
             self.buffer.extend(bytes);
             return
         }
-        msg.set_body(body);
+        msg.replace_body(body);
     }
 
     pub(crate) fn poll_io(&mut self, io: &mut TcpStream) -> Poll<bool, ()> {
@@ -261,7 +270,8 @@ impl Future for Task {
                                     error!("Non expected frame {:?}", frame);
                                     return Err(())
                                 }
-                                if msg.body().has_body() {
+                                self.upgraded = msg.upgrade();
+                                if self.upgraded || msg.body().has_body() {
                                     self.iostate = TaskIOState::ReadingPayload;
                                 } else {
                                     self.iostate = TaskIOState::Done;

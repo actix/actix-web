@@ -91,7 +91,7 @@ impl Router {
                 }
             }
 
-            Task::reply(IntoHttpResponse::into_response(HTTPNotFound, req))
+            Task::reply(IntoHttpResponse::response(HTTPNotFound, req))
         }
     }
 }

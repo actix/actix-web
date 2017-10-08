@@ -12,6 +12,13 @@ use hyper::header::{Connection, ConnectionOption,
 use Params;
 use error::Error;
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum ConnectionType {
+    Close,
+    KeepAlive,
+    Upgrade,
+}
+
 pub trait Message {
 
     fn version(&self) -> Version;
@@ -59,14 +66,6 @@ pub trait Message {
             }
         } else {
             Ok(false)
-        }
-    }
-
-    fn is_upgrade(&self) -> bool {
-        if let Some(&Connection(ref conn)) = self.headers().get() {
-            conn.contains(&ConnectionOption::from_str("upgrade").unwrap())
-        } else {
-            false
         }
     }
 }
@@ -159,6 +158,14 @@ impl HttpRequest {
             params: params
         }
     }
+
+    pub fn is_upgrade(&self) -> bool {
+        if let Some(&Connection(ref conn)) = self.headers().get() {
+            conn.contains(&ConnectionOption::from_str("upgrade").unwrap())
+        } else {
+            false
+        }
+    }
 }
 
 /// Represents various types of http message body.
@@ -173,6 +180,8 @@ pub enum Body {
     /// Unspecified streaming response. Developer is responsible for setting
     /// right `Content-Length` or `Transfer-Encoding` headers.
     Streaming,
+    /// Upgrade connection.
+    Upgrade,
 }
 
 impl Body {
@@ -188,7 +197,7 @@ impl Body {
 /// Implements by something that can be converted to `HttpMessage`
 pub trait IntoHttpResponse {
     /// Convert into response.
-    fn into_response(self, req: HttpRequest) -> HttpResponse;
+    fn response(self, req: HttpRequest) -> HttpResponse;
 }
 
 #[derive(Debug)]
@@ -198,10 +207,11 @@ pub struct HttpResponse {
     pub version: Version,
     pub headers: Headers,
     pub status: StatusCode,
+    reason: Option<&'static str>,
     body: Body,
     chunked: bool,
-    keep_alive: Option<bool>,
     compression: Option<Encoding>,
+    connection_type: Option<ConnectionType>,
 }
 
 impl Message for HttpResponse {
@@ -223,11 +233,18 @@ impl HttpResponse {
             version: version,
             headers: Default::default(),
             status: status,
+            reason: None,
             body: body,
             chunked: false,
-            keep_alive: None,
             compression: None,
+            connection_type: None,
         }
+    }
+
+    /// Original prequest
+    #[inline]
+    pub fn request(&self) -> &HttpRequest {
+        &self.request
     }
 
     /// Get the HTTP version of this response.
@@ -256,37 +273,55 @@ impl HttpResponse {
 
     /// Set the `StatusCode` for this response.
     #[inline]
-    pub fn set_status(&mut self, status: StatusCode) -> &mut Self {
+    pub fn set_status(mut self, status: StatusCode) -> Self {
         self.status = status;
         self
     }
 
     /// Set a header and move the Response.
     #[inline]
-    pub fn set_header<H: Header>(&mut self, header: H) -> &mut Self {
+    pub fn set_header<H: Header>(mut self, header: H) -> Self {
         self.headers.set(header);
         self
     }
 
-    /// Set the headers and move the Response.
+    /// Set the headers.
     #[inline]
-    pub fn with_headers(&mut self, headers: Headers) -> &mut Self {
+    pub fn with_headers(mut self, headers: Headers) -> Self {
         self.headers = headers;
         self
     }
 
+    /// Set the custom reason for the response.
+    #[inline]
+    pub fn set_reason(mut self, reason: &'static str) -> Self {
+        self.reason = Some(reason);
+        self
+    }
+
+    /// Set connection type
+    pub fn set_connection_type(mut self, conn: ConnectionType) -> Self {
+        self.connection_type = Some(conn);
+        self
+    }
+
+    /// Connection upgrade status
+    pub fn upgrade(&self) -> bool {
+        self.connection_type == Some(ConnectionType::Upgrade)
+    }
+
     /// Keep-alive status for this connection
     pub fn keep_alive(&self) -> bool {
-        if let Some(ka) = self.keep_alive {
-            ka
+        if let Some(ConnectionType::KeepAlive) = self.connection_type {
+            true
         } else {
             self.request.should_keep_alive()
         }
     }
-    
+
     /// Force close connection, even if it is marked as keep-alive
     pub fn force_close(&mut self) {
-        self.keep_alive = Some(false);
+        self.connection_type = Some(ConnectionType::Close);
     }
 
     /// is chunked encoding enabled
@@ -310,8 +345,14 @@ impl HttpResponse {
         &self.body
     }
 
+    /// Set a body
+    pub fn set_body<B: Into<Body>>(mut self, body: B) -> Self {
+        self.body = body.into();
+        self
+    }
+
     /// Set a body and return previous body value
-    pub fn set_body<B: Into<Body>>(&mut self, body: B) -> Body {
+    pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
         mem::replace(&mut self.body, body.into())
     }
 }

@@ -101,8 +101,13 @@ impl<A> HttpMessage<A> where A: Actor<Context=HttpContext<A>> + Route
     }
 
     /// Send response
-    pub fn reply<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
-        HttpMessage(HttpMessageItem::Message(msg.into_response(req)))
+    pub fn reply(msg: HttpResponse) -> Self {
+        HttpMessage(HttpMessageItem::Message(msg))
+    }
+
+    /// Send response
+    pub fn reply_with<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
+        HttpMessage(HttpMessageItem::Message(msg.response(req)))
     }
 
     pub(crate) fn into(self, mut ctx: HttpContext<A>) -> Task {

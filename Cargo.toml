@@ -24,8 +24,12 @@ path = "src/main.rs"
 [dependencies]
 time = "0.1"
 http = "0.1"
-httparse = "*"
+httparse = "0.1"
 hyper = "0.11"
+unicase = "2.0"
+slab = "0.4"
+sha1 = "0.2"
+rand = "0.3"
 route-recognizer = "0.1"
 
 # tokio
