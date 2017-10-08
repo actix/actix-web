@@ -56,7 +56,7 @@ impl Route for MyRoute {
 }
 
 fn main() {
-    let system = System::new("test".to_owned());
+    let system = System::new("test");
 
     // create routing map with `MyRoute` route
     let mut routes = RoutingMap::default();

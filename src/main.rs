@@ -108,7 +108,7 @@ impl Handler<ws::Message> for MyWS {
 fn main() {
     let _ = env_logger::init();
 
-    let sys = actix::System::new("http-example".to_owned());
+    let sys = actix::System::new("http-example");
 
     let mut routes = RoutingMap::default();
 
