@@ -14,6 +14,20 @@ pub trait HttpHandler: 'static {
     fn handle(&self, req: HttpRequest, payload: Option<Payload>) -> Task;
 }
 
+/// Request routing map
+///
+/// Route supports glob patterns: * for a single wildcard segment and :param
+/// for matching storing that segment of the request url in the Params object,
+/// which is stored in the request.
+///
+/// For instance, to route Get requests on any route matching /users/:userid/:friend and
+/// store userid and friend in the exposed Params object:
+///
+/// ```rust,ignore
+/// let mut router = RoutingMap::default();
+///
+/// router.add_resource("/users/:userid/:friendid").get::<MyRoute>();
+/// ```
 pub struct RoutingMap {
     apps: HashMap<String, Box<HttpHandler>>,
     resources: HashMap<String, HttpResource>,
@@ -30,20 +44,53 @@ impl Default for RoutingMap {
 
 impl RoutingMap {
 
-    pub fn add<P, S: 'static>(&mut self, path: P, app: HttpApplication<S>)
+    /// Add `HttpApplication` object with specific prefix.
+    /// Application prefixes all registered resources with specified prefix.
+    ///
+    /// ```rust,ignore
+    ///
+    /// struct MyRoute;
+    ///
+    /// fn main() {
+    ///     let mut app = HttpApplication::no_state();
+    ///     app.add("/test")
+    ///         .get::<MyRoute>()
+    ///         .post::<MyRoute>();
+    ///
+    ///     let mut routes = RoutingMap::default();
+    ///     routes.add("/pre", app);
+    /// }
+    /// ```
+    /// In this example, `MyRoute` route is available as `http://.../pre/test` url.
+    pub fn add<P, S: 'static>(&mut self, prefix: P, app: HttpApplication<S>)
         where P: ToString
     {
-        let path = path.to_string();
+        let prefix = prefix.to_string();
 
         // we can not override registered resource
-        if self.apps.contains_key(&path) {
-            panic!("Resource is registered: {}", path);
+        if self.apps.contains_key(&prefix) {
+            panic!("Resource is registered: {}", prefix);
         }
 
         // add application
-        self.apps.insert(path.clone(), app.prepare(path));
+        self.apps.insert(prefix.clone(), app.prepare(prefix));
     }
 
+    /// This method creates `HttpResource` for specified path
+    /// or returns mutable reference to resource object.
+    ///
+    /// ```rust,ignore
+    ///
+    /// struct MyRoute;
+    ///
+    /// fn main() {
+    ///     let mut routes = RoutingMap::default();
+    ///
+    ///     routes.add_resource("/test")
+    ///         .post::<MyRoute>();
+    /// }
+    /// ```
+    /// In this example, `MyRoute` route is available as `http://.../test` url.
     pub fn add_resource<P>(&mut self, path: P) -> &mut HttpResource
         where P: ToString
     {

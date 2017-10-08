@@ -103,6 +103,7 @@ header! {
 }
 
 
+/// `WebSocket` Message
 #[derive(Debug)]
 pub enum Message {
     Text(String),
@@ -116,7 +117,7 @@ pub enum Message {
 
 /// Prepare `WebSocket` handshake response.
 ///
-/// This function returns handshake HttpResponse, ready to send to peer.
+/// This function returns handshake `HttpResponse`, ready to send to peer.
 /// It does not perform any IO.
 ///
 // /// `protocols` is a sequence of known protocols. On successful handshake,

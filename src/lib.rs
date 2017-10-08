@@ -43,5 +43,5 @@ pub use resource::{HttpMessage, HttpResource};
 pub use server::HttpServer;
 pub use context::HttpContext;
 pub use router::RoutingMap;
-pub use route_recognizer::Params;
 pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
+pub use route_recognizer::Params;

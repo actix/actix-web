@@ -11,7 +11,24 @@ use context::HttpContext;
 use httpcodes::HTTPMethodNotAllowed;
 use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
 
-/// Resource
+/// Http resource
+///
+/// `HttpResource` is an entry in route table which corresponds to requested URL.
+///
+/// Resource in turn has at least one route.
+/// Route corresponds to handling HTTP method by calling route handler.
+///
+/// ```rust,ignore
+///
+/// struct MyRoute;
+///
+/// fn main() {
+///     let mut routes = RoutingMap::default();
+///
+///     routes
+///      .add_resource("/")
+///         .post::<MyRoute>();
+/// }
 pub struct HttpResource<S=()> {
     state: PhantomData<S>,
     routes: HashMap<Method, Box<RouteHandler<S>>>,
@@ -91,6 +108,7 @@ enum HttpMessageItem<A> where A: Actor<Context=HttpContext<A>> + Route {
     Actor(A),
 }
 
+/// Represents response process.
 pub struct HttpMessage<A: Actor<Context=HttpContext<A>> + Route> (HttpMessageItem<A>);
 
 impl<A> HttpMessage<A> where A: Actor<Context=HttpContext<A>> + Route

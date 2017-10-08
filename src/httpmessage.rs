@@ -146,9 +146,14 @@ impl HttpRequest {
         &mut self.headers
     }
 
+    /// Get a reference to the Params object.
+    /// Params is a container for url parameters.
+    /// Route supports glob patterns: * for a single wildcard segment and :param
+    /// for matching storing that segment of the request url in the Params object.
     #[inline]
     pub fn params(&self) -> &Params { &self.params }
 
+    /// Create new request with Params object.
     pub fn with_params(self, params: Params) -> Self {
         HttpRequest {
             method: self.method,
@@ -159,7 +164,7 @@ impl HttpRequest {
         }
     }
 
-    pub fn is_upgrade(&self) -> bool {
+    pub(crate) fn is_upgrade(&self) -> bool {
         if let Some(&Connection(ref conn)) = self.headers().get() {
             conn.contains(&ConnectionOption::from_str("upgrade").unwrap())
         } else {
