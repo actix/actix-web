@@ -1,4 +1,4 @@
-# Actix Http [![Build Status](https://travis-ci.org/fafhrd91/actix-http.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
+# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-http.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
 
 Actix http is a server http framework for Actix framework.
 
@@ -8,7 +8,7 @@ Actix http is a server http framework for Actix framework.
 
 ---
 
-Actix Http is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
+Actix http is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
 
 ## Features
 
@@ -49,9 +49,9 @@ impl Route for MyRoute {
     type State = ();
 
     fn request(req: HttpRequest, payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+               ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
-        HttpMessage::reply_with(req, httpcodes::HTTPOk)
+        Reply::with(req, httpcodes::HTTPOk)
     }
 }
 

@@ -6,21 +6,21 @@ use route_recognizer::Router;
 
 use task::Task;
 use route::{Payload, RouteHandler};
-use router::HttpHandler;
-use resource::HttpResource;
+use router::Handler;
+use resource::Resource;
 use httpmessage::HttpRequest;
 
 
 /// Application
-pub struct HttpApplication<S=()> {
+pub struct Application<S=()> {
     state: S,
-    default: HttpResource<S>,
-    resources: HashMap<String, HttpResource<S>>,
+    default: Resource<S>,
+    resources: HashMap<String, Resource<S>>,
 }
 
-impl<S> HttpApplication<S> where S: 'static
+impl<S> Application<S> where S: 'static
 {
-    pub(crate) fn prepare(self, prefix: String) -> Box<HttpHandler> {
+    pub(crate) fn prepare(self, prefix: String) -> Box<Handler> {
         let mut router = Router::new();
         let prefix = if prefix.ends_with('/') {prefix } else { prefix + "/" };
 
@@ -38,46 +38,46 @@ impl<S> HttpApplication<S> where S: 'static
     }
 }
 
-impl HttpApplication<()> {
+impl Default for Application<()> {
 
-    /// Create `HttpApplication` with no state
-    pub fn no_state() -> Self {
-        HttpApplication {
+    /// Create default `Application` with no state
+    fn default() -> Self {
+        Application {
             state: (),
-            default: HttpResource::default(),
+            default: Resource::default(),
             resources: HashMap::new(),
         }
     }
 }
 
-impl<S> HttpApplication<S> where S: 'static {
+impl<S> Application<S> where S: 'static {
 
     /// Create http application with specific state. State is shared with all
     /// routes within same application and could be
     /// accessed with `HttpContext::state()` method.
-    pub fn new(state: S) -> HttpApplication<S> {
-        HttpApplication {
+    pub fn new(state: S) -> Application<S> {
+        Application {
             state: state,
-            default: HttpResource::default(),
+            default: Resource::default(),
             resources: HashMap::new(),
         }
     }
 
     /// Add resource by path.
-    pub fn add<P: ToString>(&mut self, path: P) -> &mut HttpResource<S>
+    pub fn add<P: ToString>(&mut self, path: P) -> &mut Resource<S>
     {
         let path = path.to_string();
 
         // add resource
         if !self.resources.contains_key(&path) {
-            self.resources.insert(path.clone(), HttpResource::default());
+            self.resources.insert(path.clone(), Resource::default());
         }
 
         self.resources.get_mut(&path).unwrap()
     }
 
-    /// Default resource is used if no matched route could be found.
-    pub fn default(&mut self) -> &mut HttpResource<S> {
+    /// Default resource is used if no matches route could be found.
+    pub fn default_resource(&mut self) -> &mut Resource<S> {
         &mut self.default
     }
 }
@@ -86,12 +86,12 @@ impl<S> HttpApplication<S> where S: 'static {
 pub(crate)
 struct InnerApplication<S> {
     state: Rc<S>,
-    default: HttpResource<S>,
-    router: Router<HttpResource<S>>,
+    default: Resource<S>,
+    router: Router<Resource<S>>,
 }
 
 
-impl<S: 'static> HttpHandler for InnerApplication<S> {
+impl<S: 'static> Handler for InnerApplication<S> {
 
     fn handle(&self, req: HttpRequest, payload: Option<Payload>) -> Task {
         if let Ok(h) = self.router.recognize(req.path()) {

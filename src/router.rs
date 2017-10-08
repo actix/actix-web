@@ -5,12 +5,12 @@ use route_recognizer::{Router as Recognizer};
 
 use task::Task;
 use route::{Payload, RouteHandler};
-use resource::HttpResource;
-use application::HttpApplication;
+use resource::Resource;
+use application::Application;
 use httpcodes::HTTPNotFound;
 use httpmessage::{HttpRequest, IntoHttpResponse};
 
-pub trait HttpHandler: 'static {
+pub(crate) trait Handler: 'static {
     fn handle(&self, req: HttpRequest, payload: Option<Payload>) -> Task;
 }
 
@@ -29,8 +29,8 @@ pub trait HttpHandler: 'static {
 /// router.add_resource("/users/:userid/:friendid").get::<MyRoute>();
 /// ```
 pub struct RoutingMap {
-    apps: HashMap<String, Box<HttpHandler>>,
-    resources: HashMap<String, HttpResource>,
+    apps: HashMap<String, Box<Handler>>,
+    resources: HashMap<String, Resource>,
 }
 
 impl Default for RoutingMap {
@@ -44,7 +44,7 @@ impl Default for RoutingMap {
 
 impl RoutingMap {
 
-    /// Add `HttpApplication` object with specific prefix.
+    /// Add `Application` object with specific prefix.
     /// Application prefixes all registered resources with specified prefix.
     ///
     /// ```rust,ignore
@@ -52,7 +52,7 @@ impl RoutingMap {
     /// struct MyRoute;
     ///
     /// fn main() {
-    ///     let mut app = HttpApplication::no_state();
+    ///     let mut app = Application::default();
     ///     app.add("/test")
     ///         .get::<MyRoute>()
     ///         .post::<MyRoute>();
@@ -62,7 +62,7 @@ impl RoutingMap {
     /// }
     /// ```
     /// In this example, `MyRoute` route is available as `http://.../pre/test` url.
-    pub fn add<P, S: 'static>(&mut self, prefix: P, app: HttpApplication<S>)
+    pub fn add<P, S: 'static>(&mut self, prefix: P, app: Application<S>)
         where P: ToString
     {
         let prefix = prefix.to_string();
@@ -76,7 +76,7 @@ impl RoutingMap {
         self.apps.insert(prefix.clone(), app.prepare(prefix));
     }
 
-    /// This method creates `HttpResource` for specified path
+    /// This method creates `Resource` for specified path
     /// or returns mutable reference to resource object.
     ///
     /// ```rust,ignore
@@ -91,14 +91,14 @@ impl RoutingMap {
     /// }
     /// ```
     /// In this example, `MyRoute` route is available as `http://.../test` url.
-    pub fn add_resource<P>(&mut self, path: P) -> &mut HttpResource
+    pub fn add_resource<P>(&mut self, path: P) -> &mut Resource
         where P: ToString
     {
         let path = path.to_string();
 
         // add resource
         if !self.resources.contains_key(&path) {
-            self.resources.insert(path.clone(), HttpResource::default());
+            self.resources.insert(path.clone(), Resource::default());
         }
 
         self.resources.get_mut(&path).unwrap()
@@ -121,8 +121,8 @@ impl RoutingMap {
 
 pub(crate)
 struct Router {
-    apps: HashMap<String, Box<HttpHandler>>,
-    resources: Recognizer<HttpResource>,
+    apps: HashMap<String, Box<Handler>>,
+    resources: Recognizer<Resource>,
 }
 
 impl Router {

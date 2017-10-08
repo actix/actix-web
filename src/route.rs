@@ -7,7 +7,7 @@ use futures::unsync::mpsc::Receiver;
 
 use task::Task;
 use context::HttpContext;
-use resource::HttpMessage;
+use resource::Reply;
 use httpmessage::{HttpRequest, HttpResponse};
 
 /// Stream of `PayloadItem`'s
@@ -45,7 +45,7 @@ pub enum Frame {
     Payload(Option<Bytes>),
 }
 
-/// Trait defines object that could be regestered as resource route.
+/// Trait defines object that could be regestered as resource route
 pub trait RouteHandler<S>: 'static {
     fn handle(&self, req: HttpRequest, payload: Option<Payload>, state: Rc<S>) -> Task;
 }
@@ -57,12 +57,12 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
     type State;
 
     /// Handle incoming request. Route actor can return
-    /// result immediately with `HttpMessage::reply` or `HttpMessage::error`.
+    /// result immediately with `Reply::reply` or `Reply::with`.
     /// Actor itself could be returned for handling streaming request/response.
-    /// In that case `HttpContext::start` and `HttpContext::write` hs to be used.
+    /// In that case `HttpContext::start` and `HttpContext::write` has to be used.
     fn request(req: HttpRequest,
                payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>;
+               ctx: &mut HttpContext<Self>) -> Reply<Self>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -70,7 +70,7 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
     }
 }
 
-/// This is used for routes registration within `HttpResource`.
+/// This is used for routes registration within `Resource`
 pub struct RouteFactory<A: Route<State=S>, S>(PhantomData<A>);
 
 impl<A, S> RouteHandler<S> for RouteFactory<A, S>

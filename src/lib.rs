@@ -6,6 +6,7 @@ extern crate time;
 extern crate bytes;
 extern crate rand;
 extern crate sha1;
+extern crate url;
 #[macro_use]
 extern crate futures;
 extern crate tokio_core;
@@ -14,6 +15,7 @@ extern crate tokio_proto;
 #[macro_use]
 extern crate hyper;
 extern crate unicase;
+
 extern crate http;
 extern crate httparse;
 extern crate route_recognizer;
@@ -37,11 +39,11 @@ mod wsframe;
 mod wsproto;
 
 pub mod httpcodes;
-pub use application::HttpApplication;
+pub use application::Application;
+pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
+pub use router::RoutingMap;
+pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler, Payload, PayloadItem};
-pub use resource::{HttpMessage, HttpResource};
 pub use server::HttpServer;
 pub use context::HttpContext;
-pub use router::RoutingMap;
-pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
 pub use route_recognizer::Params;

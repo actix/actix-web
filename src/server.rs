@@ -10,7 +10,7 @@ use task::Task;
 use reader::Reader;
 use router::{Router, RoutingMap};
 
-/// An HTTP Server.
+/// An HTTP Server
 pub struct HttpServer {
     router: Rc<Router>,
 }

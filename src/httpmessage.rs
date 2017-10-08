@@ -164,6 +164,21 @@ impl HttpRequest {
         }
     }
 
+    /// Is keepalive enabled by client?
+    pub fn keep_alive(&self) -> bool {
+        let ret = match (self.version(), self.headers().get::<Connection>()) {
+            (Version::HTTP_10, None) => false,
+            (Version::HTTP_10, Some(conn))
+                if !conn.contains(&ConnectionOption::KeepAlive) => false,
+            (Version::HTTP_11, Some(conn))
+                if conn.contains(&ConnectionOption::Close)  => false,
+            _ => true
+        };
+        trace!("should_keep_alive(version={:?}, header={:?}) = {:?}",
+               self.version(), self.headers().get::<Connection>(), ret);
+        ret
+    }
+
     pub(crate) fn is_upgrade(&self) -> bool {
         if let Some(&Connection(ref conn)) = self.headers().get() {
             conn.contains(&ConnectionOption::from_str("upgrade").unwrap())
@@ -199,7 +214,7 @@ impl Body {
     }
 }
 
-/// Implements by something that can be converted to `HttpMessage`
+/// Implements by something that can be converted to `HttpResponse`
 pub trait IntoHttpResponse {
     /// Convert into response.
     fn response(self, req: HttpRequest) -> HttpResponse;

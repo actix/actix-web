@@ -22,7 +22,7 @@
 //!     type State = ();
 //!
 //!     fn request(req: HttpRequest, payload: Option<Payload>,
-//!                ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+//!                ctx: &mut HttpContext<Self>) -> Reply<Self>
 //!     {
 //!         if let Some(payload) = payload {
 //!             // WebSocket handshake
@@ -33,13 +33,13 @@
 //!                     // Map Payload into WsStream
 //!                     ctx.add_stream(ws::WsStream::new(payload));
 //!                     // Start ws messages processing
-//!                     HttpMessage::stream(WsRoute)
+//!                     Reply::stream(WsRoute)
 //!                 },
 //!                 Err(err) =>
-//!                     HttpMessage::reply(err)
+//!                     Reply::reply(err)
 //!             }
 //!         } else {
-//!             HttpMessage::reply_with(req, httpcodes::HTTPBadRequest)
+//!             Reply::with(req, httpcodes::HTTPBadRequest)
 //!         }
 //!     }
 //! }

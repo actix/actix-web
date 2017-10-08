@@ -13,7 +13,7 @@ use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
 
 /// Http resource
 ///
-/// `HttpResource` is an entry in route table which corresponds to requested URL.
+/// `Resource` is an entry in route table which corresponds to requested URL.
 ///
 /// Resource in turn has at least one route.
 /// Route corresponds to handling HTTP method by calling route handler.
@@ -29,15 +29,15 @@ use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
 ///      .add_resource("/")
 ///         .post::<MyRoute>();
 /// }
-pub struct HttpResource<S=()> {
+pub struct Resource<S=()> {
     state: PhantomData<S>,
     routes: HashMap<Method, Box<RouteHandler<S>>>,
     default: Box<RouteHandler<S>>,
 }
 
-impl<S> Default for HttpResource<S> {
+impl<S> Default for Resource<S> {
     fn default() -> Self {
-        HttpResource {
+        Resource {
             state: PhantomData,
             routes: HashMap::new(),
             default: Box::new(HTTPMethodNotAllowed)}
@@ -45,7 +45,7 @@ impl<S> Default for HttpResource<S> {
 }
 
 
-impl<S> HttpResource<S> where S: 'static {
+impl<S> Resource<S> where S: 'static {
 
     /// Register handler for specified method.
     pub fn handler<H>(&mut self, method: Method, handler: H) -> &mut Self
@@ -90,7 +90,7 @@ impl<S> HttpResource<S> where S: 'static {
 }
 
 
-impl<S: 'static> RouteHandler<S> for HttpResource<S> {
+impl<S: 'static> RouteHandler<S> for Resource<S> {
 
     fn handle(&self, req: HttpRequest, payload: Option<Payload>, state: Rc<S>) -> Task {
         if let Some(handler) = self.routes.get(req.method()) {
@@ -103,37 +103,37 @@ impl<S: 'static> RouteHandler<S> for HttpResource<S> {
 
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
-enum HttpMessageItem<A> where A: Actor<Context=HttpContext<A>> + Route {
+enum ReplyItem<A> where A: Actor<Context=HttpContext<A>> + Route {
     Message(HttpResponse),
     Actor(A),
 }
 
 /// Represents response process.
-pub struct HttpMessage<A: Actor<Context=HttpContext<A>> + Route> (HttpMessageItem<A>);
+pub struct Reply<A: Actor<Context=HttpContext<A>> + Route> (ReplyItem<A>);
 
-impl<A> HttpMessage<A> where A: Actor<Context=HttpContext<A>> + Route
+impl<A> Reply<A> where A: Actor<Context=HttpContext<A>> + Route
 {
     /// Create async response
     pub fn stream(act: A) -> Self {
-        HttpMessage(HttpMessageItem::Actor(act))
+        Reply(ReplyItem::Actor(act))
     }
 
     /// Send response
     pub fn reply(msg: HttpResponse) -> Self {
-        HttpMessage(HttpMessageItem::Message(msg))
+        Reply(ReplyItem::Message(msg))
     }
 
     /// Send response
-    pub fn reply_with<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
-        HttpMessage(HttpMessageItem::Message(msg.response(req)))
+    pub fn with<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
+        Reply(ReplyItem::Message(msg.response(req)))
     }
 
     pub(crate) fn into(self, mut ctx: HttpContext<A>) -> Task {
         match self.0 {
-            HttpMessageItem::Message(msg) => {
+            ReplyItem::Message(msg) => {
                 Task::reply(msg)
             },
-            HttpMessageItem::Actor(act) => {
+            ReplyItem::Actor(act) => {
                 ctx.set_actor(act);
                 Task::with_stream(ctx)
             }

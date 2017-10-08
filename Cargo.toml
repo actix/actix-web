@@ -25,12 +25,14 @@ path = "src/main.rs"
 time = "0.1"
 http = "0.1"
 httparse = "0.1"
-hyper = "0.11"
-unicase = "2.0"
 slab = "0.4"
 sha1 = "0.2"
 rand = "0.3"
+url = "1.5"
 route-recognizer = "0.1"
+
+hyper = "0.11"
+unicase = "2.0"
 
 # tokio
 bytes = "0.4"

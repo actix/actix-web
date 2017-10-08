@@ -21,13 +21,13 @@ impl Route for MyRoute {
 
     fn request(req: HttpRequest,
                payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+               ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
         if let Some(pl) = payload {
             ctx.add_stream(pl);
-            HttpMessage::stream(MyRoute{req: Some(req)})
+            Reply::stream(MyRoute{req: Some(req)})
         } else {
-            HttpMessage::reply_with(req, httpcodes::HTTPOk)
+            Reply::with(req, httpcodes::HTTPOk)
         }
     }
 }
@@ -64,20 +64,20 @@ impl Route for MyWS {
 
     fn request(req: HttpRequest,
                payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> HttpMessage<Self>
+               ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
         if let Some(payload) = payload {
             match ws::handshake(req) {
                 Ok(resp) => {
                     ctx.start(resp);
                     ctx.add_stream(ws::WsStream::new(payload));
-                    HttpMessage::stream(MyWS{})
+                    Reply::stream(MyWS{})
                 },
                 Err(err) =>
-                    HttpMessage::reply(err)
+                    Reply::reply(err)
             }
         } else {
-            HttpMessage::reply_with(req, httpcodes::HTTPBadRequest)
+            Reply::with(req, httpcodes::HTTPBadRequest)
         }
     }
 }
@@ -112,7 +112,7 @@ fn main() {
 
     let mut routes = RoutingMap::default();
 
-    let mut app = HttpApplication::no_state();
+    let mut app = Application::default();
     app.add("/test")
         .get::<MyRoute>()
         .post::<MyRoute>();
