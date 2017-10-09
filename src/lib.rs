@@ -1,4 +1,4 @@
-//! Actix http framework
+//! Http framework for [Actix](https://github.com/fafhrd91/actix)
 
 #[macro_use]
 extern crate log;

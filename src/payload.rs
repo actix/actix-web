@@ -5,6 +5,7 @@ use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
+/// Just Bytes object
 pub type PayloadItem = Bytes;
 
 const MAX_PAYLOAD_SIZE: usize = 65_536; // max buffer size 64k
@@ -47,7 +48,8 @@ impl Payload {
         self.inner.borrow().len() == 0
     }
 
-    /// Get any chunk of data
+    /// Get first available chunk of data.
+    /// Chunk get returned as Some(PayloadItem), `None` indicates eof.
     pub fn readany(&mut self) -> Async<Option<PayloadItem>> {
         self.inner.borrow_mut().readany()
     }
