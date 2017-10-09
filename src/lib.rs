@@ -4,7 +4,6 @@
 extern crate log;
 extern crate time;
 extern crate bytes;
-extern crate rand;
 extern crate sha1;
 extern crate url;
 #[macro_use]

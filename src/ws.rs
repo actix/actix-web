@@ -296,7 +296,8 @@ impl WsWriter {
     pub fn ping<A>(ctx: &mut HttpContext<A>, message: String)
         where A: Actor<Context=HttpContext<A>> + Route
     {
-        let mut frame = wsframe::Frame::ping(Vec::from(message.as_str()));
+        let mut frame = wsframe::Frame::message(
+            Vec::from(message.as_str()), OpCode::Ping, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -309,7 +310,8 @@ impl WsWriter {
     pub fn pong<A>(ctx: &mut HttpContext<A>, message: String)
         where A: Actor<Context=HttpContext<A>> + Route
     {
-        let mut frame = wsframe::Frame::pong(Vec::from(message.as_str()));
+        let mut frame = wsframe::Frame::message(
+            Vec::from(message.as_str()), OpCode::Pong, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 

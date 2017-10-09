@@ -1,9 +1,5 @@
-#![allow(dead_code, unused_variables)]
 use std::fmt;
 use std::convert::{Into, From};
-use std::mem::transmute;
-
-use rand;
 use sha1;
 
 
@@ -25,18 +21,6 @@ pub(crate) enum OpCode {
     Pong,
     /// Indicates an invalid opcode was received.
     Bad,
-}
-
-impl OpCode {
-
-    /// Test whether the opcode indicates a control frame.
-    pub fn is_control(&self) -> bool {
-        match *self {
-            Text | Binary | Continue => false,
-            _ => true,
-        }
-    }
-
 }
 
 impl fmt::Display for OpCode {
@@ -208,13 +192,6 @@ impl From<u16> for CloseCode {
 static WS_GUID: &'static str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 static BASE64: &'static [u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-
-fn generate_key() -> String {
-    let key: [u8; 16] = unsafe {
-        transmute(rand::random::<(u64, u64)>())
-    };
-    encode_base64(&key)
-}
 
 // TODO: hash is always same size, we dont need String
 pub(crate) fn hash_key(key: &[u8]) -> String {

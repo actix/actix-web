@@ -1,11 +1,6 @@
-#![allow(dead_code, unused_variables)]
-use std::fmt;
-use std::mem::transmute;
+use std::{fmt, mem};
 use std::io::{Write, Error, ErrorKind};
-use std::default::Default;
 use std::iter::FromIterator;
-
-use rand;
 use bytes::BytesMut;
 
 use wsproto::{OpCode, CloseCode};
@@ -16,11 +11,6 @@ fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
     for (byte, &key) in iter {
         *byte ^= key
     }
-}
-
-#[inline]
-fn generate_mask() -> [u8; 4] {
-    unsafe { transmute(rand::random::<u32>()) }
 }
 
 /// A struct representing a `WebSocket` frame.
@@ -47,7 +37,7 @@ impl Frame {
     #[inline]
     pub fn len(&self) -> usize {
         let mut header_length = 2;
-        let payload_len = self.payload().len();
+        let payload_len = self.payload.len();
         if payload_len > 125 {
             if payload_len <= u16::max_value() as usize {
                 header_length += 2;
@@ -56,141 +46,11 @@ impl Frame {
             }
         }
 
-        if self.is_masked() {
+        if self.mask.is_some() {
             header_length += 4;
         }
 
         header_length + payload_len
-    }
-
-    /// Test whether the frame is a final frame.
-    #[inline]
-    pub fn is_final(&self) -> bool {
-        self.finished
-    }
-
-    /// Test whether the first reserved bit is set.
-    #[inline]
-    pub fn has_rsv1(&self) -> bool {
-        self.rsv1
-    }
-
-    /// Test whether the second reserved bit is set.
-    #[inline]
-    pub fn has_rsv2(&self) -> bool {
-        self.rsv2
-    }
-
-    /// Test whether the third reserved bit is set.
-    #[inline]
-    pub fn has_rsv3(&self) -> bool {
-        self.rsv3
-    }
-
-    /// Get the OpCode of the frame.
-    #[inline]
-    pub fn opcode(&self) -> OpCode {
-        self.opcode
-    }
-
-    /// Test whether this is a control frame.
-    #[inline]
-    pub fn is_control(&self) -> bool {
-        self.opcode.is_control()
-    }
-
-    /// Get a reference to the frame's payload.
-    #[inline]
-    pub fn payload(&self) -> &Vec<u8> {
-        &self.payload
-    }
-
-    // Test whether the frame is masked.
-    #[doc(hidden)]
-    #[inline]
-    pub fn is_masked(&self) -> bool {
-        self.mask.is_some()
-    }
-
-    // Get an optional reference to the frame's mask.
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    #[inline]
-    pub fn mask(&self) -> Option<&[u8; 4]> {
-        self.mask.as_ref()
-    }
-
-    /// Make this frame a final frame.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn set_final(&mut self, is_final: bool) -> &mut Frame {
-        self.finished = is_final;
-        self
-    }
-
-    /// Set the first reserved bit.
-    #[inline]
-    pub fn set_rsv1(&mut self, has_rsv1: bool) -> &mut Frame {
-        self.rsv1 = has_rsv1;
-        self
-    }
-
-    /// Set the second reserved bit.
-    #[inline]
-    pub fn set_rsv2(&mut self, has_rsv2: bool) -> &mut Frame {
-        self.rsv2 = has_rsv2;
-        self
-    }
-
-    /// Set the third reserved bit.
-    #[inline]
-    pub fn set_rsv3(&mut self, has_rsv3: bool) -> &mut Frame {
-        self.rsv3 = has_rsv3;
-        self
-    }
-
-    /// Set the OpCode.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn set_opcode(&mut self, opcode: OpCode) -> &mut Frame {
-        self.opcode = opcode;
-        self
-    }
-
-    /// Edit the frame's payload.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload
-    }
-
-    // Generate a new mask for this frame.
-    //
-    // This method simply generates and stores the mask. It does not change the payload data.
-    // Instead, the payload data will be masked with the generated mask when the frame is sent
-    // to the other endpoint.
-    #[doc(hidden)]
-    #[inline]
-    pub fn set_mask(&mut self) -> &mut Frame {
-        self.mask = Some(generate_mask());
-        self
-    }
-
-    // This method unmasks the payload and should only be called on frames that are actually
-    // masked. In other words, those frames that have just been received from a client endpoint.
-    #[doc(hidden)]
-    #[inline]
-    pub fn remove_mask(&mut self) -> &mut Frame {
-        self.mask.and_then(|mask| {
-            Some(apply_mask(&mut self.payload, &mask))
-        });
-        self.mask = None;
-        self
-    }
-
-    /// Consume the frame into its payload.
-    pub fn into_data(self) -> Vec<u8> {
-        self.payload
     }
 
     /// Create a new data frame.
@@ -209,32 +69,12 @@ impl Frame {
         }
     }
 
-    /// Create a new Pong control frame.
-    #[inline]
-    pub fn pong(data: Vec<u8>) -> Frame {
-        Frame {
-            opcode: OpCode::Pong,
-            payload: data,
-            .. Frame::default()
-        }
-    }
-
-    /// Create a new Ping control frame.
-    #[inline]
-    pub fn ping(data: Vec<u8>) -> Frame {
-        Frame {
-            opcode: OpCode::Ping,
-            payload: data,
-            .. Frame::default()
-        }
-    }
-
     /// Create a new Close control frame.
     #[inline]
     pub fn close(code: CloseCode, reason: &str) -> Frame {
         let raw: [u8; 2] = unsafe {
             let u: u16 = code.into();
-            transmute(u.to_be())
+            mem::transmute(u.to_be())
         };
 
         let payload = if let CloseCode::Empty = code {
@@ -298,7 +138,7 @@ impl Frame {
                 idx += 2;
 
                 length = u64::from(unsafe{
-                    let mut wide: u16 = transmute(length_bytes);
+                    let mut wide: u16 = mem::transmute(length_bytes);
                     wide = u16::from_be(wide);
                     wide});
                 header_length += 2;
@@ -311,7 +151,7 @@ impl Frame {
                 size -= 8;
                 idx += 2;
 
-                unsafe { length = transmute(length_bytes); }
+                unsafe { length = mem::transmute(length_bytes); }
                 length = u64::from_be(length);
                 header_length += 8;
             }
@@ -393,23 +233,23 @@ impl Frame {
     {
         let mut one = 0u8;
         let code: u8 = self.opcode.into();
-        if self.is_final() {
+        if self.finished {
             one |= 0x80;
         }
-        if self.has_rsv1() {
+        if self.rsv1 {
             one |= 0x40;
         }
-        if self.has_rsv2() {
+        if self.rsv2 {
             one |= 0x20;
         }
-        if self.has_rsv3() {
+        if self.rsv3 {
             one |= 0x10;
         }
         one |= code;
 
         let mut two = 0u8;
 
-        if self.is_masked() {
+        if self.mask.is_some() {
             two |= 0x80;
         }
 
@@ -421,7 +261,7 @@ impl Frame {
             two |= 126;
             let length_bytes: [u8; 2] = unsafe {
                 let short = self.payload.len() as u16;
-                transmute(short.to_be())
+                mem::transmute(short.to_be())
             };
             let headers = [one, two, length_bytes[0], length_bytes[1]];
             try!(w.write_all(&headers));
@@ -429,7 +269,7 @@ impl Frame {
             two |= 127;
             let length_bytes: [u8; 8] = unsafe {
                 let long = self.payload.len() as u64;
-                transmute(long.to_be())
+                mem::transmute(long.to_be())
             };
             let headers = [
                 one,
@@ -446,7 +286,7 @@ impl Frame {
             try!(w.write_all(&headers));
         }
 
-        if self.is_masked() {
+        if self.mask.is_some() {
             let mask = self.mask.take().unwrap();
             apply_mask(&mut self.payload, &mask);
             try!(w.write_all(&mask));
