@@ -6,7 +6,7 @@ use futures::{Async, Stream, Poll};
 use bytes::Bytes;
 use actix::{Actor, ActorState, ActorContext, AsyncActorContext};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell};
+use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, SpawnHandle};
 
 use route::{Route, Frame};
 use httpmessage::HttpResponse;
@@ -17,7 +17,7 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
 {
     act: Option<A>,
     state: ActorState,
-    items: Vec<Box<ActorFuture<Item=(), Error=(), Actor=A>>>,
+    items: ActorItemsCell<A>,
     address: ActorAddressCell<A>,
     stream: VecDeque<Frame>,
     app_state: Rc<<A as Route>::State>,
@@ -37,7 +37,7 @@ impl<A> ActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
     /// Terminate actor execution
     fn terminate(&mut self) {
         self.address.close();
-        self.items.clear();
+        self.items.close();
         self.state = ActorState::Stopped;
     }
 
@@ -49,14 +49,14 @@ impl<A> ActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
 
 impl<A> AsyncActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
 {
-    fn spawn<F>(&mut self, fut: F)
+    fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
-        if self.state == ActorState::Stopped {
-            error!("Context::spawn called for stopped actor.");
-        } else {
-            self.items.push(Box::new(fut))
-        }
+        self.items.spawn(fut)
+    }
+
+    fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
+        self.items.cancel_future(handle)
     }
 }
 
@@ -74,7 +74,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
         HttpContext {
             act: None,
             state: ActorState::Started,
-            items: Vec::new(),
+            items: ActorItemsCell::default(),
             address: ActorAddressCell::default(),
             stream: VecDeque::new(),
             app_state: state,
@@ -147,47 +147,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
                 not_ready = false
             }
 
-            // check secondary streams
-            let mut idx = 0;
-            let mut len = self.items.len();
-            loop {
-                if idx >= len {
-                    break
-                }
-
-                let (drop, item) = match self.items[idx].poll(act, ctx) {
-                    Ok(val) => match val {
-                        Async::Ready(_) => {
-                            not_ready = false;
-                            (true, None)
-                        }
-                        Async::NotReady => (false, None),
-                    },
-                    Err(_) => (true, None)
-                };
-
-                // we have new pollable item
-                if let Some(item) = item {
-                    self.items.push(item);
-                }
-
-                // number of items could be different, context can add more items
-                len = self.items.len();
-
-                // item finishes, we need to remove it,
-                // replace current item with last item
-                if drop {
-                    len -= 1;
-                    if idx >= len {
-                        self.items.pop();
-                        break
-                    } else {
-                        self.items[idx] = self.items.pop().unwrap();
-                    }
-                } else {
-                    idx += 1;
-                }
-            }
+            self.items.poll(act, ctx);
 
             // are we done
             if !not_ready {
