@@ -18,8 +18,7 @@ use httpmessage::{Body, HttpResponse};
 
 type FrameStream = Stream<Item=Frame, Error=io::Error>;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
-const DEFAULT_LIMIT: usize = 65_536; // max buffer size 64k
-
+const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 #[derive(PartialEq, Debug)]
 enum TaskRunningState {
@@ -239,7 +238,7 @@ impl Task {
 
         // should pause task
         if self.state != TaskRunningState::Done {
-            if self.buffer.len() > DEFAULT_LIMIT {
+            if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
                 self.state = TaskRunningState::Paused;
             } else if self.state == TaskRunningState::Paused {
                 self.state = TaskRunningState::Running;

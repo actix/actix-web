@@ -48,8 +48,7 @@ impl Actor for MyRoute {
 impl Route for MyRoute {
     type State = ();
 
-    fn request(req: HttpRequest, payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> Reply<Self>
+    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
         Reply::with(req, httpcodes::HTTPOk)
     }

@@ -3,26 +3,23 @@ use std::{self, fmt, io, ptr};
 use httparse;
 use http::{Method, Version, Uri, HttpTryFrom};
 use bytes::{Bytes, BytesMut, BufMut};
-use futures::{Async, AsyncSink, Poll, Sink};
-use futures::unsync::mpsc::{channel, Sender};
+use futures::{Async, Poll};
 use tokio_io::AsyncRead;
 
 use hyper::header::{Headers, ContentLength};
 
-use {Payload, PayloadItem};
 use error::{Error, Result};
 use decode::Decoder;
+use payload::{Payload, PayloadSender};
 use httpmessage::{Message, HttpRequest};
-
 
 const MAX_HEADERS: usize = 100;
 const INIT_BUFFER_SIZE: usize = 8192;
-pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+const MAX_BUFFER_SIZE: usize = 131_072;
 
 struct PayloadInfo {
-    tx: Sender<PayloadItem>,
+    tx: PayloadSender,
     decoder: Decoder,
-    tmp_item: Option<PayloadItem>,
 }
 
 pub struct Reader {
@@ -61,48 +58,17 @@ impl Reader {
     fn decode(&mut self) -> std::result::Result<Decoding, Error>
     {
         if let Some(ref mut payload) = self.payload {
+            if payload.tx.maybe_paused() {
+                return Ok(Decoding::Paused)
+            }
             loop {
-                if let Some(item) = payload.tmp_item.take() {
-                    let eof = item.is_eof();
-
-                    match payload.tx.start_send(item) {
-                        Ok(AsyncSink::NotReady(item)) => {
-                            payload.tmp_item = Some(item);
-                            return Ok(Decoding::Paused)
-                        }
-                        Ok(AsyncSink::Ready) => {
-                            if eof {
-                                return Ok(Decoding::Ready)
-                            }
-                        },
-                        Err(_) => return Err(Error::Incomplete),
-                    }
-                }
-
                 match payload.decoder.decode(&mut self.read_buf) {
                     Ok(Async::Ready(Some(bytes))) => {
-                        match payload.tx.start_send(PayloadItem::Chunk(bytes)) {
-                            Ok(AsyncSink::NotReady(item)) => {
-                                payload.tmp_item = Some(item);
-                                return Ok(Decoding::Paused)
-                            }
-                            Ok(AsyncSink::Ready) => {
-                                continue
-                            }
-                            Err(_) => return Err(Error::Incomplete),
-                        }
+                        payload.tx.feed_data(bytes)
                     },
                     Ok(Async::Ready(None)) => {
-                        match payload.tx.start_send(PayloadItem::Eof) {
-                            Ok(AsyncSink::NotReady(item)) => {
-                                payload.tmp_item = Some(item);
-                                return Ok(Decoding::Paused)
-                            }
-                            Ok(AsyncSink::Ready) => {
-                                return Ok(Decoding::Ready)
-                            }
-                            Err(_) => return Err(Error::Incomplete),
-                        }
+                        payload.tx.feed_eof();
+                        return Ok(Decoding::Ready)
                     },
                     Ok(Async::NotReady) => return Ok(Decoding::NotReady),
                     Err(_) => return Err(Error::Incomplete),
@@ -113,9 +79,11 @@ impl Reader {
         }
     }
     
-    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Option<Payload>), Error>
+    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), Error>
         where T: AsyncRead
     {
+
+
         loop {
             match self.decode()? {
                 Decoding::Paused => return Ok(Async::NotReady),
@@ -137,11 +105,10 @@ impl Reader {
             match try!(parse(&mut self.read_buf)) {
                 Some((msg, decoder)) => {
                     let payload = if let Some(decoder) = decoder {
-                        let (tx, rx) = channel(32);
+                        let (tx, rx) = Payload::new(false);
                         let payload = PayloadInfo {
                             tx: tx,
                             decoder: decoder,
-                            tmp_item: None,
                         };
                         self.payload = Some(payload);
 
@@ -170,9 +137,10 @@ impl Reader {
                                 }
                             }
                         }
-                        Some(rx)
+                        rx
                     } else {
-                        None
+                        let (_, rx) = Payload::new(true);
+                        rx
                     };
                     return Ok(Async::Ready((msg, payload)));
                 },

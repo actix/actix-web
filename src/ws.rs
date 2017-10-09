@@ -21,25 +21,20 @@
 //! impl Route for WsRoute {
 //!     type State = ();
 //!
-//!     fn request(req: HttpRequest, payload: Option<Payload>,
-//!                ctx: &mut HttpContext<Self>) -> Reply<Self>
+//!     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
 //!     {
-//!         if let Some(payload) = payload {
-//!             // WebSocket handshake
-//!             match ws::handshake(req) {
-//!                 Ok(resp) => {
-//!                     // Send handshake response to peer
-//!                     ctx.start(resp);
-//!                     // Map Payload into WsStream
-//!                     ctx.add_stream(ws::WsStream::new(payload));
-//!                     // Start ws messages processing
-//!                     Reply::stream(WsRoute)
-//!                 },
-//!                 Err(err) =>
-//!                     Reply::reply(err)
-//!             }
-//!         } else {
-//!             Reply::with(req, httpcodes::HTTPBadRequest)
+//!         // WebSocket handshake
+//!         match ws::handshake(req) {
+//!             Ok(resp) => {
+//!                 // Send handshake response to peer
+//!                 ctx.start(resp);
+//!                 // Map Payload into WsStream
+//!                 ctx.add_stream(ws::WsStream::new(payload));
+//!                 // Start ws messages processing
+//!                 Reply::stream(WsRoute)
+//!             },
+//!             Err(err) =>
+//!                 Reply::reply(err)
 //!         }
 //!     }
 //! }
@@ -77,7 +72,8 @@ use hyper::header;
 use actix::Actor;
 
 use context::HttpContext;
-use route::{Route, Payload, PayloadItem};
+use route::Route;
+use payload::Payload;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
 use httpmessage::{Body, ConnectionType, HttpRequest, HttpResponse, IntoHttpResponse};
 
@@ -204,21 +200,18 @@ impl Stream for WsStream {
         let mut done = false;
 
         loop {
-            match self.rx.poll() {
-                Ok(Async::Ready(Some(item))) => {
-                    match item {
-                        PayloadItem::Eof =>
-                            return Ok(Async::Ready(None)),
-                        PayloadItem::Chunk(chunk) => {
-                            self.buf.extend(chunk)
-                        }
-                    }
+            match self.rx.readany() {
+                Async::Ready(Some(chunk)) => {
+                    self.buf.extend(chunk)
                 }
-                Ok(Async::Ready(None)) => done = true,
-                Ok(Async::NotReady) => {},
-                Err(err) => return Err(err),
+                Async::Ready(None) => {
+                    done = true;
+                }
+                Async::NotReady => break,
             }
+        }
 
+        loop {
             match wsframe::Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
                     trace!("Frame {}", frame);

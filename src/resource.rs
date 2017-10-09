@@ -6,7 +6,8 @@ use actix::Actor;
 use http::Method;
 
 use task::Task;
-use route::{Route, Payload, RouteHandler};
+use route::{Route, RouteHandler};
+use payload::Payload;
 use context::HttpContext;
 use httpcodes::HTTPMethodNotAllowed;
 use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
@@ -92,7 +93,7 @@ impl<S> Resource<S> where S: 'static {
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
 
-    fn handle(&self, req: HttpRequest, payload: Option<Payload>, state: Rc<S>) -> Task {
+    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task {
         if let Some(handler) = self.routes.get(req.method()) {
             handler.handle(req, payload, state)
         } else {

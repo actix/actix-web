@@ -4,14 +4,15 @@ use std::collections::HashMap;
 use route_recognizer::{Router as Recognizer};
 
 use task::Task;
-use route::{Payload, RouteHandler};
+use payload::Payload;
+use route::RouteHandler;
 use resource::Resource;
 use application::Application;
 use httpcodes::HTTPNotFound;
 use httpmessage::{HttpRequest, IntoHttpResponse};
 
 pub(crate) trait Handler: 'static {
-    fn handle(&self, req: HttpRequest, payload: Option<Payload>) -> Task;
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Task;
 }
 
 /// Request routing map
@@ -127,7 +128,7 @@ struct Router {
 
 impl Router {
 
-    pub fn call(&self, req: HttpRequest, payload: Option<Payload>) -> Task
+    pub fn call(&self, req: HttpRequest, payload: Payload) -> Task
     {
         if let Ok(h) = self.resources.recognize(req.path()) {
             h.handler.handle(req.with_params(h.params), payload, Rc::new(()))

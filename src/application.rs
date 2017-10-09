@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use route_recognizer::Router;
 
 use task::Task;
-use route::{Payload, RouteHandler};
+use route::RouteHandler;
 use router::Handler;
 use resource::Resource;
+use payload::Payload;
 use httpmessage::HttpRequest;
 
 
@@ -93,7 +94,7 @@ struct InnerApplication<S> {
 
 impl<S: 'static> Handler for InnerApplication<S> {
 
-    fn handle(&self, req: HttpRequest, payload: Option<Payload>) -> Task {
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
         if let Ok(h) = self.router.recognize(req.path()) {
             h.handler.handle(req.with_params(h.params), payload, Rc::clone(&self.state))
         } else {

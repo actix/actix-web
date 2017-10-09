@@ -19,12 +19,9 @@ impl Actor for MyRoute {
 impl Route for MyRoute {
     type State = ();
 
-    fn request(req: HttpRequest,
-               payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> Reply<Self>
-    {
-        if let Some(pl) = payload {
-            ctx.add_stream(pl);
+    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
+        if !payload.eof() {
+            ctx.add_stream(payload);
             Reply::stream(MyRoute{req: Some(req)})
         } else {
             Reply::with(req, httpcodes::HTTPOk)
@@ -37,7 +34,7 @@ impl ResponseType<PayloadItem> for MyRoute {
     type Error = ();
 }
 
-impl StreamHandler<PayloadItem, ()> for MyRoute {}
+impl StreamHandler<PayloadItem> for MyRoute {}
 
 impl Handler<PayloadItem> for MyRoute {
     fn handle(&mut self, msg: PayloadItem, ctx: &mut HttpContext<Self>)
@@ -48,7 +45,6 @@ impl Handler<PayloadItem> for MyRoute {
             ctx.start(httpcodes::HTTPOk.response(req));
             ctx.write_eof();
         }
-
         Self::empty()
     }
 }
@@ -62,22 +58,15 @@ impl Actor for MyWS {
 impl Route for MyWS {
     type State = ();
 
-    fn request(req: HttpRequest,
-               payload: Option<Payload>,
-               ctx: &mut HttpContext<Self>) -> Reply<Self>
-    {
-        if let Some(payload) = payload {
-            match ws::handshake(req) {
-                Ok(resp) => {
-                    ctx.start(resp);
-                    ctx.add_stream(ws::WsStream::new(payload));
-                    Reply::stream(MyWS{})
-                },
-                Err(err) =>
-                    Reply::reply(err)
-            }
-        } else {
-            Reply::with(req, httpcodes::HTTPBadRequest)
+    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
+        match ws::handshake(req) {
+            Ok(resp) => {
+                ctx.start(resp);
+                ctx.add_stream(ws::WsStream::new(payload));
+                Reply::stream(MyWS{})
+            },
+            Err(err) =>
+                Reply::reply(err)
         }
     }
 }

@@ -4,7 +4,8 @@ use std::rc::Rc;
 use http::StatusCode;
 
 use task::Task;
-use route::{Payload, RouteHandler};
+use route::RouteHandler;
+use payload::Payload;
 use httpmessage::{Body, HttpRequest, HttpResponse, IntoHttpResponse};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
@@ -25,8 +26,7 @@ impl StaticResponse {
 }
 
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, req: HttpRequest, _: Option<Payload>, _: Rc<S>) -> Task
-    {
+    fn handle(&self, req: HttpRequest, _: Payload, _: Rc<S>) -> Task {
         Task::reply(HttpResponse::new(req, self.0, Body::Empty))
     }
 }
