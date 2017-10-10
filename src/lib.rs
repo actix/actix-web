@@ -37,7 +37,7 @@ pub mod ws;
 pub mod dev;
 pub mod httpcodes;
 pub use application::Application;
-pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
+pub use httpmessage::{Body, HttpRequest, HttpResponse, IntoHttpResponse};
 pub use payload::{Payload, PayloadItem};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
