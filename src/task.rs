@@ -138,8 +138,12 @@ impl Task {
             }
         }
 
+        // Connection upgrade
+        if msg.upgrade() {
+            msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
+        }
         // keep-alive
-        if msg.keep_alive() {
+        else if msg.keep_alive() {
             if msg.version < Version::HTTP_11 {
                 msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
