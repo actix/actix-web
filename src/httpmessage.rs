@@ -28,10 +28,8 @@ pub trait Message {
             if let Ok(conn) = conn.to_str() {
                 if self.version() == Version::HTTP_10 && !conn.contains("keep-alive") {
                     false
-                } else if self.version() == Version::HTTP_11 && conn.contains("close") {
-                    false
                 } else {
-                    true
+                    self.version() == Version::HTTP_11 && conn.contains("close")
                 }
             } else {
                 false
@@ -163,7 +161,7 @@ impl HttpRequest {
     }
 
     pub(crate) fn is_upgrade(&self) -> bool {
-        if let Some(ref conn) = self.headers().get(header::CONNECTION) {
+        if let Some(conn) = self.headers().get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade")
             }

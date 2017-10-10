@@ -261,7 +261,7 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
         Some(Decoder::eof())
     }
     // Content-Length
-    else if let Some(ref len) = msg.headers().get(header::CONTENT_LENGTH) {
+    else if let Some(len) = msg.headers().get(header::CONTENT_LENGTH) {
         if chunked {
             return Err(Error::Header)
         }
