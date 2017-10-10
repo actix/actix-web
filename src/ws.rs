@@ -24,17 +24,17 @@
 //!     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
 //!     {
 //!         // WebSocket handshake
-//!         match ws::handshake(req) {
+//!         match ws::handshake(&req) {
 //!             Ok(resp) => {
 //!                 // Send handshake response to peer
-//!                 ctx.start(resp);
+//!                 ctx.start(req, resp);
 //!                 // Map Payload into WsStream
 //!                 ctx.add_stream(ws::WsStream::new(payload));
 //!                 // Start ws messages processing
 //!                 Reply::stream(WsRoute)
 //!             },
 //!             Err(err) =>
-//!                 Reply::reply(err)
+//!                 Reply::reply(req, err)
 //!         }
 //!     }
 //! }
@@ -64,7 +64,6 @@
 //! fn main() {}
 //! ```
 use std::vec::Vec;
-use std::str::FromStr;
 use http::{Method, StatusCode, header};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
@@ -75,7 +74,7 @@ use context::HttpContext;
 use route::Route;
 use payload::Payload;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
-use httpmessage::{Body, ConnectionType, HttpRequest, HttpResponse, IntoHttpResponse};
+use httpmessage::{Body, ConnectionType, HttpRequest, HttpResponse};
 
 use wsframe;
 use wsproto::*;
@@ -110,10 +109,10 @@ pub enum Message {
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
+pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
-        return Err(HTTPMethodNotAllowed.response(req))
+        return Err(HTTPMethodNotAllowed.response())
     }
 
     // Check for "UPGRADE" to websocket header
@@ -127,17 +126,17 @@ pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
         false
     };
     if !has_hdr {
-        return Err(HTTPMethodNotAllowed.with_reason(req, "No WebSocket UPGRADE header found"))
+        return Err(HTTPMethodNotAllowed.with_reason("No WebSocket UPGRADE header found"))
     }
 
     // Upgrade connection
     if !req.is_upgrade() {
-        return Err(HTTPBadRequest.with_reason(req, "No CONNECTION upgrade"))
+        return Err(HTTPBadRequest.with_reason("No CONNECTION upgrade"))
     }
 
     // check supported version
     if !req.headers().contains_key(SEC_WEBSOCKET_VERSION) {
-        return Err(HTTPBadRequest.with_reason(req, "No websocket version header is required"))
+        return Err(HTTPBadRequest.with_reason("No websocket version header is required"))
     }
     let supported_ver = {
         if let Some(hdr) = req.headers().get(SEC_WEBSOCKET_VERSION) {
@@ -147,25 +146,24 @@ pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
         }
     };
     if !supported_ver {
-        return Err(HTTPBadRequest.with_reason(req, "Unsupported version"))
+        return Err(HTTPBadRequest.with_reason("Unsupported version"))
     }
 
     // check client handshake for validity
     if !req.headers().contains_key(SEC_WEBSOCKET_KEY) {
-        return Err(HTTPBadRequest.with_reason(req, "Handshake error"));
+        return Err(HTTPBadRequest.with_reason("Handshake error"));
     }
     let key = {
         let key = req.headers().get(SEC_WEBSOCKET_KEY).unwrap();
         hash_key(key.as_ref())
     };
 
-    Ok(HttpResponse::new(req, StatusCode::SWITCHING_PROTOCOLS, Body::Empty)
-       .set_connection_type(ConnectionType::Upgrade)
-       .set_header(header::UPGRADE, header::HeaderValue::from_static("websocket"))
-       .set_header(header::TRANSFER_ENCODING, header::HeaderValue::from_static("chunked"))
-       .set_header(header::HeaderName::from_str(SEC_WEBSOCKET_ACCEPT).unwrap(),
-                   header::HeaderValue::from_str(key.as_str()).unwrap())
-       .set_body(Body::Upgrade)
+    Ok(HttpResponse::builder(StatusCode::SWITCHING_PROTOCOLS)
+       .connection_type(ConnectionType::Upgrade)
+       .header(header::UPGRADE, "websocket")
+       .header(header::TRANSFER_ENCODING, "chunked")
+       .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
+       .body(Body::Upgrade)?
     )
 }
 
@@ -204,7 +202,7 @@ impl Stream for WsStream {
         loop {
             match wsframe::Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
-                    trace!("Frame {}", frame);
+                    trace!("WsFrame {}", frame);
                     let (_finished, opcode, payload) = frame.unpack();
 
                     match opcode {

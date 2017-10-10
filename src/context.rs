@@ -9,7 +9,7 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, SpawnHandle};
 
 use route::{Route, Frame};
-use httpmessage::HttpResponse;
+use httpmessage::{HttpRequest, HttpResponse};
 
 
 /// Actor execution context
@@ -94,8 +94,8 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
     
     /// Start response processing
-    pub fn start(&mut self, response: HttpResponse) {
-        self.stream.push_back(Frame::Message(response))
+    pub fn start<R: Into<HttpResponse>>(&mut self, request: HttpRequest, response: R) {
+        self.stream.push_back(Frame::Message(request, response.into()))
     }
 
     /// Write payload

@@ -1,13 +1,13 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::{io, mem};
+use std::error::Error as StdError;
 use std::convert::Into;
 
 use bytes::Bytes;
-use http::{Method, StatusCode, Version, Uri, HeaderMap};
+use http::{Method, StatusCode, Version, Uri, HeaderMap, HttpTryFrom, Error};
 use http::header::{self, HeaderName, HeaderValue};
 
 use Params;
-use error::Error;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ConnectionType {
@@ -22,23 +22,6 @@ pub trait Message {
 
     fn headers(&self) -> &HeaderMap;
 
-    /// Checks if a connection should be kept alive.
-    fn keep_alive(&self) -> bool {
-        if let Some(conn) = self.headers().get(header::CONNECTION) {
-            if let Ok(conn) = conn.to_str() {
-                if self.version() == Version::HTTP_10 && !conn.contains("keep-alive") {
-                    false
-                } else {
-                    self.version() == Version::HTTP_11 && conn.contains("close")
-                }
-            } else {
-                false
-            }
-        } else {
-            self.version() != Version::HTTP_10
-        }
-    }
-
     /// Checks if a connection is expecting a `100 Continue` before sending its body.
     #[inline]
     fn expecting_continue(&self) -> bool {
@@ -52,13 +35,14 @@ pub trait Message {
         false
     }
 
-    fn is_chunked(&self) -> Result<bool, Error> {
+    fn is_chunked(&self) -> Result<bool, io::Error> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
                 return Ok(s.to_lowercase().contains("chunked"))
             } else {
-                debug!("request with transfer-encoding header, but not chunked, bad request");
-                Err(Error::Header)
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Request with transfer-encoding header, but not chunked"))
             }
         } else {
             Ok(false)
@@ -160,6 +144,23 @@ impl HttpRequest {
         }
     }
 
+    /// Checks if a connection should be kept alive.
+    pub fn keep_alive(&self) -> bool {
+        if let Some(conn) = self.headers.get(header::CONNECTION) {
+            if let Ok(conn) = conn.to_str() {
+                if self.version == Version::HTTP_10 && !conn.contains("keep-alive") {
+                    false
+                } else {
+                    self.version == Version::HTTP_11 && conn.contains("close")
+                }
+            } else {
+                false
+            }
+        } else {
+            self.version != Version::HTTP_10
+        }
+    }
+
     pub(crate) fn is_upgrade(&self) -> bool {
         if let Some(conn) = self.headers().get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
@@ -196,23 +197,15 @@ impl Body {
     }
 }
 
-/// Implements by something that can be converted to `HttpResponse`
-pub trait IntoHttpResponse {
-    /// Convert into response.
-    fn response(self, req: HttpRequest) -> HttpResponse;
-}
-
 #[derive(Debug)]
 /// An HTTP Response
 pub struct HttpResponse {
-    request: HttpRequest,
     pub version: Version,
     pub headers: HeaderMap,
     pub status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
     chunked: bool,
-    // compression: Option<Encoding>,
     connection_type: Option<ConnectionType>,
 }
 
@@ -226,13 +219,20 @@ impl Message for HttpResponse {
 }
 
 impl HttpResponse {
+
+    #[inline]
+    pub fn builder(status: StatusCode) -> Builder {
+        Builder {
+            parts: Some(Parts::new(status)),
+            err: None,
+        }
+    }
+
     /// Constructs a response
     #[inline]
-    pub fn new(request: HttpRequest, status: StatusCode, body: Body) -> HttpResponse {
-        let version = request.version;
+    pub fn new(status: StatusCode, body: Body) -> HttpResponse {
         HttpResponse {
-            request: request,
-            version: version,
+            version: Version::HTTP_11,
             headers: Default::default(),
             status: status,
             reason: None,
@@ -241,12 +241,6 @@ impl HttpResponse {
             // compression: None,
             connection_type: None,
         }
-    }
-
-    /// Original prequest
-    #[inline]
-    pub fn request(&self) -> &HttpRequest {
-        &self.request
     }
 
     /// Get the HTTP version of this response.
@@ -275,34 +269,19 @@ impl HttpResponse {
 
     /// Set the `StatusCode` for this response.
     #[inline]
-    pub fn set_status(mut self, status: StatusCode) -> Self {
-        self.status = status;
-        self
-    }
-
-    /// Set a header and move the Response.
-    #[inline]
-    pub fn set_header(mut self, name: HeaderName, value: HeaderValue) -> Self {
-        self.headers.insert(name, value);
-        self
-    }
-
-    /// Set the headers.
-    #[inline]
-    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
-        self.headers = headers;
-        self
+    pub fn status_mut(&mut self) -> &mut StatusCode {
+        &mut self.status
     }
 
     /// Set the custom reason for the response.
     #[inline]
-    pub fn set_reason(mut self, reason: &'static str) -> Self {
+    pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
         self.reason = Some(reason);
         self
     }
 
     /// Set connection type
-    pub fn set_connection_type(mut self, conn: ConnectionType) -> Self {
+    pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self{
         self.connection_type = Some(conn);
         self
     }
@@ -313,11 +292,11 @@ impl HttpResponse {
     }
 
     /// Keep-alive status for this connection
-    pub fn keep_alive(&self) -> bool {
+    pub fn keep_alive(&self) -> Option<bool> {
         if let Some(ConnectionType::KeepAlive) = self.connection_type {
-            true
+            Some(true)
         } else {
-            self.request.keep_alive()
+            None
         }
     }
 
@@ -348,13 +327,143 @@ impl HttpResponse {
     }
 
     /// Set a body
-    pub fn set_body<B: Into<Body>>(mut self, body: B) -> Self {
+    pub fn set_body<B: Into<Body>>(&mut self, body: B) {
         self.body = body.into();
-        self
     }
 
     /// Set a body and return previous body value
     pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
         mem::replace(&mut self.body, body.into())
     }
+}
+
+impl From<Error> for HttpResponse {
+    fn from(err: Error) -> Self {
+        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR,
+                          Body::Binary(err.description().into()))
+    }
+}
+
+#[derive(Debug)]
+struct Parts {
+    version: Version,
+    headers: HeaderMap,
+    status: StatusCode,
+    reason: Option<&'static str>,
+    chunked: bool,
+    connection_type: Option<ConnectionType>,
+}
+
+impl Parts {
+    fn new(status: StatusCode) -> Self {
+        Parts {
+            version: Version::default(),
+            headers: HeaderMap::new(),
+            status: status,
+            reason: None,
+            chunked: false,
+            connection_type: None,
+        }
+    }
+}
+
+
+/// An HTTP response builder
+///
+/// This type can be used to construct an instance of `HttpResponse` through a
+/// builder-like pattern.
+#[derive(Debug)]
+pub struct Builder {
+    parts: Option<Parts>,
+    err: Option<Error>,
+}
+
+impl Builder {
+    /// Get the HTTP version of this response.
+    #[inline]
+    pub fn version(&mut self, version: Version) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.version = version;
+        }
+        self
+    }
+
+    /// Set the `StatusCode` for this response.
+    #[inline]
+    pub fn status(&mut self, status: StatusCode) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.status = status;
+        }
+        self
+    }
+
+    /// Set a header.
+    #[inline]
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+        where HeaderName: HttpTryFrom<K>,
+              HeaderValue: HttpTryFrom<V>
+    {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            match HeaderName::try_from(key) {
+                Ok(key) => {
+                    match HeaderValue::try_from(value) {
+                        Ok(value) => { parts.headers.append(key, value); }
+                        Err(e) => self.err = Some(e.into()),
+                    }
+                },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+
+    /// Set the custom reason for the response.
+    #[inline]
+    pub fn reason(&mut self, reason: &'static str) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.reason = Some(reason);
+        }
+        self
+    }
+
+    /// Set connection type
+    pub fn connection_type(mut self, conn: ConnectionType) -> Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.connection_type = Some(conn);
+        }
+        self
+    }
+
+    /// Enables automatic chunked transfer encoding
+    pub fn enable_chunked(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.chunked = true;
+        }
+        self
+    }
+
+    /// Set a body
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {
+        let parts = self.parts.take().expect("cannot reuse response builder");
+        if let Some(e) = self.err.take() {
+            return Err(e)
+        }
+        Ok(HttpResponse {
+            version: parts.version,
+            headers: parts.headers,
+            status: parts.status,
+            reason: parts.reason,
+            body: body.into(),
+            chunked: parts.chunked,
+            connection_type: parts.connection_type,
+        })
+    }
+}
+
+fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<Error>) -> Option<&'a mut Parts>
+{
+    if err.is_some() {
+        return None
+    }
+    parts.as_mut()
 }

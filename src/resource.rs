@@ -10,7 +10,7 @@ use route::{Route, RouteHandler};
 use payload::Payload;
 use context::HttpContext;
 use httpcodes::HTTPMethodNotAllowed;
-use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
+use httpmessage::{HttpRequest, HttpResponse};
 
 /// Http resource
 ///
@@ -109,7 +109,7 @@ impl<S: 'static> RouteHandler<S> for Resource<S> {
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 enum ReplyItem<A> where A: Actor + Route {
-    Message(HttpResponse),
+    Message(HttpRequest, HttpResponse),
     Actor(A),
 }
 
@@ -124,20 +124,15 @@ impl<A> Reply<A> where A: Actor + Route
     }
 
     /// Send response
-    pub fn reply(msg: HttpResponse) -> Self {
-        Reply(ReplyItem::Message(msg))
-    }
-
-    /// Send response
-    pub fn with<I: IntoHttpResponse>(req: HttpRequest, msg: I) -> Self {
-        Reply(ReplyItem::Message(msg.response(req)))
+    pub fn reply<R: Into<HttpResponse>>(req: HttpRequest, response: R) -> Self {
+        Reply(ReplyItem::Message(req, response.into()))
     }
 
     pub fn into(self, mut ctx: HttpContext<A>) -> Task where A: Actor<Context=HttpContext<A>>
     {
         match self.0 {
-            ReplyItem::Message(msg) => {
-                Task::reply(msg)
+            ReplyItem::Message(req, msg) => {
+                Task::reply(req, msg)
             },
             ReplyItem::Actor(act) => {
                 ctx.set_actor(act);

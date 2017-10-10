@@ -9,7 +9,7 @@ use route::RouteHandler;
 use resource::Resource;
 use application::Application;
 use httpcodes::HTTPNotFound;
-use httpmessage::{HttpRequest, IntoHttpResponse};
+use httpmessage::HttpRequest;
 
 pub(crate) trait Handler: 'static {
     fn handle(&self, req: HttpRequest, payload: Payload) -> Task;
@@ -138,7 +138,7 @@ impl Router {
                     return app.handle(req, payload)
                 }
             }
-            Task::reply(IntoHttpResponse::response(HTTPNotFound, req))
+            Task::reply(req, HTTPNotFound.response())
         }
     }
 }

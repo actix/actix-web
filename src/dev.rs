@@ -10,7 +10,7 @@
 pub use ws;
 pub use httpcodes;
 pub use application::Application;
-pub use httpmessage::{Body, HttpRequest, HttpResponse, IntoHttpResponse};
+pub use httpmessage::{Body, Builder, HttpRequest, HttpResponse};
 pub use payload::{Payload, PayloadItem};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};

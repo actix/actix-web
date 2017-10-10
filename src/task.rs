@@ -12,7 +12,7 @@ use tokio_core::net::TcpStream;
 
 use date;
 use route::Frame;
-use httpmessage::{Body, HttpResponse};
+use httpmessage::{Body, HttpRequest, HttpResponse};
 
 type FrameStream = Stream<Item=Frame, Error=io::Error>;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -56,9 +56,9 @@ pub struct Task {
 
 impl Task {
 
-    pub(crate) fn reply(msg: HttpResponse) -> Self {
+    pub fn reply(req: HttpRequest, msg: HttpResponse) -> Self {
         let mut frames = VecDeque::new();
-        frames.push_back(Frame::Message(msg));
+        frames.push_back(Frame::Message(req, msg));
         frames.push_back(Frame::Payload(None));
 
         Task {
@@ -86,7 +86,7 @@ impl Task {
         }
     }
 
-    fn prepare(&mut self, mut msg: HttpResponse)
+    fn prepare(&mut self, req: HttpRequest, mut msg: HttpResponse)
     {
         trace!("Prepare message status={:?}", msg.status);
 
@@ -143,7 +143,7 @@ impl Task {
             msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
-        else if msg.keep_alive() {
+        else if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             if msg.version < Version::HTTP_11 {
                 msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
@@ -184,7 +184,7 @@ impl Task {
 
         self.buffer.extend(b"\r\n");
 
-        if let Body::Binary(ref bytes) = *msg.body() {
+        if let Body::Binary(ref bytes) = body {
             self.buffer.extend(bytes);
             return
         }
@@ -192,7 +192,7 @@ impl Task {
     }
 
     pub(crate) fn poll_io(&mut self, io: &mut TcpStream) -> Poll<bool, ()> {
-        println!("POLL-IO {:?}", self.frames.len());
+        trace!("POLL-IO frames:{:?}", self.frames.len());
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {
             return Ok(Async::Ready(self.state.is_done()));
@@ -210,9 +210,10 @@ impl Task {
 
             // use exiting frames
             while let Some(frame) = self.frames.pop_front() {
+                trace!("IO Frame: {:?}", frame);
                 match frame {
-                    Frame::Message(message) => {
-                        self.prepare(message);
+                    Frame::Message(request, response) => {
+                        self.prepare(request, response);
                     }
                     Frame::Payload(chunk) => {
                         match chunk {
@@ -275,7 +276,7 @@ impl Future for Task {
                 match stream.poll() {
                     Ok(Async::Ready(Some(frame))) => {
                         match frame {
-                            Frame::Message(ref msg) => {
+                            Frame::Message(_, ref msg) => {
                                 if self.iostate != TaskIOState::ReadingMessage {
                                     error!("Non expected frame {:?}", frame);
                                     return Err(())

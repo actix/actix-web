@@ -24,7 +24,7 @@ impl Route for MyRoute {
             ctx.add_stream(payload);
             Reply::stream(MyRoute{req: Some(req)})
         } else {
-            Reply::with(req, httpcodes::HTTPOk)
+            Reply::reply(req, httpcodes::HTTPOk)
         }
     }
 }
@@ -42,7 +42,7 @@ impl Handler<PayloadItem> for MyRoute {
     {
         println!("CHUNK: {:?}", msg);
         if let Some(req) = self.req.take() {
-            ctx.start(httpcodes::HTTPOk.response(req));
+            ctx.start(req, httpcodes::HTTPOk);
             ctx.write_eof();
         }
         Self::empty()
@@ -59,14 +59,14 @@ impl Route for MyWS {
     type State = ();
 
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
-        match ws::handshake(req) {
+        match ws::handshake(&req) {
             Ok(resp) => {
-                ctx.start(resp);
+                ctx.start(req, resp);
                 ctx.add_stream(ws::WsStream::new(payload));
                 Reply::stream(MyWS{})
             },
             Err(err) =>
-                Reply::reply(err)
+                Reply::reply(req, err)
         }
     }
 }
