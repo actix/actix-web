@@ -1,12 +1,11 @@
 use std::{self, fmt, io, ptr};
 
 use httparse;
-use http::{Method, Version, Uri, HttpTryFrom};
-use bytes::{Bytes, BytesMut, BufMut};
+use http::{Method, Version, Uri, HttpTryFrom, HeaderMap};
+use http::header::{self, HeaderName, HeaderValue};
+use bytes::{BytesMut, BufMut};
 use futures::{Async, Poll};
 use tokio_io::AsyncRead;
-
-use hyper::header::{Headers, ContentLength};
 
 use error::{Error, Result};
 use decode::Decoder;
@@ -50,8 +49,7 @@ impl Reader {
                     b'\r' | b'\n' => i += 1,
                     _ => break,
                 }
-            }
-            self.read_buf.split_to(i);
+            }            self.read_buf.split_to(i);
         }
     }
 
@@ -82,13 +80,10 @@ impl Reader {
     pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), Error>
         where T: AsyncRead
     {
-
-
         loop {
             match self.decode()? {
                 Decoding::Paused => return Ok(Async::NotReady),
                 Decoding::Ready => {
-                    println!("decode ready");
                     self.payload = None;
                     break
                 },
@@ -117,7 +112,6 @@ impl Reader {
                                 Decoding::Paused =>
                                     break,
                                 Decoding::Ready => {
-                                    println!("decoded 3");
                                     self.payload = None;
                                     break
                                 },
@@ -238,38 +232,56 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
         }
     };
 
-    let mut headers = Headers::with_capacity(headers_len);
     let slice = buf.split_to(len).freeze();
     let path = slice.slice(path.0, path.1);
     // path was found to be utf8 by httparse
     let uri = Uri::from_shared(path).map_err(|_| Error::Uri)?;
 
-    headers.extend(HeadersAsBytesIter {
-        headers: headers_indices[..headers_len].iter(),
-        slice: slice,
-    });
+    // convert headers
+    let mut headers = HeaderMap::with_capacity(headers_len);
+    for header in headers_indices[..headers_len].iter() {
+        if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
+            if let Ok(value) = HeaderValue::try_from(
+                slice.slice(header.value.0, header.value.1))
+            {
+                headers.insert(name, value);
+            } else {
+                return Err(Error::Header)
+            }
+        } else {
+            return Err(Error::Header)
+        }
+    }
 
     let msg = HttpRequest::new(method, uri, version, headers);
     let upgrade = msg.is_upgrade() || *msg.method() == Method::CONNECT;
     let chunked = msg.is_chunked()?;
 
-    if upgrade {
-        Ok(Some((msg, Some(Decoder::eof()))))
+    let decoder = if upgrade {
+        Some(Decoder::eof())
     }
     // Content-Length
-    else if let Some(&ContentLength(len)) = msg.headers().get() {
+    else if let Some(ref len) = msg.headers().get(header::CONTENT_LENGTH) {
         if chunked {
             return Err(Error::Header)
         }
-        Ok(Some((msg, Some(Decoder::length(len)))))
-    } else if msg.headers().has::<ContentLength>() {
-        debug!("illegal Content-Length: {:?}", msg.headers().get_raw("Content-Length"));
-        Err(Error::Header)
+        if let Ok(s) = len.to_str() {
+            if let Ok(len) = s.parse::<u64>() {
+                Some(Decoder::length(len))
+            } else {
+                debug!("illegal Content-Length: {:?}", len);
+                return Err(Error::Header)
+            }
+        } else {
+            debug!("illegal Content-Length: {:?}", len);
+            return Err(Error::Header)
+        }
     } else if chunked {
-        Ok(Some((msg, Some(Decoder::chunked()))))
+        Some(Decoder::chunked())
     } else {
-        Ok(Some((msg, None)))
-    }
+        None
+    };
+    Ok(Some((msg, decoder)))
 }
 
 #[derive(Clone, Copy)]
@@ -290,26 +302,5 @@ fn record_header_indices(bytes: &[u8],
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
         indices.value = (value_start, value_end);
-    }
-}
-
-struct HeadersAsBytesIter<'a> {
-    headers: ::std::slice::Iter<'a, HeaderIndices>,
-    slice: Bytes,
-}
-
-impl<'a> Iterator for HeadersAsBytesIter<'a> {
-    type Item = (&'a str, Bytes);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.headers.next().map(|header| {
-            let name = unsafe {
-                let bytes = ::std::slice::from_raw_parts(
-                    self.slice.as_ref().as_ptr().offset(header.name.0 as isize),
-                    header.name.1 - header.name.0
-                );
-                ::std::str::from_utf8_unchecked(bytes)
-            };
-            (name, self.slice.slice(header.value.0, header.value.1))
-        })
     }
 }

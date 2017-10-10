@@ -1,13 +1,10 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::{io, mem};
-use std::str::FromStr;
 use std::convert::Into;
 
 use bytes::Bytes;
-use http::{Method, StatusCode, Version, Uri};
-use hyper::header::{Header, Headers};
-use hyper::header::{Connection, ConnectionOption,
-                    Expect, Encoding, ContentLength, TransferEncoding};
+use http::{Method, StatusCode, Version, Uri, HeaderMap};
+use http::header::{self, HeaderName, HeaderValue};
 
 use Params;
 use error::Error;
@@ -23,43 +20,44 @@ pub trait Message {
 
     fn version(&self) -> Version;
 
-    fn headers(&self) -> &Headers;
+    fn headers(&self) -> &HeaderMap;
 
     /// Checks if a connection should be kept alive.
-    fn should_keep_alive(&self) -> bool {
-        let ret = match (self.version(), self.headers().get::<Connection>()) {
-            (Version::HTTP_10, None) => false,
-            (Version::HTTP_10, Some(conn))
-                if !conn.contains(&ConnectionOption::KeepAlive) => false,
-            (Version::HTTP_11, Some(conn))
-                if conn.contains(&ConnectionOption::Close)  => false,
-            _ => true
-        };
-        trace!("should_keep_alive(version={:?}, header={:?}) = {:?}",
-               self.version(), self.headers().get::<Connection>(), ret);
-        ret
+    fn keep_alive(&self) -> bool {
+        if let Some(conn) = self.headers().get(header::CONNECTION) {
+            if let Ok(conn) = conn.to_str() {
+                if self.version() == Version::HTTP_10 && !conn.contains("keep-alive") {
+                    false
+                } else if self.version() == Version::HTTP_11 && conn.contains("close") {
+                    false
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
+        } else {
+            self.version() != Version::HTTP_10
+        }
     }
 
     /// Checks if a connection is expecting a `100 Continue` before sending its body.
     #[inline]
     fn expecting_continue(&self) -> bool {
-        let ret = match (self.version(), self.headers().get::<Expect>()) {
-            (Version::HTTP_11, Some(&Expect::Continue)) => true,
-            _ => false
-        };
-        trace!("expecting_continue(version={:?}, header={:?}) = {:?}",
-               self.version(), self.headers().get::<Expect>(), ret);
-        ret
+        if self.version() == Version::HTTP_11 {
+            if let Some(hdr) = self.headers().get(header::EXPECT) {
+                if let Ok(hdr) = hdr.to_str() {
+                    return hdr.to_lowercase().contains("continue")
+                }
+            }
+        }
+        false
     }
 
     fn is_chunked(&self) -> Result<bool, Error> {
-        if let Some(&TransferEncoding(ref encodings)) = self.headers().get() {
-            // https://tools.ietf.org/html/rfc7230#section-3.3.3
-            // If Transfer-Encoding header is present, and 'chunked' is
-            // not the final encoding, and this is a Request, then it is
-            // mal-formed. A server should responsed with 400 Bad Request.
-            if encodings.last() == Some(&Encoding::Chunked) {
-                Ok(true)
+        if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
+            if let Ok(s) = encodings.to_str() {
+                return Ok(s.to_lowercase().contains("chunked"))
             } else {
                 debug!("request with transfer-encoding header, but not chunked, bad request");
                 Err(Error::Header)
@@ -77,7 +75,7 @@ pub struct HttpRequest {
     version: Version,
     method: Method,
     uri: Uri,
-    headers: Headers,
+    headers: HeaderMap,
     params: Params,
 }
 
@@ -85,7 +83,7 @@ impl Message for HttpRequest {
     fn version(&self) -> Version {
         self.version
     }
-    fn headers(&self) -> &Headers {
+    fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 }
@@ -93,7 +91,7 @@ impl Message for HttpRequest {
 impl HttpRequest {
     /// Construct a new Request.
     #[inline]
-    pub fn new(method: Method, uri: Uri, version: Version, headers: Headers) -> Self {
+    pub fn new(method: Method, uri: Uri, version: Version, headers: HeaderMap) -> Self {
         HttpRequest {
             method: method,
             uri: uri,
@@ -113,7 +111,7 @@ impl HttpRequest {
 
     /// Read the Request headers.
     #[inline]
-    pub fn headers(&self) -> &Headers { &self.headers }
+    pub fn headers(&self) -> &HeaderMap { &self.headers }
 
     /// Read the Request method.
     #[inline]
@@ -142,7 +140,7 @@ impl HttpRequest {
 
     /// Get a mutable reference to the Request headers.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut Headers {
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
 
@@ -164,27 +162,13 @@ impl HttpRequest {
         }
     }
 
-    /// Is keepalive enabled by client?
-    pub fn keep_alive(&self) -> bool {
-        let ret = match (self.version(), self.headers().get::<Connection>()) {
-            (Version::HTTP_10, None) => false,
-            (Version::HTTP_10, Some(conn))
-                if !conn.contains(&ConnectionOption::KeepAlive) => false,
-            (Version::HTTP_11, Some(conn))
-                if conn.contains(&ConnectionOption::Close)  => false,
-            _ => true
-        };
-        trace!("should_keep_alive(version={:?}, header={:?}) = {:?}",
-               self.version(), self.headers().get::<Connection>(), ret);
-        ret
-    }
-
     pub(crate) fn is_upgrade(&self) -> bool {
-        if let Some(&Connection(ref conn)) = self.headers().get() {
-            conn.contains(&ConnectionOption::from_str("upgrade").unwrap())
-        } else {
-            false
+        if let Some(ref conn) = self.headers().get(header::CONNECTION) {
+            if let Ok(s) = conn.to_str() {
+                return s.to_lowercase().contains("upgrade")
+            }
         }
+        false
     }
 }
 
@@ -225,12 +209,12 @@ pub trait IntoHttpResponse {
 pub struct HttpResponse {
     request: HttpRequest,
     pub version: Version,
-    pub headers: Headers,
+    pub headers: HeaderMap,
     pub status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
     chunked: bool,
-    compression: Option<Encoding>,
+    // compression: Option<Encoding>,
     connection_type: Option<ConnectionType>,
 }
 
@@ -238,7 +222,7 @@ impl Message for HttpResponse {
     fn version(&self) -> Version {
         self.version
     }
-    fn headers(&self) -> &Headers {
+    fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 }
@@ -256,7 +240,7 @@ impl HttpResponse {
             reason: None,
             body: body,
             chunked: false,
-            compression: None,
+            // compression: None,
             connection_type: None,
         }
     }
@@ -275,13 +259,13 @@ impl HttpResponse {
 
     /// Get the headers from the response.
     #[inline]
-    pub fn headers(&self) -> &Headers {
+    pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
     /// Get a mutable reference to the headers.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut Headers {
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
 
@@ -300,14 +284,14 @@ impl HttpResponse {
 
     /// Set a header and move the Response.
     #[inline]
-    pub fn set_header<H: Header>(mut self, header: H) -> Self {
-        self.headers.set(header);
+    pub fn set_header(mut self, name: HeaderName, value: HeaderValue) -> Self {
+        self.headers.insert(name, value);
         self
     }
 
     /// Set the headers.
     #[inline]
-    pub fn with_headers(mut self, headers: Headers) -> Self {
+    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
         self.headers = headers;
         self
     }
@@ -335,7 +319,7 @@ impl HttpResponse {
         if let Some(ConnectionType::KeepAlive) = self.connection_type {
             true
         } else {
-            self.request.should_keep_alive()
+            self.request.keep_alive()
         }
     }
 
@@ -351,7 +335,7 @@ impl HttpResponse {
 
     /// Enables automatic chunked transfer encoding
     pub fn enable_chunked_encoding(&mut self) -> Result<(), io::Error> {
-        if self.headers.has::<ContentLength>() {
+        if self.headers.contains_key(header::CONTENT_LENGTH) {
             Err(io::Error::new(io::ErrorKind::Other,
                 "You can't enable chunked encoding when a content length is set"))
         } else {

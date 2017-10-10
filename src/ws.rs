@@ -64,10 +64,10 @@
 //! fn main() {}
 //! ```
 use std::vec::Vec;
-use http::{Method, StatusCode};
+use std::str::FromStr;
+use http::{Method, StatusCode, header};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
-use hyper::header;
 
 use actix::Actor;
 
@@ -81,22 +81,13 @@ use wsframe;
 use wsproto::*;
 
 #[doc(hidden)]
-header! {
-    /// SEC-WEBSOCKET-ACCEPT header
-    (WebSocketAccept, "SEC-WEBSOCKET-ACCEPT") => [String]
-}
-header! {
-    /// SEC-WEBSOCKET-KEY header
-    (WebSocketKey, "SEC-WEBSOCKET-KEY") => [String]
-}
-header! {
-    /// SEC-WEBSOCKET-VERSION header
-    (WebSocketVersion, "SEC-WEBSOCKET-VERSION") => [String]
-}
-header! {
-    /// SEC-WEBSOCKET-PROTOCOL header
-    (WebSocketProtocol, "SEC-WEBSOCKET-PROTOCOL") => [String]
-}
+const SEC_WEBSOCKET_ACCEPT: &'static str = "SEC-WEBSOCKET-ACCEPT";
+#[doc(hidden)]
+const SEC_WEBSOCKET_KEY: &'static str = "SEC-WEBSOCKET-KEY";
+#[doc(hidden)]
+const SEC_WEBSOCKET_VERSION: &'static str = "SEC-WEBSOCKET-VERSION";
+// #[doc(hidden)]
+// const SEC_WEBSOCKET_PROTOCOL: &'static str = "SEC-WEBSOCKET-PROTOCOL";
 
 
 /// `WebSocket` Message
@@ -126,8 +117,12 @@ pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
     }
 
     // Check for "UPGRADE" to websocket header
-    let has_hdr = if let Some::<&header::Upgrade>(hdr) = req.headers().get() {
-        hdr.0.contains(&header::Protocol::new(header::ProtocolName::WebSocket, None))
+    let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
+        if let Ok(s) = hdr.to_str() {
+            s.to_lowercase().contains("websocket")
+        } else {
+            false
+        }
     } else {
         false
     };
@@ -141,14 +136,14 @@ pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
     }
 
     // check supported version
-    if !req.headers().has::<WebSocketVersion>() {
+    if !req.headers().contains_key(SEC_WEBSOCKET_VERSION) {
         return Err(HTTPBadRequest.with_reason(req, "No websocket version header is required"))
     }
     let supported_ver = {
-        let hdr = req.headers().get::<WebSocketVersion>().unwrap();
-        match hdr.0.as_str() {
-            "13" | "8" | "7"  => true,
-            _ => false,
+        if let Some(hdr) = req.headers().get(SEC_WEBSOCKET_VERSION) {
+            hdr == "13" || hdr == "8" || hdr == "7"
+        } else {
+            false
         }
     };
     if !supported_ver {
@@ -156,25 +151,20 @@ pub fn handshake(req: HttpRequest) -> Result<HttpResponse, HttpResponse> {
     }
 
     // check client handshake for validity
-    let key = if let Some::<&WebSocketKey>(hdr) = req.headers().get() {
-        Some(hash_key(hdr.0.as_bytes()))
-    } else {
-        None
-    };
-    let key = if let Some(key) = key {
-        key
-    } else {
+    if !req.headers().contains_key(SEC_WEBSOCKET_KEY) {
         return Err(HTTPBadRequest.with_reason(req, "Handshake error"));
+    }
+    let key = {
+        let key = req.headers().get(SEC_WEBSOCKET_KEY).unwrap();
+        hash_key(key.as_ref())
     };
 
     Ok(HttpResponse::new(req, StatusCode::SWITCHING_PROTOCOLS, Body::Empty)
        .set_connection_type(ConnectionType::Upgrade)
-       .set_header(
-           header::Upgrade(vec![header::Protocol::new(header::ProtocolName::WebSocket, None)]))
-       .set_header(
-           header::TransferEncoding(vec![header::Encoding::Chunked]))
-       .set_header(
-           WebSocketAccept(key))
+       .set_header(header::UPGRADE, header::HeaderValue::from_static("websocket"))
+       .set_header(header::TRANSFER_ENCODING, header::HeaderValue::from_static("chunked"))
+       .set_header(header::HeaderName::from_str(SEC_WEBSOCKET_ACCEPT).unwrap(),
+                   header::HeaderValue::from_str(key.as_str()).unwrap())
        .set_body(Body::Upgrade)
     )
 }

@@ -4,13 +4,11 @@ use std::fmt::Write;
 use std::collections::VecDeque;
 
 use http::{StatusCode, Version};
+use http::header::{HeaderValue,
+                   CONNECTION, CONTENT_TYPE, CONTENT_LENGTH, TRANSFER_ENCODING, DATE};
 use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
 use tokio_core::net::TcpStream;
-
-use unicase::Ascii;
-use hyper::header::{Date, Connection, ConnectionOption,
-                    ContentType, ContentLength, Encoding, TransferEncoding};
 
 use date;
 use route::Frame;
@@ -100,22 +98,26 @@ impl Task {
                 if msg.chunked() {
                     error!("Chunked transfer is enabled but body is set to Empty");
                 }
-                msg.headers.set(ContentLength(0));
-                msg.headers.remove::<TransferEncoding>();
+                msg.headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(0);
             },
             Body::Length(n) => {
                 if msg.chunked() {
                     error!("Chunked transfer is enabled but body with specific length is specified");
                 }
-                msg.headers.set(ContentLength(n));
-                msg.headers.remove::<TransferEncoding>();
+                msg.headers.insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::from_str(format!("{}", n).as_str()).unwrap());
+                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(n);
             },
             Body::Binary(ref bytes) => {
                 extra = bytes.len();
-                msg.headers.set(ContentLength(bytes.len() as u64));
-                msg.headers.remove::<TransferEncoding>();
+                msg.headers.insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::from_str(format!("{}", bytes.len()).as_str()).unwrap());
+                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(0);
             }
             Body::Streaming => {
@@ -123,16 +125,15 @@ impl Task {
                     if msg.version < Version::HTTP_11 {
                         error!("Chunked transfer encoding is forbidden for {:?}", msg.version);
                     }
-                    msg.headers.remove::<ContentLength>();
-                    msg.headers.set(TransferEncoding(vec![Encoding::Chunked]));
+                    msg.headers.remove(CONTENT_LENGTH);
+                    msg.headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
                     self.encoder = Encoder::chunked();
                 } else {
                     self.encoder = Encoder::eof();
                 }
             }
             Body::Upgrade => {
-                msg.headers.set(Connection(vec![
-                        ConnectionOption::ConnectionHeader(Ascii::new("upgrade".to_owned()))]));
+                msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
                 self.encoder = Encoder::eof();
             }
         }
@@ -140,10 +141,10 @@ impl Task {
         // keep-alive
         if msg.keep_alive() {
             if msg.version < Version::HTTP_11 {
-                msg.headers.set(Connection::keep_alive());
+                msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if msg.version >= Version::HTTP_11 {
-            msg.headers.set(Connection::close());
+            msg.headers.insert(CONNECTION, HeaderValue::from_static("close"));
         }
 
         // render message
@@ -152,14 +153,20 @@ impl Task {
 
         if msg.version == Version::HTTP_11 && msg.status == StatusCode::OK {
             self.buffer.extend(b"HTTP/1.1 200 OK\r\n");
-            let _ = write!(self.buffer, "{}", msg.headers);
         } else {
-            let _ = write!(self.buffer, "{:?} {}\r\n{}", msg.version, msg.status, msg.headers);
+            let _ = write!(self.buffer, "{:?} {}\r\n", msg.version, msg.status);
+        }
+        for (key, value) in &msg.headers {
+            let t: &[u8] = key.as_ref();
+            self.buffer.extend(t);
+            self.buffer.extend(b": ");
+            self.buffer.extend(value.as_ref());
+            self.buffer.extend(b"\r\n");
         }
 
         // using http::h1::date is quite a lot faster than generating
         // a unique Date header each time like req/s goes up about 10%
-        if !msg.headers.has::<Date>() {
+        if !msg.headers.contains_key(DATE) {
             self.buffer.reserve(date::DATE_VALUE_LENGTH + 8);
             self.buffer.extend(b"Date: ");
             date::extend(&mut self.buffer);
@@ -167,7 +174,7 @@ impl Task {
         }
 
         // default content-type
-        if !msg.headers.has::<ContentType>() {
+        if !msg.headers.contains_key(CONTENT_TYPE) {
             self.buffer.extend(b"ContentType: application/octet-stream\r\n".as_ref());
         }
 

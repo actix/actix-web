@@ -66,25 +66,29 @@ impl<S> Resource<S> where S: 'static {
     }
 
     /// Handler for `GET` method.
-    pub fn get<A>(&mut self) -> &mut Self where A: Route<State=S>
+    pub fn get<A>(&mut self) -> &mut Self
+        where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
         self.handler(Method::GET, A::factory())
     }
 
     /// Handler for `POST` method.
-    pub fn post<A>(&mut self) -> &mut Self where A: Route<State=S>
+    pub fn post<A>(&mut self) -> &mut Self
+        where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
         self.handler(Method::POST, A::factory())
     }
 
     /// Handler for `PUR` method.
-    pub fn put<A>(&mut self) -> &mut Self where A: Route<State=S>
+    pub fn put<A>(&mut self) -> &mut Self
+        where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
         self.handler(Method::PUT, A::factory())
     }
 
     /// Handler for `METHOD` method.
-    pub fn delete<A>(&mut self) -> &mut Self where A: Route<State=S>
+    pub fn delete<A>(&mut self) -> &mut Self
+        where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
         self.handler(Method::DELETE, A::factory())
     }
@@ -104,15 +108,15 @@ impl<S: 'static> RouteHandler<S> for Resource<S> {
 
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
-enum ReplyItem<A> where A: Actor<Context=HttpContext<A>> + Route {
+enum ReplyItem<A> where A: Actor + Route {
     Message(HttpResponse),
     Actor(A),
 }
 
 /// Represents response process.
-pub struct Reply<A: Actor<Context=HttpContext<A>> + Route> (ReplyItem<A>);
+pub struct Reply<A: Actor + Route> (ReplyItem<A>);
 
-impl<A> Reply<A> where A: Actor<Context=HttpContext<A>> + Route
+impl<A> Reply<A> where A: Actor + Route
 {
     /// Create async response
     pub fn stream(act: A) -> Self {
@@ -129,7 +133,8 @@ impl<A> Reply<A> where A: Actor<Context=HttpContext<A>> + Route
         Reply(ReplyItem::Message(msg.response(req)))
     }
 
-    pub(crate) fn into(self, mut ctx: HttpContext<A>) -> Task {
+    pub fn into(self, mut ctx: HttpContext<A>) -> Task where A: Actor<Context=HttpContext<A>>
+    {
         match self.0 {
             ReplyItem::Message(msg) => {
                 Task::reply(msg)

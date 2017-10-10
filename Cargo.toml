@@ -30,9 +30,6 @@ sha1 = "0.2"
 url = "1.5"
 route-recognizer = "0.1"
 
-hyper = "0.11"
-unicase = "2.0"
-
 # tokio
 bytes = "0.4"
 futures = "0.1"

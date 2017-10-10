@@ -20,11 +20,15 @@ pub enum Frame {
 
 /// Trait defines object that could be regestered as resource route
 pub trait RouteHandler<S>: 'static {
+    /// Handle request
     fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task;
+
+    /// Set route prefix
+    fn set_prefix(&mut self, _prefix: String) {}
 }
 
 /// Actors with ability to handle http requests
-pub trait Route: Actor<Context=HttpContext<Self>> {
+pub trait Route: Actor {
     /// Route shared state. State is shared with all routes within same application and could be
     /// accessed with `HttpContext::state()` method.
     type State;
@@ -33,7 +37,7 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
     /// result immediately with `Reply::reply` or `Reply::with`.
     /// Actor itself could be returned for handling streaming request/response.
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used.
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>;
+    fn request(req: HttpRequest, payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -45,7 +49,7 @@ pub trait Route: Actor<Context=HttpContext<Self>> {
 pub struct RouteFactory<A: Route<State=S>, S>(PhantomData<A>);
 
 impl<A, S> RouteHandler<S> for RouteFactory<A, S>
-    where A: Route<State=S>,
+    where A: Actor<Context=HttpContext<A>> + Route<State=S>,
           S: 'static
 {
     fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<A::State>) -> Task

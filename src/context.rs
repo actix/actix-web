@@ -69,7 +69,7 @@ impl<A> AsyncContextApi<A> for HttpContext<A> where A: Actor<Context=Self> + Rou
 
 impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
-    pub(crate) fn new(state: Rc<<A as Route>::State>) -> HttpContext<A>
+    pub fn new(state: Rc<<A as Route>::State>) -> HttpContext<A>
     {
         HttpContext {
             act: None,

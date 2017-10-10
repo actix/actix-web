@@ -11,9 +11,6 @@ extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_proto;
-#[macro_use]
-extern crate hyper;
-extern crate unicase;
 
 extern crate http;
 extern crate httparse;
@@ -33,11 +30,11 @@ mod router;
 mod task;
 mod reader;
 mod server;
-
-pub mod ws;
 mod wsframe;
 mod wsproto;
 
+pub mod ws;
+pub mod dev;
 pub mod httpcodes;
 pub use application::Application;
 pub use httpmessage::{HttpRequest, HttpResponse, IntoHttpResponse};
