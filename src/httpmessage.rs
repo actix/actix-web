@@ -16,41 +16,6 @@ pub enum ConnectionType {
     Upgrade,
 }
 
-pub trait Message {
-
-    fn version(&self) -> Version;
-
-    fn headers(&self) -> &HeaderMap;
-
-    /// Checks if a connection is expecting a `100 Continue` before sending its body.
-    #[inline]
-    fn expecting_continue(&self) -> bool {
-        if self.version() == Version::HTTP_11 {
-            if let Some(hdr) = self.headers().get(header::EXPECT) {
-                if let Ok(hdr) = hdr.to_str() {
-                    return hdr.to_lowercase().contains("continue")
-                }
-            }
-        }
-        false
-    }
-
-    fn is_chunked(&self) -> Result<bool, io::Error> {
-        if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
-            if let Ok(s) = encodings.to_str() {
-                return Ok(s.to_lowercase().contains("chunked"))
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Request with transfer-encoding header, but not chunked"))
-            }
-        } else {
-            Ok(false)
-        }
-    }
-}
-
-
 #[derive(Debug)]
 /// An HTTP Request
 pub struct HttpRequest {
@@ -59,15 +24,6 @@ pub struct HttpRequest {
     uri: Uri,
     headers: HeaderMap,
     params: Params,
-}
-
-impl Message for HttpRequest {
-    fn version(&self) -> Version {
-        self.version
-    }
-    fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
 }
 
 impl HttpRequest {
@@ -87,17 +43,19 @@ impl HttpRequest {
     #[inline]
     pub fn uri(&self) -> &Uri { &self.uri }
 
-    /// Read the Request Version.
-    #[inline]
-    pub fn version(&self) -> Version { self.version }
-
-    /// Read the Request headers.
-    #[inline]
-    pub fn headers(&self) -> &HeaderMap { &self.headers }
-
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method { &self.method }
+
+    /// Read the Request Version.
+    pub fn version(&self) -> Version {
+        self.version
+    }
+
+    /// Read the Request Headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
 
     // /// The remote socket address of this request
     // ///
@@ -169,6 +127,20 @@ impl HttpRequest {
         }
         false
     }
+
+    pub fn is_chunked(&self) -> Result<bool, io::Error> {
+        if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
+            if let Ok(s) = encodings.to_str() {
+                return Ok(s.to_lowercase().contains("chunked"))
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Request with transfer-encoding header, but not chunked"))
+            }
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 /// Represents various types of http message body.
@@ -200,22 +172,13 @@ impl Body {
 #[derive(Debug)]
 /// An HTTP Response
 pub struct HttpResponse {
-    pub version: Version,
+    pub version: Option<Version>,
     pub headers: HeaderMap,
     pub status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
     chunked: bool,
     connection_type: Option<ConnectionType>,
-}
-
-impl Message for HttpResponse {
-    fn version(&self) -> Version {
-        self.version
-    }
-    fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
 }
 
 impl HttpResponse {
@@ -232,7 +195,7 @@ impl HttpResponse {
     #[inline]
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
         HttpResponse {
-            version: Version::HTTP_11,
+            version: None,
             headers: Default::default(),
             status: status,
             reason: None,
@@ -245,7 +208,7 @@ impl HttpResponse {
 
     /// Get the HTTP version of this response.
     #[inline]
-    pub fn version(&self) -> Version {
+    pub fn version(&self) -> Option<Version> {
         self.version
     }
 
@@ -344,9 +307,18 @@ impl From<Error> for HttpResponse {
     }
 }
 
+impl<I: Into<HttpResponse>, E: Into<HttpResponse>> From<Result<I, E>> for HttpResponse {
+    fn from(res: Result<I, E>) -> Self {
+        match res {
+            Ok(val) => val.into(),
+            Err(err) => err.into(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Parts {
-    version: Version,
+    version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
     reason: Option<&'static str>,
@@ -357,7 +329,7 @@ struct Parts {
 impl Parts {
     fn new(status: StatusCode) -> Self {
         Parts {
-            version: Version::default(),
+            version: None,
             headers: HeaderMap::new(),
             status: status,
             reason: None,
@@ -383,7 +355,7 @@ impl Builder {
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
-            parts.version = version;
+            parts.version = Some(version);
         }
         self
     }

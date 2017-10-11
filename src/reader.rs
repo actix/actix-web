@@ -9,8 +9,8 @@ use tokio_io::AsyncRead;
 
 use error::{Error, Result};
 use decode::Decoder;
+use httpmessage::HttpRequest;
 use payload::{Payload, PayloadSender};
-use httpmessage::{Message, HttpRequest};
 
 const MAX_HEADERS: usize = 100;
 const INIT_BUFFER_SIZE: usize = 8192;

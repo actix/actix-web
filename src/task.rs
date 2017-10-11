@@ -56,9 +56,9 @@ pub struct Task {
 
 impl Task {
 
-    pub fn reply(req: HttpRequest, msg: HttpResponse) -> Self {
+    pub fn reply<R: Into<HttpResponse>>(req: HttpRequest, response: R) -> Self {
         let mut frames = VecDeque::new();
-        frames.push_back(Frame::Message(req, msg));
+        frames.push_back(Frame::Message(req, response.into()));
         frames.push_back(Frame::Payload(None));
 
         Task {
@@ -92,6 +92,7 @@ impl Task {
 
         let mut extra = 0;
         let body = msg.replace_body(Body::Empty);
+        let version = msg.version().unwrap_or_else(|| req.version());
 
         match body {
             Body::Empty => {
@@ -122,7 +123,7 @@ impl Task {
             }
             Body::Streaming => {
                 if msg.chunked() {
-                    if msg.version < Version::HTTP_11 {
+                    if version < Version::HTTP_11 {
                         error!("Chunked transfer encoding is forbidden for {:?}", msg.version);
                     }
                     msg.headers.remove(CONTENT_LENGTH);
@@ -144,10 +145,10 @@ impl Task {
         }
         // keep-alive
         else if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
-            if msg.version < Version::HTTP_11 {
+            if version < Version::HTTP_11 {
                 msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
-        } else if msg.version >= Version::HTTP_11 {
+        } else if version >= Version::HTTP_11 {
             msg.headers.insert(CONNECTION, HeaderValue::from_static("close"));
         }
 
@@ -155,7 +156,7 @@ impl Task {
         let init_cap = 100 + msg.headers.len() * AVERAGE_HEADER_SIZE + extra;
         self.buffer.reserve(init_cap);
 
-        if msg.version == Version::HTTP_11 && msg.status == StatusCode::OK {
+        if version == Version::HTTP_11 && msg.status == StatusCode::OK {
             self.buffer.extend(b"HTTP/1.1 200 OK\r\n");
         } else {
             let _ = write!(self.buffer, "{:?} {}\r\n", msg.version, msg.status);
