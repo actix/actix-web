@@ -43,7 +43,7 @@ pub mod dev;
 pub mod httpcodes;
 pub use application::Application;
 pub use httpmessage::{Body, Builder, HttpRequest, HttpResponse};
-pub use payload::{Payload, PayloadItem};
+pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};

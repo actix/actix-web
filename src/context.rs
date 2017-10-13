@@ -33,6 +33,7 @@ impl<A> ActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
         if self.state == ActorState::Running {
             self.state = ActorState::Stopping;
         }
+        self.write_eof();
     }
 
     /// Terminate actor execution
@@ -151,9 +152,8 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
         if self.wait.is_some() && self.act.is_some() {
             if let Some(ref mut act) = self.act {
                 if let Some(ref mut fut) = self.wait {
-                    match fut.poll(act, ctx) {
-                        Ok(Async::NotReady) => return Ok(Async::NotReady),
-                        _ => (),
+                    if let Ok(Async::NotReady) = fut.poll(act, ctx) {
+                        return Ok(Async::NotReady);
                     }
                 }
             }

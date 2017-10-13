@@ -11,7 +11,7 @@ use http::{StatusCode, Error as HttpError};
 
 use httpmessage::{Body, HttpResponse};
 
-/// A set of errors that can occur parsing HTTP streams.
+/// A set of errors that can occur during parsing HTTP streams.
 #[derive(Debug)]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE,T`.
@@ -31,8 +31,6 @@ pub enum ParseError {
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
     Timeout,
-    /// Unexpected EOF during parsing
-    Eof,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
@@ -60,7 +58,6 @@ impl StdError for ParseError {
             ParseError::Incomplete => "Message is incomplete",
             ParseError::Timeout => "Timeout",
             ParseError::Uri => "Uri error",
-            ParseError::Eof => "Unexpected eof during parse",
             ParseError::Io(ref e) => e.description(),
             ParseError::Utf8(ref e) => e.description(),
         }
@@ -107,7 +104,7 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-/// Return BadRequest for ParseError
+/// Return `BadRequest` for `ParseError`
 impl From<ParseError> for HttpResponse {
     fn from(err: ParseError) -> Self {
         HttpResponse::new(StatusCode::BAD_REQUEST,
@@ -115,8 +112,8 @@ impl From<ParseError> for HttpResponse {
     }
 }
 
-/// Return InternalServerError for HttpError,
-/// Response generation can return HttpError, so it is internal error
+/// Return `InternalServerError` for `HttpError`,
+/// Response generation can return `HttpError`, so it is internal error
 impl From<HttpError> for HttpResponse {
     fn from(err: HttpError) -> Self {
         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR,
@@ -124,7 +121,7 @@ impl From<HttpError> for HttpResponse {
     }
 }
 
-/// Return BadRequest for cookie::ParseError
+/// Return `BadRequest` for `cookie::ParseError`
 impl From<cookie::ParseError> for HttpResponse {
     fn from(err: cookie::ParseError) -> Self {
         HttpResponse::new(StatusCode::BAD_REQUEST,
@@ -137,20 +134,19 @@ mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use super::Error;
-    use super::Error::*;
+    use super::ParseError;
 
     #[test]
     fn test_cause() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let desc = orig.description().to_owned();
-        let e = Io(orig);
+        let e = ParseError::Io(orig);
         assert_eq!(e.cause().unwrap().description(), desc);
     }
 
     macro_rules! from {
         ($from:expr => $error:pat) => {
-            match Error::from($from) {
+            match ParseError::from($from) {
                 e @ $error => {
                     assert!(e.description().len() >= 5);
                 } ,
@@ -161,7 +157,7 @@ mod tests {
 
     macro_rules! from_and_cause {
         ($from:expr => $error:pat) => {
-            match Error::from($from) {
+            match ParseError::from($from) {
                 e @ $error => {
                     let desc = e.cause().unwrap().description();
                     assert_eq!(desc, $from.description().to_owned());
@@ -174,16 +170,15 @@ mod tests {
 
     #[test]
     fn test_from() {
+        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
 
-        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
-
-        from!(httparse::Error::HeaderName => Header);
-        from!(httparse::Error::HeaderName => Header);
-        from!(httparse::Error::HeaderValue => Header);
-        from!(httparse::Error::NewLine => Header);
-        from!(httparse::Error::Status => Status);
-        from!(httparse::Error::Token => Header);
-        from!(httparse::Error::TooManyHeaders => TooLarge);
-        from!(httparse::Error::Version => Version);
+        from!(httparse::Error::HeaderName => ParseError::Header);
+        from!(httparse::Error::HeaderName => ParseError::Header);
+        from!(httparse::Error::HeaderValue => ParseError::Header);
+        from!(httparse::Error::NewLine => ParseError::Header);
+        from!(httparse::Error::Status => ParseError::Status);
+        from!(httparse::Error::Token => ParseError::Header);
+        from!(httparse::Error::TooManyHeaders => ParseError::TooLarge);
+        from!(httparse::Error::Version => ParseError::Version);
     }
 }

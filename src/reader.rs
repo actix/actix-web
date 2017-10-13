@@ -10,7 +10,7 @@ use tokio_io::AsyncRead;
 use error::ParseError;
 use decode::Decoder;
 use httpmessage::HttpRequest;
-use payload::{Payload, PayloadSender};
+use payload::{Payload, PayloadError, PayloadSender};
 
 const MAX_HEADERS: usize = 100;
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -21,7 +21,7 @@ struct PayloadInfo {
     decoder: Decoder,
 }
 
-pub struct Reader {
+pub(crate) struct Reader {
     read_buf: BytesMut,
     payload: Option<PayloadInfo>,
 }
@@ -30,6 +30,11 @@ enum Decoding {
     Paused,
     Ready,
     NotReady,
+}
+
+pub(crate) enum ReaderError {
+    Payload,
+    Error(ParseError),
 }
 
 impl Reader {
@@ -53,7 +58,7 @@ impl Reader {
         }
     }
 
-    fn decode(&mut self) -> std::result::Result<Decoding, ParseError>
+    fn decode(&mut self) -> std::result::Result<Decoding, ReaderError>
     {
         if let Some(ref mut payload) = self.payload {
             if payload.tx.maybe_paused() {
@@ -69,7 +74,10 @@ impl Reader {
                         return Ok(Decoding::Ready)
                     },
                     Ok(Async::NotReady) => return Ok(Decoding::NotReady),
-                    Err(_) => return Err(ParseError::Incomplete),
+                    Err(err) => {
+                        payload.tx.set_error(err.into());
+                        return Err(ReaderError::Payload)
+                    }
                 }
             }
         } else {
@@ -77,7 +85,7 @@ impl Reader {
         }
     }
     
-    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), ParseError>
+    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), ReaderError>
         where T: AsyncRead
     {
         loop {
@@ -88,15 +96,32 @@ impl Reader {
                     break
                 },
                 Decoding::NotReady => {
-                    if 0 == try_ready!(self.read_from_io(io)) {
-                        return Err(ParseError::Eof)
+                    match self.read_from_io(io) {
+                        Ok(Async::Ready(0)) => {
+                            if let Some(ref mut payload) = self.payload {
+                                payload.tx.set_error(PayloadError::Incomplete);
+                            }
+                            // http channel should deal with payload errors
+                            return Err(ReaderError::Payload)
+                        }
+                        Ok(Async::Ready(_)) => {
+                            continue
+                        }
+                        Ok(Async::NotReady) => break,
+                        Err(err) => {
+                            if let Some(ref mut payload) = self.payload {
+                                payload.tx.set_error(err.into());
+                            }
+                            // http channel should deal with payload errors
+                            return Err(ReaderError::Payload)
+                        }
                     }
                 }
             }
         }
 
         loop {
-            match try!(parse(&mut self.read_buf)) {
+            match try!(parse(&mut self.read_buf).map_err(ReaderError::Error)) {
                 Some((msg, decoder)) => {
                     let payload = if let Some(decoder) = decoder {
                         let (tx, rx) = Payload::new(false);
@@ -118,13 +143,23 @@ impl Reader {
                                     match self.read_from_io(io) {
                                         Ok(Async::Ready(0)) => {
                                             trace!("parse eof");
-                                            return Err(ParseError::Eof);
+                                            if let Some(ref mut payload) = self.payload {
+                                                payload.tx.set_error(PayloadError::Incomplete);
+                                            }
+                                            // http channel should deal with payload errors
+                                            return Err(ReaderError::Payload)
                                         }
                                         Ok(Async::Ready(_)) => {
                                             continue
                                         }
                                         Ok(Async::NotReady) => break,
-                                        Err(err) => return Err(err.into()),
+                                        Err(err) => {
+                                            if let Some(ref mut payload) = self.payload {
+                                                payload.tx.set_error(err.into());
+                                            }
+                                            // http channel should deal with payload errors
+                                            return Err(ReaderError::Payload)
+                                        }
                                     }
                                 }
                             }
@@ -139,13 +174,20 @@ impl Reader {
                 None => {
                     if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
                         debug!("MAX_BUFFER_SIZE reached, closing");
-                        return Err(ParseError::TooLarge);
+                        return Err(ReaderError::Error(ParseError::TooLarge));
                     }
                 },
             }
-            if 0 == try_ready!(self.read_from_io(io)) {
-                trace!("parse eof");
-                return Err(ParseError::Eof);
+            match self.read_from_io(io) {
+                Ok(Async::Ready(0)) => {
+                    trace!("parse eof");
+                    return Err(ReaderError::Error(ParseError::Incomplete));
+                },
+                Ok(Async::Ready(_)) => (),
+                Ok(Async::NotReady) =>
+                    return Ok(Async::NotReady),
+                Err(err) =>
+                    return Err(ReaderError::Error(err.into()))
             }
         }
     }

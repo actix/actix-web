@@ -84,6 +84,9 @@ impl Handler<ws::Message> for MyWS {
             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
             ws::Message::Text(text) => ws::WsWriter::text(ctx, text),
             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+            ws::Message::Closed | ws::Message::Error => {
+                ctx.stop();
+            }
             _ => (),
         }
         Self::empty()

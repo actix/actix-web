@@ -56,6 +56,12 @@ impl RequestInfo {
             keep_alive: req.keep_alive(),
         }
     }
+    pub fn for_error() -> Self {
+        RequestInfo {
+            version: Version::HTTP_11,
+            keep_alive: false,
+        }
+    }
 }
 
 pub struct Task {
@@ -65,7 +71,8 @@ pub struct Task {
     stream: Option<Box<FrameStream>>,
     encoder: Encoder,
     buffer: BytesMut,
-    upgraded: bool,
+    upgrade: bool,
+    keepalive: bool,
 }
 
 impl Task {
@@ -82,7 +89,8 @@ impl Task {
             stream: None,
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
-            upgraded: false,
+            upgrade: false,
+            keepalive: false,
         }
     }
 
@@ -96,8 +104,13 @@ impl Task {
             stream: Some(Box::new(stream)),
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
-            upgraded: false,
+            upgrade: false,
+            keepalive: false,
         }
+    }
+
+    pub(crate) fn keepalive(&self) -> bool {
+        self.keepalive && !self.upgrade
     }
 
     fn prepare(&mut self, req: &RequestInfo, mut msg: HttpResponse)
@@ -107,6 +120,7 @@ impl Task {
         let mut extra = 0;
         let body = msg.replace_body(Body::Empty);
         let version = msg.version().unwrap_or_else(|| req.version);
+        self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive);
 
         match body {
             Body::Empty => {
@@ -158,7 +172,7 @@ impl Task {
             msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
-        else if msg.keep_alive().unwrap_or_else(|| req.keep_alive) {
+        else if self.keepalive {
             if version < Version::HTTP_11 {
                 msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
@@ -296,8 +310,8 @@ impl Future for Task {
                                     error!("Non expected frame {:?}", frame);
                                     return Err(())
                                 }
-                                self.upgraded = msg.upgrade();
-                                if self.upgraded || msg.body().has_body() {
+                                self.upgrade = msg.upgrade();
+                                if self.upgrade || msg.body().has_body() {
                                     self.iostate = TaskIOState::ReadingPayload;
                                 } else {
                                     self.iostate = TaskIOState::Done;

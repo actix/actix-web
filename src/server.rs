@@ -1,13 +1,15 @@
 use std::{io, net, mem};
 use std::rc::Rc;
+use std::time::Duration;
 use std::collections::VecDeque;
 
 use actix::dev::*;
 use futures::{Future, Poll, Async};
+use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
 
 use task::{Task, RequestInfo};
-use reader::Reader;
+use reader::{Reader, ReaderError};
 use router::{Router, RoutingMap};
 
 /// An HTTP Server
@@ -58,6 +60,8 @@ impl Handler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {
                         error: false,
                         items: VecDeque::new(),
                         inactive: Vec::new(),
+                        keepalive: true,
+                        keepalive_timer: None,
             });
         Self::empty()
     }
@@ -72,6 +76,9 @@ struct Entry {
     finished: bool,
 }
 
+const KEEPALIVE_PERIOD: u64 = 15; // seconds
+const MAX_PIPELINED_MESSAGES: usize = 16;
+
 pub struct HttpChannel {
     router: Rc<Router>,
     #[allow(dead_code)]
@@ -81,6 +88,14 @@ pub struct HttpChannel {
     error: bool,
     items: VecDeque<Entry>,
     inactive: Vec<Entry>,
+    keepalive: bool,
+    keepalive_timer: Option<Timeout>,
+}
+
+impl Drop for HttpChannel {
+    fn drop(&mut self) {
+        println!("Drop http channel");
+    }
 }
 
 impl Actor for HttpChannel {
@@ -92,6 +107,16 @@ impl Future for HttpChannel {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // keep-alive timer
+        if let Some(ref mut timeout) = self.keepalive_timer {
+            match timeout.poll() {
+                Ok(Async::Ready(_)) =>
+                    return Ok(Async::Ready(())),
+                Ok(Async::NotReady) => (),
+                Err(_) => unreachable!(),
+            }
+        }
+
         loop {
             // check in-flight messages
             let mut idx = 0;
@@ -109,9 +134,19 @@ impl Future for HttpChannel {
                     {
                         Ok(Async::Ready(val)) => {
                             let mut item = self.items.pop_front().unwrap();
+
+                            // overide keep-alive state
+                            if self.keepalive {
+                                self.keepalive = item.task.keepalive();
+                            }
                             if !val {
                                 item.eof = true;
                                 self.inactive.push(item);
+                            }
+
+                            // no keep-alive
+                            if !self.keepalive && self.items.is_empty() {
+                                return Ok(Async::Ready(()))
                             }
                             continue
                         },
@@ -134,15 +169,14 @@ impl Future for HttpChannel {
                 idx += 1;
             }
 
-            // check for parse error
-            if self.items.is_empty() && self.error {
-
-            }
-            
             // read incoming data
-            if !self.error {
+            if !self.error && self.items.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(&mut self.stream) {
                     Ok(Async::Ready((req, payload))) => {
+                        // stop keepalive timer
+                        self.keepalive_timer.take();
+
+                        // start request processing
                         let info = RequestInfo::new(&req);
                         self.items.push_back(
                             Entry {task: self.router.call(req, payload),
@@ -151,15 +185,50 @@ impl Future for HttpChannel {
                                    error: false,
                                    finished: false});
                     }
-                    Ok(Async::NotReady) =>
-                        return Ok(Async::NotReady),
-                    Err(err) => return Err(())
-                        //self.items.push_back(
-                        //    Entry {task: Task::reply(err),
-                        //           eof: false,
-                        //           error: false,
-                        //           finished: false})
+                    Err(err) => {
+                        // kill keepalive
+                        self.keepalive = false;
+                        self.keepalive_timer.take();
+
+                        // on parse error, stop reading stream but
+                        // complete tasks
+                        self.error = true;
+
+                        if let ReaderError::Error(err) = err {
+                            self.items.push_back(
+                                Entry {task: Task::reply(err),
+                                       req: RequestInfo::for_error(),
+                                       eof: false,
+                                       error: false,
+                                       finished: false});
+                        }
+                    }
+                    Ok(Async::NotReady) => {
+                        // start keep-alive timer, this is also slow request timeout
+                        if self.items.is_empty() {
+                            if self.keepalive {
+                                if self.keepalive_timer.is_none() {
+                                    trace!("Start keep-alive timer");
+                                    let mut timeout = Timeout::new(
+                                        Duration::new(KEEPALIVE_PERIOD, 0),
+                                        Arbiter::handle()).unwrap();
+                                    // register timeout
+                                    let _ = timeout.poll();
+                                    self.keepalive_timer = Some(timeout);
+                                }
+                            } else {
+                                // keep-alive disable, drop connection
+                                return Ok(Async::Ready(()))
+                            }
+                        }
+                        return Ok(Async::NotReady)
+                    }
                 }
+            }
+
+            // check for parse error
+            if self.items.is_empty() && self.error {
+                return Ok(Async::Ready(()))
             }
         }
     }

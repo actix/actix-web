@@ -82,8 +82,8 @@ impl HttpRequest {
     pub fn cookie(&self) -> Result<Option<cookie::Cookie>, cookie::ParseError> {
         if let Some(val) = self.headers.get(header::COOKIE) {
             let s = str::from_utf8(val.as_bytes())
-                .map_err(|e| cookie::ParseError::from(e))?;
-            cookie::Cookie::parse(s).map(|c| Some(c))
+                .map_err(cookie::ParseError::from)?;
+            cookie::Cookie::parse(s).map(Some)
         } else {
             Ok(None)
         }

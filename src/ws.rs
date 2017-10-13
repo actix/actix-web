@@ -27,14 +27,14 @@
 //!         match ws::handshake(&req) {
 //!             Ok(resp) => {
 //!                 // Send handshake response to peer
-//!                 ctx.start(req, resp);
+//!                 ctx.start(resp);
 //!                 // Map Payload into WsStream
 //!                 ctx.add_stream(ws::WsStream::new(payload));
 //!                 // Start ws messages processing
 //!                 Reply::stream(WsRoute)
 //!             },
 //!             Err(err) =>
-//!                 Reply::reply(req, err)
+//!                 Reply::reply(err)
 //!         }
 //!     }
 //! }
@@ -172,11 +172,13 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
 pub struct WsStream {
     rx: Payload,
     buf: BytesMut,
+    closed: bool,
+    error_sent: bool,
 }
 
 impl WsStream {
     pub fn new(rx: Payload) -> WsStream {
-        WsStream { rx: rx, buf: BytesMut::new() }
+        WsStream { rx: rx, buf: BytesMut::new(), closed: false, error_sent: false }
     }
 }
 
@@ -187,15 +189,20 @@ impl Stream for WsStream {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let mut done = false;
 
-        loop {
-            match self.rx.readany() {
-                Async::Ready(Some(chunk)) => {
-                    self.buf.extend(chunk)
+        if !self.closed {
+            loop {
+                match self.rx.readany() {
+                    Async::Ready(Some(Ok(chunk))) => {
+                        self.buf.extend(chunk)
+                    }
+                    Async::Ready(Some(Err(_))) => {
+                        self.closed = true;
+                    }
+                    Async::Ready(None) => {
+                        done = true;
+                    }
+                    Async::NotReady => break,
                 }
-                Async::Ready(None) => {
-                    done = true;
-                }
-                Async::NotReady => break,
             }
         }
 
@@ -229,13 +236,25 @@ impl Stream for WsStream {
                         }
                     }
                 }
-                Ok(None) => if done {
-                    return Ok(Async::Ready(None))
-                } else {
-                    return Ok(Async::NotReady)
+                Ok(None) => {
+                    if done {
+                        return Ok(Async::Ready(None))
+                    } else if self.closed {
+                        if !self.error_sent {
+                            self.error_sent = true;
+                            return Ok(Async::Ready(Some(Message::Closed)))
+                        } else {
+                            return Ok(Async::Ready(None))
+                        }
+                    } else {
+                        return Ok(Async::NotReady)
+                    }
                 },
-                Err(_) =>
-                    return Err(()),
+                Err(_) => {
+                    self.closed = true;
+                    self.error_sent = true;
+                    return Ok(Async::Ready(Some(Message::Error)));
+                }
             }
         }
     }

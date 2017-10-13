@@ -1,15 +1,31 @@
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::convert::From;
 use std::collections::VecDeque;
+use std::io::Error as IoError;
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
-/// Just Bytes object
-pub type PayloadItem = Bytes;
-
 const MAX_PAYLOAD_SIZE: usize = 65_536; // max buffer size 64k
 
+/// Just Bytes object
+pub type PayloadItem = Result<Bytes, PayloadError>;
+
+#[derive(Debug)]
+/// A set of error that can occur during payload parsing.
+pub enum PayloadError {
+    /// A payload reached EOF, but is not complete.
+    Incomplete,
+    /// Parse error
+    ParseError(IoError),
+}
+
+impl From<IoError> for PayloadError {
+    fn from(err: IoError) -> PayloadError {
+        PayloadError::ParseError(err)
+    }
+}
 
 /// Stream of byte chunks
 ///
@@ -55,7 +71,7 @@ impl Payload {
     }
 
     /// Put unused data back to payload
-    pub fn unread_data(&mut self, data: PayloadItem) {
+    pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
 }
@@ -75,6 +91,12 @@ pub(crate) struct PayloadSender {
 }
 
 impl PayloadSender {
+    pub(crate) fn set_error(&mut self, err: PayloadError) {
+        if let Some(shared) = self.inner.upgrade() {
+            shared.borrow_mut().set_error(err)
+        }
+    }
+
     pub(crate) fn feed_eof(&mut self) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_eof()
@@ -112,6 +134,7 @@ struct Inner {
     len: usize,
     eof: bool,
     paused: bool,
+    err: Option<PayloadError>,
     task: Option<Task>,
     items: VecDeque<Bytes>,
 }
@@ -123,6 +146,7 @@ impl Inner {
             len: 0,
             eof: eof,
             paused: false,
+            err: None,
             task: None,
             items: VecDeque::new(),
         }
@@ -138,6 +162,13 @@ impl Inner {
 
     fn resume(&mut self) {
         self.paused = false;
+    }
+
+    fn set_error(&mut self, err: PayloadError) {
+        self.err = Some(err);
+        if let Some(task) = self.task.take() {
+            task.notify()
+        }
     }
 
     fn feed_eof(&mut self) {
@@ -163,12 +194,14 @@ impl Inner {
         self.len
     }
 
-    fn readany(&mut self) -> Async<Option<Bytes>> {
+    fn readany(&mut self) -> Async<Option<PayloadItem>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
-            Async::Ready(Some(data))
+            Async::Ready(Some(Ok(data)))
         } else if self.eof {
             Async::Ready(None)
+        } else if let Some(err) = self.err.take() {
+            Async::Ready(Some(Err(err)))
         } else {
             self.task = Some(current_task());
             Async::NotReady

@@ -14,6 +14,7 @@ Actix http is licensed under the [Apache-2.0 license](http://opensource.org/lice
 
   * HTTP 1.1 and 1.0 support
   * Streaming and pipelining support
+  * Keep-alive and slow requests support
   * [WebSockets support](https://fafhrd91.github.io/actix-http/actix_http/ws/index.html)
   * [Configurable request routing](https://fafhrd91.github.io/actix-http/actix_http/struct.RoutingMap.html)
 
@@ -50,7 +51,7 @@ impl Route for MyRoute {
 
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
-        Reply::reply(req, httpcodes::HTTPOk)
+        Reply::reply(httpcodes::HTTPOk)
     }
 }
 
