@@ -1,4 +1,4 @@
-use std::{self, fmt, io, ptr};
+use std::{self, io, ptr};
 
 use httparse;
 use http::{Method, Version, Uri, HttpTryFrom, HeaderMap};
@@ -7,7 +7,7 @@ use bytes::{BytesMut, BufMut};
 use futures::{Async, Poll};
 use tokio_io::AsyncRead;
 
-use error::{Error, Result};
+use error::ParseError;
 use decode::Decoder;
 use httpmessage::HttpRequest;
 use payload::{Payload, PayloadSender};
@@ -53,7 +53,7 @@ impl Reader {
         }
     }
 
-    fn decode(&mut self) -> std::result::Result<Decoding, Error>
+    fn decode(&mut self) -> std::result::Result<Decoding, ParseError>
     {
         if let Some(ref mut payload) = self.payload {
             if payload.tx.maybe_paused() {
@@ -69,7 +69,7 @@ impl Reader {
                         return Ok(Decoding::Ready)
                     },
                     Ok(Async::NotReady) => return Ok(Decoding::NotReady),
-                    Err(_) => return Err(Error::Incomplete),
+                    Err(_) => return Err(ParseError::Incomplete),
                 }
             }
         } else {
@@ -77,7 +77,7 @@ impl Reader {
         }
     }
     
-    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), Error>
+    pub fn parse<T>(&mut self, io: &mut T) -> Poll<(HttpRequest, Payload), ParseError>
         where T: AsyncRead
     {
         loop {
@@ -89,8 +89,7 @@ impl Reader {
                 },
                 Decoding::NotReady => {
                     if 0 == try_ready!(self.read_from_io(io)) {
-                        return Err(io::Error::new(
-                            io::ErrorKind::UnexpectedEof, ParseEof).into());
+                        return Err(ParseError::Eof)
                     }
                 }
             }
@@ -119,8 +118,7 @@ impl Reader {
                                     match self.read_from_io(io) {
                                         Ok(Async::Ready(0)) => {
                                             trace!("parse eof");
-                                            return Err(io::Error::new(
-                                                io::ErrorKind::UnexpectedEof, ParseEof).into());
+                                            return Err(ParseError::Eof);
                                         }
                                         Ok(Async::Ready(_)) => {
                                             continue
@@ -141,13 +139,13 @@ impl Reader {
                 None => {
                     if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
                         debug!("MAX_BUFFER_SIZE reached, closing");
-                        return Err(Error::TooLarge);
+                        return Err(ParseError::TooLarge);
                     }
                 },
             }
             if 0 == try_ready!(self.read_from_io(io)) {
                 trace!("parse eof");
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
+                return Err(ParseError::Eof);
             }
         }
     }
@@ -177,23 +175,9 @@ impl Reader {
     }
 }
 
-#[derive(Debug)]
-struct ParseEof;
 
-impl fmt::Display for ParseEof {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("parse eof")
-    }
-}
-
-impl ::std::error::Error for ParseEof {
-    fn description(&self) -> &str {
-        "parse eof"
-    }
-}
-
-
-pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)>> {
+pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)>, ParseError>
+{
     if buf.is_empty() {
         return Ok(None);
     }
@@ -211,7 +195,8 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
         match try!(req.parse(buf)) {
             httparse::Status::Complete(len) => {
                 trace!("Request.parse Complete({})", len);
-                let method = Method::try_from(req.method.unwrap()).map_err(|_| Error::Method)?;
+                let method = Method::try_from(req.method.unwrap())
+                    .map_err(|_| ParseError::Method)?;
                 let path = req.path.unwrap();
                 let bytes_ptr = buf.as_ref().as_ptr() as usize;
                 let path_start = path.as_ptr() as usize - bytes_ptr;
@@ -235,7 +220,7 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
     let slice = buf.split_to(len).freeze();
     let path = slice.slice(path.0, path.1);
     // path was found to be utf8 by httparse
-    let uri = Uri::from_shared(path).map_err(|_| Error::Uri)?;
+    let uri = Uri::from_shared(path).map_err(|_| ParseError::Uri)?;
 
     // convert headers
     let mut headers = HeaderMap::with_capacity(headers_len);
@@ -246,10 +231,10 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
             {
                 headers.insert(name, value);
             } else {
-                return Err(Error::Header)
+                return Err(ParseError::Header)
             }
         } else {
-            return Err(Error::Header)
+            return Err(ParseError::Header)
         }
     }
 
@@ -263,18 +248,18 @@ pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)
     // Content-Length
     else if let Some(len) = msg.headers().get(header::CONTENT_LENGTH) {
         if chunked {
-            return Err(Error::Header)
+            return Err(ParseError::Header)
         }
         if let Ok(s) = len.to_str() {
             if let Ok(len) = s.parse::<u64>() {
                 Some(Decoder::length(len))
             } else {
                 debug!("illegal Content-Length: {:?}", len);
-                return Err(Error::Header)
+                return Err(ParseError::Header)
             }
         } else {
             debug!("illegal Content-Length: {:?}", len);
-            return Err(Error::Header)
+            return Err(ParseError::Header)
         }
     } else if chunked {
         Some(Decoder::chunked())

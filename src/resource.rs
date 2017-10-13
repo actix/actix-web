@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::convert::From;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
@@ -109,7 +110,7 @@ impl<S: 'static> RouteHandler<S> for Resource<S> {
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 enum ReplyItem<A> where A: Actor + Route {
-    Message(HttpRequest, HttpResponse),
+    Message(HttpResponse),
     Actor(A),
 }
 
@@ -124,20 +125,49 @@ impl<A> Reply<A> where A: Actor + Route
     }
 
     /// Send response
-    pub fn reply<R: Into<HttpResponse>>(req: HttpRequest, response: R) -> Self {
-        Reply(ReplyItem::Message(req, response.into()))
+    pub fn reply<R: Into<HttpResponse>>(response: R) -> Self {
+        Reply(ReplyItem::Message(response.into()))
     }
 
     pub fn into(self, mut ctx: HttpContext<A>) -> Task where A: Actor<Context=HttpContext<A>>
     {
         match self.0 {
-            ReplyItem::Message(req, msg) => {
-                Task::reply(req, msg)
+            ReplyItem::Message(msg) => {
+                Task::reply(msg)
             },
             ReplyItem::Actor(act) => {
                 ctx.set_actor(act);
                 Task::with_stream(ctx)
             }
         }
+    }
+}
+
+impl<A, T> From<T> for Reply<A>
+    where T: Into<HttpResponse>, A: Actor + Route
+{
+    fn from(item: T) -> Self {
+        Reply::reply(item)
+    }
+}
+
+#[cfg(feature="nightly")]
+use std::ops::Try;
+
+#[cfg(feature="nightly")]
+impl<A> Try for Reply<A> where A: Actor + Route {
+    type Ok = HttpResponse;
+    type Error = HttpResponse;
+
+    fn into_result(self) -> Result<Self::Ok, Self::Error> {
+        panic!("Reply -> Result conversion is not supported")
+    }
+
+    fn from_error(v: Self::Error) -> Self {
+        Reply::reply(v)
+    }
+
+    fn from_ok(v: Self::Ok) -> Self {
+        Reply::reply(v)
     }
 }

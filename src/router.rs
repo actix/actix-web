@@ -138,7 +138,7 @@ impl Router {
                     return app.handle(req, payload)
                 }
             }
-            Task::reply(req, HTTPNotFound.response())
+            Task::reply(HTTPNotFound.response())
         }
     }
 }

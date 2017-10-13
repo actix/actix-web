@@ -21,10 +21,17 @@ path = "src/lib.rs"
 name = "test"
 path = "src/main.rs"
 
+[features]
+default = ["nightly"]
+
+# Enable nightly features
+nightly = []
+
 [dependencies]
 time = "0.1"
 http = "0.1"
 httparse = "0.1"
+cookie = { version="0.10", features=["percent-encode"] }
 slab = "0.4"
 sha1 = "0.2"
 url = "1.5"

@@ -1,11 +1,16 @@
 //! Http framework for [Actix](https://github.com/fafhrd91/actix)
 
+#![cfg_attr(feature="nightly", feature(
+    try_trait, // std::ops::Try #42327
+))]
+
 #[macro_use]
 extern crate log;
 extern crate time;
 extern crate bytes;
 extern crate sha1;
 extern crate url;
+extern crate cookie;
 #[macro_use]
 extern crate futures;
 extern crate tokio_core;

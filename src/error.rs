@@ -5,27 +5,15 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use cookie;
 use httparse;
+use http::{StatusCode, Error as HttpError};
 
-use self::Error::{
-    Method,
-    Uri,
-    Version,
-    Header,
-    Status,
-    Timeout,
-    Io,
-    TooLarge,
-    Incomplete,
-    Utf8
-};
-
-/// Result type often returned from methods that can have error.
-pub type Result<T> = ::std::result::Result<T, Error>;
+use httpmessage::{Body, HttpResponse};
 
 /// A set of errors that can occur parsing HTTP streams.
 #[derive(Debug)]
-pub enum Error {
+pub enum ParseError {
     /// An invalid `Method`, such as `GE,T`.
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
@@ -43,76 +31,104 @@ pub enum Error {
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
     Timeout,
+    /// Unexpected EOF during parsing
+    Eof,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Io(ref e) => fmt::Display::fmt(e, f),
-            Utf8(ref e) => fmt::Display::fmt(e, f),
+            ParseError::Io(ref e) => fmt::Display::fmt(e, f),
+            ParseError::Utf8(ref e) => fmt::Display::fmt(e, f),
             ref e => f.write_str(e.description()),
         }
     }
 }
 
-impl StdError for Error {
+impl StdError for ParseError {
     fn description(&self) -> &str {
         match *self {
-            Method => "Invalid Method specified",
-            Version => "Invalid HTTP version specified",
-            Header => "Invalid Header provided",
-            TooLarge => "Message head is too large",
-            Status => "Invalid Status provided",
-            Incomplete => "Message is incomplete",
-            Timeout => "Timeout",
-            Uri => "Uri error",
-            Io(ref e) => e.description(),
-            Utf8(ref e) => e.description(),
+            ParseError::Method => "Invalid Method specified",
+            ParseError::Version => "Invalid HTTP version specified",
+            ParseError::Header => "Invalid Header provided",
+            ParseError::TooLarge => "Message head is too large",
+            ParseError::Status => "Invalid Status provided",
+            ParseError::Incomplete => "Message is incomplete",
+            ParseError::Timeout => "Timeout",
+            ParseError::Uri => "Uri error",
+            ParseError::Eof => "Unexpected eof during parse",
+            ParseError::Io(ref e) => e.description(),
+            ParseError::Utf8(ref e) => e.description(),
         }
     }
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
-            Io(ref error) => Some(error),
-            Utf8(ref error) => Some(error),
+            ParseError::Io(ref error) => Some(error),
+            ParseError::Utf8(ref error) => Some(error),
             _ => None,
         }
     }
 }
 
-impl From<IoError> for Error {
-    fn from(err: IoError) -> Error {
-        Io(err)
+impl From<IoError> for ParseError {
+    fn from(err: IoError) -> ParseError {
+        ParseError::Io(err)
     }
 }
 
-impl From<Utf8Error> for Error {
-    fn from(err: Utf8Error) -> Error {
-        Utf8(err)
+impl From<Utf8Error> for ParseError {
+    fn from(err: Utf8Error) -> ParseError {
+        ParseError::Utf8(err)
     }
 }
 
-impl From<FromUtf8Error> for Error {
-    fn from(err: FromUtf8Error) -> Error {
-        Utf8(err.utf8_error())
+impl From<FromUtf8Error> for ParseError {
+    fn from(err: FromUtf8Error) -> ParseError {
+        ParseError::Utf8(err.utf8_error())
     }
 }
 
-impl From<httparse::Error> for Error {
-    fn from(err: httparse::Error) -> Error {
+impl From<httparse::Error> for ParseError {
+    fn from(err: httparse::Error) -> ParseError {
         match err {
             httparse::Error::HeaderName |
             httparse::Error::HeaderValue |
             httparse::Error::NewLine |
-            httparse::Error::Token => Header,
-            httparse::Error::Status => Status,
-            httparse::Error::TooManyHeaders => TooLarge,
-            httparse::Error::Version => Version,
+            httparse::Error::Token => ParseError::Header,
+            httparse::Error::Status => ParseError::Status,
+            httparse::Error::TooManyHeaders => ParseError::TooLarge,
+            httparse::Error::Version => ParseError::Version,
         }
+    }
+}
+
+/// Return BadRequest for ParseError
+impl From<ParseError> for HttpResponse {
+    fn from(err: ParseError) -> Self {
+        HttpResponse::new(StatusCode::BAD_REQUEST,
+                          Body::Binary(err.description().into()))
+    }
+}
+
+/// Return InternalServerError for HttpError,
+/// Response generation can return HttpError, so it is internal error
+impl From<HttpError> for HttpResponse {
+    fn from(err: HttpError) -> Self {
+        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR,
+                          Body::Binary(err.description().into()))
+    }
+}
+
+/// Return BadRequest for cookie::ParseError
+impl From<cookie::ParseError> for HttpResponse {
+    fn from(err: cookie::ParseError) -> Self {
+        HttpResponse::new(StatusCode::BAD_REQUEST,
+                          Body::Binary(err.description().into()))
     }
 }
 

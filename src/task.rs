@@ -44,6 +44,20 @@ impl TaskIOState {
     }
 }
 
+pub(crate) struct RequestInfo {
+    version: Version,
+    keep_alive: bool,
+}
+
+impl RequestInfo {
+    pub fn new(req: &HttpRequest) -> Self {
+        RequestInfo {
+            version: req.version(),
+            keep_alive: req.keep_alive(),
+        }
+    }
+}
+
 pub struct Task {
     state: TaskRunningState,
     iostate: TaskIOState,
@@ -56,9 +70,9 @@ pub struct Task {
 
 impl Task {
 
-    pub fn reply<R: Into<HttpResponse>>(req: HttpRequest, response: R) -> Self {
+    pub fn reply<R: Into<HttpResponse>>(response: R) -> Self {
         let mut frames = VecDeque::new();
-        frames.push_back(Frame::Message(req, response.into()));
+        frames.push_back(Frame::Message(response.into()));
         frames.push_back(Frame::Payload(None));
 
         Task {
@@ -86,13 +100,13 @@ impl Task {
         }
     }
 
-    fn prepare(&mut self, req: HttpRequest, mut msg: HttpResponse)
+    fn prepare(&mut self, req: &RequestInfo, mut msg: HttpResponse)
     {
         trace!("Prepare message status={:?}", msg.status);
 
         let mut extra = 0;
         let body = msg.replace_body(Body::Empty);
-        let version = msg.version().unwrap_or_else(|| req.version());
+        let version = msg.version().unwrap_or_else(|| req.version);
 
         match body {
             Body::Empty => {
@@ -124,7 +138,7 @@ impl Task {
             Body::Streaming => {
                 if msg.chunked() {
                     if version < Version::HTTP_11 {
-                        error!("Chunked transfer encoding is forbidden for {:?}", msg.version);
+                        error!("Chunked transfer encoding is forbidden for {:?}", version);
                     }
                     msg.headers.remove(CONTENT_LENGTH);
                     msg.headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
@@ -144,7 +158,7 @@ impl Task {
             msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
-        else if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
+        else if msg.keep_alive().unwrap_or_else(|| req.keep_alive) {
             if version < Version::HTTP_11 {
                 msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
@@ -159,7 +173,7 @@ impl Task {
         if version == Version::HTTP_11 && msg.status == StatusCode::OK {
             self.buffer.extend(b"HTTP/1.1 200 OK\r\n");
         } else {
-            let _ = write!(self.buffer, "{:?} {}\r\n", msg.version, msg.status);
+            let _ = write!(self.buffer, "{:?} {}\r\n", version, msg.status);
         }
         for (key, value) in &msg.headers {
             let t: &[u8] = key.as_ref();
@@ -192,7 +206,7 @@ impl Task {
         msg.replace_body(body);
     }
 
-    pub(crate) fn poll_io(&mut self, io: &mut TcpStream) -> Poll<bool, ()> {
+    pub(crate) fn poll_io(&mut self, io: &mut TcpStream, info: &RequestInfo) -> Poll<bool, ()> {
         trace!("POLL-IO frames:{:?}", self.frames.len());
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {
@@ -213,8 +227,8 @@ impl Task {
             while let Some(frame) = self.frames.pop_front() {
                 trace!("IO Frame: {:?}", frame);
                 match frame {
-                    Frame::Message(request, response) => {
-                        self.prepare(request, response);
+                    Frame::Message(response) => {
+                        self.prepare(info, response);
                     }
                     Frame::Payload(chunk) => {
                         match chunk {
@@ -277,7 +291,7 @@ impl Future for Task {
                 match stream.poll() {
                     Ok(Async::Ready(Some(frame))) => {
                         match frame {
-                            Frame::Message(_, ref msg) => {
+                            Frame::Message(ref msg) => {
                                 if self.iostate != TaskIOState::ReadingMessage {
                                     error!("Non expected frame {:?}", frame);
                                     return Err(())

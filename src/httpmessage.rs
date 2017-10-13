@@ -1,8 +1,8 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::{io, mem};
-use std::error::Error as StdError;
+use std::{io, mem, str};
 use std::convert::Into;
 
+use cookie;
 use bytes::Bytes;
 use http::{Method, StatusCode, Version, Uri, HeaderMap, HttpTryFrom, Error};
 use http::header::{self, HeaderName, HeaderValue};
@@ -76,6 +76,17 @@ impl HttpRequest {
     #[inline]
     pub fn query(&self) -> Option<&str> {
         self.uri.query()
+    }
+
+    /// Return request cookie.
+    pub fn cookie(&self) -> Result<Option<cookie::Cookie>, cookie::ParseError> {
+        if let Some(val) = self.headers.get(header::COOKIE) {
+            let s = str::from_utf8(val.as_bytes())
+                .map_err(|e| cookie::ParseError::from(e))?;
+            cookie::Cookie::parse(s).map(|c| Some(c))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Get a mutable reference to the Request headers.
@@ -300,13 +311,7 @@ impl HttpResponse {
     }
 }
 
-impl From<Error> for HttpResponse {
-    fn from(err: Error) -> Self {
-        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR,
-                          Body::Binary(err.description().into()))
-    }
-}
-
+/// Helper conversion implementation
 impl<I: Into<HttpResponse>, E: Into<HttpResponse>> From<Result<I, E>> for HttpResponse {
     fn from(res: Result<I, E>) -> Self {
         match res {

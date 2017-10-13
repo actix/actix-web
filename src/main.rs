@@ -1,3 +1,4 @@
+#![feature(try_trait)]
 #![allow(dead_code, unused_variables)]
 extern crate actix;
 extern crate actix_http;
@@ -24,7 +25,7 @@ impl Route for MyRoute {
             ctx.add_stream(payload);
             Reply::stream(MyRoute{req: Some(req)})
         } else {
-            Reply::reply(req, httpcodes::HTTPOk)
+            Reply::reply(httpcodes::HTTPOk)
         }
     }
 }
@@ -42,7 +43,7 @@ impl Handler<PayloadItem> for MyRoute {
     {
         println!("CHUNK: {:?}", msg);
         if let Some(req) = self.req.take() {
-            ctx.start(req, httpcodes::HTTPOk);
+            ctx.start(httpcodes::HTTPOk);
             ctx.write_eof();
         }
         Self::empty()
@@ -58,16 +59,12 @@ impl Actor for MyWS {
 impl Route for MyWS {
     type State = ();
 
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
-        match ws::handshake(&req) {
-            Ok(resp) => {
-                ctx.start(req, resp);
-                ctx.add_stream(ws::WsStream::new(payload));
-                Reply::stream(MyWS{})
-            },
-            Err(err) =>
-                Reply::reply(req, err)
-        }
+    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
+    {
+        let resp = ws::handshake(&req)?;
+        ctx.start(resp);
+        ctx.add_stream(ws::WsStream::new(payload));
+        Reply::stream(MyWS{})
     }
 }
 

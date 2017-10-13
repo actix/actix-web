@@ -1,4 +1,4 @@
-use std::{io, net};
+use std::{io, net, mem};
 use std::rc::Rc;
 use std::collections::VecDeque;
 
@@ -6,7 +6,7 @@ use actix::dev::*;
 use futures::{Future, Poll, Async};
 use tokio_core::net::{TcpListener, TcpStream};
 
-use task::Task;
+use task::{Task, RequestInfo};
 use reader::Reader;
 use router::{Router, RoutingMap};
 
@@ -55,6 +55,7 @@ impl Handler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {
                         addr: msg.1,
                         stream: msg.0,
                         reader: Reader::new(),
+                        error: false,
                         items: VecDeque::new(),
                         inactive: Vec::new(),
             });
@@ -65,6 +66,7 @@ impl Handler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {
 
 struct Entry {
     task: Task,
+    req: RequestInfo,
     eof: bool,
     error: bool,
     finished: bool,
@@ -76,6 +78,7 @@ pub struct HttpChannel {
     addr: net::SocketAddr,
     stream: TcpStream,
     reader: Reader,
+    error: bool,
     items: VecDeque<Entry>,
     inactive: Vec<Entry>,
 }
@@ -97,7 +100,13 @@ impl Future for HttpChannel {
                     if self.items[idx].error {
                         return Err(())
                     }
-                    match self.items[idx].task.poll_io(&mut self.stream) {
+
+                    // this is anoying
+                    let req: &RequestInfo = unsafe {
+                        mem::transmute(&self.items[idx].req)
+                    };
+                    match self.items[idx].task.poll_io(&mut self.stream, req)
+                    {
                         Ok(Async::Ready(val)) => {
                             let mut item = self.items.pop_front().unwrap();
                             if !val {
@@ -107,7 +116,11 @@ impl Future for HttpChannel {
                             continue
                         },
                         Ok(Async::NotReady) => (),
-                        Err(_) => return Err(()),
+                        Err(_) => {
+                            // it is not possible to recover from error
+                            // during task handling, so just drop connection
+                            return Err(())
+                        }
                     }
                 } else if !self.items[idx].finished {
                     match self.items[idx].task.poll() {
@@ -121,19 +134,32 @@ impl Future for HttpChannel {
                 idx += 1;
             }
 
+            // check for parse error
+            if self.items.is_empty() && self.error {
+
+            }
+            
             // read incoming data
-            match self.reader.parse(&mut self.stream) {
-                Ok(Async::Ready((req, payload))) => {
-                    self.items.push_back(
-                        Entry {task: self.router.call(req, payload),
-                               eof: false,
-                               error: false,
-                               finished: false});
-                },
-                Ok(Async::NotReady) =>
-                    return Ok(Async::NotReady),
-                Err(_) =>
-                    return Err(()),
+            if !self.error {
+                match self.reader.parse(&mut self.stream) {
+                    Ok(Async::Ready((req, payload))) => {
+                        let info = RequestInfo::new(&req);
+                        self.items.push_back(
+                            Entry {task: self.router.call(req, payload),
+                                   req: info,
+                                   eof: false,
+                                   error: false,
+                                   finished: false});
+                    }
+                    Ok(Async::NotReady) =>
+                        return Ok(Async::NotReady),
+                    Err(err) => return Err(())
+                        //self.items.push_back(
+                        //    Entry {task: Task::reply(err),
+                        //           eof: false,
+                        //           error: false,
+                        //           finished: false})
+                }
             }
         }
     }
