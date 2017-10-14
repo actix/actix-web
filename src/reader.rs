@@ -16,6 +16,12 @@ const MAX_HEADERS: usize = 100;
 const INIT_BUFFER_SIZE: usize = 8192;
 const MAX_BUFFER_SIZE: usize = 131_072;
 
+enum Decoding {
+    Paused,
+    Ready,
+    NotReady,
+}
+
 struct PayloadInfo {
     tx: PayloadSender,
     decoder: Decoder,
@@ -26,12 +32,7 @@ pub(crate) struct Reader {
     payload: Option<PayloadInfo>,
 }
 
-enum Decoding {
-    Paused,
-    Ready,
-    NotReady,
-}
-
+#[derive(Debug)]
 pub(crate) enum ReaderError {
     Payload,
     Error(ParseError),
@@ -42,19 +43,6 @@ impl Reader {
         Reader {
             read_buf: BytesMut::new(),
             payload: None,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn consume_leading_lines(&mut self) {
-        if !self.read_buf.is_empty() {
-            let mut i = 0;
-            while i < self.read_buf.len() {
-                match self.read_buf[i] {
-                    b'\r' | b'\n' => i += 1,
-                    _ => break,
-                }
-            }            self.read_buf.split_to(i);
         }
     }
 
@@ -101,7 +89,7 @@ impl Reader {
                             if let Some(ref mut payload) = self.payload {
                                 payload.tx.set_error(PayloadError::Incomplete);
                             }
-                            // http channel should deal with payload errors
+                            // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
                         }
                         Ok(Async::Ready(_)) => {
@@ -112,7 +100,7 @@ impl Reader {
                             if let Some(ref mut payload) = self.payload {
                                 payload.tx.set_error(err.into());
                             }
-                            // http channel should deal with payload errors
+                            // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
                         }
                     }
@@ -121,7 +109,7 @@ impl Reader {
         }
 
         loop {
-            match try!(parse(&mut self.read_buf).map_err(ReaderError::Error)) {
+            match try!(Reader::parse_message(&mut self.read_buf).map_err(ReaderError::Error)) {
                 Some((msg, decoder)) => {
                     let payload = if let Some(decoder) = decoder {
                         let (tx, rx) = Payload::new(false);
@@ -215,100 +203,101 @@ impl Reader {
             Ok(Async::Ready(n))
         }
     }
-}
 
+    fn parse_message(buf: &mut BytesMut)
+                     -> Result<Option<(HttpRequest, Option<Decoder>)>, ParseError>
+    {
+        if buf.is_empty() {
+            return Ok(None);
+        }
 
-pub fn parse(buf: &mut BytesMut) -> Result<Option<(HttpRequest, Option<Decoder>)>, ParseError>
-{
-    if buf.is_empty() {
-        return Ok(None);
-    }
+        // Parse http message
+        let mut headers_indices = [HeaderIndices {
+            name: (0, 0),
+            value: (0, 0)
+        }; MAX_HEADERS];
 
-    // Parse http message
-    let mut headers_indices = [HeaderIndices {
-        name: (0, 0),
-        value: (0, 0)
-    }; MAX_HEADERS];
+        let (len, method, path, version, headers_len) = {
+            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
+            trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
+            let mut req = httparse::Request::new(&mut headers);
+            match try!(req.parse(buf)) {
+                httparse::Status::Complete(len) => {
+                    trace!("Request.parse Complete({})", len);
+                    let method = Method::try_from(req.method.unwrap())
+                        .map_err(|_| ParseError::Method)?;
+                    let path = req.path.unwrap();
+                    let bytes_ptr = buf.as_ref().as_ptr() as usize;
+                    let path_start = path.as_ptr() as usize - bytes_ptr;
+                    let path_end = path_start + path.len();
+                    let path = (path_start, path_end);
 
-    let (len, method, path, version, headers_len) = {
-        let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-        trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
-        let mut req = httparse::Request::new(&mut headers);
-        match try!(req.parse(buf)) {
-            httparse::Status::Complete(len) => {
-                trace!("Request.parse Complete({})", len);
-                let method = Method::try_from(req.method.unwrap())
-                    .map_err(|_| ParseError::Method)?;
-                let path = req.path.unwrap();
-                let bytes_ptr = buf.as_ref().as_ptr() as usize;
-                let path_start = path.as_ptr() as usize - bytes_ptr;
-                let path_end = path_start + path.len();
-                let path = (path_start, path_end);
+                    let version = if req.version.unwrap() == 1 {
+                        Version::HTTP_11
+                    } else {
+                        Version::HTTP_10
+                    };
 
-                let version = if req.version.unwrap() == 1 {
-                    Version::HTTP_11
+                    record_header_indices(buf.as_ref(), req.headers, &mut headers_indices);
+                    let headers_len = req.headers.len();
+                    (len, method, path, version, headers_len)
+                }
+                httparse::Status::Partial => return Ok(None),
+            }
+        };
+
+        let slice = buf.split_to(len).freeze();
+        let path = slice.slice(path.0, path.1);
+        // path was found to be utf8 by httparse
+        let uri = Uri::from_shared(path).map_err(|_| ParseError::Uri)?;
+
+        // convert headers
+        let mut headers = HeaderMap::with_capacity(headers_len);
+        for header in headers_indices[..headers_len].iter() {
+            if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
+                if let Ok(value) = HeaderValue::try_from(
+                    slice.slice(header.value.0, header.value.1))
+                {
+                    headers.append(name, value);
                 } else {
-                    Version::HTTP_10
-                };
-
-                record_header_indices(buf.as_ref(), req.headers, &mut headers_indices);
-                let headers_len = req.headers.len();
-                (len, method, path, version, headers_len)
-            }
-            httparse::Status::Partial => return Ok(None),
-        }
-    };
-
-    let slice = buf.split_to(len).freeze();
-    let path = slice.slice(path.0, path.1);
-    // path was found to be utf8 by httparse
-    let uri = Uri::from_shared(path).map_err(|_| ParseError::Uri)?;
-
-    // convert headers
-    let mut headers = HeaderMap::with_capacity(headers_len);
-    for header in headers_indices[..headers_len].iter() {
-        if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
-            if let Ok(value) = HeaderValue::try_from(
-                slice.slice(header.value.0, header.value.1))
-            {
-                headers.insert(name, value);
+                    return Err(ParseError::Header)
+                }
             } else {
                 return Err(ParseError::Header)
             }
+        }
+
+        let msg = HttpRequest::new(method, uri, version, headers);
+
+        let decoder = if msg.upgrade() {
+            Some(Decoder::eof())
         } else {
-            return Err(ParseError::Header)
-        }
-    }
+            let chunked = msg.chunked()?;
 
-    let msg = HttpRequest::new(method, uri, version, headers);
-    let upgrade = msg.is_upgrade() || *msg.method() == Method::CONNECT;
-    let chunked = msg.is_chunked()?;
-
-    let decoder = if upgrade {
-        Some(Decoder::eof())
-    }
-    // Content-Length
-    else if let Some(len) = msg.headers().get(header::CONTENT_LENGTH) {
-        if chunked {
-            return Err(ParseError::Header)
-        }
-        if let Ok(s) = len.to_str() {
-            if let Ok(len) = s.parse::<u64>() {
-                Some(Decoder::length(len))
+            // Content-Length
+            if let Some(len) = msg.headers().get(header::CONTENT_LENGTH) {
+                if chunked {
+                    return Err(ParseError::Header)
+                }
+                if let Ok(s) = len.to_str() {
+                    if let Ok(len) = s.parse::<u64>() {
+                        Some(Decoder::length(len))
+                    } else {
+                        debug!("illegal Content-Length: {:?}", len);
+                        return Err(ParseError::Header)
+                    }
+                } else {
+                    debug!("illegal Content-Length: {:?}", len);
+                    return Err(ParseError::Header)
+                }
+            } else if chunked {
+                Some(Decoder::chunked())
             } else {
-                debug!("illegal Content-Length: {:?}", len);
-                return Err(ParseError::Header)
+                None
             }
-        } else {
-            debug!("illegal Content-Length: {:?}", len);
-            return Err(ParseError::Header)
-        }
-    } else if chunked {
-        Some(Decoder::chunked())
-    } else {
-        None
-    };
-    Ok(Some((msg, decoder)))
+        };
+        Ok(Some((msg, decoder)))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -330,4 +319,491 @@ fn record_header_indices(bytes: &[u8],
         let value_end = value_start + header.value.len();
         indices.value = (value_start, value_end);
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::{io, cmp};
+    use bytes::{Bytes, BytesMut};
+    use futures::{Async};
+    use tokio_io::AsyncRead;
+    use http::{Version, Method};
+    use super::{Reader, ReaderError};
+
+    struct Buffer {
+        buf: Bytes,
+        err: Option<io::Error>,
+    }
+
+    impl Buffer {
+        fn new(data: &'static str) -> Buffer {
+            Buffer {
+                buf: Bytes::from(data),
+                err: None,
+            }
+        }
+        fn feed_data(&mut self, data: &'static str) {
+            let mut b = BytesMut::from(self.buf.as_ref());
+            b.extend(data.as_bytes());
+            self.buf = b.take().freeze();
+        }
+    }
+    
+    impl AsyncRead for Buffer {}
+    impl io::Read for Buffer {
+        fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+            if self.buf.is_empty() {
+                if self.err.is_some() {
+                    Err(self.err.take().unwrap())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+                }
+            } else {
+                let size = cmp::min(self.buf.len(), dst.len());
+                let b = self.buf.split_to(size);
+                dst[..size].copy_from_slice(&b);
+                Ok(size)
+            }
+        }
+    }
+
+    macro_rules! not_ready {
+        ($e:expr) => (match $e {
+            Ok(Async::NotReady) => (),
+            Err(err) => panic!("Unexpected error: {:?}", err),
+            _ => panic!("Should not be ready"),
+        })
+    }
+
+    macro_rules! parse_ready {
+        ($e:expr) => (
+            match Reader::new().parse($e) {
+                Ok(Async::Ready((req, payload))) => (req, payload),
+                Ok(_) => panic!("Eof during parsing http request"),
+                Err(err) => panic!("Error during parsing http request: {:?}", err),
+            }
+        )
+    }
+
+    macro_rules! reader_parse_ready {
+        ($e:expr) => (
+            match $e {
+                Ok(Async::Ready((req, payload))) => (req, payload),
+                Ok(_) => panic!("Eof during parsing http request"),
+                Err(err) => panic!("Error during parsing http request: {:?}", err),
+            }
+        )
+    }
+
+    macro_rules! expect_parse_err {
+        ($e:expr) => (match Reader::new().parse($e) {
+            Err(err) => match err {
+                ReaderError::Error(_) => (),
+                _ => panic!("Parse error expected"),
+            },
+            _ => panic!("Error expected"),
+        })
+    }
+
+    #[test]
+    fn test_parse() {
+        let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert!(payload.eof());
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_partial() {
+        let mut buf = Buffer::new("PUT /test HTTP/1");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::NotReady) => (),
+            _ => panic!("Error"),
+        }
+
+        buf.feed_data(".1\r\n\r\n");
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::PUT);
+                assert_eq!(req.path(), "/test");
+                assert!(payload.eof());
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_post() {
+        let mut buf = Buffer::new("POST /test2 HTTP/1.0\r\n\r\n");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, payload))) => {
+                assert_eq!(req.version(), Version::HTTP_10);
+                assert_eq!(*req.method(), Method::POST);
+                assert_eq!(req.path(), "/test2");
+                assert!(payload.eof());
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_body() {
+        let mut buf = Buffer::new("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, mut payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(payload.readall().unwrap().as_ref(), b"body");
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_body_crlf() {
+        let mut buf = Buffer::new(
+            "\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, mut payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(payload.readall().unwrap().as_ref(), b"body");
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_partial_eof() {
+        let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
+
+        let mut reader = Reader::new();
+        not_ready!{ reader.parse(&mut buf) }
+
+        buf.feed_data("\r\n");
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert!(payload.eof());
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_headers_split_field() {
+        let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
+
+        let mut reader = Reader::new();
+        not_ready!{ reader.parse(&mut buf) }
+
+        buf.feed_data("t");
+        not_ready!{ reader.parse(&mut buf) }
+
+        buf.feed_data("es");
+        not_ready!{ reader.parse(&mut buf) }
+
+        buf.feed_data("t: value\r\n\r\n");
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, payload))) => {
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
+                assert!(payload.eof());
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_headers_multi_value() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             Set-Cookie: c1=cookie1\r\n\
+             Set-Cookie: c2=cookie2\r\n\r\n");
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(Async::Ready((req, _))) => {
+                let val: Vec<_> = req.headers().get_all("Set-Cookie")
+                    .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
+                assert_eq!(val[0], "c1=cookie1");
+                assert_eq!(val[1], "c2=cookie2");
+            }
+            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_conn_default_1_0() {
+        let mut buf = Buffer::new("GET /test HTTP/1.0\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_default_1_1() {
+        let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_close() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             connection: close\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_close_1_0() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.0\r\n\
+             connection: close\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_keep_alive_1_0() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.0\r\n\
+             connection: keep-alive\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_keep_alive_1_1() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             connection: keep-alive\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_other_1_0() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.0\r\n\
+             connection: other\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_other_1_1() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             connection: other\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_upgrade() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade\r\n\r\n");
+        let (req, payload) = parse_ready!(&mut buf);
+
+        assert!(!payload.eof());
+        assert!(req.upgrade());
+    }
+
+    #[test]
+    fn test_conn_upgrade_connect_method() {
+        let mut buf = Buffer::new(
+            "CONNECT /test HTTP/1.1\r\n\
+             content-length: 0\r\n\r\n");
+        let (req, payload) = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+        assert!(!payload.eof());
+    }
+
+    #[test]
+    fn test_request_chunked() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+        let (req, payload) = parse_ready!(&mut buf);
+
+        assert!(!payload.eof());
+        if let Ok(val) = req.chunked() {
+            assert!(val);
+        } else {
+            panic!("Error");
+        }
+
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chnked\r\n\r\n");
+        let (req, payload) = parse_ready!(&mut buf);
+
+        assert!(payload.eof());
+        if let Ok(val) = req.chunked() {
+            assert!(!val);
+        } else {
+            panic!("Error");
+        }
+    }
+
+    #[test]
+    fn test_headers_content_length_err_1() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             content-length: line\r\n\r\n");
+
+        expect_parse_err!(&mut buf)
+    }
+
+    #[test]
+    fn test_headers_content_length_err_2() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             content-length: -1\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_invalid_header() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             test line\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_invalid_name() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             test[]: line\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_bad_status_line() {
+        let mut buf = Buffer::new("getpath \r\n\r\n");
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_upgrade() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade\r\n\
+             upgrade: websocket\r\n\r\n\
+             some raw data");
+        let (req, mut payload) = parse_ready!(&mut buf);
+        assert!(!req.keep_alive());
+        assert!(req.upgrade());
+        assert_eq!(payload.readall().unwrap().as_ref(), b"some raw data");
+    }
+
+    #[test]
+    fn test_http_request_parser_utf8() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             x-test: тест\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert_eq!(req.headers().get("x-test").unwrap().as_bytes(),
+                   "тест".as_bytes());
+    }
+
+    #[test]
+    fn test_http_request_parser_two_slashes() {
+        let mut buf = Buffer::new(
+            "GET //path HTTP/1.1\r\n\r\n");
+        let (req, _) = parse_ready!(&mut buf);
+
+        assert_eq!(req.path(), "//path");
+    }
+
+    #[test]
+    fn test_http_request_parser_bad_method() {
+        let mut buf = Buffer::new(
+            "!12%()+=~$ /get HTTP/1.1\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_parser_bad_version() {
+        let mut buf = Buffer::new("GET //get HT/11\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_chunked_payload() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+
+        let mut reader = Reader::new();
+        let (req, mut payload) = reader_parse_ready!(reader.parse(&mut buf));
+        assert!(req.chunked().unwrap());
+        assert!(!payload.eof());
+
+        buf.feed_data("4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
+        not_ready!(reader.parse(&mut buf));
+        assert!(!payload.eof());
+        assert_eq!(payload.readall().unwrap().as_ref(), b"dataline");
+        assert!(payload.eof());
+    }
+
+    /*#[test]
+    #[should_panic]
+    fn test_parse_multiline() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             test: line\r\n \
+               continue\r\n\
+             test2: data\r\n\
+             \r\n", false);
+
+        let mut reader = Reader::new();
+        match reader.parse(&mut buf) {
+            Ok(res) => (),
+            Err(err) => panic!("{:?}", err),
+        }
+    }*/
 }

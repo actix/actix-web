@@ -130,7 +130,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
     }
 
     // Upgrade connection
-    if !req.is_upgrade() {
+    if !req.upgrade() {
         return Err(HTTPBadRequest.with_reason("No CONNECTION upgrade"))
     }
 

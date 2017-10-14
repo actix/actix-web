@@ -133,7 +133,7 @@ impl Decoder {
 macro_rules! byte (
     ($rdr:ident) => ({
         if $rdr.len() > 0 {
-            let b = $rdr[1];
+            let b = $rdr[0];
             $rdr.split_to(1);
             b
         } else {

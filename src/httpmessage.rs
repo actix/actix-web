@@ -117,10 +117,11 @@ impl HttpRequest {
     pub fn keep_alive(&self) -> bool {
         if let Some(conn) = self.headers.get(header::CONNECTION) {
             if let Ok(conn) = conn.to_str() {
-                if self.version == Version::HTTP_10 && !conn.contains("keep-alive") {
-                    false
+                if self.version == Version::HTTP_10 && conn.contains("keep-alive") {
+                    true
                 } else {
-                    self.version == Version::HTTP_11 && conn.contains("close")
+                    self.version == Version::HTTP_11 &&
+                        !(conn.contains("close") || conn.contains("upgrade"))
                 }
             } else {
                 false
@@ -130,23 +131,22 @@ impl HttpRequest {
         }
     }
 
-    pub(crate) fn is_upgrade(&self) -> bool {
+    pub(crate) fn upgrade(&self) -> bool {
         if let Some(conn) = self.headers().get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade")
             }
         }
-        false
+        self.method == Method::CONNECT
     }
 
-    pub fn is_chunked(&self) -> Result<bool, io::Error> {
+    pub fn chunked(&self) -> Result<bool, io::Error> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
-                return Ok(s.to_lowercase().contains("chunked"))
+                Ok(s.to_lowercase().contains("chunked"))
             } else {
                 Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Request with transfer-encoding header, but not chunked"))
+                    io::ErrorKind::Other, "Can not read transfer-encoding header"))
             }
         } else {
             Ok(false)

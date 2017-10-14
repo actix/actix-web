@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::convert::From;
 use std::collections::VecDeque;
 use std::io::Error as IoError;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
@@ -68,6 +68,11 @@ impl Payload {
     /// Chunk get returned as Some(PayloadItem), `None` indicates eof.
     pub fn readany(&mut self) -> Async<Option<PayloadItem>> {
         self.inner.borrow_mut().readany()
+    }
+
+    #[doc(hidden)]
+    pub fn readall(&mut self) -> Option<Bytes> {
+        self.inner.borrow_mut().readall()
     }
 
     /// Put unused data back to payload
@@ -187,7 +192,7 @@ impl Inner {
     }
 
     fn eof(&self) -> bool {
-        self.eof
+        self.items.is_empty() && self.eof
     }
 
     fn len(&self) -> usize {
@@ -205,6 +210,21 @@ impl Inner {
         } else {
             self.task = Some(current_task());
             Async::NotReady
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn readall(&mut self) -> Option<Bytes> {
+        let len = self.items.iter().fold(0, |cur, item| cur + item.len());
+        if len > 0 {
+            let mut buf = BytesMut::with_capacity(len);
+            for item in &self.items {
+                buf.extend(item);
+            }
+            self.items = VecDeque::new();
+            Some(buf.take().freeze())
+        } else {
+            None
         }
     }
 
