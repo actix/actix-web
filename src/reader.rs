@@ -790,6 +790,89 @@ mod tests {
         assert!(payload.eof());
     }
 
+    #[test]
+    fn test_http_request_chunked_payload_and_next_message() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+
+        let mut reader = Reader::new();
+
+        let (req, mut payload) = reader_parse_ready!(reader.parse(&mut buf));
+        assert!(req.chunked().unwrap());
+        assert!(!payload.eof());
+
+        buf.feed_data(
+            "4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
+             POST /test2 HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+
+        let (req2, payload2) = reader_parse_ready!(reader.parse(&mut buf));
+        assert_eq!(*req2.method(), Method::POST);
+        assert!(req2.chunked().unwrap());
+        assert!(!payload2.eof());
+
+        assert_eq!(payload.readall().unwrap().as_ref(), b"dataline");
+        assert!(payload.eof());
+    }
+
+    #[test]
+    fn test_http_request_chunked_payload_chunks() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+
+        let mut reader = Reader::new();
+        let (req, mut payload) = reader_parse_ready!(reader.parse(&mut buf));
+        assert!(req.chunked().unwrap());
+        assert!(!payload.eof());
+
+        buf.feed_data("4\r\ndata\r");
+        not_ready!(reader.parse(&mut buf));
+
+        buf.feed_data("\n4");
+        not_ready!(reader.parse(&mut buf));
+
+        buf.feed_data("\r");
+        not_ready!(reader.parse(&mut buf));
+        buf.feed_data("\n");
+        not_ready!(reader.parse(&mut buf));
+
+        buf.feed_data("li");
+        not_ready!(reader.parse(&mut buf));
+
+        buf.feed_data("ne\r\n0\r\n");
+        not_ready!(reader.parse(&mut buf));
+
+        //buf.feed_data("test: test\r\n");
+        //not_ready!(reader.parse(&mut buf));
+
+        assert_eq!(payload.readall().unwrap().as_ref(), b"dataline");
+        assert!(!payload.eof());
+
+        buf.feed_data("\r\n");
+        not_ready!(reader.parse(&mut buf));
+        assert!(payload.eof());
+    }
+
+    #[test]
+    fn test_parse_chunked_payload_chunk_extension() {
+        let mut buf = Buffer::new(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n");
+
+        let mut reader = Reader::new();
+        let (req, mut payload) = reader_parse_ready!(reader.parse(&mut buf));
+        assert!(req.chunked().unwrap());
+        assert!(!payload.eof());
+
+        buf.feed_data("4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
+        not_ready!(reader.parse(&mut buf));
+        assert!(!payload.eof());
+        assert_eq!(payload.readall().unwrap().as_ref(), b"dataline");
+        assert!(payload.eof());
+    }
+
     /*#[test]
     #[should_panic]
     fn test_parse_multiline() {
