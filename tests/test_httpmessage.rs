@@ -31,6 +31,12 @@ fn test_request_cookies() {
     assert_eq!(cookies[0].value(), "value1");
     assert_eq!(cookies[1].name(), "cookie2");
     assert_eq!(cookies[1].value(), "value2");
+
+    let cookie = req.cookie("cookie1");
+    assert!(cookie.is_some());
+    let cookie = cookie.unwrap();
+    assert_eq!(cookie.name(), "cookie1");
+    assert_eq!(cookie.value(), "value1");
 }
 
 #[test]

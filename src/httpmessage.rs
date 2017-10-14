@@ -82,8 +82,18 @@ impl HttpRequest {
     }
 
     /// Return request cookies.
-    pub fn cookies(&mut self) -> &Vec<Cookie<'static>> {
+    pub fn cookies(&self) -> &Vec<Cookie<'static>> {
         &self.cookies
+    }
+
+    /// Return request cookie.
+    pub fn cookie(&self, name: &str) -> Option<&Cookie> {
+        for cookie in &self.cookies {
+            if cookie.name() == name {
+                return Some(&cookie)
+            }
+        }
+        None
     }
 
     /// Load cookies
