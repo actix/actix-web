@@ -25,12 +25,14 @@ fn test_request_cookies() {
     let mut req = HttpRequest::new(
         Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
     assert!(req.cookies().is_empty());
-    let cookies = req.load_cookies().unwrap();
-    assert_eq!(cookies.len(), 2);
-    assert_eq!(cookies[0].name(), "cookie1");
-    assert_eq!(cookies[0].value(), "value1");
-    assert_eq!(cookies[1].name(), "cookie2");
-    assert_eq!(cookies[1].value(), "value2");
+    {
+        let cookies = req.load_cookies().unwrap();
+        assert_eq!(cookies.len(), 2);
+        assert_eq!(cookies[0].name(), "cookie1");
+        assert_eq!(cookies[0].value(), "value1");
+        assert_eq!(cookies[1].name(), "cookie2");
+        assert_eq!(cookies[1].value(), "value2");
+    }
 
     let cookie = req.cookie("cookie1");
     assert!(cookie.is_some());
