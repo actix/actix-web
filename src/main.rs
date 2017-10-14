@@ -1,4 +1,4 @@
-#![feature(try_trait)]
+// #![feature(try_trait)]
 #![allow(dead_code, unused_variables)]
 extern crate actix;
 extern crate actix_http;
