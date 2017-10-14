@@ -24,14 +24,18 @@ addons:
 
 # Add clippy
 before_script:
-  #- |
-  #  if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
-  #      ( ( cargo install clippy && export CLIPPY=true ) || export CLIPPY=false );
-  #  fi
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
+        ( ( cargo install clippy && export CLIPPY=true ) || export CLIPPY=false );
+    fi
   - export PATH=$PATH:~/.cargo/bin
 
 script:
   - cargo test --no-default-features
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
+        cargo clippy
+    fi
 
 # Upload docs
 after_success:
