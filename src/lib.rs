@@ -49,4 +49,8 @@ pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
 pub use server::HttpServer;
 pub use context::HttpContext;
+
+// re-exports
+pub use cookie::{Cookie, CookieBuilder};
+pub use cookie::{ParseError as CookieParseError};
 pub use route_recognizer::Params;

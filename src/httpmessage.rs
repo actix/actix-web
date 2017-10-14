@@ -2,12 +2,13 @@
 use std::{io, mem, str};
 use std::convert::Into;
 
-use cookie;
+use cookie::CookieJar;
 use bytes::Bytes;
 use http::{Method, StatusCode, Version, Uri, HeaderMap, HttpTryFrom, Error};
 use http::header::{self, HeaderName, HeaderValue};
 
 use Params;
+use {Cookie, CookieParseError};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ConnectionType {
@@ -24,7 +25,7 @@ pub struct HttpRequest {
     uri: Uri,
     headers: HeaderMap,
     params: Params,
-    cookies: Vec<cookie::Cookie<'static>>,
+    cookies: Vec<Cookie<'static>>,
 }
 
 impl HttpRequest {
@@ -81,18 +82,18 @@ impl HttpRequest {
     }
 
     /// Return request cookies.
-    pub fn cookies(&mut self) -> &Vec<cookie::Cookie<'static>> {
+    pub fn cookies(&mut self) -> &Vec<Cookie<'static>> {
         &self.cookies
     }
 
     /// Load cookies
-    pub fn load_cookies(&mut self) -> Result<&Vec<cookie::Cookie>, cookie::ParseError>
+    pub fn load_cookies(&mut self) -> Result<&Vec<Cookie>, CookieParseError>
     {
         if let Some(val) = self.headers.get(header::COOKIE) {
             let s = str::from_utf8(val.as_bytes())
-                .map_err(cookie::ParseError::from)?;
+                .map_err(CookieParseError::from)?;
             for cookie in s.split("; ") {
-                self.cookies.push(cookie::Cookie::parse_encoded(cookie)?.into_owned());
+                self.cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
             }
         }
         Ok(&self.cookies)
@@ -344,6 +345,7 @@ struct Parts {
     reason: Option<&'static str>,
     chunked: bool,
     connection_type: Option<ConnectionType>,
+    cookies: CookieJar,
 }
 
 impl Parts {
@@ -355,6 +357,7 @@ impl Parts {
             reason: None,
             chunked: false,
             connection_type: None,
+            cookies: CookieJar::new(),
         }
     }
 }
@@ -470,11 +473,34 @@ impl Builder {
         self
     }*/
 
+    /// Set a cookie
+    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.cookies.add(cookie.into_owned());
+        }
+        self
+    }
+
+    /// Remote cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
+    pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            let cookie = cookie.clone().into_owned();
+            parts.cookies.add_original(cookie.clone());
+            parts.cookies.remove(cookie);
+        }
+        self
+    }
+
     /// Set a body
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {
-        let parts = self.parts.take().expect("cannot reuse response builder");
+        let mut parts = self.parts.take().expect("cannot reuse response builder");
         if let Some(e) = self.err.take() {
             return Err(e)
+        }
+        for cookie in parts.cookies.delta() {
+            parts.headers.append(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&cookie.to_string())?);
         }
         Ok(HttpResponse {
             version: parts.version,
