@@ -24,6 +24,7 @@ pub struct HttpRequest {
     uri: Uri,
     headers: HeaderMap,
     params: Params,
+    cookies: Vec<cookie::Cookie<'static>>,
 }
 
 impl HttpRequest {
@@ -36,6 +37,7 @@ impl HttpRequest {
             version: version,
             headers: headers,
             params: Params::new(),
+            cookies: Vec::new(),
         }
     }
 
@@ -78,15 +80,22 @@ impl HttpRequest {
         self.uri.query()
     }
 
-    /// Return request cookie.
-    pub fn cookie(&self) -> Result<Option<cookie::Cookie>, cookie::ParseError> {
+    /// Return request cookies.
+    pub fn cookies(&mut self) -> &Vec<cookie::Cookie<'static>> {
+        &self.cookies
+    }
+
+    /// Load cookies
+    pub fn load_cookies(&mut self) -> Result<&Vec<cookie::Cookie>, cookie::ParseError>
+    {
         if let Some(val) = self.headers.get(header::COOKIE) {
             let s = str::from_utf8(val.as_bytes())
                 .map_err(cookie::ParseError::from)?;
-            cookie::Cookie::parse(s).map(Some)
-        } else {
-            Ok(None)
+            for cookie in s.split("; ") {
+                self.cookies.push(cookie::Cookie::parse_encoded(cookie)?.into_owned());
+            }
         }
+        Ok(&self.cookies)
     }
 
     /// Get a mutable reference to the Request headers.
@@ -109,7 +118,8 @@ impl HttpRequest {
             uri: self.uri,
             version: self.version,
             headers: self.headers,
-            params: params
+            params: params,
+            cookies: self.cookies,
         }
     }
 
@@ -247,6 +257,16 @@ impl HttpResponse {
         &mut self.status
     }
 
+    /// Get custom reason for the response.
+    #[inline]
+    pub fn reason(&self) -> &str {
+        if let Some(ref reason) = self.reason {
+            reason
+        } else {
+            ""
+        }
+    }
+
     /// Set the custom reason for the response.
     #[inline]
     pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
@@ -255,7 +275,7 @@ impl HttpResponse {
     }
 
     /// Set connection type
-    pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self{
+    pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self {
         self.connection_type = Some(conn);
         self
     }
@@ -272,11 +292,6 @@ impl HttpResponse {
         } else {
             None
         }
-    }
-
-    /// Force close connection, even if it is marked as keep-alive
-    pub fn force_close(&mut self) {
-        self.connection_type = Some(ConnectionType::Close);
     }
 
     /// is chunked encoding enabled
@@ -404,11 +419,21 @@ impl Builder {
     }
 
     /// Set connection type
-    pub fn connection_type(mut self, conn: ConnectionType) -> Self {
+    pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.connection_type = Some(conn);
         }
         self
+    }
+
+    /// Set connection type to Upgrade
+    pub fn upgrade(&mut self) -> &mut Self {
+        self.connection_type(ConnectionType::Upgrade)
+    }
+
+    /// Force close connection, even if it is marked as keep-alive
+    pub fn force_close(&mut self) -> &mut Self {
+        self.connection_type(ConnectionType::Close)
     }
 
     /// Enables automatic chunked transfer encoding
@@ -418,6 +443,32 @@ impl Builder {
         }
         self
     }
+
+    /// Set response content type
+    pub fn content_type<V>(&mut self, value: V) -> &mut Self
+        where HeaderValue: HttpTryFrom<V>
+    {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            match HeaderValue::try_from(value) {
+                Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+
+    /* /// Set response content charset
+    pub fn charset<V>(&mut self, value: V) -> &mut Self
+        where HeaderValue: HttpTryFrom<V>
+    {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            match HeaderValue::try_from(value) {
+                Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }*/
 
     /// Set a body
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {

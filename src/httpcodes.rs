@@ -45,3 +45,38 @@ impl From<StaticResponse> for HttpResponse {
         st.response()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+    use super::{HTTPOk, HTTPBadRequest, Body, HttpResponse};
+
+    #[test]
+    fn test_builder() {
+        let resp = HTTPOk.builder().body(Body::Empty).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_response() {
+        let resp = HTTPOk.response();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_from() {
+        let resp: HttpResponse = HTTPOk.into();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_with_reason() {
+        let resp = HTTPOk.response();
+        assert_eq!(resp.reason(), "");
+
+        let resp = HTTPBadRequest.with_reason("test");
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(resp.reason(), "test");
+    }
+}
