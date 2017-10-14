@@ -1,20 +1,19 @@
 [package]
-name = "actix-http"
+name = "actix-web"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix http support"
+description = "Actix web framework"
 readme = "README.md"
-keywords = ["actor", "http"]
-homepage = "https://github.com/fafhrd91/actix-http"
-repository = "https://github.com/fafhrd91/actix-http.git"
-documentation = "https://fafhrd91.github.io/actix-http/actix-http/"
+keywords = ["actor", "http", "web"]
+homepage = "https://github.com/fafhrd91/actix-web"
+repository = "https://github.com/fafhrd91/actix-web.git"
 categories = ["network-programming", "asynchronous"]
 license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
 [lib]
-name = "actix_http"
+name = "actix_web"
 path = "src/lib.rs"
 
 [[bin]]

@@ -2,7 +2,7 @@
 
 Actix http is a server http framework for Actix framework.
 
-* [API Documentation](http://fafhrd91.github.io/actix-http/actix_http/)
+* [API Documentation](http://fafhrd91.github.io/actix-web/actix_web/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-http)
 * Minimum supported Rust version: 1.20 or later
 
@@ -15,29 +15,29 @@ Actix http is licensed under the [Apache-2.0 license](http://opensource.org/lice
   * HTTP 1.1 and 1.0 support
   * Streaming and pipelining support
   * Keep-alive and slow requests support
-  * [WebSockets support](https://fafhrd91.github.io/actix-http/actix_http/ws/index.html)
-  * [Configurable request routing](https://fafhrd91.github.io/actix-http/actix_http/struct.RoutingMap.html)
+  * [WebSockets support](https://fafhrd91.github.io/actix-web/actix_web/ws/index.html)
+  * [Configurable request routing](https://fafhrd91.github.io/actix-web/actix_web/struct.RoutingMap.html)
 
 ## Usage
 
-To use `actix-http`, add this to your `Cargo.toml`:
+To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-http = { git = "https://github.com/fafhrd91/actix-http.git" }
+actix-web = { git = "https://github.com/fafhrd91/actix-web.git" }
 ```
 
 ## Example
 
 ```rust
 extern crate actix;
-extern crate actix_http;
+extern crate actix_web;
 extern crate futures;
 use std::net;
 use std::str::FromStr;
 
 use actix::prelude::*;
-use actix_http::*;
+use actix_web::*;
 
 // Route
 struct MyRoute;

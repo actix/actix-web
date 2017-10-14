@@ -7,9 +7,9 @@
 //!
 //! ```rust
 //! extern crate actix;
-//! extern crate actix_http;
+//! extern crate actix_web;
 //! use actix::prelude::*;
-//! use actix_http::*;
+//! use actix_web::*;
 //!
 //! // WebSocket Route
 //! struct WsRoute;

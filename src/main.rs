@@ -1,7 +1,7 @@
 // #![feature(try_trait)]
 #![allow(dead_code, unused_variables)]
 extern crate actix;
-extern crate actix_http;
+extern crate actix_web;
 extern crate tokio_core;
 extern crate env_logger;
 
@@ -9,7 +9,7 @@ use std::net;
 use std::str::FromStr;
 
 use actix::prelude::*;
-use actix_http::*;
+use actix_web::*;
 
 struct MyRoute {req: Option<HttpRequest>}
 
