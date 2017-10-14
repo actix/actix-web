@@ -61,10 +61,16 @@ impl Route for MyWS {
 
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
-        let resp = ws::handshake(&req)?;
-        ctx.start(resp);
-        ctx.add_stream(ws::WsStream::new(payload));
-        Reply::stream(MyWS{})
+        match ws::handshake(&req) {
+            Ok(resp) => {
+                ctx.start(resp);
+                ctx.add_stream(ws::WsStream::new(payload));
+                Reply::stream(MyWS{})
+            }
+            Err(err) => {
+                Reply::reply(err)
+            }
+        }
     }
 }
 
