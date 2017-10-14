@@ -49,6 +49,7 @@ log = "0.3"
 env_logger = "*"
 
 #actix = { git="https://github.com/fafhrd91/actix.git" }
+skeptic = { version = "0.13", optional = true }
 
 [dependencies.actix]
 #path = "../actix"
