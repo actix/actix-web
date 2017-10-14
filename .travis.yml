@@ -15,7 +15,7 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - cargo test
+  - cargo test --no-default-features
 
 # Upload docs
 after_success:
