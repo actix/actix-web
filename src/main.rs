@@ -105,24 +105,24 @@ fn main() {
 
     let sys = actix::System::new("http-example");
 
-    let mut routes = RoutingMap::default();
-
-    let mut app = Application::default();
-    app.add("/test")
-        .get::<MyRoute>()
-        .post::<MyRoute>();
-
-    routes.add("/blah", app);
-
-    routes.add_resource("/test")
-        .post::<MyRoute>();
-
-    routes.add_resource("/ws/")
-        .get::<MyWS>();
-
-    let http = HttpServer::new(routes);
-    http.serve::<()>(
-        &net::SocketAddr::from_str("127.0.0.1:9080").unwrap()).unwrap();
+    HttpServer::new(
+        RoutingMap::default()
+            .app(
+                "/blah", Application::default()
+                    .resource("/test", |r| {
+                        r.get::<MyRoute>();
+                        r.post::<MyRoute>();
+                    })
+                    .finish())
+            .resource("/test", |r| r.post::<MyRoute>())
+            .resource("/ws/", |r| r.get::<MyWS>())
+            .resource("/simple/", |r|
+                      r.handler(Method::GET, |req, payload, state| {
+                          httpcodes::HTTPOk
+                      }))
+            .finish())
+        .serve::<()>(
+            &net::SocketAddr::from_str("127.0.0.1:9080").unwrap()).unwrap();
 
     println!("starting");
     let _ = sys.run();

@@ -48,11 +48,11 @@ pub mod ws;
 pub mod dev;
 pub mod httpcodes;
 pub use error::ParseError;
-pub use application::Application;
+pub use application::{Application, ApplicationBuilder};
 pub use httprequest::HttpRequest;
-pub use httpresponse::{Body, Builder, HttpResponse};
+pub use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem, PayloadError};
-pub use router::RoutingMap;
+pub use router::{Router, RoutingMap};
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
 pub use server::HttpServer;
@@ -60,6 +60,7 @@ pub use context::HttpContext;
 pub use staticfiles::StaticFiles;
 
 // re-exports
+pub use http::{Method, StatusCode};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use route_recognizer::Params;

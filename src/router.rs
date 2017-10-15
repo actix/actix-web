@@ -15,7 +15,30 @@ pub(crate) trait Handler: 'static {
     fn handle(&self, req: HttpRequest, payload: Payload) -> Task;
 }
 
-/// Request routing map
+/// Server routing map
+pub struct Router {
+    apps: HashMap<String, Box<Handler>>,
+    resources: Recognizer<Resource>,
+}
+
+impl Router {
+
+    pub(crate) fn call(&self, req: HttpRequest, payload: Payload) -> Task
+    {
+        if let Ok(h) = self.resources.recognize(req.path()) {
+            h.handler.handle(req.with_params(h.params), payload, Rc::new(()))
+        } else {
+            for (prefix, app) in &self.apps {
+                if req.path().starts_with(prefix) {
+                    return app.handle(req, payload)
+                }
+            }
+            Task::reply(HTTPNotFound.response())
+        }
+    }
+}
+
+/// Request routing map builder
 ///
 /// Route supports glob patterns: * for a single wildcard segment and :param
 /// for matching storing that segment of the request url in the Params object,
@@ -25,11 +48,15 @@ pub(crate) trait Handler: 'static {
 /// store userid and friend in the exposed Params object:
 ///
 /// ```rust,ignore
-/// let mut router = RoutingMap::default();
+/// let mut map = RoutingMap::default();
 ///
-/// router.add_resource("/users/:userid/:friendid").get::<MyRoute>();
+/// map.resource("/users/:userid/:friendid", |r| r.get::<MyRoute>());
 /// ```
 pub struct RoutingMap {
+    parts: Option<RoutingMapParts>,
+}
+
+struct RoutingMapParts {
     apps: HashMap<String, Box<Handler>>,
     resources: HashMap<String, Resource>,
 }
@@ -37,8 +64,9 @@ pub struct RoutingMap {
 impl Default for RoutingMap {
     fn default() -> Self {
         RoutingMap {
-            apps: HashMap::new(),
-            resources: HashMap::new()
+            parts: Some(RoutingMapParts {
+                apps: HashMap::new(),
+                resources: HashMap::new()}),
         }
     }
 }
@@ -53,92 +81,81 @@ impl RoutingMap {
     /// struct MyRoute;
     ///
     /// fn main() {
-    ///     let mut app = Application::default();
-    ///     app.add("/test")
-    ///         .get::<MyRoute>()
-    ///         .post::<MyRoute>();
-    ///
-    ///     let mut routes = RoutingMap::default();
-    ///     routes.add("/pre", app);
+    ///     let mut router =
+    ///         RoutingMap::default()
+    ///             .app("/pre", Application::default()
+    ///                  .resource("/test", |r| {
+    ///                      r.get::<MyRoute>();
+    ///                      r.post::<MyRoute>();
+    ///                 })
+    ///                 .finish()
+    ///         ).finish();
     /// }
     /// ```
     /// In this example, `MyRoute` route is available as `http://.../pre/test` url.
-    pub fn add<P, S: 'static>(&mut self, prefix: P, app: Application<S>)
+    pub fn app<P, S: 'static>(&mut self, prefix: P, app: Application<S>) -> &mut Self
         where P: ToString
     {
-        let prefix = prefix.to_string();
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
 
-        // we can not override registered resource
-        if self.apps.contains_key(&prefix) {
-            panic!("Resource is registered: {}", prefix);
+            // we can not override registered resource
+            let prefix = prefix.to_string();
+            if parts.apps.contains_key(&prefix) {
+                panic!("Resource is registered: {}", prefix);
+            }
+
+            // add application
+            parts.apps.insert(prefix.clone(), app.prepare(prefix));
         }
-
-        // add application
-        self.apps.insert(prefix.clone(), app.prepare(prefix));
+        self
     }
 
-    /// This method creates `Resource` for specified path
-    /// or returns mutable reference to resource object.
+    /// Configure resource for specific path.
     ///
     /// ```rust,ignore
     ///
     /// struct MyRoute;
     ///
     /// fn main() {
-    ///     let mut routes = RoutingMap::default();
-    ///
-    ///     routes.add_resource("/test")
-    ///         .post::<MyRoute>();
+    ///     RoutingMap::default().resource("/test", |r| {
+    ///         r.post::<MyRoute>();
+    ///     }).finish();
     /// }
     /// ```
     /// In this example, `MyRoute` route is available as `http://.../test` url.
-    pub fn add_resource<P>(&mut self, path: P) -> &mut Resource
-        where P: ToString
+    pub fn resource<P, F>(&mut self, path: P, f: F) -> &mut Self
+        where F: FnOnce(&mut Resource<()>) + 'static,
+              P: ToString,
     {
-        let path = path.to_string();
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
 
-        // add resource
-        if !self.resources.contains_key(&path) {
-            self.resources.insert(path.clone(), Resource::default());
+            // add resource
+            let path = path.to_string();
+            if !parts.resources.contains_key(&path) {
+                parts.resources.insert(path.clone(), Resource::default());
+            }
+            // configure resource
+            f(parts.resources.get_mut(&path).unwrap());
         }
-
-        self.resources.get_mut(&path).unwrap()
+        self
     }
 
-    pub(crate) fn into_router(self) -> Router {
+    /// Finish configuration and create `Router` instance
+    pub fn finish(&mut self) -> Router
+    {
+        let parts = self.parts.take().expect("Use after finish");
+
         let mut router = Recognizer::new();
 
-        for (path, resource) in self.resources {
+        for (path, resource) in parts.resources {
             router.add(path.as_str(), resource);
         }
 
         Router {
-            apps: self.apps,
+            apps: parts.apps,
             resources: router,
-        }
-    }
-}
-
-
-pub(crate)
-struct Router {
-    apps: HashMap<String, Box<Handler>>,
-    resources: Recognizer<Resource>,
-}
-
-impl Router {
-
-    pub fn call(&self, req: HttpRequest, payload: Payload) -> Task
-    {
-        if let Ok(h) = self.resources.recognize(req.path()) {
-            h.handler.handle(req.with_params(h.params), payload, Rc::new(()))
-        } else {
-            for (prefix, app) in &self.apps {
-                if req.path().starts_with(prefix) {
-                    return app.handle(req, payload)
-                }
-            }
-            Task::reply(HTTPNotFound.response())
         }
     }
 }

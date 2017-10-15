@@ -39,35 +39,21 @@ use std::str::FromStr;
 use actix::prelude::*;
 use actix_web::*;
 
-// Route
-struct MyRoute;
-
-impl Actor for MyRoute {
-    type Context = HttpContext<Self>;
-}
-
-impl Route for MyRoute {
-    type State = ();
-
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
-    {
-        Reply::reply(httpcodes::HTTPOk)
-    }
-}
-
 fn main() {
     let system = System::new("test");
 
-    // create routing map with `MyRoute` route
-    let mut routes = RoutingMap::default();
-    routes
-      .add_resource("/")
-        .post::<MyRoute>();
-
     // start http server
-    let http = HttpServer::new(routes);
-    http.serve::<()>(
-        &net::SocketAddr::from_str("127.0.0.1:8880").unwrap()).unwrap();
+    HttpServer::new(
+        // create routing map with `MyRoute` route
+        RoutingMap::default()
+            .resource("/", |r|
+                r.handler(Method::GET, |req, payload, state| {
+                    httpcodes::HTTPOk
+                })
+             )
+             .finish())
+        .serve::<()>(
+            &net::SocketAddr::from_str("127.0.0.1:8880").unwrap()).unwrap();
 
     // stop system
     Arbiter::handle().spawn_fn(|| {

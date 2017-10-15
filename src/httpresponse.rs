@@ -62,8 +62,8 @@ pub struct HttpResponse {
 impl HttpResponse {
 
     #[inline]
-    pub fn builder(status: StatusCode) -> Builder {
-        Builder {
+    pub fn builder(status: StatusCode) -> HttpResponseBuilder {
+        HttpResponseBuilder {
             parts: Some(Parts::new(status)),
             err: None,
         }
@@ -224,12 +224,12 @@ impl Parts {
 /// This type can be used to construct an instance of `HttpResponse` through a
 /// builder-like pattern.
 #[derive(Debug)]
-pub struct Builder {
+pub struct HttpResponseBuilder {
     parts: Option<Parts>,
     err: Option<Error>,
 }
 
-impl Builder {
+impl HttpResponseBuilder {
     /// Get the HTTP version of this response.
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {

@@ -7,7 +7,7 @@ use task::Task;
 use route::RouteHandler;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpresponse::{Body, Builder, HttpResponse};
+use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
@@ -23,7 +23,7 @@ pub const HTTPInternalServerError: StaticResponse =
 pub struct StaticResponse(StatusCode);
 
 impl StaticResponse {
-    pub fn builder(&self) -> Builder {
+    pub fn builder(&self) -> HttpResponseBuilder {
         HttpResponse::builder(self.0)
     }
     pub fn response(&self) -> HttpResponse {

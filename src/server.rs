@@ -9,8 +9,8 @@ use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
 
 use task::{Task, RequestInfo};
+use router::Router;
 use reader::{Reader, ReaderError};
-use router::{Router, RoutingMap};
 
 /// An HTTP Server
 pub struct HttpServer {
@@ -23,8 +23,8 @@ impl Actor for HttpServer {
 
 impl HttpServer {
     /// Create new http server with specified `RoutingMap`
-    pub fn new(routes: RoutingMap) -> Self {
-        HttpServer {router: Rc::new(routes.into_router())}
+    pub fn new(router: Router) -> Self {
+        HttpServer {router: Rc::new(router)}
     }
 
     /// Start listening for incomming connections.

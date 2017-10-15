@@ -5,9 +5,10 @@ use std::collections::HashMap;
 
 use actix::Actor;
 use http::Method;
+use futures::Stream;
 
 use task::Task;
-use route::{Route, RouteHandler};
+use route::{Route, RouteHandler, Frame, FnHandler, StreamHandler};
 use payload::Payload;
 use context::HttpContext;
 use httprequest::HttpRequest;
@@ -26,10 +27,9 @@ use httpcodes::HTTPMethodNotAllowed;
 /// struct MyRoute;
 ///
 /// fn main() {
-///     let mut routes = RoutingMap::default();
-///
-///     routes.add_resource("/")
-///        .post::<MyRoute>();
+///     let router = RoutingMap::default()
+///         .resource("/", |r| r.post::<MyRoute>())
+///         .finish();
 /// }
 pub struct Resource<S=()> {
     state: PhantomData<S>,
@@ -50,48 +50,62 @@ impl<S> Default for Resource<S> {
 impl<S> Resource<S> where S: 'static {
 
     /// Register handler for specified method.
-    pub fn handler<H>(&mut self, method: Method, handler: H) -> &mut Self
+    pub fn handler<F, R>(&mut self, method: Method, handler: F)
+        where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+              R: Into<HttpResponse> + 'static,
+    {
+        self.routes.insert(method, Box::new(FnHandler::new(handler)));
+    }
+
+    /// Register async handler for specified method.
+    pub fn async<F, R>(&mut self, method: Method, handler: F)
+        where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+              R: Stream<Item=Frame, Error=()> + 'static,
+    {
+        self.routes.insert(method, Box::new(StreamHandler::new(handler)));
+    }
+
+    /// Register handler for specified method.
+    pub fn route_handler<H>(&mut self, method: Method, handler: H)
         where H: RouteHandler<S>
     {
         self.routes.insert(method, Box::new(handler));
-        self
     }
 
     /// Default handler is used if no matched route found.
     /// By default `HTTPMethodNotAllowed` is used.
-    pub fn default_handler<H>(&mut self, handler: H) -> &mut Self
+    pub fn default_handler<H>(&mut self, handler: H)
         where H: RouteHandler<S>
     {
         self.default = Box::new(handler);
-        self
     }
 
     /// Handler for `GET` method.
-    pub fn get<A>(&mut self) -> &mut Self
+    pub fn get<A>(&mut self)
         where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
-        self.handler(Method::GET, A::factory())
+        self.route_handler(Method::GET, A::factory());
     }
 
     /// Handler for `POST` method.
-    pub fn post<A>(&mut self) -> &mut Self
+    pub fn post<A>(&mut self)
         where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
-        self.handler(Method::POST, A::factory())
+        self.route_handler(Method::POST, A::factory());
     }
 
     /// Handler for `PUR` method.
-    pub fn put<A>(&mut self) -> &mut Self
+    pub fn put<A>(&mut self)
         where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
-        self.handler(Method::PUT, A::factory())
+        self.route_handler(Method::PUT, A::factory());
     }
 
     /// Handler for `METHOD` method.
-    pub fn delete<A>(&mut self) -> &mut Self
+    pub fn delete<A>(&mut self)
         where A: Actor<Context=HttpContext<A>> + Route<State=S>
     {
-        self.handler(Method::DELETE, A::factory())
+        self.route_handler(Method::DELETE, A::factory());
     }
 }
 

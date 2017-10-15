@@ -1,8 +1,10 @@
+use std::io;
 use std::rc::Rc;
 use std::marker::PhantomData;
 
 use actix::Actor;
 use bytes::Bytes;
+use futures::Stream;
 
 use task::Task;
 use context::HttpContext;
@@ -57,5 +59,72 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     {
         let mut ctx = HttpContext::new(state);
         A::request(req, payload, &mut ctx).into(ctx)
+    }
+}
+
+/// Simple route handler
+pub(crate)
+struct FnHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Into<HttpResponse>,
+          S: 'static,
+{
+    f: Box<F>,
+    s: PhantomData<S>,
+}
+
+impl<S, R, F> FnHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Into<HttpResponse> + 'static,
+          S: 'static,
+{
+    pub fn new(f: F) -> Self {
+        FnHandler{f: Box::new(f), s: PhantomData}
+    }
+}
+
+impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Into<HttpResponse> + 'static,
+          S: 'static,
+{
+    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task
+    {
+        Task::reply((self.f)(req, payload, &state).into())
+    }
+}
+
+/// Async route handler
+pub(crate)
+struct StreamHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Stream<Item=Frame, Error=()> + 'static,
+          S: 'static,
+{
+    f: Box<F>,
+    s: PhantomData<S>,
+}
+
+impl<S, R, F> StreamHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Stream<Item=Frame, Error=()> + 'static,
+          S: 'static,
+{
+    pub fn new(f: F) -> Self {
+        StreamHandler{f: Box::new(f), s: PhantomData}
+    }
+}
+
+impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
+    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+          R: Stream<Item=Frame, Error=()> + 'static,
+          S: 'static,
+{
+    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task
+    {
+        Task::with_stream(
+            (self.f)(req, payload, &state).map_err(
+                |_| io::Error::new(io::ErrorKind::Other, ""))
+        )
     }
 }
