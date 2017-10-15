@@ -32,11 +32,11 @@ pub trait RouteHandler<S>: 'static {
     fn set_prefix(&mut self, _prefix: String) {}
 }
 
-/// Actors with ability to handle http requests
+/// Actors with ability to handle http requests.
 #[allow(unused_variables)]
 pub trait Route: Actor {
-    /// Route shared state. State is shared with all routes within same application and could be
-    /// accessed with `HttpContext::state()` method.
+    /// Shared state. State is shared with all routes within same application
+    /// and could be accessed with `HttpContext::state()` method.
     type State;
 
     /// Handle `EXPECT` header. By default respond with `HTTP/1.1 100 Continue`
@@ -67,9 +67,10 @@ pub trait Route: Actor {
     }
 
     /// Handle incoming request. Route actor can return
-    /// result immediately with `Reply::reply` or `Reply::with`.
+    /// result immediately with `Reply::reply`.
     /// Actor itself could be returned for handling streaming request/response.
-    /// In that case `HttpContext::start` and `HttpContext::write` has to be used.
+    /// In that case `HttpContext::start` and `HttpContext::write` has to be used
+    /// for writing response.
     fn request(req: HttpRequest, payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;
 
     /// This method creates `RouteFactory` for this actor.
@@ -99,7 +100,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     }
 }
 
-/// Simple route handler
+/// Fn() route handler
 pub(crate)
 struct FnHandler<S, R, F>
     where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
