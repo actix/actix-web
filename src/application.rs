@@ -174,8 +174,9 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// ```rust
     /// extern crate actix;
     /// extern crate actix_web;
+    ///
+    /// use actix::*;
     /// use actix_web::*;
-    /// use actix::prelude::*;
     ///
     /// struct MyRoute;
     ///

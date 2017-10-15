@@ -34,7 +34,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate futures;
 
-use actix::prelude::*;
+use actix::*;
 use actix_web::*;
 
 fn main() {

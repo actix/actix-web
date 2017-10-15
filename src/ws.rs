@@ -8,7 +8,8 @@
 //! ```rust
 //! extern crate actix;
 //! extern crate actix_web;
-//! use actix::prelude::*;
+//!
+//! use actix::*;
 //! use actix_web::*;
 //!
 //! // WebSocket Route

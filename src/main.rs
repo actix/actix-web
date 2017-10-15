@@ -5,7 +5,7 @@ extern crate actix_web;
 extern crate tokio_core;
 extern crate env_logger;
 
-use actix::prelude::*;
+use actix::*;
 use actix_web::*;
 
 struct MyRoute {req: Option<HttpRequest>}
