@@ -44,8 +44,9 @@ fn main() {
 
     // start http server
     HttpServer::new(
-        // create routing map with `MyRoute` route
+        // create routing map
         RoutingMap::default()
+            // handler for "GET /"
             .resource("/", |r|
                 r.handler(Method::GET, |req, payload, state| {
                     httpcodes::HTTPOk
@@ -62,6 +63,5 @@ fn main() {
     });
 
     system.run();
-    println!("Done");
 }
 ```
