@@ -1,4 +1,4 @@
-use std::{io, net, mem};
+use std::{io, mem, net};
 use std::rc::Rc;
 use std::time::Duration;
 use std::collections::VecDeque;
@@ -28,15 +28,34 @@ impl HttpServer {
     }
 
     /// Start listening for incomming connections.
-    pub fn serve<Addr>(self, addr: &net::SocketAddr) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>
+    pub fn serve<S, Addr>(self, addr: S) -> io::Result<Addr>
+        where Self: ActorAddress<Self, Addr>,
+              S: net::ToSocketAddrs,
     {
-        let tcp = TcpListener::bind(addr, Arbiter::handle())?;
-
-        Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(tcp.incoming());
-            self
-        }))
+        let mut err = None;
+        let mut addrs = Vec::new();
+        for iter in addr.to_socket_addrs() {
+            for addr in iter {
+                match TcpListener::bind(&addr, Arbiter::handle()) {
+                    Ok(tcp) => addrs.push(tcp),
+                    Err(e) => err = Some(e),
+                }
+            }
+        }
+        if addrs.is_empty() {
+            if let Some(e) = err.take() {
+                Err(e)
+            } else {
+                Err(io::Error::new(io::ErrorKind::Other, "Can not bind to address."))
+            }
+        } else {
+            Ok(HttpServer::create(move |ctx| {
+                for tcp in addrs {
+                    ctx.add_stream(tcp.incoming());
+                }
+                self
+            }))
+        }
     }
 }
 

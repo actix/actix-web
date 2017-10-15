@@ -33,8 +33,6 @@ actix-web = { git = "https://github.com/fafhrd91/actix-web.git" }
 extern crate actix;
 extern crate actix_web;
 extern crate futures;
-use std::net;
-use std::str::FromStr;
 
 use actix::prelude::*;
 use actix_web::*;
@@ -53,8 +51,7 @@ fn main() {
                 })
              )
              .finish())
-        .serve::<()>(
-            &net::SocketAddr::from_str("127.0.0.1:8880").unwrap()).unwrap();
+        .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     // stop system
     Arbiter::handle().spawn_fn(|| {

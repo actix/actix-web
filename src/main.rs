@@ -5,9 +5,6 @@ extern crate actix_web;
 extern crate tokio_core;
 extern crate env_logger;
 
-use std::net;
-use std::str::FromStr;
-
 use actix::prelude::*;
 use actix_web::*;
 
@@ -107,13 +104,12 @@ fn main() {
 
     HttpServer::new(
         RoutingMap::default()
-            .app(
-                "/blah", Application::default()
-                    .resource("/test", |r| {
-                        r.get::<MyRoute>();
-                        r.post::<MyRoute>();
-                    })
-                    .finish())
+            .app("/blah", Application::default()
+                 .resource("/test", |r| {
+                     r.get::<MyRoute>();
+                     r.post::<MyRoute>();
+                 })
+                 .finish())
             .resource("/test", |r| r.post::<MyRoute>())
             .resource("/ws/", |r| r.get::<MyWS>())
             .resource("/simple/", |r|
@@ -121,8 +117,7 @@ fn main() {
                           httpcodes::HTTPOk
                       }))
             .finish())
-        .serve::<()>(
-            &net::SocketAddr::from_str("127.0.0.1:9080").unwrap()).unwrap();
+        .serve::<_, ()>("127.0.0.1:9080").unwrap();
 
     println!("starting");
     let _ = sys.run();
