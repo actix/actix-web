@@ -10,7 +10,7 @@ use httparse;
 use http::{StatusCode, Error as HttpError};
 
 use HttpRangeParseError;
-use httpmessage::{Body, HttpResponse};
+use httpresponse::{Body, HttpResponse};
 
 
 /// A set of errors that can occur during parsing HTTP streams.

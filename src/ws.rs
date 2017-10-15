@@ -75,7 +75,7 @@ use route::Route;
 use payload::Payload;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
 use httprequest::HttpRequest;
-use httpmessage::{Body, ConnectionType, HttpResponse};
+use httpresponse::{Body, ConnectionType, HttpResponse};
 
 use wsframe;
 use wsproto::*;

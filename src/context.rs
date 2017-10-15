@@ -9,7 +9,7 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, SpawnHandle};
 
 use route::{Route, Frame};
-use httpmessage::HttpResponse;
+use httpresponse::HttpResponse;
 
 
 /// Actor execution context

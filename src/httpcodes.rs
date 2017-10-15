@@ -7,7 +7,7 @@ use task::Task;
 use route::RouteHandler;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpmessage::{Body, Builder, HttpResponse};
+use httpresponse::{Body, Builder, HttpResponse};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);

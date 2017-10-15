@@ -11,7 +11,7 @@ use route::{Route, RouteHandler};
 use payload::Payload;
 use context::HttpContext;
 use httprequest::HttpRequest;
-use httpmessage::HttpResponse;
+use httpresponse::HttpResponse;
 use httpcodes::HTTPMethodNotAllowed;
 
 /// Http resource

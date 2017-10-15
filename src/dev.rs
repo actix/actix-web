@@ -12,7 +12,7 @@ pub use httpcodes;
 pub use error::ParseError;
 pub use application::Application;
 pub use httprequest::HttpRequest;
-pub use httpmessage::{Body, Builder, HttpResponse};
+pub use httpresponse::{Body, Builder, HttpResponse};
 pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};

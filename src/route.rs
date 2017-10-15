@@ -9,7 +9,7 @@ use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpmessage::HttpResponse;
+use httpresponse::HttpResponse;
 
 #[doc(hidden)]
 #[derive(Debug)]
