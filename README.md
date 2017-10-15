@@ -1,9 +1,9 @@
-# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-http.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
+# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
 
 Actix http is a server http framework for Actix framework.
 
 * [API Documentation](http://fafhrd91.github.io/actix-web/actix_web/)
-* Cargo package: [actix-http](https://crates.io/crates/actix-http)
+* Cargo package: [actix-http](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
 ---
