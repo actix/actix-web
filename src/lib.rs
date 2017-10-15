@@ -9,17 +9,21 @@ extern crate log;
 extern crate time;
 extern crate bytes;
 extern crate sha1;
-extern crate url;
-extern crate cookie;
+extern crate regex;
+#[macro_use]
+extern crate lazy_static;
 #[macro_use]
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_proto;
 
+extern crate cookie;
 extern crate http;
 extern crate httparse;
+extern crate http_range;
 extern crate route_recognizer;
+extern crate url;
 extern crate actix;
 
 mod application;
@@ -27,6 +31,7 @@ mod context;
 mod error;
 mod date;
 mod decode;
+mod httprequest;
 mod httpmessage;
 mod payload;
 mod resource;
@@ -34,6 +39,7 @@ mod route;
 mod router;
 mod task;
 mod reader;
+mod staticfiles;
 mod server;
 mod wsframe;
 mod wsproto;
@@ -41,16 +47,20 @@ mod wsproto;
 pub mod ws;
 pub mod dev;
 pub mod httpcodes;
+pub use error::ParseError;
 pub use application::Application;
-pub use httpmessage::{Body, Builder, HttpRequest, HttpResponse};
+pub use httprequest::HttpRequest;
+pub use httpmessage::{Body, Builder, HttpResponse};
 pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
 pub use server::HttpServer;
 pub use context::HttpContext;
+pub use staticfiles::StaticFiles;
 
 // re-exports
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use route_recognizer::Params;
+pub use http_range::{HttpRange, HttpRangeParseError};

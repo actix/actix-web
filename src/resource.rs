@@ -10,8 +10,9 @@ use task::Task;
 use route::{Route, RouteHandler};
 use payload::Payload;
 use context::HttpContext;
+use httprequest::HttpRequest;
+use httpmessage::HttpResponse;
 use httpcodes::HTTPMethodNotAllowed;
-use httpmessage::{HttpRequest, HttpResponse};
 
 /// Http resource
 ///
@@ -27,9 +28,8 @@ use httpmessage::{HttpRequest, HttpResponse};
 /// fn main() {
 ///     let mut routes = RoutingMap::default();
 ///
-///     routes
-///      .add_resource("/")
-///         .post::<MyRoute>();
+///     routes.add_resource("/")
+///        .post::<MyRoute>();
 /// }
 pub struct Resource<S=()> {
     state: PhantomData<S>,

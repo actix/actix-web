@@ -9,7 +9,7 @@ use route::RouteHandler;
 use router::Handler;
 use resource::Resource;
 use payload::Payload;
-use httpmessage::HttpRequest;
+use httprequest::HttpRequest;
 
 
 /// Application

@@ -12,7 +12,8 @@ use tokio_core::net::TcpStream;
 
 use date;
 use route::Frame;
-use httpmessage::{Body, HttpRequest, HttpResponse};
+use httprequest::HttpRequest;
+use httpmessage::{Body, HttpResponse};
 
 type FrameStream = Stream<Item=Frame, Error=io::Error>;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific

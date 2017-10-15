@@ -9,7 +9,7 @@ use route::RouteHandler;
 use resource::Resource;
 use application::Application;
 use httpcodes::HTTPNotFound;
-use httpmessage::HttpRequest;
+use httprequest::HttpRequest;
 
 pub(crate) trait Handler: 'static {
     fn handle(&self, req: HttpRequest, payload: Payload) -> Task;

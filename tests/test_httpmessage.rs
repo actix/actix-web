@@ -72,3 +72,25 @@ fn test_response_cookies() {
     assert_eq!(
         val[1],"name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400");
 }
+
+#[test]
+fn test_no_request_range_header() {
+    let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                               Version::HTTP_11, HeaderMap::new());
+    let ranges = req.range(100).unwrap();
+    assert!(ranges.is_empty());
+}
+
+#[test]
+fn test_request_range_header() {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::RANGE,
+                   header::HeaderValue::from_static("bytes=0-4"));
+
+    let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                               Version::HTTP_11, headers);
+    let ranges = req.range(100).unwrap();
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(ranges[0].start, 0);
+    assert_eq!(ranges[0].length, 5);
+}

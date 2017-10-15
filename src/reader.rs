@@ -9,7 +9,7 @@ use tokio_io::AsyncRead;
 
 use error::ParseError;
 use decode::Decoder;
-use httpmessage::HttpRequest;
+use httprequest::HttpRequest;
 use payload::{Payload, PayloadError, PayloadSender};
 
 const MAX_HEADERS: usize = 100;

@@ -74,7 +74,8 @@ use context::HttpContext;
 use route::Route;
 use payload::Payload;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
-use httpmessage::{Body, ConnectionType, HttpRequest, HttpResponse};
+use httprequest::HttpRequest;
+use httpmessage::{Body, ConnectionType, HttpResponse};
 
 use wsframe;
 use wsproto::*;

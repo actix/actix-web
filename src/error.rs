@@ -9,7 +9,9 @@ use cookie;
 use httparse;
 use http::{StatusCode, Error as HttpError};
 
+use HttpRangeParseError;
 use httpmessage::{Body, HttpResponse};
+
 
 /// A set of errors that can occur during parsing HTTP streams.
 #[derive(Debug)]
@@ -126,6 +128,14 @@ impl From<cookie::ParseError> for HttpResponse {
     fn from(err: cookie::ParseError) -> Self {
         HttpResponse::new(StatusCode::BAD_REQUEST,
                           Body::Binary(err.description().into()))
+    }
+}
+
+/// Return `BadRequest` for `HttpRangeParseError`
+impl From<HttpRangeParseError> for HttpResponse {
+    fn from(_: HttpRangeParseError) -> Self {
+        HttpResponse::new(StatusCode::BAD_REQUEST,
+                          Body::Binary("Invalid Range header provided".into()))
     }
 }
 

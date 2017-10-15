@@ -8,7 +8,8 @@ use task::Task;
 use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
-use httpmessage::{HttpRequest, HttpResponse};
+use httprequest::HttpRequest;
+use httpmessage::HttpResponse;
 
 #[doc(hidden)]
 #[derive(Debug)]

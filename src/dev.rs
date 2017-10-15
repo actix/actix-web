@@ -9,13 +9,23 @@
 //! ```
 pub use ws;
 pub use httpcodes;
+pub use error::ParseError;
 pub use application::Application;
-pub use httpmessage::{Body, Builder, HttpRequest, HttpResponse};
-pub use payload::{Payload, PayloadItem};
+pub use httprequest::HttpRequest;
+pub use httpmessage::{Body, Builder, HttpResponse};
+pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
 pub use server::HttpServer;
 pub use context::HttpContext;
-pub use task::Task;
+pub use staticfiles::StaticFiles;
+
+// re-exports
+pub use cookie::{Cookie, CookieBuilder};
+pub use cookie::{ParseError as CookieParseError};
 pub use route_recognizer::Params;
+pub use http_range::{HttpRange, HttpRangeParseError};
+
+// dev specific
+pub use task::Task;

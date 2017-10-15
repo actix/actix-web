@@ -6,13 +6,15 @@ use http::StatusCode;
 use task::Task;
 use route::RouteHandler;
 use payload::Payload;
-use httpmessage::{Body, Builder, HttpRequest, HttpResponse};
+use httprequest::HttpRequest;
+use httpmessage::{Body, Builder, HttpResponse};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
 pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
+pub const HTTPForbidden: StaticResponse = StaticResponse(StatusCode::FORBIDDEN);
 pub const HTTPMethodNotAllowed: StaticResponse = StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
 pub const HTTPInternalServerError: StaticResponse =
     StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
