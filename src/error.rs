@@ -144,7 +144,21 @@ mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use super::ParseError;
+    use http::StatusCode;
+    use cookie::ParseError as CookieParseError;
+    use super::{ParseError, HttpResponse, HttpRangeParseError};
+
+    #[test]
+    fn test_into_response() {
+        let resp: HttpResponse = ParseError::Incomplete.into();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let resp: HttpResponse = HttpRangeParseError::InvalidRange.into();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let resp: HttpResponse = CookieParseError::EmptyName.into();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
 
     #[test]
     fn test_cause() {

@@ -39,6 +39,9 @@ fn test_request_cookies() {
     let cookie = cookie.unwrap();
     assert_eq!(cookie.name(), "cookie1");
     assert_eq!(cookie.value(), "value1");
+
+    let cookie = req.cookie("cookie-unknown");
+    assert!(cookie.is_none());
 }
 
 #[test]
