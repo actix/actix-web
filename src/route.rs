@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use actix::Actor;
 use bytes::Bytes;
+use http::{header, Version};
 use futures::Stream;
 
 use task::Task;
@@ -11,7 +12,8 @@ use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use httpresponse::{Body, HttpResponse};
+use httpcodes::HTTPExpectationFailed;
 
 #[doc(hidden)]
 #[derive(Debug)]
@@ -31,10 +33,38 @@ pub trait RouteHandler<S>: 'static {
 }
 
 /// Actors with ability to handle http requests
+#[allow(unused_variables)]
 pub trait Route: Actor {
     /// Route shared state. State is shared with all routes within same application and could be
     /// accessed with `HttpContext::state()` method.
     type State;
+
+    /// Handle `EXPECT` header. By default respond with `HTTP/1.1 100 Continue`
+    fn expect(req: &HttpRequest, ctx: &mut Self::Context) -> Result<(), HttpResponse>
+        where Self: Actor<Context=HttpContext<Self>>
+    {
+        // handle expect header only for HTTP/1.1
+        if req.version() == Version::HTTP_11 {
+            if let Some(expect) = req.headers().get(header::EXPECT) {
+                if let Ok(expect) = expect.to_str() {
+                    if expect.to_lowercase() == "100-continue" {
+                        ctx.write("HTTP/1.1 100 Continue\r\n\r\n");
+                        Ok(())
+                    } else {
+                        Err(HTTPExpectationFailed.with_body(
+                            Body::Binary("Unknown Expect".into())))
+                    }
+                } else {
+                    Err(HTTPExpectationFailed.with_body(
+                        Body::Binary("Unknown Expect".into())))
+                }
+            } else {
+                Ok(())
+            }
+        } else {
+            Ok(())
+        }
+    }
 
     /// Handle incoming request. Route actor can return
     /// result immediately with `Reply::reply` or `Reply::with`.
@@ -58,6 +88,13 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<A::State>) -> Task
     {
         let mut ctx = HttpContext::new(state);
+
+        // handle EXPECT header
+        if req.headers().contains_key(header::EXPECT) {
+            if let Err(resp) = A::expect(&req, &mut ctx) {
+                return Task::reply(resp)
+            }
+        }
         A::request(req, payload, &mut ctx).into(ctx)
     }
 }

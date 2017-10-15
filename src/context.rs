@@ -108,8 +108,8 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
 
     /// Write payload
-    pub fn write(&mut self, data: Bytes) {
-        self.stream.push_back(Frame::Payload(Some(data)))
+    pub fn write<B: Into<Bytes>>(&mut self, data: B) {
+        self.stream.push_back(Frame::Payload(Some(data.into())))
     }
 
     /// Indicate end of streamimng payload

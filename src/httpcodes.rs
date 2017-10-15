@@ -12,10 +12,29 @@ use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
 pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
+pub const HTTPUnauthorized: StaticResponse = StaticResponse(StatusCode::UNAUTHORIZED);
+pub const HTTPPaymentRequired: StaticResponse = StaticResponse(StatusCode::PAYMENT_REQUIRED);
 pub const HTTPForbidden: StaticResponse = StaticResponse(StatusCode::FORBIDDEN);
-pub const HTTPMethodNotAllowed: StaticResponse = StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
+
+pub const HTTPMethodNotAllowed: StaticResponse =
+    StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
+pub const HTTPNotAcceptable: StaticResponse = StaticResponse(StatusCode::NOT_ACCEPTABLE);
+pub const HTTPProxyAuthenticationRequired: StaticResponse =
+    StaticResponse(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+pub const HTTPRequestTimeout: StaticResponse = StaticResponse(StatusCode::REQUEST_TIMEOUT);
+pub const HTTPConflict: StaticResponse = StaticResponse(StatusCode::CONFLICT);
+pub const HTTPGone: StaticResponse = StaticResponse(StatusCode::GONE);
+pub const HTTPLengthRequired: StaticResponse = StaticResponse(StatusCode::LENGTH_REQUIRED);
+pub const HTTPPreconditionFailed: StaticResponse =
+    StaticResponse(StatusCode::PRECONDITION_FAILED);
+pub const HTTPPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
+pub const HTTPUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+pub const HTTPExpectationFailed: StaticResponse =
+    StaticResponse(StatusCode::EXPECTATION_FAILED);
+
 pub const HTTPInternalServerError: StaticResponse =
     StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
 
@@ -33,6 +52,9 @@ impl StaticResponse {
         let mut resp = HttpResponse::new(self.0, Body::Empty);
         resp.set_reason(reason);
         resp
+    }
+    pub fn with_body(self, body: Body) -> HttpResponse {
+        HttpResponse::new(self.0, body)
     }
 }
 

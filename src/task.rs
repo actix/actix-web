@@ -74,6 +74,7 @@ pub struct Task {
     buffer: BytesMut,
     upgrade: bool,
     keepalive: bool,
+    prepared: bool,
 }
 
 impl Task {
@@ -92,6 +93,7 @@ impl Task {
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
+            prepared: false,
         }
     }
 
@@ -107,6 +109,7 @@ impl Task {
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
+            prepared: false,
         }
     }
 
@@ -122,6 +125,7 @@ impl Task {
         let body = msg.replace_body(Body::Empty);
         let version = msg.version().unwrap_or_else(|| req.version);
         self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive);
+        self.prepared = true;
 
         match body {
             Body::Empty => {
@@ -248,8 +252,13 @@ impl Task {
                     Frame::Payload(chunk) => {
                         match chunk {
                             Some(chunk) => {
-                                // TODO: add warning, write after EOF
-                                self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                                if self.prepared {
+                                    // TODO: add warning, write after EOF
+                                    self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                                } else {
+                                    // might be response for EXCEPT
+                                    self.buffer.extend(chunk)
+                                }
                             }
                             None => {
                                 // TODO: add error "not eof""
