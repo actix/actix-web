@@ -1,4 +1,4 @@
-# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http)
+# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web)
 
 Actix http is a server http framework for Actix framework.
 
