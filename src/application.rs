@@ -294,7 +294,8 @@ impl<S: 'static> Handler for InnerApplication<S> {
 
     fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
         if let Ok(h) = self.router.recognize(req.path()) {
-            h.handler.handle(req.with_params(h.params), payload, Rc::clone(&self.state))
+            h.handler.handle(
+                req.with_match_info(h.params), payload, Rc::clone(&self.state))
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {

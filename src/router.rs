@@ -26,7 +26,7 @@ impl Router {
     pub(crate) fn call(&self, req: HttpRequest, payload: Payload) -> Task
     {
         if let Ok(h) = self.resources.recognize(req.path()) {
-            h.handler.handle(req.with_params(h.params), payload, Rc::new(()))
+            h.handler.handle(req.with_match_info(h.params), payload, Rc::new(()))
         } else {
             for (prefix, app) in &self.apps {
                 if req.path().starts_with(prefix) {

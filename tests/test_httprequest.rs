@@ -77,13 +77,13 @@ fn test_request_query() {
 }
 
 #[test]
-fn test_request_params() {
+fn test_request_match_info() {
     let req = HttpRequest::new(Method::GET, Uri::try_from("/?id=test").unwrap(),
                                Version::HTTP_11, HeaderMap::new());
 
     let mut params = Params::new();
     params.insert("key".to_owned(), "value".to_owned());
 
-    let req = req.with_params(params);
-    assert_eq!(req.params().find("key"), Some("value"));
+    let req = req.with_match_info(params);
+    assert_eq!(req.match_info().find("key"), Some("value"));
 }

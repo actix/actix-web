@@ -119,10 +119,10 @@ impl HttpRequest {
     /// Route supports glob patterns: * for a single wildcard segment and :param
     /// for matching storing that segment of the request url in the Params object.
     #[inline]
-    pub fn params(&self) -> &Params { &self.params }
+    pub fn match_info(&self) -> &Params { &self.params }
 
     /// Create new request with Params object.
-    pub fn with_params(self, params: Params) -> Self {
+    pub fn with_match_info(self, params: Params) -> Self {
         HttpRequest {
             method: self.method,
             uri: self.uri,
