@@ -9,9 +9,9 @@ extern crate log;
 extern crate time;
 extern crate bytes;
 extern crate sha1;
-extern crate regex;
-#[macro_use]
-extern crate lazy_static;
+// extern crate regex;
+// #[macro_use]
+// extern crate lazy_static;
 #[macro_use]
 extern crate futures;
 extern crate tokio_core;
@@ -22,6 +22,7 @@ extern crate cookie;
 extern crate http;
 extern crate httparse;
 extern crate http_range;
+extern crate mime_guess;
 extern crate route_recognizer;
 extern crate url;
 extern crate actix;

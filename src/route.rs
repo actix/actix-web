@@ -24,12 +24,13 @@ pub enum Frame {
 }
 
 /// Trait defines object that could be regestered as resource route
+#[allow(unused_variables)]
 pub trait RouteHandler<S>: 'static {
     /// Handle request
     fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task;
 
     /// Set route prefix
-    fn set_prefix(&mut self, _prefix: String) {}
+    fn set_prefix(&mut self, prefix: String) {}
 }
 
 /// Actors with ability to handle http requests.
@@ -39,7 +40,7 @@ pub trait Route: Actor {
     /// and could be accessed with `HttpContext::state()` method.
     type State;
 
-    /// Handle `EXPECT` header. By default respond with `HTTP/1.1 100 Continue`
+    /// Handle `EXPECT` header. By default respones with `HTTP/1.1 100 Continue`
     fn expect(req: &HttpRequest, ctx: &mut Self::Context) -> Result<(), HttpResponse>
         where Self: Actor<Context=HttpContext<Self>>
     {
@@ -68,7 +69,8 @@ pub trait Route: Actor {
 
     /// Handle incoming request. Route actor can return
     /// result immediately with `Reply::reply`.
-    /// Actor itself could be returned for handling streaming request/response.
+    /// Actor itself can be returned with `Reply::stream` for handling streaming
+    /// request/response or websocket connection.
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used
     /// for writing response.
     fn request(req: HttpRequest, payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;

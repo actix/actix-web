@@ -117,7 +117,7 @@ impl HttpResponse {
     /// Get custom reason for the response.
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(ref reason) = self.reason {
+        if let Some(reason) = self.reason {
             reason
         } else {
             ""

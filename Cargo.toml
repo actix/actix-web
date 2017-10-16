@@ -31,6 +31,7 @@ time = "0.1"
 http = "0.1"
 httparse = "0.1"
 http-range = "0.1"
+mime_guess = "1.8"
 cookie = { version="0.10", features=["percent-encode"] }
 regex = "0.2"
 slab = "0.4"

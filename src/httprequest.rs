@@ -80,7 +80,7 @@ impl HttpRequest {
     pub fn cookie(&self, name: &str) -> Option<&Cookie> {
         for cookie in &self.cookies {
             if cookie.name() == name {
-                return Some(&cookie)
+                return Some(cookie)
             }
         }
         None

@@ -109,6 +109,7 @@ fn main() {
                      r.get::<MyRoute>();
                      r.post::<MyRoute>();
                  })
+                 .route_handler("/static", StaticFiles::new(".", true))
                  .finish())
             .resource("/test", |r| r.post::<MyRoute>())
             .resource("/ws/", |r| r.get::<MyWS>())

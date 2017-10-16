@@ -34,7 +34,7 @@ impl HttpServer {
     {
         let mut err = None;
         let mut addrs = Vec::new();
-        for iter in addr.to_socket_addrs() {
+        if let Ok(iter) = addr.to_socket_addrs() {
             for addr in iter {
                 match TcpListener::bind(&addr, Arbiter::handle()) {
                     Ok(tcp) => addrs.push(tcp),
