@@ -1,5 +1,4 @@
 use std::{cmp, io};
-use std::io::Write as IoWrite;
 use std::fmt::Write;
 use std::collections::VecDeque;
 
@@ -8,7 +7,7 @@ use http::header::{HeaderValue,
                    CONNECTION, CONTENT_TYPE, CONTENT_LENGTH, TRANSFER_ENCODING, DATE};
 use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
-use tokio_core::net::TcpStream;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use date;
 use route::Frame;
@@ -225,7 +224,9 @@ impl Task {
         msg.replace_body(body);
     }
 
-    pub(crate) fn poll_io(&mut self, io: &mut TcpStream, info: &RequestInfo) -> Poll<bool, ()> {
+    pub(crate) fn poll_io<T>(&mut self, io: &mut T, info: &RequestInfo) -> Poll<bool, ()>
+        where T: AsyncRead + AsyncWrite
+    {
         trace!("POLL-IO frames:{:?}", self.frames.len());
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {

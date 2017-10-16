@@ -109,12 +109,6 @@ impl HttpRequest {
         Ok(&self.cookies)
     }
 
-    /// Get a mutable reference to the Request headers.
-    #[inline]
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.headers
-    }
-
     /// Get a reference to the Params object.
     /// Params is a container for url parameters.
     /// Route supports glob patterns: * for a single wildcard segment and :param

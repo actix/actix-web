@@ -1,33 +1,63 @@
 use std::{io, mem, net};
 use std::rc::Rc;
 use std::time::Duration;
+use std::marker::PhantomData;
 use std::collections::VecDeque;
 
 use actix::dev::*;
-use futures::{Future, Poll, Async};
+use futures::{Future, Poll, Async, Stream};
 use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use task::{Task, RequestInfo};
 use router::Router;
 use reader::{Reader, ReaderError};
 
 /// An HTTP Server
-pub struct HttpServer {
+///
+/// `T` - async stream,  anything that implements `AsyncRead` + `AsyncWrite`.
+///
+/// `A` - peer address
+pub struct HttpServer<T, A> {
     router: Rc<Router>,
+    io: PhantomData<T>,
+    addr: PhantomData<A>,
 }
 
-impl Actor for HttpServer {
+impl<T: 'static, A: 'static> Actor for HttpServer<T, A> {
     type Context = Context<Self>;
 }
 
-impl HttpServer {
+impl<T, A> HttpServer<T, A> {
     /// Create new http server with specified `RoutingMap`
     pub fn new(router: Router) -> Self {
-        HttpServer {router: Rc::new(router)}
+        HttpServer {router: Rc::new(router), io: PhantomData, addr: PhantomData}
     }
+}
+
+impl<T, A> HttpServer<T, A>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static
+{
+    /// Start listening for incomming connections from stream.
+    pub fn serve_incoming<S, Addr>(self, stream: S) -> io::Result<Addr>
+        where Self: ActorAddress<Self, Addr>,
+              S: Stream<Item=(T, A), Error=io::Error> + 'static
+    {
+        Ok(HttpServer::create(move |ctx| {
+            ctx.add_stream(stream);
+            self
+        }))
+    }
+}
+
+impl HttpServer<TcpStream, net::SocketAddr> {
 
     /// Start listening for incomming connections.
+    ///
+    /// This methods converts address to list of `SocketAddr`
+    /// then binds to all available addresses.
     pub fn serve<S, Addr>(self, addr: S) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
@@ -59,17 +89,24 @@ impl HttpServer {
     }
 }
 
-impl ResponseType<(TcpStream, net::SocketAddr)> for HttpServer {
+impl<T, A> ResponseType<(T, A)> for HttpServer<T, A>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static
+{
     type Item = ();
     type Error = ();
 }
 
-impl StreamHandler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {}
+impl<T, A> StreamHandler<(T, A), io::Error> for HttpServer<T, A>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static {
+}
 
-impl Handler<(TcpStream, net::SocketAddr), io::Error> for HttpServer {
-
-    fn handle(&mut self, msg: (TcpStream, net::SocketAddr), _: &mut Context<Self>)
-              -> Response<Self, (TcpStream, net::SocketAddr)>
+impl<T, A> Handler<(T, A), io::Error> for HttpServer<T, A>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static
+{
+    fn handle(&mut self, msg: (T, A), _: &mut Context<Self>) -> Response<Self, (T, A)>
     {
         Arbiter::handle().spawn(
             HttpChannel{router: Rc::clone(&self.router),
@@ -98,11 +135,11 @@ struct Entry {
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
-pub struct HttpChannel {
+pub struct HttpChannel<T: 'static, A: 'static> {
     router: Rc<Router>,
     #[allow(dead_code)]
-    addr: net::SocketAddr,
-    stream: TcpStream,
+    addr: A,
+    stream: T,
     reader: Reader,
     error: bool,
     items: VecDeque<Entry>,
@@ -111,17 +148,21 @@ pub struct HttpChannel {
     keepalive_timer: Option<Timeout>,
 }
 
-impl Drop for HttpChannel {
+impl<T: 'static, A: 'static> Drop for HttpChannel<T, A> {
     fn drop(&mut self) {
         println!("Drop http channel");
     }
 }
 
-impl Actor for HttpChannel {
+impl<T, A> Actor for HttpChannel<T, A>
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static
+{
     type Context = Context<Self>;
 }
 
-impl Future for HttpChannel {
+impl<T, A> Future for HttpChannel<T, A>
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static
+{
     type Item = ();
     type Error = ();
 
