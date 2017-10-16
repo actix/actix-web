@@ -1,6 +1,6 @@
-# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
+# Actix web [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
 
-Actix http is a server http framework for Actix framework.
+Web framework for Actix.
 
 * [API Documentation](http://fafhrd91.github.io/actix-web/actix_web/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-web)
@@ -8,7 +8,7 @@ Actix http is a server http framework for Actix framework.
 
 ---
 
-Actix http is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
+Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
 
 ## Features
 

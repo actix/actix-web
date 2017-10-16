@@ -1,3 +1,6 @@
+//! Static files support.
+//!
+//! TODO: needs to re-implement actual files handling, current impl blocks
 #![allow(dead_code, unused_variables)]
 use std::io;
 use std::io::Read;
