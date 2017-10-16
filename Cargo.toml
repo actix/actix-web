@@ -12,6 +12,11 @@ license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
+[badges]
+travis-ci = { repository = "fafhrd91/actix-web", branch = "master" }
+appveyor = { repository = "fafhrd91/actix-web" }
+codecov = { repository = "fafhrd91/actix-web", branch = "master", service = "github" }
+
 [lib]
 name = "actix_web"
 path = "src/lib.rs"
@@ -49,12 +54,11 @@ tokio-proto = "0.1"
 log = "0.3"
 env_logger = "*"
 
-#actix = { git="https://github.com/fafhrd91/actix.git" }
-
 [dependencies.actix]
 #path = "../actix"
 git = "https://github.com/fafhrd91/actix.git"
-features = ["signal"]
+default-features = false
+features = []
 
 [dev-dependencies]
 skeptic = "0.13"

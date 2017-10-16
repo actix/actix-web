@@ -1,4 +1,4 @@
-# Actix web [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
+# Actix web [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![Build Status](https://ci.appveyor.com/api/projects/status/github/fafhrd91/actix-web?branch=master&svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
 
 Web framework for Actix.
 
