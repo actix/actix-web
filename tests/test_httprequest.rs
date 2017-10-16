@@ -75,3 +75,15 @@ fn test_request_query() {
     assert_eq!(query[0].0.as_ref(), "id");
     assert_eq!(query[0].1.as_ref(), "test");
 }
+
+#[test]
+fn test_request_params() {
+    let req = HttpRequest::new(Method::GET, Uri::try_from("/?id=test").unwrap(),
+                               Version::HTTP_11, HeaderMap::new());
+
+    let mut params = Params::new();
+    params.insert("key".to_owned(), "value".to_owned());
+
+    let req = req.with_params(params);
+    assert_eq!(req.params().find("key"), Some("value"));
+}
