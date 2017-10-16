@@ -1,11 +1,12 @@
-//! Pieces pertaining to the HTTP message protocol.
-use std::{io, str};
+//! HTTP Request message related code.
+use std::str;
 use url::form_urlencoded;
 use http::{header, Method, Version, Uri, HeaderMap};
 
 use Params;
 use {Cookie, CookieParseError};
 use {HttpRange, HttpRangeParseError};
+use error::ParseError;
 
 
 #[derive(Debug)]
@@ -162,13 +163,12 @@ impl HttpRequest {
     }
 
     /// Check if request has chunked transfer encoding
-    pub fn chunked(&self) -> Result<bool, io::Error> {
+    pub fn chunked(&self) -> Result<bool, ParseError> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
                 Ok(s.to_lowercase().contains("chunked"))
             } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other, "Can not read transfer-encoding header"))
+                Err(ParseError::Header)
             }
         } else {
             Ok(false)

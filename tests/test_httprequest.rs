@@ -2,6 +2,7 @@ extern crate actix_web;
 extern crate http;
 extern crate time;
 
+use std::str;
 use actix_web::*;
 use http::{header, Method, Uri, Version, HeaderMap, HttpTryFrom};
 
@@ -86,4 +87,27 @@ fn test_request_match_info() {
 
     let req = req.with_match_info(params);
     assert_eq!(req.match_info().find("key"), Some("value"));
+}
+
+#[test]
+fn test_chunked() {
+    let req = HttpRequest::new(
+        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, HeaderMap::new());
+    assert!(!req.chunked().unwrap());
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::TRANSFER_ENCODING,
+                   header::HeaderValue::from_static("chunked"));
+    let req = HttpRequest::new(
+        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+    assert!(req.chunked().unwrap());
+
+    let mut headers = HeaderMap::new();
+    let s = unsafe{str::from_utf8_unchecked(b"some va\xadscc\xacas0xsdasdlue".as_ref())};
+
+    headers.insert(header::TRANSFER_ENCODING,
+                   header::HeaderValue::from_str(s).unwrap());
+    let req = HttpRequest::new(
+        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+    assert!(req.chunked().is_err());
 }
