@@ -1,5 +1,6 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::{io, str};
+use url::form_urlencoded;
 use http::{header, Method, Version, Uri, HeaderMap};
 
 use Params;
@@ -65,10 +66,18 @@ impl HttpRequest {
         self.uri.path()
     }
 
-    /// The query string of this Request.
+    /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
     #[inline]
-    pub fn query(&self) -> Option<&str> {
-        self.uri.query()
+    pub fn query(&self) -> form_urlencoded::Parse {
+        form_urlencoded::parse(self.query_string().as_ref())
+    }
+
+    /// The query string in the URL.
+    ///
+    /// E.g., id=10
+    #[inline]
+    pub fn query_string(&self) -> &str {
+        self.uri.query().unwrap_or("")
     }
 
     /// Return request cookies.
