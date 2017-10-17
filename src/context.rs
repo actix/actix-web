@@ -6,7 +6,7 @@ use futures::{Async, Stream, Poll};
 use bytes::Bytes;
 use actix::{Actor, ActorState, ActorContext, AsyncContext};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, SpawnHandle};
+use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle};
 
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
@@ -20,7 +20,7 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
     items: ActorItemsCell<A>,
     address: ActorAddressCell<A>,
     stream: VecDeque<Frame>,
-    wait: Option<Box<ActorFuture<Item=(), Error=(), Actor=A>>>,
+    wait: ActorWaitCell<A>,
     app_state: Rc<<A as Route>::State>,
 }
 
@@ -60,7 +60,7 @@ impl<A> AsyncContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
     fn wait<F>(&mut self, fut: F)
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
-        self.wait = Some(Box::new(fut));
+        self.wait.add(fut);
     }
 
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
@@ -84,8 +84,8 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
             state: ActorState::Started,
             items: ActorItemsCell::default(),
             address: ActorAddressCell::default(),
+            wait: ActorWaitCell::default(),
             stream: VecDeque::new(),
-            wait: None,
             app_state: state,
         }
     }
@@ -124,7 +124,7 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
     type Item = Frame;
     type Error = std::io::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll(&mut self) -> Poll<Option<Frame>, std::io::Error> {
         if self.act.is_none() {
             return Ok(Async::NotReady)
         }
@@ -148,16 +148,11 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
             _ => ()
         }
 
-        // check wait future
-        if self.wait.is_some() && self.act.is_some() {
-            if let Some(ref mut act) = self.act {
-                if let Some(ref mut fut) = self.wait {
-                    if let Ok(Async::NotReady) = fut.poll(act, ctx) {
-                        return Ok(Async::NotReady);
-                    }
-                }
+        // check wait futures
+        if let Some(ref mut act) = self.act {
+            if let Ok(Async::NotReady) = self.wait.poll(act, ctx) {
+                return Ok(Async::NotReady)
             }
-            self.wait = None;
         }
 
         let mut prep_stop = false;

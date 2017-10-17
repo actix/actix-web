@@ -56,7 +56,8 @@ env_logger = "*"
 
 [dependencies.actix]
 #path = "../actix"
-git = "https://github.com/fafhrd91/actix.git"
+#git = "https://github.com/fafhrd91/actix.git"
+version = "0.2"
 default-features = false
 features = []
 
