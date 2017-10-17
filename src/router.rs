@@ -1,12 +1,12 @@
 use std::rc::Rc;
 use std::string::ToString;
 use std::collections::HashMap;
-use route_recognizer::{Router as Recognizer};
 
 use task::Task;
 use payload::Payload;
 use route::RouteHandler;
 use resource::Resource;
+use recognizer::{RouteRecognizer, check_pattern};
 use application::Application;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
@@ -18,15 +18,20 @@ pub(crate) trait Handler: 'static {
 /// Server routing map
 pub struct Router {
     apps: HashMap<String, Box<Handler>>,
-    resources: Recognizer<Resource>,
+    resources: RouteRecognizer<Resource>,
 }
 
 impl Router {
 
     pub(crate) fn call(&self, req: HttpRequest, payload: Payload) -> Task
     {
-        if let Ok(h) = self.resources.recognize(req.path()) {
-            h.handler.handle(req.with_match_info(h.params), payload, Rc::new(()))
+        if let Some((params, h)) = self.resources.recognize(req.path()) {
+            if let Some(params) = params {
+                h.handle(
+                    req.with_match_info(params), payload, Rc::new(()))
+            } else {
+                h.handle(req, payload, Rc::new(()))
+            }
         } else {
             for (prefix, app) in &self.apps {
                 if req.path().starts_with(prefix) {
@@ -40,17 +45,26 @@ impl Router {
 
 /// Request routing map builder
 ///
-/// Route supports glob patterns: * for a single wildcard segment and :param
-/// for matching storing that segment of the request url in the Params object,
-/// which is stored in the request.
+/// Resource may have variable path also. For instance, a resource with
+/// the path '/a/{name}/c' would match all incoming requests with paths
+/// such as '/a/b/c', '/a/1/c', and '/a/etc/c'.
 ///
-/// For instance, to route Get requests on any route matching /users/:userid/:friend and
+/// A variable part is specified in the form {identifier}, where
+/// the identifier can be used later in a request handler to access the matched
+/// value for that part. This is done by looking up the identifier
+/// in the Params object returned by `Request.match_info()` method.
+///
+/// By default, each part matches the regular expression [^{}/]+.
+///
+/// You can also specify a custom regex in the form {identifier:regex}:
+///
+/// For instance, to route Get requests on any route matching /users/{userid}/{friend} and
 /// store userid and friend in the exposed Params object:
 ///
 /// ```rust,ignore
 /// let mut map = RoutingMap::default();
 ///
-/// map.resource("/users/:userid/:friendid", |r| r.get::<MyRoute>());
+/// map.resource("/users/{userid}/{friend}", |r| r.get::<MyRoute>());
 /// ```
 pub struct RoutingMap {
     parts: Option<RoutingMapParts>,
@@ -134,6 +148,7 @@ impl RoutingMap {
             // add resource
             let path = path.to_string();
             if !parts.resources.contains_key(&path) {
+                check_pattern(&path);
                 parts.resources.insert(path.clone(), Resource::default());
             }
             // configure resource
@@ -147,15 +162,14 @@ impl RoutingMap {
     {
         let parts = self.parts.take().expect("Use after finish");
 
-        let mut router = Recognizer::new();
-
+        let mut routes = Vec::new();
         for (path, resource) in parts.resources {
-            router.add(path.as_str(), resource);
+            routes.push((path, resource))
         }
 
         Router {
             apps: parts.apps,
-            resources: router,
+            resources: RouteRecognizer::new("/".to_owned(), routes),
         }
     }
 }

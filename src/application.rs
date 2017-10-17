@@ -2,13 +2,12 @@ use std::rc::Rc;
 use std::string::ToString;
 use std::collections::HashMap;
 
-use route_recognizer::Router;
-
 use task::Task;
+use payload::Payload;
 use route::{RouteHandler, FnHandler};
 use router::Handler;
 use resource::Resource;
-use payload::Payload;
+use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -24,13 +23,12 @@ pub struct Application<S=()> {
 impl<S> Application<S> where S: 'static
 {
     pub(crate) fn prepare(self, prefix: String) -> Box<Handler> {
-        let mut router = Router::new();
         let mut handlers = HashMap::new();
-        let prefix = if prefix.ends_with('/') {prefix } else { prefix + "/" };
+        let prefix = if prefix.ends_with('/') { prefix } else { prefix + "/" };
 
+        let mut routes = Vec::new();
         for (path, handler) in self.resources {
-            let path = prefix.clone() + path.trim_left_matches('/');
-            router.add(path.as_str(), handler);
+            routes.push((path, handler))
         }
 
         for (path, mut handler) in self.handlers {
@@ -43,7 +41,7 @@ impl<S> Application<S> where S: 'static
                 state: Rc::new(self.state),
                 default: self.default,
                 handlers: handlers,
-                router: router }
+                router: RouteRecognizer::new(prefix, routes) }
         )
     }
 }
@@ -95,6 +93,7 @@ impl<S> Application<S> where S: 'static {
 
         // add resource
         if !self.resources.contains_key(&path) {
+            check_pattern(&path);
             self.resources.insert(path.clone(), Resource::default());
         }
 
@@ -213,6 +212,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             // add resource
             let path = path.to_string();
             if !parts.resources.contains_key(&path) {
+                check_pattern(&path);
                 parts.resources.insert(path.clone(), Resource::default());
             }
             f(parts.resources.get_mut(&path).unwrap());
@@ -286,16 +286,20 @@ struct InnerApplication<S> {
     state: Rc<S>,
     default: Resource<S>,
     handlers: HashMap<String, Box<RouteHandler<S>>>,
-    router: Router<Resource<S>>,
+    router: RouteRecognizer<Resource<S>>,
 }
 
 
 impl<S: 'static> Handler for InnerApplication<S> {
 
     fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
-        if let Ok(h) = self.router.recognize(req.path()) {
-            h.handler.handle(
-                req.with_match_info(h.params), payload, Rc::clone(&self.state))
+        if let Some((params, h)) = self.router.recognize(req.path()) {
+            if let Some(params) = params {
+                h.handle(
+                    req.with_match_info(params), payload, Rc::clone(&self.state))
+            } else {
+                h.handle(req, payload, Rc::clone(&self.state))
+            }
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {

@@ -18,6 +18,7 @@ impl Route for MyRoute {
     type State = ();
 
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
+        println!("PARAMS: {:?} {:?}", req.match_info().get("name"), req.match_info());
         if !payload.eof() {
             ctx.add_stream(payload);
             Reply::stream(MyRoute{req: Some(req)})
@@ -105,7 +106,7 @@ fn main() {
     HttpServer::new(
         RoutingMap::default()
             .app("/blah", Application::default()
-                 .resource("/test", |r| {
+                 .resource("/test/{name}", |r| {
                      r.get::<MyRoute>();
                      r.post::<MyRoute>();
                  })

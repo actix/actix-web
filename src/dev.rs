@@ -17,6 +17,7 @@ pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
+pub use recognizer::Params;
 pub use server::HttpServer;
 pub use context::HttpContext;
 pub use staticfiles::StaticFiles;
@@ -25,7 +26,6 @@ pub use staticfiles::StaticFiles;
 pub use http::{Method, StatusCode};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
-pub use route_recognizer::Params;
 pub use http_range::{HttpRange, HttpRangeParseError};
 
 // dev specific

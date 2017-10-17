@@ -32,6 +32,7 @@ use httpcodes::HTTPMethodNotAllowed;
 ///         .finish();
 /// }
 pub struct Resource<S=()> {
+    name: String,
     state: PhantomData<S>,
     routes: HashMap<Method, Box<RouteHandler<S>>>,
     default: Box<RouteHandler<S>>,
@@ -40,6 +41,7 @@ pub struct Resource<S=()> {
 impl<S> Default for Resource<S> {
     fn default() -> Self {
         Resource {
+            name: String::new(),
             state: PhantomData,
             routes: HashMap::new(),
             default: Box::new(HTTPMethodNotAllowed)}
@@ -48,6 +50,11 @@ impl<S> Default for Resource<S> {
 
 
 impl<S> Resource<S> where S: 'static {
+
+    /// Set resource name
+    pub fn set_name<T: ToString>(&mut self, name: T) {
+        self.name = name.to_string();
+    }
 
     /// Register handler for specified method.
     pub fn handler<F, R>(&mut self, method: Method, handler: F)

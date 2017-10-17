@@ -3,10 +3,10 @@ use std::str;
 use url::form_urlencoded;
 use http::{header, Method, Version, Uri, HeaderMap};
 
-use Params;
 use {Cookie, CookieParseError};
 use {HttpRange, HttpRangeParseError};
 use error::ParseError;
+use recognizer::Params;
 
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl HttpRequest {
             uri: uri,
             version: version,
             headers: headers,
-            params: Params::new(),
+            params: Params::empty(),
             cookies: Vec::new(),
         }
     }
