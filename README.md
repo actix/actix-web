@@ -1,6 +1,6 @@
 # Actix web [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![Build Status](https://ci.appveyor.com/api/projects/status/github/fafhrd91/actix-web?branch=master&svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
 
-Web framework for Actix.
+Web framework for [Actix](https://github.com/fafhrd91/actix).
 
 * [API Documentation](http://fafhrd91.github.io/actix-web/actix_web/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-web)
