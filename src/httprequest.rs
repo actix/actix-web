@@ -1,12 +1,18 @@
 //! HTTP Request message related code.
-use std::str;
+use std::{io, str};
+use std::collections::HashMap;
+use bytes::{Bytes, BytesMut};
+use futures::{Async, Future, Stream, Poll};
 use url::form_urlencoded;
+use multipart_async::server::BodyChunk;
 use http::{header, Method, Version, Uri, HeaderMap};
 
 use {Cookie, CookieParseError};
 use {HttpRange, HttpRangeParseError};
 use error::ParseError;
 use recognizer::Params;
+use multipart::Multipart;
+use payload::{Payload, PayloadError};
 
 
 #[derive(Debug)]
@@ -51,15 +57,6 @@ impl HttpRequest {
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
-
-    // /// The remote socket address of this request
-    // ///
-    // /// This is an `Option`, because some underlying transports may not have
-    // /// a socket address, such as Unix Sockets.
-    // ///
-    // /// This field is not used for outgoing requests.
-    // #[inline]
-    // pub fn remote_addr(&self) -> Option<SocketAddr> { self.remote_addr }
 
     /// The target path of this Request.
     #[inline]
@@ -176,6 +173,146 @@ impl HttpRequest {
             HttpRange::parse(unsafe{str::from_utf8_unchecked(range.as_bytes())}, size)
         } else {
             Ok(Vec::new())
+        }
+    }
+
+    /// Return stream to process BODY as multipart.
+    ///
+    /// Content-type: multipart/form-data;
+    pub fn multipart(&self, payload: Payload) -> Result<Multipart<Req>, Payload> {
+        const BOUNDARY: &'static str = "boundary=";
+
+        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
+            if let Ok(content_type) = content_type.to_str() {
+                if let Some(start) = content_type.find(BOUNDARY) {
+                    let start = start + BOUNDARY.len();
+                    let end = content_type[start..].find(';')
+                        .map_or(content_type.len(), |end| start + end);
+                    let boundary = &content_type[start .. end];
+
+                    return Ok(Multipart::with_body(Req{pl: payload}, boundary))
+                }
+            }
+        }
+        Err(payload)
+    }
+
+    /// Parse `application/x-www-form-urlencoded` encoded body.
+    /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>`.
+    ///
+    /// Returns error:
+    ///
+    /// * content type is not `application/x-www-form-urlencoded`
+    /// * transfer encoding is `chunked`.
+    /// * content-length is greater than 256k
+    pub fn urlencoded(&self, payload: Payload) -> Result<UrlEncoded, Payload> {
+        if let Ok(chunked) = self.chunked() {
+            if chunked {
+                return Err(payload)
+            }
+        }
+
+        if let Some(len) = self.headers().get(header::CONTENT_LENGTH) {
+            if let Ok(s) = len.to_str() {
+                if let Ok(len) = s.parse::<u64>() {
+                    if len > 262_144 {
+                        return Err(payload)
+                    }
+                } else {
+                    return Err(payload)
+                }
+            } else {
+                return Err(payload)
+            }
+        }
+
+        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
+            if let Ok(content_type) = content_type.to_str() {
+                if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
+                    return Ok(UrlEncoded{pl: payload, body: BytesMut::new()})
+                }
+            }
+        }
+
+        Err(payload)
+    }
+}
+
+
+#[doc(hidden)]
+pub struct Req {
+    pl: Payload,
+}
+
+#[doc(hidden)]
+pub struct Chunk(Bytes);
+
+impl BodyChunk for Chunk {
+    #[inline]
+    fn split_at(mut self, idx: usize) -> (Self, Self) {
+        (Chunk(self.0.split_to(idx)), self)
+    }
+
+    #[inline]
+    fn as_slice(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Stream for Req {
+    type Item = Chunk;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Chunk>, io::Error> {
+        match self.pl.poll() {
+            Err(_) =>
+                Err(io::Error::new(io::ErrorKind::InvalidData, "incomplete")),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::Ready(Some(item))) => match item {
+                Ok(bytes) => Ok(Async::Ready(Some(Chunk(bytes)))),
+                Err(err) => match err {
+                    PayloadError::Incomplete =>
+                        Err(io::Error::new(io::ErrorKind::InvalidData, "incomplete")),
+                    PayloadError::ParseError(err) =>
+                        Err(err.into())
+                }
+            }
+        }
+    }
+}
+
+
+/// Future that resolves to a parsed urlencoded values.
+pub struct UrlEncoded {
+    pl: Payload,
+    body: BytesMut,
+}
+
+impl Future for UrlEncoded {
+    type Item = HashMap<String, String>;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            return match self.pl.poll() {
+                Err(_) => unreachable!(),
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Ok(Async::Ready(None)) => {
+                    let mut m = HashMap::new();
+                    for (k, v) in form_urlencoded::parse(&self.body) {
+                        m.insert(k.into(), v.into());
+                    }
+                    Ok(Async::Ready(m))
+                },
+                Ok(Async::Ready(Some(item))) => match item {
+                    Ok(bytes) => {
+                        self.body.extend(bytes);
+                        continue
+                    },
+                    Err(err) => Err(err),
+                }
+            }
         }
     }
 }

@@ -21,6 +21,7 @@ extern crate http;
 extern crate httparse;
 extern crate http_range;
 extern crate mime_guess;
+extern crate multipart_async;
 extern crate url;
 extern crate actix;
 
@@ -48,7 +49,7 @@ pub mod dev;
 pub mod httpcodes;
 pub use error::ParseError;
 pub use application::{Application, ApplicationBuilder};
-pub use httprequest::HttpRequest;
+pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem, PayloadError};
 pub use router::{Router, RoutingMap};
@@ -64,3 +65,9 @@ pub use http::{Method, StatusCode};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use http_range::{HttpRange, HttpRangeParseError};
+
+/// Multipart support
+pub mod multipart {
+    pub use multipart_async::server::{
+        Field, FieldData, FieldHeaders, Multipart, ReadTextField, TextField};
+}
