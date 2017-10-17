@@ -46,19 +46,19 @@ impl Router {
 /// Request routing map builder
 ///
 /// Resource may have variable path also. For instance, a resource with
-/// the path '/a/{name}/c' would match all incoming requests with paths
-/// such as '/a/b/c', '/a/1/c', and '/a/etc/c'.
+/// the path */a/{name}/c* would match all incoming requests with paths
+/// such as */a/b/c*, */a/1/c*, and */a/etc/c*.
 ///
-/// A variable part is specified in the form {identifier}, where
+/// A variable part is specified in the form `{identifier}`, where
 /// the identifier can be used later in a request handler to access the matched
 /// value for that part. This is done by looking up the identifier
 /// in the Params object returned by `Request.match_info()` method.
 ///
-/// By default, each part matches the regular expression [^{}/]+.
+/// By default, each part matches the regular expression `[^{}/]+`.
 ///
-/// You can also specify a custom regex in the form {identifier:regex}:
+/// You can also specify a custom regex in the form `{identifier:regex}`:
 ///
-/// For instance, to route Get requests on any route matching /users/{userid}/{friend} and
+/// For instance, to route Get requests on any route matching `/users/{userid}/{friend}` and
 /// store userid and friend in the exposed Params object:
 ///
 /// ```rust,ignore
@@ -98,7 +98,7 @@ impl RoutingMap {
     ///     let mut router =
     ///         RoutingMap::default()
     ///             .app("/pre", Application::default()
-    ///                  .resource("/test", |r| {
+    ///                  .resource("/users/{userid}", |r| {
     ///                      r.get::<MyRoute>();
     ///                      r.post::<MyRoute>();
     ///                 })
