@@ -123,6 +123,9 @@ fn parse(pattern: &str) -> String {
     re
 }
 
+/// Route match information
+///
+/// If resource path contains variable patterns, `Params` stores this variables.
 #[derive(Debug)]
 pub struct Params {
     text: String,
@@ -158,6 +161,7 @@ impl Params {
             .and_then(|m| m.map(|(start, end)| &self.text[start..end]))
     }
 
+    /// Get matched parameter by name
     pub fn get(&self, key: &str) -> Option<&str> {
         self.names.get(key).and_then(|&i| self.by_idx(i - 1))
     }
