@@ -1,7 +1,9 @@
+use std::fmt;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::convert::From;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::io::Error as IoError;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
@@ -19,6 +21,31 @@ pub enum PayloadError {
     Incomplete,
     /// Parse error
     ParseError(IoError),
+}
+
+impl fmt::Display for PayloadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PayloadError::ParseError(ref e) => fmt::Display::fmt(e, f),
+            ref e => f.write_str(e.description()),
+        }
+    }
+}
+
+impl Error for PayloadError {
+    fn description(&self) -> &str {
+        match *self {
+            PayloadError::Incomplete => "A payload reached EOF, but is not complete.",
+            PayloadError::ParseError(ref e) => e.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            PayloadError::ParseError(ref error) => Some(error),
+            _ => None,
+        }
+    }
 }
 
 impl From<IoError> for PayloadError {

@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
@@ -16,39 +17,44 @@ impl Route for MyRoute {
 
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
         println!("{:?}", req);
-        match req.multipart(payload) {
-            Ok(multipart) => {
-                ctx.add_stream(multipart);
-                Reply::async(MyRoute)
-            },
-            // can not read multipart
-            Err(_) => {
-                Reply::reply(httpcodes::HTTPBadRequest)
-            }
-        }
-    }
-}
 
-impl ResponseType<multipart::MultipartItem> for MyRoute {
-    type Item = ();
-    type Error = ();
-}
+        // get Multipart stream
+        WrapStream::<MyRoute>::actstream(req.multipart(payload)?)
+            .and_then(|item, act, ctx| {
+                // Multipart stream is a string of Fields and nested Multiparts
+                match item {
+                    multipart::MultipartItem::Field(field) => {
+                        println!("==== FIELD ==== {:?}", field);
 
-impl StreamHandler<multipart::MultipartItem, PayloadError> for MyRoute {
-    fn finished(&mut self, ctx: &mut Self::Context) {
-        println!("FINISHED");
-        ctx.start(httpcodes::HTTPOk);
-        ctx.write_eof();
-    }
-}
+                        // Read field's stream
+                        fut::Either::A(
+                            field.actstream()
+                                .map(|chunk, act, ctx| {
+                                    println!(
+                                        "-- CHUNK: \n{}",
+                                        std::str::from_utf8(&chunk.0).unwrap());
+                                })
+                                .finish())
+                    },
+                    multipart::MultipartItem::Nested(mp) => {
+                        // Do nothing for nested multipart stream
+                        fut::Either::B(fut::ok(()))
+                    }
+                }
+            })
+            // wait until stream finish
+            .finish()
+            .map_err(|e, act, ctx| {
+                ctx.start(httpcodes::HTTPBadRequest);
+                ctx.write_eof();
+            })
+            .map(|_, act, ctx| {
+                ctx.start(httpcodes::HTTPOk);
+                ctx.write_eof();
+            })
+            .spawn(ctx);
 
-impl Handler<multipart::MultipartItem, PayloadError> for MyRoute {
-    fn handle(&mut self, msg: multipart::MultipartItem, ctx: &mut HttpContext<Self>)
-              -> Response<Self, multipart::MultipartItem>
-    {
-        println!("==== FIELD ==== {:?}", msg);
-        //if let Some(req) = self.req.take() {
-        Self::empty()
+        Reply::async(MyRoute)
     }
 }
 

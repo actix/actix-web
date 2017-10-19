@@ -10,6 +10,7 @@ use httparse;
 use http::{StatusCode, Error as HttpError};
 
 use HttpRangeParseError;
+use multipart::MultipartError;
 use httpresponse::{Body, HttpResponse};
 
 
@@ -126,6 +127,14 @@ impl From<HttpError> for HttpResponse {
 /// Return `BadRequest` for `cookie::ParseError`
 impl From<cookie::ParseError> for HttpResponse {
     fn from(err: cookie::ParseError) -> Self {
+        HttpResponse::new(StatusCode::BAD_REQUEST,
+                          Body::Binary(err.description().into()))
+    }
+}
+
+/// Return `BadRequest` for `MultipartError`
+impl From<MultipartError> for HttpResponse {
+    fn from(err: MultipartError) -> Self {
         HttpResponse::new(StatusCode::BAD_REQUEST,
                           Body::Binary(err.description().into()))
     }
