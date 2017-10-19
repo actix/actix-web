@@ -134,7 +134,9 @@ pub struct Params {
 }
 
 impl Params {
-    pub(crate) fn new(names: Rc<HashMap<String, usize>>, text: &str, captures: Captures) -> Self
+    pub(crate) fn new(names: Rc<HashMap<String, usize>>,
+                      text: &str,
+                      captures: Captures) -> Self
     {
         Params {
             names,
@@ -153,6 +155,10 @@ impl Params {
             names: Rc::new(HashMap::new()),
             matches: Vec::new(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
     }
 
     fn by_idx(&self, index: usize) -> Option<&str> {

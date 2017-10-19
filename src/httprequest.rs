@@ -1,21 +1,19 @@
 //! HTTP Request message related code.
-use std::{io, str};
+use std::{str, fmt};
 use std::collections::HashMap;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
 use url::form_urlencoded;
-use multipart_async::server::BodyChunk;
 use http::{header, Method, Version, Uri, HeaderMap};
 
 use {Cookie, CookieParseError};
 use {HttpRange, HttpRangeParseError};
 use error::ParseError;
 use recognizer::Params;
-use multipart::Multipart;
 use payload::{Payload, PayloadError};
+use multipart::{Multipart, MultipartError};
 
 
-#[derive(Debug)]
 /// An HTTP Request
 pub struct HttpRequest {
     version: Version,
@@ -179,26 +177,13 @@ impl HttpRequest {
     /// Return stream to process BODY as multipart.
     ///
     /// Content-type: multipart/form-data;
-    pub fn multipart(&self, payload: Payload) -> Result<Multipart<Req>, Payload> {
-        const BOUNDARY: &'static str = "boundary=";
-
-        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
-            if let Ok(content_type) = content_type.to_str() {
-                if let Some(start) = content_type.find(BOUNDARY) {
-                    let start = start + BOUNDARY.len();
-                    let end = content_type[start..].find(';')
-                        .map_or(content_type.len(), |end| start + end);
-                    let boundary = &content_type[start .. end];
-
-                    return Ok(Multipart::with_body(Req{pl: payload}, boundary))
-                }
-            }
-        }
-        Err(payload)
+    pub fn multipart(&self, payload: Payload) -> Result<Multipart, MultipartError> {
+        Multipart::new(self, payload)
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.
-    /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>`.
+    /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>` which
+    /// contains decoded parameters.
     ///
     /// Returns error:
     ///
@@ -238,50 +223,24 @@ impl HttpRequest {
     }
 }
 
-
-#[doc(hidden)]
-pub struct Req {
-    pl: Payload,
-}
-
-#[doc(hidden)]
-pub struct Chunk(Bytes);
-
-impl BodyChunk for Chunk {
-    #[inline]
-    fn split_at(mut self, idx: usize) -> (Self, Self) {
-        (Chunk(self.0.split_to(idx)), self)
-    }
-
-    #[inline]
-    fn as_slice(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl Stream for Req {
-    type Item = Chunk;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Option<Chunk>, io::Error> {
-        match self.pl.poll() {
-            Err(_) =>
-                Err(io::Error::new(io::ErrorKind::InvalidData, "incomplete")),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::Ready(Some(item))) => match item {
-                Ok(bytes) => Ok(Async::Ready(Some(Chunk(bytes)))),
-                Err(err) => match err {
-                    PayloadError::Incomplete =>
-                        Err(io::Error::new(io::ErrorKind::InvalidData, "incomplete")),
-                    PayloadError::ParseError(err) =>
-                        Err(err.into())
-                }
+impl fmt::Debug for HttpRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = write!(f, "\nHttpRequest {:?} {}:{}\n", self.version, self.method, self.uri);
+        if !self.params.is_empty() {
+            let _ = write!(f, "  params: {:?}\n", self.params);
+        }
+        let _ = write!(f, "  headers:\n");
+        for key in self.headers.keys() {
+            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
+            if vals.len() > 1 {
+                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
+            } else {
+                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
             }
         }
+        res
     }
 }
-
 
 /// Future that resolves to a parsed urlencoded values.
 pub struct UrlEncoded {

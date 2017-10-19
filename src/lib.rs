@@ -20,8 +20,8 @@ extern crate cookie;
 extern crate http;
 extern crate httparse;
 extern crate http_range;
+extern crate mime;
 extern crate mime_guess;
-extern crate multipart_async;
 extern crate url;
 extern crate actix;
 
@@ -47,6 +47,7 @@ mod wsproto;
 pub mod ws;
 pub mod dev;
 pub mod httpcodes;
+pub mod multipart;
 pub use error::ParseError;
 pub use application::{Application, ApplicationBuilder};
 pub use httprequest::{HttpRequest, UrlEncoded};
@@ -65,9 +66,3 @@ pub use http::{Method, StatusCode};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use http_range::{HttpRange, HttpRangeParseError};
-
-/// Multipart support
-pub mod multipart {
-    pub use multipart_async::server::{
-        Field, FieldData, FieldHeaders, Multipart, ReadTextField, TextField};
-}

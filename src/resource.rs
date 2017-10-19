@@ -141,7 +141,7 @@ pub struct Reply<A: Actor + Route> (ReplyItem<A>);
 impl<A> Reply<A> where A: Actor + Route
 {
     /// Create async response
-    pub fn stream(act: A) -> Self {
+    pub fn async(act: A) -> Self {
         Reply(ReplyItem::Actor(act))
     }
 

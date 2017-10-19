@@ -21,10 +21,6 @@ codecov = { repository = "fafhrd91/actix-web", branch = "master", service = "git
 name = "actix_web"
 path = "src/lib.rs"
 
-[[bin]]
-name = "test"
-path = "src/main.rs"
-
 [features]
 default = ["nightly"]
 
@@ -32,17 +28,18 @@ default = ["nightly"]
 nightly = []
 
 [dependencies]
+log = "0.3"
 time = "0.1"
 http = "0.1"
 httparse = "0.1"
 http-range = "0.1"
+mime = "0.3"
 mime_guess = "1.8"
 cookie = { version="0.10", features=["percent-encode"] }
 regex = "0.2"
 slab = "0.4"
 sha1 = "0.2"
 url = "1.5"
-multipart-async = { version = "0.*", features=["server"]}
 
 # tokio
 bytes = "0.4"
@@ -50,10 +47,6 @@ futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
 tokio-proto = "0.1"
-
-# other
-log = "0.3"
-env_logger = "*"
 
 [dependencies.actix]
 #path = "../actix"

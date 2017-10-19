@@ -168,7 +168,7 @@ impl Reader {
             }
             match self.read_from_io(io) {
                 Ok(Async::Ready(0)) => {
-                    trace!("parse eof");
+                    trace!("Eof during parse");
                     return Err(ReaderError::Error(ParseError::Incomplete));
                 },
                 Ok(Async::Ready(_)) => (),

@@ -87,6 +87,9 @@ impl Decoder {
                 if *remaining == 0 {
                     Ok(Async::Ready(None))
                 } else {
+                    if body.is_empty() {
+                        return Ok(Async::NotReady)
+                    }
                     let len = body.len() as u64;
                     let buf;
                     if *remaining > len {
@@ -106,7 +109,7 @@ impl Decoder {
                     // advances the chunked state
                     *state = try_ready!(state.step(body, size, &mut buf));
                     if *state == ChunkedState::End {
-                        trace!("end of chunked");
+                        trace!("End of chunked stream");
                         return Ok(Async::Ready(None));
                     }
                     if let Some(buf) = buf {

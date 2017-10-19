@@ -30,6 +30,7 @@ impl From<IoError> for PayloadError {
 /// Stream of byte chunks
 ///
 /// Payload stores chunks in vector. First chunk can be received with `.readany()` method.
+#[derive(Debug)]
 pub struct Payload {
     inner: Rc<RefCell<Inner>>,
 }
@@ -65,9 +66,27 @@ impl Payload {
     }
 
     /// Get first available chunk of data.
-    /// Chunk get returned as Some(PayloadItem), `None` indicates eof.
+    /// Returns Some(PayloadItem) as chunk, `None` indicates eof.
     pub fn readany(&mut self) -> Async<Option<PayloadItem>> {
         self.inner.borrow_mut().readany()
+    }
+
+    /// Get exactly number of bytes
+    /// Returns Some(PayloadItem) as chunk, `None` indicates eof.
+    pub fn readexactly(&mut self, size: usize) -> Result<Async<Bytes>, PayloadError> {
+        self.inner.borrow_mut().readexactly(size)
+    }
+
+    /// Read until `\n`
+    /// Returns Some(PayloadItem) as line, `None` indicates eof.
+    pub fn readline(&mut self) -> Result<Async<Bytes>, PayloadError> {
+        self.inner.borrow_mut().readline()
+    }
+
+    /// Read until match line
+    /// Returns Some(PayloadItem) as line, `None` indicates eof.
+    pub fn readuntil(&mut self, line: &[u8]) -> Result<Async<Bytes>, PayloadError> {
+        self.inner.borrow_mut().readuntil(line)
     }
 
     #[doc(hidden)]
@@ -135,6 +154,7 @@ impl PayloadSender {
     }
 }
 
+#[derive(Debug)]
 struct Inner {
     len: usize,
     eof: bool,
@@ -213,6 +233,87 @@ impl Inner {
         }
     }
 
+    fn readexactly(&mut self, size: usize) -> Result<Async<Bytes>, PayloadError> {
+        if size <= self.len {
+            let mut buf = BytesMut::with_capacity(size);
+            while buf.len() < size {
+                let mut chunk = self.items.pop_front().unwrap();
+                let rem = size - buf.len();
+                buf.extend(&chunk.split_to(rem));
+                if !chunk.is_empty() {
+                    self.items.push_front(chunk);
+                    return Ok(Async::Ready(buf.freeze()))
+                }
+            }
+        }
+
+        if let Some(err) = self.err.take() {
+            Err(err)
+        } else {
+            self.task = Some(current_task());
+            Ok(Async::NotReady)
+        }
+    }
+
+    fn readuntil(&mut self, line: &[u8]) -> Result<Async<Bytes>, PayloadError> {
+        let mut idx = 0;
+        let mut num = 0;
+        let mut offset = 0;
+        let mut found = false;
+        let mut length = 0;
+
+        for no in 0..self.items.len() {
+            {
+                let chunk = &self.items[no];
+                for (pos, ch) in chunk.iter().enumerate() {
+                    if *ch == line[idx] {
+                        idx += 1;
+                        if idx == line.len() {
+                            num = no;
+                            offset = pos+1;
+                            length += pos;
+                            found = true;
+                            break;
+                        }
+                    } else {
+                        idx = 0
+                    }
+                }
+                if !found {
+                    length += chunk.len()
+                }
+            }
+
+            if found {
+                let mut buf = BytesMut::with_capacity(length);
+                if num > 0 {
+                    for _ in 0..num {
+                        buf.extend(self.items.pop_front().unwrap());
+                    }
+                }
+                if offset > 0 {
+                    let mut chunk = self.items.pop_front().unwrap();
+                    buf.extend(chunk.split_to(offset));
+                    if !chunk.is_empty() {
+                        self.items.push_front(chunk)
+                    }
+                }
+                self.len -= length;
+                return Ok(Async::Ready(buf.freeze()))
+            }
+        }
+        if let Some(err) = self.err.take() {
+            Err(err)
+        } else {
+            self.task = Some(current_task());
+            Ok(Async::NotReady)
+        }
+    }
+
+    fn readline(&mut self) -> Result<Async<Bytes>, PayloadError> {
+        self.readuntil(b"\n")
+    }
+
     #[doc(hidden)]
     pub fn readall(&mut self) -> Option<Bytes> {
         let len = self.items.iter().fold(0, |cur, item| cur + item.len());
@@ -222,6 +323,7 @@ impl Inner {
                 buf.extend(item);
             }
             self.items = VecDeque::new();
+            self.len = 0;
             Some(buf.take().freeze())
         } else {
             None

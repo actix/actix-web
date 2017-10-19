@@ -1,0 +1,13 @@
+[package]
+name = "multipart-example"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+
+[[bin]]
+name = "multipart"
+path = "src/main.rs"
+
+[dependencies]
+env_logger = "*"
+actix = "0.2"
+actix-web = { path = "../../" }

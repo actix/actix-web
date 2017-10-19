@@ -32,7 +32,7 @@
 //!                 // Map Payload into WsStream
 //!                 ctx.add_stream(ws::WsStream::new(payload));
 //!                 // Start ws messages processing
-//!                 Reply::stream(WsRoute)
+//!                 Reply::async(WsRoute)
 //!             },
 //!             Err(err) =>
 //!                 Reply::reply(err)
