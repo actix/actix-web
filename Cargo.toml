@@ -10,7 +10,6 @@ repository = "https://github.com/fafhrd91/actix-web.git"
 categories = ["network-programming", "asynchronous"]
 license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
-build = "build.rs"
 
 [badges]
 travis-ci = { repository = "fafhrd91/actix-web", branch = "master" }
@@ -22,7 +21,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["nightly"]
+default = []
 
 # Enable nightly features
 nightly = []
@@ -54,12 +53,6 @@ git = "https://github.com/fafhrd91/actix.git"
 #version = "0.2"
 default-features = false
 features = []
-
-[dev-dependencies]
-skeptic = "0.13"
-
-[build-dependencies]
-skeptic = "0.13"
 
 [profile.release]
 lto = true
