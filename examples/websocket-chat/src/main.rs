@@ -204,11 +204,17 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("websocket-example");
 
-    // Start chat server actor
-    let server: SyncAddress<_> = server::ChatServer::default().start();
+    // Start chat server actor in separate thread
+    let server: SyncAddress<_> =
+        Arbiter::start(|_| server::ChatServer::default());
 
-    // Start tcp server
-    session::TcpServer::new("127.0.0.1:12345", server.clone());
+    // Start tcp server in separate thread
+    let srv = server.clone();
+    Arbiter::new("tcp-server").send::<msgs::Execute>(
+        msgs::Execute::new(move || {
+            session::TcpServer::new("127.0.0.1:12345", srv);
+            Ok(())
+        }));
 
     // Websocket sessions state
     let state = WsChatSessionState { addr: server };

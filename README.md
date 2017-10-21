@@ -17,6 +17,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Keep-alive and slow requests support
   * [WebSockets support](https://fafhrd91.github.io/actix-web/actix_web/ws/index.html)
   * [Configurable request routing](https://fafhrd91.github.io/actix-web/actix_web/struct.RoutingMap.html)
+  * Multipart streams
 
 ## Usage
 
@@ -28,6 +29,11 @@ actix-web = { git = "https://github.com/fafhrd91/actix-web.git" }
 ```
 
 ## Example
+
+* [Mulitpart support](https://github.com/fafhrd91/actix-web/tree/master/examples/multipart)
+* [Simple websocket example](https://github.com/fafhrd91/actix-web/tree/master/examples/websocket)
+* [Tcp/Websocket chat](https://github.com/fafhrd91/actix-web/tree/master/examples/websocket-chat)
+
 
 ```rust
 extern crate actix;
