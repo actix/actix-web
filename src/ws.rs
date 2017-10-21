@@ -57,11 +57,6 @@
 //!     }
 //! }
 //!
-//! impl ResponseType<ws::Message> for WsRoute {
-//!     type Item = ();
-//!     type Error = ();
-//! }
-//!
 //! fn main() {}
 //! ```
 use std::vec::Vec;
