@@ -4,6 +4,7 @@ extern crate bytes;
 extern crate byteorder;
 extern crate tokio_io;
 extern crate tokio_core;
+extern crate env_logger;
 extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
@@ -200,6 +201,7 @@ impl ResponseType<ws::Message> for WsChatSession {
 
 
 fn main() {
+    let _ = env_logger::init();
     let sys = actix::System::new("websocket-example");
 
     // Start chat server actor
@@ -218,7 +220,10 @@ fn main() {
                  // redirect to websocket.html
                  .resource("/", |r|
                            r.handler(Method::GET, |req, payload, state| {
-                               httpcodes::HTTPOk
+                               httpcodes::HTTPFound
+                                   .builder()
+                                   .header("LOCATION", "/static/websocket.html")
+                                   .body(Body::Empty)
                            }))
                  // websocket
                  .resource("/ws/", |r| r.get::<WsChatSession>())

@@ -250,26 +250,22 @@ impl Task {
                     Frame::Message(response) => {
                         self.prepare(info, response);
                     }
-                    Frame::Payload(chunk) => {
-                        match chunk {
-                            Some(chunk) => {
-                                if self.prepared {
-                                    // TODO: add warning, write after EOF
-                                    self.encoder.encode(&mut self.buffer, chunk.as_ref());
-                                } else {
-                                    // might be response for EXCEPT
-                                    self.buffer.extend(chunk)
-                                }
-                            }
-                            None => {
-                                // TODO: add error "not eof""
-                                if !self.encoder.encode(&mut self.buffer, [].as_ref()) {
-                                    debug!("last payload item, but it is not EOF ");
-                                    return Err(())
-                                }
-                                break
-                            }
+                    Frame::Payload(Some(chunk)) => {
+                        if self.prepared {
+                            // TODO: add warning, write after EOF
+                            self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                        } else {
+                            // might be response for EXCEPT
+                            self.buffer.extend(chunk)
                         }
+                    },
+                    Frame::Payload(None) => {
+                        // TODO: add error "not eof""
+                        if !self.encoder.encode(&mut self.buffer, [].as_ref()) {
+                            debug!("last payload item, but it is not EOF ");
+                            return Err(())
+                        }
+                        break
                     },
                 }
             }

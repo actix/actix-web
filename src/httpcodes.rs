@@ -13,6 +13,8 @@ pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
 
+pub const HTTPFound: StaticResponse = StaticResponse(StatusCode::FOUND);
+
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
 pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
 pub const HTTPUnauthorized: StaticResponse = StaticResponse(StatusCode::UNAUTHORIZED);

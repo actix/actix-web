@@ -199,9 +199,12 @@ impl Stream for WsStream {
                     }
                     Async::Ready(Some(Err(_))) => {
                         self.closed = true;
+                        break;
                     }
                     Async::Ready(None) => {
                         done = true;
+                        self.closed = true;
+                        break;
                     }
                     Async::NotReady => break,
                 }
@@ -218,8 +221,11 @@ impl Stream for WsStream {
                         OpCode::Continue => continue,
                         OpCode::Bad =>
                             return Ok(Async::Ready(Some(Message::Error))),
-                        OpCode::Close =>
-                            return Ok(Async::Ready(Some(Message::Closed))),
+                        OpCode::Close => {
+                            self.closed = true;
+                            self.error_sent = true;
+                            return Ok(Async::Ready(Some(Message::Closed)))
+                        },
                         OpCode::Ping =>
                             return Ok(Async::Ready(Some(
                                 Message::Ping(String::from_utf8_lossy(&payload).into())))),
