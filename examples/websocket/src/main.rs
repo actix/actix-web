@@ -30,12 +30,15 @@ impl Route for MyWebSocket {
     }
 }
 
-impl ResponseType<ws::Message> for MyWebSocket {
-    type Item = ();
-    type Error = ();
-}
+impl StreamHandler<ws::Message> for MyWebSocket {
+    fn started(&mut self, ctx: &mut Self::Context) {
+        println!("WebSocket session openned");
+    }
 
-impl StreamHandler<ws::Message> for MyWebSocket {}
+    fn finished(&mut self, ctx: &mut Self::Context) {
+        println!("WebSocket session closed");
+    }
+}
 
 impl Handler<ws::Message> for MyWebSocket {
     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)

@@ -18,8 +18,13 @@ impl Route for MyRoute {
     fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self> {
         println!("{:?}", req);
 
+        let multipart = match req.multipart(payload) {
+            Ok(mp) => mp,
+            Err(e) => return Reply::reply(e),
+        };
+
         // get Multipart stream
-        WrapStream::<MyRoute>::actstream(req.multipart(payload)?)
+        WrapStream::<MyRoute>::actstream(multipart)
             .and_then(|item, act, ctx| {
                 // Multipart stream is a stream of Fields and nested Multiparts
                 match item {

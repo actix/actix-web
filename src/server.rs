@@ -46,7 +46,7 @@ impl<T, A> HttpServer<T, A>
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(stream);
+            ctx.add_stream(stream.map(|(t, a)| IoStream(t, a)));
             self
         }))
     }
@@ -81,7 +81,7 @@ impl HttpServer<TcpStream, net::SocketAddr> {
         } else {
             Ok(HttpServer::create(move |ctx| {
                 for tcp in addrs {
-                    ctx.add_stream(tcp.incoming());
+                    ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a)));
                 }
                 self
             }))
@@ -89,7 +89,9 @@ impl HttpServer<TcpStream, net::SocketAddr> {
     }
 }
 
-impl<T, A> ResponseType<(T, A)> for HttpServer<T, A>
+struct IoStream<T, A>(T, A);
+
+impl<T, A> ResponseType for IoStream<T, A>
     where T: AsyncRead + AsyncWrite + 'static,
           A: 'static
 {
@@ -97,16 +99,15 @@ impl<T, A> ResponseType<(T, A)> for HttpServer<T, A>
     type Error = ();
 }
 
-impl<T, A> StreamHandler<(T, A), io::Error> for HttpServer<T, A>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static {
-}
+impl<T, A> StreamHandler<IoStream<T, A>, io::Error> for HttpServer<T, A>
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static {}
 
-impl<T, A> Handler<(T, A), io::Error> for HttpServer<T, A>
+impl<T, A> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A>
     where T: AsyncRead + AsyncWrite + 'static,
           A: 'static
 {
-    fn handle(&mut self, msg: (T, A), _: &mut Context<Self>) -> Response<Self, (T, A)>
+    fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)
+              -> Response<Self, IoStream<T, A>>
     {
         Arbiter::handle().spawn(
             HttpChannel{router: Rc::clone(&self.router),

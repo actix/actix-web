@@ -58,6 +58,11 @@ struct ChatClient;
 
 struct ClientCommand(String);
 
+impl ResponseType for ClientCommand {
+    type Item = ();
+    type Error = ();
+}
+
 impl Actor for ChatClient {
     type Context = FramedContext<Self>;
 
@@ -112,11 +117,6 @@ impl Handler<ClientCommand> for ChatClient
     }
 }
 
-impl ResponseType<ClientCommand> for ChatClient {
-    type Item = ();
-    type Error = ();
-}
-
 /// Server communication
 
 impl FramedActor for ChatClient {
@@ -132,11 +132,6 @@ impl StreamHandler<codec::ChatResponse, io::Error> for ChatClient {
         // Stop application on disconnect
         Arbiter::system().send(msgs::SystemExit(0));
     }
-}
-
-impl ResponseType<codec::ChatResponse> for ChatClient {
-    type Item = ();
-    type Error = ();
 }
 
 impl Handler<codec::ChatResponse, io::Error> for ChatClient {

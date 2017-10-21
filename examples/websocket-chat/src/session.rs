@@ -3,6 +3,7 @@
 use std::{io, net};
 use std::str::FromStr;
 use std::time::{Instant, Duration};
+use futures::Stream;
 use tokio_core::net::{TcpStream, TcpListener};
 
 use actix::*;
@@ -14,6 +15,10 @@ use codec::{ChatRequest, ChatResponse, ChatCodec};
 /// Chat server sends this messages to session
 pub struct Message(pub String);
 
+impl ResponseType for Message {
+    type Item = ();
+    type Error = ();
+}
 
 /// `ChatSession` actor is responsible for tcp peer communitions.
 pub struct ChatSession {
@@ -66,11 +71,6 @@ impl StreamHandler<ChatRequest, io::Error> for ChatSession {
 
         ctx.stop()
     }
-}
-
-impl ResponseType<ChatRequest> for ChatSession {
-    type Item = ();
-    type Error = ();
 }
 
 impl Handler<ChatRequest, io::Error> for ChatSession {
@@ -137,12 +137,6 @@ impl Handler<Message> for ChatSession {
     }
 }
 
-impl ResponseType<Message> for ChatSession {
-    type Item = ();
-    type Error = ();
-}
-
-
 /// Helper methods
 impl ChatSession {
 
@@ -194,7 +188,7 @@ impl TcpServer {
         // So to be able to handle this events `Server` actor has to implement
         // stream handler `StreamHandler<(TcpStream, net::SocketAddr), io::Error>`
         let _: () = TcpServer::create(|ctx| {
-            ctx.add_stream(listener.incoming());
+            ctx.add_stream(listener.incoming().map(|(t, a)| TcpConnect(t, a)));
             TcpServer{chat: chat}
         });
     }
@@ -206,18 +200,19 @@ impl Actor for TcpServer {
     type Context = Context<Self>;
 }
 
-/// Handle stream of TcpStream's
-impl StreamHandler<(TcpStream, net::SocketAddr), io::Error> for TcpServer {}
+struct TcpConnect(TcpStream, net::SocketAddr);
 
-impl ResponseType<(TcpStream, net::SocketAddr)> for TcpServer {
+impl ResponseType for TcpConnect {
     type Item = ();
     type Error = ();
 }
 
-impl Handler<(TcpStream, net::SocketAddr), io::Error> for TcpServer {
+/// Handle stream of TcpStream's
+impl StreamHandler<TcpConnect, io::Error> for TcpServer {}
 
-    fn handle(&mut self, msg: (TcpStream, net::SocketAddr), _: &mut Context<Self>)
-              -> Response<Self, (TcpStream, net::SocketAddr)>
+impl Handler<TcpConnect, io::Error> for TcpServer {
+
+    fn handle(&mut self, msg: TcpConnect, _: &mut Context<Self>) -> Response<Self, TcpConnect>
     {
         // For each incoming connection we create `ChatSession` actor
         // with out chat server address.

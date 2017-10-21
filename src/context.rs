@@ -20,6 +20,7 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
 {
     act: Option<A>,
     state: ActorState,
+    modified: bool,
     items: ActorItemsCell<A>,
     address: ActorAddressCell<A>,
     stream: VecDeque<Frame>,
@@ -57,16 +58,19 @@ impl<A> AsyncContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
+        self.modified = true;
         self.items.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
+        self.modified = true;
         self.wait.add(fut);
     }
 
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
+        self.modified = true;
         self.items.cancel_future(handle)
     }
 }
@@ -85,6 +89,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
         HttpContext {
             act: None,
             state: ActorState::Started,
+            modified: false,
             items: ActorItemsCell::default(),
             address: ActorAddressCell::default(),
             wait: ActorWaitCell::default(),
@@ -124,17 +129,19 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
     #[doc(hidden)]
-    pub fn subscriber<M: 'static>(&mut self) -> Box<Subscriber<M>>
-        where A: Handler<M>
+    pub fn subscriber<M>(&mut self) -> Box<Subscriber<M>>
+        where A: Handler<M>,
+              M: ResponseType + 'static,
     {
         Box::new(self.address.unsync_address())
     }
 
     #[doc(hidden)]
-    pub fn sync_subscriber<M: 'static + Send>(&mut self) -> Box<Subscriber<M> + Send>
+    pub fn sync_subscriber<M>(&mut self) -> Box<Subscriber<M> + Send>
         where A: Handler<M>,
-              A::Item: Send,
-              A::Error: Send,
+              M: ResponseType + Send + 'static,
+              M::Item: Send,
+              M::Error: Send,
     {
         Box::new(self.address.sync_address())
     }
@@ -170,28 +177,23 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
             _ => ()
         }
 
-        // check wait futures
-        if self.wait.poll(act, ctx) {
-            return Ok(Async::NotReady)
-        }
-
         let mut prep_stop = false;
         loop {
-            let mut not_ready = true;
-
-            if self.address.poll(act, ctx) {
-                not_ready = false
-            }
-
-            self.items.poll(act, ctx);
+            self.modified = false;
 
             // check wait futures
             if self.wait.poll(act, ctx) {
                 return Ok(Async::NotReady)
             }
 
+            // incoming messages
+            self.address.poll(act, ctx);
+
+            // spawned futures and streams
+            self.items.poll(act, ctx);
+
             // are we done
-            if !not_ready {
+            if self.modified {
                 continue
             }
 
@@ -239,15 +241,13 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
     }
 }
 
-type ToEnvelopeSender<A, M> =
-    Sender<Result<<A as ResponseType<M>>::Item, <A as ResponseType<M>>::Error>>;
-
 impl<A, M> ToEnvelope<A, M> for HttpContext<A>
-    where M: Send + 'static,
-          A: Actor<Context=HttpContext<A>> + Route + Handler<M>,
-          <A as ResponseType<M>>::Item: Send, <A as ResponseType<M>>::Item: Send
+    where A: Actor<Context=HttpContext<A>> + Route + Handler<M>,
+          M: ResponseType + Send + 'static,
+          M::Item: Send,
+          M::Error: Send,
 {
-    fn pack(msg: M, tx: Option<ToEnvelopeSender<A, M>>) -> Envelope<A>
+    fn pack(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
     {
         RemoteEnvelope::new(msg, tx).into()
     }

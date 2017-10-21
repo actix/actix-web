@@ -69,7 +69,7 @@ use http::{Method, StatusCode, header};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 
-use actix::Actor;
+use actix::{Actor, ResponseType};
 
 use context::HttpContext;
 use route::Route;
@@ -101,6 +101,11 @@ pub enum Message {
     Close,
     Closed,
     Error
+}
+
+impl ResponseType for Message {
+    type Item = ();
+    type Error = ();
 }
 
 /// Prepare `WebSocket` handshake response.

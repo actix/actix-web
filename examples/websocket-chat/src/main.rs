@@ -2,6 +2,7 @@
 extern crate rand;
 extern crate bytes;
 extern crate byteorder;
+extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
 extern crate env_logger;
@@ -76,11 +77,6 @@ impl Handler<session::Message> for WsChatSession {
         ws::WsWriter::text(ctx, &msg.0);
         Self::empty()
     }
-}
-
-impl ResponseType<session::Message> for WsChatSession {
-    type Item = ();
-    type Error = ();
 }
 
 /// WebSocket message handler
@@ -192,11 +188,6 @@ impl StreamHandler<ws::Message> for WsChatSession
         ctx.state().addr.send(server::Disconnect{id: self.id});
         ctx.stop()
     }
-}
-
-impl ResponseType<ws::Message> for WsChatSession {
-    type Item = ();
-    type Error = ();
 }
 
 

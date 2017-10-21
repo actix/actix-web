@@ -16,9 +16,22 @@ pub struct Connect {
     pub addr: Box<Subscriber<session::Message> + Send>,
 }
 
+/// Response type for Connect message
+///
+/// Chat server returns unique session id
+impl ResponseType for Connect  {
+    type Item = usize;
+    type Error = ();
+}
+
 /// Session is disconnected
 pub struct Disconnect {
     pub id: usize,
+}
+
+impl ResponseType for Disconnect {
+    type Item = ();
+    type Error = ();
 }
 
 /// Send message to specific room
@@ -31,8 +44,18 @@ pub struct Message {
     pub room: String,
 }
 
+impl ResponseType for Message {
+    type Item = ();
+    type Error = ();
+}
+
 /// List of available rooms
 pub struct ListRooms;
+
+impl ResponseType for ListRooms {
+    type Item = Vec<String>;
+    type Error = ();
+}
 
 /// Join room, if room does not exists create new one.
 pub struct Join {
@@ -40,6 +63,11 @@ pub struct Join {
     pub id: usize,
     /// Room name
     pub name: String,
+}
+
+impl ResponseType for Join {
+    type Item = ();
+    type Error = ();
 }
 
 /// `ChatServer` manages chat rooms and responsible for coordinating chat session.
@@ -109,15 +137,6 @@ impl Handler<Connect> for ChatServer {
     }
 }
 
-impl ResponseType<Connect> for ChatServer {
-    /// Response type for Connect message
-    ///
-    /// Chat server returns unique session id
-    type Item = usize;
-    type Error = ();
-}
-
-
 /// Handler for Disconnect message.
 impl Handler<Disconnect> for ChatServer {
 
@@ -144,11 +163,6 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-impl ResponseType<Disconnect> for ChatServer {
-    type Item = ();
-    type Error = ();
-}
-
 /// Handler for Message message.
 impl Handler<Message> for ChatServer {
 
@@ -157,11 +171,6 @@ impl Handler<Message> for ChatServer {
 
         Self::empty()
     }
-}
-
-impl ResponseType<Message> for ChatServer {
-    type Item = ();
-    type Error = ();
 }
 
 /// Handler for `ListRooms` message.
@@ -176,11 +185,6 @@ impl Handler<ListRooms> for ChatServer {
 
         Self::reply(rooms)
     }
-}
-
-impl ResponseType<ListRooms> for ChatServer {
-    type Item = Vec<String>;
-    type Error = ();
 }
 
 /// Join room, send disconnect message to old room
@@ -210,9 +214,4 @@ impl Handler<Join> for ChatServer {
 
         Self::empty()
     }
-}
-
-impl ResponseType<Join> for ChatServer {
-    type Item = ();
-    type Error = ();
 }
