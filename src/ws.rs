@@ -49,7 +49,7 @@
 //!     {
 //!         match msg {
 //!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
-//!             ws::Message::Text(text) => ws::WsWriter::text(ctx, text),
+//!             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
 //!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
 //!             _ => (),
 //!         }

@@ -1,0 +1,12 @@
+[package]
+name = "websocket-example"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+
+[[bin]]
+name = "websocket"
+path = "src/main.rs"
+
+[dependencies]
+actix = { git = "https://github.com/fafhrd91/actix.git" }
+actix-web = { path = "../../" }

@@ -148,11 +148,11 @@ pub struct HttpChannel<T: 'static, A: 'static> {
     keepalive_timer: Option<Timeout>,
 }
 
-impl<T: 'static, A: 'static> Drop for HttpChannel<T, A> {
+/*impl<T: 'static, A: 'static> Drop for HttpChannel<T, A> {
     fn drop(&mut self) {
         println!("Drop http channel");
     }
-}
+}*/
 
 impl<T, A> Actor for HttpChannel<T, A>
     where T: AsyncRead + AsyncWrite + 'static, A: 'static

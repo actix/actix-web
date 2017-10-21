@@ -129,7 +129,9 @@ impl StaticFiles {
 impl<S: 'static> RouteHandler<S> for StaticFiles {
 
     fn set_prefix(&mut self, prefix: String) {
-        self.prefix += &prefix;
+        if prefix != "/" {
+            self.prefix += &prefix;
+        }
     }
 
     fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task {
