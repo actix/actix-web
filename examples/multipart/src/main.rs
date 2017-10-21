@@ -21,7 +21,7 @@ impl Route for MyRoute {
         // get Multipart stream
         WrapStream::<MyRoute>::actstream(req.multipart(payload)?)
             .and_then(|item, act, ctx| {
-                // Multipart stream is a string of Fields and nested Multiparts
+                // Multipart stream is a stream of Fields and nested Multiparts
                 match item {
                     multipart::MultipartItem::Field(field) => {
                         println!("==== FIELD ==== {:?}", field);

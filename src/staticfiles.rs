@@ -77,7 +77,7 @@ impl StaticFiles {
                 let entry = entry.unwrap();
                 // show file url as relative to static path
                 let file_url = format!(
-                    "{}{}", self.prefix,
+                    "{}/{}", self.prefix,
                     entry.path().strip_prefix(&self.directory).unwrap().to_string_lossy());
 
                 // if file is a directory, add '/' to the end of the name

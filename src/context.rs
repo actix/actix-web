@@ -2,11 +2,14 @@ use std;
 use std::rc::Rc;
 use std::collections::VecDeque;
 use futures::{Async, Stream, Poll};
+use futures::sync::oneshot::Sender;
 
 use bytes::Bytes;
-use actix::{Actor, ActorState, ActorContext, AsyncContext};
+use actix::{Actor, ActorState, ActorContext, AsyncContext,
+            Handler, Subscriber, ResponseType};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle};
+use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
+                 Envelope, ToEnvelope, RemoteEnvelope};
 
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
@@ -118,6 +121,25 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
 }
 
+impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
+
+    #[doc(hidden)]
+    pub fn subscriber<M: 'static>(&mut self) -> Box<Subscriber<M>>
+        where A: Handler<M>
+    {
+        Box::new(self.address.unsync_address())
+    }
+
+    #[doc(hidden)]
+    pub fn sync_subscriber<M: 'static + Send>(&mut self) -> Box<Subscriber<M> + Send>
+        where A: Handler<M>,
+              A::Item: Send,
+              A::Error: Send,
+    {
+        Box::new(self.address.sync_address())
+    }
+}
+
 #[doc(hidden)]
 impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
 {
@@ -149,21 +171,24 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
         }
 
         // check wait futures
-        if let Some(ref mut act) = self.act {
-            if let Ok(Async::NotReady) = self.wait.poll(act, ctx) {
-                return Ok(Async::NotReady)
-            }
+        if self.wait.poll(act, ctx) {
+            return Ok(Async::NotReady)
         }
 
         let mut prep_stop = false;
         loop {
             let mut not_ready = true;
 
-            if let Ok(Async::Ready(_)) = self.address.poll(act, ctx) {
+            if self.address.poll(act, ctx) {
                 not_ready = false
             }
 
             self.items.poll(act, ctx);
+
+            // check wait futures
+            if self.wait.poll(act, ctx) {
+                return Ok(Async::NotReady)
+            }
 
             // are we done
             if !not_ready {
@@ -211,5 +236,19 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
 
             return Ok(Async::NotReady)
         }
+    }
+}
+
+type ToEnvelopeSender<A, M> =
+    Sender<Result<<A as ResponseType<M>>::Item, <A as ResponseType<M>>::Error>>;
+
+impl<A, M> ToEnvelope<A, M> for HttpContext<A>
+    where M: Send + 'static,
+          A: Actor<Context=HttpContext<A>> + Route + Handler<M>,
+          <A as ResponseType<M>>::Item: Send, <A as ResponseType<M>>::Item: Send
+{
+    fn pack(msg: M, tx: Option<ToEnvelopeSender<A, M>>) -> Envelope<A>
+    {
+        RemoteEnvelope::new(msg, tx).into()
     }
 }

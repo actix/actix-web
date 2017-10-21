@@ -1,0 +1,28 @@
+[package]
+name = "websocket-example"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+
+[[bin]]
+name = "websocket"
+path = "src/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+rand = "*"
+bytes = "0.4"
+byteorder = "1.1"
+futures = "0.1"
+tokio-io = "0.1"
+tokio-core = "0.1"
+
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+
+actix = { git = "https://github.com/fafhrd91/actix.git" }
+# actix = { path = "../../../actix" }
+actix-web = { path = "../../" }

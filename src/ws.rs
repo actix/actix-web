@@ -269,10 +269,10 @@ pub struct WsWriter;
 impl WsWriter {
 
     /// Send text frame
-    pub fn text<A>(ctx: &mut HttpContext<A>, text: String)
+    pub fn text<A>(ctx: &mut HttpContext<A>, text: &str)
         where A: Actor<Context=HttpContext<A>> + Route
     {
-        let mut frame = wsframe::Frame::message(Vec::from(text.as_str()), OpCode::Text, true);
+        let mut frame = wsframe::Frame::message(Vec::from(text), OpCode::Text, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 

@@ -48,7 +48,7 @@ tokio-io = "0.1"
 tokio-proto = "0.1"
 
 [dependencies.actix]
-# path = "../actix"
+#path = "../actix"
 git = "https://github.com/fafhrd91/actix.git"
 #version = "0.2"
 default-features = false
