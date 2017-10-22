@@ -1,5 +1,6 @@
-use std::{io, mem, net};
+use std::{io, net};
 use std::rc::Rc;
+use std::cell::UnsafeCell;
 use std::time::Duration;
 use std::marker::PhantomData;
 use std::collections::VecDeque;
@@ -10,7 +11,7 @@ use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use task::{Task, RequestInfo};
+use task::Task;
 use reader::{Reader, ReaderError};
 use payload::Payload;
 use httpcodes::HTTPNotFound;
@@ -21,7 +22,7 @@ pub trait HttpHandler: 'static {
     /// Http handler prefix
     fn prefix(&self) -> &str;
     /// Handle request
-    fn handle(&self, req: HttpRequest, payload: Payload) -> Task;
+    fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task;
 }
 
 /// An HTTP Server
@@ -148,7 +149,7 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
 
 struct Entry {
     task: Task,
-    req: RequestInfo,
+    req: UnsafeCell<HttpRequest>,
     eof: bool,
     error: bool,
     finished: bool,
@@ -213,9 +214,7 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                     }
 
                     // this is anoying
-                    let req: &RequestInfo = unsafe {
-                        mem::transmute(&self.items[idx].req)
-                    };
+                    let req = unsafe {self.items[idx].req.get().as_mut().unwrap()};
                     match self.items[idx].task.poll_io(&mut self.stream, req)
                     {
                         Ok(Async::Ready(ready)) => {
@@ -280,23 +279,22 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
             // read incoming data
             if !self.error && self.items.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(&mut self.stream) {
-                    Ok(Async::Ready((req, payload))) => {
+                    Ok(Async::Ready((mut req, payload))) => {
                         // stop keepalive timer
                         self.keepalive_timer.take();
 
                         // start request processing
-                        let info = RequestInfo::new(&req);
                         let mut task = None;
                         for h in self.router.iter() {
                             if req.path().starts_with(h.prefix()) {
-                                task = Some(h.handle(req, payload));
+                                task = Some(h.handle(&mut req, payload));
                                 break
                             }
                         }
 
                         self.items.push_back(
                             Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
-                                   req: info,
+                                   req: UnsafeCell::new(req),
                                    eof: false,
                                    error: false,
                                    finished: false});
@@ -313,7 +311,7 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                         if let ReaderError::Error(err) = err {
                             self.items.push_back(
                                 Entry {task: Task::reply(err),
-                                       req: RequestInfo::for_error(),
+                                       req: UnsafeCell::new(HttpRequest::for_error()),
                                        eof: false,
                                        error: false,
                                        finished: false});

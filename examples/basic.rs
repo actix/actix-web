@@ -6,13 +6,13 @@ extern crate env_logger;
 use actix_web::*;
 
 /// somple handle
-fn index(req: HttpRequest, payload: Payload, state: &()) -> HttpResponse {
+fn index(req: &mut HttpRequest, payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
     httpcodes::HTTPOk.into()
 }
 
 /// handle with path parameters like `/name/{name}/`
-fn with_param(req: HttpRequest, payload: Payload, state: &()) -> HttpResponse {
+fn with_param(req: &mut HttpRequest, payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
 
     HttpResponse::builder(StatusCode::OK)
@@ -22,10 +22,14 @@ fn with_param(req: HttpRequest, payload: Payload, state: &()) -> HttpResponse {
 }
 
 fn main() {
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
         Application::default("/")
+            // enable logger
+            .middleware(Logger::new(None))
             // register simple handler, handle all methods
             .handler("/index.html", index)
             // with path parameters

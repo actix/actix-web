@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
 use url::form_urlencoded;
-use http::{header, Method, Version, Uri, HeaderMap};
+use http::{header, Method, Version, Uri, HeaderMap, Extensions};
 
 use {Cookie, CookieParseError};
 use {HttpRange, HttpRangeParseError};
@@ -22,6 +22,7 @@ pub struct HttpRequest {
     headers: HeaderMap,
     params: Params,
     cookies: Vec<Cookie<'static>>,
+    extensions: Extensions,
 }
 
 impl HttpRequest {
@@ -35,7 +36,26 @@ impl HttpRequest {
             headers: headers,
             params: Params::empty(),
             cookies: Vec::new(),
+            extensions: Extensions::new(),
         }
+    }
+
+    pub(crate) fn for_error() -> HttpRequest {
+        HttpRequest {
+            method: Method::GET,
+            uri: Uri::default(),
+            version: Version::HTTP_11,
+            headers: HeaderMap::new(),
+            params: Params::empty(),
+            cookies: Vec::new(),
+            extensions: Extensions::new(),
+        }
+    }
+
+    /// Protocol extensions.
+    #[inline]
+    pub fn extensions(&mut self) -> &mut Extensions {
+        &mut self.extensions
     }
 
     /// Read the Request Uri.
@@ -111,16 +131,9 @@ impl HttpRequest {
     #[inline]
     pub fn match_info(&self) -> &Params { &self.params }
 
-    /// Create new request with Params object.
-    pub fn with_match_info(self, params: Params) -> Self {
-        HttpRequest {
-            method: self.method,
-            uri: self.uri,
-            version: self.version,
-            headers: self.headers,
-            params: params,
-            cookies: self.cookies,
-        }
+    /// Set request Params.
+    pub fn set_match_info(&mut self, params: Params) {
+        self.params = params;
     }
 
     /// Checks if a connection should be kept alive.

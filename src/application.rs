@@ -12,6 +12,24 @@ use httpresponse::HttpResponse;
 use server::HttpHandler;
 
 
+#[allow(unused_variables)]
+pub trait Middleware {
+
+    /// Method is called when request is ready.
+    fn start(&self, req: &mut HttpRequest) -> Result<(), HttpResponse> {
+        Ok(())
+    }
+
+    /// Method is called when handler returns response,
+    /// but before sending body stream to peer.
+    fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> HttpResponse {
+        resp
+    }
+
+    /// Http interation is finished
+    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) {}
+}
+
 /// Application
 pub struct Application<S> {
     state: Rc<S>,
@@ -19,6 +37,26 @@ pub struct Application<S> {
     default: Resource<S>,
     handlers: HashMap<String, Box<RouteHandler<S>>>,
     router: RouteRecognizer<Resource<S>>,
+    middlewares: Rc<Vec<Box<Middleware>>>,
+}
+
+impl<S: 'static> Application<S> {
+
+    fn run(&self, req: &mut HttpRequest, payload: Payload) -> Task {
+        if let Some((params, h)) = self.router.recognize(req.path()) {
+            if let Some(params) = params {
+                req.set_match_info(params);
+            }
+            h.handle(req, payload, Rc::clone(&self.state))
+        } else {
+            for (prefix, handler) in &self.handlers {
+                if req.path().starts_with(prefix) {
+                    return handler.handle(req, payload, Rc::clone(&self.state))
+                }
+            }
+            self.default.handle(req, payload, Rc::clone(&self.state))
+        }
+    }
 }
 
 impl<S: 'static> HttpHandler for Application<S> {
@@ -27,21 +65,19 @@ impl<S: 'static> HttpHandler for Application<S> {
         &self.prefix
     }
     
-    fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
-        if let Some((params, h)) = self.router.recognize(req.path()) {
-            if let Some(params) = params {
-                h.handle(
-                    req.with_match_info(params), payload, Rc::clone(&self.state))
-            } else {
-                h.handle(req, payload, Rc::clone(&self.state))
+    fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task {
+        // run middlewares
+        if !self.middlewares.is_empty() {
+            for middleware in self.middlewares.iter() {
+                if let Err(resp) = middleware.start(req) {
+                    return Task::reply(resp)
+                };
             }
+            let mut task = self.run(req, payload);
+            task.set_middlewares(Rc::clone(&self.middlewares));
+            task
         } else {
-            for (prefix, handler) in &self.handlers {
-                if req.path().starts_with(prefix) {
-                    return handler.handle(req, payload, Rc::clone(&self.state))
-                }
-            }
-            self.default.handle(req, payload, Rc::clone(&self.state))
+            self.run(req, payload)
         }
     }
 }
@@ -56,7 +92,9 @@ impl Application<()> {
                 prefix: prefix.to_string(),
                 default: Resource::default(),
                 handlers: HashMap::new(),
-                resources: HashMap::new()})
+                resources: HashMap::new(),
+                middlewares: Vec::new(),
+            })
         }
     }
 }
@@ -73,7 +111,9 @@ impl<S> Application<S> where S: 'static {
                 prefix: prefix.to_string(),
                 default: Resource::default(),
                 handlers: HashMap::new(),
-                resources: HashMap::new()})
+                resources: HashMap::new(),
+                middlewares: Vec::new(),
+            })
         }
     }
 }
@@ -84,6 +124,7 @@ struct ApplicationBuilderParts<S> {
     default: Resource<S>,
     handlers: HashMap<String, Box<RouteHandler<S>>>,
     resources: HashMap<String, Resource<S>>,
+    middlewares: Vec<Box<Middleware>>,
 }
 
 /// Application builder
@@ -192,7 +233,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// }
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+        where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
               R: Into<HttpResponse> + 'static,
               P: ToString,
     {
@@ -214,6 +255,15 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             }
             parts.handlers.insert(path, Box::new(h));
         }
+        self
+    }
+
+    /// Construct application
+    pub fn middleware<T>(&mut self, mw: T) -> &mut Self
+        where T: Middleware + 'static
+    {
+        self.parts.as_mut().expect("Use after finish")
+            .middlewares.push(Box::new(mw));
         self
     }
 
@@ -243,7 +293,9 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             prefix: prefix.clone(),
             default: parts.default,
             handlers: handlers,
-            router: RouteRecognizer::new(prefix, routes) }
+            router: RouteRecognizer::new(prefix, routes),
+            middlewares: Rc::new(parts.middlewares),
+        }
     }
 }
 

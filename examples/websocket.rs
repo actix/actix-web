@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 extern crate actix;
 extern crate actix_web;
+extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
@@ -15,7 +16,8 @@ impl Actor for MyWebSocket {
 impl Route for MyWebSocket {
     type State = ();
 
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
+    fn request(req: &mut HttpRequest,
+               payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
     {
         match ws::handshake(&req) {
             Ok(resp) => {
@@ -59,12 +61,17 @@ impl Handler<ws::Message> for MyWebSocket {
 }
 
 fn main() {
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
         Application::default("/")
+            // enable logger
+            .middleware(Logger::new(None))
+            // websocket route
             .resource("/ws/", |r| r.get::<MyWebSocket>())
-            .route_handler("/", StaticFiles::new("static/", true)))
+            .route_handler("/", StaticFiles::new("examples/static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

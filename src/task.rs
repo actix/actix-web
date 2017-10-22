@@ -1,4 +1,5 @@
 use std::{cmp, io};
+use std::rc::Rc;
 use std::fmt::Write;
 use std::collections::VecDeque;
 
@@ -11,6 +12,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use date;
 use route::Frame;
+use application::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::{Body, HttpResponse};
 
@@ -44,26 +46,6 @@ impl TaskIOState {
     }
 }
 
-pub(crate) struct RequestInfo {
-    version: Version,
-    keep_alive: bool,
-}
-
-impl RequestInfo {
-    pub fn new(req: &HttpRequest) -> Self {
-        RequestInfo {
-            version: req.version(),
-            keep_alive: req.keep_alive(),
-        }
-    }
-    pub fn for_error() -> Self {
-        RequestInfo {
-            version: Version::HTTP_11,
-            keep_alive: false,
-        }
-    }
-}
-
 pub struct Task {
     state: TaskRunningState,
     iostate: TaskIOState,
@@ -73,7 +55,8 @@ pub struct Task {
     buffer: BytesMut,
     upgrade: bool,
     keepalive: bool,
-    prepared: bool,
+    prepared: Option<HttpResponse>,
+    middlewares: Option<Rc<Vec<Box<Middleware>>>>,
 }
 
 impl Task {
@@ -92,7 +75,8 @@ impl Task {
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
-            prepared: false,
+            prepared: None,
+            middlewares: None,
         }
     }
 
@@ -108,7 +92,8 @@ impl Task {
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
-            prepared: false,
+            prepared: None,
+            middlewares: None,
         }
     }
 
@@ -116,15 +101,31 @@ impl Task {
         self.keepalive && !self.upgrade
     }
 
-    fn prepare(&mut self, req: &RequestInfo, mut msg: HttpResponse)
+    pub(crate) fn set_middlewares(&mut self, middlewares: Rc<Vec<Box<Middleware>>>) {
+        self.middlewares = Some(middlewares);
+    }
+
+    fn prepare(&mut self, req: &mut HttpRequest, msg: HttpResponse)
     {
         trace!("Prepare message status={:?}", msg.status);
 
+        // run middlewares
+        let mut msg = if let Some(middlewares) = self.middlewares.take() {
+            let mut msg = msg;
+            for middleware in middlewares.iter() {
+                msg = middleware.response(req, msg);
+            }
+            self.middlewares = Some(middlewares);
+            msg
+        } else {
+            msg
+        };
+
+        // prepare task
         let mut extra = 0;
         let body = msg.replace_body(Body::Empty);
-        let version = msg.version().unwrap_or_else(|| req.version);
-        self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive);
-        self.prepared = true;
+        let version = msg.version().unwrap_or_else(|| req.version());
+        self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive());
 
         match body {
             Body::Empty => {
@@ -219,12 +220,14 @@ impl Task {
 
         if let Body::Binary(ref bytes) = body {
             self.buffer.extend(bytes);
+            self.prepared = Some(msg);
             return
         }
         msg.replace_body(body);
+        self.prepared = Some(msg);
     }
 
-    pub(crate) fn poll_io<T>(&mut self, io: &mut T, info: &RequestInfo) -> Poll<bool, ()>
+    pub(crate) fn poll_io<T>(&mut self, io: &mut T, req: &mut HttpRequest) -> Poll<bool, ()>
         where T: AsyncRead + AsyncWrite
     {
         trace!("POLL-IO frames:{:?}", self.frames.len());
@@ -248,10 +251,10 @@ impl Task {
                 trace!("IO Frame: {:?}", frame);
                 match frame {
                     Frame::Message(response) => {
-                        self.prepare(info, response);
+                        self.prepare(req, response);
                     }
                     Frame::Payload(Some(chunk)) => {
-                        if self.prepared {
+                        if self.prepared.is_some() {
                             // TODO: add warning, write after EOF
                             self.encoder.encode(&mut self.buffer, chunk.as_ref());
                         } else {
@@ -295,6 +298,15 @@ impl Task {
 
         // response is completed
         if self.buffer.is_empty() && self.iostate.is_done() {
+            // run middlewares
+            if let Some(ref mut resp) = self.prepared {
+                if let Some(middlewares) = self.middlewares.take() {
+                    for middleware in middlewares.iter() {
+                        middleware.finish(req, resp);
+                    }
+                }
+            }
+
             Ok(Async::Ready(self.state.is_done()))
         } else {
             Ok(Async::NotReady)

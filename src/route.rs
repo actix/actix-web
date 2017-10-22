@@ -27,7 +27,7 @@ pub enum Frame {
 #[allow(unused_variables)]
 pub trait RouteHandler<S>: 'static {
     /// Handle request
-    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task;
+    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task;
 
     /// Set route prefix
     fn set_prefix(&mut self, prefix: String) {}
@@ -73,7 +73,8 @@ pub trait Route: Actor {
     /// request/response or websocket connection.
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used
     /// for writing response.
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;
+    fn request(req: &mut HttpRequest,
+               payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -88,7 +89,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     where A: Actor<Context=HttpContext<A>> + Route<State=S>,
           S: 'static
 {
-    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<A::State>) -> Task
+    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<A::State>) -> Task
     {
         let mut ctx = HttpContext::new(state);
 
@@ -105,7 +106,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
 /// Fn() route handler
 pub(crate)
 struct FnHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Into<HttpResponse>,
           S: 'static,
 {
@@ -114,7 +115,7 @@ struct FnHandler<S, R, F>
 }
 
 impl<S, R, F> FnHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Into<HttpResponse> + 'static,
           S: 'static,
 {
@@ -124,11 +125,11 @@ impl<S, R, F> FnHandler<S, R, F>
 }
 
 impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Into<HttpResponse> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task
+    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task
     {
         Task::reply((self.f)(req, payload, &state).into())
     }
@@ -137,7 +138,7 @@ impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
 /// Async route handler
 pub(crate)
 struct StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Stream<Item=Frame, Error=()> + 'static,
           S: 'static,
 {
@@ -146,7 +147,7 @@ struct StreamHandler<S, R, F>
 }
 
 impl<S, R, F> StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Stream<Item=Frame, Error=()> + 'static,
           S: 'static,
 {
@@ -156,11 +157,11 @@ impl<S, R, F> StreamHandler<S, R, F>
 }
 
 impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
+    where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
           R: Stream<Item=Frame, Error=()> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task
+    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task
     {
         Task::with_stream(
             (self.f)(req, payload, &state).map_err(

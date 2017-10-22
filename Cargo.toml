@@ -54,6 +54,9 @@ git = "https://github.com/fafhrd91/actix.git"
 default-features = false
 features = []
 
+[dev-dependencies]
+env_logger = "*"
+
 [profile.release]
 lto = true
 opt-level = 3

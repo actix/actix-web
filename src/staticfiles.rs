@@ -48,14 +48,19 @@ impl StaticFiles {
     pub fn new<D: Into<PathBuf>>(dir: D, index: bool) -> StaticFiles {
         let dir = dir.into();
 
-        let (dir, access) = if let Ok(dir) = dir.canonicalize() {
-            if dir.is_dir() {
-                (dir, true)
-            } else {
+        let (dir, access) = match dir.canonicalize() {
+            Ok(dir) => {
+                if dir.is_dir() {
+                    (dir, true)
+                } else {
+                    warn!("Is not directory `{:?}`", dir);
+                    (dir, false)
+                }
+            },
+            Err(err) => {
+                warn!("Static files directory `{:?}` error: {}", dir, err);
                 (dir, false)
             }
-        } else {
-            (dir, false)
         };
 
         StaticFiles {
@@ -134,7 +139,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: HttpRequest, payload: Payload, state: Rc<S>) -> Task {
+    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task {
         if !self.accessible {
             Task::reply(HTTPNotFound)
         } else {
