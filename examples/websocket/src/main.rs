@@ -58,17 +58,13 @@ impl Handler<ws::Message> for MyWebSocket {
     }
 }
 
-
 fn main() {
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
-        RoutingMap::default()
+        Application::default("/")
             .resource("/ws/", |r| r.get::<MyWebSocket>())
-            .app("/", Application::default()
-                 .route_handler("/", StaticFiles::new("static/", true))
-                 .finish())
-            .finish())
+            .route_handler("/", StaticFiles::new("static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

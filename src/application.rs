@@ -5,55 +5,55 @@ use std::collections::HashMap;
 use task::Task;
 use payload::Payload;
 use route::{RouteHandler, FnHandler};
-use router::Handler;
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use server::HttpHandler;
 
 
 /// Application
-pub struct Application<S=()> {
-    state: S,
+pub struct Application<S> {
+    state: Rc<S>,
+    prefix: String,
     default: Resource<S>,
     handlers: HashMap<String, Box<RouteHandler<S>>>,
-    resources: HashMap<String, Resource<S>>,
+    router: RouteRecognizer<Resource<S>>,
 }
 
-impl<S> Application<S> where S: 'static
-{
-    pub(crate) fn prepare(self, prefix: String) -> Box<Handler> {
-        let mut handlers = HashMap::new();
-        let prefix = if prefix.ends_with('/') { prefix } else { prefix + "/" };
+impl<S: 'static> HttpHandler for Application<S> {
 
-        let mut routes = Vec::new();
-        for (path, handler) in self.resources {
-            routes.push((path, handler))
+    fn prefix(&self) -> &str {
+        &self.prefix
+    }
+    
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
+        if let Some((params, h)) = self.router.recognize(req.path()) {
+            if let Some(params) = params {
+                h.handle(
+                    req.with_match_info(params), payload, Rc::clone(&self.state))
+            } else {
+                h.handle(req, payload, Rc::clone(&self.state))
+            }
+        } else {
+            for (prefix, handler) in &self.handlers {
+                if req.path().starts_with(prefix) {
+                    return handler.handle(req, payload, Rc::clone(&self.state))
+                }
+            }
+            self.default.handle(req, payload, Rc::clone(&self.state))
         }
-
-        for (path, mut handler) in self.handlers {
-            let path = prefix.clone() + path.trim_left_matches('/');
-            handler.set_prefix(path.clone());
-            handlers.insert(path, handler);
-        }
-        Box::new(
-            InnerApplication {
-                state: Rc::new(self.state),
-                default: self.default,
-                handlers: handlers,
-                router: RouteRecognizer::new(prefix, routes) }
-        )
     }
 }
-
 
 impl Application<()> {
 
     /// Create default `ApplicationBuilder` with no state
-    pub fn default() -> ApplicationBuilder<()> {
+    pub fn default<T: ToString>(prefix: T) -> ApplicationBuilder<()> {
         ApplicationBuilder {
             parts: Some(ApplicationBuilderParts {
                 state: (),
+                prefix: prefix.to_string(),
                 default: Resource::default(),
                 handlers: HashMap::new(),
                 resources: HashMap::new()})
@@ -63,102 +63,27 @@ impl Application<()> {
 
 impl<S> Application<S> where S: 'static {
 
-    /// Create application builder
-    pub fn builder(state: S) -> ApplicationBuilder<S> {
+    /// Create application builder with specific state. State is shared with all
+    /// routes within same application and could be
+    /// accessed with `HttpContext::state()` method.
+    pub fn builder<T: ToString>(prefix: T, state: S) -> ApplicationBuilder<S> {
         ApplicationBuilder {
             parts: Some(ApplicationBuilderParts {
                 state: state,
+                prefix: prefix.to_string(),
                 default: Resource::default(),
                 handlers: HashMap::new(),
                 resources: HashMap::new()})
         }
     }
-
-    /// Create http application with specific state. State is shared with all
-    /// routes within same application and could be
-    /// accessed with `HttpContext::state()` method.
-    pub fn new(state: S) -> Application<S> {
-        Application {
-            state: state,
-            default: Resource::default(),
-            handlers: HashMap::new(),
-            resources: HashMap::new(),
-        }
-    }
-
-    /// Add resource by path.
-    pub fn resource<P: ToString>(&mut self, path: P) -> &mut Resource<S>
-    {
-        let path = path.to_string();
-
-        // add resource
-        if !self.resources.contains_key(&path) {
-            check_pattern(&path);
-            self.resources.insert(path.clone(), Resource::default());
-        }
-
-        self.resources.get_mut(&path).unwrap()
-    }
-
-    /// This method register handler for specified path.
-    ///
-    /// ```rust
-    /// extern crate actix_web;
-    /// use actix_web::*;
-    ///
-    /// fn main() {
-    ///     let mut app = Application::new(());
-    ///
-    ///     app.handler("/test", |req, payload, state| {
-    ///          httpcodes::HTTPOk
-    ///     });
-    /// }
-    /// ```
-    pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest, Payload, &S) -> R + 'static,
-              R: Into<HttpResponse> + 'static,
-              P: ToString,
-    {
-        self.handlers.insert(path.to_string(), Box::new(FnHandler::new(handler)));
-        self
-    }
-
-    /// Add path handler
-    pub fn route_handler<H, P>(&mut self, path: P, h: H)
-        where H: RouteHandler<S> + 'static, P: ToString
-    {
-        let path = path.to_string();
-
-        // add resource
-        if self.handlers.contains_key(&path) {
-            panic!("Handler already registered: {:?}", path);
-        }
-
-        self.handlers.insert(path, Box::new(h));
-    }
-
-    /// Default resource is used if no matches route could be found.
-    pub fn default_resource(&mut self) -> &mut Resource<S> {
-        &mut self.default
-    }
 }
 
 struct ApplicationBuilderParts<S> {
     state: S,
+    prefix: String,
     default: Resource<S>,
     handlers: HashMap<String, Box<RouteHandler<S>>>,
     resources: HashMap<String, Resource<S>>,
-}
-
-impl<S> From<ApplicationBuilderParts<S>> for Application<S> {
-    fn from(b: ApplicationBuilderParts<S>) -> Self {
-        Application {
-            state: b.state,
-            default: b.default,
-            handlers: b.handlers,
-            resources: b.resources,
-        }
-    }
 }
 
 /// Application builder
@@ -169,6 +94,22 @@ pub struct ApplicationBuilder<S=()> {
 impl<S> ApplicationBuilder<S> where S: 'static {
 
     /// Configure resource for specific path.
+    ///
+    /// Resource may have variable path also. For instance, a resource with
+    /// the path */a/{name}/c* would match all incoming requests with paths
+    /// such as */a/b/c*, */a/1/c*, and */a/etc/c*.
+    ///
+    /// A variable part is specified in the form `{identifier}`, where
+    /// the identifier can be used later in a request handler to access the matched
+    /// value for that part. This is done by looking up the identifier
+    /// in the `Params` object returned by `Request.match_info()` method.
+    ///
+    /// By default, each part matches the regular expression `[^{}/]+`.
+    ///
+    /// You can also specify a custom regex in the form `{identifier:regex}`:
+    ///
+    /// For instance, to route Get requests on any route matching `/users/{userid}/{friend}` and
+    /// store userid and friend in the exposed Params object:
     ///
     /// ```rust
     /// extern crate actix;
@@ -193,7 +134,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///     }
     /// }
     /// fn main() {
-    ///     let app = Application::default()
+    ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
     ///              r.get::<MyRoute>();
     ///              r.handler(Method::HEAD, |req, payload, state| {
@@ -238,7 +179,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::default()
+    ///     let app = Application::default("/")
     ///         .handler("/test", |req, payload, state| {
     ///              match *req.method() {
     ///                  Method::GET => httpcodes::HTTPOk,
@@ -277,36 +218,48 @@ impl<S> ApplicationBuilder<S> where S: 'static {
 
     /// Construct application
     pub fn finish(&mut self) -> Application<S> {
-        self.parts.take().expect("Use after finish").into()
+        let parts = self.parts.take().expect("Use after finish");
+
+        let mut handlers = HashMap::new();
+        let prefix = if parts.prefix.ends_with('/') {
+            parts.prefix
+        } else {
+            parts.prefix + "/"
+        };
+
+        let mut routes = Vec::new();
+        for (path, handler) in parts.resources {
+            routes.push((path, handler))
+        }
+
+        for (path, mut handler) in parts.handlers {
+            let path = prefix.clone() + path.trim_left_matches('/');
+            handler.set_prefix(path.clone());
+            handlers.insert(path, handler);
+        }
+        Application {
+            state: Rc::new(parts.state),
+            prefix: prefix.clone(),
+            default: parts.default,
+            handlers: handlers,
+            router: RouteRecognizer::new(prefix, routes) }
     }
 }
 
-pub(crate)
-struct InnerApplication<S> {
-    state: Rc<S>,
-    default: Resource<S>,
-    handlers: HashMap<String, Box<RouteHandler<S>>>,
-    router: RouteRecognizer<Resource<S>>,
+impl<S: 'static> From<ApplicationBuilder<S>> for Application<S> {
+    fn from(mut builder: ApplicationBuilder<S>) -> Application<S> {
+        builder.finish()
+    }
 }
 
+impl<S: 'static> Iterator for ApplicationBuilder<S> {
+    type Item = Application<S>;
 
-impl<S: 'static> Handler for InnerApplication<S> {
-
-    fn handle(&self, req: HttpRequest, payload: Payload) -> Task {
-        if let Some((params, h)) = self.router.recognize(req.path()) {
-            if let Some(params) = params {
-                h.handle(
-                    req.with_match_info(params), payload, Rc::clone(&self.state))
-            } else {
-                h.handle(req, payload, Rc::clone(&self.state))
-            }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.parts.is_some() {
+            Some(self.finish())
         } else {
-            for (prefix, handler) in &self.handlers {
-                if req.path().starts_with(prefix) {
-                    return handler.handle(req, payload, Rc::clone(&self.state))
-                }
-            }
-            self.default.handle(req, payload, Rc::clone(&self.state))
+            None
         }
     }
 }

@@ -20,7 +20,7 @@ impl Route for MyRoute {
 
         let multipart = match req.multipart(payload) {
             Ok(mp) => mp,
-            Err(e) => return Reply::reply(e),
+            Err(e) => return e.into(),
         };
 
         // get Multipart stream
@@ -68,13 +68,12 @@ fn main() {
     let sys = actix::System::new("multipart-example");
 
     HttpServer::new(
-        RoutingMap::default()
-            .app("/", Application::default()
-                 .resource("/multipart", |r| {
-                     r.post::<MyRoute>();
-                 })
-                 .finish())
-            .finish())
+        vec![
+            Application::default("/")
+                .resource("/multipart", |r| {
+                    r.post::<MyRoute>();
+                }).finish()
+        ])
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

@@ -12,14 +12,14 @@ use futures::Future;
 use tokio_core::net::{TcpStream, TcpListener};
 
 
-fn create_server<T, A>() -> HttpServer<T, A> {
+fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
     HttpServer::new(
-        RoutingMap::default()
-            .resource("/", |r|
-                      r.handler(Method::GET, |_, _, _| {
-                          httpcodes::HTTPOk
-                      }))
-            .finish())
+        vec![Application::default("/")
+             .resource("/", |r|
+                       r.handler(Method::GET, |_, _, _| {
+                           httpcodes::HTTPOk
+                       }))
+             .finish()])
 }
 
 #[test]

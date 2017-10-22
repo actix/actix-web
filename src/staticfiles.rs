@@ -26,7 +26,7 @@ use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden, HTTPInternalServerError};
 /// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::default()
+///     let app = Application::default("/")
 ///         .route_handler("/static", StaticFiles::new(".", true))
 ///         .finish();
 /// }

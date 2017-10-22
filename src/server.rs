@@ -11,34 +11,52 @@ use tokio_core::net::{TcpListener, TcpStream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use task::{Task, RequestInfo};
-use router::Router;
 use reader::{Reader, ReaderError};
+use payload::Payload;
+use httpcodes::HTTPNotFound;
+use httprequest::HttpRequest;
+
+/// Low level http request handler
+pub trait HttpHandler: 'static {
+    /// Http handler prefix
+    fn prefix(&self) -> &str;
+    /// Handle request
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Task;
+}
 
 /// An HTTP Server
 ///
 /// `T` - async stream,  anything that implements `AsyncRead` + `AsyncWrite`.
 ///
 /// `A` - peer address
-pub struct HttpServer<T, A> {
-    router: Rc<Router>,
+///
+/// `H` - request handler
+pub struct HttpServer<T, A, H> {
+    h: Rc<Vec<H>>,
     io: PhantomData<T>,
     addr: PhantomData<A>,
 }
 
-impl<T: 'static, A: 'static> Actor for HttpServer<T, A> {
+impl<T: 'static, A: 'static, H: 'static> Actor for HttpServer<T, A, H> {
     type Context = Context<Self>;
 }
 
-impl<T, A> HttpServer<T, A> {
-    /// Create new http server with specified `RoutingMap`
-    pub fn new(router: Router) -> Self {
-        HttpServer {router: Rc::new(router), io: PhantomData, addr: PhantomData}
+impl<T, A, H> HttpServer<T, A, H> where H: HttpHandler
+{
+    /// Create new http server with vec of http handlers
+    pub fn new<U: IntoIterator<Item=H>>(handler: U) -> Self {
+        let apps: Vec<_> = handler.into_iter().map(|h| h.into()).collect();
+
+        HttpServer {h: Rc::new(apps),
+                    io: PhantomData,
+                    addr: PhantomData}
     }
 }
 
-impl<T, A> HttpServer<T, A>
+impl<T, A, H> HttpServer<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static
+          A: 'static,
+          H: HttpHandler,
 {
     /// Start listening for incomming connections from stream.
     pub fn serve_incoming<S, Addr>(self, stream: S) -> io::Result<Addr>
@@ -52,7 +70,7 @@ impl<T, A> HttpServer<T, A>
     }
 }
 
-impl HttpServer<TcpStream, net::SocketAddr> {
+impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
 
     /// Start listening for incomming connections.
     ///
@@ -99,18 +117,21 @@ impl<T, A> ResponseType for IoStream<T, A>
     type Error = ();
 }
 
-impl<T, A> StreamHandler<IoStream<T, A>, io::Error> for HttpServer<T, A>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static {}
-
-impl<T, A> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A>
+impl<T, A, H> StreamHandler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static
+          A: 'static,
+          H: HttpHandler + 'static {}
+
+impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static,
+          H: HttpHandler + 'static,
 {
     fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)
               -> Response<Self, IoStream<T, A>>
     {
         Arbiter::handle().spawn(
-            HttpChannel{router: Rc::clone(&self.router),
+            HttpChannel{router: Rc::clone(&self.h),
                         addr: msg.1,
                         stream: msg.0,
                         reader: Reader::new(),
@@ -136,8 +157,8 @@ struct Entry {
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
-pub struct HttpChannel<T: 'static, A: 'static> {
-    router: Rc<Router>,
+pub struct HttpChannel<T: 'static, A: 'static, H: 'static> {
+    router: Rc<Vec<H>>,
     #[allow(dead_code)]
     addr: A,
     stream: T,
@@ -155,14 +176,18 @@ pub struct HttpChannel<T: 'static, A: 'static> {
     }
 }*/
 
-impl<T, A> Actor for HttpChannel<T, A>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static
+impl<T, A, H> Actor for HttpChannel<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static,
+          H: HttpHandler + 'static
 {
     type Context = Context<Self>;
 }
 
-impl<T, A> Future for HttpChannel<T, A>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static
+impl<T, A, H> Future for HttpChannel<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static,
+          A: 'static,
+          H: HttpHandler + 'static
 {
     type Item = ();
     type Error = ();
@@ -261,8 +286,16 @@ impl<T, A> Future for HttpChannel<T, A>
 
                         // start request processing
                         let info = RequestInfo::new(&req);
+                        let mut task = None;
+                        for h in self.router.iter() {
+                            if req.path().starts_with(h.prefix()) {
+                                task = Some(h.handle(req, payload));
+                                break
+                            }
+                        }
+
                         self.items.push_back(
-                            Entry {task: self.router.call(req, payload),
+                            Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
                                    req: info,
                                    eof: false,
                                    error: false,

@@ -212,22 +212,19 @@ fn main() {
 
     // Create Http server with websocket support
     HttpServer::new(
-        RoutingMap::default()
-            .app("/", Application::builder(state)
-                 // redirect to websocket.html
-                 .resource("/", |r|
-                           r.handler(Method::GET, |req, payload, state| {
-                               httpcodes::HTTPFound
-                                   .builder()
-                                   .header("LOCATION", "/static/websocket.html")
-                                   .body(Body::Empty)
-                           }))
-                 // websocket
-                 .resource("/ws/", |r| r.get::<WsChatSession>())
-                 // static resources
-                 .route_handler("/static", StaticFiles::new("static/", true))
-                 .finish())
-            .finish())
+        Application::builder("/", state)
+            // redirect to websocket.html
+            .resource("/", |r|
+                      r.handler(Method::GET, |req, payload, state| {
+                          httpcodes::HTTPFound
+                              .builder()
+                              .header("LOCATION", "/static/websocket.html")
+                              .body(Body::Empty)
+                      }))
+            // websocket
+            .resource("/ws/", |r| r.get::<WsChatSession>())
+            // static resources
+            .route_handler("/static", StaticFiles::new("static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

@@ -14,7 +14,6 @@ pub use application::{Application, ApplicationBuilder};
 pub use httprequest::HttpRequest;
 pub use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem, PayloadError};
-pub use router::RoutingMap;
 pub use resource::{Reply, Resource};
 pub use route::{Route, RouteFactory, RouteHandler};
 pub use recognizer::Params;
