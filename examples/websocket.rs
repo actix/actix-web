@@ -17,18 +17,12 @@ impl Route for MyWebSocket {
     type State = ();
 
     fn request(req: &mut HttpRequest,
-               payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
+               payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
-        match ws::handshake(&req) {
-            Ok(resp) => {
-                ctx.start(resp);
-                ctx.add_stream(ws::WsStream::new(payload));
-                Reply::async(MyWebSocket)
-            }
-            Err(err) => {
-                Reply::reply(err)
-            }
-        }
+        let resp = ws::handshake(&req)?;
+        ctx.start(resp);
+        ctx.add_stream(ws::WsStream::new(payload));
+        Reply::async(MyWebSocket)
     }
 }
 

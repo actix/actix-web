@@ -1,9 +1,5 @@
 //! Http framework for [Actix](https://github.com/fafhrd91/actix)
 
-#![cfg_attr(feature="nightly", feature(
-    try_trait, // std::ops::Try #42327
-))]
-
 #[macro_use]
 extern crate log;
 extern crate time;
@@ -53,7 +49,7 @@ pub use application::{Application, ApplicationBuilder, Middleware};
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem, PayloadError};
-pub use route::{Route, RouteFactory, RouteHandler};
+pub use route::{Route, RouteFactory, RouteHandler, RouteResult};
 pub use resource::{Reply, Resource};
 pub use recognizer::{Params, RouteRecognizer};
 pub use logger::Logger;

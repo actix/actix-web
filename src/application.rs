@@ -170,7 +170,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     ///     fn request(req: &mut HttpRequest,
     ///                payload: Payload,
-    ///                ctx: &mut HttpContext<Self>) -> Reply<Self> {
+    ///                ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
     ///         Reply::reply(httpcodes::HTTPOk)
     ///     }
     /// }

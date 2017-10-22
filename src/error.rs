@@ -110,8 +110,7 @@ impl From<httparse::Error> for ParseError {
 /// Return `BadRequest` for `ParseError`
 impl From<ParseError> for HttpResponse {
     fn from(err: ParseError) -> Self {
-        HttpResponse::new(StatusCode::BAD_REQUEST,
-                          Body::Binary(err.description().into()))
+        HttpResponse::from_error(StatusCode::BAD_REQUEST, err)
     }
 }
 
@@ -119,24 +118,21 @@ impl From<ParseError> for HttpResponse {
 /// Response generation can return `HttpError`, so it is internal error
 impl From<HttpError> for HttpResponse {
     fn from(err: HttpError) -> Self {
-        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR,
-                          Body::Binary(err.description().into()))
+        HttpResponse::from_error(StatusCode::INTERNAL_SERVER_ERROR, err)
     }
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
 impl From<cookie::ParseError> for HttpResponse {
     fn from(err: cookie::ParseError) -> Self {
-        HttpResponse::new(StatusCode::BAD_REQUEST,
-                          Body::Binary(err.description().into()))
+        HttpResponse::from_error(StatusCode::BAD_REQUEST, err)
     }
 }
 
 /// Return `BadRequest` for `MultipartError`
 impl From<MultipartError> for HttpResponse {
     fn from(err: MultipartError) -> Self {
-        HttpResponse::new(StatusCode::BAD_REQUEST,
-                          Body::Binary(err.description().into()))
+        HttpResponse::from_error(StatusCode::BAD_REQUEST, err)
     }
 }
 

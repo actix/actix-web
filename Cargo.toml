@@ -20,12 +20,6 @@ codecov = { repository = "fafhrd91/actix-web", branch = "master", service = "git
 name = "actix_web"
 path = "src/lib.rs"
 
-[features]
-default = []
-
-# Enable nightly features
-nightly = []
-
 [dependencies]
 log = "0.3"
 time = "0.1"

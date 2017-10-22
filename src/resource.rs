@@ -8,7 +8,7 @@ use http::Method;
 use futures::Stream;
 
 use task::Task;
-use route::{Route, RouteHandler, Frame, FnHandler, StreamHandler};
+use route::{Route, RouteHandler, RouteResult, Frame, FnHandler, StreamHandler};
 use payload::Payload;
 use context::HttpContext;
 use httprequest::HttpRequest;
@@ -141,13 +141,13 @@ pub struct Reply<A: Actor + Route> (ReplyItem<A>);
 impl<A> Reply<A> where A: Actor + Route
 {
     /// Create async response
-    pub fn async(act: A) -> Self {
-        Reply(ReplyItem::Actor(act))
+    pub fn async(act: A) -> RouteResult<A> {
+        Ok(Reply(ReplyItem::Actor(act)))
     }
 
     /// Send response
-    pub fn reply<R: Into<HttpResponse>>(response: R) -> Self {
-        Reply(ReplyItem::Message(response.into()))
+    pub fn reply<R: Into<HttpResponse>>(response: R) -> RouteResult<A> {
+        Ok(Reply(ReplyItem::Message(response.into())))
     }
 
     pub fn into(self, mut ctx: HttpContext<A>) -> Task where A: Actor<Context=HttpContext<A>>
@@ -168,27 +168,6 @@ impl<A, T> From<T> for Reply<A>
     where T: Into<HttpResponse>, A: Actor + Route
 {
     fn from(item: T) -> Self {
-        Reply::reply(item)
-    }
-}
-
-#[cfg(feature="nightly")]
-use std::ops::Try;
-
-#[cfg(feature="nightly")]
-impl<A> Try for Reply<A> where A: Actor + Route {
-    type Ok = HttpResponse;
-    type Error = HttpResponse;
-
-    fn into_result(self) -> Result<Self::Ok, Self::Error> {
-        panic!("Reply -> Result conversion is not supported")
-    }
-
-    fn from_error(v: Self::Error) -> Self {
-        Reply::reply(v)
-    }
-
-    fn from_ok(v: Self::Ok) -> Self {
-        Reply::reply(v)
+        Reply(ReplyItem::Message(item.into()))
     }
 }

@@ -33,6 +33,9 @@ pub trait RouteHandler<S>: 'static {
     fn set_prefix(&mut self, prefix: String) {}
 }
 
+/// Request handling result.
+pub type RouteResult<T> = Result<Reply<T>, HttpResponse>;
+
 /// Actors with ability to handle http requests.
 #[allow(unused_variables)]
 pub trait Route: Actor {
@@ -74,7 +77,7 @@ pub trait Route: Actor {
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used
     /// for writing response.
     fn request(req: &mut HttpRequest,
-               payload: Payload, ctx: &mut Self::Context) -> Reply<Self>;
+               payload: Payload, ctx: &mut Self::Context) -> RouteResult<Self>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -99,7 +102,10 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
                 return Task::reply(resp)
             }
         }
-        A::request(req, payload, &mut ctx).into(ctx)
+        match A::request(req, payload, &mut ctx) {
+            Ok(reply) => reply.into(ctx),
+            Err(err) => Task::reply(err),
+        }
     }
 }
 

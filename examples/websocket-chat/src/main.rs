@@ -48,24 +48,19 @@ impl Actor for WsChatSession {
 impl Route for WsChatSession {
     type State = WsChatSessionState;
 
-    fn request(req: HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
+    fn request(req: &mut HttpRequest,
+               payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
         // websocket handshakre, it may fail if request is not websocket request
-        match ws::handshake(&req) {
-            Ok(resp) => {
-                ctx.start(resp);
-                ctx.add_stream(ws::WsStream::new(payload));
-                Reply::async(
-                    WsChatSession {
-                        id: 0,
-                        hb: Instant::now(),
-                        room: "Main".to_owned(),
-                        name: None})
-            }
-            Err(err) => {
-                Reply::reply(err)
-            }
-        }
+        let resp = ws::handshake(&req)?;
+        ctx.start(resp);
+        ctx.add_stream(ws::WsStream::new(payload));
+        Reply::async(
+            WsChatSession {
+                id: 0,
+                hb: Instant::now(),
+                room: "Main".to_owned(),
+                name: None})
     }
 }
 

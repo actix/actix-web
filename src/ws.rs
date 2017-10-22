@@ -22,7 +22,8 @@
 //! impl Route for WsRoute {
 //!     type State = ();
 //!
-//!     fn request(req: &mut HttpRequest, payload: Payload, ctx: &mut HttpContext<Self>) -> Reply<Self>
+//!     fn request(req: &mut HttpRequest,
+//!                payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
 //!     {
 //!         // WebSocket handshake
 //!         match ws::handshake(&req) {

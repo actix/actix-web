@@ -1,10 +1,11 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::{io, mem, str};
+use std::error::Error as Error;
 use std::convert::Into;
 
 use cookie::CookieJar;
 use bytes::Bytes;
-use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error};
+use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 
 use Cookie;
@@ -57,6 +58,7 @@ pub struct HttpResponse {
     body: Body,
     chunked: bool,
     connection_type: Option<ConnectionType>,
+    error: Option<Box<Error>>,
 }
 
 impl HttpResponse {
@@ -81,7 +83,32 @@ impl HttpResponse {
             chunked: false,
             // compression: None,
             connection_type: None,
+            error: None,
         }
+    }
+
+    /// Constructs a response from error
+    #[inline]
+    pub fn from_error<E: Error + 'static>(status: StatusCode, error: E) -> HttpResponse {
+        let body = Body::Binary(error.description().into());
+
+        HttpResponse {
+            version: None,
+            headers: Default::default(),
+            status: status,
+            reason: None,
+            body: body,
+            chunked: false,
+            // compression: None,
+            connection_type: None,
+            error: Some(Box::new(error)),
+        }
+    }
+
+    /// The `error` which is responsible for this response
+    #[inline]
+    pub fn error(&self) -> Option<&Box<Error>> {
+        self.error.as_ref()
     }
 
     /// Get the HTTP version of this response.
@@ -226,7 +253,7 @@ impl Parts {
 #[derive(Debug)]
 pub struct HttpResponseBuilder {
     parts: Option<Parts>,
-    err: Option<Error>,
+    err: Option<HttpError>,
 }
 
 impl HttpResponseBuilder {
@@ -348,7 +375,7 @@ impl HttpResponseBuilder {
     }
 
     /// Set a body
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
         let mut parts = self.parts.take().expect("cannot reuse response builder");
         if let Some(e) = self.err.take() {
             return Err(e)
@@ -366,11 +393,12 @@ impl HttpResponseBuilder {
             body: body.into(),
             chunked: parts.chunked,
             connection_type: parts.connection_type,
+            error: None,
         })
     }
 }
 
-fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<Error>) -> Option<&'a mut Parts>
+fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
 {
     if err.is_some() {
         return None
