@@ -172,7 +172,8 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// This method register handler for specified path.
+    /// This method register handler for specified path prefix.
+    /// Any path that starts with this prefix matches handler.
     ///
     /// ```rust
     /// extern crate actix_web;
