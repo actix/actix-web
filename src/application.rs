@@ -168,7 +168,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// impl Route for MyRoute {
     ///     type State = ();
     ///
-    ///     fn request(req: HttpRequest,
+    ///     fn request(req: &mut HttpRequest,
     ///                payload: Payload,
     ///                ctx: &mut HttpContext<Self>) -> Reply<Self> {
     ///         Reply::reply(httpcodes::HTTPOk)

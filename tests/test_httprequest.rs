@@ -79,14 +79,14 @@ fn test_request_query() {
 
 #[test]
 fn test_request_match_info() {
-    let req = HttpRequest::new(Method::GET, Uri::try_from("/value/?id=test").unwrap(),
-                               Version::HTTP_11, HeaderMap::new());
+    let mut req = HttpRequest::new(Method::GET, Uri::try_from("/value/?id=test").unwrap(),
+                                   Version::HTTP_11, HeaderMap::new());
 
     let rec = RouteRecognizer::new("/".to_owned(), vec![("/{key}/".to_owned(), 1)]);
     let (params, _) = rec.recognize(req.path()).unwrap();
     let params = params.unwrap();
 
-    let req = req.with_match_info(params);
+    req.set_match_info(params);
     assert_eq!(req.match_info().get("key"), Some("value"));
 }
 
