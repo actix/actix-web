@@ -1,15 +1,13 @@
 extern crate actix;
 extern crate actix_web;
-extern crate futures;
 extern crate tokio_core;
+extern crate reqwest;
 
-use std::net;
+use std::{net, thread};
 use std::str::FromStr;
-use std::io::prelude::*;
 use actix::*;
 use actix_web::*;
-use futures::Future;
-use tokio_core::net::{TcpStream, TcpListener};
+use tokio_core::net::TcpListener;
 
 
 fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
@@ -24,41 +22,28 @@ fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
 
 #[test]
 fn test_serve() {
-    let sys = System::new("test");
+    thread::spawn(|| {
+        let sys = System::new("test");
 
-    let srv = create_server();
-    srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
-    let addr = net::SocketAddr::from_str("127.0.0.1:58902").unwrap();
-
-    Arbiter::handle().spawn(
-        TcpStream::connect(&addr, Arbiter::handle()).and_then(|mut stream| {
-            let _ = stream.write("GET /\r\n\r\n ".as_ref());
-            Arbiter::system().send(msgs::SystemExit(0));
-            futures::future::ok(())
-        }).map_err(|_| panic!("should not happen"))
-    );
-
-    sys.run();
+        let srv = create_server();
+        srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
+        sys.run();
+    });
+    assert!(reqwest::get("http://localhost:58906/").unwrap().status().is_success());
 }
 
 #[test]
 fn test_serve_incoming() {
-    let sys = System::new("test");
+    thread::spawn(|| {
+        let sys = System::new("test");
 
-    let srv = create_server();
-    let addr = net::SocketAddr::from_str("127.0.0.1:58906").unwrap();
-    let tcp = TcpListener::bind(&addr, Arbiter::handle()).unwrap();
-    srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
-    let addr = net::SocketAddr::from_str("127.0.0.1:58906").unwrap();
+        let srv = create_server();
+        let addr = net::SocketAddr::from_str("127.0.0.1:58906").unwrap();
+        let tcp = TcpListener::bind(&addr, Arbiter::handle()).unwrap();
+        srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
+        sys.run();
 
-    // connect
-    Arbiter::handle().spawn(
-        TcpStream::connect(&addr, Arbiter::handle()).and_then(|mut stream| {
-            let _ = stream.write("GET /\r\n\r\n ".as_ref());
-            Arbiter::system().send(msgs::SystemExit(0));
-            futures::future::ok(())
-        }).map_err(|_| panic!("should not happen"))
-    );
+    });
 
-    sys.run();
+    assert!(reqwest::get("http://localhost:58906/").unwrap().status().is_success());
 }

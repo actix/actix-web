@@ -12,6 +12,7 @@ use httpresponse::HttpResponse;
 use server::HttpHandler;
 
 
+/// Middleware definition
 #[allow(unused_variables)]
 pub trait Middleware {
 
@@ -21,7 +22,7 @@ pub trait Middleware {
     }
 
     /// Method is called when handler returns response,
-    /// but before sending body stream to peer.
+    /// but before sending body streams to peer.
     fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> HttpResponse {
         resp
     }

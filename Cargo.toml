@@ -50,6 +50,7 @@ features = []
 
 [dev-dependencies]
 env_logger = "*"
+reqwest = "0.8"
 
 [profile.release]
 lto = true
