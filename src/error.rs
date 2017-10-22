@@ -149,9 +149,9 @@ mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use http::StatusCode;
+    use http::{StatusCode, Error as HttpError};
     use cookie::ParseError as CookieParseError;
-    use super::{ParseError, HttpResponse, HttpRangeParseError};
+    use super::{ParseError, HttpResponse, HttpRangeParseError, MultipartError};
 
     #[test]
     fn test_into_response() {
@@ -163,7 +163,14 @@ mod tests {
 
         let resp: HttpResponse = CookieParseError::EmptyName.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-}
+
+        let resp: HttpResponse = MultipartError::Boundary.into();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
+        let resp: HttpResponse = err.into();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     #[test]
     fn test_cause() {

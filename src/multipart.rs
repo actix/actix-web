@@ -711,6 +711,15 @@ fn test_boundary() {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
+        header::HeaderValue::from_static("multipart/mixed"));
+    match Multipart::boundary(&headers) {
+        Err(MultipartError::Boundary) => (),
+        _ => panic!("should not happen"),
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
         header::HeaderValue::from_static(
             "multipart/mixed; boundary=\"5c02368e880e436dab70ed54e1c58209\""));
 
