@@ -191,7 +191,7 @@ impl HttpRequest {
     ///
     /// Content-type: multipart/form-data;
     pub fn multipart(&self, payload: Payload) -> Result<Multipart, MultipartError> {
-        Ok(Multipart::new(Multipart::boundary(self)?, payload))
+        Ok(Multipart::new(Multipart::boundary(&self.headers)?, payload))
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.

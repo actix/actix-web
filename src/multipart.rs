@@ -15,7 +15,6 @@ use futures::task::{Task, current as current_task};
 
 use error::ParseError;
 use payload::{Payload, PayloadError};
-use httprequest::HttpRequest;
 
 const MAX_HEADERS: usize = 32;
 
@@ -126,6 +125,7 @@ struct InnerMultipart {
 }
 
 impl Multipart {
+    /// Create multipart instance for boundary.
     pub fn new(boundary: String, payload: Payload) -> Multipart {
         Multipart {
             safety: Safety::new(),
@@ -139,8 +139,9 @@ impl Multipart {
         }
     }
 
-    pub fn boundary(req: &HttpRequest) -> Result<String, MultipartError> {
-        if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+    /// Extract boundary info from headers.
+    pub fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
+        if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 if let Ok(ct) = content_type.parse::<mime::Mime>() {
                     if let Some(boundary) = ct.get_param(mime::BOUNDARY) {
@@ -688,4 +689,31 @@ impl Drop for Safety {
             task.notify()
         }
     }
+}
+
+#[test]
+fn test_boundary() {
+    let headers = HeaderMap::new();
+    match Multipart::boundary(&headers) {
+        Err(MultipartError::NoContentType) => (),
+        _ => panic!("should not happen"),
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE,
+                   header::HeaderValue::from_static("test"));
+
+    match Multipart::boundary(&headers) {
+        Err(MultipartError::ParseContentType) => (),
+        _ => panic!("should not happen"),
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static(
+            "multipart/mixed; boundary=\"5c02368e880e436dab70ed54e1c58209\""));
+
+    assert_eq!(Multipart::boundary(&headers).unwrap(),
+               "5c02368e880e436dab70ed54e1c58209");
 }
