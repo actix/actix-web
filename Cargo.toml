@@ -49,9 +49,9 @@ tokio-proto = "0.1"
 h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 [dependencies.actix]
+version = "0.3"
 #path = "../actix"
-git = "https://github.com/actix/actix.git"
-#version = "0.2"
+#git = "https://github.com/actix/actix.git"
 default-features = false
 features = []
 
