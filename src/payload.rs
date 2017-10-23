@@ -563,4 +563,23 @@ mod test {
             result(res)
         })).unwrap();
     }
+
+    #[test]
+    fn test_unread_data() {
+        Core::new().unwrap().run(lazy(|| {
+            let (_, mut payload) = Payload::new(false);
+
+            payload.unread_data(Bytes::from("data"));
+            assert!(!payload.is_empty());
+            assert_eq!(payload.len(), 4);
+
+            match payload.readany() {
+                Async::Ready(Some(data)) => assert_eq!(&data.unwrap(), "data"),
+                _ => panic!("error"),
+            }
+
+            let res: Result<(), ()> = Ok(());
+            result(res)
+        })).unwrap();
+    }
 }
