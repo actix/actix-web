@@ -31,8 +31,9 @@ actix-web = { git = "https://github.com/actix/actix-web.git" }
 
 ## Example
 
-* [Mulitpart support](https://github.com/actix/actix-web/tree/master/examples/multipart)
-* [Simple websocket example](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
+* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
+* [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart)
+* [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
 
 
