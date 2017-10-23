@@ -66,7 +66,6 @@ impl Logger {
             };
 
             info!("{}", self.format.display_with(&render));
-            //println!("{}", self.format.display_with(&render));
         }
     }
 }
