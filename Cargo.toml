@@ -24,7 +24,7 @@ path = "src/lib.rs"
 default = []
 
 # http/2
-http2 = ["h2"]
+# http2 = ["h2"]
 
 [dependencies]
 log = "0.3"
@@ -46,7 +46,7 @@ futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
 tokio-proto = "0.1"
-h2 = { git = 'https://github.com/carllerche/h2', optional = true }
+# h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 [dependencies.actix]
 version = "0.3"
