@@ -172,8 +172,11 @@ impl HttpResponse {
 
     /// Keep-alive status for this connection
     pub fn keep_alive(&self) -> Option<bool> {
-        if let Some(ConnectionType::KeepAlive) = self.connection_type {
-            Some(true)
+        if let Some(ct) = self.connection_type {
+            match ct {
+                ConnectionType::KeepAlive => Some(true),
+                ConnectionType::Close | ConnectionType::Upgrade => Some(false),
+            }
         } else {
             None
         }
@@ -405,4 +408,36 @@ fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'
         return None
     }
     parts.as_mut()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_body() {
+        assert!(Body::Length(10).has_body());
+        assert!(Body::Streaming.has_body());
+    }
+
+    #[test]
+    fn test_upgrade() {
+        let resp = HttpResponse::builder(StatusCode::OK)
+            .upgrade().body(Body::Empty).unwrap();
+        assert!(resp.upgrade())
+    }
+
+    #[test]
+    fn test_force_close() {
+        let resp = HttpResponse::builder(StatusCode::OK)
+            .force_close().body(Body::Empty).unwrap();
+        assert!(!resp.keep_alive().unwrap())
+    }
+
+    #[test]
+    fn test_content_type() {
+        let resp = HttpResponse::builder(StatusCode::OK)
+            .content_type("text/plain").body(Body::Empty).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain")
+    }
 }
