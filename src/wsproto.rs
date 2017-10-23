@@ -245,6 +245,7 @@ fn encode_base64(data: &[u8]) -> String {
 }
 
 
+#[cfg(test)]
 mod test {
     #![allow(unused_imports, unused_variables, dead_code)]
     use super::*;

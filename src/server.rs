@@ -46,7 +46,7 @@ impl<T, A, H> HttpServer<T, A, H> where H: HttpHandler
 {
     /// Create new http server with vec of http handlers
     pub fn new<U: IntoIterator<Item=H>>(handler: U) -> Self {
-        let apps: Vec<_> = handler.into_iter().map(|h| h.into()).collect();
+        let apps: Vec<_> = handler.into_iter().collect();
 
         HttpServer {h: Rc::new(apps),
                     io: PhantomData,

@@ -98,7 +98,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
 
         // handle EXPECT header
         if req.headers().contains_key(header::EXPECT) {
-            if let Err(resp) = A::expect(&req, &mut ctx) {
+            if let Err(resp) = A::expect(req, &mut ctx) {
                 return Task::reply(resp)
             }
         }

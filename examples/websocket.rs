@@ -19,7 +19,7 @@ impl Route for MyWebSocket {
     fn request(req: &mut HttpRequest,
                payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
-        let resp = ws::handshake(&req)?;
+        let resp = ws::handshake(req)?;
         ctx.start(resp);
         ctx.add_stream(ws::WsStream::new(payload));
         Reply::async(MyWebSocket)

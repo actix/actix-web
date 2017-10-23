@@ -329,3 +329,104 @@ impl WsWriter {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use http::{Method, HeaderMap, StatusCode, Uri, Version, HttpTryFrom, header};
+    use super::{HttpRequest, SEC_WEBSOCKET_VERSION, SEC_WEBSOCKET_KEY, handshake};
+
+    #[test]
+    fn test_handshake() {
+        let req = HttpRequest::new(Method::POST, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, HeaderMap::new());
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
+            _ => panic!("should not happen"),
+        }
+
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, HeaderMap::new());
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("test"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("websocket"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION,
+                       header::HeaderValue::from_static("upgrade"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION,
+                       header::HeaderValue::from_static("upgrade"));
+        headers.insert(SEC_WEBSOCKET_VERSION,
+                       header::HeaderValue::from_static("5"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION,
+                       header::HeaderValue::from_static("upgrade"));
+        headers.insert(SEC_WEBSOCKET_VERSION,
+                       header::HeaderValue::from_static("13"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::UPGRADE,
+                       header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION,
+                       header::HeaderValue::from_static("upgrade"));
+        headers.insert(SEC_WEBSOCKET_VERSION,
+                       header::HeaderValue::from_static("13"));
+        headers.insert(SEC_WEBSOCKET_KEY,
+                       header::HeaderValue::from_static("13"));
+        let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
+                                   Version::HTTP_11, headers);
+        match handshake(&req) {
+            Ok(resp) => {
+                assert_eq!(resp.status(), StatusCode::SWITCHING_PROTOCOLS)
+            },
+            _ => panic!("should not happen"),
+        }
+    }
+}

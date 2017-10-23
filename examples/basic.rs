@@ -6,13 +6,13 @@ extern crate env_logger;
 use actix_web::*;
 
 /// somple handle
-fn index(req: &mut HttpRequest, payload: Payload, state: &()) -> HttpResponse {
+fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
     httpcodes::HTTPOk.into()
 }
 
 /// handle with path parameters like `/name/{name}/`
-fn with_param(req: &mut HttpRequest, payload: Payload, state: &()) -> HttpResponse {
+fn with_param(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
 
     HttpResponse::builder(StatusCode::OK)

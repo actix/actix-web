@@ -107,6 +107,7 @@ impl HttpResponse {
 
     /// The `error` which is responsible for this response
     #[inline]
+    #[cfg_attr(feature="cargo-clippy", allow(borrowed_box))]
     pub fn error(&self) -> Option<&Box<Error>> {
         self.error.as_ref()
     }

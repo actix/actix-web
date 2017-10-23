@@ -197,7 +197,7 @@ impl<'a> Iterator for FormatParser<'a> {
                     match chr.unwrap() {
                         // Finished parsing, parse buffer.
                         '}' => break,
-                        c => self.object_buffer.push(c.clone())
+                        c => self.object_buffer.push(c)
                     }
 
                     chr = self.chars.next();
