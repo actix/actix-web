@@ -365,8 +365,21 @@ impl Inner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
     use futures::future::{lazy, result};
     use tokio_core::reactor::Core;
+
+    #[test]
+    fn test_error() {
+        let err: PayloadError = IoError::new(io::ErrorKind::Other, "ParseError").into();
+        assert_eq!(err.description(), "ParseError");
+        assert_eq!(err.cause().unwrap().description(), "ParseError");
+        assert_eq!(format!("{}", err), "ParseError");
+
+        let err = PayloadError::Incomplete;
+        assert_eq!(err.description(), "A payload reached EOF, but is not complete.");
+        assert_eq!(format!("{}", err), "A payload reached EOF, but is not complete.");
+    }
 
     #[test]
     fn test_basic() {

@@ -340,7 +340,7 @@ mod tests {
         assert!(Frame::parse(&mut buf).unwrap().is_none());
         buf.extend(b"1");
         let frame = Frame::parse(&mut buf).unwrap().unwrap();
-        println!("FRAME: {:?}", frame);
+        println!("FRAME: {}", frame);
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, &b"1"[..]);
