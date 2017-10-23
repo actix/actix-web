@@ -1,8 +1,9 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
+# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](http://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
 
-Web framework for [Actix](https://github.com/actix/actix).
+Asynchronous web framework for [Actix](https://github.com/actix/actix).
 
-* [API Documentation](http://actix.github.io/actix-web/actix_web/)
+* [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
+* [API Documentation (Releases)](https://docs.rs/actix-web/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
