@@ -1,8 +1,8 @@
-# Actix web [![Build Status](https://travis-ci.org/fafhrd91/actix-web.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-web) [![Build Status](https://ci.appveyor.com/api/projects/status/github/fafhrd91/actix-web?branch=master&svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web) [![codecov](https://codecov.io/gh/fafhrd91/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-web)
+# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build Status](https://ci.appveyor.com/api/projects/status/github/fafhrd91/actix-web-hdy9d?branch=master&svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
 
-Web framework for [Actix](https://github.com/fafhrd91/actix).
+Web framework for [Actix](https://github.com/actix/actix).
 
-* [API Documentation](http://fafhrd91.github.io/actix-web/actix_web/)
+* [API Documentation](http://actix.github.io/actix-web/actix_web/)
 * Cargo package: [actix-http](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
@@ -15,8 +15,8 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * HTTP 1.1 and 1.0 support
   * Streaming and pipelining support
   * Keep-alive and slow requests support
-  * [WebSockets support](https://fafhrd91.github.io/actix-web/actix_web/ws/index.html)
-  * [Configurable request routing](https://fafhrd91.github.io/actix-web/actix_web/struct.RoutingMap.html)
+  * [WebSockets support](https://actix.github.io/actix-web/actix_web/ws/index.html)
+  * [Configurable request routing](https://actix.github.io/actix-web/actix_web/struct.RoutingMap.html)
   * Multipart streams
 
 ## Usage
@@ -25,14 +25,14 @@ To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-web = { git = "https://github.com/fafhrd91/actix-web.git" }
+actix-web = { git = "https://github.com/actix/actix-web.git" }
 ```
 
 ## Example
 
-* [Mulitpart support](https://github.com/fafhrd91/actix-web/tree/master/examples/multipart)
-* [Simple websocket example](https://github.com/fafhrd91/actix-web/tree/master/examples/websocket)
-* [Tcp/Websocket chat](https://github.com/fafhrd91/actix-web/tree/master/examples/websocket-chat)
+* [Mulitpart support](https://github.com/actix/actix-web/tree/master/examples/multipart)
+* [Simple websocket example](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
+* [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
 
 
 ```rust
@@ -48,9 +48,8 @@ fn main() {
 
     // start http server
     HttpServer::new(
-        // create routing map
-        RoutingMap::default()
-            // handler for "GET /"
+        // create application
+        Application::default("/")
             .resource("/", |r|
                 r.handler(Method::GET, |req, payload, state| {
                     httpcodes::HTTPOk

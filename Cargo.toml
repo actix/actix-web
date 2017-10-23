@@ -5,16 +5,16 @@ authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
 keywords = ["actor", "http", "web"]
-homepage = "https://github.com/fafhrd91/actix-web"
-repository = "https://github.com/fafhrd91/actix-web.git"
+homepage = "https://github.com/actix/actix-web"
+repository = "https://github.com/actix/actix-web.git"
 categories = ["network-programming", "asynchronous"]
 license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 
 [badges]
-travis-ci = { repository = "fafhrd91/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web" }
-codecov = { repository = "fafhrd91/actix-web", branch = "master", service = "github" }
+travis-ci = { repository = "actix/actix-web", branch = "master" }
+appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
 name = "actix_web"
