@@ -1,4 +1,4 @@
-//! Web framework for [Actix](https://github.com/fafhrd91/actix)
+//! Web framework for [Actix](https://github.com/actix/actix)
 
 #[macro_use]
 extern crate log;

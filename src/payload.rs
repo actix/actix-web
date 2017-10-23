@@ -363,7 +363,7 @@ impl Inner {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use futures::future::{lazy, result};
     use tokio_core::reactor::Core;

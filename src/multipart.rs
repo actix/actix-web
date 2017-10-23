@@ -269,8 +269,9 @@ impl InnerMultipart {
                     let stop = match self.item {
                         InnerMultipartItem::Field(ref mut field) => {
                             match field.borrow_mut().poll(safety)? {
-                                Async::NotReady =>
-                                    return Ok(Async::NotReady),
+                                Async::NotReady => {
+                                    return Ok(Async::NotReady)
+                                }
                                 Async::Ready(Some(_)) =>
                                     continue,
                                 Async::Ready(None) =>
@@ -318,7 +319,9 @@ impl InnerMultipart {
                     // read boundary
                     InnerState::Boundary => {
                         match InnerMultipart::read_boundary(payload, &self.boundary)? {
-                            Async::NotReady => return Ok(Async::NotReady),
+                            Async::NotReady => {
+                                return Ok(Async::NotReady)
+                            }
                             Async::Ready(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -357,6 +360,8 @@ impl InnerMultipart {
                     }
                 }
             }
+
+            self.state = InnerState::Boundary;
 
             // nested multipart stream
             if mt.type_() == mime::MULTIPART {
@@ -691,38 +696,94 @@ impl Drop for Safety {
     }
 }
 
-#[test]
-fn test_boundary() {
-    let headers = HeaderMap::new();
-    match Multipart::boundary(&headers) {
-        Err(MultipartError::NoContentType) => (),
-        _ => panic!("should not happen"),
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use futures::future::{lazy, result};
+    use tokio_core::reactor::Core;
+    use payload::Payload;
+
+    #[test]
+    fn test_boundary() {
+        let headers = HeaderMap::new();
+        match Multipart::boundary(&headers) {
+            Err(MultipartError::NoContentType) => (),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE,
+                       header::HeaderValue::from_static("test"));
+
+        match Multipart::boundary(&headers) {
+            Err(MultipartError::ParseContentType) => (),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("multipart/mixed"));
+        match Multipart::boundary(&headers) {
+            Err(MultipartError::Boundary) => (),
+            _ => panic!("should not happen"),
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"5c02368e880e436dab70ed54e1c58209\""));
+
+        assert_eq!(Multipart::boundary(&headers).unwrap(),
+                   "5c02368e880e436dab70ed54e1c58209");
     }
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE,
-                   header::HeaderValue::from_static("test"));
+    #[test]
+    fn test_multipart() {
+        Core::new().unwrap().run(lazy(|| {
+            let (mut sender, payload) = Payload::new(false);
 
-    match Multipart::boundary(&headers) {
-        Err(MultipartError::ParseContentType) => (),
-        _ => panic!("should not happen"),
+            let bytes = Bytes::from(
+                "--abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                 Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+                 test\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n");
+            sender.feed_data(bytes);
+
+            let mut multipart = Multipart::new(
+                "abbc761f78ff4d7cb7573b5a23f96ef0".to_owned(), payload);
+            match multipart.poll() {
+                Ok(Async::Ready(Some(item))) => {
+                    println!("{:?}", item);
+                    match item {
+                        MultipartItem::Field(mut field) => {
+                            assert_eq!(field.content_type().type_(), mime::TEXT);
+                            assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                            match field.poll() {
+                                Ok(Async::Ready(Some(chunk))) =>
+                                    assert_eq!(chunk.0, "test"),
+                                _ => unreachable!()
+                            }
+                            match field.poll() {
+                                Ok(Async::Ready(None)) => (),
+                                _ => unreachable!()
+                            }
+                        },
+                        _ => unreachable!()
+                    }
+                }
+                _ => unreachable!()
+            }
+            match multipart.poll() {
+                Ok(Async::Ready(None)) => (),
+                _ => unreachable!()
+            }
+
+            let res: Result<(), ()> = Ok(());
+            result(res)
+        })).unwrap();
     }
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static("multipart/mixed"));
-    match Multipart::boundary(&headers) {
-        Err(MultipartError::Boundary) => (),
-        _ => panic!("should not happen"),
-    }
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static(
-            "multipart/mixed; boundary=\"5c02368e880e436dab70ed54e1c58209\""));
-
-    assert_eq!(Multipart::boundary(&headers).unwrap(),
-               "5c02368e880e436dab70ed54e1c58209");
 }
