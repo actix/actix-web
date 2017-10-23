@@ -288,3 +288,58 @@ impl Future for UrlEncoded {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::{Uri, HttpTryFrom};
+    // use futures::future::{lazy, result};
+    // use tokio_core::reactor::Core;
+    use payload::Payload;
+
+    #[test]
+    fn test_urlencoded_error() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::TRANSFER_ENCODING,
+                       header::HeaderValue::from_static("chunked"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+
+        let (_, payload) = Payload::new(false);
+        assert!(req.urlencoded(payload).is_err());
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE,
+                       header::HeaderValue::from_static("application/x-www-form-urlencoded"));
+        headers.insert(header::CONTENT_LENGTH,
+                       header::HeaderValue::from_static("xxxx"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+
+        let (_, payload) = Payload::new(false);
+        assert!(req.urlencoded(payload).is_err());
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE,
+                       header::HeaderValue::from_static("application/x-www-form-urlencoded"));
+        headers.insert(header::CONTENT_LENGTH,
+                       header::HeaderValue::from_static("1000000"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+
+        let (_, payload) = Payload::new(false);
+        assert!(req.urlencoded(payload).is_err());
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE,
+                       header::HeaderValue::from_static("text/plain"));
+        headers.insert(header::CONTENT_LENGTH,
+                       header::HeaderValue::from_static("10"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+
+        let (_, payload) = Payload::new(false);
+        assert!(req.urlencoded(payload).is_err());
+    }
+
+}
