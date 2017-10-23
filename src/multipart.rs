@@ -239,12 +239,17 @@ impl InnerMultipart {
                     //ValueError("Could not find starting boundary %r"
                     //% (self._boundary))
                 }
+                if chunk.len() < boundary.len() {
+                    continue
+                }
                 if &chunk[..2] == b"--" && &chunk[2..chunk.len()-2] == boundary.as_bytes() {
                     break;
                 } else {
+                    if chunk.len() < boundary.len() + 2{
+                        continue
+                    }
                     let b: &[u8] = boundary.as_ref();
-                    if chunk.len() <= boundary.len() + 2 &&
-                        &chunk[..boundary.len()] == b &&
+                    if &chunk[..boundary.len()] == b &&
                         &chunk[boundary.len()..boundary.len()+2] == b"--" {
                             eof = true;
                             break;
@@ -746,9 +751,13 @@ mod tests {
             let (mut sender, payload) = Payload::new(false);
 
             let bytes = Bytes::from(
-                "--abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                "testasdadsad\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
                  Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
                  test\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                 Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+                 data\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n");
             sender.feed_data(bytes);
 
@@ -777,6 +786,30 @@ mod tests {
                 }
                 _ => unreachable!()
             }
+
+            match multipart.poll() {
+                Ok(Async::Ready(Some(item))) => {
+                    match item {
+                        MultipartItem::Field(mut field) => {
+                            assert_eq!(field.content_type().type_(), mime::TEXT);
+                            assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                            match field.poll() {
+                                Ok(Async::Ready(Some(chunk))) =>
+                                    assert_eq!(chunk.0, "data"),
+                                _ => unreachable!()
+                            }
+                            match field.poll() {
+                                Ok(Async::Ready(None)) => (),
+                                _ => unreachable!()
+                            }
+                        },
+                        _ => unreachable!()
+                    }
+                }
+                _ => unreachable!()
+            }
+
             match multipart.poll() {
                 Ok(Async::Ready(None)) => (),
                 _ => unreachable!()

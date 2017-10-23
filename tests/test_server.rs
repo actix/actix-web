@@ -4,7 +4,6 @@ extern crate tokio_core;
 extern crate reqwest;
 
 use std::{net, thread};
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_core::net::TcpListener;
@@ -35,18 +34,24 @@ fn test_serve() {
 
 #[test]
 fn test_serve_incoming() {
-    thread::spawn(|| {
+    let loopback = net::Ipv4Addr::new(127, 0, 0, 1);
+    let socket = net::SocketAddrV4::new(loopback, 0);
+    let tcp = net::TcpListener::bind(socket).unwrap();
+    let addr1 = tcp.local_addr().unwrap();
+    let addr2 = tcp.local_addr().unwrap();
+
+    thread::spawn(move || {
         let sys = System::new("test");
 
         let srv = create_server();
-        let addr = net::SocketAddr::from_str("127.0.0.1:58903").unwrap();
-        let tcp = TcpListener::bind(&addr, Arbiter::handle()).unwrap();
+        let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
         srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
         sys.run();
 
     });
 
-    assert!(reqwest::get("http://localhost:58903/").unwrap().status().is_success());
+    assert!(reqwest::get(&format!("http://{}/", addr1))
+            .unwrap().status().is_success());
 }
 
 struct MiddlewareTest {
