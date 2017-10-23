@@ -20,6 +20,12 @@ codecov = { repository = "fafhrd91/actix-web", branch = "master", service = "git
 name = "actix_web"
 path = "src/lib.rs"
 
+[features]
+default = []
+
+# http/2
+http2 = ["h2"]
+
 [dependencies]
 log = "0.3"
 time = "0.1"
@@ -40,10 +46,11 @@ futures = "0.1"
 tokio-core = "0.1"
 tokio-io = "0.1"
 tokio-proto = "0.1"
+h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 [dependencies.actix]
 #path = "../actix"
-git = "https://github.com/fafhrd91/actix.git"
+git = "https://github.com/actix/actix.git"
 #version = "0.2"
 default-features = false
 features = []

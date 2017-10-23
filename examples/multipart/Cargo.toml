@@ -10,5 +10,5 @@ path = "src/main.rs"
 [dependencies]
 env_logger = "*"
 # actix = "0.2"
-actix = { git = "https://github.com/fafhrd91/actix.git" }
+actix = { git = "https://github.com/actix/actix.git" }
 actix-web = { path = "../../" }

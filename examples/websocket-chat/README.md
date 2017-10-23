@@ -1,7 +1,7 @@
 # Websocket chat example
 
 This is extension of the 
-[actix chat example](https://github.com/fafhrd91/actix/tree/master/examples/chat)
+[actix chat example](https://github.com/actix/actix/tree/master/examples/chat)
 
 Added features:
 

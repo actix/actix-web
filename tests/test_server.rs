@@ -39,14 +39,14 @@ fn test_serve_incoming() {
         let sys = System::new("test");
 
         let srv = create_server();
-        let addr = net::SocketAddr::from_str("127.0.0.1:58906").unwrap();
+        let addr = net::SocketAddr::from_str("127.0.0.1:58903").unwrap();
         let tcp = TcpListener::bind(&addr, Arbiter::handle()).unwrap();
         srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
         sys.run();
 
     });
 
-    assert!(reqwest::get("http://localhost:58906/").unwrap().status().is_success());
+    assert!(reqwest::get("http://localhost:58903/").unwrap().status().is_success());
 }
 
 struct MiddlewareTest {
@@ -94,11 +94,11 @@ fn test_middlewares() {
                                httpcodes::HTTPOk
                            }))
                  .finish()])
-            .serve::<_, ()>("127.0.0.1:58903").unwrap();
+            .serve::<_, ()>("127.0.0.1:58904").unwrap();
         sys.run();
     });
 
-    assert!(reqwest::get("http://localhost:58903/").unwrap().status().is_success());
+    assert!(reqwest::get("http://localhost:58904/").unwrap().status().is_success());
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
