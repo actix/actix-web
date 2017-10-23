@@ -297,7 +297,7 @@ impl Inner {
                         if idx == line.len() {
                             num = no;
                             offset = pos+1;
-                            length += pos;
+                            length += pos+1;
                             found = true;
                             break;
                         }
@@ -410,6 +410,7 @@ mod test {
             }
             assert!(payload.is_empty());
             assert!(payload.eof());
+            assert_eq!(payload.len(), 0);
 
             match payload.readany() {
                 Async::Ready(None) => (),
@@ -478,16 +479,19 @@ mod test {
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
+            assert_eq!(payload.len(), 10);
 
             match payload.readexactly(2) {
                 Ok(Async::Ready(data)) => assert_eq!(&data, "li"),
                 _ => panic!("error"),
             }
+            assert_eq!(payload.len(), 8);
 
             match payload.readexactly(4) {
                 Ok(Async::Ready(data)) => assert_eq!(&data, "ne1l"),
                 _ => panic!("error"),
             }
+            assert_eq!(payload.len(), 4);
 
             sender.set_error(PayloadError::Incomplete);
             match payload.readexactly(10) {
@@ -512,16 +516,19 @@ mod test {
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
+            assert_eq!(payload.len(), 10);
 
             match payload.readuntil(b"ne") {
                 Ok(Async::Ready(data)) => assert_eq!(&data, "line"),
                 _ => panic!("error"),
             }
+            assert_eq!(payload.len(), 6);
 
             match payload.readuntil(b"2") {
                 Ok(Async::Ready(data)) => assert_eq!(&data, "1line2"),
                 _ => panic!("error"),
             }
+            assert_eq!(payload.len(), 0);
 
             sender.set_error(PayloadError::Incomplete);
             match payload.readuntil(b"b") {
