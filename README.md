@@ -26,12 +26,13 @@ To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-web = { git = "https://github.com/actix/actix-web.git" }
+actix-web = "0.1"
 ```
 
 ## Example
 
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
+* [Stateful](https://github.com/actix/actix-web/tree/master/examples/state.rs)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
