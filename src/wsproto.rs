@@ -250,29 +250,100 @@ mod test {
     #![allow(unused_imports, unused_variables, dead_code)]
     use super::*;
 
-    #[test]
-    fn opcode_from_u8() {
-        let byte = 2u8;
-        assert_eq!(OpCode::from(byte), OpCode::Binary);
+    macro_rules! opcode_into {
+        ($from:expr => $opcode:pat) => {
+            match OpCode::from($from) {
+                e @ $opcode => (),
+                e => panic!("{:?}", e)
+            }
+        }
+    }
+
+    macro_rules! opcode_from {
+        ($from:expr => $opcode:pat) => {
+            let res: u8 = $from.into();
+            match res {
+                e @ $opcode => (),
+                e => panic!("{:?}", e)
+            }
+        }
     }
 
     #[test]
-    fn opcode_into_u8() {
-        let text = OpCode::Text;
-        let byte: u8 = text.into();
-        assert_eq!(byte, 1u8);
+    fn test_to_opcode() {
+        opcode_into!(0 => OpCode::Continue);
+        opcode_into!(1 => OpCode::Text);
+        opcode_into!(2 => OpCode::Binary);
+        opcode_into!(8 => OpCode::Close);
+        opcode_into!(9 => OpCode::Ping);
+        opcode_into!(10 => OpCode::Pong);
+        opcode_into!(99 => OpCode::Bad);
+    }
+
+    #[test]
+    fn test_from_opcode() {
+        opcode_from!(OpCode::Continue => 0);
+        opcode_from!(OpCode::Text => 1);
+        opcode_from!(OpCode::Binary => 2);
+        opcode_from!(OpCode::Close => 8);
+        opcode_from!(OpCode::Ping => 9);
+        opcode_from!(OpCode::Pong => 10);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_from_opcode_debug() {
+        opcode_from!(OpCode::Bad => 99);
+    }
+
+    #[test]
+    fn test_from_opcode_display() {
+        assert_eq!(format!("{}", OpCode::Continue), "CONTINUE");
+        assert_eq!(format!("{}", OpCode::Text), "TEXT");
+        assert_eq!(format!("{}", OpCode::Binary), "BINARY");
+        assert_eq!(format!("{}", OpCode::Close), "CLOSE");
+        assert_eq!(format!("{}", OpCode::Ping), "PING");
+        assert_eq!(format!("{}", OpCode::Pong), "PONG");
+        assert_eq!(format!("{}", OpCode::Bad), "BAD");
     }
 
     #[test]
     fn closecode_from_u16() {
-        let byte = 1008u16;
-        assert_eq!(CloseCode::from(byte), CloseCode::Policy);
+        assert_eq!(CloseCode::from(1000u16), CloseCode::Normal);
+        assert_eq!(CloseCode::from(1001u16), CloseCode::Away);
+        assert_eq!(CloseCode::from(1002u16), CloseCode::Protocol);
+        assert_eq!(CloseCode::from(1003u16), CloseCode::Unsupported);
+        assert_eq!(CloseCode::from(1005u16), CloseCode::Status);
+        assert_eq!(CloseCode::from(1006u16), CloseCode::Abnormal);
+        assert_eq!(CloseCode::from(1007u16), CloseCode::Invalid);
+        assert_eq!(CloseCode::from(1008u16), CloseCode::Policy);
+        assert_eq!(CloseCode::from(1009u16), CloseCode::Size);
+        assert_eq!(CloseCode::from(1010u16), CloseCode::Extension);
+        assert_eq!(CloseCode::from(1011u16), CloseCode::Error);
+        assert_eq!(CloseCode::from(1012u16), CloseCode::Restart);
+        assert_eq!(CloseCode::from(1013u16), CloseCode::Again);
+        assert_eq!(CloseCode::from(1015u16), CloseCode::Tls);
+        assert_eq!(CloseCode::from(0u16), CloseCode::Empty);
+        assert_eq!(CloseCode::from(2000u16), CloseCode::Other(2000));
     }
 
     #[test]
     fn closecode_into_u16() {
-        let text = CloseCode::Away;
-        let byte: u16 = text.into();
-        assert_eq!(byte, 1001u16);
+        assert_eq!(1000u16, CloseCode::Normal.into());
+        assert_eq!(1001u16, CloseCode::Away.into());
+        assert_eq!(1002u16, CloseCode::Protocol.into());
+        assert_eq!(1003u16, CloseCode::Unsupported.into());
+        assert_eq!(1005u16, CloseCode::Status.into());
+        assert_eq!(1006u16, CloseCode::Abnormal.into());
+        assert_eq!(1007u16, CloseCode::Invalid.into());
+        assert_eq!(1008u16, CloseCode::Policy.into());
+        assert_eq!(1009u16, CloseCode::Size.into());
+        assert_eq!(1010u16, CloseCode::Extension.into());
+        assert_eq!(1011u16, CloseCode::Error.into());
+        assert_eq!(1012u16, CloseCode::Restart.into());
+        assert_eq!(1013u16, CloseCode::Again.into());
+        assert_eq!(1015u16, CloseCode::Tls.into());
+        assert_eq!(0u16, CloseCode::Empty.into());
+        assert_eq!(2000u16, CloseCode::Other(2000).into());
     }
 }
