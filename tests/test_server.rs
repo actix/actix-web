@@ -30,7 +30,7 @@ fn test_serve() {
         srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
         sys.run();
     });
-    assert!(reqwest::get("http://localhost:58906/").unwrap().status().is_success());
+    assert!(reqwest::get("http://localhost:58902/").unwrap().status().is_success());
 }
 
 #[test]
