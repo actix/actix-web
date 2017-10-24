@@ -3,11 +3,11 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 
 use actix::Actor;
-use bytes::Bytes;
 use http::{header, Version};
 use futures::Stream;
 
 use task::Task;
+use body::BinaryBody;
 use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
@@ -20,8 +20,9 @@ use httpcodes::HTTPExpectationFailed;
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 pub enum Frame {
     Message(HttpResponse),
-    Payload(Option<Bytes>),
+    Payload(Option<BinaryBody>),
 }
+
 
 /// Trait defines object that could be regestered as resource route
 #[allow(unused_variables)]

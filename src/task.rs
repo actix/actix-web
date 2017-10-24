@@ -260,7 +260,7 @@ impl Task {
                             self.encoder.encode(&mut self.buffer, chunk.as_ref());
                         } else {
                             // might be response for EXCEPT
-                            self.buffer.extend(chunk)
+                            self.buffer.extend_from_slice(chunk.as_ref())
                         }
                     },
                     Frame::Payload(None) => {

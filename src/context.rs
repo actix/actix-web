@@ -4,13 +4,13 @@ use std::collections::VecDeque;
 use futures::{Async, Stream, Poll};
 use futures::sync::oneshot::Sender;
 
-use bytes::Bytes;
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Handler, Subscriber, ResponseType};
 use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
                  Envelope, ToEnvelope, RemoteEnvelope};
 
+use body::BinaryBody;
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
 
@@ -116,7 +116,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
 
     /// Write payload
-    pub fn write<B: Into<Bytes>>(&mut self, data: B) {
+    pub fn write<B: Into<BinaryBody>>(&mut self, data: B) {
         self.stream.push_back(Frame::Payload(Some(data.into())))
     }
 

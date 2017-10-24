@@ -7,6 +7,10 @@
 
 * Refactor `RouteRecognizer` usability
 
+* Refactor `HttpContext::write`
+
+* Re-use `BinaryBody` for `Frame::Payload`
+
 
 ## 0.1.0 (2017-10-23)
 

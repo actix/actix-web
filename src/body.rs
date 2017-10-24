@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 
 /// Represents various types of http message body.
@@ -43,45 +43,15 @@ impl Body {
         }
     }
 
-    /// Create body from static string
+    /// Create body from slice (copy)
     pub fn from_slice<'a>(s: &'a [u8]) -> Body {
         Body::Binary(BinaryBody::Bytes(Bytes::from(s)))
     }
 }
 
-impl From<&'static str> for Body {
-    fn from(s: &'static str) -> Body {
-        Body::Binary(BinaryBody::Slice(s.as_ref()))
-    }
-}
-
-impl From<&'static [u8]> for Body {
-    fn from(s: &'static [u8]) -> Body {
-        Body::Binary(BinaryBody::Slice(s))
-    }
-}
-
-impl From<Vec<u8>> for Body {
-    fn from(vec: Vec<u8>) -> Body {
-        Body::Binary(BinaryBody::Bytes(Bytes::from(vec)))
-    }
-}
-
-impl From<String> for Body {
-    fn from(s: String) -> Body {
-        Body::Binary(BinaryBody::Bytes(Bytes::from(s)))
-    }
-}
-
-impl From<Rc<Bytes>> for Body {
-    fn from(body: Rc<Bytes>) -> Body {
-        Body::Binary(BinaryBody::SharedBytes(body))
-    }
-}
-
-impl From<Arc<Bytes>> for Body {
-    fn from(body: Arc<Bytes>) -> Body {
-        Body::Binary(BinaryBody::ArcSharedBytes(body))
+impl<T> From<T> for Body where T: Into<BinaryBody>{
+    fn from(b: T) -> Body {
+        Body::Binary(b.into())
     }
 }
 
@@ -93,6 +63,59 @@ impl BinaryBody {
             &BinaryBody::SharedBytes(ref bytes) => bytes.len(),
             &BinaryBody::ArcSharedBytes(ref bytes) => bytes.len(),
         }
+    }
+
+    /// Create binary body from slice
+    pub fn from_slice<'a>(s: &'a [u8]) -> BinaryBody {
+        BinaryBody::Bytes(Bytes::from(s))
+    }
+}
+
+impl From<&'static str> for BinaryBody {
+    fn from(s: &'static str) -> BinaryBody {
+        BinaryBody::Slice(s.as_ref())
+    }
+}
+
+impl From<&'static [u8]> for BinaryBody {
+    fn from(s: &'static [u8]) -> BinaryBody {
+        BinaryBody::Slice(s)
+    }
+}
+
+impl From<Vec<u8>> for BinaryBody {
+    fn from(vec: Vec<u8>) -> BinaryBody {
+        BinaryBody::Bytes(Bytes::from(vec))
+    }
+}
+
+impl From<String> for BinaryBody {
+    fn from(s: String) -> BinaryBody {
+        BinaryBody::Bytes(Bytes::from(s))
+    }
+}
+
+impl From<Bytes> for BinaryBody {
+    fn from(s: Bytes) -> BinaryBody {
+        BinaryBody::Bytes(s)
+    }
+}
+
+impl From<BytesMut> for BinaryBody {
+    fn from(s: BytesMut) -> BinaryBody {
+        BinaryBody::Bytes(s.freeze())
+    }
+}
+
+impl From<Rc<Bytes>> for BinaryBody {
+    fn from(body: Rc<Bytes>) -> BinaryBody {
+        BinaryBody::SharedBytes(body)
+    }
+}
+
+impl From<Arc<Bytes>> for BinaryBody {
+    fn from(body: Arc<Bytes>) -> BinaryBody {
+        BinaryBody::ArcSharedBytes(body)
     }
 }
 

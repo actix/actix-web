@@ -62,7 +62,7 @@
 //! ```
 use std::vec::Vec;
 use http::{Method, StatusCode, header};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{Async, Poll, Stream};
 
 use actix::{Actor, ResponseType};
@@ -284,9 +284,7 @@ impl WsWriter {
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
-        ctx.write(
-            Bytes::from(buf.as_slice())
-        );
+        ctx.write(buf);
     }
 
     /// Send binary frame
@@ -297,9 +295,7 @@ impl WsWriter {
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
-        ctx.write(
-            Bytes::from(buf.as_slice())
-        );
+        ctx.write(buf);
     }
 
     /// Send ping frame
@@ -311,9 +307,7 @@ impl WsWriter {
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
-        ctx.write(
-            Bytes::from(buf.as_slice())
-        )
+        ctx.write(buf);
     }
 
     /// Send pong frame
@@ -325,9 +319,7 @@ impl WsWriter {
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
-        ctx.write(
-            Bytes::from(buf.as_slice())
-        )
+        ctx.write(buf);
     }
 }
 
