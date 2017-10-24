@@ -113,9 +113,21 @@ impl From<Rc<Bytes>> for BinaryBody {
     }
 }
 
+impl<'a> From<&'a Rc<Bytes>> for BinaryBody {
+    fn from(body: &'a Rc<Bytes>) -> BinaryBody {
+        BinaryBody::SharedBytes(Rc::clone(body))
+    }
+}
+
 impl From<Arc<Bytes>> for BinaryBody {
     fn from(body: Arc<Bytes>) -> BinaryBody {
         BinaryBody::ArcSharedBytes(body)
+    }
+}
+
+impl<'a> From<&'a Arc<Bytes>> for BinaryBody {
+    fn from(body: &'a Arc<Bytes>) -> BinaryBody {
+        BinaryBody::ArcSharedBytes(Arc::clone(body))
     }
 }
 
