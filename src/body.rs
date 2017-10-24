@@ -29,9 +29,14 @@ pub enum BinaryBody {
     Slice(&'static [u8]),
     /// Shared bytes body
     SharedBytes(Rc<Bytes>),
+    /// Shared stirng body
+    SharedString(Rc<String>),
     /// Shared bytes body
     #[doc(hidden)]
     ArcSharedBytes(Arc<Bytes>),
+    /// Shared string body
+    #[doc(hidden)]
+    ArcSharedString(Arc<String>),
 }
 
 impl Body {
@@ -62,6 +67,8 @@ impl BinaryBody {
             &BinaryBody::Slice(slice) => slice.len(),
             &BinaryBody::SharedBytes(ref bytes) => bytes.len(),
             &BinaryBody::ArcSharedBytes(ref bytes) => bytes.len(),
+            &BinaryBody::SharedString(ref s) => s.len(),
+            &BinaryBody::ArcSharedString(ref s) => s.len(),
         }
     }
 
@@ -131,6 +138,30 @@ impl<'a> From<&'a Arc<Bytes>> for BinaryBody {
     }
 }
 
+impl From<Rc<String>> for BinaryBody {
+    fn from(body: Rc<String>) -> BinaryBody {
+        BinaryBody::SharedString(body)
+    }
+}
+
+impl<'a> From<&'a Rc<String>> for BinaryBody {
+    fn from(body: &'a Rc<String>) -> BinaryBody {
+        BinaryBody::SharedString(Rc::clone(body))
+    }
+}
+
+impl From<Arc<String>> for BinaryBody {
+    fn from(body: Arc<String>) -> BinaryBody {
+        BinaryBody::ArcSharedString(body)
+    }
+}
+
+impl<'a> From<&'a Arc<String>> for BinaryBody {
+    fn from(body: &'a Arc<String>) -> BinaryBody {
+        BinaryBody::ArcSharedString(Arc::clone(body))
+    }
+}
+
 impl AsRef<[u8]> for BinaryBody {
     fn as_ref(&self) -> &[u8] {
         match self {
@@ -138,6 +169,8 @@ impl AsRef<[u8]> for BinaryBody {
             &BinaryBody::Slice(slice) => slice,
             &BinaryBody::SharedBytes(ref bytes) => bytes.as_ref(),
             &BinaryBody::ArcSharedBytes(ref bytes) => bytes.as_ref(),
+            &BinaryBody::SharedString(ref s) => s.as_bytes(),
+            &BinaryBody::ArcSharedString(ref s) => s.as_bytes(),
         }
     }
 }
