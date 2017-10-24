@@ -13,7 +13,16 @@ pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
 
+pub const HTTPMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
+pub const HTTPMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
 pub const HTTPFound: StaticResponse = StaticResponse(StatusCode::FOUND);
+pub const HTTPSeeOther: StaticResponse = StaticResponse(StatusCode::SEE_OTHER);
+pub const HTTPNotModified: StaticResponse = StaticResponse(StatusCode::NOT_MODIFIED);
+pub const HTTPUseProxy: StaticResponse = StaticResponse(StatusCode::USE_PROXY);
+pub const HTTPTemporaryRedirect: StaticResponse =
+    StaticResponse(StatusCode::TEMPORARY_REDIRECT);
+pub const HTTPPermanentRedirect: StaticResponse =
+    StaticResponse(StatusCode::PERMANENT_REDIRECT);
 
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
 pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);

@@ -25,7 +25,9 @@ impl<T> Default for RouteRecognizer<T> {
 
 impl<T> RouteRecognizer<T> {
 
-    pub fn new(prefix: String, routes: Vec<(String, T)>) -> Self {
+    pub fn new<P: ToString, U>(prefix: P, routes: U) -> Self
+        where U: IntoIterator<Item=(String, T)>
+    {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
         for item in routes {
@@ -36,7 +38,7 @@ impl<T> RouteRecognizer<T> {
         let regset = RegexSet::new(&paths);
 
         RouteRecognizer {
-            prefix: prefix.len() - 1,
+            prefix: prefix.to_string().len() - 1,
             patterns: regset.unwrap(),
             routes: handlers,
         }
