@@ -174,3 +174,71 @@ impl AsRef<[u8]> for BinaryBody {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_static_str() {
+        assert_eq!(BinaryBody::from("test").len(), 4);
+        assert_eq!(BinaryBody::from("test").as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_static_bytes() {
+        assert_eq!(BinaryBody::from(b"test".as_ref()).len(), 4);
+        assert_eq!(BinaryBody::from(b"test".as_ref()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from_slice(b"test".as_ref()).len(), 4);
+        assert_eq!(BinaryBody::from_slice(b"test".as_ref()).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_vec() {
+        assert_eq!(BinaryBody::from(Vec::from("test")).len(), 4);
+        assert_eq!(BinaryBody::from(Vec::from("test")).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_bytes() {
+        assert_eq!(BinaryBody::from(Bytes::from("test")).len(), 4);
+        assert_eq!(BinaryBody::from(Bytes::from("test")).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_rc_bytes() {
+        let b = Rc::new(Bytes::from("test"));
+        assert_eq!(BinaryBody::from(b.clone()).len(), 4);
+        assert_eq!(BinaryBody::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from(&b).len(), 4);
+        assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_rc_string() {
+        let b = Rc::new("test".to_owned());
+        assert_eq!(BinaryBody::from(b.clone()).len(), 4);
+        assert_eq!(BinaryBody::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from(&b).len(), 4);
+        assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_arc_bytes() {
+        let b = Arc::new(Bytes::from("test"));
+        assert_eq!(BinaryBody::from(b.clone()).len(), 4);
+        assert_eq!(BinaryBody::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from(&b).len(), 4);
+        assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_arc_string() {
+        let b = Arc::new("test".to_owned());
+        assert_eq!(BinaryBody::from(b.clone()).len(), 4);
+        assert_eq!(BinaryBody::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from(&b).len(), 4);
+        assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
+    }
+}
