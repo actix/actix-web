@@ -372,6 +372,11 @@ impl HttpResponseBuilder {
             error: None,
         })
     }
+
+    /// Set an empty body
+    pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
+        self.body(Body::Empty)
+    }
 }
 
 fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
