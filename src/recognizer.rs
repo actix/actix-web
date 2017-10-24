@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::string::ToString;
 use std::collections::HashMap;
 
 use regex::{Regex, RegexSet, Captures};
@@ -11,7 +12,19 @@ pub struct RouteRecognizer<T> {
     routes: Vec<(Pattern, T)>,
 }
 
+impl<T> Default for RouteRecognizer<T> {
+
+    fn default() -> Self {
+        RouteRecognizer {
+            prefix: 0,
+            patterns: RegexSet::new([""].iter()).unwrap(),
+            routes: Vec::new(),
+        }
+    }
+}
+
 impl<T> RouteRecognizer<T> {
+
     pub fn new(prefix: String, routes: Vec<(String, T)>) -> Self {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
@@ -27,6 +40,22 @@ impl<T> RouteRecognizer<T> {
             patterns: regset.unwrap(),
             routes: handlers,
         }
+    }
+
+    pub fn set_routes(&mut self, routes: Vec<(&str, T)>) {
+        let mut paths = Vec::new();
+        let mut handlers = Vec::new();
+        for item in routes {
+            let pat = parse(item.0);
+            handlers.push((Pattern::new(&pat), item.1));
+            paths.push(pat);
+        };
+        self.patterns = RegexSet::new(&paths).unwrap();
+        self.routes = handlers;
+    }
+
+    pub fn set_prefix<P: ToString>(&mut self, prefix: P) {
+        self.prefix = prefix.to_string().len() - 1;
     }
 
     pub fn recognize(&self, path: &str) -> Option<(Option<Params>, &T)> {
