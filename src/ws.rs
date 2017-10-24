@@ -67,12 +67,13 @@ use futures::{Async, Poll, Stream};
 
 use actix::{Actor, ResponseType};
 
+use body::Body;
 use context::HttpContext;
 use route::Route;
 use payload::Payload;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
 use httprequest::HttpRequest;
-use httpresponse::{Body, ConnectionType, HttpResponse};
+use httpresponse::{ConnectionType, HttpResponse};
 
 use wsframe;
 use wsproto::*;

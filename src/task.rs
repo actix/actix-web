@@ -11,10 +11,11 @@ use futures::{Async, Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use date;
+use body::Body;
 use route::Frame;
 use application::Middleware;
 use httprequest::HttpRequest;
-use httpresponse::{Body, HttpResponse};
+use httpresponse::HttpResponse;
 
 type FrameStream = Stream<Item=Frame, Error=io::Error>;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -219,7 +220,7 @@ impl Task {
         self.buffer.extend(b"\r\n");
 
         if let Body::Binary(ref bytes) = body {
-            self.buffer.extend(bytes);
+            self.buffer.extend_from_slice(bytes.as_ref());
             self.prepared = Some(msg);
             return
         }

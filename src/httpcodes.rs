@@ -3,11 +3,12 @@
 use std::rc::Rc;
 use http::StatusCode;
 
+use body::Body;
 use task::Task;
 use route::RouteHandler;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpresponse::{Body, HttpResponse, HttpResponseBuilder};
+use httpresponse::{HttpResponse, HttpResponseBuilder};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
@@ -64,8 +65,8 @@ impl StaticResponse {
         resp.set_reason(reason);
         resp
     }
-    pub fn with_body(self, body: Body) -> HttpResponse {
-        HttpResponse::new(self.0, body)
+    pub fn with_body<B: Into<Body>>(self, body: B) -> HttpResponse {
+        HttpResponse::new(self.0, body.into())
     }
 }
 

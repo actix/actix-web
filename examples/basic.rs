@@ -17,8 +17,8 @@ fn with_param(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpRespo
 
     HttpResponse::builder(StatusCode::OK)
         .content_type("test/plain")
-        .body(Body::Binary(
-            format!("Hello {}!", req.match_info().get("name").unwrap()).into())).unwrap()
+        .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
+        .unwrap()
 }
 
 fn main() {

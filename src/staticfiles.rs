@@ -14,7 +14,7 @@ use route::RouteHandler;
 use payload::Payload;
 use mime_guess::get_mime_type;
 use httprequest::HttpRequest;
-use httpresponse::{Body, HttpResponse};
+use httpresponse::HttpResponse;
 use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden, HTTPInternalServerError};
 
 /// Static files handling
@@ -111,7 +111,7 @@ impl StaticFiles {
         Ok(
             HTTPOk.builder()
                 .content_type("text/html; charset=utf-8")
-                .body(Body::Binary(html.into())).unwrap()
+                .body(html).unwrap()
         )
     }
 
@@ -188,7 +188,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                     Ok(mut file) => {
                         let mut data = Vec::new();
                         let _ = file.read_to_end(&mut data);
-                        Task::reply(resp.body(Body::Binary(data.into())).unwrap())
+                        Task::reply(resp.body(data).unwrap())
                     },
                     Err(err) => {
                         Task::reply(HTTPInternalServerError)

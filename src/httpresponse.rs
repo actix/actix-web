@@ -4,11 +4,11 @@ use std::error::Error as Error;
 use std::convert::Into;
 
 use cookie::CookieJar;
-use bytes::Bytes;
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 
 use Cookie;
+use body::Body;
 
 
 /// Represents various types of connection
@@ -20,32 +20,6 @@ pub enum ConnectionType {
     KeepAlive,
     /// Connection is upgraded to different type
     Upgrade,
-}
-
-/// Represents various types of http message body.
-#[derive(Debug)]
-pub enum Body {
-    /// Empty response. `Content-Length` header is set to `0`
-    Empty,
-    /// Specific response body. `Content-Length` header is set to length of bytes.
-    Binary(Bytes),
-    /// Streaming response body with specified length.
-    Length(u64),
-    /// Unspecified streaming response. Developer is responsible for setting
-    /// right `Content-Length` or `Transfer-Encoding` headers.
-    Streaming,
-    /// Upgrade connection.
-    Upgrade,
-}
-
-impl Body {
-    /// Does this body have payload.
-    pub fn has_body(&self) -> bool {
-        match *self {
-            Body::Length(_) | Body::Streaming => true,
-            _ => false
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -90,14 +64,12 @@ impl HttpResponse {
     /// Constructs a response from error
     #[inline]
     pub fn from_error<E: Error + 'static>(status: StatusCode, error: E) -> HttpResponse {
-        let body = Body::Binary(error.description().into());
-
         HttpResponse {
             version: None,
             headers: Default::default(),
             status: status,
             reason: None,
-            body: body,
+            body: Body::from_slice(error.description().as_ref()),
             chunked: false,
             // compression: None,
             connection_type: None,

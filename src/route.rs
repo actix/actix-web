@@ -12,7 +12,7 @@ use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
 use httprequest::HttpRequest;
-use httpresponse::{Body, HttpResponse};
+use httpresponse::HttpResponse;
 use httpcodes::HTTPExpectationFailed;
 
 #[doc(hidden)]
@@ -55,12 +55,10 @@ pub trait Route: Actor {
                         ctx.write("HTTP/1.1 100 Continue\r\n\r\n");
                         Ok(())
                     } else {
-                        Err(HTTPExpectationFailed.with_body(
-                            Body::Binary("Unknown Expect".into())))
+                        Err(HTTPExpectationFailed.with_body("Unknown Expect"))
                     }
                 } else {
-                    Err(HTTPExpectationFailed.with_body(
-                        Body::Binary("Unknown Expect".into())))
+                    Err(HTTPExpectationFailed.with_body("Unknown Expect"))
                 }
             } else {
                 Ok(())

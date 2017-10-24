@@ -11,7 +11,8 @@ use http::{StatusCode, Error as HttpError};
 
 use HttpRangeParseError;
 use multipart::MultipartError;
-use httpresponse::{Body, HttpResponse};
+use body::Body;
+use httpresponse::{HttpResponse};
 
 
 /// A set of errors that can occur during parsing HTTP streams.
@@ -139,8 +140,8 @@ impl From<MultipartError> for HttpResponse {
 /// Return `BadRequest` for `HttpRangeParseError`
 impl From<HttpRangeParseError> for HttpResponse {
     fn from(_: HttpRangeParseError) -> Self {
-        HttpResponse::new(StatusCode::BAD_REQUEST,
-                          Body::Binary("Invalid Range header provided".into()))
+        HttpResponse::new(
+            StatusCode::BAD_REQUEST, Body::from("Invalid Range header provided"))
     }
 }
 

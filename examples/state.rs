@@ -19,7 +19,7 @@ fn index(req: &mut HttpRequest, _: Payload, state: &AppState) -> HttpResponse {
     println!("{:?}", req);
     state.counter.set(state.counter.get() + 1);
     httpcodes::HTTPOk.with_body(
-        Body::Binary(format!("Num of requests: {}", state.counter.get()).into()))
+        format!("Num of requests: {}", state.counter.get()))
 }
 
 /// `MyWebSocket` counts how many messages it receives from peer,
