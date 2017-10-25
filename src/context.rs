@@ -241,13 +241,14 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
     }
 }
 
-impl<A, M> ToEnvelope<A, M> for HttpContext<A>
-    where A: Actor<Context=HttpContext<A>> + Route + Handler<M>,
-          M: ResponseType + Send + 'static,
-          M::Item: Send,
-          M::Error: Send,
+impl<A> ToEnvelope<A> for HttpContext<A>
+    where A: Actor<Context=HttpContext<A>> + Route,
 {
-    fn pack(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
+    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
+        where A: Handler<M>,
+              M: ResponseType + Send + 'static,
+              M::Item: Send,
+              M::Error: Send
     {
         RemoteEnvelope::new(msg, tx).into()
     }
