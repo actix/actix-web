@@ -49,7 +49,7 @@ impl Body {
     }
 
     /// Create body from slice (copy)
-    pub fn from_slice<'a>(s: &'a [u8]) -> Body {
+    pub fn from_slice(s: &[u8]) -> Body {
         Body::Binary(BinaryBody::Bytes(Bytes::from(s)))
     }
 }
@@ -61,19 +61,23 @@ impl<T> From<T> for Body where T: Into<BinaryBody>{
 }
 
 impl BinaryBody {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn len(&self) -> usize {
-        match self {
-            &BinaryBody::Bytes(ref bytes) => bytes.len(),
-            &BinaryBody::Slice(slice) => slice.len(),
-            &BinaryBody::SharedBytes(ref bytes) => bytes.len(),
-            &BinaryBody::ArcSharedBytes(ref bytes) => bytes.len(),
-            &BinaryBody::SharedString(ref s) => s.len(),
-            &BinaryBody::ArcSharedString(ref s) => s.len(),
+        match *self {
+            BinaryBody::Bytes(ref bytes) => bytes.len(),
+            BinaryBody::Slice(slice) => slice.len(),
+            BinaryBody::SharedBytes(ref bytes) => bytes.len(),
+            BinaryBody::ArcSharedBytes(ref bytes) => bytes.len(),
+            BinaryBody::SharedString(ref s) => s.len(),
+            BinaryBody::ArcSharedString(ref s) => s.len(),
         }
     }
 
     /// Create binary body from slice
-    pub fn from_slice<'a>(s: &'a [u8]) -> BinaryBody {
+    pub fn from_slice(s: &[u8]) -> BinaryBody {
         BinaryBody::Bytes(Bytes::from(s))
     }
 }
@@ -164,13 +168,13 @@ impl<'a> From<&'a Arc<String>> for BinaryBody {
 
 impl AsRef<[u8]> for BinaryBody {
     fn as_ref(&self) -> &[u8] {
-        match self {
-            &BinaryBody::Bytes(ref bytes) => bytes.as_ref(),
-            &BinaryBody::Slice(slice) => slice,
-            &BinaryBody::SharedBytes(ref bytes) => bytes.as_ref(),
-            &BinaryBody::ArcSharedBytes(ref bytes) => bytes.as_ref(),
-            &BinaryBody::SharedString(ref s) => s.as_bytes(),
-            &BinaryBody::ArcSharedString(ref s) => s.as_bytes(),
+        match *self {
+            BinaryBody::Bytes(ref bytes) => bytes.as_ref(),
+            BinaryBody::Slice(slice) => slice,
+            BinaryBody::SharedBytes(ref bytes) => bytes.as_ref(),
+            BinaryBody::ArcSharedBytes(ref bytes) => bytes.as_ref(),
+            BinaryBody::SharedString(ref s) => s.as_bytes(),
+            BinaryBody::ArcSharedString(ref s) => s.as_bytes(),
         }
     }
 }

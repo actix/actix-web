@@ -11,6 +11,8 @@
 
 * Re-use `BinaryBody` for `Frame::Payload`
 
+* Fix disconnection handling.
+
 
 ## 0.1.0 (2017-10-23)
 

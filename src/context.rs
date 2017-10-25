@@ -10,6 +10,7 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
                  Envelope, ToEnvelope, RemoteEnvelope};
 
+use task::IoContext;
 use body::BinaryBody;
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
@@ -26,10 +27,20 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
     stream: VecDeque<Frame>,
     wait: ActorWaitCell<A>,
     app_state: Rc<<A as Route>::State>,
+    disconnected: bool,
 }
 
+impl<A> IoContext for HttpContext<A> where A: Actor<Context=Self> + Route {
 
-impl<A> ActorContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
+    fn disconnected(&mut self) {
+        self.disconnected = true;
+        if self.state == ActorState::Running {
+            self.state = ActorState::Stopping;
+        }
+    }
+}
+
+impl<A> ActorContext for HttpContext<A> where A: Actor<Context=Self> + Route
 {
     /// Stop actor execution
     fn stop(&mut self) {
@@ -95,6 +106,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
             wait: ActorWaitCell::default(),
             stream: VecDeque::new(),
             app_state: state,
+            disconnected: false,
         }
     }
 
@@ -123,6 +135,11 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     /// Indicate end of streamimng payload
     pub fn write_eof(&mut self) {
         self.stream.push_back(Frame::Payload(None))
+    }
+
+    /// Check if connection still open
+    pub fn connected(&self) -> bool {
+        !self.disconnected
     }
 }
 
@@ -157,7 +174,6 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
         if self.act.is_none() {
             return Ok(Async::NotReady)
         }
-
         let act: &mut A = unsafe {
             std::mem::transmute(self.act.as_mut().unwrap() as &mut A)
         };

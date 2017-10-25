@@ -158,7 +158,7 @@ impl<A> Reply<A> where A: Actor + Route
             },
             ReplyItem::Actor(act) => {
                 ctx.set_actor(act);
-                Task::with_stream(ctx)
+                Task::with_context(ctx)
             }
         }
     }

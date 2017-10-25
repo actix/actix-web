@@ -171,11 +171,11 @@ pub struct HttpChannel<T: 'static, A: 'static, H: 'static> {
     keepalive_timer: Option<Timeout>,
 }
 
-/*impl<T: 'static, A: 'static> Drop for HttpChannel<T, A> {
+impl<T: 'static, A: 'static, H: 'static> Drop for HttpChannel<T, A, H> {
     fn drop(&mut self) {
         println!("Drop http channel");
     }
-}*/
+}
 
 impl<T, A, H> Actor for HttpChannel<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
@@ -205,6 +205,8 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
         }
 
         loop {
+            let mut not_ready = true;
+
             // check in-flight messages
             let mut idx = 0;
             while idx < self.items.len() {
@@ -218,6 +220,7 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                     match self.items[idx].task.poll_io(&mut self.stream, req)
                     {
                         Ok(Async::Ready(ready)) => {
+                            not_ready = false;
                             let mut item = self.items.pop_front().unwrap();
 
                             // overide keep-alive state
@@ -247,8 +250,10 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                 } else if !self.items[idx].finished && !self.items[idx].error {
                     match self.items[idx].task.poll() {
                         Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) =>
-                            self.items[idx].finished = true,
+                        Ok(Async::Ready(_)) => {
+                            not_ready = false;
+                            self.items[idx].finished = true;
+                        },
                         Err(_) =>
                             self.items[idx].error = true,
                     }
@@ -267,8 +272,10 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                 if !self.inactive[idx].finished && !self.inactive[idx].error {
                     match self.inactive[idx].task.poll() {
                         Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) =>
-                            self.inactive[idx].finished = true,
+                        Ok(Async::Ready(_)) => {
+                            not_ready = false;
+                            self.inactive[idx].finished = true
+                        }
                         Err(_) =>
                             self.inactive[idx].error = true,
                     }
@@ -280,6 +287,8 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
             if !self.error && self.items.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(&mut self.stream) {
                     Ok(Async::Ready((mut req, payload))) => {
+                        not_ready = false;
+
                         // stop keepalive timer
                         self.keepalive_timer.take();
 
@@ -300,6 +309,12 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                                    finished: false});
                     }
                     Err(err) => {
+                        // notify all tasks
+                        not_ready = false;
+                        for entry in &mut self.items {
+                            entry.task.disconnected()
+                        }
+
                         // kill keepalive
                         self.keepalive = false;
                         self.keepalive_timer.take();
@@ -343,6 +358,10 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
             // check for parse error
             if self.items.is_empty() && self.inactive.is_empty() && self.error {
                 return Ok(Async::Ready(()))
+            }
+
+            if not_ready {
+                return Ok(Async::NotReady)
             }
         }
     }

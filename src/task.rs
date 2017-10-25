@@ -1,4 +1,4 @@
-use std::{cmp, io};
+use std::{mem, cmp, io};
 use std::rc::Rc;
 use std::fmt::Write;
 use std::collections::VecDeque;
@@ -47,16 +47,27 @@ impl TaskIOState {
     }
 }
 
+enum TaskStream {
+    None,
+    Stream(Box<FrameStream>),
+    Context(Box<IoContext<Item=Frame, Error=io::Error>>),
+}
+
+pub(crate) trait IoContext: Stream<Item=Frame, Error=io::Error> + 'static {
+    fn disconnected(&mut self);
+}
+
 pub struct Task {
     state: TaskRunningState,
     iostate: TaskIOState,
     frames: VecDeque<Frame>,
-    stream: Option<Box<FrameStream>>,
+    stream: TaskStream,
     encoder: Encoder,
     buffer: BytesMut,
     upgrade: bool,
     keepalive: bool,
     prepared: Option<HttpResponse>,
+    disconnected: bool,
     middlewares: Option<Rc<Vec<Box<Middleware>>>>,
 }
 
@@ -71,12 +82,13 @@ impl Task {
             state: TaskRunningState::Running,
             iostate: TaskIOState::Done,
             frames: frames,
-            stream: None,
+            stream: TaskStream::None,
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
             prepared: None,
+            disconnected: false,
             middlewares: None,
         }
     }
@@ -88,12 +100,30 @@ impl Task {
             state: TaskRunningState::Running,
             iostate: TaskIOState::ReadingMessage,
             frames: VecDeque::new(),
-            stream: Some(Box::new(stream)),
+            stream: TaskStream::Stream(Box::new(stream)),
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
             upgrade: false,
             keepalive: false,
             prepared: None,
+            disconnected: false,
+            middlewares: None,
+        }
+    }
+
+    pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self
+    {
+        Task {
+            state: TaskRunningState::Running,
+            iostate: TaskIOState::ReadingMessage,
+            frames: VecDeque::new(),
+            stream: TaskStream::Context(Box::new(ctx)),
+            encoder: Encoder::length(0),
+            buffer: BytesMut::new(),
+            upgrade: false,
+            keepalive: false,
+            prepared: None,
+            disconnected: false,
             middlewares: None,
         }
     }
@@ -104,6 +134,15 @@ impl Task {
 
     pub(crate) fn set_middlewares(&mut self, middlewares: Rc<Vec<Box<Middleware>>>) {
         self.middlewares = Some(middlewares);
+    }
+
+    pub(crate) fn disconnected(&mut self) {
+        let len = self.buffer.len();
+        self.buffer.split_to(len);
+        self.disconnected = true;
+        if let TaskStream::Context(ref mut ctx) = self.stream {
+            ctx.disconnected();
+        }
     }
 
     fn prepare(&mut self, req: &mut HttpRequest, msg: HttpResponse)
@@ -252,20 +291,26 @@ impl Task {
                 trace!("IO Frame: {:?}", frame);
                 match frame {
                     Frame::Message(response) => {
-                        self.prepare(req, response);
+                        if !self.disconnected {
+                            self.prepare(req, response);
+                        }
                     }
                     Frame::Payload(Some(chunk)) => {
-                        if self.prepared.is_some() {
-                            // TODO: add warning, write after EOF
-                            self.encoder.encode(&mut self.buffer, chunk.as_ref());
-                        } else {
-                            // might be response for EXCEPT
-                            self.buffer.extend_from_slice(chunk.as_ref())
+                        if !self.disconnected {
+                            if self.prepared.is_some() {
+                                // TODO: add warning, write after EOF
+                                self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                            } else {
+                                // might be response for EXCEPT
+                                self.buffer.extend_from_slice(chunk.as_ref())
+                            }
                         }
                     },
                     Frame::Payload(None) => {
-                        // TODO: add error "not eof""
-                        if !self.encoder.encode(&mut self.buffer, [].as_ref()) {
+                        if !self.disconnected &&
+                            !self.encoder.encode(&mut self.buffer, [].as_ref())
+                        {
+                            // TODO: add error "not eof""
                             debug!("last payload item, but it is not EOF ");
                             return Err(())
                         }
@@ -276,15 +321,17 @@ impl Task {
         }
 
         // write bytes to TcpStream
-        while !self.buffer.is_empty() {
-            match io.write(self.buffer.as_ref()) {
-                Ok(n) => {
-                    self.buffer.split_to(n);
-                },
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    break
+        if !self.disconnected {
+            while !self.buffer.is_empty() {
+                match io.write(self.buffer.as_ref()) {
+                    Ok(n) => {
+                        self.buffer.split_to(n);
+                    },
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        break
+                    }
+                    Err(_) => return Err(()),
                 }
-                Err(_) => return Err(()),
             }
         }
 
@@ -295,10 +342,13 @@ impl Task {
             } else if self.state == TaskRunningState::Paused {
                 self.state = TaskRunningState::Running;
             }
+        } else {
+            // at this point we wont get any more Frames
+            self.iostate = TaskIOState::Done;
         }
 
         // response is completed
-        if self.buffer.is_empty() && self.iostate.is_done() {
+        if (self.buffer.is_empty() || self.disconnected) && self.iostate.is_done() {
             // run middlewares
             if let Some(ref mut resp) = self.prepared {
                 if let Some(middlewares) = self.middlewares.take() {
@@ -313,6 +363,46 @@ impl Task {
             Ok(Async::NotReady)
         }
     }
+
+    fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), ()>
+        where S: Stream<Item=Frame, Error=io::Error>
+    {
+        loop {
+            match stream.poll() {
+                Ok(Async::Ready(Some(frame))) => {
+                    match frame {
+                        Frame::Message(ref msg) => {
+                            if self.iostate != TaskIOState::ReadingMessage {
+                                error!("Non expected frame {:?}", frame);
+                                return Err(())
+                            }
+                            self.upgrade = msg.upgrade();
+                            if self.upgrade || msg.body().has_body() {
+                                self.iostate = TaskIOState::ReadingPayload;
+                            } else {
+                                self.iostate = TaskIOState::Done;
+                            }
+                        },
+                        Frame::Payload(ref chunk) => {
+                            if chunk.is_none() {
+                                self.iostate = TaskIOState::Done;
+                            } else if self.iostate != TaskIOState::ReadingPayload {
+                                error!("Non expected frame {:?}", self.iostate);
+                                return Err(())
+                            }
+                        },
+                    }
+                    self.frames.push_back(frame)
+                },
+                Ok(Async::Ready(None)) =>
+                    return Ok(Async::Ready(())),
+                Ok(Async::NotReady) =>
+                    return Ok(Async::NotReady),
+                Err(_) =>
+                    return Err(())
+            }
+        }
+    }
 }
 
 impl Future for Task {
@@ -320,45 +410,15 @@ impl Future for Task {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut stream) = self.stream {
-            loop {
-                match stream.poll() {
-                    Ok(Async::Ready(Some(frame))) => {
-                        match frame {
-                            Frame::Message(ref msg) => {
-                                if self.iostate != TaskIOState::ReadingMessage {
-                                    error!("Non expected frame {:?}", frame);
-                                    return Err(())
-                                }
-                                self.upgrade = msg.upgrade();
-                                if self.upgrade || msg.body().has_body() {
-                                    self.iostate = TaskIOState::ReadingPayload;
-                                } else {
-                                    self.iostate = TaskIOState::Done;
-                                }
-                            },
-                            Frame::Payload(ref chunk) => {
-                                if chunk.is_none() {
-                                    self.iostate = TaskIOState::Done;
-                                } else if self.iostate != TaskIOState::ReadingPayload {
-                                    error!("Non expected frame {:?}", self.iostate);
-                                    return Err(())
-                                }
-                            },
-                        }
-                        self.frames.push_back(frame)
-                    },
-                    Ok(Async::Ready(None)) =>
-                        return Ok(Async::Ready(())),
-                    Ok(Async::NotReady) =>
-                        return Ok(Async::NotReady),
-                    Err(_) =>
-                        return Err(())
-                }
-            }
-        } else {
-            Ok(Async::Ready(()))
-        }
+        let mut s = mem::replace(&mut self.stream, TaskStream::None);
+
+        let result = match s {
+            TaskStream::None => Ok(Async::Ready(())),
+            TaskStream::Stream(ref mut stream) => self.poll_stream(stream),
+            TaskStream::Context(ref mut context) => self.poll_stream(context),
+        };
+        self.stream = s;
+        result
     }
 }
 
