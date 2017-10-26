@@ -7,9 +7,11 @@ readme = "README.md"
 keywords = ["actor", "http", "web"]
 homepage = "https://github.com/actix/actix-web"
 repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous"]
 license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+build = "build.rs"
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -58,6 +60,10 @@ features = []
 [dev-dependencies]
 env_logger = "0.4"
 reqwest = "0.8"
+skeptic = "0.13"
+
+[build-dependencies]
+skeptic = "0.13"
 
 [profile.release]
 lto = true

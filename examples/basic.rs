@@ -44,7 +44,7 @@ fn main() {
                     .body(Body::Empty)
             }))
             // static files
-            .route_handler("/static", StaticFiles::new("static/", true)))
+            .route_handler("/static", StaticFiles::new("examples/static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");
