@@ -268,7 +268,6 @@ impl Future for UrlEncoded {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             return match self.pl.poll() {
-                Err(_) => unreachable!(),
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => {
                     let mut m = HashMap::new();
@@ -277,13 +276,11 @@ impl Future for UrlEncoded {
                     }
                     Ok(Async::Ready(m))
                 },
-                Ok(Async::Ready(Some(item))) => match item {
-                    Ok(bytes) => {
-                        self.body.extend(bytes);
-                        continue
-                    },
-                    Err(err) => Err(err),
-                }
+                Ok(Async::Ready(Some(item))) => {
+                    self.body.extend(item.0);
+                    continue
+                },
+                Err(err) => Err(err),
             }
         }
     }

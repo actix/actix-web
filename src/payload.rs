@@ -8,10 +8,17 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
+use actix::ResponseType;
+
 const MAX_PAYLOAD_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Just Bytes object
-pub type PayloadItem = Result<Bytes, PayloadError>;
+pub struct PayloadItem(pub Bytes);
+
+impl ResponseType for PayloadItem {
+    type Item = ();
+    type Error = ();
+}
 
 #[derive(Debug)]
 /// A set of error that can occur during payload parsing.
@@ -92,7 +99,7 @@ impl Payload {
 
     /// Get first available chunk of data.
     /// Returns Some(PayloadItem) as chunk, `None` indicates eof.
-    pub fn readany(&mut self) -> Async<Option<PayloadItem>> {
+    pub fn readany(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
         self.inner.borrow_mut().readany()
     }
 
@@ -128,10 +135,10 @@ impl Payload {
 
 impl Stream for Payload {
     type Item = PayloadItem;
-    type Error = ();
+    type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Option<PayloadItem>, ()> {
-        Ok(self.readany())
+    fn poll(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
+        self.readany()
     }
 }
 
@@ -244,17 +251,17 @@ impl Inner {
         self.len
     }
 
-    fn readany(&mut self) -> Async<Option<PayloadItem>> {
+    fn readany(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
-            Async::Ready(Some(Ok(data)))
+            Ok(Async::Ready(Some(PayloadItem(data))))
         } else if self.eof {
-            Async::Ready(None)
+            Ok(Async::Ready(None))
         } else if let Some(err) = self.err.take() {
-            Async::Ready(Some(Err(err)))
+            Err(err)
         } else {
             self.task = Some(current_task());
-            Async::NotReady
+            Ok(Async::NotReady)
         }
     }
 
@@ -391,7 +398,7 @@ mod tests {
             assert_eq!(payload.len(), 0);
 
             match payload.readany() {
-                Async::NotReady => (),
+                Ok(Async::NotReady) => (),
                 _ => panic!("error"),
             }
 
@@ -406,7 +413,7 @@ mod tests {
             let (mut sender, mut payload) = Payload::new(false);
 
             match payload.readany() {
-                Async::NotReady => (),
+                Ok(Async::NotReady) => (),
                 _ => panic!("error"),
             }
 
@@ -418,7 +425,7 @@ mod tests {
             assert!(!payload.eof());
 
             match payload.readany() {
-                Async::Ready(Some(data)) => assert_eq!(&data.unwrap(), "data"),
+                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "data"),
                 _ => panic!("error"),
             }
             assert!(payload.is_empty());
@@ -426,7 +433,7 @@ mod tests {
             assert_eq!(payload.len(), 0);
 
             match payload.readany() {
-                Async::Ready(None) => (),
+                Ok(Async::Ready(None)) => (),
                 _ => panic!("error"),
             }
             let res: Result<(), ()> = Ok(());
@@ -440,13 +447,13 @@ mod tests {
             let (mut sender, mut payload) = Payload::new(false);
 
             match payload.readany() {
-                Async::NotReady => (),
+                Ok(Async::NotReady) => (),
                 _ => panic!("error"),
             }
 
             sender.set_error(PayloadError::Incomplete);
             match payload.readany() {
-                Async::Ready(Some(data)) => assert!(data.is_err()),
+                Err(_) => (),
                 _ => panic!("error"),
             }
             let res: Result<(), ()> = Ok(());
@@ -469,7 +476,7 @@ mod tests {
             assert_eq!(payload.len(), 10);
 
             match payload.readany() {
-                Async::Ready(Some(data)) => assert_eq!(&data.unwrap(), "line1"),
+                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "line1"),
                 _ => panic!("error"),
             }
             assert!(!payload.is_empty());
@@ -587,7 +594,7 @@ mod tests {
             assert_eq!(payload.len(), 4);
 
             match payload.readany() {
-                Async::Ready(Some(data)) => assert_eq!(&data.unwrap(), "data"),
+                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "data"),
                 _ => panic!("error"),
             }
 

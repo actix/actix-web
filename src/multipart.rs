@@ -512,18 +512,18 @@ impl InnerField {
             Ok(Async::Ready(None))
         } else {
             match payload.readany() {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::Ready(Some(Ok(mut chunk))) => {
-                    let len = cmp::min(chunk.len() as u64, *size);
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+                Ok(Async::Ready(Some(mut chunk))) => {
+                    let len = cmp::min(chunk.0.len() as u64, *size);
                     *size -= len;
-                    let ch = chunk.split_to(len as usize);
-                    if !chunk.is_empty() {
-                        payload.unread_data(chunk);
+                    let ch = chunk.0.split_to(len as usize);
+                    if !chunk.0.is_empty() {
+                        payload.unread_data(chunk.0);
                     }
                     Ok(Async::Ready(Some(ch)))
                 },
-                Async::Ready(Some(Err(err))) => Err(err.into())
+                Err(err) => Err(err.into())
             }
         }
     }

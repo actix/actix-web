@@ -9,6 +9,8 @@
 
 * Refactor `HttpContext::write`
 
+* Refactor `Payload` stream
+
 * Re-use `BinaryBody` for `Frame::Payload`
 
 * Fix disconnection handling.

@@ -196,19 +196,19 @@ impl Stream for WsStream {
         if !self.closed {
             loop {
                 match self.rx.readany() {
-                    Async::Ready(Some(Ok(chunk))) => {
-                        self.buf.extend(chunk)
+                    Ok(Async::Ready(Some(chunk))) => {
+                        self.buf.extend(chunk.0)
                     }
-                    Async::Ready(Some(Err(_))) => {
-                        self.closed = true;
-                        break;
-                    }
-                    Async::Ready(None) => {
+                    Ok(Async::Ready(None)) => {
                         done = true;
                         self.closed = true;
                         break;
                     }
-                    Async::NotReady => break,
+                    Ok(Async::NotReady) => break,
+                    Err(_) => {
+                        self.closed = true;
+                        break;
+                    }
                 }
             }
         }

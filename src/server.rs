@@ -86,7 +86,7 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
         if let Ok(iter) = addr.to_socket_addrs() {
             for addr in iter {
                 match TcpListener::bind(&addr, Arbiter::handle()) {
-                    Ok(tcp) => addrs.push(tcp),
+                    Ok(tcp) => addrs.push((addr, tcp)),
                     Err(e) => err = Some(e),
                 }
             }
@@ -99,7 +99,8 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
             }
         } else {
             Ok(HttpServer::create(move |ctx| {
-                for tcp in addrs {
+                for (addr, tcp) in addrs {
+                    info!("Starting http server on {}", addr);
                     ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a)));
                 }
                 self
