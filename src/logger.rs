@@ -52,7 +52,13 @@ impl Logger {
                 match *text {
                     FormatText::Str(ref string) => fmt.write_str(string),
                     FormatText::Method => req.method().fmt(fmt),
-                    FormatText::URI => req.uri().fmt(fmt),
+                    FormatText::URI => {
+                        if req.query_string().is_empty() {
+                            fmt.write_fmt(format_args!("{}", req.path()))
+                        } else {
+                            fmt.write_fmt(format_args!("{}?{}", req.path(), req.query_string()))
+                        }
+                    },
                     FormatText::Status => resp.status().fmt(fmt),
                     FormatText::ResponseTime =>
                         fmt.write_fmt(format_args!("{} ms", response_time_ms)),

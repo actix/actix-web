@@ -4,13 +4,13 @@ extern crate time;
 
 use std::str;
 use actix_web::*;
-use http::{header, Method, Uri, Version, HeaderMap, HttpTryFrom};
+use http::{header, Method, Version, HeaderMap};
 
 
 #[test]
 fn test_no_request_cookies() {
     let mut req = HttpRequest::new(
-        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, HeaderMap::new());
+        Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(), String::new());
     assert!(req.cookies().is_empty());
     let _ = req.load_cookies();
     assert!(req.cookies().is_empty());
@@ -23,7 +23,7 @@ fn test_request_cookies() {
                    header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
     let mut req = HttpRequest::new(
-        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+        Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
     assert!(req.cookies().is_empty());
     {
         let cookies = req.load_cookies().unwrap();
@@ -46,8 +46,8 @@ fn test_request_cookies() {
 
 #[test]
 fn test_no_request_range_header() {
-    let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
-                               Version::HTTP_11, HeaderMap::new());
+    let req = HttpRequest::new(Method::GET, "/".to_owned(),
+                               Version::HTTP_11, HeaderMap::new(), String::new());
     let ranges = req.range(100).unwrap();
     assert!(ranges.is_empty());
 }
@@ -58,8 +58,8 @@ fn test_request_range_header() {
     headers.insert(header::RANGE,
                    header::HeaderValue::from_static("bytes=0-4"));
 
-    let req = HttpRequest::new(Method::GET, Uri::try_from("/").unwrap(),
-                               Version::HTTP_11, headers);
+    let req = HttpRequest::new(Method::GET, "/".to_owned(),
+                               Version::HTTP_11, headers, String::new());
     let ranges = req.range(100).unwrap();
     assert_eq!(ranges.len(), 1);
     assert_eq!(ranges[0].start, 0);
@@ -68,8 +68,8 @@ fn test_request_range_header() {
 
 #[test]
 fn test_request_query() {
-    let req = HttpRequest::new(Method::GET, Uri::try_from("/?id=test").unwrap(),
-                               Version::HTTP_11, HeaderMap::new());
+    let req = HttpRequest::new(Method::GET, "/".to_owned(),
+                               Version::HTTP_11, HeaderMap::new(), "id=test".to_owned());
 
     assert_eq!(req.query_string(), "id=test");
     let query: Vec<_> = req.query().collect();
@@ -79,8 +79,8 @@ fn test_request_query() {
 
 #[test]
 fn test_request_match_info() {
-    let mut req = HttpRequest::new(Method::GET, Uri::try_from("/value/?id=test").unwrap(),
-                                   Version::HTTP_11, HeaderMap::new());
+    let mut req = HttpRequest::new(Method::GET, "/value/".to_owned(),
+                                   Version::HTTP_11, HeaderMap::new(), "?id=test".to_owned());
 
     let rec = RouteRecognizer::new("/".to_owned(), vec![("/{key}/".to_owned(), 1)]);
     let (params, _) = rec.recognize(req.path()).unwrap();
@@ -93,14 +93,14 @@ fn test_request_match_info() {
 #[test]
 fn test_chunked() {
     let req = HttpRequest::new(
-        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, HeaderMap::new());
+        Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(), String::new());
     assert!(!req.chunked().unwrap());
 
     let mut headers = HeaderMap::new();
     headers.insert(header::TRANSFER_ENCODING,
                    header::HeaderValue::from_static("chunked"));
     let req = HttpRequest::new(
-        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+        Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
     assert!(req.chunked().unwrap());
 
     let mut headers = HeaderMap::new();
@@ -109,6 +109,6 @@ fn test_chunked() {
     headers.insert(header::TRANSFER_ENCODING,
                    header::HeaderValue::from_str(s).unwrap());
     let req = HttpRequest::new(
-        Method::GET, Uri::try_from("/").unwrap(), Version::HTTP_11, headers);
+        Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
     assert!(req.chunked().is_err());
 }

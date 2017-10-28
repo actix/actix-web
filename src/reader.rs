@@ -1,11 +1,12 @@
 use std::{self, io, ptr};
 
 use httparse;
-use http::{Method, Version, Uri, HttpTryFrom, HeaderMap};
+use http::{Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
 use bytes::{BytesMut, BufMut};
 use futures::{Async, Poll};
 use tokio_io::AsyncRead;
+use percent_encoding;
 
 use error::ParseError;
 use decode::Decoder;
@@ -248,8 +249,31 @@ impl Reader {
 
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
-        // path was found to be utf8 by httparse
-        let uri = Uri::from_shared(path).map_err(|_| ParseError::Uri)?;
+
+        // manually split path, path was found to be utf8 by httparse
+        let uri = {
+            if let Ok(path) = percent_encoding::percent_decode(&path).decode_utf8() {
+                let parts: Vec<&str> = path.splitn(2, '?').collect();
+                if parts.len() == 2 {
+                    Some((parts[0].to_owned(), parts[1][1..].to_owned()))
+                } else {
+                    Some((parts[0].to_owned(), String::new()))
+                }
+            } else {
+                None
+            }
+        };
+        let (path, query) = if let Some(uri) = uri {
+            uri
+        } else {
+            let parts: Vec<&str> = unsafe{
+                std::str::from_utf8_unchecked(&path)}.splitn(2, '?').collect();
+            if parts.len() == 2 {
+                (parts[0].to_owned(), parts[1][1..].to_owned())
+            } else {
+                (parts[0].to_owned(), String::new())
+            }
+        };
 
         // convert headers
         let mut headers = HeaderMap::with_capacity(headers_len);
@@ -267,7 +291,7 @@ impl Reader {
             }
         }
 
-        let msg = HttpRequest::new(method, uri, version, headers);
+        let msg = HttpRequest::new(method, path, version, headers, query);
 
         let decoder = if msg.upgrade() {
             Some(Decoder::eof())

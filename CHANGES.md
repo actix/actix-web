@@ -3,6 +3,8 @@
 
 ## 0.2.0 (2017-10-xx)
 
+* Do not use `http::Uri` as it can not parse some valid paths
+
 * Refactor response `Body`
 
 * Refactor `RouteRecognizer` usability
