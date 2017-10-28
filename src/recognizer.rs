@@ -57,17 +57,26 @@ impl<T> RouteRecognizer<T> {
     }
 
     pub fn set_prefix<P: ToString>(&mut self, prefix: P) {
-        self.prefix = prefix.to_string().len() - 1;
+        let p = prefix.to_string();
+        if p.ends_with('/') {
+            self.prefix = p.len() - 1;
+        } else {
+            self.prefix = p.len();
+        }
     }
 
     pub fn recognize(&self, path: &str) -> Option<(Option<Params>, &T)> {
-        if let Some(idx) = self.patterns.matches(&path[self.prefix..]).into_iter().next()
-        {
+        let p = &path[self.prefix..];
+        if p.is_empty() {
+            if let Some(idx) = self.patterns.matches("/").into_iter().next() {
+                let (ref pattern, ref route) = self.routes[idx];
+                return Some((pattern.match_info(&path[self.prefix..]), route))
+            }
+        } else if let Some(idx) = self.patterns.matches(p).into_iter().next() {
             let (ref pattern, ref route) = self.routes[idx];
-            Some((pattern.match_info(&path[self.prefix..]), route))
-        } else {
-            None
+            return Some((pattern.match_info(&path[self.prefix..]), route))
         }
+        None
     }
 }
 
