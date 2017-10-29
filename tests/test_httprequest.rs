@@ -72,9 +72,8 @@ fn test_request_query() {
                                Version::HTTP_11, HeaderMap::new(), "id=test".to_owned());
 
     assert_eq!(req.query_string(), "id=test");
-    let query: Vec<_> = req.query().collect();
-    assert_eq!(query[0].0.as_ref(), "id");
-    assert_eq!(query[0].1.as_ref(), "test");
+    let query = req.query();
+    assert_eq!(query.get("id").unwrap(), "test");
 }
 
 #[test]

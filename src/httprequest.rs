@@ -85,8 +85,12 @@ impl HttpRequest {
 
     /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
     #[inline]
-    pub fn query(&self) -> form_urlencoded::Parse {
-        form_urlencoded::parse(self.query.as_ref())
+    pub fn query(&self) -> HashMap<String, String> {
+        let mut q: HashMap<String, String> = HashMap::new();
+        for (key, val) in form_urlencoded::parse(self.query.as_ref()) {
+            q.insert(key.to_string(), val.to_string());
+        }
+        q
     }
 
     /// The query string in the URL.
@@ -153,6 +157,16 @@ impl HttpRequest {
         } else {
             self.version != Version::HTTP_10
         }
+    }
+
+    /// Read the request content type
+    pub fn content_type(&self) -> &str {
+        if let Some(content_type) = self.headers.get(header::CONTENT_TYPE) {
+            if let Ok(content_type) = content_type.to_str() {
+                return content_type
+            }
+        }
+        ""
     }
 
     /// Check if request requires connection upgrade
@@ -241,6 +255,9 @@ impl fmt::Debug for HttpRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
                          self.version, self.method, self.path);
+        if !self.query_string().is_empty() {
+            let _ = write!(f, "  query: ?{:?}\n", self.query_string());
+        }
         if !self.params.is_empty() {
             let _ = write!(f, "  params: {:?}\n", self.params);
         }
