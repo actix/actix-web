@@ -324,13 +324,15 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                         // tasks need to be completed
                         self.error = true;
 
-                        if let ReaderError::Error(err) = err {
-                            self.items.push_back(
-                                Entry {task: Task::reply(err),
-                                       req: UnsafeCell::new(HttpRequest::for_error()),
-                                       eof: false,
-                                       error: false,
-                                       finished: false});
+                        if self.items.is_empty() {
+                            if let ReaderError::Error(err) = err {
+                                self.items.push_back(
+                                    Entry {task: Task::reply(err),
+                                           req: UnsafeCell::new(HttpRequest::for_error()),
+                                           eof: false,
+                                           error: false,
+                                           finished: false});
+                            }
                         }
                     }
                     Ok(Async::NotReady) => {

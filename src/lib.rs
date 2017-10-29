@@ -60,7 +60,7 @@ pub use context::HttpContext;
 pub use staticfiles::StaticFiles;
 
 // re-exports
-pub use http::{Method, StatusCode};
+pub use http::{Method, StatusCode, Version};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use http_range::{HttpRange, HttpRangeParseError};

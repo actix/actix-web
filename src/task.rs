@@ -412,7 +412,6 @@ impl Task {
                 fut.borrow_mut().set()
             }
             self.drain.clear();
-            // return self.poll_io(io, req);
         }
 
         // response is completed
