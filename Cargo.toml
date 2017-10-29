@@ -38,7 +38,6 @@ mime = "0.3"
 mime_guess = "1.8"
 cookie = { version="0.10", features=["percent-encode"] }
 regex = "0.2"
-slab = "0.4"
 sha1 = "0.2"
 url = "1.5"
 percent-encoding = "1.0"
@@ -46,9 +45,8 @@ percent-encoding = "1.0"
 # tokio
 bytes = "0.4"
 futures = "0.1"
-tokio-core = "0.1"
 tokio-io = "0.1"
-tokio-proto = "0.1"
+tokio-core = "0.1"
 # h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 [dependencies.actix]

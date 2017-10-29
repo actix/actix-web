@@ -91,7 +91,7 @@ impl Application<()> {
             parts: Some(ApplicationBuilderParts {
                 state: (),
                 prefix: prefix.to_string(),
-                default: Resource::default(),
+                default: Resource::default_not_found(),
                 handlers: HashMap::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),
@@ -110,7 +110,7 @@ impl<S> Application<S> where S: 'static {
             parts: Some(ApplicationBuilderParts {
                 state: state,
                 prefix: prefix.to_string(),
-                default: Resource::default(),
+                default: Resource::default_not_found(),
                 handlers: HashMap::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),

@@ -1,6 +1,7 @@
 use std::{mem, cmp, io};
 use std::rc::Rc;
 use std::fmt::Write;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use http::{StatusCode, Version};
@@ -8,6 +9,7 @@ use http::header::{HeaderValue,
                    CONNECTION, CONTENT_TYPE, CONTENT_LENGTH, TRANSFER_ENCODING, DATE};
 use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
+use futures::task::{Task as FutureTask, current as current_task};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use date;
@@ -57,6 +59,45 @@ pub(crate) trait IoContext: Stream<Item=Frame, Error=io::Error> + 'static {
     fn disconnected(&mut self);
 }
 
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct DrainFut {
+    drained: bool,
+    task: Option<FutureTask>,
+}
+
+impl DrainFut {
+
+    pub fn new() -> DrainFut {
+        DrainFut {
+            drained: false,
+            task: None,
+        }
+    }
+
+    fn set(&mut self) {
+        self.drained = true;
+        if let Some(task) = self.task.take() {
+            task.notify()
+        }
+    }
+}
+
+impl Future for DrainFut {
+    type Item = ();
+    type Error = ();
+
+    fn poll(&mut self) -> Poll<(), ()> {
+        if self.drained {
+            Ok(Async::Ready(()))
+        } else {
+            self.task = Some(current_task());
+            Ok(Async::NotReady)
+        }
+    }
+}
+
+
 pub struct Task {
     state: TaskRunningState,
     iostate: TaskIOState,
@@ -64,6 +105,7 @@ pub struct Task {
     stream: TaskStream,
     encoder: Encoder,
     buffer: BytesMut,
+    drain: Vec<Rc<RefCell<DrainFut>>>,
     upgrade: bool,
     keepalive: bool,
     prepared: Option<HttpResponse>,
@@ -82,6 +124,7 @@ impl Task {
             state: TaskRunningState::Running,
             iostate: TaskIOState::Done,
             frames: frames,
+            drain: Vec::new(),
             stream: TaskStream::None,
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
@@ -103,6 +146,7 @@ impl Task {
             stream: TaskStream::Stream(Box::new(stream)),
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
+            drain: Vec::new(),
             upgrade: false,
             keepalive: false,
             prepared: None,
@@ -120,6 +164,7 @@ impl Task {
             stream: TaskStream::Context(Box::new(ctx)),
             encoder: Encoder::length(0),
             buffer: BytesMut::new(),
+            drain: Vec::new(),
             upgrade: false,
             keepalive: false,
             prepared: None,
@@ -275,47 +320,53 @@ impl Task {
         if self.frames.is_empty() && self.iostate.is_done() {
             return Ok(Async::Ready(self.state.is_done()));
         } else {
-            // poll stream
-            if self.state == TaskRunningState::Running {
-                match self.poll() {
-                    Ok(Async::Ready(_)) => {
-                        self.state = TaskRunningState::Done;
-                    }
-                    Ok(Async::NotReady) => (),
-                    Err(_) => return Err(())
-                }
-            }
-
-            // use exiting frames
-            while let Some(frame) = self.frames.pop_front() {
-                trace!("IO Frame: {:?}", frame);
-                match frame {
-                    Frame::Message(response) => {
-                        if !self.disconnected {
-                            self.prepare(req, response);
+            if self.drain.is_empty() {
+                // poll stream
+                if self.state == TaskRunningState::Running {
+                    match self.poll() {
+                        Ok(Async::Ready(_)) => {
+                            self.state = TaskRunningState::Done;
                         }
+                        Ok(Async::NotReady) => (),
+                        Err(_) => return Err(())
                     }
-                    Frame::Payload(Some(chunk)) => {
-                        if !self.disconnected {
-                            if self.prepared.is_some() {
-                                // TODO: add warning, write after EOF
-                                self.encoder.encode(&mut self.buffer, chunk.as_ref());
-                            } else {
-                                // might be response for EXCEPT
-                                self.buffer.extend_from_slice(chunk.as_ref())
+                }
+
+                // use exiting frames
+                while let Some(frame) = self.frames.pop_front() {
+                    trace!("IO Frame: {:?}", frame);
+                    match frame {
+                        Frame::Message(response) => {
+                            if !self.disconnected {
+                                self.prepare(req, response);
                             }
                         }
-                    },
-                    Frame::Payload(None) => {
-                        if !self.disconnected &&
-                            !self.encoder.encode(&mut self.buffer, [].as_ref())
-                        {
-                            // TODO: add error "not eof""
-                            debug!("last payload item, but it is not EOF ");
-                            return Err(())
+                        Frame::Payload(Some(chunk)) => {
+                            if !self.disconnected {
+                                if self.prepared.is_some() {
+                                    // TODO: add warning, write after EOF
+                                    self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                                } else {
+                                    // might be response for EXCEPT
+                                    self.buffer.extend_from_slice(chunk.as_ref())
+                                }
+                            }
+                        },
+                        Frame::Payload(None) => {
+                            if !self.disconnected &&
+                                !self.encoder.encode(&mut self.buffer, [].as_ref())
+                            {
+                                // TODO: add error "not eof""
+                                debug!("last payload item, but it is not EOF ");
+                                return Err(())
+                            }
+                            break
+                        },
+                        Frame::Drain(fut) => {
+                            self.drain.push(fut);
+                            break
                         }
-                        break
-                    },
+                    }
                 }
             }
         }
@@ -347,6 +398,23 @@ impl Task {
             self.iostate = TaskIOState::Done;
         }
 
+        // drain
+        if self.buffer.is_empty() && !self.drain.is_empty() {
+            match io.flush() {
+                Ok(_) => (),
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    return Ok(Async::NotReady)
+                }
+                Err(_) => return Err(()),
+            }
+
+            for fut in &mut self.drain {
+                fut.borrow_mut().set()
+            }
+            self.drain.clear();
+            // return self.poll_io(io, req);
+        }
+
         // response is completed
         if (self.buffer.is_empty() || self.disconnected) && self.iostate.is_done() {
             // run middlewares
@@ -357,7 +425,6 @@ impl Task {
                     }
                 }
             }
-
             Ok(Async::Ready(self.state.is_done()))
         } else {
             Ok(Async::NotReady)
@@ -391,6 +458,7 @@ impl Task {
                                 return Err(())
                             }
                         },
+                        _ => (),
                     }
                     self.frames.push_back(frame)
                 },
@@ -399,7 +467,7 @@ impl Task {
                 Ok(Async::NotReady) =>
                     return Ok(Async::NotReady),
                 Err(_) =>
-                    return Err(())
+                    return Err(()),
             }
         }
     }

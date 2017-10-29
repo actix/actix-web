@@ -13,7 +13,7 @@ use payload::Payload;
 use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::HTTPMethodNotAllowed;
+use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
 /// Http resource
 ///
@@ -50,6 +50,14 @@ impl<S> Default for Resource<S> {
 
 
 impl<S> Resource<S> where S: 'static {
+
+    pub(crate) fn default_not_found() -> Self {
+        Resource {
+            name: String::new(),
+            state: PhantomData,
+            routes: HashMap::new(),
+            default: Box::new(HTTPNotFound)}
+    }
 
     /// Set resource name
     pub fn set_name<T: ToString>(&mut self, name: T) {

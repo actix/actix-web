@@ -1,7 +1,9 @@
 use std;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::VecDeque;
-use futures::{Async, Stream, Poll};
+use std::marker::PhantomData;
+use futures::{Async, Future, Stream, Poll};
 use futures::sync::oneshot::Sender;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
@@ -10,7 +12,7 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
                  Envelope, ToEnvelope, RemoteEnvelope};
 
-use task::IoContext;
+use task::{IoContext, DrainFut};
 use body::BinaryBody;
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
@@ -137,6 +139,14 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
         self.stream.push_back(Frame::Payload(None))
     }
 
+    /// Returns drain future
+    pub fn drain(&mut self) -> Drain<A> {
+        let fut = Rc::new(RefCell::new(DrainFut::new()));
+        self.stream.push_back(Frame::Drain(fut.clone()));
+        self.modified = true;
+        Drain{ a: PhantomData, inner: fut }
+    }
+
     /// Check if connection still open
     pub fn connected(&self) -> bool {
         !self.disconnected
@@ -199,6 +209,10 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
 
             // check wait futures
             if self.wait.poll(act, ctx) {
+                // get frame
+                if let Some(frame) = self.stream.pop_front() {
+                    return Ok(Async::Ready(Some(frame)))
+                }
                 return Ok(Async::NotReady)
             }
 
@@ -267,5 +281,23 @@ impl<A> ToEnvelope<A> for HttpContext<A>
               M::Error: Send
     {
         RemoteEnvelope::new(msg, tx).into()
+    }
+}
+
+
+pub struct Drain<A> {
+    a: PhantomData<A>,
+    inner: Rc<RefCell<DrainFut>>
+}
+
+impl<A> ActorFuture for Drain<A>
+    where A: Actor
+{
+    type Item = ();
+    type Error = ();
+    type Actor = A;
+
+    fn poll(&mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context) -> Poll<(), ()> {
+        self.inner.borrow_mut().poll()
     }
 }

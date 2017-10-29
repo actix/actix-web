@@ -1,12 +1,13 @@
 use std::io;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use actix::Actor;
 use http::{header, Version};
 use futures::Stream;
 
-use task::Task;
+use task::{Task, DrainFut};
 use body::BinaryBody;
 use context::HttpContext;
 use resource::Reply;
@@ -21,8 +22,8 @@ use httpcodes::HTTPExpectationFailed;
 pub enum Frame {
     Message(HttpResponse),
     Payload(Option<BinaryBody>),
+    Drain(Rc<RefCell<DrainFut>>),
 }
-
 
 /// Trait defines object that could be regestered as resource route
 #[allow(unused_variables)]
