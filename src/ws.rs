@@ -116,7 +116,11 @@ impl ResponseType for Message {
 pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
-        return Err(HTTPMethodNotAllowed.response())
+        return Err(
+            HTTPMethodNotAllowed
+                .builder()
+                .header(header::ALLOW, "GET")
+                .finish()?)
     }
 
     // Check for "UPGRADE" to websocket header
@@ -130,7 +134,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
         false
     };
     if !has_hdr {
-        return Err(HTTPMethodNotAllowed.with_reason("No WebSocket UPGRADE header found"))
+        return Err(HTTPBadRequest.with_reason("No WebSocket UPGRADE header found"))
     }
 
     // Upgrade connection
