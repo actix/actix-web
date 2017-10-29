@@ -66,14 +66,17 @@ pub struct DrainFut {
     task: Option<FutureTask>,
 }
 
-impl DrainFut {
+impl Default for DrainFut {
 
-    pub fn new() -> DrainFut {
+    fn default() -> DrainFut {
         DrainFut {
             drained: false,
             task: None,
         }
     }
+}
+
+impl DrainFut {
 
     fn set(&mut self) {
         self.drained = true;
@@ -319,53 +322,51 @@ impl Task {
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {
             return Ok(Async::Ready(self.state.is_done()));
-        } else {
-            if self.drain.is_empty() {
-                // poll stream
-                if self.state == TaskRunningState::Running {
-                    match self.poll() {
-                        Ok(Async::Ready(_)) => {
-                            self.state = TaskRunningState::Done;
-                        }
-                        Ok(Async::NotReady) => (),
-                        Err(_) => return Err(())
+        } else if self.drain.is_empty() {
+            // poll stream
+            if self.state == TaskRunningState::Running {
+                match self.poll() {
+                    Ok(Async::Ready(_)) => {
+                        self.state = TaskRunningState::Done;
                     }
+                    Ok(Async::NotReady) => (),
+                    Err(_) => return Err(())
                 }
+            }
 
-                // use exiting frames
-                while let Some(frame) = self.frames.pop_front() {
-                    trace!("IO Frame: {:?}", frame);
-                    match frame {
-                        Frame::Message(response) => {
-                            if !self.disconnected {
-                                self.prepare(req, response);
+            // use exiting frames
+            while let Some(frame) = self.frames.pop_front() {
+                trace!("IO Frame: {:?}", frame);
+                match frame {
+                    Frame::Message(response) => {
+                        if !self.disconnected {
+                            self.prepare(req, response);
+                        }
+                    }
+                    Frame::Payload(Some(chunk)) => {
+                        if !self.disconnected {
+                            if self.prepared.is_some() {
+                                // TODO: add warning, write after EOF
+                                self.encoder.encode(&mut self.buffer, chunk.as_ref());
+                            } else {
+                                // might be response for EXCEPT
+                                self.buffer.extend_from_slice(chunk.as_ref())
                             }
                         }
-                        Frame::Payload(Some(chunk)) => {
-                            if !self.disconnected {
-                                if self.prepared.is_some() {
-                                    // TODO: add warning, write after EOF
-                                    self.encoder.encode(&mut self.buffer, chunk.as_ref());
-                                } else {
-                                    // might be response for EXCEPT
-                                    self.buffer.extend_from_slice(chunk.as_ref())
-                                }
-                            }
-                        },
-                        Frame::Payload(None) => {
-                            if !self.disconnected &&
-                                !self.encoder.encode(&mut self.buffer, [].as_ref())
-                            {
-                                // TODO: add error "not eof""
-                                debug!("last payload item, but it is not EOF ");
-                                return Err(())
-                            }
-                            break
-                        },
-                        Frame::Drain(fut) => {
-                            self.drain.push(fut);
-                            break
+                    },
+                    Frame::Payload(None) => {
+                        if !self.disconnected &&
+                            !self.encoder.encode(&mut self.buffer, [].as_ref())
+                        {
+                            // TODO: add error "not eof""
+                            debug!("last payload item, but it is not EOF ");
+                            return Err(())
                         }
+                        break
+                    },
+                    Frame::Drain(fut) => {
+                        self.drain.push(fut);
+                        break
                     }
                 }
             }

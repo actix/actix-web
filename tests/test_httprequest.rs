@@ -73,7 +73,7 @@ fn test_request_query() {
 
     assert_eq!(req.query_string(), "id=test");
     let query = req.query();
-    assert_eq!(query.get("id").unwrap(), "test");
+    assert_eq!(&query["id"], "test");
 }
 
 #[test]

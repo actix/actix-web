@@ -344,7 +344,7 @@ mod tests {
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, HeaderMap::new(), String::new());
         match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
             _ => panic!("should not happen"),
         }
 
@@ -354,7 +354,7 @@ mod tests {
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
         match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
+            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
             _ => panic!("should not happen"),
         }
 

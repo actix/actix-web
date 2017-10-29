@@ -141,8 +141,8 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
-        let fut = Rc::new(RefCell::new(DrainFut::new()));
-        self.stream.push_back(Frame::Drain(fut.clone()));
+        let fut = Rc::new(RefCell::new(DrainFut::default()));
+        self.stream.push_back(Frame::Drain(Rc::clone(&fut)));
         self.modified = true;
         Drain{ a: PhantomData, inner: fut }
     }
