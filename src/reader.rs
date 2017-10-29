@@ -255,7 +255,7 @@ impl Reader {
             if let Ok(path) = percent_encoding::percent_decode(&path).decode_utf8() {
                 let parts: Vec<&str> = path.splitn(2, '?').collect();
                 if parts.len() == 2 {
-                    Some((parts[0].to_owned(), parts[1][1..].to_owned()))
+                    Some((parts[0].to_owned(), parts[1].to_owned()))
                 } else {
                     Some((parts[0].to_owned(), String::new()))
                 }
