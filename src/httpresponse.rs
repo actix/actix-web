@@ -350,6 +350,15 @@ impl HttpResponseBuilder {
         self
     }
 
+    pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
+        where F: Fn(&mut HttpResponseBuilder) + 'static
+    {
+        if value {
+            f(self);
+        }
+        self
+    }
+
     /// Set a body
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
         let mut parts = self.parts.take().expect("cannot reuse response builder");
