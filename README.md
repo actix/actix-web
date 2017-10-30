@@ -37,6 +37,7 @@ actix-web = "0.1"
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
+* [SockJS Server](https://github.com/fafhrd91/actix-sockjs)
 
 
 ```rust
