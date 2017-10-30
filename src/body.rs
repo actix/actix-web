@@ -106,6 +106,12 @@ impl From<String> for BinaryBody {
     }
 }
 
+impl<'a> From<&'a String> for BinaryBody {
+    fn from(s: &'a String) -> BinaryBody {
+        BinaryBody::Bytes(Bytes::from(AsRef::<[u8]>::as_ref(&s)))
+    }
+}
+
 impl From<Bytes> for BinaryBody {
     fn from(s: Bytes) -> BinaryBody {
         BinaryBody::Bytes(s)
@@ -215,6 +221,13 @@ mod tests {
         let b = Rc::new(Bytes::from("test"));
         assert_eq!(BinaryBody::from(b.clone()).len(), 4);
         assert_eq!(BinaryBody::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(BinaryBody::from(&b).len(), 4);
+        assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_ref_string() {
+        let b = Rc::new("test".to_owned());
         assert_eq!(BinaryBody::from(&b).len(), 4);
         assert_eq!(BinaryBody::from(&b).as_ref(), "test".as_bytes());
     }
