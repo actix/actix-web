@@ -15,6 +15,8 @@
 
 * Re-use `BinaryBody` for `Frame::Payload`
 
+* Stop http actor on `write_eof`
+
 * Fix disconnection handling.
 
 
