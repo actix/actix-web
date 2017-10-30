@@ -4,7 +4,7 @@ Asynchronous web framework for [Actix](https://github.com/actix/actix).
 
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
-* Cargo package: [actix-http](https://crates.io/crates/actix-web)
+* Cargo package: [actix-web](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
 ---
