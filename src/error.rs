@@ -123,6 +123,13 @@ impl From<HttpError> for HttpResponse {
     }
 }
 
+/// Return `InternalServerError` for `io::Error`
+impl From<IoError> for HttpResponse {
+    fn from(err: IoError) -> Self {
+        HttpResponse::from_error(StatusCode::INTERNAL_SERVER_ERROR, err)
+    }
+}
+
 /// Return `BadRequest` for `cookie::ParseError`
 impl From<cookie::ParseError> for HttpResponse {
     fn from(err: cookie::ParseError) -> Self {

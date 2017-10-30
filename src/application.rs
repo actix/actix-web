@@ -180,7 +180,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///         .resource("/test", |r| {
     ///              r.get::<MyRoute>();
     ///              r.handler(Method::HEAD, |req, payload, state| {
-    ///                  httpcodes::HTTPMethodNotAllowed
+    ///                  Ok(httpcodes::HTTPMethodNotAllowed)
     ///              });
     ///         })
     ///         .finish();

@@ -15,6 +15,9 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
+/// Result of a resource handler function
+pub type HandlerResult<T> = Result<T, HttpResponse>;
+
 /// Http resource
 ///
 /// `Resource` is an entry in route table which corresponds to requested URL.
@@ -48,7 +51,6 @@ impl<S> Default for Resource<S> {
     }
 }
 
-
 impl<S> Resource<S> where S: 'static {
 
     pub(crate) fn default_not_found() -> Self {
@@ -66,7 +68,7 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register handler for specified method.
     pub fn handler<F, R>(&mut self, method: Method, handler: F)
-        where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
+        where F: Fn(&mut HttpRequest, Payload, &S) -> HandlerResult<R> + 'static,
               R: Into<HttpResponse> + 'static,
     {
         self.routes.insert(method, Box::new(FnHandler::new(handler)));

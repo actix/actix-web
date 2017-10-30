@@ -12,13 +12,14 @@ fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
 }
 
 /// handle with path parameters like `/name/{name}/`
-fn with_param(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
+fn with_param(req: &mut HttpRequest, _payload: Payload, state: &())
+              -> HandlerResult<HttpResponse>
+{
     println!("{:?}", req);
 
-    HttpResponse::builder(StatusCode::OK)
-        .content_type("test/plain")
-        .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
-        .unwrap()
+    Ok(HttpResponse::builder(StatusCode::OK)
+       .content_type("test/plain")
+       .body(format!("Hello {}!", req.match_info().get("name").unwrap()))?)
 }
 
 fn main() {
@@ -38,10 +39,10 @@ fn main() {
             .resource("/", |r| r.handler(Method::GET, |req, _, _| {
                 println!("{:?}", req);
 
-                httpcodes::HTTPFound
-                    .builder()
-                    .header("LOCATION", "/index.html")
-                    .body(Body::Empty)
+                Ok(httpcodes::HTTPFound
+                   .builder()
+                   .header("LOCATION", "/index.html")
+                   .body(Body::Empty)?)
             }))
             // static files
             .route_handler("/static", StaticFiles::new("examples/static/", true)))

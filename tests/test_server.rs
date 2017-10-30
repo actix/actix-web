@@ -16,7 +16,7 @@ fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
         vec![Application::default("/")
              .resource("/", |r|
                        r.handler(Method::GET, |_, _, _| {
-                           httpcodes::HTTPOk
+                           Ok(httpcodes::HTTPOk)
                        }))
              .finish()])
 }
@@ -96,7 +96,7 @@ fn test_middlewares() {
                                             finish: act_num3})
                  .resource("/", |r|
                            r.handler(Method::GET, |_, _, _| {
-                               httpcodes::HTTPOk
+                               Ok(httpcodes::HTTPOk)
                            }))
                  .finish()])
             .serve::<_, ()>("127.0.0.1:58904").unwrap();
