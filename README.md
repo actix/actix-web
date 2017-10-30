@@ -110,7 +110,6 @@ fn main() {
             .route_handler("/", StaticFiles::new("examples/static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
-    println!("Started http server: 127.0.0.1:8080");
     Arbiter::system().send(msgs::SystemExit(0));
     let _ = sys.run();
 }

@@ -15,7 +15,7 @@ build = "build.rs"
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+appveyor = { repository = "actix/actix-web" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]

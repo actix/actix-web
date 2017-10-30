@@ -211,10 +211,10 @@ fn main() {
             // redirect to websocket.html
             .resource("/", |r|
                       r.handler(Method::GET, |req, payload, state| {
-                          httpcodes::HTTPFound
-                              .builder()
-                              .header("LOCATION", "/static/websocket.html")
-                              .body(Body::Empty)
+                          Ok(httpcodes::HTTPFound
+                             .builder()
+                             .header("LOCATION", "/static/websocket.html")
+                             .body(Body::Empty)?)
                       }))
             // websocket
             .resource("/ws/", |r| r.get::<WsChatSession>())

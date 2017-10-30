@@ -35,6 +35,7 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
 impl<A> IoContext for HttpContext<A> where A: Actor<Context=Self> + Route {
 
     fn disconnected(&mut self) {
+        self.items.stop();
         self.disconnected = true;
         if self.state == ActorState::Running {
             self.state = ActorState::Stopping;
@@ -46,6 +47,7 @@ impl<A> ActorContext for HttpContext<A> where A: Actor<Context=Self> + Route
 {
     /// Stop actor execution
     fn stop(&mut self) {
+        self.items.stop();
         self.address.close();
         if self.state == ActorState::Running {
             self.state = ActorState::Stopping;
@@ -84,6 +86,10 @@ impl<A> AsyncContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.modified = true;
         self.items.cancel_future(handle)
+    }
+
+    fn cancel_future_on_stop(&mut self, handle: SpawnHandle) {
+        self.items.cancel_future_on_stop(handle)
     }
 }
 
