@@ -53,7 +53,7 @@ impl Handler<ws::Message> for MyWebSocket {
         self.counter += 1;
         println!("WS({}): {:?}", self.counter, msg);
         match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
+            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
             ws::Message::Closed | ws::Message::Error => {

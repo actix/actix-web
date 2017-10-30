@@ -49,7 +49,7 @@
 //!               -> Response<Self, ws::Message>
 //!     {
 //!         match msg {
-//!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
+//!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
 //!             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
 //!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
 //!             _ => (),
@@ -77,6 +77,7 @@ use httpresponse::{ConnectionType, HttpResponse};
 
 use wsframe;
 use wsproto::*;
+pub use wsproto::CloseCode;
 
 #[doc(hidden)]
 const SEC_WEBSOCKET_ACCEPT: &'static str = "SEC-WEBSOCKET-ACCEPT";
@@ -303,11 +304,10 @@ impl WsWriter {
     }
 
     /// Send ping frame
-    pub fn ping<A>(ctx: &mut HttpContext<A>, message: String)
+    pub fn ping<A>(ctx: &mut HttpContext<A>, message: &str)
         where A: Actor<Context=HttpContext<A>> + Route
     {
-        let mut frame = wsframe::Frame::message(
-            Vec::from(message.as_str()), OpCode::Ping, true);
+        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Ping, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -315,14 +315,23 @@ impl WsWriter {
     }
 
     /// Send pong frame
-    pub fn pong<A>(ctx: &mut HttpContext<A>, message: String)
+    pub fn pong<A>(ctx: &mut HttpContext<A>, message: &str)
         where A: Actor<Context=HttpContext<A>> + Route
     {
-        let mut frame = wsframe::Frame::message(
-            Vec::from(message.as_str()), OpCode::Pong, true);
+        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Pong, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
+        ctx.write(buf);
+    }
+
+    /// Send close frame
+    pub fn close<A>(ctx: &mut HttpContext<A>, code: CloseCode, reason: &str)
+        where A: Actor<Context=HttpContext<A>> + Route
+    {
+        let mut frame = wsframe::Frame::close(code, reason);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
         ctx.write(buf);
     }
 }

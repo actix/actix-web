@@ -82,7 +82,7 @@ impl Handler<ws::Message> for WsChatSession {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) =>
-                ws::WsWriter::pong(ctx, msg),
+                ws::WsWriter::pong(ctx, &msg),
             ws::Message::Pong(msg) =>
                 self.hb = Instant::now(),
             ws::Message::Text(text) => {
