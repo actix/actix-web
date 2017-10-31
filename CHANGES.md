@@ -1,7 +1,7 @@
 # CHANGES
 
 
-## 0.2.0 (2017-10-xx)
+## 0.2.0 (2017-10-30)
 
 * Do not use `http::Uri` as it can not parse some valid paths
 

@@ -27,7 +27,7 @@ To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-web = "0.1"
+actix-web = "0.2"
 ```
 
 ## Example
@@ -51,23 +51,29 @@ use actix_web::*;
 
 struct MyWebSocket;
 
+/// Actor with http context
 impl Actor for MyWebSocket {
     type Context = HttpContext<Self>;
 }
 
+/// Http route handler
 impl Route for MyWebSocket {
     type State = ();
 
     fn request(req: &mut HttpRequest,
                payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
+        // websocket handshake
         let resp = ws::handshake(req)?;
+        // send HttpResponse back to peer
         ctx.start(resp);
+        // convert bytes stream to a stream of `ws::Message` and handle stream
         ctx.add_stream(ws::WsStream::new(payload));
         Reply::async(MyWebSocket)
     }
 }
 
+/// Standard actix's stream handler for a stream of `ws::Message`
 impl StreamHandler<ws::Message> for MyWebSocket {
     fn started(&mut self, ctx: &mut Self::Context) {
         println!("WebSocket session openned");
@@ -82,9 +88,10 @@ impl Handler<ws::Message> for MyWebSocket {
     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
               -> Response<Self, ws::Message>
     {
+        // process websocket messages
         println!("WS: {:?}", msg);
         match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, msg),
+            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
             ws::Message::Closed | ws::Message::Error => {

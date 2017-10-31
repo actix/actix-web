@@ -50,9 +50,9 @@ tokio-core = "0.1"
 # h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 [dependencies.actix]
-#version = ">=0.3.1"
+version = ">=0.3.1"
 #path = "../actix"
-git = "https://github.com/actix/actix.git"
+#git = "https://github.com/actix/actix.git"
 default-features = false
 features = []
 
