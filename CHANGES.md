@@ -1,6 +1,10 @@
 # Changes
 
 
+## 0.2.1 (2017-11-xx)
+
+* Allow to start tls server with `HttpServer::serve_tls`
+
 ## 0.2.0 (2017-10-30)
 
 * Do not use `http::Uri` as it can not parse some valid paths

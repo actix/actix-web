@@ -11,6 +11,11 @@ use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+#[cfg(feature="tls")]
+use native_tls::TlsAcceptor;
+#[cfg(feature="tls")]
+use tokio_tls::{TlsStream, TlsAcceptorExt};
+
 use task::Task;
 use reader::{Reader, ReaderError};
 use payload::Payload;
@@ -69,17 +74,9 @@ impl<T, A, H> HttpServer<T, A, H>
             self
         }))
     }
-}
 
-impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
-
-    /// Start listening for incomming connections.
-    ///
-    /// This methods converts address to list of `SocketAddr`
-    /// then binds to all available addresses.
-    pub fn serve<S, Addr>(self, addr: S) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>,
-              S: net::ToSocketAddrs,
+    fn bind<S: net::ToSocketAddrs>(&self, addr: S)
+                                   -> io::Result<Vec<(net::SocketAddr, TcpListener)>>
     {
         let mut err = None;
         let mut addrs = Vec::new();
@@ -98,14 +95,68 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
                 Err(io::Error::new(io::ErrorKind::Other, "Can not bind to address."))
             }
         } else {
-            Ok(HttpServer::create(move |ctx| {
-                for (addr, tcp) in addrs {
-                    info!("Starting http server on {}", addr);
-                    ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a)));
-                }
-                self
-            }))
+            Ok(addrs)
         }
+    }
+}
+
+impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
+
+    /// Start listening for incomming connections.
+    ///
+    /// This methods converts address to list of `SocketAddr`
+    /// then binds to all available addresses.
+    pub fn serve<S, Addr>(self, addr: S) -> io::Result<Addr>
+        where Self: ActorAddress<Self, Addr>,
+              S: net::ToSocketAddrs,
+    {
+        let addrs = self.bind(addr)?;
+
+        Ok(HttpServer::create(move |ctx| {
+            for (addr, tcp) in addrs {
+                info!("Starting http server on {}", addr);
+                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a)));
+            }
+            self
+        }))
+    }
+}
+
+#[cfg(feature="tls")]
+impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
+
+    /// Start listening for incomming tls connections.
+    ///
+    /// This methods converts address to list of `SocketAddr`
+    /// then binds to all available addresses.
+    pub fn serve_tls<S, Addr>(self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
+        where Self: ActorAddress<Self, Addr>,
+              S: net::ToSocketAddrs,
+    {
+        let addrs = self.bind(addr)?;
+        let acceptor = match TlsAcceptor::builder(pkcs12) {
+            Ok(builder) => {
+                match builder.build() {
+                    Ok(acceptor) => Rc::new(acceptor),
+                    Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+                }
+            }
+            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+        };
+
+        Ok(HttpServer::create(move |ctx| {
+            for (addr, tcp) in addrs {
+                info!("Starting tls http server on {}", addr);
+
+                let acc = acceptor.clone();
+                ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
+                    TlsAcceptorExt::accept_async(acc.as_ref(), stream)
+                        .map(move |t| IoStream(t, addr))
+                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                }));
+            }
+            self
+        }))
     }
 }
 
@@ -129,6 +180,10 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
           A: 'static,
           H: HttpHandler + 'static,
 {
+    fn error(&mut self, err: io::Error, _: &mut Context<Self>) {
+        trace!("Error handling request: {}", err)
+    }
+
     fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)
               -> Response<Self, IoStream<T, A>>
     {

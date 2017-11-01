@@ -33,7 +33,7 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - cargo test --no-default-features
+  - USE_SKEPTIC=1 cargo test --no-default-features
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
         cargo clippy

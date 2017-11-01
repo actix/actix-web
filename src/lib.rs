@@ -21,6 +21,11 @@ extern crate url;
 extern crate percent_encoding;
 extern crate actix;
 
+#[cfg(feature="tls")]
+extern crate native_tls;
+#[cfg(feature="tls")]
+extern crate tokio_tls;
+
 mod application;
 mod body;
 mod context;
@@ -64,3 +69,6 @@ pub use http::{Method, StatusCode, Version};
 pub use cookie::{Cookie, CookieBuilder};
 pub use cookie::{ParseError as CookieParseError};
 pub use http_range::{HttpRange, HttpRangeParseError};
+
+#[cfg(feature="tls")]
+pub use native_tls::Pkcs12;
