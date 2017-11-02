@@ -16,8 +16,8 @@ use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
 use tokio_tls::{TlsStream, TlsAcceptorExt};
 
+use h1;
 use task::Task;
-use reader::{Reader, ReaderError};
 use payload::Payload;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
@@ -150,9 +150,16 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
 
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
+                    println!("SSL");
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
-                        .map(move |t| IoStream(t, addr))
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+                        .map(move |t| {
+                            println!("connected {:?} {:?}", t, addr);
+                            IoStream(t, addr)
+                        })
+                        .map_err(|err| {
+                            println!("ERR: {:?}", err);
+                            io::Error::new(io::ErrorKind::Other, err)
+                        })
                 }));
             }
             self
@@ -181,7 +188,7 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
           H: HttpHandler + 'static,
 {
     fn error(&mut self, err: io::Error, _: &mut Context<Self>) {
-        trace!("Error handling request: {}", err)
+        println!("Error handling request: {}", err)
     }
 
     fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)
@@ -191,7 +198,7 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
             HttpChannel{router: Rc::clone(&self.h),
                         addr: msg.1,
                         stream: msg.0,
-                        reader: Reader::new(),
+                        reader: h1::Reader::new(),
                         error: false,
                         items: VecDeque::new(),
                         inactive: VecDeque::new(),
@@ -201,7 +208,6 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
         Self::empty()
     }
 }
-
 
 struct Entry {
     task: Task,
@@ -219,7 +225,7 @@ pub struct HttpChannel<T: 'static, A: 'static, H: 'static> {
     #[allow(dead_code)]
     addr: A,
     stream: T,
-    reader: Reader,
+    reader: h1::Reader,
     error: bool,
     items: VecDeque<Entry>,
     inactive: VecDeque<Entry>,
@@ -380,7 +386,7 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                         self.error = true;
 
                         if self.items.is_empty() {
-                            if let ReaderError::Error(err) = err {
+                            if let h1::ReaderError::Error(err) = err {
                                 self.items.push_back(
                                     Entry {task: Task::reply(err),
                                            req: UnsafeCell::new(HttpRequest::for_error()),

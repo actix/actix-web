@@ -10,7 +10,7 @@ use http::header::{HeaderValue,
 use bytes::BytesMut;
 use futures::{Async, Future, Poll, Stream};
 use futures::task::{Task as FutureTask, current as current_task};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_io::AsyncWrite;
 
 use date;
 use body::Body;
@@ -316,7 +316,7 @@ impl Task {
     }
 
     pub(crate) fn poll_io<T>(&mut self, io: &mut T, req: &mut HttpRequest) -> Poll<bool, ()>
-        where T: AsyncRead + AsyncWrite
+        where T: AsyncWrite
     {
         trace!("POLL-IO frames:{:?}", self.frames.len());
         // response is completed

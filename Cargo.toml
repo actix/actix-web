@@ -49,6 +49,8 @@ bytes = "0.4"
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
+
+h2 = { path = '../h2' }
 # h2 = { git = 'https://github.com/carllerche/h2', optional = true }
 
 # tls
