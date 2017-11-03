@@ -9,6 +9,7 @@ use http::header::{self, HeaderName, HeaderValue};
 
 use Cookie;
 use body::Body;
+use route::Frame;
 
 
 /// Represents various types of connection
@@ -193,6 +194,12 @@ impl<I: Into<HttpResponse>, E: Into<HttpResponse>> From<Result<I, E>> for HttpRe
             Ok(val) => val.into(),
             Err(err) => err.into(),
         }
+    }
+}
+
+impl From<HttpResponse> for Frame {
+    fn from(resp: HttpResponse) -> Frame {
+        Frame::Message(resp)
     }
 }
 

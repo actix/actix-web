@@ -25,6 +25,12 @@ pub enum Frame {
     Drain(Rc<RefCell<DrainFut>>),
 }
 
+impl Frame {
+    pub fn eof() -> Frame {
+        Frame::Payload(None)
+    }
+}
+
 /// Trait defines object that could be regestered as resource route
 #[allow(unused_variables)]
 pub trait RouteHandler<S>: 'static {

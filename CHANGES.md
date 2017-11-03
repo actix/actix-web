@@ -1,9 +1,13 @@
 # Changes
 
 
-## 0.2.1 (2017-11-xx)
+## 0.2.1 (2017-11-03)
 
 * Allow to start tls server with `HttpServer::serve_tls`
+
+* Export `Frame` enum
+
+* Add conversion impl from `HttpResponse` and `BinaryBody` to a `Frame`
 
 ## 0.2.0 (2017-10-30)
 

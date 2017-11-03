@@ -56,7 +56,7 @@ pub use application::{Application, ApplicationBuilder, Middleware};
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem, PayloadError};
-pub use route::{Route, RouteFactory, RouteHandler, RouteResult};
+pub use route::{Frame, Route, RouteFactory, RouteHandler, RouteResult};
 pub use resource::{Reply, Resource, HandlerResult};
 pub use recognizer::{Params, RouteRecognizer};
 pub use logger::Logger;

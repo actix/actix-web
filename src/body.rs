@@ -2,6 +2,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use bytes::{Bytes, BytesMut};
 
+use route::Frame;
+
 
 /// Represents various types of http message body.
 #[derive(Debug)]
@@ -185,6 +187,11 @@ impl AsRef<[u8]> for BinaryBody {
     }
 }
 
+impl From<BinaryBody> for Frame {
+    fn from(b: BinaryBody) -> Frame {
+        Frame::Payload(Some(b))
+    }
+}
 
 #[cfg(test)]
 mod tests {

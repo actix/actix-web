@@ -2,13 +2,27 @@
 extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
+extern crate futures;
 
 use actix_web::*;
+use futures::stream::{once, Once};
 
 /// somple handle
 fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
     httpcodes::HTTPOk.into()
+}
+
+/// somple handle
+fn index_async(req: &mut HttpRequest, _payload: Payload, state: &()) -> Once<actix_web::Frame, ()>
+{
+    println!("{:?}", req);
+
+    once(Ok(HttpResponse::builder(StatusCode::OK)
+            .content_type("text/html")
+            .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
+            .unwrap()
+            .into()))
 }
 
 /// handle with path parameters like `/name/{name}/`
@@ -35,6 +49,8 @@ fn main() {
             .handler("/index.html", index)
             // with path parameters
             .resource("/user/{name}/", |r| r.handler(Method::GET, with_param))
+            // async handler
+            .resource("/async/{name}", |r| r.async(Method::GET, index_async))
             // redirect
             .resource("/", |r| r.handler(Method::GET, |req, _, _| {
                 println!("{:?}", req);
