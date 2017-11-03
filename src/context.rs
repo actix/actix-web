@@ -47,6 +47,7 @@ impl<A> ActorContext for HttpContext<A> where A: Actor<Context=Self> + Route
 {
     /// Stop actor execution
     fn stop(&mut self) {
+        self.stream.push_back(Frame::Payload(None));
         self.items.stop();
         self.address.close();
         if self.state == ActorState::Running {
@@ -141,7 +142,6 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
     /// Indicate end of streamimng payload. Also this method calls `Self::close`.
     pub fn write_eof(&mut self) {
-        self.stream.push_back(Frame::Payload(None));
         self.stop();
     }
 

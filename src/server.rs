@@ -1,13 +1,9 @@
-use std::{io, net};
+use std::{io, net, mem};
 use std::rc::Rc;
-use std::cell::UnsafeCell;
-use std::time::Duration;
 use std::marker::PhantomData;
-use std::collections::VecDeque;
 
 use actix::dev::*;
 use futures::{Future, Poll, Async, Stream};
-use tokio_core::reactor::Timeout;
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -17,9 +13,9 @@ use native_tls::TlsAcceptor;
 use tokio_tls::{TlsStream, TlsAcceptorExt};
 
 use h1;
+use h2;
 use task::Task;
 use payload::Payload;
-use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 
 /// Low level http request handler
@@ -153,11 +149,10 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
                     println!("SSL");
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
                         .map(move |t| {
-                            println!("connected {:?} {:?}", t, addr);
                             IoStream(t, addr)
                         })
                         .map_err(|err| {
-                            println!("ERR: {:?}", err);
+                            trace!("Error during handling tls connection: {}", err);
                             io::Error::new(io::ErrorKind::Other, err)
                         })
                 }));
@@ -195,42 +190,25 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
               -> Response<Self, IoStream<T, A>>
     {
         Arbiter::handle().spawn(
-            HttpChannel{router: Rc::clone(&self.h),
-                        addr: msg.1,
-                        stream: msg.0,
-                        reader: h1::Reader::new(),
-                        error: false,
-                        items: VecDeque::new(),
-                        inactive: VecDeque::new(),
-                        keepalive: true,
-                        keepalive_timer: None,
+            HttpChannel{
+                proto: Protocol::H1(h1::Http1::new(msg.0, msg.1, Rc::clone(&self.h)))
             });
         Self::empty()
     }
 }
 
-struct Entry {
-    task: Task,
-    req: UnsafeCell<HttpRequest>,
-    eof: bool,
-    error: bool,
-    finished: bool,
+enum Protocol<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
+{
+    H1(h1::Http1<T, A, H>),
+    H2(h2::Http2<T, A, H>),
+    None,
 }
 
-const KEEPALIVE_PERIOD: u64 = 15; // seconds
-const MAX_PIPELINED_MESSAGES: usize = 16;
-
-pub struct HttpChannel<T: 'static, A: 'static, H: 'static> {
-    router: Rc<Vec<H>>,
-    #[allow(dead_code)]
-    addr: A,
-    stream: T,
-    reader: h1::Reader,
-    error: bool,
-    items: VecDeque<Entry>,
-    inactive: VecDeque<Entry>,
-    keepalive: bool,
-    keepalive_timer: Option<Timeout>,
+pub struct HttpChannel<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
+{
+    proto: Protocol<T, A, H>,
 }
 
 /*impl<T: 'static, A: 'static, H: 'static> Drop for HttpChannel<T, A, H> {
@@ -240,193 +218,45 @@ pub struct HttpChannel<T: 'static, A: 'static, H: 'static> {
 }*/
 
 impl<T, A, H> Actor for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
-          H: HttpHandler + 'static
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
 {
     type Context = Context<Self>;
 }
 
 impl<T, A, H> Future for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
-          H: HttpHandler + 'static
+    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
 {
     type Item = ();
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        // keep-alive timer
-        if let Some(ref mut timeout) = self.keepalive_timer {
-            match timeout.poll() {
-                Ok(Async::Ready(_)) =>
-                    return Ok(Async::Ready(())),
-                Ok(Async::NotReady) => (),
-                Err(_) => unreachable!(),
+        match self.proto {
+            Protocol::H1(ref mut h1) => {
+                match h1.poll() {
+                    Ok(Async::Ready(h1::Http1Result::Done)) =>
+                        return Ok(Async::Ready(())),
+                    Ok(Async::Ready(h1::Http1Result::Upgrade)) => (),
+                    Ok(Async::NotReady) =>
+                        return Ok(Async::NotReady),
+                    Err(_) =>
+                        return Err(()),
+                }
             }
+            Protocol::H2(ref mut h2) =>
+                return h2.poll(),
+            Protocol::None =>
+                unreachable!()
         }
 
-        loop {
-            let mut not_ready = true;
-
-            // check in-flight messages
-            let mut idx = 0;
-            while idx < self.items.len() {
-                if idx == 0 {
-                    if self.items[idx].error {
-                        return Err(())
-                    }
-
-                    // this is anoying
-                    let req = unsafe {self.items[idx].req.get().as_mut().unwrap()};
-                    match self.items[idx].task.poll_io(&mut self.stream, req)
-                    {
-                        Ok(Async::Ready(ready)) => {
-                            not_ready = false;
-                            let mut item = self.items.pop_front().unwrap();
-
-                            // overide keep-alive state
-                            if self.keepalive {
-                                self.keepalive = item.task.keepalive();
-                            }
-                            if !ready {
-                                item.eof = true;
-                                self.inactive.push_back(item);
-                            }
-
-                            // no keep-alive
-                            if ready && !self.keepalive &&
-                                self.items.is_empty() && self.inactive.is_empty()
-                            {
-                                return Ok(Async::Ready(()))
-                            }
-                            continue
-                        },
-                        Ok(Async::NotReady) => (),
-                        Err(_) => {
-                            // it is not possible to recover from error
-                            // during task handling, so just drop connection
-                            return Err(())
-                        }
-                    }
-                } else if !self.items[idx].finished && !self.items[idx].error {
-                    match self.items[idx].task.poll() {
-                        Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) => {
-                            not_ready = false;
-                            self.items[idx].finished = true;
-                        },
-                        Err(_) =>
-                            self.items[idx].error = true,
-                    }
-                }
-                idx += 1;
+        // upgrade to h2
+        let proto = mem::replace(&mut self.proto, Protocol::None);
+        match proto {
+            Protocol::H1(h1) => {
+                let (stream, addr, router, buf) = h1.into_inner();
+                self.proto = Protocol::H2(h2::Http2::new(stream, addr, router, buf));
+                return self.poll()
             }
-
-            // check inactive tasks
-            let mut idx = 0;
-            while idx < self.inactive.len() {
-                if idx == 0 && self.inactive[idx].error && self.inactive[idx].finished {
-                    let _ = self.inactive.pop_front();
-                    continue
-                }
-
-                if !self.inactive[idx].finished && !self.inactive[idx].error {
-                    match self.inactive[idx].task.poll() {
-                        Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) => {
-                            not_ready = false;
-                            self.inactive[idx].finished = true
-                        }
-                        Err(_) =>
-                            self.inactive[idx].error = true,
-                    }
-                }
-                idx += 1;
-            }
-
-            // read incoming data
-            if !self.error && self.items.len() < MAX_PIPELINED_MESSAGES {
-                match self.reader.parse(&mut self.stream) {
-                    Ok(Async::Ready((mut req, payload))) => {
-                        not_ready = false;
-
-                        // stop keepalive timer
-                        self.keepalive_timer.take();
-
-                        // start request processing
-                        let mut task = None;
-                        for h in self.router.iter() {
-                            if req.path().starts_with(h.prefix()) {
-                                task = Some(h.handle(&mut req, payload));
-                                break
-                            }
-                        }
-
-                        self.items.push_back(
-                            Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
-                                   req: UnsafeCell::new(req),
-                                   eof: false,
-                                   error: false,
-                                   finished: false});
-                    }
-                    Err(err) => {
-                        // notify all tasks
-                        not_ready = false;
-                        for entry in &mut self.items {
-                            entry.task.disconnected()
-                        }
-
-                        // kill keepalive
-                        self.keepalive = false;
-                        self.keepalive_timer.take();
-
-                        // on parse error, stop reading stream but
-                        // tasks need to be completed
-                        self.error = true;
-
-                        if self.items.is_empty() {
-                            if let h1::ReaderError::Error(err) = err {
-                                self.items.push_back(
-                                    Entry {task: Task::reply(err),
-                                           req: UnsafeCell::new(HttpRequest::for_error()),
-                                           eof: false,
-                                           error: false,
-                                           finished: false});
-                            }
-                        }
-                    }
-                    Ok(Async::NotReady) => {
-                        // start keep-alive timer, this is also slow request timeout
-                        if self.items.is_empty() && self.inactive.is_empty() {
-                            if self.keepalive {
-                                if self.keepalive_timer.is_none() {
-                                    trace!("Start keep-alive timer");
-                                    let mut timeout = Timeout::new(
-                                        Duration::new(KEEPALIVE_PERIOD, 0),
-                                        Arbiter::handle()).unwrap();
-                                    // register timeout
-                                    let _ = timeout.poll();
-                                    self.keepalive_timer = Some(timeout);
-                                }
-                            } else {
-                                // keep-alive disable, drop connection
-                                return Ok(Async::Ready(()))
-                            }
-                        }
-                        return Ok(Async::NotReady)
-                    }
-                }
-            }
-
-            // check for parse error
-            if self.items.is_empty() && self.inactive.is_empty() && self.error {
-                return Ok(Async::Ready(()))
-            }
-
-            if not_ready {
-                return Ok(Async::NotReady)
-            }
+            _ => unreachable!()
         }
     }
 }

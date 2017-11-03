@@ -28,8 +28,6 @@ default = []
 # tls
 tls = ["native-tls", "tokio-tls"]
 
-# http2 = ["h2"]
-
 [dependencies]
 log = "0.3"
 time = "0.1"

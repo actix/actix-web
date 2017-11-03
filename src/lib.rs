@@ -20,6 +20,7 @@ extern crate mime_guess;
 extern crate url;
 extern crate percent_encoding;
 extern crate actix;
+extern crate h2 as http2;
 
 #[cfg(feature="tls")]
 extern crate native_tls;
@@ -45,6 +46,7 @@ mod wsframe;
 mod wsproto;
 mod h1;
 mod h2;
+mod h1writer;
 
 pub mod ws;
 pub mod dev;
