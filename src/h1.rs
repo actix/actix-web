@@ -252,7 +252,7 @@ impl<T, A, H> Http1<T, A, H>
             // check for parse error
             if self.tasks.is_empty() {
                 if self.h2 {
-                    return Ok(Async::Ready(Http1Result::Upgrade))
+                    return Ok(Async::Ready(Http1Result::Switch))
                 }
                 if self.error || self.keepalive_timer.is_none() {
                     return Ok(Async::Ready(Http1Result::Done))

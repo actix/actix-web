@@ -190,12 +190,13 @@ impl Task {
                 }
             }
 
-            // use exiting frames
+            // if task is paused, write buffer probably is full
             if self.state != TaskRunningState::Paused {
+                // process exiting frames
                 while let Some(frame) = self.frames.pop_front() {
                     trace!("IO Frame: {:?}", frame);
                     let res = match frame {
-                        Frame::Message(mut response) => {
+                        Frame::Message(response) => {
                             trace!("Prepare message status={:?}", response.status);
 
                             // run middlewares
