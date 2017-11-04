@@ -27,6 +27,11 @@ extern crate native_tls;
 #[cfg(feature="tls")]
 extern crate tokio_tls;
 
+#[cfg(feature="openssl")]
+extern crate openssl;
+#[cfg(feature="openssl")]
+extern crate tokio_openssl;
+
 mod application;
 mod body;
 mod context;
@@ -42,6 +47,7 @@ mod route;
 mod task;
 mod staticfiles;
 mod server;
+mod channel;
 mod wsframe;
 mod wsproto;
 mod h1;
@@ -65,6 +71,7 @@ pub use recognizer::{Params, RouteRecognizer};
 pub use logger::Logger;
 pub use server::HttpServer;
 pub use context::HttpContext;
+pub use channel::HttpChannel;
 pub use staticfiles::StaticFiles;
 
 // re-exports
@@ -75,3 +82,6 @@ pub use http_range::{HttpRange, HttpRangeParseError};
 
 #[cfg(feature="tls")]
 pub use native_tls::Pkcs12;
+
+#[cfg(feature="openssl")]
+pub use openssl::pkcs12::Pkcs12;

@@ -80,11 +80,11 @@ use wsproto::*;
 pub use wsproto::CloseCode;
 
 #[doc(hidden)]
-const SEC_WEBSOCKET_ACCEPT: &'static str = "SEC-WEBSOCKET-ACCEPT";
+const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 #[doc(hidden)]
-const SEC_WEBSOCKET_KEY: &'static str = "SEC-WEBSOCKET-KEY";
+const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
 #[doc(hidden)]
-const SEC_WEBSOCKET_VERSION: &'static str = "SEC-WEBSOCKET-VERSION";
+const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
 // #[doc(hidden)]
 // const SEC_WEBSOCKET_PROTOCOL: &'static str = "SEC-WEBSOCKET-PROTOCOL";
 

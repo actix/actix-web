@@ -9,7 +9,7 @@ use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use server::HttpHandler;
+use channel::HttpHandler;
 
 
 /// Middleware definition

@@ -63,7 +63,7 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.stream.as_mut().unwrap()
     }
 
-    pub fn into_inner(&mut self) -> T {
+    pub fn unwrap(&mut self) -> T {
         self.stream.take().unwrap()
     }
 
@@ -90,12 +90,11 @@ impl<T: AsyncWrite> H1Writer<T> {
                             return Ok(WriterState::Done)
                         }
                     }
-                    Err(err) =>
-                    return Err(err),
+                    Err(err) => return Err(err),
                 }
             }
         }
-        return Ok(WriterState::Done)
+        Ok(WriterState::Done)
     }
 }
 
@@ -225,9 +224,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
 
         if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
-            return Ok(WriterState::Pause)
+            Ok(WriterState::Pause)
         } else {
-            return Ok(WriterState::Done)
+            Ok(WriterState::Done)
         }
     }
 
@@ -236,12 +235,10 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             //debug!("last payload item, but it is not EOF ");
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
+        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+            Ok(WriterState::Pause)
         } else {
-            if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
-                return Ok(WriterState::Pause)
-            } else {
-                return Ok(WriterState::Done)
-            }
+            Ok(WriterState::Done)
         }
     }
 
@@ -345,7 +342,7 @@ impl Encoder {
                 true
             },
             Kind::Length(ref mut remaining) => {
-                return *remaining == 0
+                *remaining == 0
             },
         }
     }

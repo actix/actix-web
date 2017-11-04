@@ -11,4 +11,4 @@ path = "src/main.rs"
 env_logger = "0.4"
 
 actix = "0.3.1"
-actix-web = { path = "../../", features=["tls"] }
+actix-web = { path = "../../", features=["alpn"] }

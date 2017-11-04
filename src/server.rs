@@ -1,30 +1,26 @@
-use std::{io, net, mem};
+use std::{io, net};
 use std::rc::Rc;
 use std::marker::PhantomData;
 
 use actix::dev::*;
-use futures::{Future, Poll, Async, Stream};
-use tokio_core::net::{TcpListener, TcpStream};
+use futures::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_core::net::{TcpListener, TcpStream};
 
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
 use tokio_tls::{TlsStream, TlsAcceptorExt};
 
-use h1;
-use h2;
-use task::Task;
-use payload::Payload;
-use httprequest::HttpRequest;
+#[cfg(feature="alpn")]
+use openssl::ssl::{SslMethod, SslAcceptorBuilder};
+#[cfg(feature="alpn")]
+use openssl::pkcs12::ParsedPkcs12;
+#[cfg(feature="alpn")]
+use tokio_openssl::{SslStream, SslAcceptorExt};
 
-/// Low level http request handler
-pub trait HttpHandler: 'static {
-    /// Http handler prefix
-    fn prefix(&self) -> &str;
-    /// Handle request
-    fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task;
-}
+use channel::{HttpChannel, HttpHandler};
+
 
 /// An HTTP Server
 ///
@@ -66,7 +62,7 @@ impl<T, A, H> HttpServer<T, A, H>
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(stream.map(|(t, a)| IoStream(t, a)));
+            ctx.add_stream(stream.map(|(t, a)| IoStream(t, a, false)));
             self
         }))
     }
@@ -111,7 +107,7 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
         Ok(HttpServer::create(move |ctx| {
             for (addr, tcp) in addrs {
                 info!("Starting http server on {}", addr);
-                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a)));
+                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a, false)));
             }
             self
         }))
@@ -161,7 +157,61 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
     }
 }
 
-struct IoStream<T, A>(T, A);
+#[cfg(feature="alpn")]
+impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
+
+    /// Start listening for incomming tls connections.
+    ///
+    /// This methods converts address to list of `SocketAddr`
+    /// then binds to all available addresses.
+    pub fn serve_tls<S, Addr>(self, addr: S, identity: ParsedPkcs12) -> io::Result<Addr>
+        where Self: ActorAddress<Self, Addr>,
+              S: net::ToSocketAddrs,
+    {
+        let addrs = self.bind(addr)?;
+        let acceptor = match SslAcceptorBuilder::mozilla_intermediate(SslMethod::tls(),
+                                                                      &identity.pkey,
+                                                                      &identity.cert,
+                                                                      &identity.chain)
+        {
+            Ok(mut builder) => {
+                match builder.builder_mut().set_alpn_protocols(&[b"h2", b"http/1.1"]) {
+                    Ok(_) => builder.build(),
+                    Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err)),
+                }
+            },
+            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+        };
+
+        Ok(HttpServer::create(move |ctx| {
+            for (addr, tcp) in addrs {
+                info!("Starting tls http server on {}", addr);
+
+                let acc = acceptor.clone();
+                ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
+                    SslAcceptorExt::accept_async(&acc, stream)
+                        .map(move |stream| {
+                            let http2 = if let Some(p) =
+                                stream.get_ref().ssl().selected_alpn_protocol()
+                            {
+                                p.len() == 2 && &p == b"h2"
+                            } else {
+                                false
+                            };
+                            IoStream(stream, addr, http2)
+                        })
+                        .map_err(|err| {
+                            trace!("Error during handling tls connection: {}", err);
+                            io::Error::new(io::ErrorKind::Other, err)
+                        })
+                }));
+            }
+            self
+        }))
+    }
+}
+
+struct IoStream<T, A>(T, A, bool);
 
 impl<T, A> ResponseType for IoStream<T, A>
     where T: AsyncRead + AsyncWrite + 'static,
@@ -189,73 +239,7 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
               -> Response<Self, IoStream<T, A>>
     {
         Arbiter::handle().spawn(
-            HttpChannel{
-                proto: Protocol::H1(h1::Http1::new(msg.0, msg.1, Rc::clone(&self.h)))
-            });
+            HttpChannel::new(msg.0, msg.1, Rc::clone(&self.h), msg.2));
         Self::empty()
-    }
-}
-
-enum Protocol<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
-{
-    H1(h1::Http1<T, A, H>),
-    H2(h2::Http2<T, A, H>),
-    None,
-}
-
-pub struct HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
-{
-    proto: Protocol<T, A, H>,
-}
-
-/*impl<T: 'static, A: 'static, H: 'static> Drop for HttpChannel<T, A, H> {
-    fn drop(&mut self) {
-        println!("Drop http channel");
-    }
-}*/
-
-impl<T, A, H> Actor for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
-{
-    type Context = Context<Self>;
-}
-
-impl<T, A, H> Future for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
-{
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.proto {
-            Protocol::H1(ref mut h1) => {
-                match h1.poll() {
-                    Ok(Async::Ready(h1::Http1Result::Done)) =>
-                        return Ok(Async::Ready(())),
-                    Ok(Async::Ready(h1::Http1Result::Upgrade)) => (),
-                    Ok(Async::NotReady) =>
-                        return Ok(Async::NotReady),
-                    Err(_) =>
-                        return Err(()),
-                }
-            }
-            Protocol::H2(ref mut h2) =>
-                return h2.poll(),
-            Protocol::None =>
-                unreachable!()
-        }
-
-        // upgrade to h2
-        let proto = mem::replace(&mut self.proto, Protocol::None);
-        match proto {
-            Protocol::H1(h1) => {
-                let (stream, addr, router, buf) = h1.into_inner();
-                self.proto = Protocol::H2(h2::Http2::new(stream, addr, router, buf));
-                return self.poll()
-            }
-            _ => unreachable!()
-        }
     }
 }

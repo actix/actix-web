@@ -77,15 +77,13 @@ impl H2Writer {
                         let bytes = self.buffer.split_to(cmp::min(cap, len));
                         let eof = self.buffer.is_empty() && self.eof;
 
-                        if let Err(_) = stream.send_data(bytes.freeze(), eof) {
-                            return Err(io::Error::new(io::ErrorKind::Other, ""))
+                        if let Err(err) = stream.send_data(bytes.freeze(), eof) {
+                            return Err(io::Error::new(io::ErrorKind::Other, err))
+                        } else if !self.buffer.is_empty() {
+                            let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
+                            stream.reserve_capacity(cap);
                         } else {
-                            if !self.buffer.is_empty() {
-                                let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
-                                stream.reserve_capacity(cap);
-                            } else {
-                                return Ok(WriterState::Done)
-                            }
+                            return Ok(WriterState::Done)
                         }
                     }
                     Err(_) => {
@@ -94,7 +92,7 @@ impl H2Writer {
                 }
             }
         }
-        return Ok(WriterState::Done)
+        Ok(WriterState::Done)
     }
 }
 
@@ -200,9 +198,9 @@ impl Writer for H2Writer {
         }
 
         if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
-            return Ok(WriterState::Pause)
+            Ok(WriterState::Pause)
         } else {
-            return Ok(WriterState::Done)
+            Ok(WriterState::Done)
         }
     }
 
@@ -211,12 +209,10 @@ impl Writer for H2Writer {
         if !self.encoder.encode_eof(&mut self.buffer) {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
+        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+            Ok(WriterState::Pause)
         } else {
-            if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
-                return Ok(WriterState::Pause)
-            } else {
-                return Ok(WriterState::Done)
-            }
+            Ok(WriterState::Done)
         }
     }
 
@@ -288,9 +284,7 @@ impl Encoder {
     pub fn encode_eof(&mut self, _dst: &mut BytesMut) -> bool {
         match self.kind {
             Kind::Eof => true,
-            Kind::Length(ref mut remaining) => {
-                return *remaining == 0
-            },
+            Kind::Length(ref mut remaining) => *remaining == 0
         }
     }
 }

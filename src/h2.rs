@@ -12,7 +12,7 @@ use futures::{Async, Poll, Future, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use task::Task;
-use server::HttpHandler;
+use channel::HttpHandler;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadError, PayloadSender};

@@ -116,7 +116,7 @@ pub(crate) fn check_pattern(path: &str) {
 }
 
 fn parse(pattern: &str) -> String {
-    const DEFAULT_PATTERN: &'static str = "[^/]+";
+    const DEFAULT_PATTERN: &str = "[^/]+";
 
     let mut re = String::from("^/");
     let mut in_param = false;

@@ -28,6 +28,9 @@ default = []
 # tls
 tls = ["native-tls", "tokio-tls"]
 
+# openssl
+alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
+
 [dependencies]
 log = "0.3"
 time = "0.1"
@@ -50,9 +53,12 @@ tokio-core = "0.1"
 
 h2 = { git = 'https://github.com/carllerche/h2' }
 
-# tls
+# native-tls
 native-tls = { version="0.1", optional = true }
 tokio-tls = { version="0.1", optional = true }
+
+# openssl
+tokio-openssl = { version="0.1", optional = true }
 
 [dependencies.actix]
 version = ">=0.3.1"
@@ -60,6 +66,10 @@ version = ">=0.3.1"
 #git = "https://github.com/actix/actix.git"
 default-features = false
 features = []
+
+[dependencies.openssl]
+version = "0.9"
+optional = true
 
 [dev-dependencies]
 env_logger = "0.4"

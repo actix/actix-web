@@ -15,7 +15,7 @@ use tokio_core::reactor::Timeout;
 use percent_encoding;
 
 use task::Task;
-use server::HttpHandler;
+use channel::HttpHandler;
 use error::ParseError;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
@@ -75,7 +75,7 @@ impl<T, A, H> Http1<T, A, H>
     }
 
     pub fn into_inner(mut self) -> (T, A, Rc<Vec<H>>, Bytes) {
-        (self.stream.into_inner(), self.addr, self.router, self.read_buf.freeze())
+        (self.stream.unwrap(), self.addr, self.router, self.read_buf.freeze())
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -114,7 +114,7 @@ impl<T, A, H> Http1<T, A, H>
                             if self.keepalive {
                                 self.keepalive = self.stream.keepalive();
                             }
-                            self.stream = H1Writer::new(self.stream.into_inner());
+                            self.stream = H1Writer::new(self.stream.unwrap());
 
                             item.eof = true;
                             if ready {
@@ -251,11 +251,11 @@ impl<T, A, H> Http1<T, A, H>
 
             // check for parse error
             if self.tasks.is_empty() {
+                if self.h2 {
+                    return Ok(Async::Ready(Http1Result::Upgrade))
+                }
                 if self.error || self.keepalive_timer.is_none() {
                     return Ok(Async::Ready(Http1Result::Done))
-                }
-                else if self.h2 {
-                    return Ok(Async::Ready(Http1Result::Upgrade))
                 }
             }
 
@@ -482,7 +482,7 @@ impl Reader {
         if buf.is_empty() {
             return Ok(Message::NotReady);
         }
-        if buf.len() >= 14 && &buf[..14] == &HTTP2_PREFACE[..] {
+        if buf.len() >= 14 && buf[..14] == HTTP2_PREFACE[..] {
             return Ok(Message::Http2)
         }
 

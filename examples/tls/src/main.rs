@@ -26,7 +26,7 @@ fn main() {
     let mut file = File::open("identity.pfx").unwrap();
     let mut pkcs12 = vec![];
     file.read_to_end(&mut pkcs12).unwrap();
-    let pkcs12 = Pkcs12::from_der(&pkcs12, "12345").unwrap();
+    let pkcs12 = Pkcs12::from_der(&pkcs12).unwrap().parse("12345").unwrap();
 
     HttpServer::new(
         Application::default("/")
