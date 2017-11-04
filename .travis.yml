@@ -12,17 +12,12 @@ dist: trusty
 env:
   global:
     - RUSTFLAGS="-C link-dead-code"
+    - OPENSSL_VERSION=openssl-1.0.2
 
-addons:
-  apt:
-    packages:
-      - libcurl4-openssl-dev
-      - libelf-dev
-      - libdw-dev
-      - cmake
-      - gcc
-      - binutils-dev
-      - libiberty-dev
+before_install:
+  - sudo add-apt-repository -y ppa:0k53d-karl-f830m/openssl
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
 
 # Add clippy
 before_script:
@@ -33,7 +28,7 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - USE_SKEPTIC=1 cargo test --no-default-features
+  - USE_SKEPTIC=1 cargo test --features=alpn
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
         cargo clippy
