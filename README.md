@@ -21,7 +21,13 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Multipart streams
   * Middlewares
 
-## HTTP/2 Negotiation
+## HTTP/2
+
+### Usage
+
+Actix web automatically upgrades connection to `http/2` if possible.
+
+### Negotiation
 
 To use http/2 protocol over tls without prior knowlage requires 
 [tls alpn]( (https://tools.ietf.org/html/rfc7301). At the moment only
