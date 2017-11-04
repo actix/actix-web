@@ -31,7 +31,7 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
 pub(crate) enum Http1Result {
     Done,
-    Upgrade,
+    Switch,
 }
 
 pub(crate) struct Http1<T: AsyncWrite + 'static, A: 'static, H: 'static> {
@@ -157,7 +157,7 @@ impl<T, A, H> Http1<T, A, H>
             // no keep-alive
             if !self.keepalive && self.tasks.is_empty() {
                 if self.h2 {
-                    return Ok(Async::Ready(Http1Result::Upgrade))
+                    return Ok(Async::Ready(Http1Result::Switch))
                 } else {
                     return Ok(Async::Ready(Http1Result::Done))
                 }

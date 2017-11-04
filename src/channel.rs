@@ -72,7 +72,7 @@ impl<T, A, H> Future for HttpChannel<T, A, H>
                 match h1.poll() {
                     Ok(Async::Ready(h1::Http1Result::Done)) =>
                         return Ok(Async::Ready(())),
-                    Ok(Async::Ready(h1::Http1Result::Upgrade)) => (),
+                    Ok(Async::Ready(h1::Http1Result::Switch)) => (),
                     Ok(Async::NotReady) =>
                         return Ok(Async::NotReady),
                     Err(_) =>

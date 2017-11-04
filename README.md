@@ -13,7 +13,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
 
 ## Features
 
-  * HTTP/1 and HTTP/2
+  * Supported HTTP/1 and HTTP/2 protocols
   * Streaming and pipelining
   * Keep-alive and slow requests handling
   * [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
@@ -32,20 +32,23 @@ actix-web = { git = "https://github.com/actix/actix-web" }
 
 ## HTTP/2
 
-### Usage
-
 Actix web automatically upgrades connection to `http/2` if possible.
 
 ### Negotiation
 
-To use http/2 protocol over tls without prior knowlage requires 
+To use `http/2` protocol over tls without prior knowlage requires
 [tls alpn](https://tools.ietf.org/html/rfc7301). At the moment only
-rust-openssl supports alpn.
+`rust-openssl` supports alpn.
 
 ```toml
 [dependencies]
 actix-web = { git = "https://github.com/actix/actix-web", features=["alpn"] }
 ```
+
+Upgrade to `http/2` schema described in
+[rfc section3.2](https://http2.github.io/http2-spec/#rfc.section.3.2) is not supported.
+Starting `http/2` with prior knowledge is supported for both clear text connection
+and tls connection. [rfc link](https://http2.github.io/http2-spec/#rfc.section.3.4)
 
 ## Example
 
