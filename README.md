@@ -46,9 +46,9 @@ actix-web = { git = "https://github.com/actix/actix-web", features=["alpn"] }
 ```
 
 Upgrade to `http/2` schema described in
-[rfc section3.2](https://http2.github.io/http2-spec/#rfc.section.3.2) is not supported.
+[rfc section 3.2](https://http2.github.io/http2-spec/#rfc.section.3.2) is not supported.
 Starting `http/2` with prior knowledge is supported for both clear text connection
-and tls connection. [rfc link](https://http2.github.io/http2-spec/#rfc.section.3.4)
+and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.section.3.4)
 
 ## Example
 
