@@ -21,6 +21,15 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Multipart streams
   * Middlewares
 
+## Usage
+
+To use `actix-web`, add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+actix-web = { git = "https://github.com/actix/actix-web" }
+```
+
 ## HTTP/2
 
 ### Usage
@@ -36,15 +45,6 @@ rust-openssl supports alpn.
 ```toml
 [dependencies]
 actix-web = { git = "https://github.com/actix/actix-web", features=["alpn"] }
-```
-
-## Usage
-
-To use `actix-web`, add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-actix-web = { git = "https://github.com/actix/actix-web" }
 ```
 
 ## Example
