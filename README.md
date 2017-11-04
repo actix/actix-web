@@ -13,7 +13,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
 
 ## Features
 
-  * HTTP 1.1 and 1.0 support
+  * HTTP/1 and HTTP/2 support
   * Streaming and pipelining support
   * Keep-alive and slow requests support
   * [WebSockets support](https://actix.github.io/actix-web/actix_web/ws/index.html)
@@ -27,7 +27,7 @@ To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-web = "0.2"
+actix-web = { git = "https://github.com/actix/actix-web" }
 ```
 
 ## Example
@@ -37,7 +37,7 @@ actix-web = "0.2"
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
-* [SockJS Server](https://github.com/fafhrd91/actix-sockjs)
+* [SockJS Server](https://github.com/actix/actix-sockjs)
 
 
 ```rust

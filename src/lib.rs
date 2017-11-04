@@ -47,6 +47,7 @@ mod wsproto;
 mod h1;
 mod h2;
 mod h1writer;
+mod h2writer;
 
 pub mod ws;
 pub mod dev;

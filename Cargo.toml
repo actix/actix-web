@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
@@ -48,8 +48,7 @@ futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
 
-h2 = { path = '../h2' }
-# h2 = { git = 'https://github.com/carllerche/h2', optional = true }
+h2 = { git = 'https://github.com/carllerche/h2' }
 
 # tls
 native-tls = { version="0.1", optional = true }

@@ -5,12 +5,13 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::io::Error as IoError;
 use bytes::{Bytes, BytesMut};
+use http2::Error as Http2Error;
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
 use actix::ResponseType;
 
-const MAX_PAYLOAD_SIZE: usize = 65_536; // max buffer size 64k
+const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Just Bytes object
 pub struct PayloadItem(pub Bytes);
@@ -27,6 +28,8 @@ pub enum PayloadError {
     Incomplete,
     /// Parse error
     ParseError(IoError),
+    /// Http2 error
+    Http2(Http2Error),
 }
 
 impl fmt::Display for PayloadError {
@@ -43,6 +46,7 @@ impl Error for PayloadError {
         match *self {
             PayloadError::Incomplete => "A payload reached EOF, but is not complete.",
             PayloadError::ParseError(ref e) => e.description(),
+            PayloadError::Http2(ref e) => e.description(),
         }
     }
 
@@ -130,6 +134,16 @@ impl Payload {
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
+
+    /// Get size of payload buffer
+    pub fn buffer_size(&self) -> usize {
+        self.inner.borrow().buffer_size()
+    }
+
+    /// Set size of payload buffer
+    pub fn set_buffer_size(&self, size: usize) {
+        self.inner.borrow_mut().set_buffer_size(size)
+    }
 }
 
 
@@ -147,33 +161,33 @@ pub(crate) struct PayloadSender {
 }
 
 impl PayloadSender {
-    pub(crate) fn set_error(&mut self, err: PayloadError) {
+    pub fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().set_error(err)
         }
     }
 
-    pub(crate) fn feed_eof(&mut self) {
+    pub fn feed_eof(&mut self) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_eof()
         }
     }
 
-    pub(crate) fn feed_data(&mut self, data: Bytes) {
+    pub fn feed_data(&mut self, data: Bytes) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_data(data)
         }
     }
 
-    pub(crate) fn maybe_paused(&self) -> bool {
+    pub fn maybe_paused(&self) -> bool {
         match self.inner.upgrade() {
             Some(shared) => {
                 let inner = shared.borrow();
-                if inner.paused() && inner.len() < MAX_PAYLOAD_SIZE {
+                if inner.paused() && inner.len() < inner.buffer_size() {
                     drop(inner);
                     shared.borrow_mut().resume();
                     false
-                } else if !inner.paused() && inner.len() > MAX_PAYLOAD_SIZE {
+                } else if !inner.paused() && inner.len() > inner.buffer_size() {
                     drop(inner);
                     shared.borrow_mut().pause();
                     true
@@ -182,6 +196,14 @@ impl PayloadSender {
                 }
             }
             None => false,
+        }
+    }
+
+    pub fn capacity(&self) -> usize {
+        if let Some(shared) = self.inner.upgrade() {
+            shared.borrow().capacity()
+        } else {
+            0
         }
     }
 }
@@ -194,6 +216,7 @@ struct Inner {
     err: Option<PayloadError>,
     task: Option<Task>,
     items: VecDeque<Bytes>,
+    buf_size: usize,
 }
 
 impl Inner {
@@ -206,6 +229,7 @@ impl Inner {
             err: None,
             task: None,
             items: VecDeque::new(),
+            buf_size: DEFAULT_BUFFER_SIZE,
         }
     }
 
@@ -347,7 +371,6 @@ impl Inner {
         self.readuntil(b"\n")
     }
 
-    #[doc(hidden)]
     pub fn readall(&mut self) -> Option<Bytes> {
         let len = self.items.iter().fold(0, |cur, item| cur + item.len());
         if len > 0 {
@@ -363,9 +386,25 @@ impl Inner {
         }
     }
 
-    pub fn unread_data(&mut self, data: Bytes) {
+    fn unread_data(&mut self, data: Bytes) {
         self.len += data.len();
         self.items.push_front(data)
+    }
+
+    fn capacity(&self) -> usize {
+        if self.len > self.buf_size {
+            0
+        } else {
+            self.buf_size - self.len
+        }
+    }
+
+    fn buffer_size(&self) -> usize {
+        self.buf_size
+    }
+
+    fn set_buffer_size(&mut self, size: usize) {
+        self.buf_size = size
     }
 }
 
@@ -569,7 +608,7 @@ mod tests {
             assert!(!payload.paused());
             assert!(!sender.maybe_paused());
 
-            for _ in 0..MAX_PAYLOAD_SIZE+1 {
+            for _ in 0..DEFAULT_BUFFER_SIZE+1 {
                 sender.feed_data(Bytes::from("1"));
             }
             assert!(sender.maybe_paused());

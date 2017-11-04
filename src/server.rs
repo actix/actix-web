@@ -146,7 +146,6 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
 
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
-                    println!("SSL");
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
                         .map(move |t| {
                             IoStream(t, addr)
@@ -183,7 +182,7 @@ impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
           H: HttpHandler + 'static,
 {
     fn error(&mut self, err: io::Error, _: &mut Context<Self>) {
-        println!("Error handling request: {}", err)
+        debug!("Error handling request: {}", err)
     }
 
     fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)

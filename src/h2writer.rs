@@ -1,97 +1,96 @@
-use std::{cmp, io};
-use std::fmt::Write;
-use bytes::BytesMut;
+use std::{io, cmp};
+use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
-use tokio_io::AsyncWrite;
-use http::{Version, StatusCode};
-use http::header::{HeaderValue,
-                   CONNECTION, CONTENT_TYPE, CONTENT_LENGTH, TRANSFER_ENCODING, DATE};
+use http2::{Reason, SendStream};
+use http2::server::Respond;
+use http::{Version, HttpTryFrom, Response};
+use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE,
+                   CONTENT_LENGTH, TRANSFER_ENCODING, DATE};
 
 use date;
 use body::Body;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use h1writer::{Writer, WriterState};
 
-const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
+const CHUNK_SIZE: usize = 16_384;
 const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 
-#[derive(Debug)]
-pub(crate) enum WriterState {
-    Done,
-    Pause,
-}
-
-/// Send stream
-pub(crate) trait Writer {
-    fn start(&mut self, req: &mut HttpRequest, resp: &mut HttpResponse)
-             -> Result<WriterState, io::Error>;
-
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error>;
-
-    fn write_eof(&mut self) -> Result<WriterState, io::Error>;
-
-    fn poll_complete(&mut self) -> Poll<(), io::Error>;
-}
-
-
-pub(crate) struct H1Writer<T: AsyncWrite> {
-    stream: Option<T>,
+pub(crate) struct H2Writer {
+    respond: Respond<Bytes>,
+    stream: Option<SendStream<Bytes>>,
     buffer: BytesMut,
     started: bool,
     encoder: Encoder,
-    upgrade: bool,
-    keepalive: bool,
     disconnected: bool,
+    eof: bool,
 }
 
-impl<T: AsyncWrite> H1Writer<T> {
+impl H2Writer {
 
-    pub fn new(stream: T) -> H1Writer<T> {
-        H1Writer {
-            stream: Some(stream),
+    pub fn new(respond: Respond<Bytes>) -> H2Writer {
+        H2Writer {
+            respond: respond,
+            stream: None,
             buffer: BytesMut::new(),
             started: false,
             encoder: Encoder::length(0),
-            upgrade: false,
-            keepalive: false,
             disconnected: false,
+            eof: true,
         }
     }
 
-    pub fn get_mut(&mut self) -> &mut T {
-        self.stream.as_mut().unwrap()
-    }
-
-    pub fn into_inner(&mut self) -> T {
-        self.stream.take().unwrap()
-    }
-
-    pub fn disconnected(&mut self) {
-        let len = self.buffer.len();
-        self.buffer.split_to(len);
-    }
-
-    pub fn keepalive(&self) -> bool {
-        self.keepalive && !self.upgrade
+    pub fn reset(&mut self, reason: Reason) {
+        if let Some(mut stream) = self.stream.take() {
+            stream.send_reset(reason)
+        }
     }
 
     fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
+        if !self.started {
+            return Ok(WriterState::Done)
+        }
+
         if let Some(ref mut stream) = self.stream {
-            while !self.buffer.is_empty() {
-                match stream.write(self.buffer.as_ref()) {
-                    Ok(n) => {
-                        self.buffer.split_to(n);
-                    },
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            if self.buffer.is_empty() {
+                if self.eof {
+                    let _ = stream.send_data(Bytes::new(), true);
+                }
+                return Ok(WriterState::Done)
+            }
+
+            loop {
+                match stream.poll_capacity() {
+                    Ok(Async::NotReady) => {
                         if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
                             return Ok(WriterState::Pause)
                         } else {
                             return Ok(WriterState::Done)
                         }
                     }
-                    Err(err) =>
-                    return Err(err),
+                    Ok(Async::Ready(None)) => {
+                        return Ok(WriterState::Done)
+                    }
+                    Ok(Async::Ready(Some(cap))) => {
+                        let len = self.buffer.len();
+                        let bytes = self.buffer.split_to(cmp::min(cap, len));
+                        let eof = self.buffer.is_empty() && self.eof;
+
+                        if let Err(_) = stream.send_data(bytes.freeze(), eof) {
+                            return Err(io::Error::new(io::ErrorKind::Other, ""))
+                        } else {
+                            if !self.buffer.is_empty() {
+                                let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
+                                stream.reserve_capacity(cap);
+                            } else {
+                                return Ok(WriterState::Done)
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        return Err(io::Error::new(io::ErrorKind::Other, ""))
+                    }
                 }
             }
         }
@@ -99,19 +98,20 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 }
 
-impl<T: AsyncWrite> Writer for H1Writer<T> {
+impl Writer for H2Writer {
 
-    fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
+    fn start(&mut self, _: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare message status={:?}", msg.status);
+        trace!("Prepare message status={:?}", msg);
 
-        // prepare task
-        let mut extra = 0;
-        let body = msg.replace_body(Body::Empty);
-        let version = msg.version().unwrap_or_else(|| req.version());
+        // prepare response
         self.started = true;
-        self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive());
+        let body = msg.replace_body(Body::Empty);
+
+        // http2 specific
+        msg.headers.remove(CONNECTION);
+        msg.headers.remove(TRANSFER_ENCODING);
 
         match body {
             Body::Empty => {
@@ -119,93 +119,68 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                     error!("Chunked transfer is enabled but body is set to Empty");
                 }
                 msg.headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(0);
             },
             Body::Length(n) => {
                 if msg.chunked() {
                     error!("Chunked transfer is enabled but body with specific length is specified");
                 }
+                self.eof = false;
                 msg.headers.insert(
                     CONTENT_LENGTH,
                     HeaderValue::from_str(format!("{}", n).as_str()).unwrap());
-                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(n);
             },
             Body::Binary(ref bytes) => {
-                extra = bytes.len();
+                self.eof = false;
                 msg.headers.insert(
                     CONTENT_LENGTH,
                     HeaderValue::from_str(format!("{}", bytes.len()).as_str()).unwrap());
-                msg.headers.remove(TRANSFER_ENCODING);
                 self.encoder = Encoder::length(0);
             }
-            Body::Streaming => {
-                if msg.chunked() {
-                    if version < Version::HTTP_11 {
-                        error!("Chunked transfer encoding is forbidden for {:?}", version);
-                    }
-                    msg.headers.remove(CONTENT_LENGTH);
-                    msg.headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                    self.encoder = Encoder::chunked();
-                } else {
-                    self.encoder = Encoder::eof();
-                }
-            }
-            Body::Upgrade => {
-                msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
+            _ => {
+                msg.headers.remove(CONTENT_LENGTH);
+                self.eof = false;
                 self.encoder = Encoder::eof();
             }
-        }
-
-        // Connection upgrade
-        if msg.upgrade() {
-            msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
-        }
-        // keep-alive
-        else if self.keepalive {
-            if version < Version::HTTP_11 {
-                msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
-            }
-        } else if version >= Version::HTTP_11 {
-            msg.headers.insert(CONNECTION, HeaderValue::from_static("close"));
-        }
-
-        // render message
-        let init_cap = 100 + msg.headers.len() * AVERAGE_HEADER_SIZE + extra;
-        self.buffer.reserve(init_cap);
-
-        if version == Version::HTTP_11 && msg.status == StatusCode::OK {
-            self.buffer.extend(b"HTTP/1.1 200 OK\r\n");
-        } else {
-            let _ = write!(self.buffer, "{:?} {}\r\n", version, msg.status);
-        }
-        for (key, value) in &msg.headers {
-            let t: &[u8] = key.as_ref();
-            self.buffer.extend(t);
-            self.buffer.extend(b": ");
-            self.buffer.extend(value.as_ref());
-            self.buffer.extend(b"\r\n");
         }
 
         // using http::h1::date is quite a lot faster than generating
         // a unique Date header each time like req/s goes up about 10%
         if !msg.headers.contains_key(DATE) {
-            self.buffer.reserve(date::DATE_VALUE_LENGTH + 8);
-            self.buffer.extend(b"Date: ");
-            date::extend(&mut self.buffer);
-            self.buffer.extend(b"\r\n");
+            let mut bytes = BytesMut::with_capacity(29);
+            date::extend(&mut bytes);
+            msg.headers.insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
         }
 
         // default content-type
         if !msg.headers.contains_key(CONTENT_TYPE) {
-            self.buffer.extend(b"ContentType: application/octet-stream\r\n".as_ref());
+            msg.headers.insert(
+                CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
         }
 
-        self.buffer.extend(b"\r\n");
+        let mut resp = Response::new(());
+        *resp.status_mut() = msg.status;
+        *resp.version_mut() = Version::HTTP_2;
+        for (key, value) in msg.headers().iter() {
+            resp.headers_mut().insert(key, value.clone());
+        }
+
+        match self.respond.send_response(resp, self.eof) {
+            Ok(stream) => {
+                self.stream = Some(stream);
+            }
+            Err(_) => {
+                return Err(io::Error::new(io::ErrorKind::Other, "err"))
+            }
+        }
 
         if let Body::Binary(ref bytes) = body {
+            self.eof = true;
             self.buffer.extend_from_slice(bytes.as_ref());
+            if let Some(ref mut stream) = self.stream {
+                stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
+            }
             return Ok(WriterState::Done)
         }
         msg.replace_body(body);
@@ -232,8 +207,8 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 
     fn write_eof(&mut self) -> Result<WriterState, io::Error> {
+        self.eof = true;
         if !self.encoder.encode_eof(&mut self.buffer) {
-            //debug!("last payload item, but it is not EOF ");
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
         } else {
@@ -254,6 +229,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 }
 
+
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
 pub(crate) struct Encoder {
@@ -262,8 +238,6 @@ pub(crate) struct Encoder {
 
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
-    /// An Encoder for when Transfer-Encoding includes `chunked`.
-    Chunked(bool),
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
@@ -282,12 +256,6 @@ impl Encoder {
         }
     }
 
-    pub fn chunked() -> Encoder {
-        Encoder {
-            kind: Kind::Chunked(false),
-        }
-    }
-
     pub fn length(len: u64) -> Encoder {
         Encoder {
             kind: Kind::Length(len),
@@ -300,21 +268,6 @@ impl Encoder {
             Kind::Eof => {
                 dst.extend(msg);
                 msg.is_empty()
-            },
-            Kind::Chunked(ref mut eof) => {
-                if *eof {
-                    return true;
-                }
-
-                if msg.is_empty() {
-                    *eof = true;
-                    dst.extend(b"0\r\n\r\n");
-                } else {
-                    write!(dst, "{:X}\r\n", msg.len()).unwrap();
-                    dst.extend(msg);
-                    dst.extend(b"\r\n");
-                }
-                *eof
             },
             Kind::Length(ref mut remaining) => {
                 if msg.is_empty() {
@@ -332,18 +285,9 @@ impl Encoder {
     }
 
     /// Encode eof. Return `EOF` state of encoder
-    pub fn encode_eof(&mut self, dst: &mut BytesMut) -> bool {
+    pub fn encode_eof(&mut self, _dst: &mut BytesMut) -> bool {
         match self.kind {
             Kind::Eof => true,
-            Kind::Chunked(ref mut eof) => {
-                if *eof {
-                    return true;
-                }
-
-                *eof = true;
-                dst.extend(b"0\r\n\r\n");
-                true
-            },
             Kind::Length(ref mut remaining) => {
                 return *remaining == 0
             },

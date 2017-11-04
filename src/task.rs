@@ -247,7 +247,7 @@ impl Task {
                 return Ok(Async::NotReady)
             }
             Err(err) => {
-                trace!("Error sending data: {}", err);
+                debug!("Error sending data: {}", err);
                 return Err(())
             }
         }
@@ -285,7 +285,7 @@ impl Task {
                     match frame {
                         Frame::Message(ref msg) => {
                             if self.iostate != TaskIOState::ReadingMessage {
-                                error!("Non expected frame {:?}", frame);
+                                error!("Unexpected frame {:?}", frame);
                                 return Err(())
                             }
                             let upgrade = msg.upgrade();
@@ -299,7 +299,7 @@ impl Task {
                             if chunk.is_none() {
                                 self.iostate = TaskIOState::Done;
                             } else if self.iostate != TaskIOState::ReadingPayload {
-                                error!("Non expected frame {:?}", self.iostate);
+                                error!("Unexpected frame {:?}", self.iostate);
                                 return Err(())
                             }
                         },
