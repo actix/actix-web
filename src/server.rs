@@ -13,6 +13,8 @@ use native_tls::TlsAcceptor;
 use tokio_tls::{TlsStream, TlsAcceptorExt};
 
 #[cfg(feature="alpn")]
+use futures::Future;
+#[cfg(feature="alpn")]
 use openssl::ssl::{SslMethod, SslAcceptorBuilder};
 #[cfg(feature="alpn")]
 use openssl::pkcs12::ParsedPkcs12;
