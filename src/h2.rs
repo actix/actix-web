@@ -15,14 +15,13 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
 use task::Task;
+use h2writer::H2Writer;
 use channel::HttpHandler;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use payload::{Payload, PayloadError, PayloadSender};
-use h2writer::H2Writer;
+use payload::{Payload, PayloadError, PayloadSender, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
-
 
 pub(crate) struct Http2<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static

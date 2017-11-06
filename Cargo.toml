@@ -43,6 +43,8 @@ cookie = { version="0.10", features=["percent-encode"] }
 regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
+flate2 = "0.2"
+brotli2 = "0.3"
 percent-encoding = "1.0"
 
 # tokio

@@ -18,6 +18,8 @@ extern crate http_range;
 extern crate mime;
 extern crate mime_guess;
 extern crate url;
+extern crate flate2;
+extern crate brotli2;
 extern crate percent_encoding;
 extern crate actix;
 extern crate h2 as http2;

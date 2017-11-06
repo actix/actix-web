@@ -1,17 +1,21 @@
-use std::{fmt, cmp};
+use std::{io, fmt, cmp};
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error::Error;
-use std::io::Error as IoError;
-use bytes::{Bytes, BytesMut};
+use std::io::{Read, Write, Error as IoError};
+use bytes::{Bytes, BytesMut, BufMut, Writer};
 use http2::Error as Http2Error;
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
+use flate2::{FlateReadExt, Flush, Decompress, Status as DecompressStatus};
+use flate2::read::GzDecoder;
+use brotli2::write::BrotliDecoder;
 
 use actix::ResponseType;
+use httpresponse::ContentEncoding;
 
-const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
+pub(crate) const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Just Bytes object
 pub struct PayloadItem(pub Bytes);
@@ -21,11 +25,19 @@ impl ResponseType for PayloadItem {
     type Error = ();
 }
 
+impl fmt::Debug for PayloadItem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+
 #[derive(Debug)]
 /// A set of error that can occur during payload parsing.
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     Incomplete,
+    /// Content encoding stream corruption
+    EncodingCorrupted,
     /// Parse error
     ParseError(IoError),
     /// Http2 error
@@ -45,6 +57,7 @@ impl Error for PayloadError {
     fn description(&self) -> &str {
         match *self {
             PayloadError::Incomplete => "A payload reached EOF, but is not complete.",
+            PayloadError::EncodingCorrupted => "Can not decode content-encoding.",
             PayloadError::ParseError(ref e) => e.description(),
             PayloadError::Http2(ref e) => e.description(),
         }
@@ -78,12 +91,6 @@ impl Payload {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
         (PayloadSender{inner: Rc::downgrade(&shared)}, Payload{inner: shared})
-    }
-
-    /// Indicates paused state of the payload. If payload data is not consumed
-    /// it get paused. Max size of not consumed data is 64k
-    pub fn paused(&self) -> bool {
-        self.inner.borrow().paused()
     }
 
     /// Indicates EOF of payload
@@ -146,7 +153,6 @@ impl Payload {
     }
 }
 
-
 impl Stream for Payload {
     type Item = PayloadItem;
     type Error = PayloadError;
@@ -156,50 +162,41 @@ impl Stream for Payload {
     }
 }
 
+pub(crate) trait PayloadWriter {
+    fn set_error(&mut self, err: PayloadError);
+
+    fn feed_eof(&mut self);
+
+    fn feed_data(&mut self, data: Bytes);
+
+    fn capacity(&self) -> usize;
+}
+
 pub(crate) struct PayloadSender {
     inner: Weak<RefCell<Inner>>,
 }
 
-impl PayloadSender {
-    pub fn set_error(&mut self, err: PayloadError) {
+impl PayloadWriter for PayloadSender {
+
+    fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().set_error(err)
         }
     }
 
-    pub fn feed_eof(&mut self) {
+    fn feed_eof(&mut self) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_eof()
         }
     }
 
-    pub fn feed_data(&mut self, data: Bytes) {
+    fn feed_data(&mut self, data: Bytes) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_data(data)
         }
     }
 
-    pub fn maybe_paused(&self) -> bool {
-        match self.inner.upgrade() {
-            Some(shared) => {
-                let inner = shared.borrow();
-                if inner.paused() && inner.len() < inner.buffer_size() {
-                    drop(inner);
-                    shared.borrow_mut().resume();
-                    false
-                } else if !inner.paused() && inner.len() > inner.buffer_size() {
-                    drop(inner);
-                    shared.borrow_mut().pause();
-                    true
-                } else {
-                    inner.paused()
-                }
-            }
-            None => false,
-        }
-    }
-
-    pub fn capacity(&self) -> usize {
+    fn capacity(&self) -> usize {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow().capacity()
         } else {
@@ -208,11 +205,286 @@ impl PayloadSender {
     }
 }
 
+enum Decoder {
+    Zlib(Decompress),
+    Gzip(Option<GzDecoder<Wrapper>>),
+    Br(Rc<RefCell<BytesMut>>, BrotliDecoder<WrapperRc>),
+    Identity,
+}
+
+#[derive(Debug)]
+struct Wrapper {
+    buf: BytesMut
+}
+
+impl io::Read for Wrapper {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let len = cmp::min(buf.len(), self.buf.len());
+        buf[..len].copy_from_slice(&self.buf[..len]);
+        self.buf.split_to(len);
+        Ok(len)
+    }
+}
+
+#[derive(Debug)]
+struct WrapperRc {
+    buf: Rc<RefCell<BytesMut>>,
+}
+
+impl io::Write for WrapperRc {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.borrow_mut().extend(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) struct EncodedPayload {
+    inner: PayloadSender,
+    decoder: Decoder,
+    dst: Writer<BytesMut>,
+    buffer: BytesMut,
+    error: bool,
+}
+
+impl EncodedPayload {
+    pub fn new(inner: PayloadSender, enc: ContentEncoding) -> EncodedPayload {
+        let dec = match enc {
+            ContentEncoding::Deflate => Decoder::Zlib(Decompress::new(false)),
+            ContentEncoding::Gzip => Decoder::Gzip(None),
+            ContentEncoding::Br => {
+                let buf = Rc::new(RefCell::new(BytesMut::new()));
+                let buf2 = Rc::clone(&buf);
+                Decoder::Br(buf, BrotliDecoder::new(WrapperRc{buf: buf2}))
+            }
+            _ => Decoder::Identity,
+        };
+        EncodedPayload {
+            inner: inner,
+            decoder: dec,
+            error: false,
+            dst: BytesMut::new().writer(),
+            buffer: BytesMut::new(),
+        }
+    }
+}
+
+impl PayloadWriter for EncodedPayload {
+
+    fn set_error(&mut self, err: PayloadError) {
+        self.inner.set_error(err)
+    }
+
+    fn feed_eof(&mut self) {
+        if self.error {
+            return
+        }
+        let err = match self.decoder {
+            Decoder::Br(ref mut buf, ref mut decoder) => {
+                match decoder.flush() {
+                    Ok(_) => {
+                        let b = buf.borrow_mut().take().freeze();
+                        if !b.is_empty() {
+                            self.inner.feed_data(b);
+                        }
+                        self.inner.feed_eof();
+                        return
+                    },
+                    Err(err) => Some(err),
+                }
+            }
+
+            Decoder::Gzip(ref mut decoder) => {
+                if decoder.is_none() {
+                    self.inner.feed_eof();
+                    return
+                }
+                loop {
+                    let len = self.dst.get_ref().len();
+                    let len_buf = decoder.as_mut().unwrap().get_mut().buf.len();
+
+                    if len < len_buf * 2 {
+                        self.dst.get_mut().reserve(len_buf * 2 - len);
+                        unsafe{self.dst.get_mut().set_len(len_buf * 2)};
+                    }
+                    match decoder.as_mut().unwrap().read(&mut self.dst.get_mut()) {
+                        Ok(n) =>  {
+                            if n == 0 {
+                                self.inner.feed_eof();
+                                return
+                            } else {
+                                self.inner.feed_data(self.dst.get_mut().split_to(n).freeze());
+                            }
+                        }
+                        Err(err) => break Some(err)
+                    }
+                }
+            }
+            Decoder::Zlib(ref mut decoder) => {
+                let len = self.dst.get_ref().len();
+                if len < self.buffer.len() * 2 {
+                    self.dst.get_mut().reserve(self.buffer.len() * 2 - len);
+                    unsafe{self.dst.get_mut().set_len(self.buffer.len() * 2)};
+                }
+
+                let len = self.dst.get_ref().len();
+                let before_in = decoder.total_in();
+                let before_out = decoder.total_out();
+                let ret = decoder.decompress(
+                    self.buffer.as_ref(), &mut self.dst.get_mut()[..len], Flush::Finish);
+                let read = (decoder.total_out() - before_out) as usize;
+                let consumed = (decoder.total_in() - before_in) as usize;
+
+                let ch = self.dst.get_mut().split_to(read).freeze();
+                if !ch.is_empty() {
+                    self.inner.feed_data(ch);
+                }
+                self.buffer.split_to(consumed);
+
+                match ret {
+                    Ok(DecompressStatus::Ok) | Ok(DecompressStatus::StreamEnd) => {
+                        self.inner.feed_eof();
+                        return
+                    },
+                    _ => None,
+                }
+            },
+            Decoder::Identity => {
+                self.inner.feed_eof();
+                return
+            }
+        };
+
+        self.error = true;
+        self.decoder = Decoder::Identity;
+        if let Some(err) = err {
+            self.set_error(PayloadError::ParseError(err));
+        } else {
+            self.set_error(PayloadError::Incomplete);
+        }
+    }
+
+    fn feed_data(&mut self, data: Bytes) {
+        if self.error {
+            return
+        }
+        match self.decoder {
+            Decoder::Br(ref mut buf, ref mut decoder) => {
+                match decoder.write(&data) {
+                    Ok(_) => {
+                        let b = buf.borrow_mut().take().freeze();
+                        if !b.is_empty() {
+                            self.inner.feed_data(b);
+                        }
+                        return
+                    },
+                    Err(err) => {
+                        trace!("Error decoding br encoding: {}", err);
+                    },
+                }
+            }
+
+            Decoder::Gzip(ref mut decoder) => {
+                if decoder.is_none() {
+                    let mut buf = BytesMut::new();
+                    buf.extend(data);
+                    *decoder = Some(Wrapper{buf: buf}.gz_decode().unwrap());
+                } else {
+                    decoder.as_mut().unwrap().get_mut().buf.extend(data);
+                }
+
+                loop {
+                    let len_buf = decoder.as_mut().unwrap().get_mut().buf.len();
+                    if len_buf == 0 {
+                        return
+                    }
+
+                    let len = self.dst.get_ref().len();
+                    if len < len_buf * 2 {
+                        self.dst.get_mut().reserve(len_buf * 2 - len);
+                        unsafe{self.dst.get_mut().set_len(len_buf * 2)};
+                    }
+                    match decoder.as_mut().unwrap().read(&mut self.dst.get_mut()) {
+                        Ok(n) =>  {
+                            if n == 0 {
+                                return
+                            } else {
+                                self.inner.feed_data(self.dst.get_mut().split_to(n).freeze());
+                            }
+                        }
+                        Err(_) => break
+                    }
+                }
+            }
+
+            Decoder::Zlib(ref mut decoder) => {
+                self.buffer.extend(data);
+
+                loop {
+                    if self.buffer.is_empty() {
+                        return
+                    }
+
+                    let ret = {
+                        let len = self.dst.get_ref().len();
+                        if len < self.buffer.len() * 2 {
+                            self.dst.get_mut().reserve(self.buffer.len() * 2 - len);
+                            unsafe{self.dst.get_mut().set_len(self.buffer.len() * 2)};
+                        }
+                        let before_out = decoder.total_out();
+                        let before_in = decoder.total_in();
+
+                        let len = self.dst.get_ref().len();
+                        let ret = decoder.decompress(
+                            self.buffer.as_ref(), &mut self.dst.get_mut()[..len], Flush::None);
+                        let read = (decoder.total_out() - before_out) as usize;
+                        let consumed = (decoder.total_in() - before_in) as usize;
+
+                        let ch = self.dst.get_mut().split_to(read).freeze();
+                        if !ch.is_empty() {
+                            self.inner.feed_data(ch);
+                        }
+                        if self.buffer.len() > consumed {
+                            self.buffer.split_to(consumed);
+                        }
+                        ret
+                    };
+
+                    match ret {
+                        Ok(DecompressStatus::Ok) => continue,
+                        _ => break,
+                    }
+                }
+            }
+            Decoder::Identity => {
+                self.inner.feed_data(data);
+                return
+            }
+        };
+
+        self.error = true;
+        self.decoder = Decoder::Identity;
+        self.set_error(PayloadError::EncodingCorrupted);
+    }
+
+    fn capacity(&self) -> usize {
+        match self.decoder {
+            Decoder::Br(ref buf, _) => {
+                buf.borrow().len() + self.inner.capacity()
+            }
+            _ => {
+                self.inner.capacity()
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Inner {
     len: usize,
     eof: bool,
-    paused: bool,
     err: Option<PayloadError>,
     task: Option<Task>,
     items: VecDeque<Bytes>,
@@ -225,24 +497,11 @@ impl Inner {
         Inner {
             len: 0,
             eof: eof,
-            paused: false,
             err: None,
             task: None,
             items: VecDeque::new(),
             buf_size: DEFAULT_BUFFER_SIZE,
         }
-    }
-
-    fn paused(&self) -> bool {
-        self.paused
-    }
-
-    fn pause(&mut self) {
-        self.paused = true;
-    }
-
-    fn resume(&mut self) {
-        self.paused = false;
     }
 
     fn set_error(&mut self, err: PayloadError) {
@@ -594,29 +853,6 @@ mod tests {
                 Err(_) => (),
                 _ => panic!("error"),
             }
-
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
-    }
-
-    #[test]
-    fn test_pause() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
-
-            assert!(!payload.paused());
-            assert!(!sender.maybe_paused());
-
-            for _ in 0..DEFAULT_BUFFER_SIZE+1 {
-                sender.feed_data(Bytes::from("1"));
-            }
-            assert!(sender.maybe_paused());
-            assert!(payload.paused());
-
-            payload.readexactly(10).unwrap();
-            assert!(!sender.maybe_paused());
-            assert!(!payload.paused());
 
             let res: Result<(), ()> = Ok(());
             result(res)

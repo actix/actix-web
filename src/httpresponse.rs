@@ -23,6 +23,33 @@ pub enum ConnectionType {
     Upgrade,
 }
 
+/// Represents various types of connection
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum ContentEncoding {
+    /// Auto
+    Auto,
+    /// Brotli
+    Br,
+    /// Deflate
+    Deflate,
+    /// Gzip
+    Gzip,
+    /// Identity
+    Identity,
+}
+
+impl<'a> From<&'a str> for ContentEncoding {
+    fn from(s: &'a str) -> ContentEncoding {
+        match s.trim().to_lowercase().as_ref() {
+            "br" => ContentEncoding::Br,
+            "gzip" => ContentEncoding::Gzip,
+            "deflate" => ContentEncoding::Deflate,
+            "identity" => ContentEncoding::Identity,
+            _ => ContentEncoding::Auto,
+        }
+    }
+}
+
 #[derive(Debug)]
 /// An HTTP Response
 pub struct HttpResponse {
@@ -32,6 +59,7 @@ pub struct HttpResponse {
     reason: Option<&'static str>,
     body: Body,
     chunked: bool,
+    encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     error: Option<Box<Error>>,
 }
@@ -56,7 +84,7 @@ impl HttpResponse {
             reason: None,
             body: body,
             chunked: false,
-            // compression: None,
+            encoding: ContentEncoding::Auto,
             connection_type: None,
             error: None,
         }
@@ -72,7 +100,7 @@ impl HttpResponse {
             reason: None,
             body: Body::from_slice(error.description().as_ref()),
             chunked: false,
-            // compression: None,
+            encoding: ContentEncoding::Auto,
             connection_type: None,
             error: Some(Box::new(error)),
         }
@@ -210,6 +238,7 @@ struct Parts {
     status: StatusCode,
     reason: Option<&'static str>,
     chunked: bool,
+    encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     cookies: CookieJar,
 }
@@ -222,6 +251,7 @@ impl Parts {
             status: status,
             reason: None,
             chunked: false,
+            encoding: ContentEncoding::Auto,
             connection_type: None,
             cookies: CookieJar::new(),
         }
@@ -283,6 +313,17 @@ impl HttpResponseBuilder {
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.reason = Some(reason);
+        }
+        self
+    }
+
+    /// Set content encoding.
+    ///
+    /// By default `ContentEncoding::Auto` is used, which automatically
+    /// determine content encoding based on request `Accept-Encoding` headers.
+    pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
+        if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.encoding = enc;
         }
         self
     }
@@ -384,6 +425,7 @@ impl HttpResponseBuilder {
             reason: parts.reason,
             body: body.into(),
             chunked: parts.chunked,
+            encoding: parts.encoding,
             connection_type: parts.connection_type,
             error: None,
         })

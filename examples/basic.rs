@@ -8,8 +8,13 @@ use actix_web::*;
 use futures::stream::{once, Once};
 
 /// somple handle
-fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
+fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
+    if let Ok(ch) = _payload.readany() {
+        if let futures::Async::Ready(Some(d)) = ch {
+            println!("{}", String::from_utf8_lossy(d.0.as_ref()));
+        }
+    }
     httpcodes::HTTPOk.into()
 }
 

@@ -707,7 +707,7 @@ mod tests {
     use bytes::Bytes;
     use futures::future::{lazy, result};
     use tokio_core::reactor::Core;
-    use payload::Payload;
+    use payload::{Payload, PayloadWriter};
 
     #[test]
     fn test_boundary() {
