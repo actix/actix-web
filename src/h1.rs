@@ -395,6 +395,7 @@ impl Reader {
                     let payload = if let Some(decoder) = decoder {
                         let (tx, rx) = Payload::new(false);
 
+                        // Content-Encoding
                         let enc = if let Some(enc) = msg.headers().get(CONTENT_ENCODING) {
                             if let Ok(enc) = enc.to_str() {
                                 ContentEncoding::from(enc)

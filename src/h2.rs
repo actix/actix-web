@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 
 use actix::Arbiter;
 use http::request::Parts;
+use http::header::CONTENT_ENCODING;
 use http2::{Reason, RecvStream};
 use http2::server::{Server, Handshake, Respond};
 use bytes::{Buf, Bytes};
@@ -19,7 +20,8 @@ use h2writer::H2Writer;
 use channel::HttpHandler;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use payload::{Payload, PayloadError, PayloadSender, PayloadWriter};
+use httpresponse::ContentEncoding;
+use payload::{Payload, PayloadError, PayloadSender, PayloadWriter, EncodedPayload};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
@@ -193,10 +195,26 @@ impl<T, A, H> Http2<T, A, H>
     }
 }
 
+struct PayloadInfo(PayloadInfoItem);
+enum PayloadInfoItem {
+    Sender(PayloadSender),
+    Encoding(EncodedPayload),
+}
+
+impl PayloadInfo {
+
+    fn as_mut(&mut self) -> &mut PayloadWriter {
+        match self.0 {
+            PayloadInfoItem::Sender(ref mut sender) => sender,
+            PayloadInfoItem::Encoding(ref mut enc) => enc,
+        }
+    }
+}
+
 struct Entry {
     task: Task,
     req: UnsafeCell<HttpRequest>,
-    payload: PayloadSender,
+    payload: PayloadInfo,
     recv: RecvStream,
     stream: H2Writer,
     eof: bool,
@@ -218,7 +236,23 @@ impl Entry {
 
         let mut req = HttpRequest::new(
             parts.method, path, parts.version, parts.headers, query);
+
+        // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
+        let enc = if let Some(enc) = req.headers().get(CONTENT_ENCODING) {
+            if let Ok(enc) = enc.to_str() {
+                ContentEncoding::from(enc)
+            } else {
+                ContentEncoding::Auto
+            }
+        } else {
+            ContentEncoding::Auto
+        };
+        let psender = match enc {
+            ContentEncoding::Auto | ContentEncoding::Identity =>
+                PayloadInfoItem::Sender(psender),
+            _ => PayloadInfoItem::Encoding(EncodedPayload::new(psender, enc)),
+        };
 
         // start request processing
         let mut task = None;
@@ -231,7 +265,7 @@ impl Entry {
 
         Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
                req: UnsafeCell::new(req),
-               payload: psender,
+               payload: PayloadInfo(psender),
                recv: recv,
                stream: H2Writer::new(resp),
                eof: false,
@@ -246,22 +280,22 @@ impl Entry {
         if !self.reof {
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
-                    self.payload.feed_data(chunk);
+                    self.payload.as_mut().feed_data(chunk);
                 },
                 Ok(Async::Ready(None)) => {
                     self.reof = true;
                 },
                 Ok(Async::NotReady) => (),
                 Err(err) => {
-                    self.payload.set_error(PayloadError::Http2(err))
+                    self.payload.as_mut().set_error(PayloadError::Http2(err))
                 }
             }
 
-            let capacity = self.payload.capacity();
+            let capacity = self.payload.as_mut().capacity();
             if self.capacity != capacity {
                 self.capacity = capacity;
                 if let Err(err) = self.recv.release_capacity().release_capacity(capacity) {
-                    self.payload.set_error(PayloadError::Http2(err))
+                    self.payload.as_mut().set_error(PayloadError::Http2(err))
                 }
             }
         }

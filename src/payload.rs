@@ -212,6 +212,7 @@ enum Decoder {
     Identity,
 }
 
+// should go after write::GzDecoder get implemented
 #[derive(Debug)]
 struct Wrapper {
     buf: BytesMut
@@ -247,6 +248,7 @@ impl io::Write for BytesWriter {
 }
 
 
+// should go after brotli2::write::BrotliDecoder::get_mut get implemented
 #[derive(Debug)]
 struct WrapperRc {
     buf: Rc<RefCell<BytesMut>>,
