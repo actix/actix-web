@@ -26,15 +26,15 @@ pub enum ConnectionType {
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ContentEncoding {
-    /// Auto
+    /// Automatically select encoding based on encoding negotiation
     Auto,
-    /// Brotli
+    /// A format using the Brotli algorithm
     Br,
-    /// Deflate
+    /// A format using the zlib structure with deflate algorithm
     Deflate,
-    /// Gzip
+    /// Gzip algorithm
     Gzip,
-    /// Identity
+    /// Indicates the identity function (i.e. no compression, nor modification)
     Identity,
 }
 
@@ -199,6 +199,17 @@ impl HttpResponse {
         }
     }
 
+    /// Content encoding
+    pub fn content_encoding(&self) -> &ContentEncoding {
+        &self.encoding
+    }
+
+    /// Set content encoding
+    pub fn set_content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
+        self.encoding = enc;
+        self
+    }
+
     /// Get body os this response
     pub fn body(&self) -> &Body {
         &self.body
@@ -320,7 +331,8 @@ impl HttpResponseBuilder {
     /// Set content encoding.
     ///
     /// By default `ContentEncoding::Auto` is used, which automatically
-    /// determine content encoding based on request `Accept-Encoding` headers.
+    /// negotiates content encoding based on request's `Accept-Encoding` headers.
+    /// To enforce specific encodnign other `ContentEncoding` could be used.
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.encoding = enc;
@@ -475,4 +487,14 @@ mod tests {
             .content_type("text/plain").body(Body::Empty).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain")
     }
+
+    #[test]
+    fn test_content_encoding() {
+        let resp = HttpResponse::builder(StatusCode::OK).finish().unwrap();
+        assert_eq!(*resp.content_encoding(), ContentEncoding::Auto);
+
+        let resp = HttpResponse::builder(StatusCode::OK)
+            .content_encoding(ContentEncoding::Br).finish().unwrap();
+        assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
+}
 }
