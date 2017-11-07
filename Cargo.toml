@@ -45,7 +45,7 @@ regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
 flate2 = "0.2"
-brotli2 = "0.3"
+brotli2 = "^0.3.2"
 percent-encoding = "1.0"
 
 # tokio
@@ -64,7 +64,7 @@ tokio-tls = { version="0.1", optional = true }
 tokio-openssl = { version="0.1", optional = true }
 
 [dependencies.actix]
-version = ">=0.3.1"
+version = "^0.3.1"
 #path = "../actix"
 #git = "https://github.com/actix/actix.git"
 default-features = false

@@ -1,6 +1,4 @@
 use std::{io, cmp};
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::io::{Read, Write};
 
 use http::header::{HeaderMap, CONTENT_ENCODING};
@@ -99,7 +97,7 @@ impl PayloadWriter for PayloadType {
 enum Decoder {
     Zlib(DeflateDecoder<BytesWriter>),
     Gzip(Option<GzDecoder<Wrapper>>),
-    Br(Rc<RefCell<BytesMut>>, BrotliDecoder<WrapperRc>),
+    Br(BrotliDecoder<BytesWriter>),
     Identity,
 }
 
@@ -138,23 +136,6 @@ impl io::Write for BytesWriter {
     }
 }
 
-
-// should go after brotli2::write::BrotliDecoder::get_mut get implemented
-#[derive(Debug)]
-struct WrapperRc {
-    buf: Rc<RefCell<BytesMut>>,
-}
-
-impl io::Write for WrapperRc {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buf.borrow_mut().extend(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 pub(crate) struct EncodedPayload {
     inner: PayloadSender,
     decoder: Decoder,
@@ -165,14 +146,11 @@ pub(crate) struct EncodedPayload {
 impl EncodedPayload {
     pub fn new(inner: PayloadSender, enc: ContentEncoding) -> EncodedPayload {
         let dec = match enc {
+            ContentEncoding::Br => Decoder::Br(
+                BrotliDecoder::new(BytesWriter::default())),
             ContentEncoding::Deflate => Decoder::Zlib(
                 DeflateDecoder::new(BytesWriter::default())),
             ContentEncoding::Gzip => Decoder::Gzip(None),
-            ContentEncoding::Br => {
-                let buf = Rc::new(RefCell::new(BytesMut::new()));
-                let buf2 = Rc::clone(&buf);
-                Decoder::Br(buf, BrotliDecoder::new(WrapperRc{buf: buf2}))
-            }
             _ => Decoder::Identity,
         };
         EncodedPayload {
@@ -195,10 +173,10 @@ impl PayloadWriter for EncodedPayload {
             return
         }
         let err = match self.decoder {
-            Decoder::Br(ref mut buf, ref mut decoder) => {
-                match decoder.flush() {
-                    Ok(_) => {
-                        let b = buf.borrow_mut().take().freeze();
+            Decoder::Br(ref mut decoder) => {
+                match decoder.finish() {
+                    Ok(mut writer) => {
+                        let b = writer.buf.take().freeze();
                         if !b.is_empty() {
                             self.inner.feed_data(b);
                         }
@@ -207,8 +185,7 @@ impl PayloadWriter for EncodedPayload {
                     },
                     Err(err) => Some(err),
                 }
-            }
-
+            },
             Decoder::Gzip(ref mut decoder) => {
                 if decoder.is_none() {
                     self.inner.feed_eof();
@@ -234,9 +211,9 @@ impl PayloadWriter for EncodedPayload {
                         Err(err) => break Some(err)
                     }
                 }
-            }
+            },
             Decoder::Zlib(ref mut decoder) => {
-                match decoder.flush() {
+                match decoder.try_finish() {
                     Ok(_) => {
                         let b = decoder.get_mut().buf.take().freeze();
                         if !b.is_empty() {
@@ -268,19 +245,17 @@ impl PayloadWriter for EncodedPayload {
             return
         }
         match self.decoder {
-            Decoder::Br(ref mut buf, ref mut decoder) => {
-                match decoder.write(&data) {
-                    Ok(_) => {
-                        let b = buf.borrow_mut().take().freeze();
+            Decoder::Br(ref mut decoder) => {
+                if decoder.write(&data).is_ok() {
+                    if decoder.flush().is_ok() {
+                        let b = decoder.get_mut().buf.take().freeze();
                         if !b.is_empty() {
                             self.inner.feed_data(b);
                         }
                         return
-                    },
-                    Err(err) => {
-                        trace!("Error decoding br encoding: {}", err);
-                    },
+                    }
                 }
+                trace!("Error decoding br encoding");
             }
 
             Decoder::Gzip(ref mut decoder) => {
@@ -317,18 +292,16 @@ impl PayloadWriter for EncodedPayload {
             }
 
             Decoder::Zlib(ref mut decoder) => {
-                match decoder.write(&data) {
-                    Ok(_) => {
+                if decoder.write(&data).is_ok() {
+                    if decoder.flush().is_ok() {
                         let b = decoder.get_mut().buf.take().freeze();
                         if !b.is_empty() {
                             self.inner.feed_data(b);
                         }
                         return
-                    },
-                    Err(err) => {
-                        trace!("Error decoding deflate encoding: {}", err);
-                    },
+                    }
                 }
+                trace!("Error decoding deflate encoding");
             }
             Decoder::Identity => {
                 self.inner.feed_data(data);
@@ -342,13 +315,6 @@ impl PayloadWriter for EncodedPayload {
     }
 
     fn capacity(&self) -> usize {
-        match self.decoder {
-            Decoder::Br(ref buf, _) => {
-                buf.borrow().len() + self.inner.capacity()
-            }
-            _ => {
-                self.inner.capacity()
-            }
-        }
+        self.inner.capacity()
     }
 }
