@@ -10,7 +10,7 @@ use http::header::{self, HeaderName, HeaderValue};
 use Cookie;
 use body::Body;
 use route::Frame;
-
+use encoding::ContentEncoding;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -21,33 +21,6 @@ pub enum ConnectionType {
     KeepAlive,
     /// Connection is upgraded to different type
     Upgrade,
-}
-
-/// Represents various types of connection
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum ContentEncoding {
-    /// Automatically select encoding based on encoding negotiation
-    Auto,
-    /// A format using the Brotli algorithm
-    Br,
-    /// A format using the zlib structure with deflate algorithm
-    Deflate,
-    /// Gzip algorithm
-    Gzip,
-    /// Indicates the identity function (i.e. no compression, nor modification)
-    Identity,
-}
-
-impl<'a> From<&'a str> for ContentEncoding {
-    fn from(s: &'a str) -> ContentEncoding {
-        match s.trim().to_lowercase().as_ref() {
-            "br" => ContentEncoding::Br,
-            "gzip" => ContentEncoding::Gzip,
-            "deflate" => ContentEncoding::Deflate,
-            "identity" => ContentEncoding::Identity,
-            _ => ContentEncoding::Auto,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -496,5 +469,5 @@ mod tests {
         let resp = HttpResponse::builder(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
         assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
-}
+    }
 }

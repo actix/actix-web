@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use actix::Arbiter;
 use httparse;
 use http::{Method, Version, HttpTryFrom, HeaderMap};
-use http::header::{self, HeaderName, HeaderValue, CONTENT_ENCODING};
+use http::header::{self, HeaderName, HeaderValue};
 use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -20,9 +20,8 @@ use error::ParseError;
 use h1writer::H1Writer;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use httpresponse::ContentEncoding;
-use payload::{Payload, PayloadError, PayloadSender,
-              PayloadWriter, EncodedPayload, DEFAULT_BUFFER_SIZE};
+use encoding::PayloadType;
+use payload::{Payload, PayloadError, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -286,23 +285,8 @@ enum Decoding {
 }
 
 struct PayloadInfo {
-    tx: PayloadInfoItem,
+    tx: PayloadType,
     decoder: Decoder,
-}
-
-enum PayloadInfoItem {
-    Sender(PayloadSender),
-    Encoding(EncodedPayload),
-}
-
-impl PayloadInfo {
-
-    fn as_mut(&mut self) -> &mut PayloadWriter {
-        match self.tx {
-            PayloadInfoItem::Sender(ref mut sender) => sender,
-            PayloadInfoItem::Encoding(ref mut enc) => enc,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -330,21 +314,21 @@ impl Reader {
     fn decode(&mut self, buf: &mut BytesMut) -> std::result::Result<Decoding, ReaderError>
     {
         if let Some(ref mut payload) = self.payload {
-            if payload.as_mut().capacity() > DEFAULT_BUFFER_SIZE {
+            if payload.tx.capacity() > DEFAULT_BUFFER_SIZE {
                 return Ok(Decoding::Paused)
             }
             loop {
                 match payload.decoder.decode(buf) {
                     Ok(Async::Ready(Some(bytes))) => {
-                        payload.as_mut().feed_data(bytes)
+                        payload.tx.feed_data(bytes)
                     },
                     Ok(Async::Ready(None)) => {
-                        payload.as_mut().feed_eof();
+                        payload.tx.feed_eof();
                         return Ok(Decoding::Ready)
                     },
                     Ok(Async::NotReady) => return Ok(Decoding::NotReady),
                     Err(err) => {
-                        payload.as_mut().set_error(err.into());
+                        payload.tx.set_error(err.into());
                         return Err(ReaderError::Payload)
                     }
                 }
@@ -368,7 +352,7 @@ impl Reader {
                     match self.read_from_io(io, buf) {
                         Ok(Async::Ready(0)) => {
                             if let Some(ref mut payload) = self.payload {
-                                payload.as_mut().set_error(PayloadError::Incomplete);
+                                payload.tx.set_error(PayloadError::Incomplete);
                             }
                             // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
@@ -379,7 +363,7 @@ impl Reader {
                         Ok(Async::NotReady) => break,
                         Err(err) => {
                             if let Some(ref mut payload) = self.payload {
-                                payload.as_mut().set_error(err.into());
+                                payload.tx.set_error(err.into());
                             }
                             // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
@@ -394,25 +378,8 @@ impl Reader {
                 Message::Http1(msg, decoder) => {
                     let payload = if let Some(decoder) = decoder {
                         let (tx, rx) = Payload::new(false);
-
-                        // Content-Encoding
-                        let enc = if let Some(enc) = msg.headers().get(CONTENT_ENCODING) {
-                            if let Ok(enc) = enc.to_str() {
-                                ContentEncoding::from(enc)
-                            } else {
-                                ContentEncoding::Auto
-                            }
-                        } else {
-                            ContentEncoding::Auto
-                        };
-
-                        let tx = match enc {
-                            ContentEncoding::Auto => PayloadInfoItem::Sender(tx),
-                            _ => PayloadInfoItem::Encoding(EncodedPayload::new(tx, enc)),
-                        };
-
                         let payload = PayloadInfo {
-                            tx: tx,
+                            tx: PayloadType::new(msg.headers(), tx),
                             decoder: decoder,
                         };
                         self.payload = Some(payload);
@@ -430,7 +397,7 @@ impl Reader {
                                         Ok(Async::Ready(0)) => {
                                             trace!("parse eof");
                                             if let Some(ref mut payload) = self.payload {
-                                                payload.as_mut().set_error(
+                                                payload.tx.set_error(
                                                     PayloadError::Incomplete);
                                             }
                                             // http channel should deal with payload errors
@@ -442,7 +409,7 @@ impl Reader {
                                         Ok(Async::NotReady) => break,
                                         Err(err) => {
                                             if let Some(ref mut payload) = self.payload {
-                                                payload.as_mut().set_error(err.into());
+                                                payload.tx.set_error(err.into());
                                             }
                                             // http channel should deal with payload errors
                                             return Err(ReaderError::Payload)

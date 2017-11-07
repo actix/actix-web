@@ -7,7 +7,6 @@ use std::collections::VecDeque;
 
 use actix::Arbiter;
 use http::request::Parts;
-use http::header::CONTENT_ENCODING;
 use http2::{Reason, RecvStream};
 use http2::server::{Server, Handshake, Respond};
 use bytes::{Buf, Bytes};
@@ -20,8 +19,8 @@ use h2writer::H2Writer;
 use channel::HttpHandler;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use httpresponse::ContentEncoding;
-use payload::{Payload, PayloadError, PayloadSender, PayloadWriter, EncodedPayload};
+use encoding::PayloadType;
+use payload::{Payload, PayloadError, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
@@ -141,16 +140,14 @@ impl<T, A, H> Http2<T, A, H>
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
-                            if self.tasks.is_empty() {
-                                if self.keepalive_timer.is_none() {
-                                    trace!("Start keep-alive timer");
-                                    let mut timeout = Timeout::new(
-                                        Duration::new(KEEPALIVE_PERIOD, 0),
-                                        Arbiter::handle()).unwrap();
-                                    // register timeout
-                                    let _ = timeout.poll();
-                                    self.keepalive_timer = Some(timeout);
-                                }
+                            if self.tasks.is_empty() && self.keepalive_timer.is_none() {
+                                trace!("Start keep-alive timer");
+                                let mut timeout = Timeout::new(
+                                    Duration::new(KEEPALIVE_PERIOD, 0),
+                                    Arbiter::handle()).unwrap();
+                                // register timeout
+                                let _ = timeout.poll();
+                                self.keepalive_timer = Some(timeout);
                             }
                         }
                         Err(err) => {
@@ -195,26 +192,10 @@ impl<T, A, H> Http2<T, A, H>
     }
 }
 
-struct PayloadInfo(PayloadInfoItem);
-enum PayloadInfoItem {
-    Sender(PayloadSender),
-    Encoding(EncodedPayload),
-}
-
-impl PayloadInfo {
-
-    fn as_mut(&mut self) -> &mut PayloadWriter {
-        match self.0 {
-            PayloadInfoItem::Sender(ref mut sender) => sender,
-            PayloadInfoItem::Encoding(ref mut enc) => enc,
-        }
-    }
-}
-
 struct Entry {
     task: Task,
     req: UnsafeCell<HttpRequest>,
-    payload: PayloadInfo,
+    payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,
     eof: bool,
@@ -239,20 +220,6 @@ impl Entry {
 
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
-        let enc = if let Some(enc) = req.headers().get(CONTENT_ENCODING) {
-            if let Ok(enc) = enc.to_str() {
-                ContentEncoding::from(enc)
-            } else {
-                ContentEncoding::Auto
-            }
-        } else {
-            ContentEncoding::Auto
-        };
-        let psender = match enc {
-            ContentEncoding::Auto | ContentEncoding::Identity =>
-                PayloadInfoItem::Sender(psender),
-            _ => PayloadInfoItem::Encoding(EncodedPayload::new(psender, enc)),
-        };
 
         // start request processing
         let mut task = None;
@@ -262,10 +229,11 @@ impl Entry {
                 break
             }
         }
+        let psender = PayloadType::new(req.headers(), psender);
 
         Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
                req: UnsafeCell::new(req),
-               payload: PayloadInfo(psender),
+               payload: psender,
                recv: recv,
                stream: H2Writer::new(resp),
                eof: false,
@@ -280,22 +248,22 @@ impl Entry {
         if !self.reof {
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
-                    self.payload.as_mut().feed_data(chunk);
+                    self.payload.feed_data(chunk);
                 },
                 Ok(Async::Ready(None)) => {
                     self.reof = true;
                 },
                 Ok(Async::NotReady) => (),
                 Err(err) => {
-                    self.payload.as_mut().set_error(PayloadError::Http2(err))
+                    self.payload.set_error(PayloadError::Http2(err))
                 }
             }
 
-            let capacity = self.payload.as_mut().capacity();
+            let capacity = self.payload.capacity();
             if self.capacity != capacity {
                 self.capacity = capacity;
                 if let Err(err) = self.recv.release_capacity().release_capacity(capacity) {
-                    self.payload.as_mut().set_error(PayloadError::Http2(err))
+                    self.payload.set_error(PayloadError::Http2(err))
                 }
             }
         }
