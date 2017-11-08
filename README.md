@@ -27,7 +27,7 @@ To use `actix-web`, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-actix-web = { git = "https://github.com/actix/actix-web" }
+actix-web = "0.2"
 ```
 
 ## HTTP/2
