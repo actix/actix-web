@@ -95,7 +95,7 @@ impl PayloadWriter for PayloadType {
 }
 
 enum Decoder {
-    Zlib(DeflateDecoder<BytesWriter>),
+    Deflate(DeflateDecoder<BytesWriter>),
     Gzip(Option<GzDecoder<Wrapper>>),
     Br(BrotliDecoder<BytesWriter>),
     Identity,
@@ -148,7 +148,7 @@ impl EncodedPayload {
         let dec = match enc {
             ContentEncoding::Br => Decoder::Br(
                 BrotliDecoder::new(BytesWriter::default())),
-            ContentEncoding::Deflate => Decoder::Zlib(
+            ContentEncoding::Deflate => Decoder::Deflate(
                 DeflateDecoder::new(BytesWriter::default())),
             ContentEncoding::Gzip => Decoder::Gzip(None),
             _ => Decoder::Identity,
@@ -212,7 +212,7 @@ impl PayloadWriter for EncodedPayload {
                     }
                 }
             },
-            Decoder::Zlib(ref mut decoder) => {
+            Decoder::Deflate(ref mut decoder) => {
                 match decoder.try_finish() {
                     Ok(_) => {
                         let b = decoder.get_mut().buf.take().freeze();
@@ -291,7 +291,7 @@ impl PayloadWriter for EncodedPayload {
                 }
             }
 
-            Decoder::Zlib(ref mut decoder) => {
+            Decoder::Deflate(ref mut decoder) => {
                 if decoder.write(&data).is_ok() {
                     if decoder.flush().is_ok() {
                         let b = decoder.get_mut().buf.take().freeze();
