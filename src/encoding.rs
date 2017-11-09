@@ -124,9 +124,9 @@ impl PayloadWriter for PayloadType {
 }
 
 enum Decoder {
-    Deflate(DeflateDecoder<BytesWriter>),
+    Deflate(DeflateDecoder<Writer<BytesMut>>),
     Gzip(Option<GzDecoder<Wrapper>>),
-    Br(BrotliDecoder<BytesWriter>),
+    Br(BrotliDecoder<Writer<BytesMut>>),
     Identity,
 }
 
@@ -145,26 +145,6 @@ impl io::Read for Wrapper {
     }
 }
 
-struct BytesWriter {
-    buf: BytesMut,
-}
-
-impl Default for BytesWriter {
-    fn default() -> BytesWriter {
-        BytesWriter{buf: BytesMut::with_capacity(8192)}
-    }
-}
-
-impl io::Write for BytesWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buf.extend(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 /// Payload wrapper with content decompression support
 pub(crate) struct EncodedPayload {
     inner: PayloadSender,
@@ -177,9 +157,9 @@ impl EncodedPayload {
     pub fn new(inner: PayloadSender, enc: ContentEncoding) -> EncodedPayload {
         let dec = match enc {
             ContentEncoding::Br => Decoder::Br(
-                BrotliDecoder::new(BytesWriter::default())),
+                BrotliDecoder::new(BytesMut::with_capacity(8192).writer())),
             ContentEncoding::Deflate => Decoder::Deflate(
-                DeflateDecoder::new(BytesWriter::default())),
+                DeflateDecoder::new(BytesMut::with_capacity(8192).writer())),
             ContentEncoding::Gzip => Decoder::Gzip(None),
             _ => Decoder::Identity,
         };
@@ -206,7 +186,7 @@ impl PayloadWriter for EncodedPayload {
             Decoder::Br(ref mut decoder) => {
                 match decoder.finish() {
                     Ok(mut writer) => {
-                        let b = writer.buf.take().freeze();
+                        let b = writer.get_mut().take().freeze();
                         if !b.is_empty() {
                             self.inner.feed_data(b);
                         }
@@ -245,7 +225,7 @@ impl PayloadWriter for EncodedPayload {
             Decoder::Deflate(ref mut decoder) => {
                 match decoder.try_finish() {
                     Ok(_) => {
-                        let b = decoder.get_mut().buf.take().freeze();
+                        let b = decoder.get_mut().get_mut().take().freeze();
                         if !b.is_empty() {
                             self.inner.feed_data(b);
                         }
@@ -277,7 +257,7 @@ impl PayloadWriter for EncodedPayload {
         match self.decoder {
             Decoder::Br(ref mut decoder) => {
                 if decoder.write(&data).is_ok() && decoder.flush().is_ok() {
-                    let b = decoder.get_mut().buf.take().freeze();
+                    let b = decoder.get_mut().get_mut().take().freeze();
                     if !b.is_empty() {
                         self.inner.feed_data(b);
                     }
@@ -321,7 +301,7 @@ impl PayloadWriter for EncodedPayload {
 
             Decoder::Deflate(ref mut decoder) => {
                 if decoder.write(&data).is_ok() && decoder.flush().is_ok() {
-                    let b = decoder.get_mut().buf.take().freeze();
+                    let b = decoder.get_mut().get_mut().take().freeze();
                     if !b.is_empty() {
                         self.inner.feed_data(b);
                     }
