@@ -197,8 +197,6 @@ impl Task {
                     trace!("IO Frame: {:?}", frame);
                     let res = match frame {
                         Frame::Message(response) => {
-                            trace!("Prepare message status={:?}", response.status);
-
                             // run middlewares
                             let mut response =
                                 if let Some(middlewares) = self.middlewares.take() {

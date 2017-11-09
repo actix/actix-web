@@ -83,8 +83,10 @@ impl<T, A, H> Http1<T, A, H>
         // keep-alive timer
         if let Some(ref mut timeout) = self.keepalive_timer {
             match timeout.poll() {
-                Ok(Async::Ready(_)) =>
-                    return Ok(Async::Ready(Http1Result::Done)),
+                Ok(Async::Ready(_)) => {
+                    trace!("Keep-alive timeout, close connection");
+                    return Ok(Async::Ready(Http1Result::Done))
+                }
                 Ok(Async::NotReady) => (),
                 Err(_) => unreachable!(),
             }

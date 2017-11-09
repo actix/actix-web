@@ -13,12 +13,15 @@ use actix_web::*;
 /// somple handle
 fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
     println!("{:?}", req);
-    httpcodes::HTTPOk.with_body("Welcome!")
+    httpcodes::HTTPOk
+        .builder()
+        .content_type("text/plain")
+        .body("Welcome!").unwrap()
 }
 
 fn main() {
     if ::std::env::var("RUST_LOG").is_err() {
-        ::std::env::set_var("RUST_LOG", "actix_web=info");
+        ::std::env::set_var("RUST_LOG", "actix_web=trace");
     }
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");

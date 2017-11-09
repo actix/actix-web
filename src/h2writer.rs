@@ -101,7 +101,7 @@ impl Writer for H2Writer {
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare message status={:?}", msg);
+        trace!("Prepare response with status: {:?}", msg.status);
 
         // prepare response
         self.started = true;
@@ -139,6 +139,8 @@ impl Writer for H2Writer {
             Err(_) =>
                 return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
+
+        trace!("Response: {:?}", msg);
 
         if msg.body().is_binary() {
             if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {

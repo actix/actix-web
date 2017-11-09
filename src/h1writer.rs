@@ -101,7 +101,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare message status={:?}", msg.status);
+        trace!("Prepare response with status: {:?}", msg.status);
 
         // prepare task
         self.started = true;
@@ -163,6 +163,8 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             // msg eof
             buffer.extend(b"\r\n");
         }
+
+        trace!("Response: {:?}", msg);
 
         if msg.body().is_binary() {
             let body = msg.replace_body(Body::Empty);

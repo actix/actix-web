@@ -61,12 +61,13 @@ impl<T, A, H> Http2<T, A, H>
     pub fn poll(&mut self) -> Poll<(), ()> {
         // server
         if let State::Server(ref mut server) = self.state {
-
             // keep-alive timer
             if let Some(ref mut timeout) = self.keepalive_timer {
                 match timeout.poll() {
-                    Ok(Async::Ready(_)) =>
-                        return Ok(Async::Ready(())),
+                    Ok(Async::Ready(_)) => {
+                        trace!("Keep-alive timeout, close connection");
+                        return Ok(Async::Ready(()))
+                    }
                     Ok(Async::NotReady) => (),
                     Err(_) => unreachable!(),
                 }

@@ -1,5 +1,5 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::{io, mem, str};
+use std::{io, mem, str, fmt};
 use std::error::Error as Error;
 use std::convert::Into;
 
@@ -23,7 +23,6 @@ pub enum ConnectionType {
     Upgrade,
 }
 
-#[derive(Debug)]
 /// An HTTP Response
 pub struct HttpResponse {
     pub version: Option<Version>,
@@ -212,6 +211,27 @@ impl<I: Into<HttpResponse>, E: Into<HttpResponse>> From<Result<I, E>> for HttpRe
 impl From<HttpResponse> for Frame {
     fn from(resp: HttpResponse) -> Frame {
         Frame::Message(resp)
+    }
+}
+
+impl fmt::Debug for HttpResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = write!(f, "\nHttpResponse {:?} {}{}\n",
+                         self.version, self.status, self.reason.unwrap_or(""));
+        let _ = write!(f, "  encoding: {:?}\n", self.encoding);
+        let _ = write!(f, "  headers:\n");
+        for key in self.headers.keys() {
+            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
+            if vals.len() > 1 {
+                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
+            } else {
+                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
+            }
+        }
+        if let Some(ref err) = self.error {
+            let _ = write!(f, "  error: {}\n", err);
+        }
+        res
     }
 }
 
