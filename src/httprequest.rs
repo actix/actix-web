@@ -23,6 +23,7 @@ pub struct HttpRequest {
     headers: HeaderMap,
     params: Params,
     cookies: Vec<Cookie<'static>>,
+    cookies_loaded: bool,
     extensions: Extensions,
 }
 
@@ -40,6 +41,7 @@ impl HttpRequest {
             headers: headers,
             params: Params::empty(),
             cookies: Vec::new(),
+            cookies_loaded: false,
             extensions: Extensions::new(),
         }
     }
@@ -53,6 +55,7 @@ impl HttpRequest {
             headers: HeaderMap::new(),
             params: Params::empty(),
             cookies: Vec::new(),
+            cookies_loaded: false,
             extensions: Extensions::new(),
         }
     }
@@ -119,11 +122,14 @@ impl HttpRequest {
     /// Load cookies
     pub fn load_cookies(&mut self) -> Result<&Vec<Cookie>, CookieParseError>
     {
-        if let Some(val) = self.headers.get(header::COOKIE) {
-            let s = str::from_utf8(val.as_bytes())
-                .map_err(CookieParseError::from)?;
-            for cookie in s.split("; ") {
-                self.cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
+        if !self.cookies_loaded {
+            self.cookies_loaded = true;
+            if let Some(val) = self.headers.get(header::COOKIE) {
+                let s = str::from_utf8(val.as_bytes())
+                    .map_err(CookieParseError::from)?;
+                for cookie in s.split("; ") {
+                    self.cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
+                }
             }
         }
         Ok(&self.cookies)
