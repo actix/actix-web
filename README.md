@@ -37,7 +37,7 @@ Actix web automatically upgrades connection to `http/2` if possible.
 
 ### Negotiation
 
-To use `http/2` protocol over tls without prior knowlage requires
+`HTTP/2` protocol over tls without prior knowlage requires
 [tls alpn](https://tools.ietf.org/html/rfc7301). At the moment only
 `rust-openssl` supports alpn.
 
