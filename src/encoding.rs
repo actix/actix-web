@@ -42,6 +42,15 @@ impl ContentEncoding {
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
     }
+    // default quality
+    fn quality(&self) -> f64 {
+        match *self {
+            ContentEncoding::Br => 1.1,
+            ContentEncoding::Gzip => 1.0,
+            ContentEncoding::Deflate => 0.9,
+            ContentEncoding::Identity | ContentEncoding::Auto => 0.1,
+        }
+    }
 }
 
 impl<'a> From<&'a str> for ContentEncoding {
@@ -464,7 +473,7 @@ impl PayloadEncoder {
                 ContentEncoding::Gzip => ContentEncoder::Gzip(
                     GzEncoder::new(transfer, Compression::Default)),
                 ContentEncoding::Br => ContentEncoder::Br(
-                    BrotliEncoder::new(transfer, 6)),
+                    BrotliEncoder::new(transfer, 5)),
                 ContentEncoding::Identity => ContentEncoder::Identity(transfer),
                 ContentEncoding::Auto =>
                     unreachable!()
@@ -786,7 +795,7 @@ impl AcceptEncoding {
             _ => ContentEncoding::from(parts[0]),
         };
         let quality = match parts.len() {
-            1 => 1.0,
+            1 => encoding.quality(),
             _ => match f64::from_str(parts[1]) {
                 Ok(q) => q,
                 Err(_) => 0.0,
