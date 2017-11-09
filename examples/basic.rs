@@ -30,7 +30,7 @@ fn index_async(req: &mut HttpRequest, _payload: Payload, state: &()) -> Once<act
             .into()))
 }
 
-/// handle with path parameters like `/name/{name}/`
+/// handle with path parameters like `/user/{name}/`
 fn with_param(req: &mut HttpRequest, _payload: Payload, state: &())
               -> HandlerResult<HttpResponse>
 {

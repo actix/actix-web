@@ -47,7 +47,6 @@ fn test_serve_incoming() {
         let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
         srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
         sys.run();
-
     });
 
     assert!(reqwest::get(&format!("http://{}/", addr1))

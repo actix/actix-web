@@ -50,6 +50,14 @@ impl Body {
         }
     }
 
+    /// Is this binary body.
+    pub fn is_binary(&self) -> bool {
+        match *self {
+            Body::Binary(_) => true,
+            _ => false
+        }
+    }
+
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Body {
         Body::Binary(BinaryBody::Bytes(Bytes::from(s)))

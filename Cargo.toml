@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
-keywords = ["actix", "actor", "http", "web", "async", "tokio", "futures", "web"]
+keywords = ["http", "web", "async", "tokio", "futures"]
 homepage = "https://github.com/actix/actix-web"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web/"
@@ -16,7 +16,7 @@ build = "build.rs"
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+appveyor = { repository = "actix/actix-web" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]

@@ -1,21 +1,20 @@
 use std::cell::RefCell;
 use std::fmt::{self, Write};
 use std::str;
-
 use time::{self, Duration};
-use bytes::BytesMut;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
 
-pub fn extend(dst: &mut BytesMut) {
+pub fn extend(dst: &mut [u8]) {
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();
         let now = time::get_time();
         if now > cache.next_update {
             cache.update(now);
         }
-        dst.extend_from_slice(cache.buffer());
+
+        dst.copy_from_slice(cache.buffer());
     })
 }
 
@@ -61,9 +60,9 @@ fn test_date_len() {
 
 #[test]
 fn test_date() {
-    let mut buf1 = BytesMut::new();
+    let mut buf1 = [0u8; 29];
     extend(&mut buf1);
-    let mut buf2 = BytesMut::new();
+    let mut buf2 = [0u8; 29];
     extend(&mut buf2);
     assert_eq!(buf1, buf2);
 }

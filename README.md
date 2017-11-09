@@ -17,6 +17,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Streaming and pipelining
   * Keep-alive and slow requests handling
   * [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
+  * Transparent content compression/decompression
   * Configurable request routing
   * Multipart streams
   * Middlewares
