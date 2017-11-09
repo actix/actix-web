@@ -40,7 +40,7 @@ httparse = "0.1"
 http-range = "0.1"
 mime = "0.3"
 mime_guess = "1.8"
-cookie = { version="0.10", features=["percent-encode"] }
+cookie = { version="0.10", features=["percent-encode", "secure"] }
 regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
