@@ -5,7 +5,7 @@
 
 * HTTP/2 Support
 
-* Content compression/decompression
+* Content compression/decompression (br, gzip, deflate)
 
 
 ## 0.2.1 (2017-11-03)

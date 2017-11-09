@@ -51,6 +51,8 @@ Upgrade to `http/2` schema described in
 Starting `http/2` with prior knowledge is supported for both clear text connection
 and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.section.3.4)
 
+[tls example](https://github.com/actix/actix-web/tree/master/examples/tls)
+
 ## Example
 
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
