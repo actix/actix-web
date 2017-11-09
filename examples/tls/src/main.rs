@@ -3,10 +3,8 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-//use tokio_tls;
 use std::fs::File;
 use std::io::Read;
-// use native_tls::{TlsAcceptor, TlsStream};
 
 use actix_web::*;
 

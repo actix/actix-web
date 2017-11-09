@@ -1,5 +1,5 @@
 [package]
-name = "ssl-example"
+name = "tls-example"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 
@@ -10,5 +10,5 @@ path = "src/main.rs"
 [dependencies]
 env_logger = "0.4"
 
-actix = "0.3.1"
+actix = "^0.3.1"
 actix-web = { path = "../../", features=["alpn"] }
