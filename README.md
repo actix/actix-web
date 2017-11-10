@@ -134,7 +134,7 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             // enable logger
-            .middleware(Logger::new(None))
+            .middleware(middlewares::Logger::new(None))
             // websocket route
             .resource("/ws/", |r| r.get::<MyWebSocket>())
             .route_handler("/", StaticFiles::new("examples/static/", true)))
