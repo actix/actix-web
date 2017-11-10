@@ -19,7 +19,7 @@ use middlewares::{Middleware, Started, Finished};
 /// Default `Logger` could be created with `default` method, it uses the default format:
 ///
 /// ```ignore
-/// %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i %T"
+///  %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i" %T
 /// ```
 /// ```rust,ignore
 ///
@@ -67,7 +67,11 @@ impl Logger {
 }
 
 impl Default for Logger {
-    /// Create default `Logger` middleware
+    /// Create `Logger` middleware with format:
+    ///
+    /// ```ignore
+    /// %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i" %T
+    /// ```
     fn default() -> Logger {
         Logger { format: Format::default() }
     }
@@ -171,10 +175,6 @@ struct Format(Vec<FormatText>);
 
 impl Default for Format {
     /// Return the default formatting style for the `Logger`:
-    ///
-    /// ```ignore
-    /// %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i %T"
-    /// ```
     fn default() -> Format {
         Format::new(r#"%a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i" %T"#)
     }
