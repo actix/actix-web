@@ -24,6 +24,7 @@ pub(crate) struct H2Writer {
     encoder: PayloadEncoder,
     disconnected: bool,
     eof: bool,
+    written: u64,
 }
 
 impl H2Writer {
@@ -36,6 +37,7 @@ impl H2Writer {
             encoder: PayloadEncoder::default(),
             disconnected: false,
             eof: true,
+            written: 0,
         }
     }
 
@@ -76,6 +78,7 @@ impl H2Writer {
                         let len = buffer.len();
                         let bytes = buffer.split_to(cmp::min(cap, len));
                         let eof = buffer.is_empty() && self.eof;
+                        self.written += bytes.len() as u64;
 
                         if let Err(err) = stream.send_data(bytes.freeze(), eof) {
                             return Err(io::Error::new(io::ErrorKind::Other, err))
@@ -97,6 +100,10 @@ impl H2Writer {
 }
 
 impl Writer for H2Writer {
+
+    fn written(&self) -> u64 {
+        self.written
+    }
 
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>

@@ -498,11 +498,9 @@ impl Reader {
 
         let (len, method, path, version, headers_len) = {
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-            trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
             match try!(req.parse(buf)) {
                 httparse::Status::Complete(len) => {
-                    trace!("Request.parse Complete({})", len);
                     let method = Method::try_from(req.method.unwrap())
                         .map_err(|_| ParseError::Method)?;
                     let path = req.path.unwrap();

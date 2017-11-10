@@ -23,6 +23,8 @@ pub(crate) enum WriterState {
 
 /// Send stream
 pub(crate) trait Writer {
+    fn written(&self) -> u64;
+
     fn start(&mut self, req: &mut HttpRequest, resp: &mut HttpResponse)
              -> Result<WriterState, io::Error>;
 
@@ -41,6 +43,8 @@ pub(crate) struct H1Writer<T: AsyncWrite> {
     upgrade: bool,
     keepalive: bool,
     disconnected: bool,
+    written: u64,
+    headers_size: u64,
 }
 
 impl<T: AsyncWrite> H1Writer<T> {
@@ -53,6 +57,8 @@ impl<T: AsyncWrite> H1Writer<T> {
             upgrade: false,
             keepalive: false,
             disconnected: false,
+            written: 0,
+            headers_size: 0,
         }
     }
 
@@ -80,6 +86,7 @@ impl<T: AsyncWrite> H1Writer<T> {
                 match stream.write(buffer.as_ref()) {
                     Ok(n) => {
                         buffer.split_to(n);
+                        self.written += n as u64;
                     },
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         if buffer.len() > MAX_WRITE_BUFFER_SIZE {
@@ -97,6 +104,14 @@ impl<T: AsyncWrite> H1Writer<T> {
 }
 
 impl<T: AsyncWrite> Writer for H1Writer<T> {
+
+    fn written(&self) -> u64 {
+        if self.written > self.headers_size {
+            self.written - self.headers_size
+        } else {
+            0
+        }
+    }
 
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
@@ -162,6 +177,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             // msg eof
             buffer.extend(b"\r\n");
+            self.headers_size = buffer.len() as u64;
         }
 
         trace!("Response: {:?}", msg);

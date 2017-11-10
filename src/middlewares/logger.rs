@@ -1,36 +1,74 @@
 //! Request logging middleware
+use std::env;
 use std::fmt;
-use std::str::Chars;
-use std::iter::Peekable;
 use std::fmt::{Display, Formatter};
 
 use time;
+use regex::Regex;
 
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middlewares::{Middleware, Started, Finished};
 
 /// `Middleware` for logging request and response info to the terminal.
+///
+/// ## Usage
+///
+/// Create `Logger` middlewares with the specified `format`.
+/// Default `Logger` could be created with `default` method, it uses the default format:
+///
+/// ```ignore
+/// %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i %T"
+/// ```
+/// ```rust,ignore
+///
+/// let app = Application::default("/")
+///     .middleware(Logger::default())
+///     .middleware(Logger::new("%a %{User-Agent}i"))
+///     .finish()
+/// ```
+///
+/// ## Format
+///
+/// `%%`  The percent sign
+///
+/// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
+///
+/// `%t`  Time when the request was started to process
+///
+/// `%P`  The process ID of the child that serviced the request
+///
+/// `%r`  First line of request
+///
+/// `%s`  Response status code
+///
+/// `%b`  Size of response in bytes, including HTTP headers
+///
+/// `%T` Time taken to serve the request, in seconds with floating fraction in .06f format
+///
+/// `%D`  Time taken to serve the request, in milliseconds
+///
+/// `%{FOO}i`  request.headers['FOO']
+///
+/// `%{FOO}o`  response.headers['FOO']
+///
+/// `%{FOO}e`  os.environ['FOO']
+///
 pub struct Logger {
     format: Format,
 }
 
 impl Logger {
-    /// Create `Logger` middlewares with the specified `format`.
-    /// If a `None` is passed in, uses the default format:
-    ///
-    /// ```ignore
-    /// {method} {uri} -> {status} ({response-time} ms)
-    /// ```
-    ///
-    /// ```rust,ignore
-    /// let app = Application::default("/")
-    ///     .middleware(Logger::new(None))
-    ///     .finish()
-    /// ```
-    pub fn new(format: Option<Format>) -> Logger {
-        let format = format.unwrap_or_default();
-        Logger { format: format.clone() }
+    /// Create `Logger` middleware with the specified `format`.
+    pub fn new(format: &str) -> Logger {
+        Logger { format: Format::new(format) }
+    }
+}
+
+impl Default for Logger {
+    /// Create default `Logger` middleware
+    fn default() -> Logger {
+        Logger { format: Format::default() }
     }
 }
 
@@ -43,27 +81,57 @@ impl Logger {
 
         let response_time = time::now() - entry_time;
         let response_time_ms = (response_time.num_seconds() * 1000) as f64 +
-            (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000000.0;
+            (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000.0;
         {
             let render = |fmt: &mut Formatter, text: &FormatText| {
                 match *text {
                     FormatText::Str(ref string) => fmt.write_str(string),
-                    FormatText::Method => req.method().fmt(fmt),
-                    FormatText::URI => {
+                    FormatText::Percent => "%".fmt(fmt),
+                    FormatText::RequestLine => {
                         if req.query_string().is_empty() {
-                            fmt.write_fmt(format_args!("{}", req.path()))
+                            fmt.write_fmt(format_args!(
+                                "{} {} {:?}",
+                                req.method(), req.path(), req.version()))
                         } else {
-                            fmt.write_fmt(format_args!("{}?{}", req.path(), req.query_string()))
+                            fmt.write_fmt(format_args!(
+                                "{} {}?{} {:?}",
+                                req.method(), req.path(), req.query_string(), req.version()))
                         }
                     },
-                    FormatText::Status => resp.status().fmt(fmt),
-                    FormatText::ResponseTime =>
-                        fmt.write_fmt(format_args!("{} sec", response_time_ms)),
+                    FormatText::ResponseStatus => resp.status().as_u16().fmt(fmt),
+                    FormatText::ResponseSize => resp.response_size().fmt(fmt),
+                    FormatText::Time =>
+                        fmt.write_fmt(format_args!("{:.6}", response_time_ms/1000.0)),
+                    FormatText::TimeMillis =>
+                        fmt.write_fmt(format_args!("{:.6}", response_time_ms)),
                     FormatText::RemoteAddr => Ok(()), //req.remote_addr.fmt(fmt),
                     FormatText::RequestTime => {
-                        entry_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ%z")
+                        entry_time.strftime("[%d/%b/%Y:%H:%M:%S %z]")
                             .unwrap()
                             .fmt(fmt)
+                    }
+                    FormatText::RequestHeader(ref name) => {
+                        let s = if let Some(val) = req.headers().get(name) {
+                            if let Ok(s) = val.to_str() { s } else { "-" }
+                        } else {
+                            "-"
+                        };
+                        fmt.write_fmt(format_args!("{}", s))
+                    }
+                    FormatText::ResponseHeader(ref name) => {
+                        let s = if let Some(val) = resp.headers().get(name) {
+                            if let Ok(s) = val.to_str() { s } else { "-" }
+                        } else {
+                            "-"
+                        };
+                        fmt.write_fmt(format_args!("{}", s))
+                    }
+                    FormatText::EnvironHeader(ref name) => {
+                        if let Ok(val) = env::var(name) {
+                            fmt.write_fmt(format_args!("{}", val))
+                        } else {
+                            "-".fmt(fmt)
+                        }
                     }
                 }
             };
@@ -87,46 +155,72 @@ impl Middleware for Logger {
 }
 
 
-use self::FormatText::{Method, URI, Status, ResponseTime, RemoteAddr, RequestTime};
-
 /// A formatting style for the `Logger`, consisting of multiple
 /// `FormatText`s concatenated into one line.
 #[derive(Clone)]
 #[doc(hidden)]
-pub struct Format(Vec<FormatText>);
+struct Format(Vec<FormatText>);
 
 impl Default for Format {
     /// Return the default formatting style for the `Logger`:
     ///
     /// ```ignore
-    /// {method} {uri} -> {status} ({response-time})
-    /// // This will be written as: {method} {uri} -> {status} ({response-time})
+    /// %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i %T"
     /// ```
     fn default() -> Format {
-        Format::new("{method} {uri} {status} ({response-time})").unwrap()
+        Format::new(r#"%a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i" %T"#)
     }
 }
 
 impl Format {
-    /// Create a `Format` from a format string, which can contain the fields
-    /// `{method}`, `{uri}`, `{status}`, `{response-time}`, `{ip-addr}` and
-    /// `{request-time}`.
+    /// Create a `Format` from a format string.
     ///
     /// Returns `None` if the format string syntax is incorrect.
-    pub fn new(s: &str) -> Option<Format> {
+    pub fn new(s: &str) -> Format {
+        trace!("Access log format: {}", s);
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrsbTD]?)").unwrap();
 
-        let parser = FormatParser::new(s.chars().peekable());
-
+        let mut idx = 0;
         let mut results = Vec::new();
+        for cap in fmt.captures_iter(s) {
+            let m = cap.get(0).unwrap();
+            let pos = m.start();
+            if idx != pos {
+                results.push(FormatText::Str(s[idx..pos].to_owned()));
+            }
+            idx = m.end();
 
-        for unit in parser {
-            match unit {
-                Some(unit) => results.push(unit),
-                None => return None
+            if let Some(key) = cap.get(2) {
+                results.push(
+                    match cap.get(3).unwrap().as_str() {
+                        "i" => FormatText::RequestHeader(key.as_str().to_owned()),
+                        "o" => FormatText::ResponseHeader(key.as_str().to_owned()),
+                        "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
+                        _ => unreachable!(),
+                    })
+            } else {
+                let m = cap.get(1).unwrap();
+                results.push(
+                    match m.as_str() {
+                        "%" => FormatText::Percent,
+                        "a" => FormatText::RemoteAddr,
+                        "t" => FormatText::RequestTime,
+                        "P" => FormatText::Percent,
+                        "r" => FormatText::RequestLine,
+                        "s" => FormatText::ResponseStatus,
+                        "b" => FormatText::ResponseSize,
+                        "T" => FormatText::Time,
+                        "D" => FormatText::TimeMillis,
+                        _ => FormatText::Str(m.as_str().to_owned()),
+                    }
+                );
             }
         }
+        if idx != s.len() {
+            results.push(FormatText::Str(s[idx..].to_owned()));
+        }
 
-        Some(Format(results))
+        Format(results)
     }
 }
 
@@ -151,116 +245,24 @@ impl<'a> ContextDisplay<'a> for Format {
     }
 }
 
-struct FormatParser<'a> {
-    // The characters of the format string.
-    chars: Peekable<Chars<'a>>,
-
-    // A reusable buffer for parsing style attributes.
-    object_buffer: String,
-
-    finished: bool
-}
-
-impl<'a> FormatParser<'a> {
-    fn new(chars: Peekable<Chars>) -> FormatParser {
-        FormatParser {
-            chars: chars,
-
-            // No attributes are longer than 14 characters, so we can avoid reallocating.
-            object_buffer: String::with_capacity(14),
-
-            finished: false
-        }
-    }
-}
-
-// Some(None) means there was a parse error and this FormatParser should be abandoned.
-impl<'a> Iterator for FormatParser<'a> {
-    type Item = Option<FormatText>;
-
-    fn next(&mut self) -> Option<Option<FormatText>> {
-        // If the parser has been cancelled or errored for some reason.
-        if self.finished { return None }
-
-        // Try to parse a new FormatText.
-        match self.chars.next() {
-            // Parse a recognized object.
-            //
-            // The allowed forms are:
-            //   - {method}
-            //   - {uri}
-            //   - {status}
-            //   - {response-time}
-            //   - {ip-addr}
-            //   - {request-time}
-            Some('{') => {
-                self.object_buffer.clear();
-
-                let mut chr = self.chars.next();
-                while chr != None {
-                    match chr.unwrap() {
-                        // Finished parsing, parse buffer.
-                        '}' => break,
-                        c => self.object_buffer.push(c)
-                    }
-
-                    chr = self.chars.next();
-                }
-
-                let text = match self.object_buffer.as_ref() {
-                    "method" => Method,
-                    "uri" => URI,
-                    "status" => Status,
-                    "response-time" => ResponseTime,
-                    "request-time" => RequestTime,
-                    "ip-addr" => RemoteAddr,
-                    _ => {
-                        // Error, so mark as finished.
-                        self.finished = true;
-                        return Some(None);
-                    }
-                };
-
-                Some(Some(text))
-            }
-
-            // Parse a regular string part of the format string.
-            Some(c) => {
-                let mut buffer = String::new();
-                buffer.push(c);
-
-                loop {
-                    match self.chars.peek() {
-                        // Done parsing.
-                        Some(&'{') | None => return Some(Some(FormatText::Str(buffer))),
-
-                        Some(_) => {
-                            buffer.push(self.chars.next().unwrap())
-                        }
-                    }
-                }
-            },
-
-            // Reached end of the format string.
-            None => None
-        }
-    }
-}
-
 /// A string of text to be logged. This is either one of the data
 /// fields supported by the `Logger`, or a custom `String`.
-#[derive(Clone)]
 #[doc(hidden)]
+#[derive(Debug, Clone)]
 pub enum FormatText {
     Str(String),
-    Method,
-    URI,
-    Status,
-    ResponseTime,
+    Percent,
+    RequestLine,
+    RequestTime,
+    ResponseStatus,
+    ResponseSize,
+    Time,
+    TimeMillis,
     RemoteAddr,
-    RequestTime
+    RequestHeader(String),
+    ResponseHeader(String),
+    EnvironHeader(String),
 }
-
 
 pub(crate) struct FormatDisplay<'a> {
     format: &'a Format,

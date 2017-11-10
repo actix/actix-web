@@ -74,7 +74,7 @@ fn main() {
     HttpServer::new(
         Application::builder("/", AppState{counter: Cell::new(0)})
             // enable logger
-            .middleware(middlewares::Logger::new(None))
+            .middleware(middlewares::Logger::default())
             // websocket route
             .resource("/ws/", |r| r.get::<MyWebSocket>())
             // register simple handler, handle all methods

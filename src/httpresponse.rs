@@ -34,6 +34,7 @@ pub struct HttpResponse {
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     error: Option<Box<Error>>,
+    response_size: u64,
 }
 
 impl HttpResponse {
@@ -59,6 +60,7 @@ impl HttpResponse {
             encoding: ContentEncoding::Auto,
             connection_type: None,
             error: None,
+            response_size: 0,
         }
     }
 
@@ -75,6 +77,7 @@ impl HttpResponse {
             encoding: ContentEncoding::Auto,
             connection_type: None,
             error: Some(Box::new(error)),
+            response_size: 0,
         }
     }
 
@@ -195,6 +198,16 @@ impl HttpResponse {
     /// Set a body and return previous body value
     pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
         mem::replace(&mut self.body, body.into())
+    }
+
+    /// Size of response in bytes, excluding HTTP headers
+    pub fn response_size(&self) -> u64 {
+        self.response_size
+    }
+
+    /// Set content encoding
+    pub(crate) fn set_response_size(&mut self, size: u64) {
+        self.response_size = size;
     }
 }
 
@@ -433,6 +446,7 @@ impl HttpResponseBuilder {
             encoding: parts.encoding,
             connection_type: parts.connection_type,
             error: None,
+            response_size: 0,
         })
     }
 
