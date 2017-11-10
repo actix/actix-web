@@ -13,7 +13,7 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
                  Envelope, ToEnvelope, RemoteEnvelope};
 
 use task::{IoContext, DrainFut};
-use body::BinaryBody;
+use body::Binary;
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
 
@@ -136,7 +136,7 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     }
 
     /// Write payload
-    pub fn write<B: Into<BinaryBody>>(&mut self, data: B) {
+    pub fn write<B: Into<Binary>>(&mut self, data: B) {
         self.stream.push_back(Frame::Payload(Some(data.into())))
     }
 

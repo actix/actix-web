@@ -65,7 +65,7 @@ pub mod multipart;
 pub mod middlewares;
 pub use encoding::ContentEncoding;
 pub use error::ParseError;
-pub use body::{Body, BinaryBody};
+pub use body::{Body, Binary};
 pub use application::{Application, ApplicationBuilder};
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{HttpResponse, HttpResponseBuilder};

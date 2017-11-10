@@ -8,7 +8,7 @@ use http::{header, Version};
 use futures::Stream;
 
 use task::{Task, DrainFut};
-use body::BinaryBody;
+use body::Binary;
 use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
@@ -21,7 +21,7 @@ use httpcodes::HTTPExpectationFailed;
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 pub enum Frame {
     Message(HttpResponse),
-    Payload(Option<BinaryBody>),
+    Payload(Option<Binary>),
     Drain(Rc<RefCell<DrainFut>>),
 }
 
