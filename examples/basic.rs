@@ -49,8 +49,8 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             // enable logger
-            .middleware(Logger::new(None))
-            // register simple handler, handle all methods
+            .middleware(middlewares::Logger::new(None))
+            // register simple handle r, handle all methods
             .handler("/index.html", index)
             // with path parameters
             .resource("/user/{name}/", |r| r.handler(Method::GET, with_param))

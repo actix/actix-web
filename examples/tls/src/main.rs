@@ -32,7 +32,7 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             // enable logger
-            .middleware(Logger::new(None))
+            .middleware(middlewares::Logger::new(None))
             // register simple handler, handle all methods
             .handler("/index.html", index)
             // with path parameters

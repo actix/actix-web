@@ -18,7 +18,7 @@ use route::{Route, Frame};
 use httpresponse::HttpResponse;
 
 
-/// Actor execution context
+/// Http actor execution context
 pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
 {
     act: Option<A>,

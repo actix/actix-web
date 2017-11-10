@@ -6,9 +6,9 @@ use std::fmt::{Display, Formatter};
 
 use time;
 
-use application::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use middlewares::{Middleware, Started, Finished};
 
 /// `Middleware` for logging request and response info to the terminal.
 pub struct Logger {
@@ -37,16 +37,13 @@ impl Logger {
 struct StartTime(time::Tm);
 
 impl Logger {
-    fn initialise(&self, req: &mut HttpRequest) {
-        req.extensions().insert(StartTime(time::now()));
-    }
 
     fn log(&self, req: &mut HttpRequest, resp: &HttpResponse) {
         let entry_time = req.extensions().get::<StartTime>().unwrap().0;
 
         let response_time = time::now() - entry_time;
-        let response_time_ms = (response_time.num_seconds() * 1000) as f64 + (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000.0;
-
+        let response_time_ms = (response_time.num_seconds() * 1000) as f64 +
+            (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000000.0;
         {
             let render = |fmt: &mut Formatter, text: &FormatText| {
                 match *text {
@@ -61,7 +58,7 @@ impl Logger {
                     },
                     FormatText::Status => resp.status().fmt(fmt),
                     FormatText::ResponseTime =>
-                        fmt.write_fmt(format_args!("{} ms", response_time_ms)),
+                        fmt.write_fmt(format_args!("{} sec", response_time_ms)),
                     FormatText::RemoteAddr => Ok(()), //req.remote_addr.fmt(fmt),
                     FormatText::RequestTime => {
                         entry_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ%z")
@@ -77,13 +74,15 @@ impl Logger {
 }
 
 impl Middleware for Logger {
-    fn start(&self, req: &mut HttpRequest) -> Result<(), HttpResponse> {
-        self.initialise(req);
-        Ok(())
+
+    fn start(&self, req: &mut HttpRequest) -> Started {
+        req.extensions().insert(StartTime(time::now()));
+        Started::Done
     }
 
-    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) {
+    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) -> Finished {
         self.log(req, resp);
+        Finished::Done
     }
 }
 

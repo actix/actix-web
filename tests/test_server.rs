@@ -11,6 +11,7 @@ use tokio_core::net::TcpListener;
 use actix::*;
 use actix_web::*;
 
+
 fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
     HttpServer::new(
         vec![Application::default("/")
@@ -59,19 +60,20 @@ struct MiddlewareTest {
     finish: Arc<AtomicUsize>,
 }
 
-impl Middleware for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest) -> Result<(), HttpResponse> {
+impl middlewares::Middleware for MiddlewareTest {
+    fn start(&self, _: &mut HttpRequest) -> middlewares::Started {
         self.start.store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        Ok(())
+        middlewares::Started::Done
     }
 
-    fn response(&self, _: &mut HttpRequest, resp: HttpResponse) -> HttpResponse {
+    fn response(&self, _: &mut HttpRequest, resp: HttpResponse) -> middlewares::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        resp
+        middlewares::Response::Response(resp)
     }
 
-    fn finish(&self, _: &mut HttpRequest, _: &HttpResponse) {
+    fn finish(&self, _: &mut HttpRequest, _: &HttpResponse) -> middlewares::Finished {
         self.finish.store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
+        middlewares::Finished::Done
     }
 }
 

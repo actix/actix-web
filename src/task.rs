@@ -8,7 +8,7 @@ use futures::task::{Task as FutureTask, current as current_task};
 
 use h1writer::{Writer, WriterState};
 use route::Frame;
-use application::Middleware;
+use middlewares::{Middleware, MiddlewaresExecutor};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -109,7 +109,7 @@ pub struct Task {
     drain: Vec<Rc<RefCell<DrainFut>>>,
     prepared: Option<HttpResponse>,
     disconnected: bool,
-    middlewares: Option<Rc<Vec<Box<Middleware>>>>,
+    middlewares: MiddlewaresExecutor,
 }
 
 impl Task {
@@ -119,49 +119,42 @@ impl Task {
         frames.push_back(Frame::Message(response.into()));
         frames.push_back(Frame::Payload(None));
 
-        Task {
-            state: TaskRunningState::Running,
-            iostate: TaskIOState::Done,
-            frames: frames,
-            drain: Vec::new(),
-            stream: TaskStream::None,
-            prepared: None,
-            disconnected: false,
-            middlewares: None,
-        }
+        Task { state: TaskRunningState::Running,
+               iostate: TaskIOState::Done,
+               frames: frames,
+               drain: Vec::new(),
+               stream: TaskStream::None,
+               prepared: None,
+               disconnected: false,
+               middlewares: MiddlewaresExecutor::default() }
+    }
+
+    pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self {
+        Task { state: TaskRunningState::Running,
+               iostate: TaskIOState::ReadingMessage,
+               frames: VecDeque::new(),
+               stream: TaskStream::Context(Box::new(ctx)),
+               drain: Vec::new(),
+               prepared: None,
+               disconnected: false,
+               middlewares: MiddlewaresExecutor::default() }
     }
 
     pub(crate) fn with_stream<S>(stream: S) -> Self
         where S: Stream<Item=Frame, Error=io::Error> + 'static
     {
-        Task {
-            state: TaskRunningState::Running,
-            iostate: TaskIOState::ReadingMessage,
-            frames: VecDeque::new(),
-            stream: TaskStream::Stream(Box::new(stream)),
-            drain: Vec::new(),
-            prepared: None,
-            disconnected: false,
-            middlewares: None,
-        }
-    }
-
-    pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self
-    {
-        Task {
-            state: TaskRunningState::Running,
-            iostate: TaskIOState::ReadingMessage,
-            frames: VecDeque::new(),
-            stream: TaskStream::Context(Box::new(ctx)),
-            drain: Vec::new(),
-            prepared: None,
-            disconnected: false,
-            middlewares: None,
-        }
+        Task { state: TaskRunningState::Running,
+               iostate: TaskIOState::ReadingMessage,
+               frames: VecDeque::new(),
+               stream: TaskStream::Stream(Box::new(stream)),
+               drain: Vec::new(),
+               prepared: None,
+               disconnected: false,
+               middlewares: MiddlewaresExecutor::default() }
     }
 
     pub(crate) fn set_middlewares(&mut self, middlewares: Rc<Vec<Box<Middleware>>>) {
-        self.middlewares = Some(middlewares);
+        self.middlewares.start(middlewares)
     }
 
     pub(crate) fn disconnected(&mut self) {
@@ -175,6 +168,17 @@ impl Task {
         where T: Writer
     {
         trace!("POLL-IO frames:{:?}", self.frames.len());
+
+        // start middlewares
+        match self.middlewares.starting(req) {
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::Ready(None)) | Err(_) => (),
+            Ok(Async::Ready(Some(response))) => {
+                self.frames.clear();
+                self.frames.push_front(Frame::Message(response));
+            },
+        }
+
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {
             return Ok(Async::Ready(self.state.is_done()));
@@ -190,29 +194,40 @@ impl Task {
                 }
             }
 
+            // process middlewares response
+            match self.middlewares.processing(req) {
+                Err(_) => return Err(()),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(None)) => (),
+                Ok(Async::Ready(Some(mut response))) => {
+                    let result = io.start(req, &mut response);
+                    self.prepared = Some(response);
+                    match result {
+                        Ok(WriterState::Pause) => {
+                            self.state.pause();
+                        }
+                        Ok(WriterState::Done) => self.state.resume(),
+                        Err(_) => return Err(())
+                    }
+                },
+            }
+
             // if task is paused, write buffer probably is full
             if self.state != TaskRunningState::Paused {
                 // process exiting frames
                 while let Some(frame) = self.frames.pop_front() {
                     trace!("IO Frame: {:?}", frame);
                     let res = match frame {
-                        Frame::Message(response) => {
+                        Frame::Message(resp) => {
                             // run middlewares
-                            let mut response =
-                                if let Some(middlewares) = self.middlewares.take() {
-                                    let mut response = response;
-                                    for middleware in middlewares.iter() {
-                                        response = middleware.response(req, response);
-                                    }
-                                    self.middlewares = Some(middlewares);
-                                    response
-                                } else {
-                                    response
-                                };
-
-                            let result = io.start(req, &mut response);
-                            self.prepared = Some(response);
-                            result
+                            if let Some(mut resp) = self.middlewares.response(req, resp) {
+                                let result = io.start(req, &mut resp);
+                                self.prepared = Some(resp);
+                                result
+                            } else {
+                                // middlewares need to run some futures
+                                return self.poll_io(io, req)
+                            }
                         }
                         Frame::Payload(Some(chunk)) => {
                             io.write(chunk.as_ref())
@@ -251,7 +266,7 @@ impl Task {
             }
         }
 
-        // drain
+        // drain futures
         if !self.drain.is_empty() {
             for fut in &mut self.drain {
                 fut.borrow_mut().set()
@@ -261,12 +276,11 @@ impl Task {
 
         // response is completed
         if self.iostate.is_done() {
-            // run middlewares
-            if let Some(ref mut resp) = self.prepared {
-                if let Some(middlewares) = self.middlewares.take() {
-                    for middleware in middlewares.iter() {
-                        middleware.finish(req, resp);
-                    }
+            // finish middlewares
+            if let Some(ref resp) = self.prepared {
+                match self.middlewares.finishing(req, resp) {
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    _ => (),
                 }
             }
             Ok(Async::Ready(self.state.is_done()))
@@ -276,8 +290,7 @@ impl Task {
     }
 
     fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), ()>
-        where S: Stream<Item=Frame, Error=io::Error>
-    {
+        where S: Stream<Item=Frame, Error=io::Error> {
         loop {
             match stream.poll() {
                 Ok(Async::Ready(Some(frame))) => {

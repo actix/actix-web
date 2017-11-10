@@ -10,26 +10,8 @@ use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use channel::HttpHandler;
+use middlewares::Middleware;
 
-
-/// Middleware definition
-#[allow(unused_variables)]
-pub trait Middleware {
-
-    /// Method is called when request is ready.
-    fn start(&self, req: &mut HttpRequest) -> Result<(), HttpResponse> {
-        Ok(())
-    }
-
-    /// Method is called when handler returns response,
-    /// but before sending body streams to peer.
-    fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> HttpResponse {
-        resp
-    }
-
-    /// Http interation is finished
-    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) {}
-}
 
 /// Application
 pub struct Application<S> {
@@ -67,19 +49,13 @@ impl<S: 'static> HttpHandler for Application<S> {
     }
     
     fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task {
-        // run middlewares
+        let mut task = self.run(req, payload);
+
+        // init middlewares
         if !self.middlewares.is_empty() {
-            for middleware in self.middlewares.iter() {
-                if let Err(resp) = middleware.start(req) {
-                    return Task::reply(resp)
-                };
-            }
-            let mut task = self.run(req, payload);
             task.set_middlewares(Rc::clone(&self.middlewares));
-            task
-        } else {
-            self.run(req, payload)
         }
+        task
     }
 }
 
