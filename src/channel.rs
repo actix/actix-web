@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::net::SocketAddr;
 
 use actix::dev::*;
 use bytes::Bytes;
@@ -19,23 +20,24 @@ pub trait HttpHandler: 'static {
     fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task;
 }
 
-enum HttpProtocol<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
+enum HttpProtocol<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
-    H1(h1::Http1<T, A, H>),
-    H2(h2::Http2<T, A, H>),
+    H1(h1::Http1<T, H>),
+    H2(h2::Http2<T, H>),
 }
 
-pub struct HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
+pub struct HttpChannel<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
-    proto: Option<HttpProtocol<T, A, H>>,
+    proto: Option<HttpProtocol<T, H>>,
 }
 
-impl<T, A, H> HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
+impl<T, H> HttpChannel<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: A, router: Rc<Vec<H>>, http2: bool) -> HttpChannel<T, A, H> {
+    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>, http2: bool)
+               -> HttpChannel<T, H> {
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
@@ -54,14 +56,14 @@ impl<T, A, H> HttpChannel<T, A, H>
     }
 }*/
 
-impl<T, A, H> Actor for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
+impl<T, H> Actor for HttpChannel<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
     type Context = Context<Self>;
 }
 
-impl<T, A, H> Future for HttpChannel<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: HttpHandler + 'static
+impl<T, H> Future for HttpChannel<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
     type Item = ();
     type Error = ();

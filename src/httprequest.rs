@@ -1,5 +1,6 @@
 //! HTTP Request message related code.
 use std::{str, fmt};
+use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
@@ -25,6 +26,7 @@ pub struct HttpRequest {
     cookies: Vec<Cookie<'static>>,
     cookies_loaded: bool,
     extensions: Extensions,
+    addr: Option<SocketAddr>,
 }
 
 impl HttpRequest {
@@ -43,6 +45,7 @@ impl HttpRequest {
             cookies: Vec::new(),
             cookies_loaded: false,
             extensions: Extensions::new(),
+            addr: None,
         }
     }
 
@@ -57,6 +60,7 @@ impl HttpRequest {
             cookies: Vec::new(),
             cookies_loaded: false,
             extensions: Extensions::new(),
+            addr: None,
         }
     }
 
@@ -84,6 +88,21 @@ impl HttpRequest {
     #[inline]
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    /// Remote IP of client initiated HTTP request.
+    ///
+    /// The IP is resolved through the following headers, in this order:
+    ///
+    /// - Forwarded
+    /// - X-Forwarded-For
+    /// - peername of opened socket
+    pub fn remote(&self) -> Option<&SocketAddr> {
+        self.addr.as_ref()
+    }
+
+    pub(crate) fn set_remove_addr(&mut self, addr: Option<SocketAddr>) {
+        self.addr = addr
     }
 
     /// Return a new iterator that yields pairs of `Cow<str>` for query parameters

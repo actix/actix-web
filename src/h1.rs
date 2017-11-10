@@ -1,6 +1,7 @@
 use std::{self, io, ptr};
 use std::rc::Rc;
 use std::cell::UnsafeCell;
+use std::net::SocketAddr;
 use std::time::Duration;
 use std::collections::VecDeque;
 
@@ -35,10 +36,10 @@ pub(crate) enum Http1Result {
     Switch,
 }
 
-pub(crate) struct Http1<T: AsyncWrite + 'static, A: 'static, H: 'static> {
+pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
     router: Rc<Vec<H>>,
     #[allow(dead_code)]
-    addr: A,
+    addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
     read_buf: BytesMut,
@@ -57,12 +58,11 @@ struct Entry {
     finished: bool,
 }
 
-impl<T, A, H> Http1<T, A, H>
+impl<T, H> Http1<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: A, router: Rc<Vec<H>>) -> Self {
+    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>) -> Self {
         Http1{ router: router,
                addr: addr,
                stream: H1Writer::new(stream),
@@ -75,7 +75,7 @@ impl<T, A, H> Http1<T, A, H>
                h2: false }
     }
 
-    pub fn into_inner(mut self) -> (T, A, Rc<Vec<H>>, Bytes) {
+    pub fn into_inner(mut self) -> (T, Option<SocketAddr>, Rc<Vec<H>>, Bytes) {
         (self.stream.unwrap(), self.addr, self.router, self.read_buf.freeze())
     }
 
@@ -171,6 +171,9 @@ impl<T, A, H> Http1<T, A, H>
                 match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
                     Ok(Async::Ready(Item::Http1(mut req, payload))) => {
                         not_ready = false;
+
+                        // set remote addr
+                        req.set_remove_addr(self.addr.clone());
 
                         // stop keepalive timer
                         self.keepalive_timer.take();

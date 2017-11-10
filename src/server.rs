@@ -1,5 +1,6 @@
 use std::{io, net};
 use std::rc::Rc;
+use std::net::SocketAddr;
 use std::marker::PhantomData;
 
 use actix::dev::*;
@@ -7,6 +8,8 @@ use futures::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::{TcpListener, TcpStream};
 
+#[cfg(feature="tls")]
+use futures::Future;
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
@@ -64,7 +67,7 @@ impl<T, A, H> HttpServer<T, A, H>
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(stream.map(|(t, a)| IoStream(t, a, false)));
+            ctx.add_stream(stream.map(|(t, _)| IoStream(t, None, false)));
             self
         }))
     }
@@ -109,7 +112,7 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
         Ok(HttpServer::create(move |ctx| {
             for (addr, tcp) in addrs {
                 info!("Starting http server on {}", addr);
-                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, a, false)));
+                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, Some(a), false)));
             }
             self
         }))
@@ -146,7 +149,7 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
                         .map(move |t| {
-                            IoStream(t, addr)
+                            IoStream(t, Some(addr), false)
                         })
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
@@ -200,7 +203,7 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
                             } else {
                                 false
                             };
-                            IoStream(stream, addr, http2)
+                            IoStream(stream, Some(addr), http2)
                         })
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
@@ -213,32 +216,31 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
     }
 }
 
-struct IoStream<T, A>(T, A, bool);
+struct IoStream<T>(T, Option<SocketAddr>, bool);
 
-impl<T, A> ResponseType for IoStream<T, A>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static
+impl<T> ResponseType for IoStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
 {
     type Item = ();
     type Error = ();
 }
 
-impl<T, A, H> StreamHandler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
+impl<T, A, H> StreamHandler<IoStream<T>, io::Error> for HttpServer<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
-          H: HttpHandler + 'static {}
-
-impl<T, A, H> Handler<IoStream<T, A>, io::Error> for HttpServer<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
           H: HttpHandler + 'static,
+          A: 'static {}
+
+impl<T, A, H> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          A: 'static,
 {
     fn error(&mut self, err: io::Error, _: &mut Context<Self>) {
         debug!("Error handling request: {}", err)
     }
 
-    fn handle(&mut self, msg: IoStream<T, A>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<T, A>>
+    fn handle(&mut self, msg: IoStream<T>, _: &mut Context<Self>)
+              -> Response<Self, IoStream<T>>
     {
         Arbiter::handle().spawn(
             HttpChannel::new(msg.0, msg.1, Rc::clone(&self.h), msg.2));

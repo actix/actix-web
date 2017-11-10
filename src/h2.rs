@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::io::{Read, Write};
 use std::cell::UnsafeCell;
 use std::time::Duration;
+use std::net::SocketAddr;
 use std::collections::VecDeque;
 
 use actix::Arbiter;
@@ -24,12 +25,12 @@ use payload::{Payload, PayloadError, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
-pub(crate) struct Http2<T, A, H>
-    where T: AsyncRead + AsyncWrite + 'static, A: 'static, H: 'static
+pub(crate) struct Http2<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     router: Rc<Vec<H>>,
     #[allow(dead_code)]
-    addr: A,
+    addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     disconnected: bool,
     tasks: VecDeque<Entry>,
@@ -42,12 +43,11 @@ enum State<T: AsyncRead + AsyncWrite> {
     Empty,
 }
 
-impl<T, A, H> Http2<T, A, H>
+impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: A, router: Rc<Vec<H>>, buf: Bytes) -> Self {
+    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>, buf: Bytes) -> Self {
         Http2{ router: router,
                addr: addr,
                disconnected: false,
@@ -132,12 +132,15 @@ impl<T, A, H> Http2<T, A, H>
                                 entry.task.disconnected()
                             }
                         },
-                        Ok(Async::Ready(Some((req, resp)))) => {
+                        Ok(Async::Ready(Some((mut req, resp)))) => {
                             not_ready = false;
                             let (parts, body) = req.into_parts();
-                            self.tasks.push_back(
-                                Entry::new(parts, body, resp, &self.router));
+
+                            // stop keepalive timer
                             self.keepalive_timer.take();
+
+                            self.tasks.push_back(
+                                Entry::new(parts, body, resp, self.addr.clone(), &self.router));
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
@@ -210,6 +213,7 @@ impl Entry {
     fn new<H>(parts: Parts,
               recv: RecvStream,
               resp: Respond<Bytes>,
+              addr: Option<SocketAddr>,
               router: &Rc<Vec<H>>) -> Entry
         where H: HttpHandler + 'static
     {
@@ -218,6 +222,9 @@ impl Entry {
 
         let mut req = HttpRequest::new(
             parts.method, path, parts.version, parts.headers, query);
+
+        // set remote addr
+        req.set_remove_addr(addr);
 
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
