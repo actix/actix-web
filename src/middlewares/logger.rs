@@ -3,6 +3,7 @@ use std::env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
+use libc;
 use time;
 use regex::Regex;
 
@@ -100,11 +101,18 @@ impl Logger {
                     },
                     FormatText::ResponseStatus => resp.status().as_u16().fmt(fmt),
                     FormatText::ResponseSize => resp.response_size().fmt(fmt),
+                    FormatText::Pid => unsafe{libc::getpid().fmt(fmt)},
                     FormatText::Time =>
                         fmt.write_fmt(format_args!("{:.6}", response_time_ms/1000.0)),
                     FormatText::TimeMillis =>
                         fmt.write_fmt(format_args!("{:.6}", response_time_ms)),
-                    FormatText::RemoteAddr => Ok(()), //req.remote_addr.fmt(fmt),
+                    FormatText::RemoteAddr => {
+                        if let Some(addr) = req.remote() {
+                            addr.fmt(fmt)
+                        } else {
+                            "-".fmt(fmt)
+                        }
+                    }
                     FormatText::RequestTime => {
                         entry_time.strftime("[%d/%b/%Y:%H:%M:%S %z]")
                             .unwrap()
@@ -205,7 +213,7 @@ impl Format {
                         "%" => FormatText::Percent,
                         "a" => FormatText::RemoteAddr,
                         "t" => FormatText::RequestTime,
-                        "P" => FormatText::Percent,
+                        "P" => FormatText::Pid,
                         "r" => FormatText::RequestLine,
                         "s" => FormatText::ResponseStatus,
                         "b" => FormatText::ResponseSize,
@@ -251,6 +259,7 @@ impl<'a> ContextDisplay<'a> for Format {
 #[derive(Debug, Clone)]
 pub enum FormatText {
     Str(String),
+    Pid,
     Percent,
     RequestLine,
     RequestTime,

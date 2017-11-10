@@ -279,9 +279,8 @@ impl Task {
             // finish middlewares
             if let Some(ref mut resp) = self.prepared {
                 resp.set_response_size(io.written());
-                match self.middlewares.finishing(req, resp) {
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    _ => (),
+                if let Ok(Async::NotReady) = self.middlewares.finishing(req, resp) {
+                    return Ok(Async::NotReady)
                 }
             }
             Ok(Async::Ready(self.state.is_done()))

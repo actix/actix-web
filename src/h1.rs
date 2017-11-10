@@ -173,7 +173,7 @@ impl<T, H> Http1<T, H>
                         not_ready = false;
 
                         // set remote addr
-                        req.set_remove_addr(self.addr.clone());
+                        req.set_remove_addr(self.addr);
 
                         // stop keepalive timer
                         self.keepalive_timer.take();

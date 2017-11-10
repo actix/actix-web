@@ -140,7 +140,7 @@ impl<T, H> Http2<T, H>
                             self.keepalive_timer.take();
 
                             self.tasks.push_back(
-                                Entry::new(parts, body, resp, self.addr.clone(), &self.router));
+                                Entry::new(parts, body, resp, self.addr, &self.router));
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer

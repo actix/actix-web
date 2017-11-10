@@ -9,6 +9,8 @@
 
 * Content compression/decompression (br, gzip, deflate)
 
+* Refactor logger middleware
+
 
 ## 0.2.1 (2017-11-03)
 

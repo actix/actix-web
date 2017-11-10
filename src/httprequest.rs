@@ -75,11 +75,13 @@ impl HttpRequest {
     pub fn method(&self) -> &Method { &self.method }
 
     /// Read the Request Version.
+    #[inline]
     pub fn version(&self) -> Version {
         self.version
     }
 
     /// Read the Request Headers.
+    #[inline]
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
@@ -97,6 +99,7 @@ impl HttpRequest {
     /// - Forwarded
     /// - X-Forwarded-For
     /// - peername of opened socket
+    #[inline]
     pub fn remote(&self) -> Option<&SocketAddr> {
         self.addr.as_ref()
     }

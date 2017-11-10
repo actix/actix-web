@@ -44,6 +44,7 @@ cookie = { version="0.10", features=["percent-encode", "secure"] }
 regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
+libc = "^0.2"
 flate2 = "0.2"
 brotli2 = "^0.3.2"
 percent-encoding = "1.0"
