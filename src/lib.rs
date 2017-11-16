@@ -30,7 +30,7 @@ extern crate percent_encoding;
 extern crate actix;
 extern crate h2 as http2;
 
-extern crate redis_async;
+// extern crate redis_async;
 
 #[cfg(feature="tls")]
 extern crate native_tls;
