@@ -98,10 +98,10 @@ pub enum ParseError {
     Timeout,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[fail(display="IO error: {}", _0)]
-    Io(IoError),
+    Io(#[cause] IoError),
     /// Parsing a field as string failed
     #[fail(display="UTF8 error: {}", _0)]
-    Utf8(Utf8Error),
+    Utf8(#[cause] Utf8Error),
 }
 
 /// Return `BadRequest` for `ParseError`
