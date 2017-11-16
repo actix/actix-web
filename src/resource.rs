@@ -8,6 +8,7 @@ use http::Method;
 use futures::Stream;
 
 use task::Task;
+use error::Error;
 use route::{Route, RouteHandler, RouteResult, Frame, FnHandler, StreamHandler};
 use payload::Payload;
 use context::HttpContext;
@@ -16,7 +17,7 @@ use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
 /// Result of a resource handler function
-pub type HandlerResult<T> = Result<T, HttpResponse>;
+pub type HandlerResult<T> = Result<T, Error>;
 
 /// Http resource
 ///
@@ -77,7 +78,7 @@ impl<S> Resource<S> where S: 'static {
     /// Register async handler for specified method.
     pub fn async<F, R>(&mut self, method: Method, handler: F)
         where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
-              R: Stream<Item=Frame, Error=()> + 'static,
+              R: Stream<Item=Frame, Error=Error> + 'static,
     {
         self.routes.insert(method, Box::new(StreamHandler::new(handler)));
     }

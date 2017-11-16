@@ -1,6 +1,5 @@
-//! Pieces pertaining to the HTTP message protocol.
+//! Pieces pertaining to the HTTP response.
 use std::{io, mem, str, fmt};
-use std::error::Error as Error;
 use std::convert::Into;
 
 use cookie::CookieJar;
@@ -33,7 +32,6 @@ pub struct HttpResponse {
     chunked: bool,
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
-    error: Option<Box<Error>>,
     response_size: u64,
 }
 
@@ -59,33 +57,8 @@ impl HttpResponse {
             chunked: false,
             encoding: ContentEncoding::Auto,
             connection_type: None,
-            error: None,
             response_size: 0,
         }
-    }
-
-    /// Constructs a response from error
-    #[inline]
-    pub fn from_error<E: Error + 'static>(status: StatusCode, error: E) -> HttpResponse {
-        HttpResponse {
-            version: None,
-            headers: Default::default(),
-            status: status,
-            reason: None,
-            body: Body::from_slice(error.description().as_ref()),
-            chunked: false,
-            encoding: ContentEncoding::Auto,
-            connection_type: None,
-            error: Some(Box::new(error)),
-            response_size: 0,
-        }
-    }
-
-    /// The `error` which is responsible for this response
-    #[inline]
-    #[cfg_attr(feature="cargo-clippy", allow(borrowed_box))]
-    pub fn error(&self) -> Option<&Box<Error>> {
-        self.error.as_ref()
     }
 
     /// Get the HTTP version of this response.
@@ -240,9 +213,6 @@ impl fmt::Debug for HttpResponse {
             } else {
                 let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
             }
-        }
-        if let Some(ref err) = self.error {
-            let _ = write!(f, "  error: {}\n", err);
         }
         res
     }
@@ -445,7 +415,6 @@ impl HttpResponseBuilder {
             chunked: parts.chunked,
             encoding: parts.encoding,
             connection_type: parts.connection_type,
-            error: None,
             response_size: 0,
         })
     }

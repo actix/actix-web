@@ -20,8 +20,9 @@ use h2writer::H2Writer;
 use channel::HttpHandler;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
+use error::PayloadError;
 use encoding::PayloadType;
-use payload::{Payload, PayloadError, PayloadWriter};
+use payload::{Payload, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 

@@ -17,12 +17,12 @@ use percent_encoding;
 
 use task::Task;
 use channel::HttpHandler;
-use error::ParseError;
+use error::{ParseError, PayloadError, ErrorResponse};
 use h1writer::H1Writer;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use encoding::PayloadType;
-use payload::{Payload, PayloadError, PayloadWriter, DEFAULT_BUFFER_SIZE};
+use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -167,7 +167,7 @@ impl<T, H> Http1<T, H>
             }
 
             // read incoming data
-            if !self.error && !self.h2 && self.tasks.len() < MAX_PIPELINED_MESSAGES {
+            while !self.error && !self.h2 && self.tasks.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
                     Ok(Async::Ready(Item::Http1(mut req, payload))) => {
                         not_ready = false;
@@ -224,7 +224,7 @@ impl<T, H> Http1<T, H>
                         if self.tasks.is_empty() {
                             if let ReaderError::Error(err) = err {
                                 self.tasks.push_back(
-                                    Entry {task: Task::reply(err),
+                                    Entry {task: Task::reply(err.error_response()),
                                            req: UnsafeCell::new(HttpRequest::for_error()),
                                            eof: false,
                                            error: false,
@@ -250,7 +250,7 @@ impl<T, H> Http1<T, H>
                                 return Ok(Async::Ready(Http1Result::Done))
                             }
                         }
-                        return Ok(Async::NotReady)
+                        break
                     }
                 }
             }

@@ -5,6 +5,8 @@
 
 * HTTP/2 Support
 
+* Refactor error handling
+
 * Asynchronous middlewares
 
 * Content compression/decompression (br, gzip, deflate)

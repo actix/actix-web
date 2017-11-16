@@ -71,7 +71,7 @@ use body::Body;
 use context::HttpContext;
 use route::Route;
 use payload::Payload;
-use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
+use error::WsHandshakeError;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse};
 
@@ -114,14 +114,10 @@ impl ResponseType for Message {
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
+pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, WsHandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
-        return Err(
-            HTTPMethodNotAllowed
-                .builder()
-                .header(header::ALLOW, "GET")
-                .finish()?)
+        return Err(WsHandshakeError::GetMethodRequired)
     }
 
     // Check for "UPGRADE" to websocket header
@@ -135,17 +131,17 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
         false
     };
     if !has_hdr {
-        return Err(HTTPBadRequest.with_reason("No WebSocket UPGRADE header found"))
+        return Err(WsHandshakeError::NoWebsocketUpgrade)
     }
 
     // Upgrade connection
     if !req.upgrade() {
-        return Err(HTTPBadRequest.with_reason("No CONNECTION upgrade"))
+        return Err(WsHandshakeError::NoConnectionUpgrade)
     }
 
     // check supported version
     if !req.headers().contains_key(SEC_WEBSOCKET_VERSION) {
-        return Err(HTTPBadRequest.with_reason("No websocket version header is required"))
+        return Err(WsHandshakeError::NoVersionHeader)
     }
     let supported_ver = {
         if let Some(hdr) = req.headers().get(SEC_WEBSOCKET_VERSION) {
@@ -155,12 +151,12 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
         }
     };
     if !supported_ver {
-        return Err(HTTPBadRequest.with_reason("Unsupported version"))
+        return Err(WsHandshakeError::UnsupportedVersion)
     }
 
     // check client handshake for validity
     if !req.headers().contains_key(SEC_WEBSOCKET_KEY) {
-        return Err(HTTPBadRequest.with_reason("Handshake error"));
+        return Err(WsHandshakeError::BadWebsocketKey)
     }
     let key = {
         let key = req.headers().get(SEC_WEBSOCKET_KEY).unwrap();
@@ -172,7 +168,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, HttpResponse> {
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")
        .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
-       .body(Body::Upgrade)?
+       .body(Body::Upgrade).unwrap()
     )
 }
 
@@ -338,44 +334,32 @@ impl WsWriter {
 
 #[cfg(test)]
 mod tests {
-    use http::{Method, HeaderMap, StatusCode, Version, header};
-    use super::{HttpRequest, SEC_WEBSOCKET_VERSION, SEC_WEBSOCKET_KEY, handshake};
+    use super::*;
+    use http::{Method, HeaderMap, Version, header};
 
     #[test]
     fn test_handshake() {
         let req = HttpRequest::new(Method::POST, "/".to_owned(),
                                    Version::HTTP_11, HeaderMap::new(), String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::METHOD_NOT_ALLOWED),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, HeaderMap::new(), String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("test"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("websocket"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
@@ -384,10 +368,7 @@ mod tests {
                        header::HeaderValue::from_static("upgrade"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
@@ -398,10 +379,7 @@ mod tests {
                        header::HeaderValue::from_static("5"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
@@ -412,10 +390,7 @@ mod tests {
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Err(err) => assert_eq!(err.status(), StatusCode::BAD_REQUEST),
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
@@ -428,11 +403,6 @@ mod tests {
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
                                    Version::HTTP_11, headers, String::new());
-        match handshake(&req) {
-            Ok(resp) => {
-                assert_eq!(resp.status(), StatusCode::SWITCHING_PROTOCOLS)
-            },
-            _ => panic!("should not happen"),
-        }
+        assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
     }
 }

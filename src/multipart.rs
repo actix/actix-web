@@ -2,7 +2,6 @@
 use std::{cmp, fmt};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::error::Error;
 use std::marker::PhantomData;
 
 use mime;
@@ -13,68 +12,10 @@ use http::header::{self, HeaderMap, HeaderName, HeaderValue};
 use futures::{Async, Stream, Poll};
 use futures::task::{Task, current as current_task};
 
-use error::ParseError;
-use payload::{Payload, PayloadError};
+use error::{ParseError, PayloadError, MultipartError};
+use payload::Payload;
 
 const MAX_HEADERS: usize = 32;
-
-/// A set of errors that can occur during parsing multipart streams.
-#[derive(Debug)]
-pub enum MultipartError {
-    /// Content-Type header is not found
-    NoContentType,
-    /// Can not parse Content-Type header
-    ParseContentType,
-    /// Multipart boundary is not found
-    Boundary,
-    /// Error during field parsing
-    Parse(ParseError),
-    /// Payload error
-    Payload(PayloadError),
-}
-
-impl fmt::Display for MultipartError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MultipartError::Parse(ref e) => fmt::Display::fmt(e, f),
-            MultipartError::Payload(ref e) => fmt::Display::fmt(e, f),
-            ref e => f.write_str(e.description()),
-        }
-    }
-}
-
-impl Error for MultipartError {
-    fn description(&self) -> &str {
-        match *self {
-            MultipartError::NoContentType => "No Content-type header found",
-            MultipartError::ParseContentType => "Can not parse Content-Type header",
-            MultipartError::Boundary => "Multipart boundary is not found",
-            MultipartError::Parse(ref e) => e.description(),
-            MultipartError::Payload(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            MultipartError::Parse(ref error) => Some(error),
-            MultipartError::Payload(ref error) => Some(error),
-            _ => None,
-        }
-    }
-}
-
-
-impl From<ParseError> for MultipartError {
-    fn from(err: ParseError) -> MultipartError {
-        MultipartError::Parse(err)
-    }
-}
-
-impl From<PayloadError> for MultipartError {
-    fn from(err: PayloadError) -> MultipartError {
-        MultipartError::Payload(err)
-    }
-}
 
 /// The server-side implementation of `multipart/form-data` requests.
 ///

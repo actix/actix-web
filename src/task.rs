@@ -1,4 +1,4 @@
-use std::{mem, io};
+use std::mem;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -7,12 +7,13 @@ use futures::{Async, Future, Poll, Stream};
 use futures::task::{Task as FutureTask, current as current_task};
 
 use h1writer::{Writer, WriterState};
+use error::Error;
 use route::Frame;
 use middlewares::{Middleware, MiddlewaresExecutor};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-type FrameStream = Stream<Item=Frame, Error=io::Error>;
+type FrameStream = Stream<Item=Frame, Error=Error>;
 
 #[derive(PartialEq, Debug)]
 enum TaskRunningState {
@@ -53,10 +54,10 @@ impl TaskIOState {
 enum TaskStream {
     None,
     Stream(Box<FrameStream>),
-    Context(Box<IoContext<Item=Frame, Error=io::Error>>),
+    Context(Box<IoContext<Item=Frame, Error=Error>>),
 }
 
-pub(crate) trait IoContext: Stream<Item=Frame, Error=io::Error> + 'static {
+pub(crate) trait IoContext: Stream<Item=Frame, Error=Error> + 'static {
     fn disconnected(&mut self);
 }
 
@@ -141,7 +142,7 @@ impl Task {
     }
 
     pub(crate) fn with_stream<S>(stream: S) -> Self
-        where S: Stream<Item=Frame, Error=io::Error> + 'static
+        where S: Stream<Item=Frame, Error=Error> + 'static
     {
         Task { state: TaskRunningState::Running,
                iostate: TaskIOState::ReadingMessage,
@@ -290,7 +291,7 @@ impl Task {
     }
 
     fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), ()>
-        where S: Stream<Item=Frame, Error=io::Error> {
+        where S: Stream<Item=Frame, Error=Error> {
         loop {
             match stream.poll() {
                 Ok(Async::Ready(Some(frame))) => {

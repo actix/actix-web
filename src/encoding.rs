@@ -14,9 +14,10 @@ use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
 use body::Body;
+use error::PayloadError;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use payload::{PayloadSender, PayloadWriter, PayloadError};
+use payload::{PayloadSender, PayloadWriter};
 
 /// Represents supported types of content encodings
 #[derive(Copy, Clone, PartialEq, Debug)]

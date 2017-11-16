@@ -7,12 +7,11 @@ use futures::{Async, Future, Stream, Poll};
 use url::form_urlencoded;
 use http::{header, Method, Version, HeaderMap, Extensions};
 
-use {Cookie, CookieParseError};
-use {HttpRange, HttpRangeParseError};
-use error::ParseError;
+use {Cookie, HttpRange};
 use recognizer::Params;
-use payload::{Payload, PayloadError};
-use multipart::{Multipart, MultipartError};
+use payload::Payload;
+use multipart::Multipart;
+use error::{ParseError, PayloadError, MultipartError, CookieParseError, HttpRangeError};
 
 
 /// An HTTP Request
@@ -222,9 +221,10 @@ impl HttpRequest {
 
     /// Parses Range HTTP header string as per RFC 2616.
     /// `size` is full size of response (file).
-    pub fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeParseError> {
+    pub fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
         if let Some(range) = self.headers().get(header::RANGE) {
             HttpRange::parse(unsafe{str::from_utf8_unchecked(range.as_bytes())}, size)
+                .map_err(|e| e.into())
         } else {
             Ok(Vec::new())
         }

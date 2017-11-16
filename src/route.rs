@@ -1,4 +1,3 @@
-use std::io;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -9,6 +8,7 @@ use futures::Stream;
 
 use task::{Task, DrainFut};
 use body::Binary;
+use error::Error;
 use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
@@ -42,7 +42,7 @@ pub trait RouteHandler<S>: 'static {
 }
 
 /// Request handling result.
-pub type RouteResult<T> = Result<Reply<T>, HttpResponse>;
+pub type RouteResult<T> = Result<Reply<T>, Error>;
 
 /// Actors with ability to handle http requests.
 #[allow(unused_variables)]
@@ -151,7 +151,7 @@ impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
 pub(crate)
 struct StreamHandler<S, R, F>
     where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
-          R: Stream<Item=Frame, Error=()> + 'static,
+          R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
     f: Box<F>,
@@ -160,7 +160,7 @@ struct StreamHandler<S, R, F>
 
 impl<S, R, F> StreamHandler<S, R, F>
     where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
-          R: Stream<Item=Frame, Error=()> + 'static,
+          R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
     pub fn new(f: F) -> Self {
@@ -170,14 +170,11 @@ impl<S, R, F> StreamHandler<S, R, F>
 
 impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
     where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
-          R: Stream<Item=Frame, Error=()> + 'static,
+          R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
     fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task
     {
-        Task::with_stream(
-            (self.f)(req, payload, &state).map_err(
-                |_| io::Error::new(io::ErrorKind::Other, ""))
-        )
+        Task::with_stream((self.f)(req, payload, &state))
     }
 }

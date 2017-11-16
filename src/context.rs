@@ -14,6 +14,7 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
 
 use task::{IoContext, DrainFut};
 use body::Binary;
+use error::Error;
 use route::{Route, Frame};
 use httpresponse::HttpResponse;
 
@@ -184,9 +185,9 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
 {
     type Item = Frame;
-    type Error = std::io::Error;
+    type Error = Error;
 
-    fn poll(&mut self) -> Poll<Option<Frame>, std::io::Error> {
+    fn poll(&mut self) -> Poll<Option<Frame>, Error> {
         if self.act.is_none() {
             return Ok(Async::NotReady)
         }

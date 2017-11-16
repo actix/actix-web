@@ -19,7 +19,8 @@ fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> HttpRespon
 }
 
 /// somple handle
-fn index_async(req: &mut HttpRequest, _payload: Payload, state: &()) -> Once<actix_web::Frame, ()>
+fn index_async(req: &mut HttpRequest, _payload: Payload, state: &())
+               -> Once<actix_web::Frame, actix_web::error::Error>
 {
     println!("{:?}", req);
 
@@ -49,7 +50,7 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             // enable logger
-            .middleware(middlewares::Logger::default())
+            //.middleware(middlewares::Logger::default())
             // register simple handle r, handle all methods
             .handler("/index.html", index)
             // with path parameters

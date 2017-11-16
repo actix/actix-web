@@ -11,6 +11,9 @@ extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
 
+extern crate failure;
+#[macro_use] extern crate failure_derive;
+
 extern crate cookie;
 extern crate http;
 extern crate httparse;
@@ -19,11 +22,15 @@ extern crate mime;
 extern crate mime_guess;
 extern crate url;
 extern crate libc;
+extern crate serde;
+extern crate serde_json;
 extern crate flate2;
 extern crate brotli2;
 extern crate percent_encoding;
 extern crate actix;
 extern crate h2 as http2;
+
+extern crate redis_async;
 
 #[cfg(feature="tls")]
 extern crate native_tls;
@@ -38,7 +45,6 @@ extern crate tokio_openssl;
 mod application;
 mod body;
 mod context;
-mod error;
 mod date;
 mod encoding;
 mod httprequest;
@@ -60,16 +66,16 @@ mod h2writer;
 
 pub mod ws;
 pub mod dev;
+pub mod error;
 pub mod httpcodes;
 pub mod multipart;
 pub mod middlewares;
 pub use encoding::ContentEncoding;
-pub use error::ParseError;
 pub use body::{Body, Binary};
 pub use application::{Application, ApplicationBuilder};
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{HttpResponse, HttpResponseBuilder};
-pub use payload::{Payload, PayloadItem, PayloadError};
+pub use payload::{Payload, PayloadItem};
 pub use route::{Frame, Route, RouteFactory, RouteHandler, RouteResult};
 pub use resource::{Reply, Resource, HandlerResult};
 pub use recognizer::{Params, RouteRecognizer};
@@ -81,8 +87,7 @@ pub use staticfiles::StaticFiles;
 // re-exports
 pub use http::{Method, StatusCode, Version};
 pub use cookie::{Cookie, CookieBuilder};
-pub use cookie::{ParseError as CookieParseError};
-pub use http_range::{HttpRange, HttpRangeParseError};
+pub use http_range::HttpRange;
 
 #[cfg(feature="tls")]
 pub use native_tls::Pkcs12;

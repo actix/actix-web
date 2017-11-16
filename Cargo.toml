@@ -34,6 +34,8 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
 [dependencies]
 log = "0.3"
+failure = { git = "https://github.com/withoutboats/failure" }
+failure_derive = { git = "https://github.com/withoutboats/failure_derive" }
 time = "0.1"
 http = "0.1"
 httparse = "0.1"
@@ -44,10 +46,14 @@ cookie = { version="0.10", features=["percent-encode", "secure"] }
 regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
-libc = "^0.2"
+libc = "0.2"
+serde = "1.0"
+serde_json = "1.0"
 flate2 = "0.2"
 brotli2 = "^0.3.2"
 percent-encoding = "1.0"
+
+# redis-async = { git="https://github.com/benashford/redis-async-rs" }
 
 # tokio
 bytes = "0.4"

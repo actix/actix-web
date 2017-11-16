@@ -329,21 +329,21 @@ mod test {
 
     #[test]
     fn closecode_into_u16() {
-        assert_eq!(1000u16, CloseCode::Normal.into());
-        assert_eq!(1001u16, CloseCode::Away.into());
-        assert_eq!(1002u16, CloseCode::Protocol.into());
-        assert_eq!(1003u16, CloseCode::Unsupported.into());
-        assert_eq!(1005u16, CloseCode::Status.into());
-        assert_eq!(1006u16, CloseCode::Abnormal.into());
-        assert_eq!(1007u16, CloseCode::Invalid.into());
-        assert_eq!(1008u16, CloseCode::Policy.into());
-        assert_eq!(1009u16, CloseCode::Size.into());
-        assert_eq!(1010u16, CloseCode::Extension.into());
-        assert_eq!(1011u16, CloseCode::Error.into());
-        assert_eq!(1012u16, CloseCode::Restart.into());
-        assert_eq!(1013u16, CloseCode::Again.into());
-        assert_eq!(1015u16, CloseCode::Tls.into());
-        assert_eq!(0u16, CloseCode::Empty.into());
-        assert_eq!(2000u16, CloseCode::Other(2000).into());
+        assert_eq!(1000u16, Into::<u16>::into(CloseCode::Normal));
+        assert_eq!(1001u16, Into::<u16>::into(CloseCode::Away));
+        assert_eq!(1002u16, Into::<u16>::into(CloseCode::Protocol));
+        assert_eq!(1003u16, Into::<u16>::into(CloseCode::Unsupported));
+        assert_eq!(1005u16, Into::<u16>::into(CloseCode::Status));
+        assert_eq!(1006u16, Into::<u16>::into(CloseCode::Abnormal));
+        assert_eq!(1007u16, Into::<u16>::into(CloseCode::Invalid));
+        assert_eq!(1008u16, Into::<u16>::into(CloseCode::Policy));
+        assert_eq!(1009u16, Into::<u16>::into(CloseCode::Size));
+        assert_eq!(1010u16, Into::<u16>::into(CloseCode::Extension));
+        assert_eq!(1011u16, Into::<u16>::into(CloseCode::Error));
+        assert_eq!(1012u16, Into::<u16>::into(CloseCode::Restart));
+        assert_eq!(1013u16, Into::<u16>::into(CloseCode::Again));
+        assert_eq!(1015u16, Into::<u16>::into(CloseCode::Tls));
+        assert_eq!(0u16, Into::<u16>::into(CloseCode::Empty));
+        assert_eq!(2000u16, Into::<u16>::into(CloseCode::Other(2000)));
     }
 }

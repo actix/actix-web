@@ -2,14 +2,12 @@ use std::{fmt, cmp};
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::error::Error;
-use std::io::{Error as IoError};
 use bytes::{Bytes, BytesMut};
-use http2::Error as Http2Error;
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
 use actix::ResponseType;
+use error::PayloadError;
 
 pub(crate) const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
@@ -24,52 +22,6 @@ impl ResponseType for PayloadItem {
 impl fmt::Debug for PayloadItem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
-    }
-}
-
-#[derive(Debug)]
-/// A set of error that can occur during payload parsing.
-pub enum PayloadError {
-    /// A payload reached EOF, but is not complete.
-    Incomplete,
-    /// Content encoding stream corruption
-    EncodingCorrupted,
-    /// Parse error
-    ParseError(IoError),
-    /// Http2 error
-    Http2(Http2Error),
-}
-
-impl fmt::Display for PayloadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            PayloadError::ParseError(ref e) => fmt::Display::fmt(e, f),
-            ref e => f.write_str(e.description()),
-        }
-    }
-}
-
-impl Error for PayloadError {
-    fn description(&self) -> &str {
-        match *self {
-            PayloadError::Incomplete => "A payload reached EOF, but is not complete.",
-            PayloadError::EncodingCorrupted => "Can not decode content-encoding.",
-            PayloadError::ParseError(ref e) => e.description(),
-            PayloadError::Http2(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            PayloadError::ParseError(ref error) => Some(error),
-            _ => None,
-        }
-    }
-}
-
-impl From<IoError> for PayloadError {
-    fn from(err: IoError) -> PayloadError {
-        PayloadError::ParseError(err)
     }
 }
 
@@ -392,18 +344,17 @@ impl Inner {
 mod tests {
     use super::*;
     use std::io;
+    use failure::Fail;
     use futures::future::{lazy, result};
     use tokio_core::reactor::Core;
 
     #[test]
     fn test_error() {
-        let err: PayloadError = IoError::new(io::ErrorKind::Other, "ParseError").into();
-        assert_eq!(err.description(), "ParseError");
-        assert_eq!(err.cause().unwrap().description(), "ParseError");
+        let err: PayloadError = io::Error::new(io::ErrorKind::Other, "ParseError").into();
         assert_eq!(format!("{}", err), "ParseError");
+        assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
 
         let err = PayloadError::Incomplete;
-        assert_eq!(err.description(), "A payload reached EOF, but is not complete.");
         assert_eq!(format!("{}", err), "A payload reached EOF, but is not complete.");
     }
 
