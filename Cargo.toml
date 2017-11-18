@@ -34,8 +34,8 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
 [dependencies]
 log = "0.3"
-failure = { git = "https://github.com/withoutboats/failure" }
-failure_derive = { git = "https://github.com/withoutboats/failure_derive" }
+failure = "0.1"
+failure_derive = "0.1"
 time = "0.1"
 http = "0.1"
 httparse = "0.1"
