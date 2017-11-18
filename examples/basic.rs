@@ -5,6 +5,7 @@ extern crate env_logger;
 extern crate futures;
 
 use actix_web::*;
+use actix_web::error::Result;
 use futures::stream::{once, Once};
 
 /// somple handle
@@ -32,8 +33,7 @@ fn index_async(req: &mut HttpRequest, _payload: Payload, state: &())
 }
 
 /// handle with path parameters like `/user/{name}/`
-fn with_param(req: &mut HttpRequest, _payload: Payload, state: &())
-              -> HandlerResult<HttpResponse>
+fn with_param(req: &mut HttpRequest, _payload: Payload, state: &()) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 

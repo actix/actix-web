@@ -133,7 +133,7 @@ impl<T, H> Http2<T, H>
                                 entry.task.disconnected()
                             }
                         },
-                        Ok(Async::Ready(Some((mut req, resp)))) => {
+                        Ok(Async::Ready(Some((req, resp)))) => {
                             not_ready = false;
                             let (parts, body) = req.into_parts();
 

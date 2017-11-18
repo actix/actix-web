@@ -77,7 +77,7 @@ pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::{HttpResponse, HttpResponseBuilder};
 pub use payload::{Payload, PayloadItem};
 pub use route::{Frame, Route, RouteFactory, RouteHandler, RouteResult};
-pub use resource::{Reply, Resource, HandlerResult};
+pub use resource::{Reply, Resource};
 pub use recognizer::{Params, RouteRecognizer};
 pub use server::HttpServer;
 pub use context::HttpContext;
