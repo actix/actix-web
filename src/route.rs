@@ -8,13 +8,12 @@ use futures::Stream;
 
 use task::{Task, DrainFut};
 use body::Binary;
-use error::Error;
+use error::{Error, ExpectError};
 use context::HttpContext;
 use resource::Reply;
 use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::HTTPExpectationFailed;
 
 #[doc(hidden)]
 #[derive(Debug)]
@@ -52,7 +51,7 @@ pub trait Route: Actor {
     type State;
 
     /// Handle `EXPECT` header. By default respones with `HTTP/1.1 100 Continue`
-    fn expect(req: &HttpRequest, ctx: &mut Self::Context) -> Result<(), HttpResponse>
+    fn expect(req: &HttpRequest, ctx: &mut Self::Context) -> Result<(), Error>
         where Self: Actor<Context=HttpContext<Self>>
     {
         // handle expect header only for HTTP/1.1
@@ -63,10 +62,10 @@ pub trait Route: Actor {
                         ctx.write("HTTP/1.1 100 Continue\r\n\r\n");
                         Ok(())
                     } else {
-                        Err(HTTPExpectationFailed.with_body("Unknown Expect"))
+                        Err(ExpectError::UnknownExpect.into())
                     }
                 } else {
-                    Err(HTTPExpectationFailed.with_body("Unknown Expect"))
+                    Err(ExpectError::Encoding.into())
                 }
             } else {
                 Ok(())

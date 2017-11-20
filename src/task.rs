@@ -61,6 +61,7 @@ pub(crate) trait IoContext: Stream<Item=Frame, Error=Error> + 'static {
     fn disconnected(&mut self);
 }
 
+/// Future that resolves when all buffered data get sent
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct DrainFut {

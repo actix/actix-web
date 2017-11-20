@@ -1,4 +1,4 @@
-//! Multipart requests support.
+//! Multipart requests support
 use std::{cmp, fmt};
 use std::rc::Rc;
 use std::cell::RefCell;

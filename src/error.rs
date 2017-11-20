@@ -16,7 +16,7 @@ pub use cookie::{ParseError as CookieParseError};
 
 use body::Body;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
+use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -256,6 +256,24 @@ impl ErrorResponse for MultipartError {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
+/// Error during handling `Expect` header
+#[derive(Fail, PartialEq, Debug)]
+pub enum ExpectError {
+    /// Expect header value can not be converted to utf8
+    #[fail(display="Expect header value can not be converted to utf8")]
+    Encoding,
+    /// Unknown expect value
+    #[fail(display="Unknown expect value")]
+    UnknownExpect,
+}
+
+impl ErrorResponse for ExpectError {
+
+    fn error_response(&self) -> HttpResponse {
+        HTTPExpectationFailed.with_body("Unknown Expect")
     }
 }
 
