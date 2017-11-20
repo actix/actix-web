@@ -439,8 +439,8 @@ mod tests {
 
     #[test]
     fn test_body() {
-        assert!(Body::Length(10).has_body());
-        assert!(Body::Streaming.has_body());
+        assert!(Body::Length(10).is_streaming());
+        assert!(Body::Streaming.is_streaming());
     }
 
     #[test]

@@ -303,7 +303,7 @@ impl Task {
                                 return Err(())
                             }
                             let upgrade = msg.upgrade();
-                            if upgrade || msg.body().has_body() {
+                            if upgrade || msg.body().is_streaming() {
                                 self.iostate = TaskIOState::ReadingPayload;
                             } else {
                                 self.iostate = TaskIOState::Done;

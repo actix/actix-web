@@ -42,8 +42,8 @@ pub enum Binary {
 }
 
 impl Body {
-    /// Does this body have payload.
-    pub fn has_body(&self) -> bool {
+    /// Does this body streaming.
+    pub fn is_streaming(&self) -> bool {
         match *self {
             Body::Length(_) | Body::Streaming => true,
             _ => false
@@ -204,6 +204,14 @@ impl From<Binary> for Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_body_is_streaming() {
+        assert_eq!(Body::Empty.is_streaming(), false);
+        assert_eq!(Body::Binary(Binary::from("")).is_streaming(), false);
+        assert_eq!(Body::Length(100).is_streaming(), true);
+        assert_eq!(Body::Streaming.is_streaming(), true);
+    }
 
     #[test]
     fn test_is_empty() {
