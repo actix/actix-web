@@ -1,4 +1,4 @@
-//! Error and Result module.
+//! Error and Result module
 use std::{fmt, result};
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -19,19 +19,28 @@ use httpresponse::HttpResponse;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
-/// for actix web operations.
+/// for actix web operations
 ///
 /// This typedef is generally used to avoid writing out `actix_web::error::Error` directly and
 /// is otherwise a direct mapping to `Result`.
 pub type Result<T> = result::Result<T, Error>;
 
-/// Actix web error.
+/// Actix web error
 #[derive(Debug)]
 pub struct Error {
     cause: Box<ErrorResponse>,
 }
 
-/// Error that can be converted to HttpResponse
+impl Error {
+
+    /// Returns a reference to the underlying cause of this Error.
+    // this should return &Fail but needs this https://github.com/rust-lang/rust/issues/5665
+    pub fn cause(&self) -> &ErrorResponse {
+        self.cause.as_ref()
+    }
+}
+
+/// Error that can be converted to `HttpResponse`
 pub trait ErrorResponse: Fail {
 
     /// Create response for error
@@ -48,7 +57,7 @@ impl fmt::Display for Error {
     }
 }
 
-/// `HttpResponse` for `Error`.
+/// `HttpResponse` for `Error`
 impl From<Error> for HttpResponse {
     fn from(err: Error) -> Self {
         err.cause.error_response()
@@ -68,10 +77,10 @@ impl<T: ErrorResponse> From<T> for Error {
 //     }
 // }
 
-/// A set of errors that can occur during parsing HTTP streams.
+/// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]
 pub enum ParseError {
-    /// An invalid `Method`, such as `GE,T`.
+    /// An invalid `Method`, such as `GE.T`.
     #[fail(display="Invalid Method specified")]
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
@@ -144,7 +153,7 @@ impl From<httparse::Error> for ParseError {
 }
 
 #[derive(Fail, Debug)]
-/// A set of errors that can occur during payload parsing.
+/// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     #[fail(display="A payload reached EOF, but is not complete.")]
@@ -210,7 +219,7 @@ impl From<HttpRangeParseError> for HttpRangeError {
     }
 }
 
-/// A set of errors that can occur during parsing multipart streams.
+/// A set of errors that can occur during parsing multipart streams
 #[derive(Fail, Debug)]
 pub enum MultipartError {
     /// Content-Type header is not found
@@ -332,6 +341,14 @@ mod tests {
         let desc = orig.description().to_owned();
         let e = ParseError::Io(orig);
         assert_eq!(format!("{}", e.cause().unwrap()), desc);
+    }
+
+    #[test]
+    fn test_error_cause() {
+        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let desc = orig.description().to_owned();
+        let e = Error::from(orig);
+        assert_eq!(format!("{}", e.cause()), desc);
     }
 
     macro_rules! from {

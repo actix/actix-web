@@ -9,9 +9,9 @@
 
 * Asynchronous middlewares
 
-* Content compression/decompression (br, gzip, deflate)
-
 * Refactor logger middleware
+
+* Content compression/decompression (br, gzip, deflate)
 
 
 ## 0.2.1 (2017-11-03)
