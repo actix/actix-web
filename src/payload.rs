@@ -12,6 +12,7 @@ use error::PayloadError;
 pub(crate) const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Just Bytes object
+#[derive(PartialEq)]
 pub struct PayloadItem(pub Bytes);
 
 impl ResponseType for PayloadItem {
@@ -366,11 +367,7 @@ mod tests {
             assert!(!payload.eof());
             assert!(payload.is_empty());
             assert_eq!(payload.len(), 0);
-
-            match payload.readany() {
-                Ok(Async::NotReady) => (),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -382,11 +379,7 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            match payload.readany() {
-                Ok(Async::NotReady) => (),
-                _ => panic!("error"),
-            }
-
+            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
             assert!(!payload.eof());
 
             sender.feed_data(Bytes::from("data"));
@@ -394,18 +387,13 @@ mod tests {
 
             assert!(!payload.eof());
 
-            match payload.readany() {
-                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "data"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("data")))),
+                       payload.readany().ok().unwrap());
             assert!(payload.is_empty());
             assert!(payload.eof());
             assert_eq!(payload.len(), 0);
 
-            match payload.readany() {
-                Ok(Async::Ready(None)) => (),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(None), payload.readany().ok().unwrap());
             let res: Result<(), ()> = Ok(());
             result(res)
         })).unwrap();
@@ -416,16 +404,10 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            match payload.readany() {
-                Ok(Async::NotReady) => (),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
             sender.set_error(PayloadError::Incomplete);
-            match payload.readany() {
-                Err(_) => (),
-                _ => panic!("error"),
-            }
+            payload.readany().err().unwrap();
             let res: Result<(), ()> = Ok(());
             result(res)
         })).unwrap();
@@ -445,10 +427,8 @@ mod tests {
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 10);
 
-            match payload.readany() {
-                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "line1"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("line1")))),
+                       payload.readany().ok().unwrap());
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 5);
 
@@ -462,32 +442,20 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            match payload.readexactly(2) {
-                Ok(Async::NotReady) => (),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::NotReady, payload.readexactly(2).ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
             assert_eq!(payload.len(), 10);
 
-            match payload.readexactly(2) {
-                Ok(Async::Ready(data)) => assert_eq!(&data, "li"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Bytes::from("li")), payload.readexactly(2).ok().unwrap());
             assert_eq!(payload.len(), 8);
 
-            match payload.readexactly(4) {
-                Ok(Async::Ready(data)) => assert_eq!(&data, "ne1l"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Bytes::from("ne1l")), payload.readexactly(4).ok().unwrap());
             assert_eq!(payload.len(), 4);
 
             sender.set_error(PayloadError::Incomplete);
-            match payload.readexactly(10) {
-                Err(_) => (),
-                _ => panic!("error"),
-            }
+            payload.readexactly(10).err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -499,32 +467,22 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            match payload.readuntil(b"ne") {
-                Ok(Async::NotReady) => (),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::NotReady, payload.readuntil(b"ne").ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
             assert_eq!(payload.len(), 10);
 
-            match payload.readuntil(b"ne") {
-                Ok(Async::Ready(data)) => assert_eq!(&data, "line"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Bytes::from("line")),
+                       payload.readuntil(b"ne").ok().unwrap());
             assert_eq!(payload.len(), 6);
 
-            match payload.readuntil(b"2") {
-                Ok(Async::Ready(data)) => assert_eq!(&data, "1line2"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Bytes::from("1line2")),
+                       payload.readuntil(b"2").ok().unwrap());
             assert_eq!(payload.len(), 0);
 
             sender.set_error(PayloadError::Incomplete);
-            match payload.readuntil(b"b") {
-                Err(_) => (),
-                _ => panic!("error"),
-            }
+            payload.readuntil(b"b").err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -540,10 +498,8 @@ mod tests {
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 4);
 
-            match payload.readany() {
-                Ok(Async::Ready(Some(data))) => assert_eq!(&data.0, "data"),
-                _ => panic!("error"),
-            }
+            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("data")))),
+                       payload.readany().ok().unwrap());
 
             let res: Result<(), ()> = Ok(());
             result(res)
