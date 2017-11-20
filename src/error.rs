@@ -190,7 +190,7 @@ impl ErrorResponse for cookie::ParseError {
 }
 
 /// Http range header parsing error
-#[derive(Fail, Debug)]
+#[derive(Fail, PartialEq, Debug)]
 pub enum HttpRangeError {
     /// Returned if range is invalid.
     #[fail(display="Range header is invalid")]
@@ -367,6 +367,46 @@ mod tests {
         let desc = orig.description().to_owned();
         let e = Error::from(orig);
         assert_eq!(format!("{}", e.cause()), desc);
+    }
+
+    #[test]
+    fn test_error_display() {
+        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let desc = orig.description().to_owned();
+        let e = Error::from(orig);
+        assert_eq!(format!("{}", e), desc);
+    }
+
+    #[test]
+    fn test_error_http_response() {
+        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let e = Error::from(orig);
+        let resp: HttpResponse = e.into();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_range_error() {
+        let e: HttpRangeError = HttpRangeParseError::InvalidRange.into();
+        assert_eq!(e, HttpRangeError::InvalidRange);
+        let e: HttpRangeError = HttpRangeParseError::NoOverlap.into();
+        assert_eq!(e, HttpRangeError::NoOverlap);
+    }
+
+    #[test]
+    fn test_wserror_http_response() {
+        let resp: HttpResponse = WsHandshakeError::GetMethodRequired.error_response();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let resp: HttpResponse = WsHandshakeError::NoWebsocketUpgrade.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp: HttpResponse = WsHandshakeError::NoConnectionUpgrade.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp: HttpResponse = WsHandshakeError::NoVersionHeader.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp: HttpResponse = WsHandshakeError::UnsupportedVersion.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp: HttpResponse = WsHandshakeError::BadWebsocketKey.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     macro_rules! from {
