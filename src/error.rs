@@ -394,6 +394,14 @@ mod tests {
     }
 
     #[test]
+    fn test_expect_error() {
+        let resp: HttpResponse = ExpectError::Encoding.error_response();
+        assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
+        let resp: HttpResponse = ExpectError::UnknownExpect.error_response();
+        assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
+    }
+
+    #[test]
     fn test_wserror_http_response() {
         let resp: HttpResponse = WsHandshakeError::GetMethodRequired.error_response();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
