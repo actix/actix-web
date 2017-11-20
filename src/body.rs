@@ -206,6 +206,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_is_empty() {
+        assert_eq!(Binary::from("").is_empty(), true);
+        assert_eq!(Binary::from("test").is_empty(), false);
+    }
+
+    #[test]
     fn test_static_str() {
         assert_eq!(Binary::from("test").len(), 4);
         assert_eq!(Binary::from("test").as_ref(), "test".as_bytes());
@@ -272,5 +278,21 @@ mod tests {
         assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
         assert_eq!(Binary::from(&b).len(), 4);
         assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_string() {
+        let b = "test".to_owned();
+        assert_eq!(Binary::from(b.clone()).len(), 4);
+        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(&b).len(), 4);
+        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_bytes_mut() {
+        let b =  BytesMut::from("test");
+        assert_eq!(Binary::from(b.clone()).len(), 4);
+        assert_eq!(Binary::from(b).as_ref(), "test".as_bytes());
     }
 }
