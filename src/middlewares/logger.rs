@@ -293,7 +293,29 @@ mod tests {
     use http::header::{self, HeaderMap};
 
     #[test]
-    fn test_default_logger() {
+    fn test_logger() {
+        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
+        let mut req = HttpRequest::new(
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+        let resp = HttpResponse::builder(StatusCode::OK)
+            .header("X-Test", "ttt")
+            .force_close().body(Body::Empty).unwrap();
+
+        match logger.start(&mut req) {
+            Started::Done => (),
+            _ => panic!(),
+        }
+        match logger.finish(&mut req, &resp) {
+            Finished::Done => (),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_default_format() {
         let format = Format::default();
 
         let mut headers = HeaderMap::new();
@@ -316,7 +338,7 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
 
         let req = HttpRequest::new(
-            Method::GET, "/?test".to_owned(), Version::HTTP_11, HeaderMap::new(), String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(), "test".to_owned());
         let resp = HttpResponse::builder(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();
