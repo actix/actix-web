@@ -286,6 +286,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
     use Body;
     use super::*;
     use time;
@@ -294,6 +295,7 @@ mod tests {
 
     #[test]
     fn test_logger() {
+        let _ = env_logger::init();
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
         let mut headers = HeaderMap::new();
