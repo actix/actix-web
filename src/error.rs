@@ -4,12 +4,16 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::io::Error as IoError;
 
+#[cfg(feature="nightly")]
+use std::error::Error as StdError;
+
 use cookie;
 use httparse;
 use failure::Fail;
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
 use http_range::HttpRangeParseError;
+use serde_json::error::Error as JsonError;
 
 // re-exports
 pub use cookie::{ParseError as CookieParseError};
@@ -64,18 +68,23 @@ impl From<Error> for HttpResponse {
     }
 }
 
+/// `Error` for any error that implements `ErrorResponse`
 impl<T: ErrorResponse> From<T> for Error {
     fn from(err: T) -> Error {
         Error { cause: Box::new(err) }
     }
 }
 
-// /// Default error is `InternalServerError`
-// impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
-//     fn error_response(&self) -> HttpResponse {
-//         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
-//     }
-// }
+/// Default error is `InternalServerError`
+#[cfg(feature="nightly")]
+default impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
+     fn error_response(&self) -> HttpResponse {
+         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
+     }
+}
+
+/// `InternalServerError` for `JsonError`
+impl ErrorResponse for JsonError {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]

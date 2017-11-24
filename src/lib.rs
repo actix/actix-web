@@ -1,5 +1,9 @@
 //! Web framework for [Actix](https://github.com/actix/actix)
 
+#![cfg_attr(feature="nightly", feature(
+    specialization, // for impl ErrorResponse for std::error::Error
+))]
+
 #[macro_use]
 extern crate log;
 extern crate time;
