@@ -4,7 +4,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::io::Error as IoError;
 
-#[cfg(feature="nightly")]
+#[cfg(actix_nightly)]
 use std::error::Error as StdError;
 
 use cookie;
@@ -76,11 +76,11 @@ impl<T: ErrorResponse> From<T> for Error {
 }
 
 /// Default error is `InternalServerError`
-#[cfg(feature="nightly")]
+#[cfg(actix_nightly)]
 default impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
-     fn error_response(&self) -> HttpResponse {
-         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
-     }
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
+    }
 }
 
 /// `InternalServerError` for `JsonError`
@@ -342,6 +342,13 @@ mod tests {
     use http::{StatusCode, Error as HttpError};
     use cookie::ParseError as CookieParseError;
     use super::*;
+
+    #[test]
+    #[cfg(actix_nightly)]
+    fn test_nightly() {
+        let resp: HttpResponse = IoError::new(io::ErrorKind::Other, "test").error_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     #[test]
     fn test_into_response() {

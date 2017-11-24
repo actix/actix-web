@@ -1,4 +1,6 @@
 extern crate skeptic;
+extern crate version_check;
+
 use std::{env, fs};
 
 
@@ -11,8 +13,19 @@ fn main() {
         let f = env::var("OUT_DIR").unwrap() + "/skeptic-tests.rs";
         let _ = fs::File::create(f);
     }
+
+    match version_check::is_nightly() {
+        Some(true) => println!("cargo:rustc-cfg=actix_nightly"),
+        Some(false) => (),
+        None => (),
+    };
 }
 
 #[cfg(not(unix))]
 fn main() {
+    match version_check::is_nightly() {
+        Some(true) => println!("cargo:rustc-cfg=actix_nightly"),
+        Some(false) => (),
+        None => (),
+    };
 }

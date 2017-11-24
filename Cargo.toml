@@ -32,9 +32,6 @@ tls = ["native-tls", "tokio-tls"]
 # openssl
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
-# nightly
-nightly = []
-
 [dependencies]
 log = "0.3"
 failure = "0.1"
@@ -91,6 +88,7 @@ skeptic = "0.13"
 
 [build-dependencies]
 skeptic = "0.13"
+version_check = "0.1"
 
 [profile.release]
 lto = true

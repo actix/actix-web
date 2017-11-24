@@ -1,6 +1,6 @@
 //! Web framework for [Actix](https://github.com/actix/actix)
 
-#![cfg_attr(feature="nightly", feature(
+#![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
 
