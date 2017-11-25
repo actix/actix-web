@@ -9,6 +9,7 @@ use http::header::{self, HeaderName, HeaderValue};
 use Cookie;
 use body::Body;
 use route::Frame;
+use error::Error;
 use encoding::ContentEncoding;
 
 /// Represents various types of connection
@@ -33,6 +34,7 @@ pub struct HttpResponse {
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     response_size: u64,
+    error: Option<Error>,
 }
 
 impl HttpResponse {
@@ -58,7 +60,22 @@ impl HttpResponse {
             encoding: ContentEncoding::Auto,
             connection_type: None,
             response_size: 0,
+            error: None,
         }
+    }
+
+    /// Constructs a error response
+    #[inline]
+    pub fn from_error(error: Error) -> HttpResponse {
+        let mut resp = error.cause().error_response();
+        resp.error = Some(error);
+        resp
+    }
+
+    /// The source `error` for this response
+    #[inline]
+    pub fn error(&self) -> Option<&Error> {
+        self.error.as_ref()
     }
 
     /// Get the HTTP version of this response.
@@ -355,19 +372,6 @@ impl HttpResponseBuilder {
         self
     }
 
-    /* /// Set response content charset
-    pub fn charset<V>(&mut self, value: V) -> &mut Self
-        where HeaderValue: HttpTryFrom<V>
-    {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
-            match HeaderValue::try_from(value) {
-                Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
-                Err(e) => self.err = Some(e.into()),
-            };
-        }
-        self
-    }*/
-
     /// Set a cookie
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
@@ -416,6 +420,7 @@ impl HttpResponseBuilder {
             encoding: parts.encoding,
             connection_type: parts.connection_type,
             response_size: 0,
+            error: None,
         })
     }
 

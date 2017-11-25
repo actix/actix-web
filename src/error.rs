@@ -64,7 +64,7 @@ impl fmt::Display for Error {
 /// `HttpResponse` for `Error`
 impl From<Error> for HttpResponse {
     fn from(err: Error) -> Self {
-        err.cause.error_response()
+        HttpResponse::from_error(err)
     }
 }
 
