@@ -213,7 +213,7 @@ impl Task {
                 }
             }
 
-            // if task is paused, write buffer probably is full
+            // if task is paused, write buffer is probably full
             if self.state != TaskRunningState::Paused {
                 // process exiting frames
                 while let Some(frame) = self.frames.pop_front() {
@@ -334,13 +334,8 @@ impl Task {
             }
         }
     }
-}
 
-impl Future for Task {
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    pub(crate) fn poll(&mut self) -> Poll<(), Error> {
         let mut s = mem::replace(&mut self.stream, TaskStream::None);
 
         let result = match s {
