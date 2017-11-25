@@ -170,7 +170,7 @@ impl Task {
         }
     }
 
-    pub(crate) fn poll_io<T>(&mut self, io: &mut T, req: &mut HttpRequest) -> Poll<bool, ()>
+    pub(crate) fn poll_io<T>(&mut self, io: &mut T, req: &mut HttpRequest) -> Poll<bool, Error>
         where T: Writer
     {
         trace!("POLL-IO frames:{:?}", self.frames.len());
@@ -181,35 +181,30 @@ impl Task {
         } else if self.drain.is_empty() {
             // poll stream
             if self.state == TaskRunningState::Running {
-                match self.poll() {
-                    Ok(Async::Ready(_)) => {
+                match self.poll()? {
+                    Async::Ready(_) => {
                         self.state = TaskRunningState::Done;
                     },
-                    Ok(Async::NotReady) => (),
-                    Err(_) => return Err(())
+                    Async::NotReady => (),
                 }
             }
 
             // process middlewares response
             if let Some(mut middlewares) = self.middlewares.take() {
-                match middlewares.poll(req) {
-                    Err(_) => return Err(()),
-                    Ok(Async::NotReady) => {
+                match middlewares.poll(req)? {
+                    Async::NotReady => {
                         self.middlewares = Some(middlewares);
                         return Ok(Async::NotReady);
                     }
-                    Ok(Async::Ready(None)) => {
+                    Async::Ready(None) => {
                         self.middlewares = Some(middlewares);
                     }
-                    Ok(Async::Ready(Some(mut response))) => {
-                        let result = io.start(req, &mut response);
+                    Async::Ready(Some(mut response)) => {
+                        let result = io.start(req, &mut response)?;
                         self.prepared = Some(response);
                         match result {
-                            Ok(WriterState::Pause) => {
-                                self.state.pause();
-                            }
-                            Ok(WriterState::Done) => self.state.resume(),
-                            Err(_) => return Err(())
+                            WriterState::Pause => self.state.pause(),
+                            WriterState::Done => self.state.resume(),
                         }
                     },
                 }
@@ -225,7 +220,7 @@ impl Task {
                             // run middlewares
                             if let Some(mut middlewares) = self.middlewares.take() {
                                 if let Some(mut resp) = middlewares.response(req, resp) {
-                                    let result = io.start(req, &mut resp);
+                                    let result = io.start(req, &mut resp)?;
                                     self.prepared = Some(resp);
                                     result
                                 } else {
@@ -234,17 +229,17 @@ impl Task {
                                     return self.poll_io(io, req)
                                 }
                             } else {
-                                let result = io.start(req, &mut resp);
+                                let result = io.start(req, &mut resp)?;
                                 self.prepared = Some(resp);
                                 result
                             }
                         }
                         Frame::Payload(Some(chunk)) => {
-                            io.write(chunk.as_ref())
+                            io.write(chunk.as_ref())?
                         },
                         Frame::Payload(None) => {
                             self.iostate = TaskIOState::Done;
-                            io.write_eof()
+                            io.write_eof()?
                         },
                         Frame::Drain(fut) => {
                             self.drain.push(fut);
@@ -253,12 +248,11 @@ impl Task {
                     };
 
                     match res {
-                        Ok(WriterState::Pause) => {
+                        WriterState::Pause => {
                             self.state.pause();
                             break
                         }
-                        Ok(WriterState::Done) => self.state.resume(),
-                        Err(_) => return Err(())
+                        WriterState::Done => self.state.resume(),
                     }
                 }
             }
@@ -272,7 +266,7 @@ impl Task {
             }
             Err(err) => {
                 debug!("Error sending data: {}", err);
-                return Err(())
+                return Err(err.into())
             }
         }
 

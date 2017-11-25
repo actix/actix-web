@@ -58,7 +58,7 @@ impl Pipeline {
         }
     }
 
-    pub(crate) fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, ()> {
+    pub(crate) fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, Error> {
         loop {
             let state = mem::replace(&mut self.0, PipelineState::None);
             match state {
@@ -161,7 +161,7 @@ impl Handle {
             idx: idx, req: req, task:task, middlewares: mw }
     }
 
-    fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, ()> {
+    fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, Error> {
         self.task.poll_io(io, &mut self.req)
     }
 
@@ -262,8 +262,7 @@ impl Start {
         if self.disconnected {
             task.disconnected()
         }
-        task.set_middlewares(
-            MiddlewaresResponse::new(self.idx, Rc::clone(&self.middlewares)));
+        task.set_middlewares(MiddlewaresResponse::new(Rc::clone(&self.middlewares)));
         task
     }
 
@@ -366,16 +365,15 @@ impl Start {
 /// Middlewares response executor
 pub(crate) struct MiddlewaresResponse {
     idx: usize,
-    fut: Option<Box<Future<Item=HttpResponse, Error=HttpResponse>>>,
+    fut: Option<Box<Future<Item=HttpResponse, Error=Error>>>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
 
 impl MiddlewaresResponse {
 
-    fn new(idx: usize, mw: Rc<Vec<Box<Middleware>>>) -> MiddlewaresResponse {
-        let idx = if idx == 0 { 0 } else { idx - 1 };
+    fn new(mw: Rc<Vec<Box<Middleware>>>) -> MiddlewaresResponse {
         MiddlewaresResponse {
-            idx: idx,
+            idx: 0,
             fut: None,
             middlewares: mw }
     }
@@ -401,7 +399,7 @@ impl MiddlewaresResponse {
         }
     }
 
-    pub fn poll(&mut self, req: &mut HttpRequest) -> Poll<Option<HttpResponse>, ()> {
+    pub fn poll(&mut self, req: &mut HttpRequest) -> Poll<Option<HttpResponse>, Error> {
         if self.fut.is_none() {
             return Ok(Async::Ready(None))
         }
@@ -409,11 +407,13 @@ impl MiddlewaresResponse {
         loop {
             // poll latest fut
             let mut resp = match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(resp)) | Err(resp) => {
+                Ok(Async::NotReady) =>
+                    return Ok(Async::NotReady),
+                Ok(Async::Ready(resp)) => {
                     self.idx += 1;
                     resp
                 }
+                Err(err) => return Err(err)
             };
 
             loop {

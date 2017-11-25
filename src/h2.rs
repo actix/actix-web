@@ -92,7 +92,8 @@ impl<T, H> Http2<T, H>
                                 not_ready = false;
                             },
                             Ok(Async::NotReady) => (),
-                            Err(_) => {
+                            Err(err) => {
+                                error!("Unhandled error: {}", err);
                                 item.eof = true;
                                 item.error = true;
                                 item.stream.reset(Reason::INTERNAL_ERROR);
@@ -105,9 +106,10 @@ impl<T, H> Http2<T, H>
                                 not_ready = false;
                                 item.finished = true;
                             },
-                            Err(_) => {
+                            Err(err) => {
                                 item.error = true;
                                 item.finished = true;
+                                error!("Unhandled error: {}", err);
                             }
                         }
                     }

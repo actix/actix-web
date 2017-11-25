@@ -106,8 +106,7 @@ impl<T, H> Http1<T, H>
                     }
 
                     // this is anoying
-                    match item.task.poll_io(&mut self.stream)
-                    {
+                    match item.task.poll_io(&mut self.stream) {
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
 
@@ -126,9 +125,10 @@ impl<T, H> Http1<T, H>
                             // no more IO for this iteration
                             io = true;
                         },
-                        Err(_) => {
+                        Err(err) => {
                             // it is not possible to recover from error
                             // during task handling, so just drop connection
+                            error!("Unhandled error: {}", err);
                             return Err(())
                         }
                     }
@@ -139,8 +139,10 @@ impl<T, H> Http1<T, H>
                             not_ready = false;
                             item.finished = true;
                         },
-                        Err(_) =>
-                            item.error = true,
+                        Err(err) => {
+                            item.error = true;
+                            error!("Unhandled error: {}", err);
+                        }
                     }
                 }
                 idx += 1;
