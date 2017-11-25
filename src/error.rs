@@ -86,6 +86,16 @@ default impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
 /// `InternalServerError` for `JsonError`
 impl ErrorResponse for JsonError {}
 
+/// Return `InternalServerError` for `HttpError`,
+/// Response generation can return `HttpError`, so it is internal error
+impl ErrorResponse for HttpError {}
+
+/// Return `InternalServerError` for `io::Error`
+impl ErrorResponse for IoError {}
+
+/// `InternalServerError` for `InvalidHeaderValue`
+impl ErrorResponse for header::InvalidHeaderValue {}
+
 /// Internal error
 #[derive(Fail, Debug)]
 #[fail(display="Unexpected task frame")]
@@ -190,13 +200,6 @@ impl From<IoError> for PayloadError {
         PayloadError::ParseError(err)
     }
 }
-
-/// Return `InternalServerError` for `HttpError`,
-/// Response generation can return `HttpError`, so it is internal error
-impl ErrorResponse for HttpError {}
-
-/// Return `InternalServerError` for `io::Error`
-impl ErrorResponse for IoError {}
 
 /// Return `BadRequest` for `cookie::ParseError`
 impl ErrorResponse for cookie::ParseError {

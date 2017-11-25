@@ -1,7 +1,6 @@
 //! Static files support.
 //!
 //! TODO: needs to re-implement actual files handling, current impl blocks
-#![allow(dead_code, unused_variables)]
 use std::io;
 use std::io::Read;
 use std::rc::Rc;
@@ -15,7 +14,7 @@ use payload::Payload;
 use mime_guess::get_mime_type;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden, HTTPInternalServerError};
+use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden};
 
 /// Static files handling
 ///
@@ -34,9 +33,9 @@ use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden, HTTPInternalServerError};
 pub struct StaticFiles {
     directory: PathBuf,
     accessible: bool,
-    show_index: bool,
-    chunk_size: usize,
-    follow_symlinks: bool,
+    _show_index: bool,
+    _chunk_size: usize,
+    _follow_symlinks: bool,
     prefix: String,
 }
 
@@ -66,9 +65,9 @@ impl StaticFiles {
         StaticFiles {
             directory: dir,
             accessible: access,
-            show_index: index,
-            chunk_size: 0,
-            follow_symlinks: false,
+            _show_index: index,
+            _chunk_size: 0,
+            _follow_symlinks: false,
             prefix: String::new(),
         }
     }
@@ -86,19 +85,19 @@ impl StaticFiles {
                     entry.path().strip_prefix(&self.directory).unwrap().to_string_lossy());
 
                 // if file is a directory, add '/' to the end of the name
-                let file_name = if let Ok(metadata) = entry.metadata() {
+                if let Ok(metadata) = entry.metadata() {
                     if metadata.is_dir() {
                         //format!("<li><a href=\"{}\">{}</a></li>", file_url, file_name));
-                        write!(body, "<li><a href=\"{}\">{}/</a></li>",
-                               file_url, entry.file_name().to_string_lossy())
+                        let _ = write!(body, "<li><a href=\"{}\">{}/</a></li>",
+                                       file_url, entry.file_name().to_string_lossy());
                     } else {
                         // write!(body, "{}/", entry.file_name())
-                        write!(body, "<li><a href=\"{}\">{}</a></li>",
-                               file_url, entry.file_name().to_string_lossy())
+                        let _ = write!(body, "<li><a href=\"{}\">{}</a></li>",
+                                       file_url, entry.file_name().to_string_lossy());
                     }
                 } else {
                     continue
-                };
+                }
             }
         }
 
@@ -139,7 +138,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: &mut HttpRequest, payload: Payload, state: Rc<S>) -> Task {
+    fn handle(&self, req: &mut HttpRequest, _: Payload, _: Rc<S>) -> Task {
         if !self.accessible {
             Task::reply(HTTPNotFound)
         } else {
@@ -165,7 +164,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                 Err(err) => return match err.kind() {
                     io::ErrorKind::NotFound => Task::reply(HTTPNotFound),
                     io::ErrorKind::PermissionDenied => Task::reply(HTTPForbidden),
-                    _ => Task::reply(HTTPInternalServerError),
+                    _ => Task::error(err),
                 }
             };
 
@@ -175,7 +174,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                     Err(err) => match err.kind() {
                         io::ErrorKind::NotFound => Task::reply(HTTPNotFound),
                         io::ErrorKind::PermissionDenied => Task::reply(HTTPForbidden),
-                        _ => Task::reply(HTTPInternalServerError),
+                        _ => Task::error(err),
                     }
                 }
             } else {
@@ -190,9 +189,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                         let _ = file.read_to_end(&mut data);
                         Task::reply(resp.body(data).unwrap())
                     },
-                    Err(err) => {
-                        Task::reply(HTTPInternalServerError)
-                    }
+                    Err(err) => Task::error(err),
                 }
             }
         }

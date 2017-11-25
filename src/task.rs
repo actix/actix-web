@@ -131,6 +131,10 @@ impl Task {
                middlewares: None }
     }
 
+    pub fn error<E: Into<Error>>(err: E) -> Self {
+        Task::reply(err.into())
+    }
+
     pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self {
         Task { state: TaskRunningState::Running,
                iostate: TaskIOState::ReadingMessage,

@@ -345,7 +345,7 @@ impl Start {
                                         self.prepare(Task::reply(resp)),
                                         Rc::clone(&self.middlewares)))))
                                 },
-                                Started::Future(mut fut) => {
+                                Started::Future(fut) => {
                                     self.fut = Some(fut);
                                     continue 'outer
                                 },
