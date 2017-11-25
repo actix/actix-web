@@ -34,12 +34,13 @@ impl Pipeline {
             Pipeline(PipelineState::Task(Box::new((task, req))))
         } else {
             match Start::init(mw, req, handler, payload) {
-                StartResult::Ready(res) => {
-                    Pipeline(PipelineState::Handle(res))
-                },
-                StartResult::NotReady(res) => {
-                    Pipeline(PipelineState::Starting(res))
-                },
+                Ok(StartResult::Ready(res)) =>
+                    Pipeline(PipelineState::Handle(res)),
+                Ok(StartResult::NotReady(res)) =>
+                    Pipeline(PipelineState::Starting(res)),
+                Err(err) =>
+                    Pipeline(PipelineState::Error(
+                        Box::new((Task::reply(err), HttpRequest::for_error()))))
             }
         }
     }
@@ -70,12 +71,15 @@ impl Pipeline {
                 }
                 PipelineState::Starting(mut st) => {
                     match st.poll() {
-                        Async::NotReady => {
+                        Ok(Async::NotReady) => {
                             self.0 = PipelineState::Starting(st);
                             return Ok(Async::NotReady)
                         }
-                        Async::Ready(h) =>
+                        Ok(Async::Ready(h)) =>
                             self.0 = PipelineState::Handle(h),
+                        Err(err) =>
+                            self.0 = PipelineState::Error(
+                                Box::new((Task::reply(err), HttpRequest::for_error())))
                     }
                 }
                 PipelineState::Handle(mut st) => {
@@ -222,7 +226,7 @@ impl Finish {
     }
 }
 
-type Fut = Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=(HttpRequest, HttpResponse)>>;
+type Fut = Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=Error>>;
 
 /// Middlewares start executor
 struct Start {
@@ -242,8 +246,9 @@ enum StartResult {
 impl Start {
 
     fn init(mw: Rc<Vec<Box<Middleware>>>,
-            req: HttpRequest, handler: PipelineHandler, payload: Payload) -> StartResult
-    {
+            req: HttpRequest,
+            handler: PipelineHandler,
+            payload: Payload) -> Result<StartResult, Error> {
         Start {
             idx: 0,
             fut: None,
@@ -266,13 +271,13 @@ impl Start {
         task
     }
 
-    fn start(mut self, mut req: HttpRequest) -> StartResult {
+    fn start(mut self, mut req: HttpRequest) -> Result<StartResult, Error> {
         loop {
             if self.idx >= self.middlewares.len() {
                 let task = (unsafe{&*self.hnd})(
                     &mut req, self.payload.take().expect("Something is completlywrong"));
-                return StartResult::Ready(
-                    Box::new(Handle::new(self.idx-1, req, self.prepare(task), self.middlewares)))
+                return Ok(StartResult::Ready(
+                    Box::new(Handle::new(self.idx-1, req, self.prepare(task), self.middlewares))))
             } else {
                 req = match self.middlewares[self.idx].start(req) {
                     Started::Done(req) => {
@@ -280,31 +285,27 @@ impl Start {
                         req
                     }
                     Started::Response(req, resp) => {
-                        return StartResult::Ready(
+                        return Ok(StartResult::Ready(
                             Box::new(Handle::new(
-                                self.idx, req, self.prepare(Task::reply(resp)), self.middlewares)))
+                                self.idx, req, self.prepare(Task::reply(resp)), self.middlewares))))
                     },
                     Started::Future(mut fut) => {
                         match fut.poll() {
                             Ok(Async::NotReady) => {
                                 self.fut = Some(fut);
-                                return StartResult::NotReady(self)
+                                return Ok(StartResult::NotReady(self))
                             }
                             Ok(Async::Ready((req, resp))) => {
                                 self.idx += 1;
                                 if let Some(resp) = resp {
-                                    return StartResult::Ready(
+                                    return Ok(StartResult::Ready(
                                         Box::new(Handle::new(
                                             self.idx, req,
-                                            self.prepare(Task::reply(resp)), self.middlewares)))
+                                            self.prepare(Task::reply(resp)), self.middlewares))))
                                 }
                                 req
                             }
-                            Err((req, resp)) => {
-                                return StartResult::Ready(Box::new(Handle::new(
-                                    self.idx, req,
-                                    self.prepare(Task::reply(resp)), self.middlewares)))
-                            }
+                            Err(err) => return Err(err)
                         }
                     },
                 }
@@ -312,23 +313,23 @@ impl Start {
         }
     }
 
-    fn poll(&mut self) -> Async<Box<Handle>> {
+    fn poll(&mut self) -> Poll<Box<Handle>, Error> {
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) => return Async::NotReady,
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready((mut req, resp))) => {
                     self.idx += 1;
                     if let Some(resp) = resp {
-                        return Async::Ready(Box::new(Handle::new(
+                        return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx, req,
-                            self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares))))
+                            self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares)))))
                     }
                     if self.idx >= self.middlewares.len() {
                         let task = (unsafe{&*self.hnd})(
                             &mut req, self.payload.take().expect("Something is completlywrong"));
-                        return Async::Ready(Box::new(Handle::new(
+                        return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, req,
-                            self.prepare(task), Rc::clone(&self.middlewares))))
+                            self.prepare(task), Rc::clone(&self.middlewares)))))
                     } else {
                         loop {
                             req = match self.middlewares[self.idx].start(req) {
@@ -337,10 +338,10 @@ impl Start {
                                     req
                                 }
                                 Started::Response(req, resp) => {
-                                    return Async::Ready(Box::new(Handle::new(
+                                    return Ok(Async::Ready(Box::new(Handle::new(
                                         self.idx, req,
                                         self.prepare(Task::reply(resp)),
-                                        Rc::clone(&self.middlewares))))
+                                        Rc::clone(&self.middlewares)))))
                                 },
                                 Started::Future(mut fut) => {
                                     self.fut = Some(fut);
@@ -350,17 +351,11 @@ impl Start {
                         }
                     }
                 }
-                Err((req, resp)) => {
-                    return Async::Ready(Box::new(Handle::new(
-                        self.idx, req,
-                        self.prepare(Task::reply(resp)),
-                        Rc::clone(&self.middlewares))))
-                }
+                Err(err) => return Err(err)
             }
         }
     }
 }
-
 
 /// Middlewares response executor
 pub(crate) struct MiddlewaresResponse {

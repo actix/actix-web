@@ -16,7 +16,7 @@ pub enum Started {
     /// handler execution halts.
     Response(HttpRequest, HttpResponse),
     /// Execution completed, runs future to completion.
-    Future(Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=(HttpRequest, HttpResponse)>>),
+    Future(Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=Error>>),
 }
 
 /// Middleware execution result
@@ -24,7 +24,7 @@ pub enum Response {
     /// New http response got generated
     Response(HttpResponse),
     /// Result is a future that resolves to a new http response
-    Future(Box<Future<Item=HttpResponse, Error=HttpResponse>>),
+    Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
 
 /// Middleware finish result
