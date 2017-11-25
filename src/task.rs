@@ -218,14 +218,18 @@ impl Task {
                         Frame::Message(mut resp) => {
                             // run middlewares
                             if let Some(mut middlewares) = self.middlewares.take() {
-                                if let Some(mut resp) = middlewares.response(req, resp) {
-                                    let result = io.start(req, &mut resp)?;
-                                    self.prepared = Some(resp);
-                                    result
-                                } else {
-                                    // middlewares need to run some futures
-                                    self.middlewares = Some(middlewares);
-                                    return self.poll_io(io, req)
+                                match middlewares.response(req, resp) {
+                                    Ok(Some(mut resp)) => {
+                                        let result = io.start(req, &mut resp)?;
+                                        self.prepared = Some(resp);
+                                        result
+                                    }
+                                    Ok(None) => {
+                                        // middlewares need to run some futures
+                                        self.middlewares = Some(middlewares);
+                                        return self.poll_io(io, req)
+                                    }
+                                    Err(err) => return Err(err),
                                 }
                             } else {
                                 let result = io.start(req, &mut resp)?;

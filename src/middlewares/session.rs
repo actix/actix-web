@@ -106,7 +106,7 @@ impl<T: SessionBackend> Middleware for SessionStorage<T> {
         if let Some(s_box) = req.extensions().remove::<Arc<SessionImplBox>>() {
             s_box.0.write(resp)
         } else {
-            Response::Response(resp)
+            Response::Done(resp)
         }
     }
 }
@@ -151,7 +151,7 @@ impl SessionImpl for DummySessionImpl {
     fn remove(&mut self, key: &str) {}
     fn clear(&mut self) {}
     fn write(&self, resp: HttpResponse) -> Response {
-        Response::Response(resp)
+        Response::Done(resp)
     }
 }
 
@@ -176,7 +176,7 @@ impl SessionImpl for CookieSession {
     }
 
     fn clear(&mut self) {
-        let cookies: Vec<_> = self.jar.iter().map(|c| c.clone()).collect();
+        let cookies: Vec<_> = self.jar.iter().cloned().collect();
         for cookie in cookies {
             self.jar.remove(cookie);
         }
@@ -185,11 +185,11 @@ impl SessionImpl for CookieSession {
     fn write(&self, mut resp: HttpResponse) -> Response {
         for cookie in self.jar.delta() {
             match HeaderValue::from_str(&cookie.to_string()) {
-                Err(err) => return Response::Response(err.error_response()),
+                Err(err) => return Response::Err(err.into()),
                 Ok(val) => resp.headers.append(header::SET_COOKIE, val),
             };
         }
-        Response::Response(resp)
+        Response::Done(resp)
     }
 }
 

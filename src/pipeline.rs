@@ -309,6 +309,7 @@ impl Start {
                             Err(err) => return Err(err)
                         }
                     },
+                    Started::Err(err) => return Err(err),
                 }
             }
         }
@@ -348,6 +349,7 @@ impl Start {
                                     self.fut = Some(fut);
                                     continue 'outer
                                 },
+                                Started::Err(err) => return Err(err),
                             }
                         }
                     }
@@ -375,13 +377,15 @@ impl MiddlewaresResponse {
     }
 
     pub fn response(&mut self, req: &mut HttpRequest, mut resp: HttpResponse)
-                    -> Option<HttpResponse>
+                    -> Result<Option<HttpResponse>, Error>
     {
         loop {
             resp = match self.middlewares[self.idx].response(req, resp) {
-                Response::Response(r) => {
+                Response::Err(err) =>
+                    return Err(err),
+                Response::Done(r) => {
                     if self.idx == 0 {
-                        return Some(r)
+                        return Ok(Some(r))
                     } else {
                         self.idx -= 1;
                         r
@@ -389,7 +393,7 @@ impl MiddlewaresResponse {
                 },
                 Response::Future(fut) => {
                     self.fut = Some(fut);
-                    return None
+                    return Ok(None)
                 },
             };
         }
@@ -417,7 +421,9 @@ impl MiddlewaresResponse {
                     return Ok(Async::Ready(Some(resp)))
                 } else {
                     match self.middlewares[self.idx].response(req, resp) {
-                        Response::Response(r) => {
+                        Response::Err(err) =>
+                            return Err(err),
+                        Response::Done(r) => {
                             self.idx -= 1;
                             resp = r
                         },

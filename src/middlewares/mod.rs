@@ -13,6 +13,8 @@ pub use self::session::{RequestSession, Session, SessionImpl,
 
 /// Middleware start result
 pub enum Started {
+    /// Moddleware error
+    Err(Error),
     /// Execution completed
     Done(HttpRequest),
     /// New http response got generated. If middleware generates response
@@ -24,8 +26,10 @@ pub enum Started {
 
 /// Middleware execution result
 pub enum Response {
+    /// Moddleware error
+    Err(Error),
     /// New http response got generated
-    Response(HttpResponse),
+    Done(HttpResponse),
     /// Result is a future that resolves to a new http response
     Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
@@ -49,12 +53,12 @@ pub trait Middleware {
     }
 
     /// Method is called when handler returns response,
-    /// but before sending body stream to peer.
+    /// but before sending http message to peer.
     fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> Response {
-        Response::Response(resp)
+        Response::Done(resp)
     }
 
-    /// Method is called after http response get sent to peer.
+    /// Method is called after body stream get sent to peer.
     fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) -> Finished {
         Finished::Done
     }

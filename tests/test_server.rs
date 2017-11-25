@@ -68,7 +68,7 @@ impl middlewares::Middleware for MiddlewareTest {
 
     fn response(&self, _: &mut HttpRequest, resp: HttpResponse) -> middlewares::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Response::Response(resp)
+        middlewares::Response::Done(resp)
     }
 
     fn finish(&self, _: &mut HttpRequest, _: &HttpResponse) -> middlewares::Finished {
