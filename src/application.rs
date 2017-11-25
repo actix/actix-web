@@ -1,5 +1,3 @@
-#![allow(unused_imports, dead_code)]
-
 use std::rc::Rc;
 use std::string::ToString;
 use std::collections::HashMap;

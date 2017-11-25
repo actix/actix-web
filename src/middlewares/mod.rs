@@ -1,8 +1,5 @@
 //! Middlewares
-#![allow(unused_imports, dead_code)]
-
-use std::rc::Rc;
-use futures::{Async, Future, Poll};
+use futures::Future;
 
 use error::Error;
 use httprequest::HttpRequest;
