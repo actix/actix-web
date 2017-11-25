@@ -58,6 +58,7 @@ mod resource;
 mod recognizer;
 mod route;
 mod task;
+mod pipeline;
 mod staticfiles;
 mod server;
 mod channel;

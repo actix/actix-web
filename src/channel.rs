@@ -8,8 +8,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use h1;
 use h2;
-use task::Task;
 use payload::Payload;
+use pipeline::Pipeline;
 use httprequest::HttpRequest;
 
 /// Low level http request handler
@@ -17,7 +17,7 @@ pub trait HttpHandler: 'static {
     /// Http handler prefix
     fn prefix(&self) -> &str;
     /// Handle request
-    fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task;
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Pipeline;
 }
 
 enum HttpProtocol<T, H>

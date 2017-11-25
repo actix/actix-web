@@ -7,9 +7,9 @@ use futures::{Async, Future, Poll, Stream};
 use futures::task::{Task as FutureTask, current as current_task};
 
 use h1writer::{Writer, WriterState};
-use error::Error;
+use error::{Error, UnexpectedTaskFrame};
 use route::Frame;
-use middlewares::{Middleware, MiddlewaresExecutor};
+use pipeline::MiddlewaresResponse;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -111,7 +111,7 @@ pub struct Task {
     drain: Vec<Rc<RefCell<DrainFut>>>,
     prepared: Option<HttpResponse>,
     disconnected: bool,
-    middlewares: MiddlewaresExecutor,
+    middlewares: Option<MiddlewaresResponse>,
 }
 
 impl Task {
@@ -128,7 +128,7 @@ impl Task {
                stream: TaskStream::None,
                prepared: None,
                disconnected: false,
-               middlewares: MiddlewaresExecutor::default() }
+               middlewares: None }
     }
 
     pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self {
@@ -139,7 +139,7 @@ impl Task {
                drain: Vec::new(),
                prepared: None,
                disconnected: false,
-               middlewares: MiddlewaresExecutor::default() }
+               middlewares: None }
     }
 
     pub(crate) fn with_stream<S>(stream: S) -> Self
@@ -152,11 +152,15 @@ impl Task {
                drain: Vec::new(),
                prepared: None,
                disconnected: false,
-               middlewares: MiddlewaresExecutor::default() }
+               middlewares: None }
     }
 
-    pub(crate) fn set_middlewares(&mut self, middlewares: Rc<Vec<Box<Middleware>>>) {
-        self.middlewares.start(middlewares)
+    pub(crate) fn response(&mut self) -> HttpResponse {
+        self.prepared.take().unwrap()
+    }
+
+    pub(crate) fn set_middlewares(&mut self, middlewares: MiddlewaresResponse) {
+        self.middlewares = Some(middlewares)
     }
 
     pub(crate) fn disconnected(&mut self) {
@@ -170,16 +174,6 @@ impl Task {
         where T: Writer
     {
         trace!("POLL-IO frames:{:?}", self.frames.len());
-
-        // start middlewares
-        match self.middlewares.starting(req) {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Ok(Async::Ready(None)) | Err(_) => (),
-            Ok(Async::Ready(Some(response))) => {
-                self.frames.clear();
-                self.frames.push_front(Frame::Message(response));
-            },
-        }
 
         // response is completed
         if self.frames.is_empty() && self.iostate.is_done() {
@@ -197,21 +191,28 @@ impl Task {
             }
 
             // process middlewares response
-            match self.middlewares.processing(req) {
-                Err(_) => return Err(()),
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => (),
-                Ok(Async::Ready(Some(mut response))) => {
-                    let result = io.start(req, &mut response);
-                    self.prepared = Some(response);
-                    match result {
-                        Ok(WriterState::Pause) => {
-                            self.state.pause();
-                        }
-                        Ok(WriterState::Done) => self.state.resume(),
-                        Err(_) => return Err(())
+            if let Some(mut middlewares) = self.middlewares.take() {
+                match middlewares.poll(req) {
+                    Err(_) => return Err(()),
+                    Ok(Async::NotReady) => {
+                        self.middlewares = Some(middlewares);
+                        return Ok(Async::NotReady);
                     }
-                },
+                    Ok(Async::Ready(None)) => {
+                        self.middlewares = Some(middlewares);
+                    }
+                    Ok(Async::Ready(Some(mut response))) => {
+                        let result = io.start(req, &mut response);
+                        self.prepared = Some(response);
+                        match result {
+                            Ok(WriterState::Pause) => {
+                                self.state.pause();
+                            }
+                            Ok(WriterState::Done) => self.state.resume(),
+                            Err(_) => return Err(())
+                        }
+                    },
+                }
             }
 
             // if task is paused, write buffer probably is full
@@ -220,15 +221,22 @@ impl Task {
                 while let Some(frame) = self.frames.pop_front() {
                     trace!("IO Frame: {:?}", frame);
                     let res = match frame {
-                        Frame::Message(resp) => {
+                        Frame::Message(mut resp) => {
                             // run middlewares
-                            if let Some(mut resp) = self.middlewares.response(req, resp) {
+                            if let Some(mut middlewares) = self.middlewares.take() {
+                                if let Some(mut resp) = middlewares.response(req, resp) {
+                                    let result = io.start(req, &mut resp);
+                                    self.prepared = Some(resp);
+                                    result
+                                } else {
+                                    // middlewares need to run some futures
+                                    self.middlewares = Some(middlewares);
+                                    return self.poll_io(io, req)
+                                }
+                            } else {
                                 let result = io.start(req, &mut resp);
                                 self.prepared = Some(resp);
                                 result
-                            } else {
-                                // middlewares need to run some futures
-                                return self.poll_io(io, req)
                             }
                         }
                         Frame::Payload(Some(chunk)) => {
@@ -278,12 +286,8 @@ impl Task {
 
         // response is completed
         if self.iostate.is_done() {
-            // finish middlewares
             if let Some(ref mut resp) = self.prepared {
                 resp.set_response_size(io.written());
-                if let Ok(Async::NotReady) = self.middlewares.finishing(req, resp) {
-                    return Ok(Async::NotReady)
-                }
             }
             Ok(Async::Ready(self.state.is_done()))
         } else {
@@ -291,8 +295,9 @@ impl Task {
         }
     }
 
-    fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), ()>
-        where S: Stream<Item=Frame, Error=Error> {
+    fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), Error>
+        where S: Stream<Item=Frame, Error=Error>
+    {
         loop {
             match stream.poll() {
                 Ok(Async::Ready(Some(frame))) => {
@@ -300,7 +305,7 @@ impl Task {
                         Frame::Message(ref msg) => {
                             if self.iostate != TaskIOState::ReadingMessage {
                                 error!("Unexpected frame {:?}", frame);
-                                return Err(())
+                                return Err(UnexpectedTaskFrame.into())
                             }
                             let upgrade = msg.upgrade();
                             if upgrade || msg.body().is_streaming() {
@@ -314,7 +319,7 @@ impl Task {
                                 self.iostate = TaskIOState::Done;
                             } else if self.iostate != TaskIOState::ReadingPayload {
                                 error!("Unexpected frame {:?}", self.iostate);
-                                return Err(())
+                                return Err(UnexpectedTaskFrame.into())
                             }
                         },
                         _ => (),
@@ -325,8 +330,8 @@ impl Task {
                     return Ok(Async::Ready(())),
                 Ok(Async::NotReady) =>
                     return Ok(Async::NotReady),
-                Err(_) =>
-                    return Err(()),
+                Err(err) =>
+                    return Err(err),
             }
         }
     }
@@ -334,7 +339,7 @@ impl Task {
 
 impl Future for Task {
     type Item = ();
-    type Error = ();
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut s = mem::replace(&mut self.stream, TaskStream::None);

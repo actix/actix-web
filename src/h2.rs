@@ -1,7 +1,6 @@
 use std::{io, cmp, mem};
 use std::rc::Rc;
 use std::io::{Read, Write};
-use std::cell::UnsafeCell;
 use std::time::Duration;
 use std::net::SocketAddr;
 use std::collections::VecDeque;
@@ -15,13 +14,13 @@ use futures::{Async, Poll, Future, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
-use task::Task;
+use pipeline::Pipeline;
 use h2writer::H2Writer;
 use channel::HttpHandler;
-use httpcodes::HTTPNotFound;
-use httprequest::HttpRequest;
 use error::PayloadError;
 use encoding::PayloadType;
+use httpcodes::HTTPNotFound;
+use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
@@ -83,8 +82,8 @@ impl<T, H> Http2<T, H>
                     item.poll_payload();
 
                     if !item.eof {
-                        let req = unsafe {item.req.get().as_mut().unwrap()};
-                        match item.task.poll_io(&mut item.stream, req) {
+                        //let req = unsafe {item.req.get().as_mut().unwrap()};
+                        match item.task.poll_io(&mut item.stream) {
                             Ok(Async::Ready(ready)) => {
                                 item.eof = true;
                                 if ready {
@@ -198,8 +197,7 @@ impl<T, H> Http2<T, H>
 }
 
 struct Entry {
-    task: Task,
-    req: UnsafeCell<HttpRequest>,
+    task: Pipeline,
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,
@@ -230,18 +228,19 @@ impl Entry {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
+        // Payload sender
+        let psender = PayloadType::new(req.headers(), psender);
+
         // start request processing
         let mut task = None;
         for h in router.iter() {
             if req.path().starts_with(h.prefix()) {
-                task = Some(h.handle(&mut req, payload));
+                task = Some(h.handle(req, payload));
                 break
             }
         }
-        let psender = PayloadType::new(req.headers(), psender);
 
-        Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
-               req: UnsafeCell::new(req),
+        Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                payload: psender,
                recv: recv,
                stream: H2Writer::new(resp),

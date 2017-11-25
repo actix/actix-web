@@ -1,3 +1,5 @@
+#![allow(unused_imports, dead_code)]
+
 use std::rc::Rc;
 use std::string::ToString;
 use std::collections::HashMap;
@@ -10,6 +12,7 @@ use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use channel::HttpHandler;
+use pipeline::Pipeline;
 use middlewares::Middleware;
 
 
@@ -48,14 +51,9 @@ impl<S: 'static> HttpHandler for Application<S> {
         &self.prefix
     }
     
-    fn handle(&self, req: &mut HttpRequest, payload: Payload) -> Task {
-        let mut task = self.run(req, payload);
-
-        // init middlewares
-        if !self.middlewares.is_empty() {
-            task.set_middlewares(Rc::clone(&self.middlewares));
-        }
-        task
+    fn handle(&self, req: HttpRequest, payload: Payload) -> Pipeline {
+        Pipeline::new(req, payload, Rc::clone(&self.middlewares),
+                      &|req: &mut HttpRequest, payload: Payload| {self.run(req, payload)})
     }
 }
 

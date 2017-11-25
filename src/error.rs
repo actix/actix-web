@@ -86,6 +86,13 @@ default impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
 /// `InternalServerError` for `JsonError`
 impl ErrorResponse for JsonError {}
 
+/// Internal error
+#[derive(Fail, Debug)]
+#[fail(display="Unexpected task frame")]
+pub struct UnexpectedTaskFrame;
+
+impl ErrorResponse for UnexpectedTaskFrame {}
+
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]
 pub enum ParseError {

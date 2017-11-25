@@ -1,6 +1,5 @@
 use std::{self, io, ptr};
 use std::rc::Rc;
-use std::cell::UnsafeCell;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::collections::VecDeque;
@@ -15,13 +14,13 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 use percent_encoding;
 
-use task::Task;
+use pipeline::Pipeline;
+use encoding::PayloadType;
 use channel::HttpHandler;
-use error::{ParseError, PayloadError, ErrorResponse};
 use h1writer::H1Writer;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use encoding::PayloadType;
+use error::{ParseError, PayloadError, ErrorResponse};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
@@ -51,8 +50,8 @@ pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
 }
 
 struct Entry {
-    task: Task,
-    req: UnsafeCell<HttpRequest>,
+    task: Pipeline,
+    //req: UnsafeCell<HttpRequest>,
     eof: bool,
     error: bool,
     finished: bool,
@@ -107,8 +106,7 @@ impl<T, H> Http1<T, H>
                     }
 
                     // this is anoying
-                    let req = unsafe {item.req.get().as_mut().unwrap()};
-                    match item.task.poll_io(&mut self.stream, req)
+                    match item.task.poll_io(&mut self.stream)
                     {
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
@@ -182,14 +180,14 @@ impl<T, H> Http1<T, H>
                         let mut task = None;
                         for h in self.router.iter() {
                             if req.path().starts_with(h.prefix()) {
-                                task = Some(h.handle(&mut req, payload));
+                                task = Some(h.handle(req, payload));
                                 break
                             }
                         }
 
                         self.tasks.push_back(
-                            Entry {task: task.unwrap_or_else(|| Task::reply(HTTPNotFound)),
-                                   req: UnsafeCell::new(req),
+                            Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
+                                   //req: UnsafeCell::new(req),
                                    eof: false,
                                    error: false,
                                    finished: false});
@@ -217,15 +215,13 @@ impl<T, H> Http1<T, H>
                         self.keepalive = false;
                         self.keepalive_timer.take();
 
-                        // on parse error, stop reading stream but
-                        // tasks need to be completed
+                        // on parse error, stop reading stream but tasks need to be completed
                         self.error = true;
 
                         if self.tasks.is_empty() {
                             if let ReaderError::Error(err) = err {
                                 self.tasks.push_back(
-                                    Entry {task: Task::reply(err.error_response()),
-                                           req: UnsafeCell::new(HttpRequest::for_error()),
+                                    Entry {task: Pipeline::error(err.error_response()),
                                            eof: false,
                                            error: false,
                                            finished: false});
