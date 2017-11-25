@@ -55,14 +55,17 @@ impl Pipeline {
                 st.disconnected(),
             PipelineState::Handle(ref mut st) =>
                 st.task.disconnected(),
+            PipelineState::Task(ref mut st) =>
+                st.0.disconnected(),
+            PipelineState::Error(ref mut st) =>
+                st.0.disconnected(),
             _ =>(),
         }
     }
 
     pub(crate) fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, Error> {
         loop {
-            let state = mem::replace(&mut self.0, PipelineState::None);
-            match state {
+            match mem::replace(&mut self.0, PipelineState::None) {
                 PipelineState::Task(mut st) => {
                     let req:&mut HttpRequest = unsafe{mem::transmute(&mut st.1)};
                     let res = st.0.poll_io(io, req);
@@ -110,8 +113,7 @@ impl Pipeline {
 
     pub(crate) fn poll(&mut self) -> Poll<(), Error> {
         loop {
-            let state = mem::replace(&mut self.0, PipelineState::None);
-            match state {
+            match mem::replace(&mut self.0, PipelineState::None) {
                 PipelineState::Handle(mut st) => {
                     let res = st.poll();
                     match res {
@@ -140,7 +142,6 @@ impl Pipeline {
                     return res
                 }
                 _ => {
-                    self.0 = state;
                     return Ok(Async::Ready(()))
                 }
             }

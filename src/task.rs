@@ -182,9 +182,8 @@ impl Task {
             // poll stream
             if self.state == TaskRunningState::Running {
                 match self.poll()? {
-                    Async::Ready(_) => {
-                        self.state = TaskRunningState::Done;
-                    },
+                    Async::Ready(_) =>
+                        self.state = TaskRunningState::Done,
                     Async::NotReady => (),
                 }
             }
@@ -260,10 +259,8 @@ impl Task {
 
         // flush io
         match io.poll_complete() {
-            Ok(Async::Ready(())) => self.state.resume(),
-            Ok(Async::NotReady) => {
-                return Ok(Async::NotReady)
-            }
+            Ok(Async::Ready(_)) => self.state.resume(),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(err) => {
                 debug!("Error sending data: {}", err);
                 return Err(err.into())
