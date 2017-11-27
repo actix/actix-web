@@ -26,6 +26,7 @@ enum HttpProtocol<T, H>
     H2(h2::Http2<T, H>),
 }
 
+#[doc(hidden)]
 pub struct HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {

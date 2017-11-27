@@ -13,10 +13,10 @@ pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, Se
 
 /// Middleware start result
 pub enum Started {
-    /// Moddleware error
-    Err(Error),
     /// Execution completed
     Done,
+    /// Moddleware error
+    Err(Error),
     /// New http response got generated. If middleware generates response
     /// handler execution halts.
     Response(HttpResponse),

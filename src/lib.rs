@@ -71,27 +71,27 @@ mod h2writer;
 
 pub mod ws;
 pub mod dev;
+pub mod prelude;
 pub mod error;
 pub mod httpcodes;
 pub mod multipart;
 pub mod middlewares;
 pub use encoding::ContentEncoding;
 pub use body::{Body, Binary};
-pub use application::{Application, ApplicationBuilder};
+pub use application::Application;
 pub use httprequest::{HttpRequest, UrlEncoded};
-pub use httpresponse::{HttpResponse, HttpResponseBuilder};
+pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
 pub use route::{Frame, Route, RouteFactory, RouteHandler, RouteResult};
 pub use resource::{Reply, Resource};
-pub use recognizer::{Params, RouteRecognizer};
+pub use recognizer::Params;
 pub use server::HttpServer;
 pub use context::HttpContext;
-pub use channel::HttpChannel;
 pub use staticfiles::StaticFiles;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
-pub use cookie::{Cookie, CookieBuilder};
+pub use cookie::Cookie;
 pub use http_range::HttpRange;
 
 #[cfg(feature="tls")]

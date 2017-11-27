@@ -166,7 +166,6 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
     )
 }
 
-
 /// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream {
     rx: Payload,
