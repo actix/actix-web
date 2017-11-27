@@ -5,6 +5,8 @@ use std::convert::Into;
 use cookie::CookieJar;
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
+use serde_json;
+use serde::Serialize;
 
 use Cookie;
 use body::Body;
@@ -400,7 +402,8 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set a body
+    /// Set a body and generate `HttpResponse`.
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
         let mut parts = self.parts.take().expect("cannot reuse response builder");
         if let Some(e) = self.err.take() {
@@ -425,7 +428,23 @@ impl HttpResponseBuilder {
         })
     }
 
-    /// Set an empty body
+    /// Set a json body and generate `HttpResponse`
+    pub fn json<T: Serialize>(&mut self, value: T) -> Result<HttpResponse, Error> {
+        let body = serde_json::to_string(&value)?;
+
+        let contains = if let Some(parts) = parts(&mut self.parts, &self.err) {
+            parts.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+        if !contains {
+            self.header(header::CONTENT_TYPE, "application/json");
+        }
+
+        Ok(self.body(body)?)
+    }
+
+    /// Set an empty body and generate `HttpResponse`
     pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
         self.body(Body::Empty)
     }
@@ -442,6 +461,7 @@ fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
 
     #[test]
     fn test_body() {
@@ -478,5 +498,24 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
         assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
+    }
+
+    #[test]
+    fn test_json() {
+        let resp = HttpResponse::build(StatusCode::OK)
+            .json(vec!["v1", "v2", "v3"]).unwrap();
+        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        assert_eq!(ct, header::HeaderValue::from_static("application/json"));
+        assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
+    }
+
+    #[test]
+    fn test_json_ct() {
+        let resp = HttpResponse::build(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/json")
+            .json(vec!["v1", "v2", "v3"]).unwrap();
+        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        assert_eq!(ct, header::HeaderValue::from_static("text/json"));
+        assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
     }
 }

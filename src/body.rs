@@ -6,7 +6,7 @@ use route::Frame;
 
 
 /// Represents various types of http message body.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Body {
     /// Empty response. `Content-Length` header is set to `0`
     Empty,
@@ -23,7 +23,7 @@ pub enum Body {
 
 /// Represents various types of binary body.
 /// `Content-Length` header is set to length of the body.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Binary {
     /// Bytes body
     Bytes(Bytes),
