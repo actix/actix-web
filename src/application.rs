@@ -24,19 +24,21 @@ pub struct Application<S> {
 
 impl<S: 'static> Application<S> {
 
-    fn run(&self, mut req: HttpRequest) -> Task {
+    fn run(&self, req: HttpRequest) -> Task {
+        let mut req = req.with_state(Rc::clone(&self.state));
+
         if let Some((params, h)) = self.router.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
             }
-            h.handle(req, Rc::clone(&self.state))
+            h.handle(req)
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {
-                    return handler.handle(req, Rc::clone(&self.state))
+                    return handler.handle(req)
                 }
             }
-            self.default.handle(req, Rc::clone(&self.state))
+            self.default.handle(req)
         }
     }
 }
@@ -146,7 +148,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
     ///              r.get::<MyRoute>();
-    ///              r.handler(Method::HEAD, |req, state| {
+    ///              r.handler(Method::HEAD, |req| {
     ///                  Ok(httpcodes::HTTPMethodNotAllowed)
     ///              });
     ///         })
@@ -190,7 +192,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = Application::default("/")
-    ///         .handler("/test", |req, state| {
+    ///         .handler("/test", |req| {
     ///              match *req.method() {
     ///                  Method::GET => httpcodes::HTTPOk,
     ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,
@@ -201,7 +203,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// }
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest, &S) -> R + 'static,
+        where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<HttpResponse> + 'static,
               P: Into<String>,
     {

@@ -12,7 +12,7 @@ use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 
 /// somple handle
-fn index(mut req: HttpRequest, state: &()) -> Result<HttpResponse> {
+fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
     if let Ok(ch) = req.payload_mut().readany() {
         if let futures::Async::Ready(Some(d)) = ch {
@@ -32,7 +32,7 @@ fn index(mut req: HttpRequest, state: &()) -> Result<HttpResponse> {
 }
 
 /// somple handle
-fn index_async(req: HttpRequest, state: &()) -> Once<actix_web::Frame, Error>
+fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
 
@@ -44,7 +44,7 @@ fn index_async(req: HttpRequest, state: &()) -> Once<actix_web::Frame, Error>
 }
 
 /// handle with path parameters like `/user/{name}/`
-fn with_param(req: HttpRequest, state: &()) -> Result<HttpResponse>
+fn with_param(req: HttpRequest) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 
@@ -75,7 +75,7 @@ fn main() {
             // async handler
             .resource("/async/{name}", |r| r.async(Method::GET, index_async))
             // redirect
-            .resource("/", |r| r.handler(Method::GET, |req, _| {
+            .resource("/", |r| r.handler(Method::GET, |req| {
                 println!("{:?}", req);
 
                 Ok(httpcodes::HTTPFound

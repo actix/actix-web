@@ -1,3 +1,4 @@
+#![cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
 //! There are two level of statfulness in actix-web. Application has state
 //! that is shared across all handlers within same Application.
 //! And individual handler can have state.
@@ -15,11 +16,11 @@ struct AppState {
 }
 
 /// somple handle
-fn index(req: HttpRequest, state: &AppState) -> HttpResponse {
+fn index(req: HttpRequest<AppState>) -> HttpResponse {
     println!("{:?}", req);
-    state.counter.set(state.counter.get() + 1);
+    req.state().counter.set(req.state().counter.get() + 1);
     httpcodes::HTTPOk.with_body(
-        format!("Num of requests: {}", state.counter.get()))
+        format!("Num of requests: {}", req.state().counter.get()))
 }
 
 /// `MyWebSocket` counts how many messages it receives from peer,
@@ -36,7 +37,7 @@ impl Route for MyWebSocket {
     /// Shared application state
     type State = AppState;
 
-    fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(mut req: HttpRequest<AppState>, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
         let resp = ws::handshake(&req)?;
         ctx.start(resp);
@@ -44,6 +45,7 @@ impl Route for MyWebSocket {
         Reply::async(MyWebSocket{counter: 0})
     }
 }
+
 impl StreamHandler<ws::Message> for MyWebSocket {}
 impl Handler<ws::Message> for MyWebSocket {
     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
@@ -63,7 +65,6 @@ impl Handler<ws::Message> for MyWebSocket {
         Self::empty()
     }
 }
-
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");

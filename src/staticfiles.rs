@@ -3,7 +3,6 @@
 //! TODO: needs to re-implement actual files handling, current impl blocks
 use std::io;
 use std::io::Read;
-use std::rc::Rc;
 use std::fmt::Write;
 use std::fs::{File, DirEntry};
 use std::path::PathBuf;
@@ -137,7 +136,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: HttpRequest, _: Rc<S>) -> Task {
+    fn handle(&self, req: HttpRequest<S>) -> Task {
         if !self.accessible {
             Task::reply(HTTPNotFound)
         } else {

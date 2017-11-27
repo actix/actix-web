@@ -35,9 +35,14 @@ pub(crate) enum Http1Result {
     Switch,
 }
 
+#[derive(Debug)]
+enum Item {
+    Http1(HttpRequest),
+    Http2,
+}
+
 pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
     router: Rc<Vec<H>>,
-    #[allow(dead_code)]
     addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
@@ -266,12 +271,6 @@ impl<T, H> Http1<T, H>
             }
         }
     }
-}
-
-#[derive(Debug)]
-enum Item {
-    Http1(HttpRequest),
-    Http2,
 }
 
 struct Reader {

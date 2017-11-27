@@ -1,6 +1,5 @@
 //! Basic http responses
 #![allow(non_upper_case_globals)]
-use std::rc::Rc;
 use http::StatusCode;
 
 use body::Body;
@@ -70,7 +69,7 @@ impl StaticResponse {
 }
 
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, _: HttpRequest, _: Rc<S>) -> Task {
+    fn handle(&self, _: HttpRequest<S>) -> Task {
         Task::reply(HttpResponse::new(self.0, Body::Empty))
     }
 }

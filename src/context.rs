@@ -29,7 +29,6 @@ pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
     address: ActorAddressCell<A>,
     stream: VecDeque<Frame>,
     wait: ActorWaitCell<A>,
-    app_state: Rc<<A as Route>::State>,
     disconnected: bool,
 }
 
@@ -102,10 +101,9 @@ impl<A> AsyncContextApi<A> for HttpContext<A> where A: Actor<Context=Self> + Rou
     }
 }
 
-impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A> Default for HttpContext<A> where A: Actor<Context=Self> + Route {
 
-    pub fn new(state: Rc<<A as Route>::State>) -> HttpContext<A>
-    {
+    fn default() -> HttpContext<A> {
         HttpContext {
             act: None,
             state: ActorState::Started,
@@ -114,10 +112,12 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
             address: ActorAddressCell::default(),
             wait: ActorWaitCell::default(),
             stream: VecDeque::new(),
-            app_state: state,
             disconnected: false,
         }
     }
+}
+
+impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
     pub(crate) fn set_actor(&mut self, act: A) {
         self.act = Some(act)
@@ -126,11 +126,6 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
 impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 
-    /// Shared application state
-    pub fn state(&self) -> &<A as Route>::State {
-        &self.app_state
-    }
-    
     /// Start response processing
     pub fn start<R: Into<HttpResponse>>(&mut self, response: R) {
         self.stream.push_back(Frame::Message(response.into()))

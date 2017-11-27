@@ -108,7 +108,7 @@ impl ResponseType for Message {
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake(req: &HttpRequest) -> Result<HttpResponse, WsHandshakeError> {
+pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(WsHandshakeError::GetMethodRequired)
@@ -176,7 +176,7 @@ pub struct WsStream {
 }
 
 impl WsStream {
-    pub fn new(req: &mut HttpRequest) -> WsStream {
+    pub fn new<S>(req: &mut HttpRequest<S>) -> WsStream {
         WsStream { rx: req.take_payload(), buf: BytesMut::new(), closed: false, error_sent: false }
     }
 }

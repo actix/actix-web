@@ -48,9 +48,9 @@ impl Default for HttpMessage {
 }
 
 /// An HTTP Request
-pub struct HttpRequest(Rc<HttpMessage>);
+pub struct HttpRequest<S=()>(Rc<HttpMessage>, Rc<S>);
 
-impl HttpRequest {
+impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
     pub fn new(method: Method, path: String, version: Version,
@@ -69,18 +69,34 @@ impl HttpRequest {
                 addr: None,
                 payload: payload,
                 extensions: Extensions::new(),
-            })
+            }),
+            Rc::new(())
         )
     }
 
+    /// Construct request for error response.
     pub(crate) fn for_error() -> HttpRequest {
-        HttpRequest(Rc::new(HttpMessage::default()))
+        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()))
     }
 
+    /// Construct new http request with state.
+    pub(crate) fn with_state<S>(self, state: Rc<S>) -> HttpRequest<S> {
+        HttpRequest(self.0, state)
+    }
+}
+
+impl<S> HttpRequest<S> {
+
+    /// get mutable reference for inner message
     fn as_mut(&mut self) -> &mut HttpMessage {
         let r: &HttpMessage = self.0.as_ref();
         #[allow(mutable_transmutes)]
         unsafe{mem::transmute(r)}
+    }
+
+    /// Shared application state
+    pub fn state(&self) -> &S {
+        &self.1
     }
 
     /// Protocol extensions.
@@ -317,13 +333,13 @@ impl HttpRequest {
     }
 }
 
-impl Clone for HttpRequest {
-    fn clone(&self) -> HttpRequest {
-        HttpRequest(Rc::clone(&self.0))
+impl<S> Clone for HttpRequest<S> {
+    fn clone(&self) -> HttpRequest<S> {
+        HttpRequest(Rc::clone(&self.0), Rc::clone(&self.1))
     }
 }
 
-impl fmt::Debug for HttpRequest {
+impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
                          self.0.version, self.0.method, self.0.path);

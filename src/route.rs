@@ -33,7 +33,7 @@ impl Frame {
 #[allow(unused_variables)]
 pub trait RouteHandler<S>: 'static {
     /// Handle request
-    fn handle(&self, req: HttpRequest, state: Rc<S>) -> Task;
+    fn handle(&self, req: HttpRequest<S>) -> Task;
 
     /// Set route prefix
     fn set_prefix(&mut self, prefix: String) {}
@@ -46,11 +46,11 @@ pub type RouteResult<T> = Result<Reply<T>, Error>;
 #[allow(unused_variables)]
 pub trait Route: Actor {
     /// Shared state. State is shared with all routes within same application
-    /// and could be accessed with `HttpContext::state()` method.
+    /// and could be accessed with `HttpRequest::state()` method.
     type State;
 
     /// Handle `EXPECT` header. By default respones with `HTTP/1.1 100 Continue`
-    fn expect(req: &mut HttpRequest, ctx: &mut Self::Context) -> Result<(), Error>
+    fn expect(req: &mut HttpRequest<Self::State>, ctx: &mut Self::Context) -> Result<(), Error>
         where Self: Actor<Context=HttpContext<Self>>
     {
         // handle expect header only for HTTP/1.1
@@ -80,7 +80,7 @@ pub trait Route: Actor {
     /// request/response or websocket connection.
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used
     /// for writing response.
-    fn request(req: HttpRequest, ctx: &mut Self::Context) -> RouteResult<Self>;
+    fn request(req: HttpRequest<Self::State>, ctx: &mut Self::Context) -> RouteResult<Self>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -95,8 +95,8 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     where A: Actor<Context=HttpContext<A>> + Route<State=S>,
           S: 'static
 {
-    fn handle(&self, mut req: HttpRequest, state: Rc<A::State>) -> Task {
-        let mut ctx = HttpContext::new(state);
+    fn handle(&self, mut req: HttpRequest<A::State>) -> Task {
+        let mut ctx = HttpContext::default();
 
         // handle EXPECT header
         if req.headers().contains_key(header::EXPECT) {
@@ -114,7 +114,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
 /// Fn() route handler
 pub(crate)
 struct FnHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Into<HttpResponse>,
           S: 'static,
 {
@@ -123,7 +123,7 @@ struct FnHandler<S, R, F>
 }
 
 impl<S, R, F> FnHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Into<HttpResponse> + 'static,
           S: 'static,
 {
@@ -133,19 +133,19 @@ impl<S, R, F> FnHandler<S, R, F>
 }
 
 impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Into<HttpResponse> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest, state: Rc<S>) -> Task {
-        Task::reply((self.f)(req, &state).into())
+    fn handle(&self, req: HttpRequest<S>) -> Task {
+        Task::reply((self.f)(req).into())
     }
 }
 
 /// Async route handler
 pub(crate)
 struct StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
@@ -154,7 +154,7 @@ struct StreamHandler<S, R, F>
 }
 
 impl<S, R, F> StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
@@ -164,11 +164,11 @@ impl<S, R, F> StreamHandler<S, R, F>
 }
 
 impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
-    where F: Fn(HttpRequest, &S) -> R + 'static,
+    where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest, state: Rc<S>) -> Task {
-        Task::with_stream((self.f)(req, &state))
+    fn handle(&self, req: HttpRequest<S>) -> Task {
+        Task::with_stream((self.f)(req))
     }
 }
