@@ -157,7 +157,7 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
         hash_key(key.as_ref())
     };
 
-    Ok(HttpResponse::builder(StatusCode::SWITCHING_PROTOCOLS)
+    Ok(HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
        .connection_type(ConnectionType::Upgrade)
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")

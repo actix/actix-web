@@ -106,7 +106,7 @@ impl StaticFiles {
                             {}\
                             </ul></body>\n</html>", index_of, index_of, body);
         Ok(
-            HTTPOk.builder()
+            HTTPOk.build()
                 .content_type("text/html; charset=utf-8")
                 .body(html).unwrap()
         )
@@ -176,7 +176,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                     }
                 }
             } else {
-                let mut resp = HTTPOk.builder();
+                let mut resp = HTTPOk.build();
                 if let Some(ext) = filename.extension() {
                     let mime = get_mime_type(&ext.to_string_lossy());
                     resp.content_type(format!("{}", mime).as_str());

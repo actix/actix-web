@@ -325,7 +325,7 @@ impl ErrorResponse for WsHandshakeError {
         match *self {
             WsHandshakeError::GetMethodRequired => {
                 HTTPMethodNotAllowed
-                    .builder()
+                    .build()
                     .header(header::ALLOW, "GET")
                     .finish()
                     .unwrap()

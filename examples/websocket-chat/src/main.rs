@@ -212,7 +212,7 @@ fn main() {
             .resource("/", |r|
                       r.handler(Method::GET, |req| {
                           Ok(httpcodes::HTTPFound
-                             .builder()
+                             .build()
                              .header("LOCATION", "/static/websocket.html")
                              .body(Body::Empty)?)
                       }))

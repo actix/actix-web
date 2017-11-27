@@ -18,7 +18,7 @@ fn test_response_cookies() {
     let cookies = req.load_cookies().unwrap();
 
     let resp = httpcodes::HTTPOk
-        .builder()
+        .build()
         .cookie(Cookie::build("name", "value")
                 .domain("www.rust-lang.org")
                 .path("/test")

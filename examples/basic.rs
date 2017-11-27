@@ -36,7 +36,7 @@ fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
 
-    once(Ok(HttpResponse::builder(StatusCode::OK)
+    once(Ok(HttpResponse::build(StatusCode::OK)
             .content_type("text/html")
             .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
             .unwrap()
@@ -48,7 +48,7 @@ fn with_param(req: HttpRequest) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 
-    Ok(HttpResponse::builder(StatusCode::OK)
+    Ok(HttpResponse::build(StatusCode::OK)
        .content_type("test/plain")
        .body(format!("Hello {}!", req.match_info().get("name").unwrap()))?)
 }
@@ -79,7 +79,7 @@ fn main() {
                 println!("{:?}", req);
 
                 Ok(httpcodes::HTTPFound
-                   .builder()
+                   .build()
                    .header("LOCATION", "/index.html")
                    .body(Body::Empty)?)
             }))

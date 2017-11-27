@@ -12,7 +12,7 @@ use actix_web::*;
 fn index(req: HttpRequest) -> HttpResponse {
     println!("{:?}", req);
     httpcodes::HTTPOk
-        .builder()
+        .build()
         .content_type("text/plain")
         .body("Welcome!").unwrap()
 }
@@ -38,7 +38,7 @@ fn main() {
             // with path parameters
             .resource("/", |r| r.handler(Method::GET, |req| {
                 Ok(httpcodes::HTTPFound
-                   .builder()
+                   .build()
                    .header("LOCATION", "/index.html")
                    .body(Body::Empty)?)
             })))

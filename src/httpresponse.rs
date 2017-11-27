@@ -39,8 +39,9 @@ pub struct HttpResponse {
 
 impl HttpResponse {
 
+    /// Create http response builder with specific status.
     #[inline]
-    pub fn builder(status: StatusCode) -> HttpResponseBuilder {
+    pub fn build(status: StatusCode) -> HttpResponseBuilder {
         HttpResponseBuilder {
             parts: Some(Parts::new(status)),
             err: None,
@@ -450,31 +451,31 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let resp = HttpResponse::builder(StatusCode::OK)
+        let resp = HttpResponse::build(StatusCode::OK)
             .upgrade().body(Body::Empty).unwrap();
         assert!(resp.upgrade())
     }
 
     #[test]
     fn test_force_close() {
-        let resp = HttpResponse::builder(StatusCode::OK)
+        let resp = HttpResponse::build(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         assert!(!resp.keep_alive().unwrap())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = HttpResponse::builder(StatusCode::OK)
+        let resp = HttpResponse::build(StatusCode::OK)
             .content_type("text/plain").body(Body::Empty).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
     fn test_content_encoding() {
-        let resp = HttpResponse::builder(StatusCode::OK).finish().unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
         assert_eq!(*resp.content_encoding(), ContentEncoding::Auto);
 
-        let resp = HttpResponse::builder(StatusCode::OK)
+        let resp = HttpResponse::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
         assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
     }

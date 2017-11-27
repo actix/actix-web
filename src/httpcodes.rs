@@ -52,8 +52,8 @@ pub const HTTPInternalServerError: StaticResponse =
 pub struct StaticResponse(StatusCode);
 
 impl StaticResponse {
-    pub fn builder(&self) -> HttpResponseBuilder {
-        HttpResponse::builder(self.0)
+    pub fn build(&self) -> HttpResponseBuilder {
+        HttpResponse::build(self.0)
     }
     pub fn response(&self) -> HttpResponse {
         HttpResponse::new(self.0, Body::Empty)
@@ -87,8 +87,8 @@ mod tests {
     use super::{HTTPOk, HTTPBadRequest, Body, HttpResponse};
 
     #[test]
-    fn test_builder() {
-        let resp = HTTPOk.builder().body(Body::Empty).unwrap();
+    fn test_build() {
+        let resp = HTTPOk.build().body(Body::Empty).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
