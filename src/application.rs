@@ -24,7 +24,7 @@ pub struct Application<S> {
 
 impl<S: 'static> Application<S> {
 
-    fn run(&self, req: &mut HttpRequest) -> Task {
+    fn run(&self, mut req: HttpRequest) -> Task {
         if let Some((params, h)) = self.router.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
@@ -48,8 +48,7 @@ impl<S: 'static> HttpHandler for Application<S> {
     }
     
     fn handle(&self, req: HttpRequest) -> Pipeline {
-        Pipeline::new(req, Rc::clone(&self.middlewares),
-                      &|req: &mut HttpRequest| {self.run(req)})
+        Pipeline::new(req, Rc::clone(&self.middlewares), &|req: HttpRequest| {self.run(req)})
     }
 }
 
@@ -139,7 +138,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// impl Route for MyRoute {
     ///     type State = ();
     ///
-    ///     fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
+    ///     fn request(req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
     ///         Reply::reply(httpcodes::HTTPOk)
     ///     }
     /// }
@@ -202,7 +201,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// }
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(&mut HttpRequest, &S) -> R + 'static,
+        where F: Fn(HttpRequest, &S) -> R + 'static,
               R: Into<HttpResponse> + 'static,
               P: Into<String>,
     {

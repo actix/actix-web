@@ -12,7 +12,7 @@ use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 
 /// somple handle
-fn index(req: &mut HttpRequest, state: &()) -> Result<HttpResponse> {
+fn index(mut req: HttpRequest, state: &()) -> Result<HttpResponse> {
     println!("{:?}", req);
     if let Ok(ch) = req.payload_mut().readany() {
         if let futures::Async::Ready(Some(d)) = ch {
@@ -32,7 +32,7 @@ fn index(req: &mut HttpRequest, state: &()) -> Result<HttpResponse> {
 }
 
 /// somple handle
-fn index_async(req: &mut HttpRequest, state: &()) -> Once<actix_web::Frame, Error>
+fn index_async(req: HttpRequest, state: &()) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
 
@@ -44,7 +44,7 @@ fn index_async(req: &mut HttpRequest, state: &()) -> Once<actix_web::Frame, Erro
 }
 
 /// handle with path parameters like `/user/{name}/`
-fn with_param(req: &mut HttpRequest, state: &()) -> Result<HttpResponse>
+fn with_param(req: HttpRequest, state: &()) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 

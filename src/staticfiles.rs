@@ -137,7 +137,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: &mut HttpRequest, _: Rc<S>) -> Task {
+    fn handle(&self, req: HttpRequest, _: Rc<S>) -> Task {
         if !self.accessible {
             Task::reply(HTTPNotFound)
         } else {

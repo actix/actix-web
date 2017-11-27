@@ -22,14 +22,14 @@
 //! impl Route for WsRoute {
 //!     type State = ();
 //!
-//!     fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+//!     fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
 //!     {
 //!         // WebSocket handshake
 //!         let resp = ws::handshake(&req)?;
 //!         // Send handshake response to peer
 //!         ctx.start(resp);
 //!         // Map Payload into WsStream
-//!         ctx.add_stream(ws::WsStream::new(req));
+//!         ctx.add_stream(ws::WsStream::new(&mut req));
 //!         // Start ws messages processing
 //!         Reply::async(WsRoute)
 //!     }

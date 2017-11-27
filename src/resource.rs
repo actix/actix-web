@@ -64,7 +64,7 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register handler for specified method.
     pub fn handler<F, R>(&mut self, method: Method, handler: F)
-        where F: Fn(&mut HttpRequest, &S) -> Result<R> + 'static,
+        where F: Fn(HttpRequest, &S) -> Result<R> + 'static,
               R: Into<HttpResponse> + 'static,
     {
         self.routes.insert(method, Box::new(FnHandler::new(handler)));
@@ -72,7 +72,7 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register async handler for specified method.
     pub fn async<F, R>(&mut self, method: Method, handler: F)
-        where F: Fn(&mut HttpRequest, &S) -> R + 'static,
+        where F: Fn(HttpRequest, &S) -> R + 'static,
               R: Stream<Item=Frame, Error=Error> + 'static,
     {
         self.routes.insert(method, Box::new(StreamHandler::new(handler)));
@@ -125,7 +125,7 @@ impl<S> Resource<S> where S: 'static {
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
 
-    fn handle(&self, req: &mut HttpRequest, state: Rc<S>) -> Task {
+    fn handle(&self, req: HttpRequest, state: Rc<S>) -> Task {
         if let Some(handler) = self.routes.get(req.method()) {
             handler.handle(req, state)
         } else {

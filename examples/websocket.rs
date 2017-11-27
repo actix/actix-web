@@ -22,14 +22,14 @@ impl Actor for MyWebSocket {
 impl Route for MyWebSocket {
     type State = ();
 
-    fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
         // websocket handshake
-        let resp = ws::handshake(req)?;
+        let resp = ws::handshake(&req)?;
         // send HttpResponse back to peer
         ctx.start(resp);
         // convert bytes stream to a stream of `ws::Message` and register it
-        ctx.add_stream(ws::WsStream::new(req));
+        ctx.add_stream(ws::WsStream::new(&mut req));
         Reply::async(MyWebSocket)
     }
 }

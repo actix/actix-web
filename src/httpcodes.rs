@@ -70,7 +70,7 @@ impl StaticResponse {
 }
 
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, _: &mut HttpRequest, _: Rc<S>) -> Task {
+    fn handle(&self, _: HttpRequest, _: Rc<S>) -> Task {
         Task::reply(HttpResponse::new(self.0, Body::Empty))
     }
 }

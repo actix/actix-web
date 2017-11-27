@@ -10,8 +10,8 @@ use h1writer::Writer;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-type Handler = Fn(&mut HttpRequest) -> Task;
-pub(crate) type PipelineHandler<'a> = &'a Fn(&mut HttpRequest) -> Task;
+type Handler = Fn(HttpRequest) -> Task;
+pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest) -> Task;
 
 pub struct Pipeline(PipelineState);
 
@@ -26,10 +26,10 @@ enum PipelineState {
 
 impl Pipeline {
 
-    pub fn new(mut req: HttpRequest,
-               mw: Rc<Vec<Box<Middleware>>>, handler: PipelineHandler) -> Pipeline {
+    pub fn new(req: HttpRequest, mw: Rc<Vec<Box<Middleware>>>, handler: PipelineHandler) -> Pipeline
+    {
         if mw.is_empty() {
-            let task = (handler)(&mut req);
+            let task = (handler)(req.clone());
             Pipeline(PipelineState::Task(Box::new((task, req))))
         } else {
             match Start::init(mw, req, handler) {
@@ -191,7 +191,7 @@ impl Start {
         let len = self.middlewares.len();
         loop {
             if self.idx == len {
-                let task = (unsafe{&*self.hnd})(&mut req);
+                let task = (unsafe{&*self.hnd})(req.clone());
                 return Ok(StartResult::Ready(
                     Box::new(Handle::new(self.idx-1, req, self.prepare(task), self.middlewares))))
             } else {
@@ -243,7 +243,7 @@ impl Start {
                             self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares)))))
                     }
                     if self.idx == len {
-                        let task = (unsafe{&*self.hnd})(&mut req);
+                        let task = (unsafe{&*self.hnd})(req.clone());
                         return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, req, self.prepare(task), Rc::clone(&self.middlewares)))))
                     } else {
