@@ -96,7 +96,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
           S: 'static
 {
     fn handle(&self, mut req: HttpRequest<A::State>) -> Task {
-        let mut ctx = HttpContext::default();
+        let mut ctx = HttpContext::new(req.clone_state());
 
         // handle EXPECT header
         if req.headers().contains_key(header::EXPECT) {

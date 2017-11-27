@@ -101,9 +101,9 @@ impl Logger {
 
 impl Middleware for Logger {
 
-    fn start(&self, mut req: HttpRequest) -> Started {
+    fn start(&self, req: &mut HttpRequest) -> Started {
         req.extensions().insert(StartTime(time::now()));
-        Started::Done(req)
+        Started::Done
     }
 
     fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) -> Finished {
@@ -299,14 +299,14 @@ mod tests {
 
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
-        let req = HttpRequest::new(
+        let mut req = HttpRequest::new(
             Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
         let resp = HttpResponse::builder(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close().body(Body::Empty).unwrap();
 
-        let mut req = match logger.start(req) {
-            Started::Done(req) => req,
+        match logger.start(&mut req) {
+            Started::Done => (),
             _ => panic!(),
         };
         match logger.finish(&mut req, &resp) {

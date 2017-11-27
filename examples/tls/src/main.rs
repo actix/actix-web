@@ -9,7 +9,7 @@ use std::io::Read;
 use actix_web::*;
 
 /// somple handle
-fn index(req: &mut HttpRequest, _payload: Payload, state: &()) -> HttpResponse {
+fn index(req: HttpRequest) -> HttpResponse {
     println!("{:?}", req);
     httpcodes::HTTPOk
         .builder()
@@ -36,7 +36,7 @@ fn main() {
             // register simple handler, handle all methods
             .handler("/index.html", index)
             // with path parameters
-            .resource("/", |r| r.handler(Method::GET, |req, _, _| {
+            .resource("/", |r| r.handler(Method::GET, |req| {
                 Ok(httpcodes::HTTPFound
                    .builder()
                    .header("LOCATION", "/index.html")

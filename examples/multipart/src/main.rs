@@ -15,11 +15,10 @@ impl Actor for MyRoute {
 impl Route for MyRoute {
     type State = ();
 
-    fn request(req: &mut HttpRequest, payload: Payload,
-               ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
+    fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
         println!("{:?}", req);
 
-        let multipart = req.multipart(payload)?;
+        let multipart = req.multipart()?;
 
         // get Multipart stream
         WrapStream::<MyRoute>::actstream(multipart)

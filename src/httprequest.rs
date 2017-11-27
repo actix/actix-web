@@ -99,6 +99,11 @@ impl<S> HttpRequest<S> {
         &self.1
     }
 
+    /// Clone application state
+    pub(crate) fn clone_state(&self) -> Rc<S> {
+        Rc::clone(&self.1)
+    }
+
     /// Protocol extensions.
     #[inline]
     pub fn extensions(&mut self) -> &mut Extensions {
@@ -287,8 +292,9 @@ impl<S> HttpRequest<S> {
     /// Return stream to process BODY as multipart.
     ///
     /// Content-type: multipart/form-data;
-    pub fn multipart(&self, payload: Payload) -> Result<Multipart, MultipartError> {
-        Ok(Multipart::new(Multipart::boundary(&self.0.headers)?, payload))
+    pub fn multipart(&mut self) -> Result<Multipart, MultipartError> {
+        let boundary = Multipart::boundary(&self.0.headers)?;
+        Ok(Multipart::new(boundary, self.take_payload()))
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.

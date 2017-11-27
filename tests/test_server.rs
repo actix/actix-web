@@ -61,9 +61,9 @@ struct MiddlewareTest {
 }
 
 impl middlewares::Middleware for MiddlewareTest {
-    fn start(&self, req: HttpRequest) -> middlewares::Started {
+    fn start(&self, _: &mut HttpRequest) -> middlewares::Started {
         self.start.store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Started::Done(req)
+        middlewares::Started::Done
     }
 
     fn response(&self, _: &mut HttpRequest, resp: HttpResponse) -> middlewares::Response {

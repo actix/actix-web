@@ -48,13 +48,13 @@ impl Actor for WsChatSession {
 impl Route for WsChatSession {
     type State = WsChatSessionState;
 
-    fn request(req: &mut HttpRequest,
-               payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(mut req: HttpRequest<WsChatSessionState>,
+               ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
         // websocket handshakre, it may fail if request is not websocket request
         let resp = ws::handshake(&req)?;
         ctx.start(resp);
-        ctx.add_stream(ws::WsStream::new(payload));
+        ctx.add_stream(ws::WsStream::new(&mut req));
         Reply::async(
             WsChatSession {
                 id: 0,
@@ -207,10 +207,10 @@ fn main() {
 
     // Create Http server with websocket support
     HttpServer::new(
-        Application::builder("/", state)
+        Application::build("/", state)
             // redirect to websocket.html
             .resource("/", |r|
-                      r.handler(Method::GET, |req, payload, state| {
+                      r.handler(Method::GET, |req| {
                           Ok(httpcodes::HTTPFound
                              .builder()
                              .header("LOCATION", "/static/websocket.html")

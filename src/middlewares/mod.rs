@@ -16,12 +16,12 @@ pub enum Started {
     /// Moddleware error
     Err(Error),
     /// Execution completed
-    Done(HttpRequest),
+    Done,
     /// New http response got generated. If middleware generates response
     /// handler execution halts.
-    Response(HttpRequest, HttpResponse),
+    Response(HttpResponse),
     /// Execution completed, runs future to completion.
-    Future(Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=Error>>),
+    Future(Box<Future<Item=Option<HttpResponse>, Error=Error>>),
 }
 
 /// Middleware execution result
@@ -48,8 +48,8 @@ pub trait Middleware {
 
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&self, req: HttpRequest) -> Started {
-        Started::Done(req)
+    fn start(&self, req: &mut HttpRequest) -> Started {
+        Started::Done
     }
 
     /// Method is called when handler returns response,

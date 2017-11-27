@@ -146,13 +146,14 @@ impl Pipeline {
     }
 }
 
-type Fut = Box<Future<Item=(HttpRequest, Option<HttpResponse>), Error=Error>>;
+type Fut = Box<Future<Item=Option<HttpResponse>, Error=Error>>;
 
 /// Middlewares start executor
 struct Start {
     idx: usize,
     hnd: *mut Handler,
     disconnected: bool,
+    req: HttpRequest,
     fut: Option<Fut>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
@@ -169,10 +170,11 @@ impl Start {
         Start {
             idx: 0,
             fut: None,
+            req: req,
             disconnected: false,
             hnd: handler as *const _ as *mut _,
             middlewares: mw,
-        }.start(req)
+        }.start()
     }
 
     fn disconnected(&mut self) {
@@ -187,43 +189,40 @@ impl Start {
         task
     }
 
-    fn start(mut self, mut req: HttpRequest) -> Result<StartResult, Error> {
+    fn start(mut self) -> Result<StartResult, Error> {
         let len = self.middlewares.len();
         loop {
             if self.idx == len {
-                let task = (unsafe{&*self.hnd})(req.clone());
+                let task = (unsafe{&*self.hnd})(self.req.clone());
                 return Ok(StartResult::Ready(
-                    Box::new(Handle::new(self.idx-1, req, self.prepare(task), self.middlewares))))
+                    Box::new(Handle::new(self.idx-1, self.req.clone(),
+                                         self.prepare(task), self.middlewares))))
             } else {
-                req = match self.middlewares[self.idx].start(req) {
-                    Started::Done(req) => {
-                        self.idx += 1;
-                        req
-                    }
-                    Started::Response(req, resp) => {
+                match self.middlewares[self.idx].start(&mut self.req) {
+                    Started::Done =>
+                        self.idx += 1,
+                    Started::Response(resp) =>
                         return Ok(StartResult::Ready(
                             Box::new(Handle::new(
-                                self.idx, req, self.prepare(Task::reply(resp)), self.middlewares))))
-                    },
-                    Started::Future(mut fut) => {
+                                self.idx, self.req.clone(),
+                                self.prepare(Task::reply(resp)), self.middlewares)))),
+                    Started::Future(mut fut) =>
                         match fut.poll() {
                             Ok(Async::NotReady) => {
                                 self.fut = Some(fut);
                                 return Ok(StartResult::NotReady(self))
                             }
-                            Ok(Async::Ready((req, resp))) => {
+                            Ok(Async::Ready(resp)) => {
                                 if let Some(resp) = resp {
                                     return Ok(StartResult::Ready(
                                         Box::new(Handle::new(
-                                            self.idx, req,
+                                            self.idx, self.req.clone(),
                                             self.prepare(Task::reply(resp)), self.middlewares))))
                                 }
                                 self.idx += 1;
-                                req
                             }
                             Err(err) => return Err(err)
-                        }
-                    },
+                        },
                     Started::Err(err) => return Err(err),
                 }
             }
@@ -235,28 +234,28 @@ impl Start {
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready((mut req, resp))) => {
+                Ok(Async::Ready(resp)) => {
                     self.idx += 1;
                     if let Some(resp) = resp {
                         return Ok(Async::Ready(Box::new(Handle::new(
-                            self.idx-1, req,
+                            self.idx-1, self.req.clone(),
                             self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares)))))
                     }
                     if self.idx == len {
-                        let task = (unsafe{&*self.hnd})(req.clone());
+                        let task = (unsafe{&*self.hnd})(self.req.clone());
                         return Ok(Async::Ready(Box::new(Handle::new(
-                            self.idx-1, req, self.prepare(task), Rc::clone(&self.middlewares)))))
+                            self.idx-1, self.req.clone(),
+                            self.prepare(task), Rc::clone(&self.middlewares)))))
                     } else {
                         loop {
-                            req = match self.middlewares[self.idx].start(req) {
-                                Started::Done(req) => {
-                                    self.idx += 1;
-                                    req
-                                }
-                                Started::Response(req, resp) => {
+                            match self.middlewares[self.idx].start(&mut self.req) {
+                                Started::Done =>
+                                    self.idx += 1,
+                                Started::Response(resp) => {
                                     self.idx += 1;
                                     return Ok(Async::Ready(Box::new(Handle::new(
-                                        self.idx-1, req, self.prepare(Task::reply(resp)),
+                                        self.idx-1, self.req.clone(),
+                                        self.prepare(Task::reply(resp)),
                                         Rc::clone(&self.middlewares)))))
                                 },
                                 Started::Future(fut) => {

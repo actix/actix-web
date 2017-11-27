@@ -90,14 +90,15 @@ impl<T: SessionBackend> SessionStorage<T> {
 
 impl<T: SessionBackend> Middleware for SessionStorage<T> {
 
-    fn start(&self, mut req: HttpRequest) -> Started {
+    fn start(&self, req: &mut HttpRequest) -> Started {
+        let mut req = req.clone();
+
         let fut = self.0.from_request(&mut req)
-            .then(|res| {
+            .then(move |res| {
                 match res {
                     Ok(sess) => {
                         req.extensions().insert(Arc::new(SessionImplBox(Box::new(sess))));
-                        let resp: Option<HttpResponse> = None;
-                        FutOk((req, resp))
+                        FutOk(None)
                     },
                     Err(err) => FutErr(err)
                 }
