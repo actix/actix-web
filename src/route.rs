@@ -16,7 +16,6 @@ use httpresponse::HttpResponse;
 
 #[doc(hidden)]
 #[derive(Debug)]
-#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 pub enum Frame {
     Message(HttpResponse),
     Payload(Option<Binary>),

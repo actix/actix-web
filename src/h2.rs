@@ -29,7 +29,6 @@ pub(crate) struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     router: Rc<Vec<H>>,
-    #[allow(dead_code)]
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     disconnected: bool,
