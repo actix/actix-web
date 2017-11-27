@@ -39,13 +39,13 @@ impl Pipeline {
                     Pipeline(PipelineState::Starting(res)),
                 Err(err) =>
                     Pipeline(PipelineState::Error(
-                        Box::new((Task::reply(err), HttpRequest::for_error()))))
+                        Box::new((Task::reply(err), HttpRequest::default()))))
             }
         }
     }
 
     pub fn error<R: Into<HttpResponse>>(resp: R) -> Self {
-        Pipeline(PipelineState::Error(Box::new((Task::reply(resp), HttpRequest::for_error()))))
+        Pipeline(PipelineState::Error(Box::new((Task::reply(resp), HttpRequest::default()))))
     }
 
     pub(crate) fn disconnected(&mut self) {
@@ -79,7 +79,7 @@ impl Pipeline {
                             self.0 = PipelineState::Handle(h),
                         Err(err) =>
                             self.0 = PipelineState::Error(
-                                Box::new((Task::reply(err), HttpRequest::for_error())))
+                                Box::new((Task::reply(err), HttpRequest::default())))
                     }
                 }
                 PipelineState::Handle(mut st) => {

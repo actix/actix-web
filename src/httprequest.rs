@@ -75,13 +75,8 @@ impl HttpRequest<()> {
         )
     }
 
-    /// Construct request for error response.
-    pub(crate) fn for_error() -> HttpRequest {
-        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()))
-    }
-
     /// Construct new http request with state.
-    pub(crate) fn with_state<S>(self, state: Rc<S>) -> HttpRequest<S> {
+    pub fn with_state<S>(self, state: Rc<S>) -> HttpRequest<S> {
         HttpRequest(self.0, state)
     }
 }
@@ -342,6 +337,14 @@ impl<S> HttpRequest<S> {
         } else {
             Err(UrlencodedError::ContentType)
         }
+    }
+}
+
+impl Default for HttpRequest<()> {
+
+    /// Construct default request
+    fn default() -> HttpRequest {
+        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()))
     }
 }
 

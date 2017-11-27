@@ -20,7 +20,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Transparent content compression/decompression (br, gzip, deflate)
   * Configurable request routing
   * Multipart streams
-  * Middlewares
+  * Middlewares (Logger, Session included)
 
 ## Usage
 
