@@ -1,4 +1,6 @@
 #![allow(unused_variables)]
+#![cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
+
 extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
@@ -6,17 +8,27 @@ extern crate futures;
 
 use actix_web::*;
 use actix_web::error::Result;
+use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 
 /// somple handle
-fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> HttpResponse {
+fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> Result<HttpResponse> {
     println!("{:?}", req);
     if let Ok(ch) = _payload.readany() {
         if let futures::Async::Ready(Some(d)) = ch {
             println!("{}", String::from_utf8_lossy(d.0.as_ref()));
         }
     }
-    httpcodes::HTTPOk.into()
+
+    // session
+    if let Some(count) = req.session().get::<i32>("counter")? {
+        println!("SESSION value: {}", count);
+        req.session().set("counter", count+1)?;
+    } else {
+        req.session().set("counter", 1)?;
+    }
+
+    Ok(httpcodes::HTTPOk.into())
 }
 
 /// somple handle
@@ -51,6 +63,12 @@ fn main() {
         Application::default("/")
             // enable logger
             .middleware(middlewares::Logger::default())
+            // cookie session middleware
+            .middleware(middlewares::SessionStorage::new(
+                middlewares::CookieSessionBackend::build(&[0; 32])
+                    .secure(false)
+                    .finish()
+            ))
             // register simple handle r, handle all methods
             .handler("/index.html", index)
             // with path parameters

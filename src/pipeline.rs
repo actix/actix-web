@@ -55,9 +55,7 @@ impl Pipeline {
                 st.disconnected(),
             PipelineState::Handle(ref mut st) =>
                 st.task.disconnected(),
-            PipelineState::Task(ref mut st) =>
-                st.0.disconnected(),
-            PipelineState::Error(ref mut st) =>
+            PipelineState::Task(ref mut st) | PipelineState::Error(ref mut st) =>
                 st.0.disconnected(),
             _ =>(),
         }

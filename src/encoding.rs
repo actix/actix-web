@@ -69,7 +69,7 @@ impl<'a> From<&'a str> for ContentEncoding {
 
 pub(crate) enum PayloadType {
     Sender(PayloadSender),
-    Encoding(EncodedPayload),
+    Encoding(Box<EncodedPayload>),
 }
 
 impl PayloadType {
@@ -89,7 +89,7 @@ impl PayloadType {
         match enc {
             ContentEncoding::Auto | ContentEncoding::Identity =>
                 PayloadType::Sender(sender),
-            _ => PayloadType::Encoding(EncodedPayload::new(sender, enc)),
+            _ => PayloadType::Encoding(Box::new(EncodedPayload::new(sender, enc))),
         }
     }
 }

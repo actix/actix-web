@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::convert::From;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
@@ -60,8 +59,8 @@ impl<S> Resource<S> where S: 'static {
     }
 
     /// Set resource name
-    pub fn set_name<T: ToString>(&mut self, name: T) {
-        self.name = name.to_string();
+    pub fn set_name<T: Into<String>>(&mut self, name: T) {
+        self.name = name.into();
     }
 
     /// Register handler for specified method.
@@ -135,7 +134,6 @@ impl<S: 'static> RouteHandler<S> for Resource<S> {
         }
     }
 }
-
 
 #[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 enum ReplyItem<A> where A: Actor + Route {

@@ -29,7 +29,7 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 /// is otherwise a direct mapping to `Result`.
 pub type Result<T> = result::Result<T, Error>;
 
-/// Actix web error
+/// General purpose actix web error
 #[derive(Debug)]
 pub struct Error {
     cause: Box<ErrorResponse>,

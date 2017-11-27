@@ -141,7 +141,7 @@ impl HttpRequest {
     }
 
     /// Load cookies
-    pub fn load_cookies(&mut self) -> Result<&Vec<Cookie>, CookieParseError>
+    pub fn load_cookies(&mut self) -> Result<&Vec<Cookie<'static>>, CookieParseError>
     {
         if !self.cookies_loaded {
             self.cookies_loaded = true;

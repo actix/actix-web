@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::string::ToString;
 use std::collections::HashMap;
 
 use task::Task;
@@ -58,11 +57,11 @@ impl<S: 'static> HttpHandler for Application<S> {
 impl Application<()> {
 
     /// Create default `ApplicationBuilder` with no state
-    pub fn default<T: ToString>(prefix: T) -> ApplicationBuilder<()> {
+    pub fn default<T: Into<String>>(prefix: T) -> ApplicationBuilder<()> {
         ApplicationBuilder {
             parts: Some(ApplicationBuilderParts {
                 state: (),
-                prefix: prefix.to_string(),
+                prefix: prefix.into(),
                 default: Resource::default_not_found(),
                 handlers: HashMap::new(),
                 resources: HashMap::new(),
@@ -77,11 +76,11 @@ impl<S> Application<S> where S: 'static {
     /// Create application builder with specific state. State is shared with all
     /// routes within same application and could be
     /// accessed with `HttpContext::state()` method.
-    pub fn builder<T: ToString>(prefix: T, state: S) -> ApplicationBuilder<S> {
+    pub fn build<T: Into<String>>(prefix: T, state: S) -> ApplicationBuilder<S> {
         ApplicationBuilder {
             parts: Some(ApplicationBuilderParts {
                 state: state,
-                prefix: prefix.to_string(),
+                prefix: prefix.into(),
                 default: Resource::default_not_found(),
                 handlers: HashMap::new(),
                 resources: HashMap::new(),
@@ -100,7 +99,7 @@ struct ApplicationBuilderParts<S> {
     middlewares: Vec<Box<Middleware>>,
 }
 
-/// Application builder
+/// Structure that follows the builder pattern for building `Application` structs.
 pub struct ApplicationBuilder<S=()> {
     parts: Option<ApplicationBuilderParts<S>>,
 }
@@ -158,14 +157,14 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn resource<F, P: ToString>(&mut self, path: P, f: F) -> &mut Self
+    pub fn resource<F, P: Into<String>>(&mut self, path: P, f: F) -> &mut Self
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
             // add resource
-            let path = path.to_string();
+            let path = path.into();
             if !parts.resources.contains_key(&path) {
                 check_pattern(&path);
                 parts.resources.insert(path.clone(), Resource::default());
@@ -208,21 +207,21 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
         where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
               R: Into<HttpResponse> + 'static,
-              P: ToString,
+              P: Into<String>,
     {
         self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.to_string(), Box::new(FnHandler::new(handler)));
+            .handlers.insert(path.into(), Box::new(FnHandler::new(handler)));
         self
     }
 
     /// Add path handler
     pub fn route_handler<H, P>(&mut self, path: P, h: H) -> &mut Self
-        where H: RouteHandler<S> + 'static, P: ToString
+        where H: RouteHandler<S> + 'static, P: Into<String>
     {
         {
             // add resource
             let parts = self.parts.as_mut().expect("Use after finish");
-            let path = path.to_string();
+            let path = path.into();
             if parts.handlers.contains_key(&path) {
                 panic!("Handler already registered: {:?}", path);
             }

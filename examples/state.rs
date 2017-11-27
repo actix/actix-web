@@ -72,7 +72,7 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
-        Application::builder("/", AppState{counter: Cell::new(0)})
+        Application::build("/", AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route

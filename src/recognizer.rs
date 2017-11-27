@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::string::ToString;
 use std::collections::HashMap;
 
 use regex::{Regex, RegexSet, Captures};
@@ -25,7 +24,7 @@ impl<T> Default for RouteRecognizer<T> {
 
 impl<T> RouteRecognizer<T> {
 
-    pub fn new<P: ToString, U>(prefix: P, routes: U) -> Self
+    pub fn new<P: Into<String>, U>(prefix: P, routes: U) -> Self
         where U: IntoIterator<Item=(String, T)>
     {
         let mut paths = Vec::new();
@@ -38,7 +37,7 @@ impl<T> RouteRecognizer<T> {
         let regset = RegexSet::new(&paths);
 
         RouteRecognizer {
-            prefix: prefix.to_string().len() - 1,
+            prefix: prefix.into().len() - 1,
             patterns: regset.unwrap(),
             routes: handlers,
         }
@@ -56,8 +55,8 @@ impl<T> RouteRecognizer<T> {
         self.routes = handlers;
     }
 
-    pub fn set_prefix<P: ToString>(&mut self, prefix: P) {
-        let p = prefix.to_string();
+    pub fn set_prefix<P: Into<String>>(&mut self, prefix: P) {
+        let p = prefix.into();
         if p.ends_with('/') {
             self.prefix = p.len() - 1;
         } else {
@@ -105,7 +104,7 @@ impl Pattern {
             None => return None,
         };
 
-        Some(Params::new(Rc::clone(&self.names), text, captures))
+        Some(Params::new(Rc::clone(&self.names), text, &captures))
     }
 }
 
@@ -176,7 +175,7 @@ pub struct Params {
 impl Params {
     pub(crate) fn new(names: Rc<HashMap<String, usize>>,
                       text: &str,
-                      captures: Captures) -> Self
+                      captures: &Captures) -> Self
     {
         Params {
             names,

@@ -3,7 +3,10 @@
 use std::any::Any;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::collections::HashMap;
+
 use serde_json;
+use serde_json::error::Error as JsonError;
 use serde::{Serialize, Deserialize};
 use http::header::{self, HeaderValue};
 use cookie::{CookieJar, Cookie, Key};
@@ -157,43 +160,128 @@ impl SessionImpl for DummySessionImpl {
 
 /// Session that uses signed cookies as session storage
 pub struct CookieSession {
-    jar: CookieJar,
-    key: Rc<Key>,
+    changed: bool,
+    state: HashMap<String, String>,
+    inner: Rc<CookieSessionInner>,
 }
+
+/// Errors that can occure during handling cookie session
+#[derive(Fail, Debug)]
+pub enum CookieSessionError {
+    /// Size of the serialized session is greater than 4000 bytes.
+    #[fail(display="Size of the serialized session is greater than 4000 bytes.")]
+    Overflow,
+    /// Fail to serialize session.
+    #[fail(display="Fail to serialize session")]
+    Serialize(JsonError),
+}
+
+impl ErrorResponse for CookieSessionError {}
 
 impl SessionImpl for CookieSession {
 
     fn get(&self, key: &str) -> Option<&str> {
-        unimplemented!()
-    }
-
-    fn set(&mut self, key: &str, value: String) {
-        unimplemented!()
-    }
-
-    fn remove(&mut self, key: &str) {
-        unimplemented!()
-    }
-
-    fn clear(&mut self) {
-        let cookies: Vec<_> = self.jar.iter().cloned().collect();
-        for cookie in cookies {
-            self.jar.remove(cookie);
+        if let Some(s) = self.state.get(key) {
+            Some(s)
+        } else {
+            None
         }
     }
 
+    fn set(&mut self, key: &str, value: String) {
+        self.changed = true;
+        self.state.insert(key.to_owned(), value);
+    }
+
+    fn remove(&mut self, key: &str) {
+        self.changed = true;
+        self.state.remove(key);
+    }
+
+    fn clear(&mut self) {
+        self.changed = true;
+        self.state.clear()
+    }
+
     fn write(&self, mut resp: HttpResponse) -> Response {
-        for cookie in self.jar.delta() {
-            match HeaderValue::from_str(&cookie.to_string()) {
-                Err(err) => return Response::Err(err.into()),
-                Ok(val) => resp.headers.append(header::SET_COOKIE, val),
-            };
+        if self.changed {
+            let _ = self.inner.set_cookie(&mut resp, &self.state);
         }
         Response::Done(resp)
     }
 }
 
+struct CookieSessionInner {
+    key: Key,
+    name: String,
+    path: String,
+    domain: Option<String>,
+    secure: bool,
+    http_only: bool,
+}
+
+impl CookieSessionInner {
+
+    fn new(key: &[u8]) -> CookieSessionInner {
+        CookieSessionInner {
+            key: Key::from_master(key),
+            name: "actix_session".to_owned(),
+            path: "/".to_owned(),
+            domain: None,
+            secure: true,
+            http_only: true }
+    }
+
+    fn set_cookie(&self, resp: &mut HttpResponse, state: &HashMap<String, String>) -> Result<()> {
+        let value = serde_json::to_string(&state)
+            .map_err(CookieSessionError::Serialize)?;
+        if value.len() > 4064 {
+            return Err(CookieSessionError::Overflow.into())
+        }
+
+        let mut cookie = Cookie::new(self.name.clone(), value);
+        cookie.set_path(self.path.clone());
+        cookie.set_secure(self.secure);
+        cookie.set_http_only(self.http_only);
+
+        if let Some(ref domain) = self.domain {
+            cookie.set_domain(domain.clone());
+        }
+
+        let mut jar = CookieJar::new();
+        jar.signed(&self.key).add(cookie);
+
+        for cookie in jar.delta() {
+            let val = HeaderValue::from_str(&cookie.to_string())?;
+            resp.headers_mut().append(header::SET_COOKIE, val);
+        }
+
+        Ok(())
+    }
+
+    fn load(&self, req: &mut HttpRequest) -> HashMap<String, String> {
+        if let Ok(cookies) = req.load_cookies() {
+            for cookie in cookies {
+                if cookie.name() == self.name {
+                    let mut jar = CookieJar::new();
+                    jar.add_original(cookie.clone());
+                    if let Some(cookie) = jar.signed(&self.key).get(&self.name) {
+                        if let Ok(val) = serde_json::from_str(cookie.value()) {
+                            return val;
+                        }
+                    }
+                }
+            }
+        }
+        HashMap::new()
+    }
+}
+
 /// Use signed cookies as session storage.
+///
+/// `CookieSessionBackend` creates sessions which are limited to storing
+/// fewer than 4000 bytes of data (as the payload must fit into a single cookie).
+/// Internal server error get generated if session contains more than 4000 bytes.
 ///
 /// You need to pass a random value to the constructor of `CookieSessionBackend`.
 /// This is private key for cookie session, When this value is changed, all session data is lost.
@@ -201,19 +289,31 @@ impl SessionImpl for CookieSession {
 /// Note that whatever you write into your session is visible by the user (but not modifiable).
 ///
 /// Constructor panics if key length is less than 32 bytes.
-pub struct CookieSessionBackend {
-    key: Rc<Key>,
-}
+pub struct CookieSessionBackend(Rc<CookieSessionInner>);
 
 impl CookieSessionBackend {
 
     /// Construct new `CookieSessionBackend` instance.
     ///
     /// Panics if key length is less than 32 bytes.
-    pub fn new(key: &[u8]) -> Self {
-        CookieSessionBackend {
-            key: Rc::new(Key::from_master(key)),
-        }
+    pub fn new(key: &[u8]) -> CookieSessionBackend {
+        CookieSessionBackend(
+            Rc::new(CookieSessionInner::new(key)))
+    }
+
+    /// Creates a new `CookieSessionBackendBuilder` instance from the given key.
+    ///
+    /// Panics if key length is less than 32 bytes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use actix_web::middlewares::CookieSessionBackend;
+    ///
+    /// let backend = CookieSessionBackend::build(&[0; 32]).finish();
+    /// ```
+    pub fn build(key: &[u8]) -> CookieSessionBackendBuilder {
+        CookieSessionBackendBuilder::new(key)
     }
 }
 
@@ -223,6 +323,74 @@ impl SessionBackend for CookieSessionBackend {
     type ReadFuture = FutureResult<CookieSession, Error>;
 
     fn from_request(&self, req: &mut HttpRequest) -> Self::ReadFuture {
-        unimplemented!()
+        let state = self.0.load(req);
+        FutOk(
+            CookieSession {
+                changed: false,
+                state: state,
+                inner: Rc::clone(&self.0),
+            })
+    }
+}
+
+/// Structure that follows the builder pattern for building `CookieSessionBackend` structs.
+///
+/// To construct a backend:
+///
+///   1. Call [`CookieSessionBackend::build`](struct.CookieSessionBackend.html#method.build) to start building.
+///   2. Use any of the builder methods to set fields in the backend.
+///   3. Call [finish](#method.finish) to retrieve the constructed backend.
+///
+/// # Example
+///
+/// ```rust
+/// # extern crate actix_web;
+///
+/// use actix_web::middlewares::CookieSessionBackend;
+///
+/// # fn main() {
+/// let backend: CookieSessionBackend = CookieSessionBackend::build(&[0; 32])
+///     .domain("www.rust-lang.org")
+///     .path("/")
+///     .secure(true)
+///     .http_only(true)
+///     .finish();
+/// # }
+/// ```
+pub struct CookieSessionBackendBuilder(CookieSessionInner);
+
+impl CookieSessionBackendBuilder {
+    pub fn new(key: &[u8]) -> CookieSessionBackendBuilder {
+        CookieSessionBackendBuilder(
+            CookieSessionInner::new(key))
+    }
+
+    /// Sets the `path` field in the session cookie being built.
+    pub fn path<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
+        self.0.path = value.into();
+        self
+    }
+
+    /// Sets the `domain` field in the session cookie being built.
+    pub fn domain<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
+        self.0.domain = Some(value.into());
+        self
+    }
+
+    /// Sets the `secure` field in the session cookie being built.
+    pub fn secure(mut self, value: bool) -> CookieSessionBackendBuilder {
+        self.0.secure = value;
+        self
+    }
+
+    /// Sets the `http_only` field in the session cookie being built.
+    pub fn http_only(mut self, value: bool) -> CookieSessionBackendBuilder {
+        self.0.http_only = value;
+        self
+    }
+
+    /// Finishes building and returns the built `CookieSessionBackend`.
+    pub fn finish(self) -> CookieSessionBackend {
+        CookieSessionBackend(Rc::new(self.0))
     }
 }

@@ -82,7 +82,6 @@ impl<T, H> Http2<T, H>
                     item.poll_payload();
 
                     if !item.eof {
-                        //let req = unsafe {item.req.get().as_mut().unwrap()};
                         match item.task.poll_io(&mut item.stream) {
                             Ok(Async::Ready(ready)) => {
                                 item.eof = true;

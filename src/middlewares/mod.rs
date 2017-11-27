@@ -8,8 +8,8 @@ use httpresponse::HttpResponse;
 mod logger;
 mod session;
 pub use self::logger::Logger;
-pub use self::session::{RequestSession, Session, SessionImpl,
-                        SessionBackend, SessionStorage, CookieSessionBackend};
+pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
+                        CookieSessionError, CookieSessionBackend, CookieSessionBackendBuilder};
 
 /// Middleware start result
 pub enum Started {

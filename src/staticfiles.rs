@@ -72,7 +72,7 @@ impl StaticFiles {
         }
     }
 
-    fn index(&self, relpath: &str, filename: PathBuf) -> Result<HttpResponse, io::Error> {
+    fn index(&self, relpath: &str, filename: &PathBuf) -> Result<HttpResponse, io::Error> {
         let index_of = format!("Index of {}/{}", self.prefix, relpath);
         let mut body = String::new();
 
@@ -169,7 +169,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
             };
 
             if filename.is_dir() {
-                match self.index(&filepath[idx..], filename) {
+                match self.index(&filepath[idx..], &filename) {
                     Ok(resp) => Task::reply(resp),
                     Err(err) => match err.kind() {
                         io::ErrorKind::NotFound => Task::reply(HTTPNotFound),

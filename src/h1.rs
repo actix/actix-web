@@ -51,7 +51,6 @@ pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
 
 struct Entry {
     task: Pipeline,
-    //req: UnsafeCell<HttpRequest>,
     eof: bool,
     error: bool,
     finished: bool,
@@ -105,7 +104,6 @@ impl<T, H> Http1<T, H>
                         return Err(())
                     }
 
-                    // this is anoying
                     match item.task.poll_io(&mut self.stream) {
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
