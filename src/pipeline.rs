@@ -5,14 +5,13 @@ use futures::{Async, Poll, Future};
 
 use task::Task;
 use error::Error;
-use payload::Payload;
 use middlewares::{Middleware, Finished, Started, Response};
 use h1writer::Writer;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-type Handler = Fn(&mut HttpRequest, Payload) -> Task;
-pub(crate) type PipelineHandler<'a> = &'a Fn(&mut HttpRequest, Payload) -> Task;
+type Handler = Fn(&mut HttpRequest) -> Task;
+pub(crate) type PipelineHandler<'a> = &'a Fn(&mut HttpRequest) -> Task;
 
 pub struct Pipeline(PipelineState);
 
@@ -27,13 +26,13 @@ enum PipelineState {
 
 impl Pipeline {
 
-    pub fn new(mut req: HttpRequest, payload: Payload,
+    pub fn new(mut req: HttpRequest,
                mw: Rc<Vec<Box<Middleware>>>, handler: PipelineHandler) -> Pipeline {
         if mw.is_empty() {
-            let task = (handler)(&mut req, payload);
+            let task = (handler)(&mut req);
             Pipeline(PipelineState::Task(Box::new((task, req))))
         } else {
-            match Start::init(mw, req, handler, payload) {
+            match Start::init(mw, req, handler) {
                 Ok(StartResult::Ready(res)) =>
                     Pipeline(PipelineState::Handle(res)),
                 Ok(StartResult::NotReady(res)) =>
@@ -154,7 +153,6 @@ struct Start {
     idx: usize,
     hnd: *mut Handler,
     disconnected: bool,
-    payload: Option<Payload>,
     fut: Option<Fut>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
@@ -167,15 +165,12 @@ enum StartResult {
 impl Start {
 
     fn init(mw: Rc<Vec<Box<Middleware>>>,
-            req: HttpRequest,
-            handler: PipelineHandler,
-            payload: Payload) -> Result<StartResult, Error> {
+            req: HttpRequest, handler: PipelineHandler) -> Result<StartResult, Error> {
         Start {
             idx: 0,
             fut: None,
             disconnected: false,
             hnd: handler as *const _ as *mut _,
-            payload: Some(payload),
             middlewares: mw,
         }.start(req)
     }
@@ -196,8 +191,7 @@ impl Start {
         let len = self.middlewares.len();
         loop {
             if self.idx == len {
-                let task = (unsafe{&*self.hnd})(
-                    &mut req, self.payload.take().expect("Something is completlywrong"));
+                let task = (unsafe{&*self.hnd})(&mut req);
                 return Ok(StartResult::Ready(
                     Box::new(Handle::new(self.idx-1, req, self.prepare(task), self.middlewares))))
             } else {
@@ -249,8 +243,7 @@ impl Start {
                             self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares)))))
                     }
                     if self.idx == len {
-                        let task = (unsafe{&*self.hnd})(
-                            &mut req, self.payload.take().expect("Something is completlywrong"));
+                        let task = (unsafe{&*self.hnd})(&mut req);
                         return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, req, self.prepare(task), Rc::clone(&self.middlewares)))))
                     } else {

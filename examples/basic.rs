@@ -7,14 +7,14 @@ extern crate env_logger;
 extern crate futures;
 
 use actix_web::*;
-use actix_web::error::Result;
+use actix_web::error::{Error, Result};
 use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 
 /// somple handle
-fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> Result<HttpResponse> {
+fn index(req: &mut HttpRequest, state: &()) -> Result<HttpResponse> {
     println!("{:?}", req);
-    if let Ok(ch) = _payload.readany() {
+    if let Ok(ch) = req.payload_mut().readany() {
         if let futures::Async::Ready(Some(d)) = ch {
             println!("{}", String::from_utf8_lossy(d.0.as_ref()));
         }
@@ -32,8 +32,7 @@ fn index(req: &mut HttpRequest, mut _payload: Payload, state: &()) -> Result<Htt
 }
 
 /// somple handle
-fn index_async(req: &mut HttpRequest, _payload: Payload, state: &())
-               -> Once<actix_web::Frame, actix_web::error::Error>
+fn index_async(req: &mut HttpRequest, state: &()) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
 
@@ -45,7 +44,7 @@ fn index_async(req: &mut HttpRequest, _payload: Payload, state: &())
 }
 
 /// handle with path parameters like `/user/{name}/`
-fn with_param(req: &mut HttpRequest, _payload: Payload, state: &()) -> Result<HttpResponse>
+fn with_param(req: &mut HttpRequest, state: &()) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 
@@ -76,7 +75,7 @@ fn main() {
             // async handler
             .resource("/async/{name}", |r| r.async(Method::GET, index_async))
             // redirect
-            .resource("/", |r| r.handler(Method::GET, |req, _, _| {
+            .resource("/", |r| r.handler(Method::GET, |req, _| {
                 println!("{:?}", req);
 
                 Ok(httpcodes::HTTPFound

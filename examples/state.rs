@@ -15,7 +15,7 @@ struct AppState {
 }
 
 /// somple handle
-fn index(req: &mut HttpRequest, _: Payload, state: &AppState) -> HttpResponse {
+fn index(req: &mut HttpRequest, state: &AppState) -> HttpResponse {
     println!("{:?}", req);
     state.counter.set(state.counter.get() + 1);
     httpcodes::HTTPOk.with_body(
@@ -36,12 +36,11 @@ impl Route for MyWebSocket {
     /// Shared application state
     type State = AppState;
 
-    fn request(req: &mut HttpRequest,
-               payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
     {
         let resp = ws::handshake(req)?;
         ctx.start(resp);
-        ctx.add_stream(ws::WsStream::new(payload));
+        ctx.add_stream(ws::WsStream::new(req));
         Reply::async(MyWebSocket{counter: 0})
     }
 }

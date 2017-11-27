@@ -220,14 +220,14 @@ impl Entry {
         let path = parts.uri.path().to_owned();
         let query = parts.uri.query().unwrap_or("").to_owned();
 
+        // Payload and Content-Encoding
+        let (psender, payload) = Payload::new(false);
+
         let mut req = HttpRequest::new(
-            parts.method, path, parts.version, parts.headers, query);
+            parts.method, path, parts.version, parts.headers, query, payload);
 
         // set remote addr
         req.set_remove_addr(addr);
-
-        // Payload and Content-Encoding
-        let (psender, payload) = Payload::new(false);
 
         // Payload sender
         let psender = PayloadType::new(req.headers(), psender);
@@ -236,7 +236,7 @@ impl Entry {
         let mut task = None;
         for h in router.iter() {
             if req.path().starts_with(h.prefix()) {
-                task = Some(h.handle(req, payload));
+                task = Some(h.handle(req));
                 break
             }
         }

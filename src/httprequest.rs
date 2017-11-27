@@ -1,5 +1,5 @@
 //! HTTP Request message related code.
-use std::{str, fmt};
+use std::{str, fmt, mem};
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::BytesMut;
@@ -26,13 +26,14 @@ pub struct HttpRequest {
     cookies_loaded: bool,
     extensions: Extensions,
     addr: Option<SocketAddr>,
+    payload: Payload,
 }
 
 impl HttpRequest {
     /// Construct a new Request.
     #[inline]
     pub fn new(method: Method, path: String,
-               version: Version, headers: HeaderMap, query: String) -> Self
+               version: Version, headers: HeaderMap, query: String, payload: Payload) -> Self
     {
         HttpRequest {
             method: method,
@@ -45,6 +46,7 @@ impl HttpRequest {
             cookies_loaded: false,
             extensions: Extensions::new(),
             addr: None,
+            payload: payload,
         }
     }
 
@@ -60,6 +62,7 @@ impl HttpRequest {
             cookies_loaded: false,
             extensions: Extensions::new(),
             addr: None,
+            payload: Payload::empty(),
         }
     }
 
@@ -198,7 +201,7 @@ impl HttpRequest {
 
     /// Check if request requires connection upgrade
     pub(crate) fn upgrade(&self) -> bool {
-        if let Some(conn) = self.headers().get(header::CONNECTION) {
+        if let Some(conn) = self.headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade")
             }
@@ -208,7 +211,7 @@ impl HttpRequest {
 
     /// Check if request has chunked transfer encoding
     pub fn chunked(&self) -> Result<bool, ParseError> {
-        if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
+        if let Some(encodings) = self.headers.get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
                 Ok(s.to_lowercase().contains("chunked"))
             } else {
@@ -230,6 +233,23 @@ impl HttpRequest {
         }
     }
 
+    /// Returns reference to the associated http payload.
+    #[inline]
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
+    /// Returns mutable reference to the associated http payload.
+    #[inline]
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
+    }
+
+    /// Return payload
+    pub fn take_payload(&mut self) -> Payload {
+        mem::replace(&mut self.payload, Payload::empty())
+    }
+    
     /// Return stream to process BODY as multipart.
     ///
     /// Content-type: multipart/form-data;
@@ -344,7 +364,7 @@ mod tests {
         headers.insert(header::TRANSFER_ENCODING,
                        header::HeaderValue::from_static("chunked"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
 
         let (_, payload) = Payload::new(false);
         assert!(req.urlencoded(payload).is_err());
@@ -355,7 +375,7 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("xxxx"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
 
         let (_, payload) = Payload::new(false);
         assert!(req.urlencoded(payload).is_err());
@@ -366,7 +386,7 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("1000000"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
 
         let (_, payload) = Payload::new(false);
         assert!(req.urlencoded(payload).is_err());
@@ -377,10 +397,9 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("10"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
 
         let (_, payload) = Payload::new(false);
         assert!(req.urlencoded(payload).is_err());
     }
-
 }

@@ -10,7 +10,6 @@ use std::path::PathBuf;
 
 use task::Task;
 use route::RouteHandler;
-use payload::Payload;
 use mime_guess::get_mime_type;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -138,7 +137,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: &mut HttpRequest, _: Payload, _: Rc<S>) -> Task {
+    fn handle(&self, req: &mut HttpRequest, _: Rc<S>) -> Task {
         if !self.accessible {
             Task::reply(HTTPNotFound)
         } else {

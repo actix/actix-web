@@ -22,15 +22,14 @@
 //! impl Route for WsRoute {
 //!     type State = ();
 //!
-//!     fn request(req: &mut HttpRequest,
-//!                payload: Payload, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+//!     fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
 //!     {
 //!         // WebSocket handshake
 //!         let resp = ws::handshake(&req)?;
 //!         // Send handshake response to peer
 //!         ctx.start(resp);
 //!         // Map Payload into WsStream
-//!         ctx.add_stream(ws::WsStream::new(payload));
+//!         ctx.add_stream(ws::WsStream::new(req));
 //!         // Start ws messages processing
 //!         Reply::async(WsRoute)
 //!     }
@@ -177,8 +176,8 @@ pub struct WsStream {
 }
 
 impl WsStream {
-    pub fn new(rx: Payload) -> WsStream {
-        WsStream { rx: rx, buf: BytesMut::new(), closed: false, error_sent: false }
+    pub fn new(req: &mut HttpRequest) -> WsStream {
+        WsStream { rx: req.take_payload(), buf: BytesMut::new(), closed: false, error_sent: false }
     }
 }
 
@@ -330,30 +329,33 @@ impl WsWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use payload::Payload;
     use http::{Method, HeaderMap, Version, header};
 
     #[test]
     fn test_handshake() {
         let req = HttpRequest::new(Method::POST, "/".to_owned(),
-                                   Version::HTTP_11, HeaderMap::new(), String::new());
+                                   Version::HTTP_11, HeaderMap::new(),
+                                   String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, HeaderMap::new(), String::new());
+                                   Version::HTTP_11, HeaderMap::new(),
+                                   String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("test"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("websocket"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::NoConnectionUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -362,7 +364,7 @@ mod tests {
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::NoVersionHeader, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -373,7 +375,7 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("5"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::UnsupportedVersion, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -384,7 +386,7 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(WsHandshakeError::BadWebsocketKey, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -397,7 +399,7 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_KEY,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new());
+                                   Version::HTTP_11, headers, String::new(), Payload::empty());
         assert_eq!(StatusCode::SWITCHING_PROTOCOLS, handshake(&req).unwrap().status());
     }
 }

@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use task::Task;
-use payload::Payload;
 use route::{RouteHandler, FnHandler};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
@@ -25,19 +24,19 @@ pub struct Application<S> {
 
 impl<S: 'static> Application<S> {
 
-    fn run(&self, req: &mut HttpRequest, payload: Payload) -> Task {
+    fn run(&self, req: &mut HttpRequest) -> Task {
         if let Some((params, h)) = self.router.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
             }
-            h.handle(req, payload, Rc::clone(&self.state))
+            h.handle(req, Rc::clone(&self.state))
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {
-                    return handler.handle(req, payload, Rc::clone(&self.state))
+                    return handler.handle(req, Rc::clone(&self.state))
                 }
             }
-            self.default.handle(req, payload, Rc::clone(&self.state))
+            self.default.handle(req, Rc::clone(&self.state))
         }
     }
 }
@@ -48,9 +47,9 @@ impl<S: 'static> HttpHandler for Application<S> {
         &self.prefix
     }
     
-    fn handle(&self, req: HttpRequest, payload: Payload) -> Pipeline {
-        Pipeline::new(req, payload, Rc::clone(&self.middlewares),
-                      &|req: &mut HttpRequest, payload: Payload| {self.run(req, payload)})
+    fn handle(&self, req: HttpRequest) -> Pipeline {
+        Pipeline::new(req, Rc::clone(&self.middlewares),
+                      &|req: &mut HttpRequest| {self.run(req)})
     }
 }
 
@@ -140,9 +139,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// impl Route for MyRoute {
     ///     type State = ();
     ///
-    ///     fn request(req: &mut HttpRequest,
-    ///                payload: Payload,
-    ///                ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
+    ///     fn request(req: &mut HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
     ///         Reply::reply(httpcodes::HTTPOk)
     ///     }
     /// }
@@ -150,7 +147,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
     ///              r.get::<MyRoute>();
-    ///              r.handler(Method::HEAD, |req, payload, state| {
+    ///              r.handler(Method::HEAD, |req, state| {
     ///                  Ok(httpcodes::HTTPMethodNotAllowed)
     ///              });
     ///         })
@@ -194,7 +191,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = Application::default("/")
-    ///         .handler("/test", |req, payload, state| {
+    ///         .handler("/test", |req, state| {
     ///              match *req.method() {
     ///                  Method::GET => httpcodes::HTTPOk,
     ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,
@@ -205,7 +202,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// }
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(&mut HttpRequest, Payload, &S) -> R + 'static,
+        where F: Fn(&mut HttpRequest, &S) -> R + 'static,
               R: Into<HttpResponse> + 'static,
               P: Into<String>,
     {

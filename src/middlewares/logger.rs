@@ -291,6 +291,7 @@ mod tests {
     use time;
     use http::{Method, Version, StatusCode};
     use http::header::{self, HeaderMap};
+    use payload::Payload;
 
     #[test]
     fn test_logger() {
@@ -299,7 +300,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
         let resp = HttpResponse::builder(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close().body(Body::Empty).unwrap();
@@ -330,7 +331,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new());
+            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
         let resp = HttpResponse::builder(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();
@@ -347,7 +348,8 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
 
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(), "test".to_owned());
+            Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(),
+            "test".to_owned(), Payload::empty());
         let resp = HttpResponse::builder(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();

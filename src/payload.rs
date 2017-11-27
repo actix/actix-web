@@ -42,6 +42,12 @@ impl Payload {
         (PayloadSender{inner: Rc::downgrade(&shared)}, Payload{inner: shared})
     }
 
+    /// Create empty payload
+    #[doc(hidden)]
+    pub fn empty() -> Payload {
+        Payload{inner: Rc::new(RefCell::new(Inner::new(true)))}
+    }
+
     /// Indicates EOF of payload
     pub fn eof(&self) -> bool {
         self.inner.borrow().eof()

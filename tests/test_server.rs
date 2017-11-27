@@ -16,7 +16,7 @@ fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
     HttpServer::new(
         vec![Application::default("/")
              .resource("/", |r|
-                       r.handler(Method::GET, |_, _, _| {
+                       r.handler(Method::GET, |_, _| {
                            Ok(httpcodes::HTTPOk)
                        }))
              .finish()])
@@ -96,7 +96,7 @@ fn test_middlewares() {
                                             response: act_num2,
                                             finish: act_num3})
                  .resource("/", |r|
-                           r.handler(Method::GET, |_, _, _| {
+                           r.handler(Method::GET, |_, _| {
                                Ok(httpcodes::HTTPOk)
                            }))
                  .finish()])
