@@ -344,6 +344,31 @@ impl ErrorResponse for WsHandshakeError {
     }
 }
 
+/// A set of errors that can occur during parsing urlencoded payloads
+#[derive(Fail, Debug, PartialEq)]
+pub enum UrlencodedError {
+    /// Can not decode chunked transfer encoding
+    #[fail(display="Can not decode chunked transfer encoding")]
+    Chunked,
+    /// Payload size is bigger than 256k
+    #[fail(display="Payload size is bigger than 256k")]
+    Overflow,
+    /// Payload size is now known
+    #[fail(display="Payload size is now known")]
+    UnknownLength,
+    /// Content type error
+    #[fail(display="Content type error")]
+    ContentType,
+}
+
+/// Return `BadRequest` for `UrlencodedError`
+impl ErrorResponse for UrlencodedError {
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;
