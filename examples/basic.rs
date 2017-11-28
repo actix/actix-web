@@ -11,7 +11,7 @@ use actix_web::error::{Error, Result};
 use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 
-/// somple handle
+/// simple handler
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
     if let Ok(ch) = req.payload_mut().readany() {
@@ -31,7 +31,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     Ok(httpcodes::HTTPOk.into())
 }
 
-/// somple handle
+/// async handler
 fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
@@ -43,7 +43,7 @@ fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
             .into()))
 }
 
-/// handle with path parameters like `/user/{name}/`
+/// handler with path parameters like `/user/{name}/`
 fn with_param(req: HttpRequest) -> Result<HttpResponse>
 {
     println!("{:?}", req);

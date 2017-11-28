@@ -8,7 +8,7 @@ use std::{env, fs};
 fn main() {
     if env::var("USE_SKEPTIC").is_ok() {
         // generates doc tests for `README.md`.
-        skeptic::generate_doc_tests(&["README.md"]);
+        skeptic::generate_doc_tests(&["README.md", "guide/src/qs_2.md"]);
     } else {
         let f = env::var("OUT_DIR").unwrap() + "/skeptic-tests.rs";
         let _ = fs::File::create(f);
