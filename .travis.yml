@@ -29,13 +29,6 @@ before_script:
 
 script:
   - USE_SKEPTIC=1 cargo test --features=alpn
-
-  # Build without unstable flag
-  - cargo build
-
-  # Test examples in guide.
-  - rustdoc --test guide/src/qs_2.md -L target/debug -L target/debug/deps
-
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
         cargo clippy
