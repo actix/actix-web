@@ -78,10 +78,10 @@ fn main() {
             .resource("/", |r| r.handler(Method::GET, |req| {
                 println!("{:?}", req);
 
-                Ok(httpcodes::HTTPFound
-                   .build()
-                   .header("LOCATION", "/index.html")
-                   .body(Body::Empty)?)
+                httpcodes::HTTPFound
+                    .build()
+                    .header("LOCATION", "/index.html")
+                    .body(Body::Empty)
             }))
             // static files
             .route_handler("/static", StaticFiles::new("examples/static/", true)))

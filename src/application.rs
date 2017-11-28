@@ -148,9 +148,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
     ///              r.get::<MyRoute>();
-    ///              r.handler(Method::HEAD, |req| {
-    ///                  Ok(httpcodes::HTTPMethodNotAllowed)
-    ///              });
+    ///              r.handler(Method::HEAD, |req| httpcodes::HTTPMethodNotAllowed);
     ///         })
     ///         .finish();
     /// }

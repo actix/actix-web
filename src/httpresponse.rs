@@ -205,11 +205,11 @@ impl HttpResponse {
 }
 
 /// Helper conversion implementation
-impl<I: Into<HttpResponse>, E: Into<HttpResponse>> From<Result<I, E>> for HttpResponse {
+impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
-            Err(err) => err.into(),
+            Err(err) => err.into().into(),
         }
     }
 }
