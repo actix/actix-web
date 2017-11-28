@@ -3,6 +3,7 @@ use std::{io, mem, str, fmt};
 use std::convert::Into;
 
 use cookie::CookieJar;
+use bytes::{Bytes, BytesMut};
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
@@ -201,16 +202,6 @@ impl HttpResponse {
     /// Set content encoding
     pub(crate) fn set_response_size(&mut self, size: u64) {
         self.response_size = size;
-    }
-}
-
-/// Helper conversion implementation
-impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse {
-    fn from(res: Result<I, E>) -> Self {
-        match res {
-            Ok(val) => val.into(),
-            Err(err) => err.into().into(),
-        }
     }
 }
 
@@ -458,10 +449,74 @@ fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'
     parts.as_mut()
 }
 
+/// Helper converters
+impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse {
+    fn from(res: Result<I, E>) -> Self {
+        match res {
+            Ok(val) => val.into(),
+            Err(err) => err.into().into(),
+        }
+    }
+}
+
+impl From<&'static str> for HttpResponse {
+    fn from(val: &'static str) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(val)
+            .into()
+    }
+}
+
+impl From<&'static [u8]> for HttpResponse {
+    fn from(val: &'static [u8]) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(val)
+            .into()
+    }
+}
+
+impl From<String> for HttpResponse {
+    fn from(val: String) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(val)
+            .into()
+    }
+}
+
+impl<'a> From<&'a String> for HttpResponse {
+    fn from(val: &'a String) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(val)
+            .into()
+    }
+}
+
+impl From<Bytes> for HttpResponse {
+    fn from(val: Bytes) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(val)
+            .into()
+    }
+}
+
+impl From<BytesMut> for HttpResponse {
+    fn from(val: BytesMut) -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(val)
+            .into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::Bytes;
+    use body::Binary;
 
     #[test]
     fn test_body() {
@@ -517,5 +572,61 @@ mod tests {
         let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
         assert_eq!(ct, header::HeaderValue::from_static("text/json"));
         assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
+    }
+
+    impl Body {
+        pub(crate) fn binary(&self) -> Option<&Binary> {
+            match *self {
+                Body::Binary(ref bin) => Some(bin),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn test_into_response() {
+        let resp: HttpResponse = "test".into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
+
+        let resp: HttpResponse = b"test".as_ref().into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
+
+        let resp: HttpResponse = "test".to_owned().into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
+
+        let resp: HttpResponse = (&"test".to_owned()).into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from((&"test".to_owned())));
+
+        let b = Bytes::from_static(b"test");
+        let resp: HttpResponse = b.into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
+
+        let b = BytesMut::from("test");
+        let resp: HttpResponse = b.into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
     }
 }

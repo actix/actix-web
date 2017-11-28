@@ -47,11 +47,11 @@ struct AppState {
     counter: Cell<usize>,
 }
 
-fn index(req: HttpRequest<AppState>) -> HttpResponse {
+fn index(req: HttpRequest<AppState>) -> String {
     let count = req.state().counter.get() + 1; // <- get count
     req.state().counter.set(count);            // <- store new count in state
-    httpcodes::HTTPOk.with_body(               // <- response with count
-        format!("Num of requests: {}", count))
+
+    format!("Request number: {}", count)      // <- response with count
 }
 
 fn main() {
