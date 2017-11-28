@@ -83,3 +83,8 @@ fn main() {
     let _ = sys.run();
 }
 ```
+
+Note on `actix` crate. Actix web framework is built on top of actix actor library. 
+`actix::System` initializes actor system, `HttpServer` is an actor and must run within
+proper configured actix system. For more information please check
+[actix documentation](https://actix.github.io/actix/actix/)
