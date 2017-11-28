@@ -33,8 +33,8 @@ and returns a `HttpResponse` instance or actor that uses `HttpContext` as an act
 extern crate actix_web;
 use actix_web::prelude::*;
 
-fn index(req: HttpRequest) -> Result<HttpResponse> {
-    Ok(httpcodes::HTTPOk.with_body("Hello world!"))
+fn index(req: HttpRequest) -> &'static str {
+    "Hello world!"
 }
 ```
 

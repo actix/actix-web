@@ -441,6 +441,12 @@ impl HttpResponseBuilder {
     }
 }
 
+impl From<HttpResponseBuilder> for HttpResponse {
+    fn from(mut builder: HttpResponseBuilder) -> Self {
+        builder.finish().into()
+    }
+}
+
 fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
 {
     if err.is_some() {

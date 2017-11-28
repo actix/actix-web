@@ -28,7 +28,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
         req.session().set("counter", 1)?;
     }
 
-    Ok(httpcodes::HTTPOk.into())
+    Ok(HttpResponse::Ok().into())
 }
 
 /// async handler
@@ -36,7 +36,7 @@ fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
 {
     println!("{:?}", req);
 
-    once(Ok(HttpResponse::build(StatusCode::OK)
+    once(Ok(HttpResponse::Ok()
             .content_type("text/html")
             .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
             .unwrap()
@@ -48,7 +48,7 @@ fn with_param(req: HttpRequest) -> Result<HttpResponse>
 {
     println!("{:?}", req);
 
-    Ok(HttpResponse::build(StatusCode::OK)
+    Ok(HttpResponse::Ok()
        .content_type("test/plain")
        .body(format!("Hello {}!", req.match_info().get("name").unwrap()))?)
 }

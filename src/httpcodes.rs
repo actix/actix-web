@@ -80,6 +80,49 @@ impl From<StaticResponse> for HttpResponse {
     }
 }
 
+macro_rules! STATIC_RESP {
+    ($name:ident, $status:expr) => {
+        #[allow(non_snake_case)]
+        pub fn $name() -> HttpResponseBuilder {
+            HttpResponse::build($status)
+        }
+    }
+}
+
+impl HttpResponse {
+    STATIC_RESP!(Ok, StatusCode::OK);
+    STATIC_RESP!(Created, StatusCode::CREATED);
+    STATIC_RESP!(NoContent, StatusCode::NO_CONTENT);
+
+    STATIC_RESP!(MultipleChoices, StatusCode::MULTIPLE_CHOICES);
+    STATIC_RESP!(MovedPermanenty, StatusCode::MOVED_PERMANENTLY);
+    STATIC_RESP!(Found, StatusCode::FOUND);
+    STATIC_RESP!(SeeOther, StatusCode::SEE_OTHER);
+    STATIC_RESP!(NotModified, StatusCode::NOT_MODIFIED);
+    STATIC_RESP!(UseProxy, StatusCode::USE_PROXY);
+    STATIC_RESP!(TemporaryRedirect, StatusCode::TEMPORARY_REDIRECT);
+    STATIC_RESP!(PermanentRedirect, StatusCode::PERMANENT_REDIRECT);
+
+    STATIC_RESP!(BadRequest, StatusCode::BAD_REQUEST);
+    STATIC_RESP!(NotFound, StatusCode::NOT_FOUND);
+    STATIC_RESP!(Unauthorized, StatusCode::UNAUTHORIZED);
+    STATIC_RESP!(PaymentRequired, StatusCode::PAYMENT_REQUIRED);
+    STATIC_RESP!(Forbidden, StatusCode::FORBIDDEN);
+
+    STATIC_RESP!(MethodNotAllowed, StatusCode::METHOD_NOT_ALLOWED);
+    STATIC_RESP!(NotAcceptable, StatusCode::NOT_ACCEPTABLE);
+    STATIC_RESP!(ProxyAuthenticationRequired, StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+    STATIC_RESP!(RequestTimeout, StatusCode::REQUEST_TIMEOUT);
+    STATIC_RESP!(Conflict, StatusCode::CONFLICT);
+    STATIC_RESP!(Gone, StatusCode::GONE);
+    STATIC_RESP!(LengthRequired, StatusCode::LENGTH_REQUIRED);
+    STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
+    STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
+    STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
+    STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
+
+    STATIC_RESP!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
+}
 
 #[cfg(test)]
 mod tests {
