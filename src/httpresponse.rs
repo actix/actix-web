@@ -268,7 +268,7 @@ pub struct HttpResponseBuilder {
 }
 
 impl HttpResponseBuilder {
-    /// Get the HTTP version of this response.
+    /// Set the HTTP version of this response.
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
@@ -523,6 +523,16 @@ impl From<BytesMut> for HttpResponse {
 mod tests {
     use super::*;
     use body::Binary;
+
+    #[test]
+    fn test_basic_builder() {
+        let resp = HttpResponse::Ok()
+            .status(StatusCode::NO_CONTENT)
+            .version(Version::HTTP_10)
+            .finish().unwrap();
+        assert_eq!(resp.version(), Some(Version::HTTP_10));
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT)
+    }
 
     #[test]
     fn test_body() {
