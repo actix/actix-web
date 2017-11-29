@@ -71,7 +71,7 @@ fn main() {
 
 ## Handler
 
-A request handler can have several different forms. 
+A request handler can have different forms. 
 
 * Simple function that accepts `HttpRequest` and returns `HttpResponse` or any 
    type that can be converted into `HttpResponse`. 

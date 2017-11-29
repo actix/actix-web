@@ -19,6 +19,7 @@ struct HttpMessage {
     version: Version,
     method: Method,
     path: String,
+    prefix: usize,
     query: String,
     headers: HeaderMap,
     extensions: Extensions,
@@ -35,6 +36,7 @@ impl Default for HttpMessage {
         HttpMessage {
             method: Method::GET,
             path: String::new(),
+            prefix: 0,
             query: String::new(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
@@ -61,6 +63,7 @@ impl HttpRequest<()> {
             Rc::new(HttpMessage {
                 method: method,
                 path: path,
+                prefix: 0,
                 query: query,
                 version: version,
                 headers: headers,
@@ -121,6 +124,15 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn path(&self) -> &str {
         &self.0.path
+    }
+
+    pub(crate) fn set_prefix(&mut self, idx: usize) {
+        self.as_mut().prefix = idx;
+    }
+
+    #[doc(hidden)]
+    pub fn prefix_len(&self) -> usize {
+        self.0.prefix
     }
 
     /// Remote IP of client initiated HTTP request.

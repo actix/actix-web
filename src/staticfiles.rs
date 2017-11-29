@@ -33,7 +33,6 @@ pub struct StaticFiles {
     _show_index: bool,
     _chunk_size: usize,
     _follow_symlinks: bool,
-    prefix: String,
 }
 
 impl StaticFiles {
@@ -65,12 +64,11 @@ impl StaticFiles {
             _show_index: index,
             _chunk_size: 0,
             _follow_symlinks: false,
-            prefix: String::new(),
         }
     }
 
-    fn index(&self, relpath: &str, filename: &PathBuf) -> Result<HttpResponse, io::Error> {
-        let index_of = format!("Index of {}/{}", self.prefix, relpath);
+    fn index(&self, prefix: &str, relpath: &str, filename: &PathBuf) -> Result<HttpResponse, io::Error> {
+        let index_of = format!("Index of {}{}", prefix, relpath);
         let mut body = String::new();
 
         for entry in filename.read_dir()? {
@@ -78,7 +76,7 @@ impl StaticFiles {
                 let entry = entry.unwrap();
                 // show file url as relative to static path
                 let file_url = format!(
-                    "{}/{}", self.prefix,
+                    "{}{}", prefix,
                     entry.path().strip_prefix(&self.directory).unwrap().to_string_lossy());
 
                 // if file is a directory, add '/' to the end of the name
@@ -130,18 +128,12 @@ impl StaticFiles {
 impl<S> Handler<S> for StaticFiles {
     type Result = Result<HttpResponse, io::Error>;
 
-    fn set_prefix(&mut self, prefix: String) {
-        if prefix != "/" {
-            self.prefix += &prefix;
-        }
-    }
-
     fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
             Ok(HTTPNotFound.into())
         } else {
             let mut hidden = false;
-            let filepath = req.path()[self.prefix.len()..]
+            let filepath = req.path()[req.prefix_len()..]
                 .split('/').filter(|s| {
                     if s.starts_with('.') {
                         hidden = true;
@@ -167,7 +159,9 @@ impl<S> Handler<S> for StaticFiles {
             };
 
             if filename.is_dir() {
-                match self.index(&filepath[idx..], &filename) {
+                match self.index(
+                    &req.path()[..req.prefix_len()], &filepath[idx..], &filename)
+                {
                     Ok(resp) => Ok(resp),
                     Err(err) => match err.kind() {
                         io::ErrorKind::NotFound => Ok(HTTPNotFound.into()),

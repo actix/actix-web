@@ -34,6 +34,7 @@ impl<S: 'static> Application<S> {
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {
+                    req.set_prefix(prefix.len());
                     handler.handle(req, task);
                     return
                 }
@@ -232,7 +233,6 @@ impl<S> ApplicationBuilder<S> where S: 'static {
 
         for (path, mut handler) in parts.handlers {
             let path = prefix.clone() + path.trim_left_matches('/');
-            handler.set_prefix(path.clone());
             handlers.insert(path, handler);
         }
         Application {

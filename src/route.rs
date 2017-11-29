@@ -30,13 +30,12 @@ impl Frame {
 /// Trait defines object that could be regestered as route handler
 #[allow(unused_variables)]
 pub trait Handler<S>: 'static {
+
+    /// The type of value that handler will return.
     type Result: Into<Reply>;
 
     /// Handle request
     fn handle(&self, req: HttpRequest<S>) -> Self::Result;
-
-    /// Set route prefix
-    fn set_prefix(&mut self, prefix: String) {}
 }
 
 /// Handler<S> for Fn()
@@ -124,9 +123,6 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> fo
 pub(crate) trait RouteHandler<S>: 'static {
     /// Handle request
     fn handle(&self, req: HttpRequest<S>, task: &mut Task);
-
-    /// Set route prefix
-    fn set_prefix(&mut self, _prefix: String) {}
 }
 
 /// Route handler wrapper for Handler
@@ -157,10 +153,6 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 {
     fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
         self.h.handle(req).into().into(task)
-    }
-
-    fn set_prefix(&mut self, prefix: String) {
-        self.h.set_prefix(prefix)
     }
 }
 
