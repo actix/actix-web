@@ -22,11 +22,21 @@ mod codec;
 mod server;
 mod session;
 
-
 /// This is our websocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
     addr: SyncAddress<server::ChatServer>,
+}
+
+/// Entry point for our route
+fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<Reply> {
+    ws::start(
+        req,
+        WsChatSession {
+            id: 0,
+            hb: Instant::now(),
+            room: "Main".to_owned(),
+            name: None})
 }
 
 struct WsChatSession {
@@ -41,32 +51,12 @@ struct WsChatSession {
 }
 
 impl Actor for WsChatSession {
-    type Context = HttpContext<Self>;
-}
-
-/// Entry point for our route
-impl Route for WsChatSession {
-    type State = WsChatSessionState;
-
-    fn request(mut req: HttpRequest<WsChatSessionState>,
-               ctx: &mut HttpContext<Self>) -> RouteResult<Self>
-    {
-        // websocket handshakre, it may fail if request is not websocket request
-        let resp = ws::handshake(&req)?;
-        ctx.start(resp);
-        ctx.add_stream(ws::WsStream::new(&mut req));
-        Reply::async(
-            WsChatSession {
-                id: 0,
-                hb: Instant::now(),
-                room: "Main".to_owned(),
-                name: None})
-    }
+    type Context = HttpContext<Self, WsChatSessionState>;
 }
 
 /// Handle messages from chat server, we simply send it to peer websocket
 impl Handler<session::Message> for WsChatSession {
-    fn handle(&mut self, msg: session::Message, ctx: &mut HttpContext<Self>)
+    fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context)
               -> Response<Self, session::Message>
     {
         ws::WsWriter::text(ctx, &msg.0);
@@ -76,7 +66,7 @@ impl Handler<session::Message> for WsChatSession {
 
 /// WebSocket message handler
 impl Handler<ws::Message> for WsChatSession {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
               -> Response<Self, ws::Message>
     {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
@@ -209,17 +199,16 @@ fn main() {
     HttpServer::new(
         Application::build("/", state)
             // redirect to websocket.html
-            .resource("/", |r|
-                      r.handler(Method::GET, |req| {
-                          Ok(httpcodes::HTTPFound
-                             .build()
-                             .header("LOCATION", "/static/websocket.html")
-                             .body(Body::Empty)?)
-                      }))
+            .resource("/", |r| r.handler(Method::GET, |req| {
+                httpcodes::HTTPFound
+                    .build()
+                    .header("LOCATION", "/static/websocket.html")
+                    .body(Body::Empty)
+            }))
             // websocket
-            .resource("/ws/", |r| r.get::<WsChatSession>())
+            .resource("/ws/", |r| r.get(chat_route))
             // static resources
-            .route_handler("/static", StaticFiles::new("static/", true)))
+            .route("/static", StaticFiles::new("static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

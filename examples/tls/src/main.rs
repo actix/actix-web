@@ -9,12 +9,12 @@ use std::io::Read;
 use actix_web::*;
 
 /// somple handle
-fn index(req: HttpRequest) -> HttpResponse {
+fn index(req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
-    httpcodes::HTTPOk
-        .build()
-        .content_type("text/plain")
-        .body("Welcome!").unwrap()
+    Ok(httpcodes::HTTPOk
+       .build()
+       .content_type("text/plain")
+       .body("Welcome!")?)
 }
 
 fn main() {
@@ -37,10 +37,10 @@ fn main() {
             .handler("/index.html", index)
             // with path parameters
             .resource("/", |r| r.handler(Method::GET, |req| {
-                Ok(httpcodes::HTTPFound
-                   .build()
-                   .header("LOCATION", "/index.html")
-                   .body(Body::Empty)?)
+                httpcodes::HTTPFound
+                    .build()
+                    .header("LOCATION", "/index.html")
+                    .body(Body::Empty)
             })))
         .serve_tls::<_, ()>("127.0.0.1:8080", pkcs12).unwrap();
 
