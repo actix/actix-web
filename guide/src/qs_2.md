@@ -27,7 +27,7 @@ actix-web = { git = "https://github.com/actix/actix-web" }
 In order to implement a web server, first we need to create a request handler.
 
 A request handler is a function that accepts a `HttpRequest` instance as its only parameter 
-and returns a `HttpResponse` instance or actor that uses `HttpContext` as an actor's context::
+and returns a type that can be converted into `HttpResponse`:
 
 ```rust,ignore
 extern crate actix_web;

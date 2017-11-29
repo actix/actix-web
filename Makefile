@@ -1,4 +1,4 @@
-.PHONY: default build test doc clean
+.PHONY: default build test doc book clean
 
 CARGO_FLAGS := --features "$(FEATURES)"
 
@@ -20,3 +20,7 @@ clippy:
 
 doc: build
 	cargo doc --no-deps $(CARGO_FLAGS)
+	cd guide; mdbook build -d ../target/doc/guide/; cd ..
+
+book:
+	cd guide; mdbook build -d ../target/doc/guide/; cd ..

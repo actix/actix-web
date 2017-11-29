@@ -71,8 +71,33 @@ fn main() {
 
 ## Handler
 
-A request handler can have several different forms. Simple function
-that accepts `HttpRequest` and returns `HttpResponse` or any type that can be converted
-into `HttpResponse`. Function that that accepts `HttpRequest` and 
-returns `Stream<Item=Frame, Error=Error>`. Or http actor, i.e. actor that has `HttpContext<A>`
-as a context.
+A request handler can have several different forms. 
+
+* Simple function that accepts `HttpRequest` and returns `HttpResponse` or any 
+   type that can be converted into `HttpResponse`. 
+* Function that that accepts `HttpRequest` and returns `Stream<Item=Frame, Error=Error>`. 
+* Http actor, i.e. actor that has `HttpContext<A>`as a context. 
+
+Actix provides response conversion for some standard types, like `&'static str`, `String`, etc.
+For complete list of implementations check 
+[HttpResponse documentation](../actix_web/struct.HttpResponse.html#implementations).
+
+Examples:
+
+```rust,ignore
+fn index(req: HttpRequest) -> &'static str {
+    "Hello world!"
+}
+```
+
+```rust,ignore
+fn index(req: HttpRequest) -> String {
+    "Hello world!".to_owned()
+}
+```
+
+```rust,ignore
+fn index(req: HttpRequest) -> Bytes {
+    Bytes::from_static("Hello world!")
+}
+```
