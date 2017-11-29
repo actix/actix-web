@@ -7,7 +7,6 @@ extern crate env_logger;
 extern crate futures;
 
 use actix_web::*;
-use actix_web::error::{Error, Result};
 use actix_web::middlewares::RequestSession;
 use futures::stream::{once, Once};
 

@@ -24,21 +24,22 @@ pub struct Application<S> {
 
 impl<S: 'static> Application<S> {
 
-    fn run(&self, req: HttpRequest) -> Task {
+    fn run(&self, req: HttpRequest, task: &mut Task) {
         let mut req = req.with_state(Rc::clone(&self.state));
 
         if let Some((params, h)) = self.router.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
             }
-            h.handle(req)
+            h.handle(req, task)
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {
-                    return handler.handle(req)
+                    handler.handle(req, task);
+                    return
                 }
             }
-            self.default.handle(req)
+            self.default.handle(req, task)
         }
     }
 }
@@ -50,7 +51,8 @@ impl<S: 'static> HttpHandler for Application<S> {
     }
     
     fn handle(&self, req: HttpRequest) -> Pipeline {
-        Pipeline::new(req, Rc::clone(&self.middlewares), &|req: HttpRequest| {self.run(req)})
+        Pipeline::new(req, Rc::clone(&self.middlewares),
+                      &|req: HttpRequest, task: &mut Task| {self.run(req, task)})
     }
 }
 
@@ -140,7 +142,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// impl Route for MyRoute {
     ///     type State = ();
     ///
-    ///     fn request(req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
+    ///     fn request(req: HttpRequest, ctx: HttpContext<Self>) -> Result<Reply> {
     ///         Reply::reply(httpcodes::HTTPOk)
     ///     }
     /// }

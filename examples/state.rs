@@ -37,12 +37,12 @@ impl Route for MyWebSocket {
     /// Shared application state
     type State = AppState;
 
-    fn request(mut req: HttpRequest<AppState>, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(mut req: HttpRequest<AppState>, mut ctx: HttpContext<Self>) -> Result<Reply>
     {
         let resp = ws::handshake(&req)?;
         ctx.start(resp);
         ctx.add_stream(ws::WsStream::new(&mut req));
-        Reply::async(MyWebSocket{counter: 0})
+        ctx.reply(MyWebSocket{counter: 0})
     }
 }
 

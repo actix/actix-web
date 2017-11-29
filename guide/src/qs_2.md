@@ -31,7 +31,7 @@ and returns a type that can be converted into `HttpResponse`:
 
 ```rust,ignore
 extern crate actix_web;
-use actix_web::prelude::*;
+use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
     "Hello world!"
@@ -62,7 +62,7 @@ Here is full source of main.rs file:
 ```rust
 extern crate actix;
 extern crate actix_web;
-use actix_web::prelude::*;
+use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
     "Hello world!"

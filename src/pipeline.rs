@@ -10,8 +10,8 @@ use h1writer::Writer;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-type Handler = Fn(HttpRequest) -> Task;
-pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest) -> Task;
+type Handler = Fn(HttpRequest, &mut Task);
+pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest, &mut Task);
 
 pub struct Pipeline(PipelineState);
 
@@ -29,7 +29,8 @@ impl Pipeline {
     pub fn new(req: HttpRequest, mw: Rc<Vec<Box<Middleware>>>, handler: PipelineHandler) -> Pipeline
     {
         if mw.is_empty() {
-            let task = (handler)(req.clone());
+            let mut task = Task::default();
+            (handler)(req.clone(), &mut task);
             Pipeline(PipelineState::Task(Box::new((task, req))))
         } else {
             match Start::init(mw, req, handler) {
@@ -39,13 +40,14 @@ impl Pipeline {
                     Pipeline(PipelineState::Starting(res)),
                 Err(err) =>
                     Pipeline(PipelineState::Error(
-                        Box::new((Task::reply(err), HttpRequest::default()))))
+                        Box::new((Task::from_error(err), HttpRequest::default()))))
             }
         }
     }
 
     pub fn error<R: Into<HttpResponse>>(resp: R) -> Self {
-        Pipeline(PipelineState::Error(Box::new((Task::reply(resp), HttpRequest::default()))))
+        Pipeline(PipelineState::Error(
+            Box::new((Task::from_response(resp), HttpRequest::default()))))
     }
 
     pub(crate) fn disconnected(&mut self) {
@@ -79,7 +81,7 @@ impl Pipeline {
                             self.0 = PipelineState::Handle(h),
                         Err(err) =>
                             self.0 = PipelineState::Error(
-                                Box::new((Task::reply(err), HttpRequest::default())))
+                                Box::new((Task::from_error(err), HttpRequest::default())))
                     }
                 }
                 PipelineState::Handle(mut st) => {
@@ -193,7 +195,8 @@ impl Start {
         let len = self.middlewares.len();
         loop {
             if self.idx == len {
-                let task = (unsafe{&*self.hnd})(self.req.clone());
+                let mut task = Task::default();
+                (unsafe{&*self.hnd})(self.req.clone(), &mut task);
                 return Ok(StartResult::Ready(
                     Box::new(Handle::new(self.idx-1, self.req.clone(),
                                          self.prepare(task), self.middlewares))))
@@ -205,7 +208,7 @@ impl Start {
                         return Ok(StartResult::Ready(
                             Box::new(Handle::new(
                                 self.idx, self.req.clone(),
-                                self.prepare(Task::reply(resp)), self.middlewares)))),
+                                self.prepare(Task::from_response(resp)), self.middlewares)))),
                     Started::Future(mut fut) =>
                         match fut.poll() {
                             Ok(Async::NotReady) => {
@@ -217,7 +220,8 @@ impl Start {
                                     return Ok(StartResult::Ready(
                                         Box::new(Handle::new(
                                             self.idx, self.req.clone(),
-                                            self.prepare(Task::reply(resp)), self.middlewares))))
+                                            self.prepare(Task::from_response(resp)),
+                                            self.middlewares))))
                                 }
                                 self.idx += 1;
                             }
@@ -239,10 +243,12 @@ impl Start {
                     if let Some(resp) = resp {
                         return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, self.req.clone(),
-                            self.prepare(Task::reply(resp)), Rc::clone(&self.middlewares)))))
+                            self.prepare(Task::from_response(resp)),
+                            Rc::clone(&self.middlewares)))))
                     }
                     if self.idx == len {
-                        let task = (unsafe{&*self.hnd})(self.req.clone());
+                        let mut task = Task::default();
+                        (unsafe{&*self.hnd})(self.req.clone(), &mut task);
                         return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, self.req.clone(),
                             self.prepare(task), Rc::clone(&self.middlewares)))))
@@ -255,7 +261,7 @@ impl Start {
                                     self.idx += 1;
                                     return Ok(Async::Ready(Box::new(Handle::new(
                                         self.idx-1, self.req.clone(),
-                                        self.prepare(Task::reply(resp)),
+                                        self.prepare(Task::from_response(resp)),
                                         Rc::clone(&self.middlewares)))))
                                 },
                                 Started::Future(fut) => {

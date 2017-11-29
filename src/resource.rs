@@ -7,7 +7,7 @@ use futures::Stream;
 
 use task::Task;
 use error::Error;
-use route::{Route, RouteHandler, RouteResult, Frame, FnHandler, StreamHandler};
+use route::{Route, RouteHandler, Frame, FnHandler, StreamHandler};
 use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -124,54 +124,11 @@ impl<S> Resource<S> where S: 'static {
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
 
-    fn handle(&self, req: HttpRequest<S>) -> Task {
+    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
         if let Some(handler) = self.routes.get(req.method()) {
-            handler.handle(req)
+            handler.handle(req, task)
         } else {
-            self.default.handle(req)
+            self.default.handle(req, task)
         }
-    }
-}
-
-#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
-enum ReplyItem<A> where A: Actor + Route {
-    Message(HttpResponse),
-    Actor(A),
-}
-
-/// Represents response process.
-pub struct Reply<A: Actor + Route> (ReplyItem<A>);
-
-impl<A> Reply<A> where A: Actor + Route
-{
-    /// Create async response
-    pub fn async(act: A) -> RouteResult<A> {
-        Ok(Reply(ReplyItem::Actor(act)))
-    }
-
-    /// Send response
-    pub fn reply<R: Into<HttpResponse>>(response: R) -> RouteResult<A> {
-        Ok(Reply(ReplyItem::Message(response.into())))
-    }
-
-    pub fn into(self, mut ctx: HttpContext<A>) -> Task where A: Actor<Context=HttpContext<A>>
-    {
-        match self.0 {
-            ReplyItem::Message(msg) => {
-                Task::reply(msg)
-            },
-            ReplyItem::Actor(act) => {
-                ctx.set_actor(act);
-                Task::with_context(ctx)
-            }
-        }
-    }
-}
-
-impl<A, T> From<T> for Reply<A>
-    where T: Into<HttpResponse>, A: Actor + Route
-{
-    fn from(item: T) -> Self {
-        Reply(ReplyItem::Message(item.into()))
     }
 }

@@ -6,11 +6,10 @@ use actix::Actor;
 use http::{header, Version};
 use futures::Stream;
 
-use task::{Task, DrainFut};
+use task::{Task, DrainFut, IoContext};
 use body::Binary;
-use error::{Error, ExpectError};
+use error::{Error, ExpectError, Result};
 use context::HttpContext;
-use resource::Reply;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -32,14 +31,11 @@ impl Frame {
 #[allow(unused_variables)]
 pub trait RouteHandler<S>: 'static {
     /// Handle request
-    fn handle(&self, req: HttpRequest<S>) -> Task;
+    fn handle(&self, req: HttpRequest<S>, task: &mut Task);
 
     /// Set route prefix
     fn set_prefix(&mut self, prefix: String) {}
 }
-
-/// Request handling result.
-pub type RouteResult<T> = Result<Reply<T>, Error>;
 
 /// Actors with ability to handle http requests.
 #[allow(unused_variables)]
@@ -49,7 +45,7 @@ pub trait Route: Actor {
     type State;
 
     /// Handle `EXPECT` header. By default respones with `HTTP/1.1 100 Continue`
-    fn expect(req: &mut HttpRequest<Self::State>, ctx: &mut Self::Context) -> Result<(), Error>
+    fn expect(req: &mut HttpRequest<Self::State>, ctx: &mut Self::Context) -> Result<()>
         where Self: Actor<Context=HttpContext<Self>>
     {
         // handle expect header only for HTTP/1.1
@@ -79,7 +75,7 @@ pub trait Route: Actor {
     /// request/response or websocket connection.
     /// In that case `HttpContext::start` and `HttpContext::write` has to be used
     /// for writing response.
-    fn request(req: HttpRequest<Self::State>, ctx: &mut Self::Context) -> RouteResult<Self>;
+    fn request(req: HttpRequest<Self::State>, ctx: Self::Context) -> Result<Reply>;
 
     /// This method creates `RouteFactory` for this actor.
     fn factory() -> RouteFactory<Self, Self::State> {
@@ -94,18 +90,18 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
     where A: Actor<Context=HttpContext<A>> + Route<State=S>,
           S: 'static
 {
-    fn handle(&self, mut req: HttpRequest<A::State>) -> Task {
+    fn handle(&self, mut req: HttpRequest<A::State>, task: &mut Task) {
         let mut ctx = HttpContext::new(req.clone_state());
 
         // handle EXPECT header
         if req.headers().contains_key(header::EXPECT) {
             if let Err(resp) = A::expect(&mut req, &mut ctx) {
-                return Task::reply(resp)
+                task.reply(resp)
             }
         }
-        match A::request(req, &mut ctx) {
-            Ok(reply) => reply.into(ctx),
-            Err(err) => Task::reply(err),
+        match A::request(req, ctx) {
+            Ok(reply) => reply.into(task),
+            Err(err) => task.reply(err),
         }
     }
 }
@@ -136,8 +132,8 @@ impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
           R: Into<HttpResponse> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> Task {
-        Task::reply((self.f)(req).into())
+    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
+        task.reply((self.f)(req).into())
     }
 }
 
@@ -167,7 +163,59 @@ impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
           R: Stream<Item=Frame, Error=Error> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> Task {
-        Task::with_stream((self.f)(req))
+    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
+        task.stream((self.f)(req))
+    }
+}
+
+enum ReplyItem {
+    Message(HttpResponse),
+    Actor(Box<IoContext<Item=Frame, Error=Error>>),
+    Stream(Box<Stream<Item=Frame, Error=Error>>),
+}
+
+/// Represents response process.
+pub struct Reply(ReplyItem);
+
+impl Reply
+{
+    /// Create actor response
+    pub(crate) fn async<C: IoContext>(ctx: C) -> Result<Reply> {
+        Ok(Reply(ReplyItem::Actor(Box::new(ctx))))
+    }
+
+    /// Create async response
+    pub fn stream<S>(stream: S) -> Result<Reply>
+        where S: Stream<Item=Frame, Error=Error> + 'static
+    {
+        Ok(Reply(ReplyItem::Stream(Box::new(stream))))
+    }
+
+    /// Send response
+    pub fn reply<R: Into<HttpResponse>>(response: R) -> Result<Reply> {
+        Ok(Reply(ReplyItem::Message(response.into())))
+    }
+
+    pub fn into(self, task: &mut Task)
+    {
+        match self.0 {
+            ReplyItem::Message(msg) => {
+                task.reply(msg)
+            },
+            ReplyItem::Actor(ctx) => {
+                task.context(ctx)
+            }
+            ReplyItem::Stream(stream) => {
+                task.stream(stream)
+            }
+        }
+    }
+}
+
+impl<T> From<T> for Reply
+    where T: Into<HttpResponse>
+{
+    fn from(item: T) -> Self {
+        Reply(ReplyItem::Message(item.into()))
     }
 }

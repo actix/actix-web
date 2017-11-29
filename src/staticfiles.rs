@@ -136,9 +136,9 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: HttpRequest<S>) -> Task {
+    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
         if !self.accessible {
-            Task::reply(HTTPNotFound)
+            task.reply(HTTPNotFound)
         } else {
             let mut hidden = false;
             let filepath = req.path()[self.prefix.len()..]
@@ -152,7 +152,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
 
             // hidden file
             if hidden {
-                return Task::reply(HTTPNotFound)
+                task.reply(HTTPNotFound)
             }
 
             // full filepath
@@ -160,19 +160,19 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
             let filename = match self.directory.join(&filepath[idx..]).canonicalize() {
                 Ok(fname) => fname,
                 Err(err) => return match err.kind() {
-                    io::ErrorKind::NotFound => Task::reply(HTTPNotFound),
-                    io::ErrorKind::PermissionDenied => Task::reply(HTTPForbidden),
-                    _ => Task::error(err),
+                    io::ErrorKind::NotFound => task.reply(HTTPNotFound),
+                    io::ErrorKind::PermissionDenied => task.reply(HTTPForbidden),
+                    _ => task.error(err),
                 }
             };
 
             if filename.is_dir() {
                 match self.index(&filepath[idx..], &filename) {
-                    Ok(resp) => Task::reply(resp),
+                    Ok(resp) => task.reply(resp),
                     Err(err) => match err.kind() {
-                        io::ErrorKind::NotFound => Task::reply(HTTPNotFound),
-                        io::ErrorKind::PermissionDenied => Task::reply(HTTPForbidden),
-                        _ => Task::error(err),
+                        io::ErrorKind::NotFound => task.reply(HTTPNotFound),
+                        io::ErrorKind::PermissionDenied => task.reply(HTTPForbidden),
+                        _ => task.error(err),
                     }
                 }
             } else {
@@ -185,9 +185,9 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                     Ok(mut file) => {
                         let mut data = Vec::new();
                         let _ = file.read_to_end(&mut data);
-                        Task::reply(resp.body(data).unwrap())
+                        task.reply(resp.body(data).unwrap())
                     },
-                    Err(err) => Task::error(err),
+                    Err(err) => task.error(err),
                 }
             }
         }

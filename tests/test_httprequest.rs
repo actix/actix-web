@@ -3,6 +3,7 @@ extern crate http;
 extern crate time;
 
 use std::str;
+use actix_web::*;
 use actix_web::dev::*;
 use http::{header, Method, Version, HeaderMap};
 

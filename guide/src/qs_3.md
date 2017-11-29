@@ -40,7 +40,7 @@ extern crate actix;
 extern crate actix_web;
 
 use std::cell::Cell;
-use actix_web::prelude::*;
+use actix_web::*;
 
 // This struct represents state
 struct AppState {

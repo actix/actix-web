@@ -8,11 +8,13 @@
 //! use actix_web::dev::*;
 //! ```
 
-pub use super::*;
-
 // dev specific
 pub use task::Task;
 pub use pipeline::Pipeline;
 pub use route::RouteFactory;
 pub use recognizer::RouteRecognizer;
 pub use channel::HttpChannel;
+
+pub use application::ApplicationBuilder;
+pub use httpresponse::HttpResponseBuilder;
+pub use cookie::CookieBuilder;

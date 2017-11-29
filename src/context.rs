@@ -14,8 +14,8 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
 
 use task::{IoContext, DrainFut};
 use body::Binary;
-use error::Error;
-use route::{Route, Frame};
+use error::{Error, Result as ActixResult};
+use route::{Route, Frame, Reply};
 use httpresponse::HttpResponse;
 
 
@@ -157,6 +157,11 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     /// Check if connection still open
     pub fn connected(&self) -> bool {
         !self.disconnected
+    }
+
+    pub fn reply(mut self, actor: A) -> ActixResult<Reply> {
+        self.set_actor(actor);
+        Reply::async(self)
     }
 }
 

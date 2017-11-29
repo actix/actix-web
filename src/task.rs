@@ -114,9 +114,23 @@ pub struct Task {
     middlewares: Option<MiddlewaresResponse>,
 }
 
+impl Default for Task {
+
+    fn default() -> Task {
+        Task { state: TaskRunningState::Running,
+               iostate: TaskIOState::ReadingMessage,
+               frames: VecDeque::new(),
+               drain: Vec::new(),
+               stream: TaskStream::None,
+               prepared: None,
+               disconnected: false,
+               middlewares: None }
+    }
+}
+
 impl Task {
 
-    pub fn reply<R: Into<HttpResponse>>(response: R) -> Self {
+    pub fn from_response<R: Into<HttpResponse>>(response: R) -> Task {
         let mut frames = VecDeque::new();
         frames.push_back(Frame::Message(response.into()));
         frames.push_back(Frame::Payload(None));
@@ -131,32 +145,28 @@ impl Task {
                middlewares: None }
     }
 
-    pub fn error<E: Into<Error>>(err: E) -> Self {
-        Task::reply(err.into())
+    pub fn from_error<E: Into<Error>>(err: E) -> Task {
+        Task::from_response(err.into())
     }
 
-    pub(crate) fn with_context<C: IoContext>(ctx: C) -> Self {
-        Task { state: TaskRunningState::Running,
-               iostate: TaskIOState::ReadingMessage,
-               frames: VecDeque::new(),
-               stream: TaskStream::Context(Box::new(ctx)),
-               drain: Vec::new(),
-               prepared: None,
-               disconnected: false,
-               middlewares: None }
+    pub fn reply<R: Into<HttpResponse>>(&mut self, response: R) {
+        self.frames.push_back(Frame::Message(response.into()));
+        self.frames.push_back(Frame::Payload(None));
+        self.iostate = TaskIOState::Done;
     }
 
-    pub(crate) fn with_stream<S>(stream: S) -> Self
+    pub fn error<E: Into<Error>>(&mut self, err: E) {
+        self.reply(err.into())
+    }
+
+    pub(crate) fn context(&mut self, ctx: Box<IoContext<Item=Frame, Error=Error>>) {
+        self.stream = TaskStream::Context(ctx);
+    }
+
+    pub(crate) fn stream<S>(&mut self, stream: S)
         where S: Stream<Item=Frame, Error=Error> + 'static
     {
-        Task { state: TaskRunningState::Running,
-               iostate: TaskIOState::ReadingMessage,
-               frames: VecDeque::new(),
-               stream: TaskStream::Stream(Box::new(stream)),
-               drain: Vec::new(),
-               prepared: None,
-               disconnected: false,
-               middlewares: None }
+        self.stream = TaskStream::Stream(Box::new(stream));
     }
 
     pub(crate) fn response(&mut self) -> HttpResponse {

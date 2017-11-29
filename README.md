@@ -84,7 +84,7 @@ impl Actor for MyWebSocket {
 impl Route for MyWebSocket {
     type State = ();
 
-    fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self>
+    fn request(mut req: HttpRequest, mut ctx: HttpContext<Self>) -> Result<Reply>
     {
         // websocket handshake
         let resp = ws::handshake(&req)?;
@@ -92,7 +92,7 @@ impl Route for MyWebSocket {
         ctx.start(resp);
         // convert bytes stream to a stream of `ws::Message` and handle stream
         ctx.add_stream(ws::WsStream::new(&mut req));
-        Reply::async(MyWebSocket)
+        ctx.reply(MyWebSocket)
     }
 }
 
