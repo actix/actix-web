@@ -95,11 +95,6 @@ impl<S> HttpRequest<S> {
         &self.1
     }
 
-    /// Clone application state
-    pub(crate) fn clone_state(&self) -> Rc<S> {
-        Rc::clone(&self.1)
-    }
-
     /// Protocol extensions.
     #[inline]
     pub fn extensions(&mut self) -> &mut Extensions {

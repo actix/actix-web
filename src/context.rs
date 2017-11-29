@@ -14,26 +14,27 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
 
 use task::{IoContext, DrainFut};
 use body::Binary;
-use error::{Error, Result as ActixResult};
-use route::{Route, Frame, Reply};
+use error::Error;
+use route::Frame;
+use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 
 /// Http actor execution context
-pub struct HttpContext<A> where A: Actor<Context=HttpContext<A>> + Route,
+pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
-    act: Option<A>,
+    act: A,
     state: ActorState,
     modified: bool,
     items: ActorItemsCell<A>,
     address: ActorAddressCell<A>,
     stream: VecDeque<Frame>,
     wait: ActorWaitCell<A>,
-    app_state: Rc<<A as Route>::State>,
+    request: HttpRequest<S>,
     disconnected: bool,
 }
 
-impl<A> IoContext for HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A, S> IoContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
 
     fn disconnected(&mut self) {
         self.items.stop();
@@ -44,7 +45,7 @@ impl<A> IoContext for HttpContext<A> where A: Actor<Context=Self> + Route {
     }
 }
 
-impl<A> ActorContext for HttpContext<A> where A: Actor<Context=Self> + Route
+impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
 {
     /// Stop actor execution
     fn stop(&mut self) {
@@ -69,7 +70,7 @@ impl<A> ActorContext for HttpContext<A> where A: Actor<Context=Self> + Route
     }
 }
 
-impl<A> AsyncContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
+impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
@@ -96,40 +97,42 @@ impl<A> AsyncContext<A> for HttpContext<A> where A: Actor<Context=Self> + Route
 }
 
 #[doc(hidden)]
-impl<A> AsyncContextApi<A> for HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A, S> AsyncContextApi<A> for HttpContext<A, S> where A: Actor<Context=Self> {
     fn address_cell(&mut self) -> &mut ActorAddressCell<A> {
         &mut self.address
     }
 }
 
-impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
-    pub fn new(state: Rc<<A as Route>::State>) -> HttpContext<A>
+    pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S>
     {
         HttpContext {
-            act: None,
+            act: actor,
             state: ActorState::Started,
             modified: false,
             items: ActorItemsCell::default(),
             address: ActorAddressCell::default(),
             wait: ActorWaitCell::default(),
             stream: VecDeque::new(),
-            app_state: state,
+            request: req,
             disconnected: false,
         }
     }
-
-    pub(crate) fn set_actor(&mut self, act: A) {
-        self.act = Some(act)
-    }
 }
 
-impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
     /// Shared application state
-    pub fn state(&self) -> &<A as Route>::State {
-        &self.app_state
+    pub fn state(&self) -> &S {
+        self.request.state()
     }
+
+    /// Incoming request
+    pub fn request(&mut self) -> &mut HttpRequest<S> {
+        &mut self.request
+    }
+
 
     /// Start response processing
     pub fn start<R: Into<HttpResponse>>(&mut self, response: R) {
@@ -158,14 +161,9 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
     pub fn connected(&self) -> bool {
         !self.disconnected
     }
-
-    pub fn reply(mut self, actor: A) -> ActixResult<Reply> {
-        self.set_actor(actor);
-        Reply::async(self)
-    }
 }
 
-impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
+impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
     #[doc(hidden)]
     pub fn subscriber<M>(&mut self) -> Box<Subscriber<M>>
@@ -187,20 +185,17 @@ impl<A> HttpContext<A> where A: Actor<Context=Self> + Route {
 }
 
 #[doc(hidden)]
-impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
+impl<A, S> Stream for HttpContext<A, S> where A: Actor<Context=Self>
 {
     type Item = Frame;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<Frame>, Error> {
-        if self.act.is_none() {
-            return Ok(Async::NotReady)
-        }
         let act: &mut A = unsafe {
-            std::mem::transmute(self.act.as_mut().unwrap() as &mut A)
+            std::mem::transmute(&mut self.act as &mut A)
         };
-        let ctx: &mut HttpContext<A> = unsafe {
-            std::mem::transmute(self as &mut HttpContext<A>)
+        let ctx: &mut HttpContext<A, S> = unsafe {
+            std::mem::transmute(self as &mut HttpContext<A, S>)
         };
 
         // update state
@@ -283,8 +278,8 @@ impl<A> Stream for HttpContext<A> where A: Actor<Context=Self> + Route
     }
 }
 
-impl<A> ToEnvelope<A> for HttpContext<A>
-    where A: Actor<Context=HttpContext<A>> + Route,
+impl<A, S> ToEnvelope<A> for HttpContext<A, S>
+    where A: Actor<Context=HttpContext<A, S>>,
 {
     fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
         where A: Handler<M>,

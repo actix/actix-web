@@ -1,14 +1,12 @@
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
-use actix::Actor;
 use http::Method;
 use futures::Stream;
 
 use task::Task;
 use error::Error;
-use route::{Reply, Route, RouteHandler, Frame, FnHandler, StreamHandler};
-use context::HttpContext;
+use route::{Reply, RouteHandler, Frame, FnHandler, StreamHandler};
 use httprequest::HttpRequest;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
@@ -92,31 +90,31 @@ impl<S> Resource<S> where S: 'static {
     }
 
     /// Handler for `GET` method.
-    pub fn get<A>(&mut self)
-        where A: Actor<Context=HttpContext<A>> + Route<State=S>
-    {
-        self.route_handler(Method::GET, A::factory());
+    pub fn get<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Into<Reply> + 'static, {
+        self.routes.insert(Method::GET, Box::new(FnHandler::new(handler)));
     }
 
     /// Handler for `POST` method.
-    pub fn post<A>(&mut self)
-        where A: Actor<Context=HttpContext<A>> + Route<State=S>
-    {
-        self.route_handler(Method::POST, A::factory());
+    pub fn post<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Into<Reply> + 'static, {
+        self.routes.insert(Method::POST, Box::new(FnHandler::new(handler)));
     }
 
-    /// Handler for `PUR` method.
-    pub fn put<A>(&mut self)
-        where A: Actor<Context=HttpContext<A>> + Route<State=S>
-    {
-        self.route_handler(Method::PUT, A::factory());
+    /// Handler for `PUT` method.
+    pub fn put<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Into<Reply> + 'static, {
+        self.routes.insert(Method::PUT, Box::new(FnHandler::new(handler)));
     }
 
-    /// Handler for `METHOD` method.
-    pub fn delete<A>(&mut self)
-        where A: Actor<Context=HttpContext<A>> + Route<State=S>
-    {
-        self.route_handler(Method::DELETE, A::factory());
+    /// Handler for `DELETE` method.
+    pub fn delete<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Into<Reply> + 'static, {
+        self.routes.insert(Method::DELETE, Box::new(FnHandler::new(handler)));
     }
 }
 

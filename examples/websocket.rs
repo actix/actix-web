@@ -12,26 +12,17 @@ use actix::*;
 use actix_web::*;
 
 
+/// do websocket handshake and start `MyWebSocket` actor
+fn ws_index(r: HttpRequest) -> Reply {
+    ws::start(r, MyWebSocket).into()
+}
+
+/// websocket connection is long running connection, it easier
+/// to handle with an actor
 struct MyWebSocket;
 
 impl Actor for MyWebSocket {
     type Context = HttpContext<Self>;
-}
-
-/// Http route handler
-impl Route for MyWebSocket {
-    type State = ();
-
-    fn request(mut req: HttpRequest, mut ctx: HttpContext<Self>) -> Result<Reply>
-    {
-        // websocket handshake
-        let resp = ws::handshake(&req)?;
-        // send HttpResponse back to peer
-        ctx.start(resp);
-        // convert bytes stream to a stream of `ws::Message` and register it
-        ctx.add_stream(ws::WsStream::new(&mut req));
-        ctx.reply(MyWebSocket)
-    }
 }
 
 /// Standard actix's stream handler for a stream of `ws::Message`
@@ -74,7 +65,7 @@ fn main() {
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route
-            .resource("/ws/", |r| r.get::<MyWebSocket>())
+            .resource("/ws/", |r| r.get(ws_index))
             .route_handler("/", StaticFiles::new("examples/static/", true)))
         // start http server on 127.0.0.1:8080
         .serve::<_, ()>("127.0.0.1:8080").unwrap();

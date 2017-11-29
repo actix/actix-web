@@ -12,27 +12,15 @@
 //! use actix::*;
 //! use actix_web::*;
 //!
+//! fn ws_index(req: HttpRequest) -> Result<Reply> {
+//!     ws::start(req, WsRoute)
+//! }
+//!
 //! // WebSocket Route
 //! struct WsRoute;
 //!
 //! impl Actor for WsRoute {
 //!     type Context = HttpContext<Self>;
-//! }
-//!
-//! impl Route for WsRoute {
-//!     type State = ();
-//!
-//!     fn request(mut req: HttpRequest, mut ctx: HttpContext<Self>) -> Result<Reply>
-//!     {
-//!         // WebSocket handshake
-//!         let resp = ws::handshake(&req)?;
-//!         // Send handshake response to peer
-//!         ctx.start(resp);
-//!         // Map Payload into WsStream
-//!         ctx.add_stream(ws::WsStream::new(&mut req));
-//!         // Start ws messages processing
-//!         ctx.reply(WsRoute)
-//!     }
 //! }
 //!
 //! // Define Handler for ws::Message message
@@ -59,13 +47,13 @@ use http::{Method, StatusCode, header};
 use bytes::BytesMut;
 use futures::{Async, Poll, Stream};
 
-use actix::{Actor, ResponseType};
+use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
 
 use body::Body;
 use context::HttpContext;
-use route::Route;
+use route::Reply;
 use payload::Payload;
-use error::WsHandshakeError;
+use error::{Error, WsHandshakeError};
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse};
 
@@ -98,6 +86,19 @@ pub enum Message {
 impl ResponseType for Message {
     type Item = ();
     type Error = ();
+}
+
+pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
+    where A: Actor<Context=HttpContext<A, S>> + StreamHandler<Message>,
+          S: 'static
+{
+    let resp = handshake(&req)?;
+
+    let stream = WsStream::new(&mut req);
+    let mut ctx = HttpContext::new(req, actor);
+    ctx.start(resp);
+    ctx.add_stream(stream);
+    Ok(ctx.into())
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -271,8 +272,8 @@ pub struct WsWriter;
 impl WsWriter {
 
     /// Send text frame
-    pub fn text<A>(ctx: &mut HttpContext<A>, text: &str)
-        where A: Actor<Context=HttpContext<A>> + Route
+    pub fn text<A, S>(ctx: &mut HttpContext<A, S>, text: &str)
+        where A: Actor<Context=HttpContext<A, S>>
     {
         let mut frame = wsframe::Frame::message(Vec::from(text), OpCode::Text, true);
         let mut buf = Vec::new();
@@ -282,8 +283,8 @@ impl WsWriter {
     }
 
     /// Send binary frame
-    pub fn binary<A>(ctx: &mut HttpContext<A>, data: Vec<u8>)
-        where A: Actor<Context=HttpContext<A>> + Route
+    pub fn binary<A, S>(ctx: &mut HttpContext<A, S>, data: Vec<u8>)
+        where A: Actor<Context=HttpContext<A, S>>
     {
         let mut frame = wsframe::Frame::message(data, OpCode::Binary, true);
         let mut buf = Vec::new();
@@ -293,8 +294,8 @@ impl WsWriter {
     }
 
     /// Send ping frame
-    pub fn ping<A>(ctx: &mut HttpContext<A>, message: &str)
-        where A: Actor<Context=HttpContext<A>> + Route
+    pub fn ping<A, S>(ctx: &mut HttpContext<A, S>, message: &str)
+        where A: Actor<Context=HttpContext<A, S>>
     {
         let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Ping, true);
         let mut buf = Vec::new();
@@ -304,8 +305,8 @@ impl WsWriter {
     }
 
     /// Send pong frame
-    pub fn pong<A>(ctx: &mut HttpContext<A>, message: &str)
-        where A: Actor<Context=HttpContext<A>> + Route
+    pub fn pong<A, S>(ctx: &mut HttpContext<A, S>, message: &str)
+        where A: Actor<Context=HttpContext<A, S>>
     {
         let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Pong, true);
         let mut buf = Vec::new();
@@ -315,8 +316,8 @@ impl WsWriter {
     }
 
     /// Send close frame
-    pub fn close<A>(ctx: &mut HttpContext<A>, code: CloseCode, reason: &str)
-        where A: Actor<Context=HttpContext<A>> + Route
+    pub fn close<A, S>(ctx: &mut HttpContext<A, S>, code: CloseCode, reason: &str)
+        where A: Actor<Context=HttpContext<A, S>>
     {
         let mut frame = wsframe::Frame::close(code, reason);
         let mut buf = Vec::new();

@@ -1,14 +1,15 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::result::Result as StdResult;
 
 use actix::Actor;
-use http::{header, Version};
+// use http::{header, Version};
 use futures::Stream;
 
 use task::{Task, DrainFut, IoContext};
 use body::Binary;
-use error::{Error, ExpectError, Result};
+use error::{Error}; //, ExpectError, Result};
 use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -37,9 +38,10 @@ pub trait RouteHandler<S>: 'static {
     fn set_prefix(&mut self, prefix: String) {}
 }
 
+/*
 /// Actors with ability to handle http requests.
 #[allow(unused_variables)]
-pub trait Route: Actor {
+pub trait RouteState {
     /// Shared state. State is shared with all routes within same application
     /// and could be accessed with `HttpRequest::state()` method.
     type State;
@@ -69,42 +71,13 @@ pub trait Route: Actor {
         }
     }
 
-    /// Handle incoming request. Route actor can return
-    /// result immediately with `Reply::reply`.
-    /// Actor itself can be returned with `Reply::stream` for handling streaming
-    /// request/response or websocket connection.
-    /// In that case `HttpContext::start` and `HttpContext::write` has to be used
-    /// for writing response.
-    fn request(req: HttpRequest<Self::State>, ctx: Self::Context) -> Result<Reply>;
-
-    /// This method creates `RouteFactory` for this actor.
-    fn factory() -> RouteFactory<Self, Self::State> {
-        RouteFactory(PhantomData)
+    /// Handle incoming request with http actor.
+    fn handle(req: HttpRequest<Self::State>) -> Result<Reply>
+        where Self: Default, Self: Actor<Context=HttpContext<Self>>
+    {
+        Ok(HttpContext::new(req, Self::default()).into())
     }
-}
-
-/// This is used for routes registration within `Resource`
-pub struct RouteFactory<A: Route<State=S>, S>(PhantomData<A>);
-
-impl<A, S> RouteHandler<S> for RouteFactory<A, S>
-    where A: Actor<Context=HttpContext<A>> + Route<State=S>,
-          S: 'static
-{
-    fn handle(&self, mut req: HttpRequest<A::State>, task: &mut Task) {
-        let mut ctx = HttpContext::new(req.clone_state());
-
-        // handle EXPECT header
-        if req.headers().contains_key(header::EXPECT) {
-            if let Err(resp) = A::expect(&mut req, &mut ctx) {
-                task.reply(resp)
-            }
-        }
-        match A::request(req, ctx) {
-            Ok(reply) => reply.into(task),
-            Err(err) => task.reply(err),
-        }
-    }
-}
+}*/
 
 /// Fn() route handler
 pub(crate)
@@ -180,20 +153,22 @@ pub struct Reply(ReplyItem);
 impl Reply
 {
     /// Create actor response
-    pub(crate) fn async<C: IoContext>(ctx: C) -> Result<Reply> {
-        Ok(Reply(ReplyItem::Actor(Box::new(ctx))))
+    pub fn actor<A, S>(ctx: HttpContext<A, S>) -> Reply
+        where A: Actor<Context=HttpContext<A, S>>, S: 'static
+    {
+        Reply(ReplyItem::Actor(Box::new(ctx)))
     }
 
     /// Create async response
-    pub fn stream<S>(stream: S) -> Result<Reply>
+    pub fn stream<S>(stream: S) -> Reply
         where S: Stream<Item=Frame, Error=Error> + 'static
     {
-        Ok(Reply(ReplyItem::Stream(Box::new(stream))))
+        Reply(ReplyItem::Stream(Box::new(stream)))
     }
 
     /// Send response
-    pub fn reply<R: Into<HttpResponse>>(response: R) -> Result<Reply> {
-        Ok(Reply(ReplyItem::Message(response.into())))
+    pub fn reply<R: Into<HttpResponse>>(response: R) -> Reply {
+        Reply(ReplyItem::Message(response.into()))
     }
 
     pub fn into(self, task: &mut Task)
@@ -216,5 +191,21 @@ impl<T: Into<HttpResponse>> From<T> for Reply
 {
     fn from(item: T) -> Self {
         Reply(ReplyItem::Message(item.into()))
+    }
+}
+
+impl<E: Into<Error>> From<StdResult<Reply, E>> for Reply {
+    fn from(res: StdResult<Reply, E>) -> Self {
+        match res {
+            Ok(val) => val,
+            Err(err) => err.into().into(),
+        }
+    }
+}
+
+impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> for Reply
+{
+    fn from(item: HttpContext<A, S>) -> Self {
+        Reply(ReplyItem::Actor(Box::new(item)))
     }
 }

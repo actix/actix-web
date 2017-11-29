@@ -19,6 +19,7 @@ struct AppState {
 fn index(req: HttpRequest<AppState>) -> HttpResponse {
     println!("{:?}", req);
     req.state().counter.set(req.state().counter.get() + 1);
+
     httpcodes::HTTPOk.with_body(
         format!("Num of requests: {}", req.state().counter.get()))
 }
@@ -30,25 +31,12 @@ struct MyWebSocket {
 }
 
 impl Actor for MyWebSocket {
-    type Context = HttpContext<Self>;
-}
-
-impl Route for MyWebSocket {
-    /// Shared application state
-    type State = AppState;
-
-    fn request(mut req: HttpRequest<AppState>, mut ctx: HttpContext<Self>) -> Result<Reply>
-    {
-        let resp = ws::handshake(&req)?;
-        ctx.start(resp);
-        ctx.add_stream(ws::WsStream::new(&mut req));
-        ctx.reply(MyWebSocket{counter: 0})
-    }
+    type Context = HttpContext<Self, AppState>;
 }
 
 impl StreamHandler<ws::Message> for MyWebSocket {}
 impl Handler<ws::Message> for MyWebSocket {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
               -> Response<Self, ws::Message>
     {
         self.counter += 1;
@@ -76,7 +64,7 @@ fn main() {
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route
-            .resource("/ws/", |r| r.get::<MyWebSocket>())
+            .resource("/ws/", |r| r.get(|r| ws::start(r, MyWebSocket{counter: 0})))
             // register simple handler, handle all methods
             .handler("/", index))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();

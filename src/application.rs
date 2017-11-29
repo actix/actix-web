@@ -132,23 +132,10 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// use actix::*;
     /// use actix_web::*;
     ///
-    /// struct MyRoute;
-    ///
-    /// impl Actor for MyRoute {
-    ///     type Context = HttpContext<Self>;
-    /// }
-    ///
-    /// impl Route for MyRoute {
-    ///     type State = ();
-    ///
-    ///     fn request(req: HttpRequest, ctx: HttpContext<Self>) -> Result<Reply> {
-    ///         Reply::reply(httpcodes::HTTPOk)
-    ///     }
-    /// }
     /// fn main() {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
-    ///              r.get::<MyRoute>();
+    ///              r.get(|req| httpcodes::HTTPOk);
     ///              r.handler(Method::HEAD, |req| httpcodes::HTTPMethodNotAllowed);
     ///         })
     ///         .finish();
