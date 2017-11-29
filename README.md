@@ -107,12 +107,9 @@ fn main() {
 
     HttpServer::new(
         Application::default("/")
-            // enable logger
-            .middleware(middlewares::Logger::default())
-            // websocket route
-            .resource("/ws/", |r| r.get(|req| ws::start(req, MyWebSocket)))
-            // static files
-            .route("/", StaticFiles::new("examples/static/", true)))
+            .middleware(middlewares::Logger::default())  // <- register logger middleware
+            .resource("/ws/", |r| r.get(|req| ws::start(req, MyWebSocket))) // <- websocket route
+            .route("/", StaticFiles::new("examples/static/", true))) // <- server static files
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     Arbiter::system().send(msgs::SystemExit(0));

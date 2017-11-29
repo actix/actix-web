@@ -12,6 +12,7 @@
 //! use actix::*;
 //! use actix_web::*;
 //!
+//! // do websocket handshake and start actor
 //! fn ws_index(req: HttpRequest) -> Result<Reply> {
 //!     ws::start(req, WsRoute)
 //! }
@@ -40,7 +41,11 @@
 //!     }
 //! }
 //!
-//! fn main() {}
+//! fn main() {
+//!     Application::default("/")
+//!       .resource("/ws/", |r| r.get(ws_index))  // <- register websocket route
+//!       .finish();
+//! }
 //! ```
 use std::vec::Vec;
 use http::{Method, StatusCode, header};
@@ -88,6 +93,7 @@ impl ResponseType for Message {
     type Error = ();
 }
 
+/// Do websocket handshake and start actor
 pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
     where A: Actor<Context=HttpContext<A, S>> + StreamHandler<Message>,
           S: 'static
