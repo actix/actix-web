@@ -6,7 +6,7 @@ use futures::Stream;
 
 use task::Task;
 use error::Error;
-use route::{Reply, RouteHandler, Frame, FnHandler, StreamHandler};
+use route::{Reply, RouteHandler, Frame, WrapHandler, Handler, StreamHandler};
 use httprequest::HttpRequest;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
@@ -17,13 +17,12 @@ use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 /// Resource in turn has at least one route.
 /// Route corresponds to handling HTTP method by calling route handler.
 ///
-/// ```rust,ignore
-///
-/// struct MyRoute;
+/// ```rust
+/// extern crate actix_web;
 ///
 /// fn main() {
-///     let router = RoutingMap::default()
-///         .resource("/", |r| r.post::<MyRoute>())
+///     let app = actix_web::Application::default("/")
+///         .resource("/", |r| r.get(|_| actix_web::HttpResponse::Ok()))
 ///         .finish();
 /// }
 pub struct Resource<S=()> {
@@ -63,7 +62,7 @@ impl<S> Resource<S> where S: 'static {
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static,
     {
-        self.routes.insert(method, Box::new(FnHandler::new(handler)));
+        self.routes.insert(method, Box::new(WrapHandler::new(handler)));
     }
 
     /// Register async handler for specified method.
@@ -74,50 +73,41 @@ impl<S> Resource<S> where S: 'static {
         self.routes.insert(method, Box::new(StreamHandler::new(handler)));
     }
 
-    /// Register handler for specified method.
-    pub fn route_handler<H>(&mut self, method: Method, handler: H)
-        where H: RouteHandler<S>
-    {
-        self.routes.insert(method, Box::new(handler));
-    }
-
     /// Default handler is used if no matched route found.
     /// By default `HTTPMethodNotAllowed` is used.
-    pub fn default_handler<H>(&mut self, handler: H)
-        where H: RouteHandler<S>
+    pub fn default_handler<H>(&mut self, handler: H) where H: Handler<S>
     {
-        self.default = Box::new(handler);
+        self.default = Box::new(WrapHandler::new(handler));
     }
 
     /// Handler for `GET` method.
     pub fn get<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
-        self.routes.insert(Method::GET, Box::new(FnHandler::new(handler)));
+        self.routes.insert(Method::GET, Box::new(WrapHandler::new(handler)));
     }
 
     /// Handler for `POST` method.
     pub fn post<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
-        self.routes.insert(Method::POST, Box::new(FnHandler::new(handler)));
+        self.routes.insert(Method::POST, Box::new(WrapHandler::new(handler)));
     }
 
     /// Handler for `PUT` method.
     pub fn put<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
-        self.routes.insert(Method::PUT, Box::new(FnHandler::new(handler)));
+        self.routes.insert(Method::PUT, Box::new(WrapHandler::new(handler)));
     }
 
     /// Handler for `DELETE` method.
     pub fn delete<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
-        self.routes.insert(Method::DELETE, Box::new(FnHandler::new(handler)));
+        self.routes.insert(Method::DELETE, Box::new(WrapHandler::new(handler)));
     }
 }
-
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
 

@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use task::Task;
-use route::{RouteHandler, FnHandler, Reply};
+use route::{RouteHandler, WrapHandler, Reply, Handler};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
@@ -126,10 +126,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// store userid and friend in the exposed Params object:
     ///
     /// ```rust
-    /// extern crate actix;
     /// extern crate actix_web;
-    ///
-    /// use actix::*;
     /// use actix_web::*;
     ///
     /// fn main() {
@@ -158,7 +155,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// Default resource is used if no matches route could be found.
+    /// Default resource is used if no match route could be found.
     pub fn default_resource<F>(&mut self, f: F) -> &mut Self
         where F: FnOnce(&mut Resource<S>) + 'static
     {
@@ -178,7 +175,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = Application::default("/")
-    ///         .handler("/test", |req| {
+    ///         .inline("/test", |req| {
     ///              match *req.method() {
     ///                  Method::GET => httpcodes::HTTPOk,
     ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,
@@ -189,28 +186,22 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// }
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static,
-              P: Into<String>,
+        where P: Into<String>,
+              F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Into<Reply> + 'static
     {
         self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(FnHandler::new(handler)));
+            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
         self
     }
 
-    /// Add path handler
-    pub fn route_handler<H, P>(&mut self, path: P, h: H) -> &mut Self
-        where H: RouteHandler<S> + 'static, P: Into<String>
+    /// This method register handler for specified path prefix.
+    /// Any path that starts with this prefix matches handler.
+    pub fn route<P, H>(&mut self, path: P, handler: H) -> &mut Self
+        where P: Into<String>, H: Handler<S>
     {
-        {
-            // add resource
-            let parts = self.parts.as_mut().expect("Use after finish");
-            let path = path.into();
-            if parts.handlers.contains_key(&path) {
-                panic!("Handler already registered: {:?}", path);
-            }
-            parts.handlers.insert(path, Box::new(h));
-        }
+        self.parts.as_mut().expect("Use after finish")
+            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
         self
     }
 

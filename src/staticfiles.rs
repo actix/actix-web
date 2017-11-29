@@ -7,9 +7,8 @@ use std::fmt::Write;
 use std::fs::{File, DirEntry};
 use std::path::PathBuf;
 
-use task::Task;
-use route::RouteHandler;
 use mime_guess::get_mime_type;
+use route::Handler;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden};
@@ -24,7 +23,7 @@ use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden};
 ///
 /// fn main() {
 ///     let app = Application::default("/")
-///         .route_handler("/static", StaticFiles::new(".", true))
+///         .handler("/static", StaticFiles::new(".", true))
 ///         .finish();
 /// }
 /// ```
@@ -128,7 +127,8 @@ impl StaticFiles {
     }
 }
 
-impl<S: 'static> RouteHandler<S> for StaticFiles {
+impl<S> Handler<S> for StaticFiles {
+    type Result = Result<HttpResponse, io::Error>;
 
     fn set_prefix(&mut self, prefix: String) {
         if prefix != "/" {
@@ -136,9 +136,9 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
         }
     }
 
-    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
-            task.reply(HTTPNotFound)
+            Ok(HTTPNotFound.into())
         } else {
             let mut hidden = false;
             let filepath = req.path()[self.prefix.len()..]
@@ -152,7 +152,7 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
 
             // hidden file
             if hidden {
-                task.reply(HTTPNotFound)
+                return Ok(HTTPNotFound.into())
             }
 
             // full filepath
@@ -160,19 +160,19 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
             let filename = match self.directory.join(&filepath[idx..]).canonicalize() {
                 Ok(fname) => fname,
                 Err(err) => return match err.kind() {
-                    io::ErrorKind::NotFound => task.reply(HTTPNotFound),
-                    io::ErrorKind::PermissionDenied => task.reply(HTTPForbidden),
-                    _ => task.error(err),
+                    io::ErrorKind::NotFound => Ok(HTTPNotFound.into()),
+                    io::ErrorKind::PermissionDenied => Ok(HTTPForbidden.into()),
+                    _ => Err(err),
                 }
             };
 
             if filename.is_dir() {
                 match self.index(&filepath[idx..], &filename) {
-                    Ok(resp) => task.reply(resp),
+                    Ok(resp) => Ok(resp),
                     Err(err) => match err.kind() {
-                        io::ErrorKind::NotFound => task.reply(HTTPNotFound),
-                        io::ErrorKind::PermissionDenied => task.reply(HTTPForbidden),
-                        _ => task.error(err),
+                        io::ErrorKind::NotFound => Ok(HTTPNotFound.into()),
+                        io::ErrorKind::PermissionDenied => Ok(HTTPForbidden.into()),
+                        _ => Err(err),
                     }
                 }
             } else {
@@ -185,9 +185,9 @@ impl<S: 'static> RouteHandler<S> for StaticFiles {
                     Ok(mut file) => {
                         let mut data = Vec::new();
                         let _ = file.read_to_end(&mut data);
-                        task.reply(resp.body(data).unwrap())
+                        Ok(resp.body(data).unwrap())
                     },
-                    Err(err) => task.error(err),
+                    Err(err) => Err(err),
                 }
             }
         }

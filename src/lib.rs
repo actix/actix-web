@@ -82,7 +82,7 @@ pub use application::Application;
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
-pub use route::{Frame, RouteHandler, Reply};
+pub use route::{Frame, Reply};
 pub use resource::Resource;
 pub use recognizer::Params;
 pub use server::HttpServer;
