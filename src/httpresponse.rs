@@ -205,12 +205,6 @@ impl HttpResponse {
     }
 }
 
-impl From<HttpResponse> for Frame {
-    fn from(resp: HttpResponse) -> Frame {
-        Frame::Message(resp)
-    }
-}
-
 impl fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpResponse {:?} {}{}\n",
@@ -226,6 +220,13 @@ impl fmt::Debug for HttpResponse {
             }
         }
         res
+    }
+}
+
+// TODO: remove
+impl From<HttpResponse> for Frame {
+    fn from(resp: HttpResponse) -> Frame {
+        Frame::Message(resp)
     }
 }
 
@@ -441,12 +442,6 @@ impl HttpResponseBuilder {
     }
 }
 
-impl From<HttpResponseBuilder> for HttpResponse {
-    fn from(mut builder: HttpResponseBuilder) -> Self {
-        builder.finish().into()
-    }
-}
-
 fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
 {
     if err.is_some() {
@@ -465,8 +460,14 @@ impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse 
     }
 }
 
+impl From<HttpResponseBuilder> for HttpResponse {
+    fn from(mut builder: HttpResponseBuilder) -> Self {
+        builder.finish().into()
+    }
+}
+
 impl From<&'static str> for HttpResponse {
-    fn from(val: &'static str) -> HttpResponse {
+    fn from(val: &'static str) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
@@ -475,7 +476,7 @@ impl From<&'static str> for HttpResponse {
 }
 
 impl From<&'static [u8]> for HttpResponse {
-    fn from(val: &'static [u8]) -> HttpResponse {
+    fn from(val: &'static [u8]) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(val)
@@ -484,7 +485,7 @@ impl From<&'static [u8]> for HttpResponse {
 }
 
 impl From<String> for HttpResponse {
-    fn from(val: String) -> HttpResponse {
+    fn from(val: String) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
@@ -493,7 +494,7 @@ impl From<String> for HttpResponse {
 }
 
 impl<'a> From<&'a String> for HttpResponse {
-    fn from(val: &'a String) -> HttpResponse {
+    fn from(val: &'a String) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
@@ -502,7 +503,7 @@ impl<'a> From<&'a String> for HttpResponse {
 }
 
 impl From<Bytes> for HttpResponse {
-    fn from(val: Bytes) -> HttpResponse {
+    fn from(val: Bytes) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(val)
@@ -511,7 +512,7 @@ impl From<Bytes> for HttpResponse {
 }
 
 impl From<BytesMut> for HttpResponse {
-    fn from(val: BytesMut) -> HttpResponse {
+    fn from(val: BytesMut) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(val)

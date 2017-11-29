@@ -114,6 +114,7 @@ pub struct Task {
     middlewares: Option<MiddlewaresResponse>,
 }
 
+#[doc(hidden)]
 impl Default for Task {
 
     fn default() -> Task {
@@ -130,7 +131,7 @@ impl Default for Task {
 
 impl Task {
 
-    pub fn from_response<R: Into<HttpResponse>>(response: R) -> Task {
+    pub(crate) fn from_response<R: Into<HttpResponse>>(response: R) -> Task {
         let mut frames = VecDeque::new();
         frames.push_back(Frame::Message(response.into()));
         frames.push_back(Frame::Payload(None));
@@ -145,7 +146,7 @@ impl Task {
                middlewares: None }
     }
 
-    pub fn from_error<E: Into<Error>>(err: E) -> Task {
+    pub(crate) fn from_error<E: Into<Error>>(err: E) -> Task {
         Task::from_response(err.into())
     }
 
@@ -163,7 +164,7 @@ impl Task {
         self.stream = TaskStream::Context(ctx);
     }
 
-    pub(crate) fn stream<S>(&mut self, stream: S)
+    pub fn stream<S>(&mut self, stream: S)
         where S: Stream<Item=Frame, Error=Error> + 'static
     {
         self.stream = TaskStream::Stream(Box::new(stream));

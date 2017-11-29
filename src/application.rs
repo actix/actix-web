@@ -2,11 +2,10 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use task::Task;
-use route::{RouteHandler, FnHandler};
+use route::{RouteHandler, FnHandler, Reply};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use channel::HttpHandler;
 use pipeline::Pipeline;
 use middlewares::Middleware;
@@ -204,7 +203,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// ```
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<HttpResponse> + 'static,
+              R: Into<Reply> + 'static,
               P: Into<String>,
     {
         self.parts.as_mut().expect("Use after finish")

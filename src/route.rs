@@ -110,7 +110,7 @@ impl<A, S> RouteHandler<S> for RouteFactory<A, S>
 pub(crate)
 struct FnHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Into<HttpResponse>,
+          R: Into<Reply>,
           S: 'static,
 {
     f: Box<F>,
@@ -119,7 +119,7 @@ struct FnHandler<S, R, F>
 
 impl<S, R, F> FnHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Into<HttpResponse> + 'static,
+          R: Into<Reply> + 'static,
           S: 'static,
 {
     pub fn new(f: F) -> Self {
@@ -129,11 +129,11 @@ impl<S, R, F> FnHandler<S, R, F>
 
 impl<S, R, F> RouteHandler<S> for FnHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Into<HttpResponse> + 'static,
+          R: Into<Reply> + 'static,
           S: 'static,
 {
     fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
-        task.reply((self.f)(req).into())
+        (self.f)(req).into().into(task)
     }
 }
 
@@ -212,8 +212,7 @@ impl Reply
     }
 }
 
-impl<T> From<T> for Reply
-    where T: Into<HttpResponse>
+impl<T: Into<HttpResponse>> From<T> for Reply
 {
     fn from(item: T) -> Self {
         Reply(ReplyItem::Message(item.into()))

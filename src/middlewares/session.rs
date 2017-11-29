@@ -218,7 +218,6 @@ struct CookieSessionInner {
     path: String,
     domain: Option<String>,
     secure: bool,
-    http_only: bool,
 }
 
 impl CookieSessionInner {
@@ -229,8 +228,7 @@ impl CookieSessionInner {
             name: "actix_session".to_owned(),
             path: "/".to_owned(),
             domain: None,
-            secure: true,
-            http_only: true }
+            secure: true }
     }
 
     fn set_cookie(&self, resp: &mut HttpResponse, state: &HashMap<String, String>) -> Result<()> {
@@ -243,7 +241,7 @@ impl CookieSessionInner {
         let mut cookie = Cookie::new(self.name.clone(), value);
         cookie.set_path(self.path.clone());
         cookie.set_secure(self.secure);
-        cookie.set_http_only(self.http_only);
+        cookie.set_http_only(true);
 
         if let Some(ref domain) = self.domain {
             cookie.set_domain(domain.clone());
@@ -354,7 +352,6 @@ impl SessionBackend for CookieSessionBackend {
 ///     .domain("www.rust-lang.org")
 ///     .path("/")
 ///     .secure(true)
-///     .http_only(true)
 ///     .finish();
 /// # }
 /// ```
@@ -381,12 +378,6 @@ impl CookieSessionBackendBuilder {
     /// Sets the `secure` field in the session cookie being built.
     pub fn secure(mut self, value: bool) -> CookieSessionBackendBuilder {
         self.0.secure = value;
-        self
-    }
-
-    /// Sets the `http_only` field in the session cookie being built.
-    pub fn http_only(mut self, value: bool) -> CookieSessionBackendBuilder {
-        self.0.http_only = value;
         self
     }
 

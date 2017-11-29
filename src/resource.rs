@@ -7,10 +7,9 @@ use futures::Stream;
 
 use task::Task;
 use error::Error;
-use route::{Route, RouteHandler, Frame, FnHandler, StreamHandler};
+use route::{Reply, Route, RouteHandler, Frame, FnHandler, StreamHandler};
 use context::HttpContext;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
 /// Http resource
@@ -64,7 +63,7 @@ impl<S> Resource<S> where S: 'static {
     /// Register handler for specified method.
     pub fn handler<F, R>(&mut self, method: Method, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<HttpResponse> + 'static,
+              R: Into<Reply> + 'static,
     {
         self.routes.insert(method, Box::new(FnHandler::new(handler)));
     }
