@@ -2,6 +2,7 @@ use std::{fmt, cmp};
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::ops::{Deref, DerefMut};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
@@ -18,6 +19,20 @@ pub struct PayloadItem(pub Bytes);
 impl ResponseType for PayloadItem {
     type Item = ();
     type Error = ();
+}
+
+impl Deref for PayloadItem {
+    type Target = Bytes;
+
+    fn deref(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl DerefMut for PayloadItem {
+    fn deref_mut(&mut self) -> &mut Bytes {
+        &mut self.0
+    }
 }
 
 impl fmt::Debug for PayloadItem {
