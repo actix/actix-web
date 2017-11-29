@@ -72,7 +72,6 @@ extern crate env_logger;
 use actix::*;
 use actix_web::*;
 
-
 struct MyWebSocket;
 
 /// Actor with http context
@@ -112,7 +111,8 @@ fn main() {
             .middleware(middlewares::Logger::default())
             // websocket route
             .resource("/ws/", |r| r.get(|req| ws::start(req, MyWebSocket)))
-            .route_handler("/", StaticFiles::new("examples/static/", true)))
+            // static files
+            .route("/", StaticFiles::new("examples/static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     Arbiter::system().send(msgs::SystemExit(0));

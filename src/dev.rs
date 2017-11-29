@@ -10,7 +10,6 @@
 
 // dev specific
 pub use task::Task;
-pub use route::Handler;
 pub use pipeline::Pipeline;
 pub use recognizer::RouteRecognizer;
 pub use channel::HttpChannel;

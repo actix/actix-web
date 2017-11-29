@@ -80,28 +80,28 @@ impl<S> Resource<S> where S: 'static {
         self.default = Box::new(WrapHandler::new(handler));
     }
 
-    /// Handler for `GET` method.
+    /// Register handler for `GET` method.
     pub fn get<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
         self.routes.insert(Method::GET, Box::new(WrapHandler::new(handler)));
     }
 
-    /// Handler for `POST` method.
+    /// Register handler for `POST` method.
     pub fn post<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
         self.routes.insert(Method::POST, Box::new(WrapHandler::new(handler)));
     }
 
-    /// Handler for `PUT` method.
+    /// Register handler for `PUT` method.
     pub fn put<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
         self.routes.insert(Method::PUT, Box::new(WrapHandler::new(handler)));
     }
 
-    /// Handler for `DELETE` method.
+    /// Register handler for `DELETE` method.
     pub fn delete<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Into<Reply> + 'static, {
