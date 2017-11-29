@@ -23,7 +23,7 @@ use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden};
 ///
 /// fn main() {
 ///     let app = Application::default("/")
-///         .handler("/static", StaticFiles::new(".", true))
+///         .route("/static", StaticFiles::new(".", true))
 ///         .finish();
 /// }
 /// ```

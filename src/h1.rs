@@ -184,15 +184,17 @@ impl<T, H> Http1<T, H>
                         // start request processing
                         let mut task = None;
                         for h in self.router.iter() {
-                            if req.path().starts_with(h.prefix()) {
-                                task = Some(h.handle(req));
-                                break
+                            req = match h.handle(req) {
+                                Ok(t) => {
+                                    task = Some(t);
+                                    break
+                                },
+                                Err(req) => req,
                             }
                         }
 
                         self.tasks.push_back(
                             Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
-                                   //req: UnsafeCell::new(req),
                                    eof: false,
                                    error: false,
                                    finished: false});

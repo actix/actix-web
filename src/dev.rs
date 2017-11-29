@@ -11,8 +11,9 @@
 // dev specific
 pub use task::Task;
 pub use pipeline::Pipeline;
+pub use route::Handler;
 pub use recognizer::RouteRecognizer;
-pub use channel::HttpChannel;
+pub use channel::{HttpChannel, HttpHandler};
 
 pub use application::ApplicationBuilder;
 pub use httpresponse::HttpResponseBuilder;

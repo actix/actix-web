@@ -45,13 +45,13 @@ impl<S: 'static> Application<S> {
 
 impl<S: 'static> HttpHandler for Application<S> {
 
-    fn prefix(&self) -> &str {
-        &self.prefix
-    }
-    
-    fn handle(&self, req: HttpRequest) -> Pipeline {
-        Pipeline::new(req, Rc::clone(&self.middlewares),
-                      &|req: HttpRequest, task: &mut Task| {self.run(req, task)})
+    fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest> {
+        if req.path().starts_with(&self.prefix) {
+            Ok(Pipeline::new(req, Rc::clone(&self.middlewares),
+                             &|req: HttpRequest, task: &mut Task| {self.run(req, task)}))
+        } else {
+            Err(req)
+        }
     }
 }
 
@@ -175,7 +175,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = Application::default("/")
-    ///         .inline("/test", |req| {
+    ///         .handler("/test", |req| {
     ///              match *req.method() {
     ///                  Method::GET => httpcodes::HTTPOk,
     ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,

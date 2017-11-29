@@ -234,9 +234,12 @@ impl Entry {
         // start request processing
         let mut task = None;
         for h in router.iter() {
-            if req.path().starts_with(h.prefix()) {
-                task = Some(h.handle(req));
-                break
+            req = match h.handle(req) {
+                Ok(t) => {
+                    task = Some(t);
+                    break
+                },
+                Err(req) => req,
             }
         }
 

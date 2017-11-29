@@ -13,10 +13,8 @@ use httprequest::HttpRequest;
 
 /// Low level http request handler
 pub trait HttpHandler: 'static {
-    /// Http handler prefix
-    fn prefix(&self) -> &str;
     /// Handle request
-    fn handle(&self, req: HttpRequest) -> Pipeline;
+    fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest>;
 }
 
 enum HttpProtocol<T, H>
