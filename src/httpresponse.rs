@@ -320,7 +320,7 @@ impl HttpResponseBuilder {
     ///
     /// By default `ContentEncoding::Auto` is used, which automatically
     /// negotiates content encoding based on request's `Accept-Encoding` headers.
-    /// To enforce specific encodnign other `ContentEncoding` could be used.
+    /// To enforce specific encoding, use specific ContentEncoding` value.
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.encoding = enc;
