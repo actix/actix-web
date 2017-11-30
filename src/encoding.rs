@@ -13,7 +13,7 @@ use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
-use body::Body;
+use body::{Body, Binary};
 use error::PayloadError;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -338,11 +338,15 @@ impl PayloadEncoder {
 
     pub fn new(req: &HttpRequest, resp: &mut HttpResponse) -> PayloadEncoder {
         let version = resp.version().unwrap_or_else(|| req.version());
-        let body = resp.replace_body(Body::Empty);
-        let has_body = if let Body::Empty = body { false } else { true };
+        let mut body = resp.replace_body(Body::Empty);
+        let has_body = match body {
+            Body::Empty => false,
+            Body::Binary(ref bin) => bin.len() >= 1024,
+            _ => true,
+        };
 
         // Enable content encoding only if response does not contain Content-Encoding header
-        let encoding = if has_body && !resp.headers.contains_key(CONTENT_ENCODING) {
+        let mut encoding = if has_body && !resp.headers.contains_key(CONTENT_ENCODING) {
             let encoding = match *resp.content_encoding() {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
@@ -399,17 +403,30 @@ impl PayloadEncoder {
                     TransferEncoding::length(n)
                 }
             },
-            Body::Binary(ref bytes) => {
+            Body::Binary(ref mut bytes) => {
                 if compression {
-                    resp.headers.remove(CONTENT_LENGTH);
-                    if version == Version::HTTP_2 {
-                        resp.headers.remove(TRANSFER_ENCODING);
-                        TransferEncoding::eof()
-                    } else {
-                        resp.headers.insert(
-                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                        TransferEncoding::chunked()
-                    }
+                    let transfer = TransferEncoding::eof();
+                    let mut enc = match encoding {
+                        ContentEncoding::Deflate => ContentEncoder::Deflate(
+                            DeflateEncoder::new(transfer, Compression::Default)),
+                        ContentEncoding::Gzip => ContentEncoder::Gzip(
+                            GzEncoder::new(transfer, Compression::Default)),
+                        ContentEncoding::Br => ContentEncoder::Br(
+                            BrotliEncoder::new(transfer, 5)),
+                        ContentEncoding::Identity => ContentEncoder::Identity(transfer),
+                        ContentEncoding::Auto => unreachable!()
+                    };
+                    // TODO return error!
+                    let _ = enc.write(bytes.as_ref());
+                    let _ = enc.write_eof();
+                    let b = enc.get_mut().take();
+
+                    resp.headers.insert(
+                        CONTENT_LENGTH,
+                        HeaderValue::from_str(format!("{}", b.len()).as_str()).unwrap());
+                    *bytes = Binary::from(b);
+                    encoding = ContentEncoding::Identity;
+                    TransferEncoding::eof()
                 } else {
                     resp.headers.insert(
                         CONTENT_LENGTH,

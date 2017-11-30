@@ -45,7 +45,7 @@ impl Body {
     /// Does this body streaming.
     pub fn is_streaming(&self) -> bool {
         match *self {
-            Body::Length(_) | Body::Streaming => true,
+            Body::Length(_) | Body::Streaming | Body::Upgrade => true,
             _ => false
         }
     }
