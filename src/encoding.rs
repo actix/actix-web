@@ -459,6 +459,7 @@ impl PayloadEncoder {
                 } else {
                     resp.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
                 }
+                encoding = ContentEncoding::Identity;
                 TransferEncoding::eof()
             }
         };
