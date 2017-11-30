@@ -2,12 +2,13 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use http::Method;
-use futures::Stream;
+use futures::Future;
 
 use task::Task;
 use error::Error;
-use route::{Reply, RouteHandler, Frame, WrapHandler, Handler, StreamHandler};
+use route::{Reply, RouteHandler, WrapHandler, Handler, StreamHandler};
 use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
 /// Http resource
@@ -68,7 +69,7 @@ impl<S> Resource<S> where S: 'static {
     /// Register async handler for specified method.
     pub fn async<F, R>(&mut self, method: Method, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Stream<Item=Frame, Error=Error> + 'static,
+              R: Future<Item=HttpResponse, Error=Error> + 'static,
     {
         self.routes.insert(method, Box::new(StreamHandler::new(handler)));
     }

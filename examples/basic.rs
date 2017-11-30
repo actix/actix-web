@@ -8,7 +8,7 @@ extern crate futures;
 
 use actix_web::*;
 use actix_web::middlewares::RequestSession;
-use futures::stream::{once, Once};
+use futures::future::{FutureResult, result};
 
 /// simple handler
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
@@ -31,15 +31,14 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
 }
 
 /// async handler
-fn index_async(req: HttpRequest) -> Once<actix_web::Frame, Error>
+fn index_async(req: HttpRequest) -> FutureResult<HttpResponse, Error>
 {
     println!("{:?}", req);
 
-    once(Ok(HttpResponse::Ok()
-            .content_type("text/html")
-            .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
-            .unwrap()
-            .into()))
+    result(HttpResponse::Ok()
+           .content_type("text/html")
+           .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
+           .map_err(|e| e.into()))
 }
 
 /// handler with path parameters like `/user/{name}/`
@@ -69,7 +68,7 @@ fn main() {
             ))
             // register simple handle r, handle all methods
             .handler("/index.html", index)
-            // with path parameters
+        // with path parameters
             .resource("/user/{name}/", |r| r.handler(Method::GET, with_param))
             // async handler
             .resource("/async/{name}", |r| r.async(Method::GET, index_async))

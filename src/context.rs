@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use futures::{Async, Future, Stream, Poll};
+use futures::{Async, Future, Poll};
 use futures::sync::oneshot::Sender;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
@@ -13,12 +13,18 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
                  Envelope, ToEnvelope, RemoteEnvelope};
 
 use task::{IoContext, DrainFut};
-use body::Binary;
+use body::{Body, Binary};
 use error::Error;
-use route::Frame;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
+
+#[derive(Debug)]
+pub(crate) enum Frame {
+    Message(HttpResponse),
+    Payload(Option<Binary>),
+    Drain(Rc<RefCell<DrainFut>>),
+}
 
 /// Http actor execution context
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
@@ -31,25 +37,14 @@ pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
     stream: VecDeque<Frame>,
     wait: ActorWaitCell<A>,
     request: HttpRequest<S>,
+    streaming: bool,
     disconnected: bool,
-}
-
-impl<A, S> IoContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
-
-    fn disconnected(&mut self) {
-        self.items.stop();
-        self.disconnected = true;
-        if self.state == ActorState::Running {
-            self.state = ActorState::Stopping;
-        }
-    }
 }
 
 impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
 {
     /// Stop actor execution
     fn stop(&mut self) {
-        self.stream.push_back(Frame::Payload(None));
         self.items.stop();
         self.address.close();
         if self.state == ActorState::Running {
@@ -116,6 +111,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
             wait: ActorWaitCell::default(),
             stream: VecDeque::new(),
             request: req,
+            streaming: false,
             disconnected: false,
         }
     }
@@ -133,20 +129,25 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         &mut self.request
     }
 
-
-    /// Start response processing
+    /// Send response to peer
     pub fn start<R: Into<HttpResponse>>(&mut self, response: R) {
-        self.stream.push_back(Frame::Message(response.into()))
+        let resp = response.into();
+        match *resp.body() {
+            Body::StreamingContext | Body::UpgradeContext => self.streaming = true,
+            _ => (),
+        }
+        self.stream.push_back(Frame::Message(resp))
     }
 
     /// Write payload
     pub fn write<B: Into<Binary>>(&mut self, data: B) {
-        self.stream.push_back(Frame::Payload(Some(data.into())))
-    }
-
-    /// Indicate end of streamimng payload. Also this method calls `Self::close`.
-    pub fn write_eof(&mut self) {
-        self.stop();
+        if self.streaming {
+            if !self.disconnected {
+                self.stream.push_back(Frame::Payload(Some(data.into())))
+            }
+        } else {
+            warn!("Trying to write response body for non-streaming response");
+        }
     }
 
     /// Returns drain future
@@ -184,11 +185,15 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-#[doc(hidden)]
-impl<A, S> Stream for HttpContext<A, S> where A: Actor<Context=Self>
-{
-    type Item = Frame;
-    type Error = Error;
+impl<A, S> IoContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
+
+    fn disconnected(&mut self) {
+        self.items.stop();
+        self.disconnected = true;
+        if self.state == ActorState::Running {
+            self.state = ActorState::Stopping;
+        }
+    }
 
     fn poll(&mut self) -> Poll<Option<Frame>, Error> {
         let act: &mut A = unsafe {

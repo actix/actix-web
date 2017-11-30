@@ -1,24 +1,29 @@
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use bytes::{Bytes, BytesMut};
+use futures::Stream;
 
-use route::Frame;
+use error::Error;
+
+pub(crate) type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
 
 
 /// Represents various types of http message body.
-#[derive(Debug, PartialEq)]
 pub enum Body {
     /// Empty response. `Content-Length` header is set to `0`
     Empty,
     /// Specific response body.
     Binary(Binary),
-    /// Streaming response body with specified length.
-    Length(u64),
     /// Unspecified streaming response. Developer is responsible for setting
     /// right `Content-Length` or `Transfer-Encoding` headers.
-    Streaming,
+    Streaming(BodyStream),
     /// Upgrade connection.
-    Upgrade,
+    Upgrade(BodyStream),
+    /// Special body type for actor streaming response.
+    StreamingContext,
+    /// Special body type for actor upgrade response.
+    UpgradeContext,
 }
 
 /// Represents various types of binary body.
@@ -45,7 +50,8 @@ impl Body {
     /// Does this body streaming.
     pub fn is_streaming(&self) -> bool {
         match *self {
-            Body::Length(_) | Body::Streaming | Body::Upgrade => true,
+            Body::Streaming(_) | Body::StreamingContext
+                | Body::Upgrade(_) | Body::UpgradeContext => true,
             _ => false
         }
     }
@@ -61,6 +67,43 @@ impl Body {
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Body {
         Body::Binary(Binary::Bytes(Bytes::from(s)))
+    }
+}
+
+impl PartialEq for Body {
+    fn eq(&self, other: &Body) -> bool {
+        match *self {
+            Body::Empty => match *other {
+                Body::Empty => true,
+                _ => false,
+            },
+            Body::Binary(ref b) => match *other {
+                Body::Binary(ref b2) => b == b2,
+                _ => false,
+            },
+            Body::StreamingContext => match *other {
+                Body::StreamingContext => true,
+                _ => false,
+            },
+            Body::UpgradeContext => match *other {
+                Body::UpgradeContext => true,
+                _ => false,
+            },
+            Body::Streaming(_) | Body::Upgrade(_) => false,
+        }
+    }
+}
+
+impl fmt::Debug for Body {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Body::Empty => write!(f, "Body::Empty"),
+            Body::Binary(ref b) => write!(f, "Body::Binary({:?})", b),
+            Body::Streaming(_) => write!(f, "Body::Streaming(_)"),
+            Body::Upgrade(_) => write!(f, "Body::Upgrade(_)"),
+            Body::StreamingContext => write!(f, "Body::StreamingContext"),
+            Body::UpgradeContext => write!(f, "Body::UpgradeContext"),
+        }
     }
 }
 
@@ -195,12 +238,6 @@ impl AsRef<[u8]> for Binary {
     }
 }
 
-impl From<Binary> for Frame {
-    fn from(b: Binary) -> Frame {
-        Frame::Payload(Some(b))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,8 +246,7 @@ mod tests {
     fn test_body_is_streaming() {
         assert_eq!(Body::Empty.is_streaming(), false);
         assert_eq!(Body::Binary(Binary::from("")).is_streaming(), false);
-        assert_eq!(Body::Length(100).is_streaming(), true);
-        assert_eq!(Body::Streaming.is_streaming(), true);
+        // assert_eq!(Body::Streaming.is_streaming(), true);
     }
 
     #[test]

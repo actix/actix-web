@@ -1,19 +1,17 @@
-use std::mem;
+use std::{fmt, mem};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::VecDeque;
 
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll};
 use futures::task::{Task as FutureTask, current as current_task};
 
+use body::{Body, BodyStream, Binary};
+use context::Frame;
 use h1writer::{Writer, WriterState};
 use error::{Error, UnexpectedTaskFrame};
-use route::Frame;
 use pipeline::MiddlewaresResponse;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-
-type FrameStream = Stream<Item=Frame, Error=Error>;
 
 #[derive(PartialEq, Debug)]
 enum TaskRunningState {
@@ -38,27 +36,69 @@ impl TaskRunningState {
     }
 }
 
-#[derive(PartialEq, Debug)]
-enum TaskIOState {
-    ReadingMessage,
-    ReadingPayload,
-    Done,
+enum ResponseState {
+    Reading,
+    Ready(HttpResponse),
+    Middlewares(MiddlewaresResponse),
+    Prepared(Option<HttpResponse>),
 }
 
-impl TaskIOState {
-    fn is_done(&self) -> bool {
-        *self == TaskIOState::Done
-    }
+enum IOState {
+    Response,
+    Payload(BodyStream),
+    Context,
+    Done,
 }
 
 enum TaskStream {
     None,
-    Stream(Box<FrameStream>),
-    Context(Box<IoContext<Item=Frame, Error=Error>>),
+    Context(Box<IoContext>),
+    Response(Box<Future<Item=HttpResponse, Error=Error>>),
 }
 
-pub(crate) trait IoContext: Stream<Item=Frame, Error=Error> + 'static {
+impl IOState {
+    fn is_done(&self) -> bool {
+        match *self {
+            IOState::Done => true,
+            _ => false
+        }
+    }
+}
+
+impl ResponseState {
+    fn is_reading(&self) -> bool {
+        match *self {
+            ResponseState::Reading => true,
+            _ => false
+        }
+    }
+}
+
+impl fmt::Debug for ResponseState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ResponseState::Reading => write!(f, "ResponseState::Reading"),
+            ResponseState::Ready(_) => write!(f, "ResponseState::Ready"),
+            ResponseState::Middlewares(_) => write!(f, "ResponseState::Middlewares"),
+            ResponseState::Prepared(_) => write!(f, "ResponseState::Prepared"),
+        }
+    }
+}
+
+impl fmt::Debug for IOState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            IOState::Response => write!(f, "IOState::Response"),
+            IOState::Payload(_) => write!(f, "IOState::Payload"),
+            IOState::Context => write!(f, "IOState::Context"),
+            IOState::Done => write!(f, "IOState::Done"),
+        }
+    }
+}
+
+pub(crate) trait IoContext: 'static {
     fn disconnected(&mut self);
+    fn poll(&mut self) -> Poll<Option<Frame>, Error>;
 }
 
 /// Future that resolves when all buffered data get sent
@@ -104,12 +144,11 @@ impl Future for DrainFut {
 }
 
 pub struct Task {
-    state: TaskRunningState,
-    iostate: TaskIOState,
-    frames: VecDeque<Frame>,
+    running: TaskRunningState,
+    response: ResponseState,
+    iostate: IOState,
     stream: TaskStream,
     drain: Vec<Rc<RefCell<DrainFut>>>,
-    prepared: Option<HttpResponse>,
     disconnected: bool,
     middlewares: Option<MiddlewaresResponse>,
 }
@@ -118,12 +157,11 @@ pub struct Task {
 impl Default for Task {
 
     fn default() -> Task {
-        Task { state: TaskRunningState::Running,
-               iostate: TaskIOState::ReadingMessage,
-               frames: VecDeque::new(),
+        Task { running: TaskRunningState::Running,
+               response: ResponseState::Reading,
+               iostate: IOState::Response,
                drain: Vec::new(),
                stream: TaskStream::None,
-               prepared: None,
                disconnected: false,
                middlewares: None }
     }
@@ -132,16 +170,11 @@ impl Default for Task {
 impl Task {
 
     pub(crate) fn from_response<R: Into<HttpResponse>>(response: R) -> Task {
-        let mut frames = VecDeque::new();
-        frames.push_back(Frame::Message(response.into()));
-        frames.push_back(Frame::Payload(None));
-
-        Task { state: TaskRunningState::Running,
-               iostate: TaskIOState::Done,
-               frames: frames,
+        Task { running: TaskRunningState::Running,
+               response: ResponseState::Ready(response.into()),
+               iostate: IOState::Response,
                drain: Vec::new(),
                stream: TaskStream::None,
-               prepared: None,
                disconnected: false,
                middlewares: None }
     }
@@ -151,27 +184,33 @@ impl Task {
     }
 
     pub fn reply<R: Into<HttpResponse>>(&mut self, response: R) {
-        self.frames.push_back(Frame::Message(response.into()));
-        self.frames.push_back(Frame::Payload(None));
-        self.iostate = TaskIOState::Done;
+        let state = &mut self.response;
+        match *state {
+            ResponseState::Reading =>
+                *state = ResponseState::Ready(response.into()),
+            _ => panic!("Internal task state is broken"),
+        }
     }
 
     pub fn error<E: Into<Error>>(&mut self, err: E) {
         self.reply(err.into())
     }
 
-    pub(crate) fn context(&mut self, ctx: Box<IoContext<Item=Frame, Error=Error>>) {
+    pub(crate) fn context(&mut self, ctx: Box<IoContext>) {
         self.stream = TaskStream::Context(ctx);
     }
 
-    pub fn stream<S>(&mut self, stream: S)
-        where S: Stream<Item=Frame, Error=Error> + 'static
+    pub fn async<F>(&mut self, fut: F)
+        where F: Future<Item=HttpResponse, Error=Error> + 'static
     {
-        self.stream = TaskStream::Stream(Box::new(stream));
+        self.stream = TaskStream::Response(Box::new(fut));
     }
 
     pub(crate) fn response(&mut self) -> HttpResponse {
-        self.prepared.take().unwrap()
+        match self.response {
+            ResponseState::Prepared(ref mut state) => state.take().unwrap(),
+            _ => panic!("Internal state is broken"),
+        }
     }
 
     pub(crate) fn set_middlewares(&mut self, middlewares: MiddlewaresResponse) {
@@ -188,97 +227,112 @@ impl Task {
     pub(crate) fn poll_io<T>(&mut self, io: &mut T, req: &mut HttpRequest) -> Poll<bool, Error>
         where T: Writer
     {
-        trace!("POLL-IO frames:{:?}", self.frames.len());
+        trace!("POLL-IO frames resp: {:?}, io: {:?}, running: {:?}",
+               self.response, self.iostate, self.running);
 
-        // response is completed
-        if self.frames.is_empty() && self.iostate.is_done() {
-            return Ok(Async::Ready(self.state.is_done()));
-        } else if self.drain.is_empty() {
-            // poll stream
-            if self.state == TaskRunningState::Running {
-                match self.poll()? {
-                    Async::Ready(_) =>
-                        self.state = TaskRunningState::Done,
-                    Async::NotReady => (),
-                }
-            }
-
-            // process middlewares response
-            if let Some(mut middlewares) = self.middlewares.take() {
-                match middlewares.poll(req)? {
-                    Async::NotReady => {
-                        self.middlewares = Some(middlewares);
-                        return Ok(Async::NotReady);
-                    }
-                    Async::Ready(None) => {
-                        self.middlewares = Some(middlewares);
-                    }
-                    Async::Ready(Some(mut response)) => {
-                        let result = io.start(req, &mut response)?;
-                        self.prepared = Some(response);
-                        match result {
-                            WriterState::Pause => self.state.pause(),
-                            WriterState::Done => self.state.resume(),
-                        }
-                    },
-                }
-            }
-
+        if self.iostate.is_done() {  // response is completed
+            return Ok(Async::Ready(self.running.is_done()));
+        } else if self.drain.is_empty() && self.running != TaskRunningState::Paused {
             // if task is paused, write buffer is probably full
-            if self.state != TaskRunningState::Paused {
-                // process exiting frames
-                while let Some(frame) = self.frames.pop_front() {
-                    trace!("IO Frame: {:?}", frame);
-                    let res = match frame {
-                        Frame::Message(mut resp) => {
-                            // run middlewares
-                            if let Some(mut middlewares) = self.middlewares.take() {
-                                match middlewares.response(req, resp) {
-                                    Ok(Some(mut resp)) => {
-                                        let result = io.start(req, &mut resp)?;
-                                        self.prepared = Some(resp);
-                                        result
-                                    }
-                                    Ok(None) => {
-                                        // middlewares need to run some futures
-                                        self.middlewares = Some(middlewares);
-                                        return self.poll_io(io, req)
-                                    }
-                                    Err(err) => return Err(err),
-                                }
-                            } else {
+
+            loop {
+                let result = match mem::replace(&mut self.iostate, IOState::Done) {
+                    IOState::Response => {
+                        match self.poll_response(req) {
+                            Ok(Async::Ready(mut resp)) => {
                                 let result = io.start(req, &mut resp)?;
-                                self.prepared = Some(resp);
+
+                                match resp.replace_body(Body::Empty) {
+                                    Body::Streaming(stream) | Body::Upgrade(stream) =>
+                                        self.iostate = IOState::Payload(stream),
+                                    Body::StreamingContext | Body::UpgradeContext =>
+                                        self.iostate = IOState::Context,
+                                    _ => (),
+                                }
+                                self.response = ResponseState::Prepared(Some(resp));
+                                result
+                            },
+                            Ok(Async::NotReady) => {
+                                self.iostate = IOState::Response;
+                                return Ok(Async::NotReady)
+                            }
+                            Err(err) => {
+                                let mut resp = err.into();
+                                let result = io.start(req, &mut resp)?;
+
+                                match resp.replace_body(Body::Empty) {
+                                    Body::Streaming(stream) | Body::Upgrade(stream) =>
+                                        self.iostate = IOState::Payload(stream),
+                                    _ => (),
+                                }
+                                self.response = ResponseState::Prepared(Some(resp));
                                 result
                             }
                         }
-                        Frame::Payload(Some(chunk)) => {
-                            io.write(chunk.as_ref())?
-                        },
-                        Frame::Payload(None) => {
-                            self.iostate = TaskIOState::Done;
-                            io.write_eof()?
-                        },
-                        Frame::Drain(fut) => {
-                            self.drain.push(fut);
-                            break
+                    },
+                    IOState::Payload(mut body) => {
+                        // always poll stream
+                        if self.running == TaskRunningState::Running {
+                            match self.poll()? {
+                                Async::Ready(_) =>
+                                    self.running = TaskRunningState::Done,
+                                Async::NotReady => (),
+                            }
                         }
-                    };
 
-                    match res {
-                        WriterState::Pause => {
-                            self.state.pause();
-                            break
+                        match body.poll() {
+                            Ok(Async::Ready(None)) => {
+                                self.iostate = IOState::Done;
+                                io.write_eof()?;
+                                break
+                            },
+                            Ok(Async::Ready(Some(chunk))) => {
+                                self.iostate = IOState::Payload(body);
+                                io.write(chunk.as_ref())?
+                            }
+                            Ok(Async::NotReady) => {
+                                self.iostate = IOState::Payload(body);
+                                break
+                            },
+                            Err(err) => return Err(err),
                         }
-                        WriterState::Done => self.state.resume(),
                     }
+                    IOState::Context => {
+                        match self.poll_context() {
+                            Ok(Async::Ready(None)) => {
+                                self.iostate = IOState::Done;
+                                self.running = TaskRunningState::Done;
+                                io.write_eof()?;
+                                break
+                            },
+                            Ok(Async::Ready(Some(chunk))) => {
+                                self.iostate = IOState::Context;
+                                io.write(chunk.as_ref())?
+                            }
+                            Ok(Async::NotReady) => {
+                                self.iostate = IOState::Context;
+                                break
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    }
+                    IOState::Done => break,
+                };
+
+                match result {
+                    WriterState::Pause => {
+                        self.running.pause();
+                        break
+                    }
+                    WriterState::Done =>
+                        self.running.resume(),
                 }
             }
         }
 
         // flush io
         match io.poll_complete() {
-            Ok(Async::Ready(_)) => self.state.resume(),
+            Ok(Async::Ready(_)) => self.running.resume(),
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(err) => {
                 debug!("Error sending data: {}", err);
@@ -296,65 +350,154 @@ impl Task {
 
         // response is completed
         if self.iostate.is_done() {
-            if let Some(ref mut resp) = self.prepared {
-                resp.set_response_size(io.written());
+            if let ResponseState::Prepared(Some(ref mut resp)) = self.response {
+                resp.set_response_size(io.written())
             }
-            Ok(Async::Ready(self.state.is_done()))
+            Ok(Async::Ready(self.running.is_done()))
         } else {
             Ok(Async::NotReady)
         }
     }
 
-    fn poll_stream<S>(&mut self, stream: &mut S) -> Poll<(), Error>
-        where S: Stream<Item=Frame, Error=Error>
-    {
+    pub(crate) fn poll_response(&mut self, req: &mut HttpRequest) -> Poll<HttpResponse, Error> {
         loop {
-            match stream.poll() {
-                Ok(Async::Ready(Some(frame))) => {
-                    match frame {
-                        Frame::Message(ref msg) => {
-                            if self.iostate != TaskIOState::ReadingMessage {
-                                error!("Unexpected frame {:?}", frame);
-                                return Err(UnexpectedTaskFrame.into())
+            let state = mem::replace(&mut self.response, ResponseState::Prepared(None));
+            match state {
+                ResponseState::Ready(response) => {
+                    // run middlewares
+                    if let Some(mut middlewares) = self.middlewares.take() {
+                        match middlewares.response(req, response) {
+                            Ok(Some(response)) =>
+                                return Ok(Async::Ready(response)),
+                            Ok(None) => {
+                                // middlewares need to run some futures
+                                self.response = ResponseState::Middlewares(middlewares);
+                                continue
                             }
-                            let upgrade = msg.upgrade();
-                            if upgrade || msg.body().is_streaming() {
-                                self.iostate = TaskIOState::ReadingPayload;
-                            } else {
-                                self.iostate = TaskIOState::Done;
-                            }
-                        },
-                        Frame::Payload(ref chunk) => {
-                            if chunk.is_none() {
-                                self.iostate = TaskIOState::Done;
-                            } else if self.iostate != TaskIOState::ReadingPayload {
-                                error!("Unexpected frame {:?}", self.iostate);
-                                return Err(UnexpectedTaskFrame.into())
-                            }
-                        },
-                        _ => (),
+                            Err(err) => return Err(err),
+                        }
+                    } else {
+                        return Ok(Async::Ready(response))
                     }
-                    self.frames.push_back(frame)
-                },
-                Ok(Async::Ready(None)) =>
-                    return Ok(Async::Ready(())),
-                Ok(Async::NotReady) =>
+                }
+                ResponseState::Middlewares(mut middlewares) => {
+                    // process middlewares
+                    match middlewares.poll(req) {
+                        Ok(Async::NotReady) => {
+                            self.response = ResponseState::Middlewares(middlewares);
+                            return Ok(Async::NotReady)
+                        },
+                        Ok(Async::Ready(response)) =>
+                            return Ok(Async::Ready(response)),
+                        Err(err) =>
+                            return Err(err),
+                    }
+                }
+                _ => (),
+            }
+            self.response = state;
+
+            match mem::replace(&mut self.stream, TaskStream::None) {
+                TaskStream::None =>
                     return Ok(Async::NotReady),
-                Err(err) =>
-                    return Err(err),
+                TaskStream::Context(mut context) => {
+                    loop {
+                        match context.poll() {
+                            Ok(Async::Ready(Some(frame))) => {
+                                match frame {
+                                    Frame::Message(msg) => {
+                                        if !self.response.is_reading() {
+                                            error!("Unexpected message frame {:?}", msg);
+                                            return Err(UnexpectedTaskFrame.into())
+                                        }
+                                        self.stream = TaskStream::Context(context);
+                                        self.response = ResponseState::Ready(msg);
+                                        break
+                                    },
+                                    Frame::Payload(_) => (),
+                                    Frame::Drain(fut) => {
+                                        self.drain.push(fut);
+                                        self.stream = TaskStream::Context(context);
+                                        break
+                                    }
+                                }
+                            },
+                            Ok(Async::Ready(None)) => {
+                                error!("Unexpected eof");
+                                return Err(UnexpectedTaskFrame.into())
+                            },
+                            Ok(Async::NotReady) => {
+                                self.stream = TaskStream::Context(context);
+                                return Ok(Async::NotReady)
+                            },
+                            Err(err) =>
+                                return Err(err),
+                        }
+                    }
+                },
+                TaskStream::Response(mut fut) => {
+                    match fut.poll() {
+                        Ok(Async::NotReady) => {
+                            self.stream = TaskStream::Response(fut);
+                            return Ok(Async::NotReady);
+                        },
+                        Ok(Async::Ready(response)) => {
+                            self.response = ResponseState::Ready(response);
+                        }
+                        Err(err) =>
+                            return Err(err)
+                    }
+                }
             }
         }
     }
 
     pub(crate) fn poll(&mut self) -> Poll<(), Error> {
-        let mut s = mem::replace(&mut self.stream, TaskStream::None);
+        match self.stream {
+            TaskStream::None | TaskStream::Response(_) =>
+                Ok(Async::Ready(())),
+            TaskStream::Context(ref mut context) => {
+                loop {
+                    match context.poll() {
+                        Ok(Async::Ready(Some(_))) => (),
+                        Ok(Async::Ready(None)) =>
+                            return Ok(Async::Ready(())),
+                        Ok(Async::NotReady) =>
+                            return Ok(Async::NotReady),
+                        Err(err) =>
+                            return Err(err),
+                    }
+                }
+            },
+        }
+    }
 
-        let result = match s {
-            TaskStream::None => Ok(Async::Ready(())),
-            TaskStream::Stream(ref mut stream) => self.poll_stream(stream),
-            TaskStream::Context(ref mut context) => self.poll_stream(context),
-        };
-        self.stream = s;
-        result
+    fn poll_context(&mut self) -> Poll<Option<Binary>, Error> {
+        match self.stream {
+            TaskStream::None | TaskStream::Response(_) =>
+                Err(UnexpectedTaskFrame.into()),
+            TaskStream::Context(ref mut context) => {
+                match context.poll() {
+                    Ok(Async::Ready(Some(frame))) => {
+                        match frame {
+                            Frame::Message(msg) => {
+                                error!("Unexpected message frame {:?}", msg);
+                                Err(UnexpectedTaskFrame.into())
+                            },
+                            Frame::Payload(payload) => {
+                                Ok(Async::Ready(payload))
+                            },
+                            Frame::Drain(fut) => {
+                                self.drain.push(fut);
+                                Ok(Async::NotReady)
+                            }
+                        }
+                    },
+                    Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+                    Ok(Async::NotReady) => Ok(Async::NotReady),
+                    Err(err) => Err(err),
+                }
+            },
+        }
     }
 }

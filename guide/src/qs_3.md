@@ -1,4 +1,4 @@
-# Overview
+# [WIP] Overview
 
 Actix web provides some primitives to build web servers and applications with Rust.
 It provides routing, middlewares, pre-processing of requests, and post-processing of responses,
@@ -69,7 +69,7 @@ fn main() {
 }
 ```
 
-## Handler
+## [WIP] Handler
 
 A request handler can have different forms. 
 

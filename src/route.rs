@@ -1,31 +1,14 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
 use actix::Actor;
-use futures::Stream;
+use futures::Future;
 
-use body::Binary;
 use error::Error;
 use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use task::{Task, DrainFut, IoContext};
-
-#[doc(hidden)]
-#[derive(Debug)]
-pub enum Frame {
-    Message(HttpResponse),
-    Payload(Option<Binary>),
-    Drain(Rc<RefCell<DrainFut>>),
-}
-
-impl Frame {
-    pub fn eof() -> Frame {
-        Frame::Payload(None)
-    }
-}
+use task::{Task, IoContext};
 
 /// Trait defines object that could be regestered as route handler
 #[allow(unused_variables)]
@@ -55,8 +38,8 @@ pub struct Reply(ReplyItem);
 
 enum ReplyItem {
     Message(HttpResponse),
-    Actor(Box<IoContext<Item=Frame, Error=Error>>),
-    Stream(Box<Stream<Item=Frame, Error=Error>>),
+    Actor(Box<IoContext>),
+    Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
 
 impl Reply {
@@ -69,10 +52,10 @@ impl Reply {
     }
 
     /// Create async response
-    pub fn stream<S>(stream: S) -> Reply
-        where S: Stream<Item=Frame, Error=Error> + 'static
+    pub fn async<F>(fut: F) -> Reply
+        where F: Future<Item=HttpResponse, Error=Error> + 'static
     {
-        Reply(ReplyItem::Stream(Box::new(stream)))
+        Reply(ReplyItem::Future(Box::new(fut)))
     }
 
     /// Send response
@@ -89,8 +72,8 @@ impl Reply {
             ReplyItem::Actor(ctx) => {
                 task.context(ctx)
             }
-            ReplyItem::Stream(stream) => {
-                task.stream(stream)
+            ReplyItem::Future(fut) => {
+                task.async(fut)
             }
         }
     }
@@ -160,7 +143,7 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 pub(crate)
 struct StreamHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Stream<Item=Frame, Error=Error> + 'static,
+          R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
 {
     f: Box<F>,
@@ -169,7 +152,7 @@ struct StreamHandler<S, R, F>
 
 impl<S, R, F> StreamHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Stream<Item=Frame, Error=Error> + 'static,
+          R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
 {
     pub fn new(f: F) -> Self {
@@ -179,10 +162,10 @@ impl<S, R, F> StreamHandler<S, R, F>
 
 impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Stream<Item=Frame, Error=Error> + 'static,
+          R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
 {
     fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
-        task.stream((self.f)(req))
+        task.async((self.f)(req))
     }
 }

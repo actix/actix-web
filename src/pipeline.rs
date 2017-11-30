@@ -391,11 +391,7 @@ impl MiddlewaresResponse {
         }
     }
 
-    pub fn poll(&mut self, req: &mut HttpRequest) -> Poll<Option<HttpResponse>, Error> {
-        if self.fut.is_none() {
-            return Ok(Async::Ready(None))
-        }
-
+    pub fn poll(&mut self, req: &mut HttpRequest) -> Poll<HttpResponse, Error> {
         loop {
             // poll latest fut
             let mut resp = match self.fut.as_mut().unwrap().poll() {
@@ -410,7 +406,7 @@ impl MiddlewaresResponse {
 
             loop {
                 if self.idx == 0 {
-                    return Ok(Async::Ready(Some(resp)))
+                    return Ok(Async::Ready(resp))
                 } else {
                     match self.middlewares[self.idx].response(req, resp) {
                         Response::Err(err) =>

@@ -169,7 +169,7 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")
        .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
-       .body(Body::Upgrade).unwrap()
+       .body(Body::UpgradeContext).unwrap()
     )
 }
 

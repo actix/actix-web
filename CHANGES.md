@@ -5,6 +5,8 @@
 
 * HTTP/2 Support
 
+* Refactor streaming responses
+
 * Refactor error handling
 
 * Asynchronous middlewares

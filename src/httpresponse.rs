@@ -11,7 +11,6 @@ use serde::Serialize;
 
 use Cookie;
 use body::Body;
-use route::Frame;
 use error::Error;
 use encoding::ContentEncoding;
 
@@ -220,13 +219,6 @@ impl fmt::Debug for HttpResponse {
             }
         }
         res
-    }
-}
-
-// TODO: remove
-impl From<HttpResponse> for Frame {
-    fn from(resp: HttpResponse) -> Frame {
-        Frame::Message(resp)
     }
 }
 
@@ -533,12 +525,6 @@ mod tests {
             .finish().unwrap();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
         assert_eq!(resp.status(), StatusCode::NO_CONTENT)
-    }
-
-    #[test]
-    fn test_body() {
-        assert!(Body::Length(10).is_streaming());
-        assert!(Body::Streaming.is_streaming());
     }
 
     #[test]

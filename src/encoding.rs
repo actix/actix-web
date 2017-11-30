@@ -381,28 +381,6 @@ impl PayloadEncoder {
                 resp.headers.remove(TRANSFER_ENCODING);
                 TransferEncoding::length(0)
             },
-            Body::Length(n) => {
-                if resp.chunked() {
-                    error!("Chunked transfer is enabled but body with specific length is specified");
-                }
-                if compression {
-                    resp.headers.remove(CONTENT_LENGTH);
-                    if version == Version::HTTP_2 {
-                        resp.headers.remove(TRANSFER_ENCODING);
-                        TransferEncoding::eof()
-                    } else {
-                        resp.headers.insert(
-                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                        TransferEncoding::chunked()
-                    }
-                } else {
-                    resp.headers.insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::from_str(format!("{}", n).as_str()).unwrap());
-                    resp.headers.remove(TRANSFER_ENCODING);
-                    TransferEncoding::length(n)
-                }
-            },
             Body::Binary(ref mut bytes) => {
                 if compression {
                     let transfer = TransferEncoding::eof();
@@ -435,7 +413,7 @@ impl PayloadEncoder {
                     TransferEncoding::length(bytes.len() as u64)
                 }
             }
-            Body::Streaming => {
+            Body::Streaming(_) | Body::StreamingContext => {
                 if resp.chunked() {
                     resp.headers.remove(CONTENT_LENGTH);
                     if version != Version::HTTP_11 {
@@ -449,11 +427,23 @@ impl PayloadEncoder {
                             TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
                         TransferEncoding::chunked()
                     }
+                } else if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
+                    // Content-Length
+                    if let Ok(s) = len.to_str() {
+                        if let Ok(len) = s.parse::<u64>() {
+                            TransferEncoding::length(len)
+                        } else {
+                            debug!("illegal Content-Length: {:?}", len);
+                            TransferEncoding::eof()
+                        }
+                    } else {
+                        TransferEncoding::eof()
+                    }
                 } else {
                     TransferEncoding::eof()
                 }
             }
-            Body::Upgrade => {
+            Body::Upgrade(_) | Body::UpgradeContext => {
                 if version == Version::HTTP_2 {
                     error!("Connection upgrade is forbidden for HTTP/2");
                 } else {
