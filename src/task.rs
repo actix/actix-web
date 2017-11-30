@@ -149,7 +149,6 @@ pub struct Task {
     iostate: IOState,
     stream: TaskStream,
     drain: Vec<Rc<RefCell<DrainFut>>>,
-    disconnected: bool,
     middlewares: Option<MiddlewaresResponse>,
 }
 
@@ -162,7 +161,6 @@ impl Default for Task {
                iostate: IOState::Response,
                drain: Vec::new(),
                stream: TaskStream::None,
-               disconnected: false,
                middlewares: None }
     }
 }
@@ -175,7 +173,6 @@ impl Task {
                iostate: IOState::Response,
                drain: Vec::new(),
                stream: TaskStream::None,
-               disconnected: false,
                middlewares: None }
     }
 
@@ -218,7 +215,6 @@ impl Task {
     }
 
     pub(crate) fn disconnected(&mut self) {
-        self.disconnected = true;
         if let TaskStream::Context(ref mut ctx) = self.stream {
             ctx.disconnected();
         }
