@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use task::Task;
 use route::{RouteHandler, WrapHandler, Reply, Handler};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
@@ -23,23 +22,22 @@ pub struct Application<S> {
 
 impl<S: 'static> Application<S> {
 
-    fn run(&self, req: HttpRequest, task: &mut Task) {
+    fn run(&self, req: HttpRequest) -> Reply {
         let mut req = req.with_state(Rc::clone(&self.state));
 
         if let Some((params, h)) = self.router.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
             }
-            h.handle(req, task)
+            h.handle(req)
         } else {
             for (prefix, handler) in &self.handlers {
                 if req.path().starts_with(prefix) {
                     req.set_prefix(prefix.len());
-                    handler.handle(req, task);
-                    return
+                    return handler.handle(req)
                 }
             }
-            self.default.handle(req, task)
+            self.default.handle(req)
         }
     }
 }
@@ -49,7 +47,7 @@ impl<S: 'static> HttpHandler for Application<S> {
     fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
             Ok(Pipeline::new(req, Rc::clone(&self.middlewares),
-                             &|req: HttpRequest, task: &mut Task| {self.run(req, task)}))
+                             &|req: HttpRequest| self.run(req)))
         } else {
             Err(req)
         }

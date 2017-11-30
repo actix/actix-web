@@ -3,7 +3,7 @@
 use http::StatusCode;
 
 use body::Body;
-use task::Task;
+use route::Reply;
 use route::RouteHandler;
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
@@ -69,8 +69,8 @@ impl StaticResponse {
 }
 
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, _: HttpRequest<S>, task: &mut Task) {
-        task.reply(HttpResponse::new(self.0, Body::Empty))
+    fn handle(&self, _: HttpRequest<S>) -> Reply {
+        Reply::response(HttpResponse::new(self.0, Body::Empty))
     }
 }
 

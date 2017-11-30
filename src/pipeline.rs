@@ -4,14 +4,15 @@ use std::rc::Rc;
 use futures::{Async, Poll, Future};
 
 use task::Task;
+use route::Reply;
 use error::Error;
-use middlewares::{Middleware, Finished, Started, Response};
 use h1writer::Writer;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use middlewares::{Middleware, Finished, Started, Response};
 
-type Handler = Fn(HttpRequest, &mut Task);
-pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest, &mut Task);
+type Handler = Fn(HttpRequest) -> Reply;
+pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest) -> Reply;
 
 pub struct Pipeline(PipelineState);
 
@@ -29,8 +30,7 @@ impl Pipeline {
     pub fn new(req: HttpRequest, mw: Rc<Vec<Box<Middleware>>>, handler: PipelineHandler) -> Pipeline
     {
         if mw.is_empty() {
-            let mut task = Task::default();
-            (handler)(req.clone(), &mut task);
+            let task = Task::new((handler)(req.clone()));
             Pipeline(PipelineState::Task(Box::new((task, req))))
         } else {
             match Start::init(mw, req, handler) {
@@ -195,8 +195,7 @@ impl Start {
         let len = self.middlewares.len();
         loop {
             if self.idx == len {
-                let mut task = Task::default();
-                (unsafe{&*self.hnd})(self.req.clone(), &mut task);
+                let task = Task::new((unsafe{&*self.hnd})(self.req.clone()));
                 return Ok(StartResult::Ready(
                     Box::new(Handle::new(self.idx-1, self.req.clone(),
                                          self.prepare(task), self.middlewares))))
@@ -247,8 +246,7 @@ impl Start {
                             Rc::clone(&self.middlewares)))))
                     }
                     if self.idx == len {
-                        let mut task = Task::default();
-                        (unsafe{&*self.hnd})(self.req.clone(), &mut task);
+                        let task = Task::new((unsafe{&*self.hnd})(self.req.clone()));
                         return Ok(Async::Ready(Box::new(Handle::new(
                             self.idx-1, self.req.clone(),
                             self.prepare(task), Rc::clone(&self.middlewares)))))

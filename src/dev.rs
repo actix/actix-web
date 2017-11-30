@@ -9,7 +9,6 @@
 //! ```
 
 // dev specific
-pub use task::Task;
 pub use pipeline::Pipeline;
 pub use route::Handler;
 pub use recognizer::RouteRecognizer;

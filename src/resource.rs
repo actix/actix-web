@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use http::Method;
 use futures::Future;
 
-use task::Task;
 use error::Error;
 use route::{Reply, RouteHandler, WrapHandler, Handler, StreamHandler};
 use httprequest::HttpRequest;
@@ -112,11 +111,11 @@ impl<S> Resource<S> where S: 'static {
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
 
-    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
+    fn handle(&self, req: HttpRequest<S>) -> Reply {
         if let Some(handler) = self.routes.get(req.method()) {
-            handler.handle(req, task)
+            handler.handle(req)
         } else {
-            self.default.handle(req, task)
+            self.default.handle(req)
         }
     }
 }

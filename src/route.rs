@@ -5,10 +5,10 @@ use actix::Actor;
 use futures::Future;
 
 use error::Error;
+use task::IoContext;
 use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use task::{Task, IoContext};
 
 /// Trait defines object that could be regestered as route handler
 #[allow(unused_variables)]
@@ -36,7 +36,7 @@ impl<F, R, S> Handler<S> for F
 /// Represents response process.
 pub struct Reply(ReplyItem);
 
-enum ReplyItem {
+pub(crate) enum ReplyItem {
     Message(HttpResponse),
     Actor(Box<IoContext>),
     Future(Box<Future<Item=HttpResponse, Error=Error>>),
@@ -59,23 +59,12 @@ impl Reply {
     }
 
     /// Send response
-    pub fn reply<R: Into<HttpResponse>>(response: R) -> Reply {
+    pub fn response<R: Into<HttpResponse>>(response: R) -> Reply {
         Reply(ReplyItem::Message(response.into()))
     }
 
-    pub fn into(self, task: &mut Task)
-    {
-        match self.0 {
-            ReplyItem::Message(msg) => {
-                task.reply(msg)
-            },
-            ReplyItem::Actor(ctx) => {
-                task.context(ctx)
-            }
-            ReplyItem::Future(fut) => {
-                task.async(fut)
-            }
-        }
+    pub(crate) fn into(self) -> ReplyItem {
+        self.0
     }
 }
 
@@ -102,10 +91,16 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> fo
     }
 }
 
+impl From<Box<Future<Item=HttpResponse, Error=Error>>> for Reply
+{
+    fn from(item: Box<Future<Item=HttpResponse, Error=Error>>) -> Self {
+        Reply(ReplyItem::Future(item))
+    }
+}
+
 /// Trait defines object that could be regestered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    /// Handle request
-    fn handle(&self, req: HttpRequest<S>, task: &mut Task);
+    fn handle(&self, req: HttpRequest<S>) -> Reply;
 }
 
 /// Route handler wrapper for Handler
@@ -134,8 +129,8 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
           R: Into<Reply> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
-        self.h.handle(req).into().into(task)
+    fn handle(&self, req: HttpRequest<S>) -> Reply {
+        self.h.handle(req).into()
     }
 }
 
@@ -165,7 +160,7 @@ impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
           R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>, task: &mut Task) {
-        task.async((self.f)(req))
+    fn handle(&self, req: HttpRequest<S>) -> Reply {
+        Reply::async((self.f)(req))
     }
 }

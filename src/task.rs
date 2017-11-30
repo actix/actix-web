@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use futures::{Async, Future, Poll};
 use futures::task::{Task as FutureTask, current as current_task};
 
+use route::{Reply, ReplyItem};
 use body::{Body, BodyStream, Binary};
 use context::Frame;
 use h1writer::{Writer, WriterState};
@@ -143,7 +144,7 @@ impl Future for DrainFut {
     }
 }
 
-pub struct Task {
+pub(crate) struct Task {
     running: TaskRunningState,
     response: ResponseState,
     iostate: IOState,
@@ -152,20 +153,31 @@ pub struct Task {
     middlewares: Option<MiddlewaresResponse>,
 }
 
-#[doc(hidden)]
-impl Default for Task {
-
-    fn default() -> Task {
-        Task { running: TaskRunningState::Running,
-               response: ResponseState::Reading,
-               iostate: IOState::Response,
-               drain: Vec::new(),
-               stream: TaskStream::None,
-               middlewares: None }
-    }
-}
-
 impl Task {
+
+    pub(crate) fn new(reply: Reply) -> Task {
+        match reply.into() {
+            ReplyItem::Message(msg) => {
+                Task::from_response(msg)
+            },
+            ReplyItem::Actor(ctx) => {
+                Task { running: TaskRunningState::Running,
+                       response: ResponseState::Reading,
+                       iostate: IOState::Response,
+                       drain: Vec::new(),
+                       stream: TaskStream::Context(ctx),
+                       middlewares: None }
+            }
+            ReplyItem::Future(fut) => {
+                Task { running: TaskRunningState::Running,
+                       response: ResponseState::Reading,
+                       iostate: IOState::Response,
+                       drain: Vec::new(),
+                       stream: TaskStream::Response(fut),
+                       middlewares: None }
+            }
+        }
+    }
 
     pub(crate) fn from_response<R: Into<HttpResponse>>(response: R) -> Task {
         Task { running: TaskRunningState::Running,
@@ -178,29 +190,6 @@ impl Task {
 
     pub(crate) fn from_error<E: Into<Error>>(err: E) -> Task {
         Task::from_response(err.into())
-    }
-
-    pub fn reply<R: Into<HttpResponse>>(&mut self, response: R) {
-        let state = &mut self.response;
-        match *state {
-            ResponseState::Reading =>
-                *state = ResponseState::Ready(response.into()),
-            _ => panic!("Internal task state is broken"),
-        }
-    }
-
-    pub fn error<E: Into<Error>>(&mut self, err: E) {
-        self.reply(err.into())
-    }
-
-    pub(crate) fn context(&mut self, ctx: Box<IoContext>) {
-        self.stream = TaskStream::Context(ctx);
-    }
-
-    pub fn async<F>(&mut self, fut: F)
-        where F: Future<Item=HttpResponse, Error=Error> + 'static
-    {
-        self.stream = TaskStream::Response(Box::new(fut));
     }
 
     pub(crate) fn response(&mut self) -> HttpResponse {
