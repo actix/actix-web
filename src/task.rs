@@ -399,12 +399,7 @@ impl Task {
                                         self.response = ResponseState::Ready(msg);
                                         break
                                     },
-                                    Frame::Payload(_) => (),
-                                    Frame::Drain(fut) => {
-                                        self.drain.push(fut);
-                                        self.stream = TaskStream::Context(context);
-                                        break
-                                    }
+                                    Frame::Payload(_) | Frame::Drain(_) => (),
                                 }
                             },
                             Ok(Async::Ready(None)) => {
