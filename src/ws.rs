@@ -335,33 +335,32 @@ impl WsWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
     use payload::Payload;
-    use http::{Method, HeaderMap, Version, header};
+    use http::{Method, HeaderMap, Version, Uri, header};
 
     #[test]
     fn test_handshake() {
-        let req = HttpRequest::new(Method::POST, "/".to_owned(),
-                                   Version::HTTP_11, HeaderMap::new(),
-                                   String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::POST, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, HeaderMap::new(), Payload::empty());
         assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, HeaderMap::new(),
-                                   String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, HeaderMap::new(), Payload::empty());
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("test"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("websocket"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(WsHandshakeError::NoConnectionUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -369,8 +368,8 @@ mod tests {
                        header::HeaderValue::from_static("websocket"));
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(WsHandshakeError::NoVersionHeader, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -380,8 +379,8 @@ mod tests {
                        header::HeaderValue::from_static("upgrade"));
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("5"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(WsHandshakeError::UnsupportedVersion, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -391,8 +390,8 @@ mod tests {
                        header::HeaderValue::from_static("upgrade"));
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("13"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(WsHandshakeError::BadWebsocketKey, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -404,8 +403,8 @@ mod tests {
                        header::HeaderValue::from_static("13"));
         headers.insert(SEC_WEBSOCKET_KEY,
                        header::HeaderValue::from_static("13"));
-        let req = HttpRequest::new(Method::GET, "/".to_owned(),
-                                   Version::HTTP_11, headers, String::new(), Payload::empty());
+        let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
+                                   Version::HTTP_11, headers, Payload::empty());
         assert_eq!(StatusCode::SWITCHING_PROTOCOLS, handshake(&req).unwrap().status());
     }
 }

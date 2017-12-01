@@ -288,8 +288,9 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 mod tests {
     use Body;
     use super::*;
+    use std::str::FromStr;
     use time;
-    use http::{Method, Version, StatusCode};
+    use http::{Method, Version, StatusCode, Uri};
     use http::header::{self, HeaderMap};
     use payload::Payload;
 
@@ -300,7 +301,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let mut req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
         let resp = HttpResponse::build(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close().body(Body::Empty).unwrap();
@@ -331,7 +333,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
         let resp = HttpResponse::build(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();
@@ -348,8 +351,8 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
 
         let req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, HeaderMap::new(),
-            "test".to_owned(), Payload::empty());
+            Method::GET, Uri::from_str("/?test").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
         let resp = HttpResponse::build(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();

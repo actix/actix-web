@@ -3,8 +3,9 @@ extern crate http;
 extern crate time;
 
 use actix_web::*;
+use std::str::FromStr;
 use time::Duration;
-use http::{header, Method, Version, HeaderMap};
+use http::{header, Method, Version, HeaderMap, Uri};
 
 
 #[test]
@@ -14,7 +15,7 @@ fn test_response_cookies() {
                    header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
     let mut req = HttpRequest::new(
-        Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, Payload::empty());
     let cookies = req.load_cookies().unwrap();
 
     let resp = httpcodes::HTTPOk

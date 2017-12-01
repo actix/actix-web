@@ -131,7 +131,7 @@ fn parse(pattern: &str) -> String {
         }
 
         if hard_stop {
-            panic!("{id:*} section has to be last lection of pattern");
+            panic!("Tail '*' section has to be last lection of pattern");
         }
 
         if in_param {

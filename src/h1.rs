@@ -6,13 +6,12 @@ use std::collections::VecDeque;
 
 use actix::Arbiter;
 use httparse;
-use http::{Method, Version, HttpTryFrom, HeaderMap};
+use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
 use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
-use percent_encoding;
 
 use pipeline::Pipeline;
 use encoding::PayloadType;
@@ -515,31 +514,8 @@ impl Reader {
 
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
-
-        // manually split path, path was found to be utf8 by httparse
-        let uri = {
-            if let Ok(path) = percent_encoding::percent_decode(&path).decode_utf8() {
-                let parts: Vec<&str> = path.splitn(2, '?').collect();
-                if parts.len() == 2 {
-                    Some((parts[0].to_owned(), parts[1].to_owned()))
-                } else {
-                    Some((parts[0].to_owned(), String::new()))
-                }
-            } else {
-                None
-            }
-        };
-        let (path, query) = if let Some(uri) = uri {
-            uri
-        } else {
-            let parts: Vec<&str> = unsafe{
-                std::str::from_utf8_unchecked(&path)}.splitn(2, '?').collect();
-            if parts.len() == 2 {
-                (parts[0].to_owned(), parts[1][1..].to_owned())
-            } else {
-                (parts[0].to_owned(), String::new())
-            }
-        };
+        // path was found to be utf8 by httparse
+        let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
 
         // convert headers
         let mut headers = HeaderMap::with_capacity(headers_len);
@@ -558,7 +534,7 @@ impl Reader {
         }
 
         let (mut psender, payload) = Payload::new(false);
-        let msg = HttpRequest::new(method, path, version, headers, query, payload);
+        let msg = HttpRequest::new(method, uri, version, headers, payload);
 
         let decoder = if msg.upgrade() {
             Decoder::eof()

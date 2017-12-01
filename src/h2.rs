@@ -216,14 +216,11 @@ impl Entry {
               router: &Rc<Vec<H>>) -> Entry
         where H: HttpHandler + 'static
     {
-        let path = parts.uri.path().to_owned();
-        let query = parts.uri.query().unwrap_or("").to_owned();
-
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
         let mut req = HttpRequest::new(
-            parts.method, path, parts.version, parts.headers, query, payload);
+            parts.method, parts.uri, parts.version, parts.headers, payload);
 
         // set remote addr
         req.set_remove_addr(addr);

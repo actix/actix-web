@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
 use url::form_urlencoded;
-use http::{header, Method, Version, HeaderMap, Extensions};
+use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
 use {Cookie, HttpRange};
 use recognizer::Params;
@@ -18,9 +18,8 @@ use error::{ParseError, PayloadError,
 struct HttpMessage {
     version: Version,
     method: Method,
-    path: String,
+    uri: Uri,
     prefix: usize,
-    query: String,
     headers: HeaderMap,
     extensions: Extensions,
     params: Params,
@@ -35,9 +34,8 @@ impl Default for HttpMessage {
     fn default() -> HttpMessage {
         HttpMessage {
             method: Method::GET,
-            path: String::new(),
+            uri: Uri::default(),
             prefix: 0,
-            query: String::new(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
             params: Params::empty(),
@@ -56,15 +54,14 @@ pub struct HttpRequest<S=()>(Rc<HttpMessage>, Rc<S>);
 impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
-    pub fn new(method: Method, path: String, version: Version,
-               headers: HeaderMap, query: String, payload: Payload) -> HttpRequest
+    pub fn new(method: Method, uri: Uri,
+               version: Version, headers: HeaderMap, payload: Payload) -> HttpRequest
     {
         HttpRequest(
             Rc::new(HttpMessage {
                 method: method,
-                path: path,
+                uri: uri,
                 prefix: 0,
-                query: query,
                 version: version,
                 headers: headers,
                 params: Params::empty(),
@@ -104,6 +101,10 @@ impl<S> HttpRequest<S> {
         &mut self.as_mut().extensions
     }
 
+    /// Read the Request Uri.
+    #[inline]
+    pub fn uri(&self) -> &Uri { &self.0.uri }
+
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method { &self.0.method }
@@ -123,7 +124,7 @@ impl<S> HttpRequest<S> {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        &self.0.path
+        self.0.uri.path()
     }
 
     pub(crate) fn set_prefix(&mut self, idx: usize) {
@@ -155,8 +156,10 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn query(&self) -> HashMap<String, String> {
         let mut q: HashMap<String, String> = HashMap::new();
-        for (key, val) in form_urlencoded::parse(self.0.query.as_ref()) {
-            q.insert(key.to_string(), val.to_string());
+        if let Some(query) = self.0.uri.query().as_ref() {
+            for (key, val) in form_urlencoded::parse(query.as_ref()) {
+                q.insert(key.to_string(), val.to_string());
+            }
         }
         q
     }
@@ -166,7 +169,11 @@ impl<S> HttpRequest<S> {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        &self.0.query
+        if let Some(query) = self.0.uri.query().as_ref() {
+            query
+        } else {
+            ""
+        }
     }
 
     /// Return request cookies.
@@ -364,7 +371,7 @@ impl<S> Clone for HttpRequest<S> {
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
-                         self.0.version, self.0.method, self.0.path);
+                         self.0.version, self.0.method, self.0.uri);
         if !self.query_string().is_empty() {
             let _ = write!(f, "  query: ?{:?}\n", self.query_string());
         }
@@ -418,7 +425,9 @@ impl Future for UrlEncoded {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
     use payload::Payload;
+    use http::Uri;
 
     #[test]
     fn test_urlencoded_error() {
@@ -426,7 +435,8 @@ mod tests {
         headers.insert(header::TRANSFER_ENCODING,
                        header::HeaderValue::from_static("chunked"));
         let mut req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Chunked);
 
@@ -436,7 +446,8 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("xxxx"));
         let mut req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11,
+            headers, Payload::empty());
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::UnknownLength);
 
@@ -446,7 +457,8 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("1000000"));
         let mut req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Overflow);
 
@@ -456,7 +468,8 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("10"));
         let mut req = HttpRequest::new(
-            Method::GET, "/".to_owned(), Version::HTTP_11, headers, String::new(), Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::ContentType);
     }

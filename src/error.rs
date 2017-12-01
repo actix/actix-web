@@ -12,6 +12,7 @@ use httparse;
 use failure::Fail;
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
+use http::uri::InvalidUriBytes;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
 
@@ -110,8 +111,8 @@ pub enum ParseError {
     #[fail(display="Invalid Method specified")]
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
-    #[fail(display="Uri error")]
-    Uri,
+    #[fail(display="Uri error: {}", _0)]
+    Uri(InvalidUriBytes),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     #[fail(display="Invalid HTTP version specified")]
     Version,
