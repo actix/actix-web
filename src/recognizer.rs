@@ -228,6 +228,48 @@ mod tests {
     use regex::Regex;
     use super::*;
 
+    #[test]
+    fn test_recognizer() {
+        let mut rec = RouteRecognizer::<usize>::default();
+
+        let routes = vec![
+            ("/name", 1),
+            ("/name/{val}", 2),
+            ("/name/{val}/index.html", 3),
+            ("/v{val}/{val2}/index.html", 4),
+            ("/v/{tail:*}", 5),
+        ];
+        rec.set_routes(routes);
+
+        let (params, val) = rec.recognize("/name").unwrap();
+        assert_eq!(*val, 1);
+        assert!(params.unwrap().is_empty());
+
+        let (params, val) = rec.recognize("/name/value").unwrap();
+        assert_eq!(*val, 2);
+        assert!(!params.as_ref().unwrap().is_empty());
+        assert_eq!(params.as_ref().unwrap().get("val").unwrap(), "value");
+
+        let (params, val) = rec.recognize("/name/value2/index.html").unwrap();
+        assert_eq!(*val, 3);
+        assert!(!params.as_ref().unwrap().is_empty());
+        assert_eq!(params.as_ref().unwrap().get("val").unwrap(), "value2");
+        assert_eq!(params.as_ref().unwrap().by_idx(0).unwrap(), "value2");
+
+        let (params, val) = rec.recognize("/vtest/ttt/index.html").unwrap();
+        assert_eq!(*val, 4);
+        assert!(!params.as_ref().unwrap().is_empty());
+        assert_eq!(params.as_ref().unwrap().get("val").unwrap(), "test");
+        assert_eq!(params.as_ref().unwrap().get("val2").unwrap(), "ttt");
+        assert_eq!(params.as_ref().unwrap().by_idx(0).unwrap(), "test");
+        assert_eq!(params.as_ref().unwrap().by_idx(1).unwrap(), "ttt");
+
+        let (params, val) = rec.recognize("/v/blah-blah/index.html").unwrap();
+        assert_eq!(*val, 5);
+        assert!(!params.as_ref().unwrap().is_empty());
+        assert_eq!(params.as_ref().unwrap().get("tail").unwrap(), "blah-blah/index.html");
+    }
+
     fn assert_parse(pattern: &str, expected_re: &str) -> Regex {
         let re_str = parse(pattern);
         assert_eq!(&*re_str, expected_re);
