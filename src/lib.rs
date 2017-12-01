@@ -57,7 +57,7 @@ mod payload;
 mod resource;
 mod recognizer;
 mod route;
-mod task;
+//mod task;
 mod pipeline;
 mod staticfiles;
 mod server;

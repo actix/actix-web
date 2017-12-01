@@ -54,7 +54,7 @@ pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
 }
 
 struct Entry {
-    task: Pipeline,
+    pipe: Pipeline,
     eof: bool,
     error: bool,
     finished: bool,
@@ -108,7 +108,7 @@ impl<T, H> Http1<T, H>
                         return Err(())
                     }
 
-                    match item.task.poll_io(&mut self.stream) {
+                    match item.pipe.poll_io(&mut self.stream) {
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
 
@@ -129,13 +129,13 @@ impl<T, H> Http1<T, H>
                         },
                         Err(err) => {
                             // it is not possible to recover from error
-                            // during task handling, so just drop connection
+                            // during pipe handling, so just drop connection
                             error!("Unhandled error: {}", err);
                             return Err(())
                         }
                     }
                 } else if !item.finished {
-                    match item.task.poll() {
+                    match item.pipe.poll() {
                         Ok(Async::NotReady) => (),
                         Ok(Async::Ready(_)) => {
                             not_ready = false;
@@ -181,11 +181,11 @@ impl<T, H> Http1<T, H>
                         self.keepalive_timer.take();
 
                         // start request processing
-                        let mut task = None;
+                        let mut pipe = None;
                         for h in self.router.iter() {
                             req = match h.handle(req) {
                                 Ok(t) => {
-                                    task = Some(t);
+                                    pipe = Some(t);
                                     break
                                 },
                                 Err(req) => req,
@@ -193,7 +193,7 @@ impl<T, H> Http1<T, H>
                         }
 
                         self.tasks.push_back(
-                            Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
+                            Entry {pipe: pipe.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                                    eof: false,
                                    error: false,
                                    finished: false});
@@ -206,7 +206,7 @@ impl<T, H> Http1<T, H>
                         self.error = true;
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
-                            entry.task.disconnected()
+                            entry.pipe.disconnected()
                         }
                     },
                     Err(err) => {
@@ -214,7 +214,7 @@ impl<T, H> Http1<T, H>
                         not_ready = false;
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
-                            entry.task.disconnected()
+                            entry.pipe.disconnected()
                         }
 
                         // kill keepalive
@@ -227,7 +227,7 @@ impl<T, H> Http1<T, H>
                         if self.tasks.is_empty() {
                             if let ReaderError::Error(err) = err {
                                 self.tasks.push_back(
-                                    Entry {task: Pipeline::error(err.error_response()),
+                                    Entry {pipe: Pipeline::error(err.error_response()),
                                            eof: false,
                                            error: false,
                                            finished: false});
@@ -888,7 +888,7 @@ mod tests {
             self.buf = b.take().freeze();
         }
     }
-    
+
     impl AsyncRead for Buffer {}
     impl io::Read for Buffer {
         fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {

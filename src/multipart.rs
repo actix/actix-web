@@ -706,7 +706,6 @@ mod tests {
                 "abbc761f78ff4d7cb7573b5a23f96ef0".to_owned(), payload);
             match multipart.poll() {
                 Ok(Async::Ready(Some(item))) => {
-                    println!("{:?}", item);
                     match item {
                         MultipartItem::Field(mut field) => {
                             assert_eq!(field.content_type().type_(), mime::TEXT);

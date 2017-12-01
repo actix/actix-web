@@ -12,12 +12,16 @@ use actix::fut::ActorFuture;
 use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
                  Envelope, ToEnvelope, RemoteEnvelope};
 
-use task::{IoContext, DrainFut};
 use body::{Body, Binary};
 use error::Error;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use pipeline::DrainFut;
 
+pub(crate) trait IoContext: 'static {
+    fn disconnected(&mut self);
+    fn poll(&mut self) -> Poll<Option<Frame>, Error>;
+}
 
 #[derive(Debug)]
 pub(crate) enum Frame {
@@ -45,6 +49,7 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
 {
     /// Stop actor execution
     fn stop(&mut self) {
+        self.stream.push_back(Frame::Payload(None));
         self.items.stop();
         self.address.close();
         if self.state == ActorState::Running {
@@ -148,6 +153,11 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         } else {
             warn!("Trying to write response body for non-streaming response");
         }
+    }
+
+    /// Indicate end of streamimng payload. Also this method calls `Self::close`.
+    pub fn write_eof(&mut self) {
+        self.stop();
     }
 
     /// Returns drain future

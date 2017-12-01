@@ -5,8 +5,7 @@ use actix::Actor;
 use futures::Future;
 
 use error::Error;
-use task::IoContext;
-use context::HttpContext;
+use context::{HttpContext, IoContext};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
