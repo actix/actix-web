@@ -13,7 +13,7 @@ use cookie::{CookieJar, Cookie, Key};
 use futures::Future;
 use futures::future::{FutureResult, ok as FutOk, err as FutErr};
 
-use error::{Result, Error, ErrorResponse};
+use error::{Result, Error, ResponseError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middlewares::{Middleware, Started, Response};
@@ -177,7 +177,7 @@ pub enum CookieSessionError {
     Serialize(JsonError),
 }
 
-impl ErrorResponse for CookieSessionError {}
+impl ResponseError for CookieSessionError {}
 
 impl SessionImpl for CookieSession {
 

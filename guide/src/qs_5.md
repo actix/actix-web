@@ -60,17 +60,16 @@ Resource may have *variable path*also. For instance, a resource with the
 path '/a/{name}/c' would match all incoming requests with paths such
 as '/a/b/c', '/a/1/c', and '/a/etc/c'.
 
-A *variable part*is specified in the form {identifier}, where the identifier can be
+A *variable part* is specified in the form {identifier}, where the identifier can be
 used later in a request handler to access the matched value for that part. This is
 done by looking up the identifier in the `HttpRequest.match_info` object:
-
 
 ```rust
 extern crate actix;
 use actix_web::*;
 
 fn index(req: Httprequest) -> String {
-    format!("Hello, {}", req.match_info.get('name').unwrap())
+    format!("Hello, {}", req.match_info["name"])
 }
 
 fn main() {
@@ -92,8 +91,31 @@ fn main() {
 }
 ```
 
-To match path tail, `{tail:*}` pattern could be used. Tail pattern has to be last
-segment in path otherwise it panics.
+Any matched parameter can be deserialized into specific type if this type 
+implements `FromParam` trait. For example most of standard integer types
+implements `FromParam` trait. i.e.:
+
+```rust
+extern crate actix;
+use actix_web::*;
+
+fn index(req: Httprequest) -> String {
+    let v1: u8 = req.match_info().query("v1")?;
+    let v2: u8 = req.match_info().query("v2")?;
+    format!("Values {} {}", v1, v2)
+}
+
+fn main() {
+    Application::default("/")
+        .resource(r"/a/{v1}/{v2}/", |r| r.get(index))
+        .finish();
+}
+```
+
+For this example for path '/a/1/2/', values v1 and v2 will resolve to "1" and "2".
+
+To match path tail, `{tail:*}` pattern could be used. Tail pattern must to be last
+component of a path, any text after tail pattern will result in panic.
 
 ```rust,ignore
 fn main() {
@@ -105,3 +127,37 @@ fn main() {
 
 Above example would match all incoming requests with path such as
 '/test/b/c', '/test/index.html', and '/test/etc/test'.
+
+It is possible to create a `PathBuf` from a tail path parameter. The returned `PathBuf` is
+percent-decoded. If a segment is equal to "..", the previous segment (if
+any) is skipped.
+
+For security purposes, if a segment meets any of the following conditions,
+an `Err` is returned indicating the condition met:
+
+  * Decoded segment starts with any of: `.` (except `..`), `*`
+  * Decoded segment ends with any of: `:`, `>`, `<`
+  * Decoded segment contains any of: `/`
+  * On Windows, decoded segment contains any of: '\'
+  * Percent-encoding results in invalid UTF8.
+
+As a result of these conditions, a `PathBuf` parsed from request path parameter is
+safe to interpolate within, or use as a suffix of, a path without additional
+checks.
+
+```rust
+extern crate actix;
+use actix_web::*;
+use std::path::PathBuf;
+
+fn index(req: Httprequest) -> String {
+    let path: PathBuf = req.match_info().query("tail")?;
+    format!("Path {:?}", path)
+}
+
+fn main() {
+    Application::default("/")
+        .resource(r"/a/{tail:**}", |r| r.get(index))
+        .finish();
+}
+```

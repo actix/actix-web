@@ -1,10 +1,180 @@
+use std;
 use std::rc::Rc;
+use std::path::PathBuf;
+use std::ops::Index;
+use std::str::FromStr;
 use std::collections::HashMap;
-
 use regex::{Regex, RegexSet, Captures};
 
+use error::{ResponseError, UriSegmentError};
 
-#[doc(hidden)]
+/// A trait to abstract the idea of creating a new instance of a type from a path parameter.
+pub trait FromParam: Sized {
+    /// The associated error which can be returned from parsing.
+    type Err: ResponseError;
+
+    /// Parses a string `s` to return a value of this type.
+    fn from_param(s: &str) -> Result<Self, Self::Err>;
+}
+
+/// Route match information
+///
+/// If resource path contains variable patterns, `Params` stores this variables.
+#[derive(Debug)]
+pub struct Params {
+    text: String,
+    matches: Vec<Option<(usize, usize)>>,
+    names: Rc<HashMap<String, usize>>,
+}
+
+impl Params {
+    pub(crate) fn new(names: Rc<HashMap<String, usize>>,
+                      text: &str,
+                      captures: &Captures) -> Self
+    {
+        Params {
+            names,
+            text: text.into(),
+            matches: captures
+                .iter()
+                .map(|capture| capture.map(|m| (m.start(), m.end())))
+                .collect(),
+        }
+    }
+
+    pub(crate) fn empty() -> Self
+    {
+        Params {
+            text: String::new(),
+            names: Rc::new(HashMap::new()),
+            matches: Vec::new(),
+        }
+    }
+
+    /// Check if there are any matched patterns
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
+    fn by_idx(&self, index: usize) -> Option<&str> {
+        self.matches
+            .get(index + 1)
+            .and_then(|m| m.map(|(start, end)| &self.text[start..end]))
+    }
+
+    /// Get matched parameter by name without type conversion
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.names.get(key).and_then(|&i| self.by_idx(i - 1))
+    }
+
+    /// Get matched `FromParam` compatible parameter by name.
+    ///
+    /// If keyed parameter is not available empty string is used as default value.
+    ///
+    /// ```rust,ignore
+    /// fn index(req: HttpRequest) -> String {
+    ///    let ivalue: isize = req.match_info().query()?;
+    ///    format!("isuze value: {:?}", ivalue)
+    /// }
+    /// ```
+    pub fn query<T: FromParam>(&self, key: &str) -> Result<T, <T as FromParam>::Err>
+    {
+        if let Some(s) = self.get(key) {
+            T::from_param(s)
+        } else {
+            T::from_param("")
+        }
+    }
+}
+
+impl<'a> Index<&'a str> for Params {
+    type Output = str;
+
+    fn index(&self, name: &'a str) -> &str {
+        self.get(name).expect("Value for parameter is not available")
+    }
+}
+
+/// Creates a `PathBuf` from a path parameter. The returned `PathBuf` is
+/// percent-decoded. If a segment is equal to "..", the previous segment (if
+/// any) is skipped.
+///
+/// For security purposes, if a segment meets any of the following conditions,
+/// an `Err` is returned indicating the condition met:
+///
+///   * Decoded segment starts with any of: `.` (except `..`), `*`
+///   * Decoded segment ends with any of: `:`, `>`, `<`
+///   * Decoded segment contains any of: `/`
+///   * On Windows, decoded segment contains any of: '\'
+///   * Percent-encoding results in invalid UTF8.
+///
+/// As a result of these conditions, a `PathBuf` parsed from request path parameter is
+/// safe to interpolate within, or use as a suffix of, a path without additional
+/// checks.
+impl FromParam for PathBuf {
+    type Err = UriSegmentError;
+
+    fn from_param(val: &str) -> Result<PathBuf, UriSegmentError> {
+        let mut buf = PathBuf::new();
+        for segment in val.split('/') {
+            if segment == ".." {
+                buf.pop();
+            } else if segment.starts_with('.') {
+                return Err(UriSegmentError::BadStart('.'))
+            } else if segment.starts_with('*') {
+                return Err(UriSegmentError::BadStart('*'))
+            } else if segment.ends_with(':') {
+                return Err(UriSegmentError::BadEnd(':'))
+            } else if segment.ends_with('>') {
+                return Err(UriSegmentError::BadEnd('>'))
+            } else if segment.ends_with('<') {
+                return Err(UriSegmentError::BadEnd('<'))
+            } else if segment.contains('/') {
+                return Err(UriSegmentError::BadChar('/'))
+            } else if cfg!(windows) && segment.contains('\\') {
+                return Err(UriSegmentError::BadChar('\\'))
+            } else {
+                buf.push(segment)
+            }
+        }
+
+        Ok(buf)
+    }
+}
+
+macro_rules! FROM_STR {
+    ($type:ty) => {
+        impl FromParam for $type {
+            type Err = <$type as FromStr>::Err;
+
+            fn from_param(val: &str) -> Result<Self, Self::Err> {
+                <$type as FromStr>::from_str(val)
+            }
+        }
+    }
+}
+
+FROM_STR!(u8);
+FROM_STR!(u16);
+FROM_STR!(u32);
+FROM_STR!(u64);
+FROM_STR!(usize);
+FROM_STR!(i8);
+FROM_STR!(i16);
+FROM_STR!(i32);
+FROM_STR!(i64);
+FROM_STR!(isize);
+FROM_STR!(f32);
+FROM_STR!(f64);
+FROM_STR!(String);
+FROM_STR!(std::net::IpAddr);
+FROM_STR!(std::net::Ipv4Addr);
+FROM_STR!(std::net::Ipv6Addr);
+FROM_STR!(std::net::SocketAddr);
+FROM_STR!(std::net::SocketAddrV4);
+FROM_STR!(std::net::SocketAddrV6);
+
+
 pub struct RouteRecognizer<T> {
     prefix: usize,
     patterns: RegexSet,
@@ -173,56 +343,6 @@ fn parse(pattern: &str) -> String {
     re
 }
 
-/// Route match information
-///
-/// If resource path contains variable patterns, `Params` stores this variables.
-#[derive(Debug)]
-pub struct Params {
-    text: String,
-    matches: Vec<Option<(usize, usize)>>,
-    names: Rc<HashMap<String, usize>>,
-}
-
-impl Params {
-    pub(crate) fn new(names: Rc<HashMap<String, usize>>,
-                      text: &str,
-                      captures: &Captures) -> Self
-    {
-        Params {
-            names,
-            text: text.into(),
-            matches: captures
-                .iter()
-                .map(|capture| capture.map(|m| (m.start(), m.end())))
-                .collect(),
-        }
-    }
-
-    pub(crate) fn empty() -> Self
-    {
-        Params {
-            text: String::new(),
-            names: Rc::new(HashMap::new()),
-            matches: Vec::new(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.names.is_empty()
-    }
-
-    fn by_idx(&self, index: usize) -> Option<&str> {
-        self.matches
-            .get(index + 1)
-            .and_then(|m| m.map(|(start, end)| &self.text[start..end]))
-    }
-
-    /// Get matched parameter by name
-    pub fn get(&self, key: &str) -> Option<&str> {
-        self.names.get(key).and_then(|&i| self.by_idx(i - 1))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use regex::Regex;
@@ -249,6 +369,7 @@ mod tests {
         assert_eq!(*val, 2);
         assert!(!params.as_ref().unwrap().is_empty());
         assert_eq!(params.as_ref().unwrap().get("val").unwrap(), "value");
+        assert_eq!(&params.as_ref().unwrap()["val"], "value");
 
         let (params, val) = rec.recognize("/name/value2/index.html").unwrap();
         assert_eq!(*val, 3);

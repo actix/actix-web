@@ -11,8 +11,8 @@
 // dev specific
 pub use pipeline::Pipeline;
 pub use route::Handler;
-pub use recognizer::RouteRecognizer;
 pub use channel::{HttpChannel, HttpHandler};
+pub use recognizer::{FromParam, RouteRecognizer};
 
 pub use application::ApplicationBuilder;
 pub use httpresponse::HttpResponseBuilder;

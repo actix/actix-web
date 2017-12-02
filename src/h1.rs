@@ -19,7 +19,7 @@ use channel::HttpHandler;
 use h1writer::H1Writer;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use error::{ParseError, PayloadError, ErrorResponse};
+use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
