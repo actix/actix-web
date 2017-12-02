@@ -881,3 +881,36 @@ impl Completed {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix::*;
+    use context::HttpContext;
+
+    impl PipelineState {
+        fn is_none(&self) -> Option<bool> {
+            if let PipelineState::None = *self { Some(true) } else { None }
+        }
+        fn is_completed(&self) -> Option<bool> {
+            if let PipelineState::Completed(_) = *self { Some(true) } else { None }
+        }
+    }
+
+    struct MyActor;
+    impl Actor for MyActor {
+        type Context = HttpContext<MyActor>;
+    }
+
+    #[test]
+    fn test_completed() {
+        let info = Box::new(PipelineInfo::new(HttpRequest::default()));
+        Completed::init(info).is_none().unwrap();
+
+        let req = HttpRequest::default();
+        let ctx = HttpContext::new(req.clone(), MyActor);
+        let mut info = Box::new(PipelineInfo::new(req));
+        info.context = Some(Box::new(ctx));
+        Completed::init(info).is_completed().unwrap();
+    }
+}
