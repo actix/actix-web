@@ -55,17 +55,9 @@ fn index(req: HttpRequest<AppState>) -> String {
 }
 
 fn main() {
-    let sys = actix::System::new("example");
-
-    HttpServer::new(
-        Application::build("/", AppState{counter: Cell::new(0)})
-            .resource("/", |r| r.handler(Method::GET, index)))
-        .serve::<_, ()>("127.0.0.1:8088").unwrap();
-
-    println!("Started http server: 127.0.0.1:8088");
-    actix::Arbiter::system().send(actix::msgs::SystemExit(0)); // <- remove this line, this code stops system during testing
-
-    let _ = sys.run();
+    Application::build("/", AppState{counter: Cell::new(0)})
+        .resource("/", |r| r.handler(Method::GET, index)))
+        .finish();
 }
 ```
 
@@ -164,11 +156,6 @@ fn main() {
 If `specialization` is enabled, conversion could be simplier:
 
 ```rust,ignore
-#[derive(Serialize)]
-struct MyObj {
-    name: String,
-}
-
 impl Into<Result<HttpResponse>> for MyObj {
     fn into(self) -> Result<HttpResponse> {
         let body = serde_json::to_string(&self)?;
