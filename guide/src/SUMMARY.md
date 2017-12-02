@@ -12,3 +12,4 @@
 - [User sessions](./qs_10.md)
 - [Logging](./qs_11.md)
 - [Static file handling](./qs_12.md)
+- [HTTP/2](./qs_13.md)
