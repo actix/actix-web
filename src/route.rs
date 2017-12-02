@@ -154,7 +154,7 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 
 /// Async route handler
 pub(crate)
-struct StreamHandler<S, R, F>
+struct AsyncHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
@@ -163,17 +163,17 @@ struct StreamHandler<S, R, F>
     s: PhantomData<S>,
 }
 
-impl<S, R, F> StreamHandler<S, R, F>
+impl<S, R, F> AsyncHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,
 {
     pub fn new(f: F) -> Self {
-        StreamHandler{f: Box::new(f), s: PhantomData}
+        AsyncHandler{f: Box::new(f), s: PhantomData}
     }
 }
 
-impl<S, R, F> RouteHandler<S> for StreamHandler<S, R, F>
+impl<S, R, F> RouteHandler<S> for AsyncHandler<S, R, F>
     where F: Fn(HttpRequest<S>) -> R + 'static,
           R: Future<Item=HttpResponse, Error=Error> + 'static,
           S: 'static,

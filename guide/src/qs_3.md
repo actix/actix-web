@@ -56,7 +56,7 @@ fn index(req: HttpRequest<AppState>) -> String {
 
 fn main() {
     Application::build("/", AppState{counter: Cell::new(0)})
-        .resource("/", |r| r.handler(Method::GET, index)))
+        .resource("/", |r| r.handler(Method::GET, index))
         .finish();
 }
 ```
@@ -143,7 +143,7 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             .resource("/", |r| r.handler(
-                Method::GET, |req| {Ok(MyObj{name: "user".to_owned()})})))
+                Method::GET, |req| {MyObj{name: "user".to_owned()}})))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");
@@ -166,3 +166,35 @@ impl Into<Result<HttpResponse>> for MyObj {
     }
 }
 ```
+
+### Async handlers
+
+There are two different types of async handlers. 
+
+Response object could be generated asynchronously. In this case handle must
+return `Future` object that resolves to `HttpResponse`, i.e:
+
+```rust,ignore
+fn index(req: HttpRequest) -> Box<Future<HttpResponse, Error>> {
+   ...
+}
+```
+
+This handler can be registered with `ApplicationBuilder::async()` and 
+`Resource::async()` methods.
+
+Or response body can be generated asynchronously. In this case body
+must implement stream trait `Stream<Item=Bytes, Error=Error>`, i.e:
+
+
+```rust,ignore
+fn index(req: HttpRequest) -> HttpResponse {
+    let body: Box<Stream<Item=Bytes, Error=Error>> = Box::new(SomeStream::new());
+
+    HttpResponse::Ok().
+       .content_type("application/json")
+       .body(Body::Streaming(body)).unwrap()
+}
+```
+
+Both methods could be combined. (i.e Async response with streaming body)

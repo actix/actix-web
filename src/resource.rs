@@ -5,7 +5,7 @@ use http::Method;
 use futures::Future;
 
 use error::Error;
-use route::{Reply, RouteHandler, WrapHandler, Handler, StreamHandler};
+use route::{Reply, Handler, RouteHandler, AsyncHandler, WrapHandler};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
@@ -70,7 +70,7 @@ impl<S> Resource<S> where S: 'static {
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Future<Item=HttpResponse, Error=Error> + 'static,
     {
-        self.routes.insert(method, Box::new(StreamHandler::new(handler)));
+        self.routes.insert(method, Box::new(AsyncHandler::new(handler)));
     }
 
     /// Default handler is used if no matched route found.

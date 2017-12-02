@@ -1,10 +1,13 @@
 use std::rc::Rc;
 use std::collections::HashMap;
+use futures::Future;
 
-use route::{RouteHandler, WrapHandler, Reply, Handler};
+use error::Error;
+use route::{RouteHandler, Reply, Handler, WrapHandler, AsyncHandler};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 use channel::HttpHandler;
 use pipeline::Pipeline;
 use middlewares::Middleware;
@@ -201,6 +204,18 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     {
         self.parts.as_mut().expect("Use after finish")
             .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
+        self
+    }
+
+    /// This method register async handler for specified path prefix.
+    /// Any path that starts with this prefix matches handler.
+    pub fn async<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Future<Item=HttpResponse, Error=Error> + 'static,
+              P: Into<String>,
+    {
+        self.parts.as_mut().expect("Use after finish")
+            .handlers.insert(path.into(), Box::new(AsyncHandler::new(handler)));
         self
     }
 
