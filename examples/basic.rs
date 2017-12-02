@@ -68,7 +68,7 @@ fn main() {
             ))
             // register simple handle r, handle all methods
             .handler("/index.html", index)
-        // with path parameters
+            // with path parameters
             .resource("/user/{name}/", |r| r.handler(Method::GET, with_param))
             // async handler
             .resource("/async/{name}", |r| r.async(Method::GET, index_async))

@@ -20,3 +20,29 @@ has same url path prefix:
 
 In this example application with `/prefix` prefix and `index.html` resource
 get created. This resource is available as on `/prefix/index.html` url.
+
+Multiple applications could be served with one server:
+
+```rust
+extern crate actix_web;
+extern crate tokio_core;
+use std::net::SocketAddr;
+use actix_web::*;
+use tokio_core::net::TcpStream;
+
+fn main() {
+    HttpServer::<TcpStream, SocketAddr, _>::new(vec![
+        Application::default("/app1")
+            .resource("/", |r| r.get(|r| httpcodes::HTTPOk))
+            .finish(),
+        Application::default("/app2")
+            .resource("/", |r| r.get(|r| httpcodes::HTTPOk))
+            .finish(),
+        Application::default("/")
+            .resource("/", |r| r.get(|r| httpcodes::HTTPOk))
+            .finish(),
+    ]);
+}
+```
+
+All `/app1` requests route to first application, `/app2` to second and then all other to third.
