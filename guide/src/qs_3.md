@@ -71,14 +71,18 @@ fn main() {
 
 ## [WIP] Handler
 
-A request handler can have different forms. 
+A request handler can by any object that implements
+[`Handler` trait](../actix_web/struct.HttpResponse.html#implementations).
 
-* Simple function that accepts `HttpRequest` and returns `HttpResponse` or any 
-   type that can be converted into `HttpResponse`. 
-* Function that that accepts `HttpRequest` and returns `Stream<Item=Frame, Error=Error>`. 
-* Http actor, i.e. actor that has `HttpContext<A>`as a context. 
+By default actix provdes several `Handler` implementations:
 
-Actix provides response conversion for some standard types, like `&'static str`, `String`, etc.
+* Simple function that accepts `HttpRequest` and returns any object that 
+  can be converted to `HttpResponse`
+* Function that accepts `HttpRequest` and returns `Result<Reply, Into<Error>>` object.
+* Function that accepts `HttpRequest` and return actor that has `HttpContext<A>`as a context. 
+
+Actix provides response conversion into `HttpResponse` for some standard types, 
+like `&'static str`, `String`, etc.
 For complete list of implementations check 
 [HttpResponse documentation](../actix_web/struct.HttpResponse.html#implementations).
 
@@ -99,5 +103,79 @@ fn index(req: HttpRequest) -> String {
 ```rust,ignore
 fn index(req: HttpRequest) -> Bytes {
     Bytes::from_static("Hello world!")
+}
+```
+
+```rust,ignore
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    ...
+}
+```
+
+### Custom conversion
+
+Let's create response for custom type that serializes to `application/json` response:
+
+```rust
+extern crate actix;
+extern crate actix_web;
+extern crate serde;
+extern crate serde_json;
+#[macro_use] extern crate serde_derive;
+use actix_web::*;
+
+#[derive(Serialize)]
+struct MyObj {
+    name: String,
+}
+
+/// we have to convert Error into HttpResponse as well, but with 
+/// specialization this could be handled genericly.
+impl Into<HttpResponse> for MyObj {
+    fn into(self) -> HttpResponse {
+        let body = match serde_json::to_string(&self) {
+            Err(err) => return Error::from(err).into(),
+            Ok(body) => body,
+        };
+
+        // Create response and set content type
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .body(body).unwrap()
+    }
+}
+
+fn main() {
+    let sys = actix::System::new("example");
+
+    HttpServer::new(
+        Application::default("/")
+            .resource("/", |r| r.handler(
+                Method::GET, |req| {Ok(MyObj{name: "user".to_owned()})})))
+        .serve::<_, ()>("127.0.0.1:8088").unwrap();
+
+    println!("Started http server: 127.0.0.1:8088");
+    actix::Arbiter::system().send(actix::msgs::SystemExit(0)); // <- remove this line, this code stops system during testing
+
+    let _ = sys.run();
+}
+```
+
+If `specialization` is enabled, conversion could be simplier:
+
+```rust,ignore
+#[derive(Serialize)]
+struct MyObj {
+    name: String,
+}
+
+impl Into<Result<HttpResponse>> for MyObj {
+    fn into(self) -> Result<HttpResponse> {
+        let body = serde_json::to_string(&self)?;
+
+        Ok(HttpResponse::Ok()
+            .content_type("application/json")
+            .body(body)?)
+    }
 }
 ```

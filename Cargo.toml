@@ -85,9 +85,11 @@ optional = true
 env_logger = "0.4"
 reqwest = "0.8"
 skeptic = "0.13"
+serde_derive = "1.0"
 
 [build-dependencies]
 skeptic = "0.13"
+serde_derive = "1.0"
 version_check = "0.1"
 
 [profile.release]

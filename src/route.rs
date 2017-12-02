@@ -67,10 +67,29 @@ impl Reply {
     }
 }
 
+#[cfg(not(actix_nightly))]
 impl<T: Into<HttpResponse>> From<T> for Reply
 {
     fn from(item: T) -> Self {
         Reply(ReplyItem::Message(item.into()))
+    }
+}
+
+#[cfg(actix_nightly)]
+default impl<T: Into<HttpResponse>> From<T> for Reply
+{
+    fn from(item: T) -> Self {
+        Reply(ReplyItem::Message(item.into()))
+    }
+}
+
+#[cfg(actix_nightly)]
+default impl<T: Into<HttpResponse>, E: Into<Error>> From<StdResult<T, E>> for Reply {
+    fn from(res: StdResult<T, E>) -> Self {
+        match res {
+            Ok(val) => val.into().into(),
+            Err(err) => err.into().into(),
+        }
     }
 }
 
