@@ -129,8 +129,8 @@ impl FromParam for PathBuf {
                 return Err(UriSegmentError::BadEnd('>'))
             } else if segment.ends_with('<') {
                 return Err(UriSegmentError::BadEnd('<'))
-            } else if segment.contains('/') {
-                return Err(UriSegmentError::BadChar('/'))
+            } else if segment.is_empty() {
+                continue
             } else if cfg!(windows) && segment.contains('\\') {
                 return Err(UriSegmentError::BadChar('\\'))
             } else {
@@ -347,6 +347,20 @@ fn parse(pattern: &str) -> String {
 mod tests {
     use regex::Regex;
     use super::*;
+    use std::iter::FromIterator;
+
+    #[test]
+    fn test_path_buf() {
+        assert_eq!(PathBuf::from_param("/test/.tt"), Err(UriSegmentError::BadStart('.')));
+        assert_eq!(PathBuf::from_param("/test/*tt"), Err(UriSegmentError::BadStart('*')));
+        assert_eq!(PathBuf::from_param("/test/tt:"), Err(UriSegmentError::BadEnd(':')));
+        assert_eq!(PathBuf::from_param("/test/tt<"), Err(UriSegmentError::BadEnd('<')));
+        assert_eq!(PathBuf::from_param("/test/tt>"), Err(UriSegmentError::BadEnd('>')));
+        assert_eq!(PathBuf::from_param("/seg1/seg2/"),
+                   Ok(PathBuf::from_iter(vec!["seg1", "seg2"])));
+        assert_eq!(PathBuf::from_param("/seg1/../seg2/"),
+                   Ok(PathBuf::from_iter(vec!["seg2"])));
+    }
 
     #[test]
     fn test_recognizer() {
