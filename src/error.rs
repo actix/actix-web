@@ -1,5 +1,5 @@
 //! Error and Result module
-use std::{fmt, result};
+use std::{io, fmt, result};
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::io::Error as IoError;
@@ -92,7 +92,19 @@ impl ResponseError for JsonError {}
 impl ResponseError for HttpError {}
 
 /// Return `InternalServerError` for `io::Error`
-impl ResponseError for IoError {}
+impl ResponseError for io::Error {
+
+    fn error_response(&self) -> HttpResponse {
+        match self.kind() {
+            io::ErrorKind::NotFound =>
+                HttpResponse::new(StatusCode::NOT_FOUND, Body::Empty),
+            io::ErrorKind::PermissionDenied =>
+                HttpResponse::new(StatusCode::FORBIDDEN, Body::Empty),
+            _ =>
+                HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
+        }
+    }
+}
 
 /// `InternalServerError` for `InvalidHeaderValue`
 impl ResponseError for header::InvalidHeaderValue {}

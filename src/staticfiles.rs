@@ -11,7 +11,7 @@ use mime_guess::get_mime_type;
 use route::Handler;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPOk, HTTPNotFound, HTTPForbidden};
+use httpcodes::{HTTPOk, HTTPNotFound};
 
 /// Static files handling
 ///
@@ -149,26 +149,10 @@ impl<S> Handler<S> for StaticFiles {
 
             // full filepath
             let idx = if filepath.starts_with('/') { 1 } else { 0 };
-            let filename = match self.directory.join(&filepath[idx..]).canonicalize() {
-                Ok(fname) => fname,
-                Err(err) => return match err.kind() {
-                    io::ErrorKind::NotFound => Ok(HTTPNotFound.into()),
-                    io::ErrorKind::PermissionDenied => Ok(HTTPForbidden.into()),
-                    _ => Err(err),
-                }
-            };
+            let filename = self.directory.join(&filepath[idx..]).canonicalize()?;
 
             if filename.is_dir() {
-                match self.index(
-                    &req.path()[..req.prefix_len()], &filepath[idx..], &filename)
-                {
-                    Ok(resp) => Ok(resp),
-                    Err(err) => match err.kind() {
-                        io::ErrorKind::NotFound => Ok(HTTPNotFound.into()),
-                        io::ErrorKind::PermissionDenied => Ok(HTTPForbidden.into()),
-                        _ => Err(err),
-                    }
-                }
+                self.index(&req.path()[..req.prefix_len()], &filepath[idx..], &filename)
             } else {
                 let mut resp = HTTPOk.build();
                 if let Some(ext) = filename.extension() {

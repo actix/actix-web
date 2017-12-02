@@ -172,7 +172,7 @@ macro_rules! FROM_STR {
             type Err = BadRequest<<$type as FromStr>::Err>;
 
             fn from_param(val: &str) -> Result<Self, Self::Err> {
-                <$type as FromStr>::from_str(val).map_err(|e| BadRequest(e))
+                <$type as FromStr>::from_str(val).map_err(BadRequest)
             }
         }
     }
