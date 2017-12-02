@@ -244,9 +244,8 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             routes.push((path, handler))
         }
 
-        for (path, mut handler) in parts.handlers {
-            let path = prefix.clone() + path.trim_left_matches('/');
-            handlers.insert(path, handler);
+        for (path, handler) in parts.handlers {
+            handlers.insert(prefix.clone() + path.trim_left_matches('/'), handler);
         }
         Application {
             state: Rc::new(parts.state),

@@ -168,10 +168,8 @@ impl From<FromUtf8Error> for ParseError {
 impl From<httparse::Error> for ParseError {
     fn from(err: httparse::Error) -> ParseError {
         match err {
-            httparse::Error::HeaderName |
-            httparse::Error::HeaderValue |
-            httparse::Error::NewLine |
-            httparse::Error::Token => ParseError::Header,
+            httparse::Error::HeaderName | httparse::Error::HeaderValue |
+                httparse::Error::NewLine | httparse::Error::Token => ParseError::Header,
             httparse::Error::Status => ParseError::Status,
             httparse::Error::TooManyHeaders => ParseError::TooLarge,
             httparse::Error::Version => ParseError::Version,
