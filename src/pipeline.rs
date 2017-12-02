@@ -887,13 +887,15 @@ mod tests {
     use super::*;
     use actix::*;
     use context::HttpContext;
+    use tokio_core::reactor::Core;
+    use futures::future::{lazy, result};
 
     impl PipelineState {
         fn is_none(&self) -> Option<bool> {
             if let PipelineState::None = *self { Some(true) } else { None }
         }
-        fn is_completed(&self) -> Option<bool> {
-            if let PipelineState::Completed(_) = *self { Some(true) } else { None }
+        fn completed(self) -> Option<Completed> {
+            if let PipelineState::Completed(c) = self { Some(c) } else { None }
         }
     }
 
@@ -904,13 +906,26 @@ mod tests {
 
     #[test]
     fn test_completed() {
-        let info = Box::new(PipelineInfo::new(HttpRequest::default()));
-        Completed::init(info).is_none().unwrap();
+        Core::new().unwrap().run(lazy(|| {
+            let info = Box::new(PipelineInfo::new(HttpRequest::default()));
+            Completed::init(info).is_none().unwrap();
 
-        let req = HttpRequest::default();
-        let ctx = HttpContext::new(req.clone(), MyActor);
-        let mut info = Box::new(PipelineInfo::new(req));
-        info.context = Some(Box::new(ctx));
-        Completed::init(info).is_completed().unwrap();
+            let req = HttpRequest::default();
+            let mut ctx = HttpContext::new(req.clone(), MyActor);
+            let addr: Address<_> = ctx.address();
+            let mut info = Box::new(PipelineInfo::new(req));
+            info.context = Some(Box::new(ctx));
+            let mut state = Completed::init(info).completed().unwrap();
+
+            let st = state.poll().ok().unwrap();
+            assert!(!st.is_done());
+
+            state = st.completed().unwrap();
+            drop(addr);
+
+            state.poll().ok().unwrap().is_none().unwrap();
+
+            result(Ok::<_, ()>(()))
+        })).unwrap()
     }
 }
