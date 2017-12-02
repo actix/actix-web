@@ -4,8 +4,13 @@ use std::path::PathBuf;
 use std::ops::Index;
 use std::str::FromStr;
 use std::collections::HashMap;
+
+use failure::Fail;
+use http::{StatusCode};
 use regex::{Regex, RegexSet, Captures};
 
+use body::Body;
+use httpresponse::HttpResponse;
 use error::{ResponseError, UriSegmentError};
 
 /// A trait to abstract the idea of creating a new instance of a type from a path parameter.
@@ -73,7 +78,7 @@ impl Params {
     ///
     /// ```rust,ignore
     /// fn index(req: HttpRequest) -> String {
-    ///    let ivalue: isize = req.match_info().query()?;
+    ///    let ivalue: isize = req.match_info().query("val")?;
     ///    format!("isuze value: {:?}", ivalue)
     /// }
     /// ```
@@ -142,13 +147,32 @@ impl FromParam for PathBuf {
     }
 }
 
+#[derive(Fail, Debug)]
+#[fail(display="Error")]
+pub struct BadRequest<T>(T);
+
+impl<T> BadRequest<T> {
+    pub fn cause(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> ResponseError for BadRequest<T>
+    where T: Send + Sync + std::fmt::Debug +std::fmt::Display + 'static,
+          BadRequest<T>: Fail
+{
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
 macro_rules! FROM_STR {
     ($type:ty) => {
         impl FromParam for $type {
-            type Err = <$type as FromStr>::Err;
+            type Err = BadRequest<<$type as FromStr>::Err>;
 
             fn from_param(val: &str) -> Result<Self, Self::Err> {
-                <$type as FromStr>::from_str(val)
+                <$type as FromStr>::from_str(val).map_err(|e| BadRequest(e))
             }
         }
     }
