@@ -12,7 +12,9 @@ use serde::Serialize;
 use Cookie;
 use body::Body;
 use error::Error;
+use route::{Reply, FromRequest};
 use encoding::ContentEncoding;
+use httprequest::HttpRequest;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -458,12 +460,27 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
+impl FromRequest for HttpResponseBuilder {
+    fn from_request(self, _: HttpRequest) -> Reply {
+        Reply::response(self)
+    }
+}
+
 impl From<&'static str> for HttpResponse {
     fn from(val: &'static str) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
             .into()
+    }
+}
+
+impl FromRequest for &'static str {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
+            .from_request(req)
     }
 }
 
@@ -476,12 +493,30 @@ impl From<&'static [u8]> for HttpResponse {
     }
 }
 
+impl FromRequest for &'static [u8] {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
+            .from_request(req)
+    }
+}
+
 impl From<String> for HttpResponse {
     fn from(val: String) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
             .into()
+    }
+}
+
+impl FromRequest for String {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
+            .from_request(req)
     }
 }
 
@@ -494,6 +529,15 @@ impl<'a> From<&'a String> for HttpResponse {
     }
 }
 
+impl<'a> FromRequest for &'a String {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
+            .from_request(req)
+    }
+}
+
 impl From<Bytes> for HttpResponse {
     fn from(val: Bytes) -> Self {
         HttpResponse::build(StatusCode::OK)
@@ -503,12 +547,30 @@ impl From<Bytes> for HttpResponse {
     }
 }
 
+impl FromRequest for Bytes {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
+            .from_request(req)
+    }
+}
+
 impl From<BytesMut> for HttpResponse {
     fn from(val: BytesMut) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(val)
             .into()
+    }
+}
+
+impl FromRequest for BytesMut {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
+            .from_request(req)
     }
 }
 

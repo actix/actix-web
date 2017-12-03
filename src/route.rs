@@ -92,10 +92,10 @@ default impl<T: FromRequest> FromRequest for T
 }
 
 #[cfg(actix_nightly)]
-default impl<T: FromRequest, E: Into<Error>> FromRequest for StdResult<T, E> {
+default impl<T: Into<HttpResponse>, E: Into<Error>> FromRequest for StdResult<T, E> {
     fn from_request(self, req: HttpRequest) -> Reply {
         match self {
-            Ok(val) => val.from_request(req),
+            Ok(val) => Reply(ReplyItem::Message(val.into())), //val.from_request(req),
             Err(err) => Reply(ReplyItem::Message(err.into().into())),
         }
     }
