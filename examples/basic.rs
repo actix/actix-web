@@ -89,7 +89,7 @@ fn main() {
                 }
             })
             // static files
-            .route("/static", StaticFiles::new("examples/static/", true)))
+            .route("/static", fs::StaticFiles::new("examples/static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

@@ -65,11 +65,11 @@ used later in a request handler to access the matched value for that part. This 
 done by looking up the identifier in the `HttpRequest.match_info` object:
 
 ```rust
-extern crate actix;
+extern crate actix_web;
 use actix_web::*;
 
-fn index(req: Httprequest) -> String {
-    format!("Hello, {}", req.match_info["name"])
+fn index(req: HttpRequest) -> String {
+    format!("Hello, {}", &req.match_info()["name"])
 }
 
 fn main() {
@@ -96,13 +96,13 @@ implements `FromParam` trait. For example most of standard integer types
 implements `FromParam` trait. i.e.:
 
 ```rust
-extern crate actix;
+extern crate actix_web;
 use actix_web::*;
 
-fn index(req: Httprequest) -> String {
+fn index(req: HttpRequest) -> Result<String> {
     let v1: u8 = req.match_info().query("v1")?;
     let v2: u8 = req.match_info().query("v2")?;
-    format!("Values {} {}", v1, v2)
+    Ok(format!("Values {} {}", v1, v2))
 }
 
 fn main() {
@@ -146,18 +146,18 @@ safe to interpolate within, or use as a suffix of, a path without additional
 checks.
 
 ```rust
-extern crate actix;
+extern crate actix_web;
 use actix_web::*;
 use std::path::PathBuf;
 
-fn index(req: Httprequest) -> String {
+fn index(req: HttpRequest) -> Result<String> {
     let path: PathBuf = req.match_info().query("tail")?;
-    format!("Path {:?}", path)
+    Ok(format!("Path {:?}", path))
 }
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{tail:**}", |r| r.get(index))
+        .resource(r"/a/{tail:*}", |r| r.get(index))
         .finish();
 }
 ```

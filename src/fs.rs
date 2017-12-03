@@ -1,6 +1,6 @@
 //! Static files support.
-//!
-//! TODO: needs to re-implement actual files handling, current impl blocks
+
+// //! TODO: needs to re-implement actual files handling, current impl blocks
 use std::io;
 use std::io::Read;
 use std::fmt::Write;
@@ -19,11 +19,10 @@ use httpcodes::{HTTPOk, HTTPNotFound};
 ///
 /// ```rust
 /// extern crate actix_web;
-/// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::default("/")
-///         .route("/static", StaticFiles::new(".", true))
+///     let app = actix_web::Application::default("/")
+///         .route("/static", actix_web::fs::StaticFiles::new(".", true))
 ///         .finish();
 /// }
 /// ```
@@ -39,6 +38,7 @@ impl StaticFiles {
     /// Create new `StaticFiles` instance
     ///
     /// `dir` - base directory
+    ///
     /// `index` - show index for directory
     pub fn new<D: Into<PathBuf>>(dir: D, index: bool) -> StaticFiles {
         let dir = dir.into();

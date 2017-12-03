@@ -6,14 +6,14 @@ A request handler can by any object that implements
 By default actix provdes several `Handler` implementations:
 
 * Simple function that accepts `HttpRequest` and returns any object that 
-  can be converted to `HttpResponse`
+  implements `FromRequest` trait
 * Function that accepts `HttpRequest` and returns `Result<Reply, Into<Error>>` object.
 * Function that accepts `HttpRequest` and return actor that has `HttpContext<A>`as a context. 
 
-Actix provides response conversion into `HttpResponse` for some standard types, 
+Actix provides response `FromRequest` implementation for some standard types, 
 like `&'static str`, `String`, etc.
 For complete list of implementations check 
-[HttpResponse documentation](../actix_web/struct.HttpResponse.html#implementations).
+[FromRequest documentation](../actix_web/trait.FromRequest.html#foreign-impls).
 
 Examples:
 
@@ -58,19 +58,18 @@ struct MyObj {
     name: String,
 }
 
-/// we have to convert Error into HttpResponse as well, but with 
-/// specialization this could be handled genericly.
-impl Into<HttpResponse> for MyObj {
-    fn into(self) -> HttpResponse {
-        let body = match serde_json::to_string(&self) {
-            Err(err) => return Error::from(err).into(),
-            Ok(body) => body,
-        };
+/// we have to convert Error into HttpResponse as well
+impl FromRequest for MyObj {
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn from_request(self, req: HttpRequest) -> Result<HttpResponse> {
+        let body = serde_json::to_string(&self)?;
 
         // Create response and set content type
-        HttpResponse::Ok()
+        Ok(HttpResponse::Ok()
             .content_type("application/json")
-            .body(body).unwrap()
+            .body(body)?)
     }
 }
 
@@ -87,20 +86,6 @@ fn main() {
     actix::Arbiter::system().send(actix::msgs::SystemExit(0)); // <- remove this line, this code stops system during testing
 
     let _ = sys.run();
-}
-```
-
-If `specialization` is enabled, conversion could be simplier:
-
-```rust,ignore
-impl Into<Result<HttpResponse>> for MyObj {
-    fn into(self) -> Result<HttpResponse> {
-        let body = serde_json::to_string(&self)?;
-
-        Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(body)?)
-    }
 }
 ```
 

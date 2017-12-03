@@ -31,7 +31,7 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 pub type Result<T> = result::Result<T, Error>;
 
 /// General purpose actix web error
-#[derive(Debug)]
+#[derive(Fail, Debug)]
 pub struct Error {
     cause: Box<ResponseError>,
 }

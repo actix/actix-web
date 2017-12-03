@@ -1,6 +1,6 @@
 //! Basic http responses
 #![allow(non_upper_case_globals)]
-use http::StatusCode;
+use http::{StatusCode, Error as HttpError};
 
 use body::Body;
 use route::{Reply, RouteHandler, FromRequest};
@@ -74,8 +74,11 @@ impl<S> RouteHandler<S> for StaticResponse {
 }
 
 impl FromRequest for StaticResponse {
-    fn from_request(self, _: HttpRequest) -> Reply {
-        Reply::response(HttpResponse::new(self.0, Body::Empty))
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        self.build().body(Body::Empty)
     }
 }
 

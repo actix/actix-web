@@ -208,7 +208,7 @@ fn main() {
             // websocket
             .resource("/ws/", |r| r.get(chat_route))
             // static resources
-            .route("/static", StaticFiles::new("static/", true)))
+            .route("/static", fs::StaticFiles::new("static/", true)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

@@ -58,7 +58,6 @@ mod resource;
 mod recognizer;
 mod route;
 mod pipeline;
-mod fs;
 mod server;
 mod channel;
 mod wsframe;
@@ -68,6 +67,7 @@ mod h2;
 mod h1writer;
 mod h2writer;
 
+pub mod fs;
 pub mod ws;
 pub mod dev;
 pub mod error;
@@ -81,12 +81,11 @@ pub use application::Application;
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
-pub use route::Reply;
+pub use route::{Reply, FromRequest};
 pub use resource::Resource;
 pub use recognizer::Params;
 pub use server::HttpServer;
 pub use context::HttpContext;
-pub use fs::StaticFiles;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
