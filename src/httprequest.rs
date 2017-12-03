@@ -83,6 +83,11 @@ impl HttpRequest<()> {
 
 impl<S> HttpRequest<S> {
 
+    /// Construct new http request without state.
+    pub fn clone_without_state(&self) -> HttpRequest {
+        HttpRequest(Rc::clone(&self.0), Rc::new(()))
+    }
+
     /// get mutable reference for inner message
     fn as_mut(&mut self) -> &mut HttpMessage {
         let r: &HttpMessage = self.0.as_ref();

@@ -5,7 +5,7 @@ use http::Method;
 use futures::Future;
 
 use error::Error;
-use route::{Reply, Handler, RouteHandler, AsyncHandler, WrapHandler};
+use route::{Reply, Handler, FromRequest, RouteHandler, AsyncHandler, WrapHandler};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
@@ -53,14 +53,14 @@ impl<S> Resource<S> where S: 'static {
     }
 
     /// Set resource name
-    pub fn set_name<T: Into<String>>(&mut self, name: T) {
+    pub fn name<T: Into<String>>(&mut self, name: T) {
         self.name = name.into();
     }
 
     /// Register handler for specified method.
     pub fn handler<F, R>(&mut self, method: Method, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static,
+              R: FromRequest + 'static,
     {
         self.routes.insert(method, Box::new(WrapHandler::new(handler)));
     }
@@ -83,28 +83,28 @@ impl<S> Resource<S> where S: 'static {
     /// Register handler for `GET` method.
     pub fn get<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
+              R: FromRequest + 'static, {
         self.routes.insert(Method::GET, Box::new(WrapHandler::new(handler)));
     }
 
     /// Register handler for `POST` method.
     pub fn post<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
+              R: FromRequest + 'static, {
         self.routes.insert(Method::POST, Box::new(WrapHandler::new(handler)));
     }
 
     /// Register handler for `PUT` method.
     pub fn put<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
+              R: FromRequest + 'static, {
         self.routes.insert(Method::PUT, Box::new(WrapHandler::new(handler)));
     }
 
     /// Register handler for `DELETE` method.
     pub fn delete<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
+              R: FromRequest + 'static, {
         self.routes.insert(Method::DELETE, Box::new(WrapHandler::new(handler)));
     }
 }

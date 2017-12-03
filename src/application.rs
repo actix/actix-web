@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use futures::Future;
 
 use error::Error;
-use route::{RouteHandler, Reply, Handler, WrapHandler, AsyncHandler};
+use route::{RouteHandler, Reply, Handler, FromRequest, WrapHandler, AsyncHandler};
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
@@ -190,7 +190,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
         where P: Into<String>,
               F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static
+              R: FromRequest + 'static
     {
         self.parts.as_mut().expect("Use after finish")
             .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));

@@ -14,16 +14,20 @@ use httpresponse::HttpResponse;
 pub trait Handler<S>: 'static {
 
     /// The type of value that handler will return.
-    type Result: Into<Reply>;
+    type Result: FromRequest;
 
     /// Handle request
     fn handle(&self, req: HttpRequest<S>) -> Self::Result;
 }
 
+pub trait FromRequest {
+    fn from_request(self, req: HttpRequest) -> Reply;
+}
+
 /// Handler<S> for Fn()
 impl<F, R, S> Handler<S> for F
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Into<Reply> + 'static
+          R: FromRequest + 'static
 {
     type Result = R;
 
@@ -67,28 +71,41 @@ impl Reply {
     }
 }
 
-#[cfg(not(actix_nightly))]
-impl<T: Into<HttpResponse>> From<T> for Reply
-{
-    fn from(item: T) -> Self {
-        Reply(ReplyItem::Message(item.into()))
+impl FromRequest for Reply {
+    fn from_request(self, _: HttpRequest) -> Reply {
+        self
+    }
+}
+
+impl FromRequest for HttpResponse {
+    fn from_request(self, _: HttpRequest) -> Reply {
+        Reply(ReplyItem::Message(self))
     }
 }
 
 #[cfg(actix_nightly)]
-default impl<T: Into<HttpResponse>> From<T> for Reply
+default impl<T: FromRequest> FromRequest for T
 {
-    fn from(item: T) -> Self {
-        Reply(ReplyItem::Message(item.into()))
+    fn from_request(self, req: HttpRequest) -> Reply {
+        self.from_request(req)
     }
 }
 
 #[cfg(actix_nightly)]
-default impl<T: Into<HttpResponse>, E: Into<Error>> From<StdResult<T, E>> for Reply {
-    fn from(res: StdResult<T, E>) -> Self {
-        match res {
-            Ok(val) => val.into().into(),
-            Err(err) => err.into().into(),
+default impl<T: FromRequest, E: Into<Error>> FromRequest for StdResult<T, E> {
+    fn from_request(self, req: HttpRequest) -> Reply {
+        match self {
+            Ok(val) => val.from_request(req),
+            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+        }
+    }
+}
+
+impl<E: Into<Error>> FromRequest for StdResult<Reply, E> {
+    fn from_request(self, _: HttpRequest) -> Reply {
+        match self {
+            Ok(val) => val,
+            Err(err) => Reply(ReplyItem::Message(err.into().into())),
         }
     }
 }
@@ -97,22 +114,37 @@ impl<E: Into<Error>> From<StdResult<Reply, E>> for Reply {
     fn from(res: StdResult<Reply, E>) -> Self {
         match res {
             Ok(val) => val,
-            Err(err) => err.into().into(),
+            Err(err) => Reply(ReplyItem::Message(err.into().into())),
         }
     }
 }
 
-impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> for Reply
-{
-    fn from(item: HttpContext<A, S>) -> Self {
-        Reply(ReplyItem::Actor(Box::new(item)))
+impl<E: Into<Error>> FromRequest for StdResult<HttpResponse, E> {
+    fn from_request(self, _: HttpRequest) -> Reply {
+        match self {
+            Ok(val) => Reply(ReplyItem::Message(val)),
+            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+        }
     }
 }
 
-impl From<Box<Future<Item=HttpResponse, Error=Error>>> for Reply
+impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> FromRequest for HttpContext<A, S>
 {
-    fn from(item: Box<Future<Item=HttpResponse, Error=Error>>) -> Self {
-        Reply(ReplyItem::Future(item))
+    fn from_request(self, _: HttpRequest) -> Reply {
+        Reply(ReplyItem::Actor(Box::new(self)))
+    }
+}
+
+impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> for Reply {
+    fn from(ctx: HttpContext<A, S>) -> Reply {
+        Reply(ReplyItem::Actor(Box::new(ctx)))
+    }
+}
+
+impl FromRequest for Box<Future<Item=HttpResponse, Error=Error>>
+{
+    fn from_request(self, _: HttpRequest) -> Reply {
+        Reply(ReplyItem::Future(self))
     }
 }
 
@@ -125,7 +157,7 @@ pub(crate) trait RouteHandler<S>: 'static {
 pub(crate)
 struct WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: Into<Reply>,
+          R: FromRequest,
           S: 'static,
 {
     h: H,
@@ -134,7 +166,7 @@ struct WrapHandler<S, H, R>
 
 impl<S, H, R> WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: Into<Reply>,
+          R: FromRequest,
           S: 'static,
 {
     pub fn new(h: H) -> Self {
@@ -144,11 +176,12 @@ impl<S, H, R> WrapHandler<S, H, R>
 
 impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: Into<Reply> + 'static,
+          R: FromRequest + 'static,
           S: 'static,
 {
     fn handle(&self, req: HttpRequest<S>) -> Reply {
-        self.h.handle(req).into()
+        let req2 = req.clone_without_state();
+        self.h.handle(req).from_request(req2)
     }
 }
 
