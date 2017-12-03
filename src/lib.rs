@@ -57,9 +57,8 @@ mod payload;
 mod resource;
 mod recognizer;
 mod route;
-//mod task;
 mod pipeline;
-mod staticfiles;
+mod fs;
 mod server;
 mod channel;
 mod wsframe;
@@ -87,7 +86,7 @@ pub use resource::Resource;
 pub use recognizer::Params;
 pub use server::HttpServer;
 pub use context::HttpContext;
-pub use staticfiles::StaticFiles;
+pub use fs::StaticFiles;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
