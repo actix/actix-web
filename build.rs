@@ -21,7 +21,6 @@ fn main() {
               "guide/src/qs_7.md",
               "guide/src/qs_9.md",
               "guide/src/qs_10.md",
-              "guide/src/qs_11.md",
               "guide/src/qs_12.md",
               "guide/src/qs_13.md",
             ]);

@@ -303,6 +303,7 @@ impl HttpResponseBuilder {
     /// By default `ContentEncoding::Auto` is used, which automatically
     /// negotiates content encoding based on request's `Accept-Encoding` headers.
     /// To enforce specific encoding, use specific ContentEncoding` value.
+    #[inline]
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.encoding = enc;
@@ -311,6 +312,7 @@ impl HttpResponseBuilder {
     }
 
     /// Set connection type
+    #[inline]
     pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.connection_type = Some(conn);
@@ -319,16 +321,19 @@ impl HttpResponseBuilder {
     }
 
     /// Set connection type to Upgrade
+    #[inline]
     pub fn upgrade(&mut self) -> &mut Self {
         self.connection_type(ConnectionType::Upgrade)
     }
 
     /// Force close connection, even if it is marked as keep-alive
+    #[inline]
     pub fn force_close(&mut self) -> &mut Self {
         self.connection_type(ConnectionType::Close)
     }
 
     /// Enables automatic chunked transfer encoding
+    #[inline]
     pub fn enable_chunked(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
             parts.chunked = true;
@@ -337,6 +342,7 @@ impl HttpResponseBuilder {
     }
 
     /// Set response content type
+    #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
         where HeaderValue: HttpTryFrom<V>
     {

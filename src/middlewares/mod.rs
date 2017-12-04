@@ -7,7 +7,9 @@ use httpresponse::HttpResponse;
 
 mod logger;
 mod session;
+mod defaultheaders;
 pub use self::logger::Logger;
+pub use self::defaultheaders::{DefaultHeaders, DefaultHeadersBuilder};
 pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
                         CookieSessionError, CookieSessionBackend, CookieSessionBackendBuilder};
 
