@@ -3,7 +3,7 @@
 use http::{StatusCode, Error as HttpError};
 
 use body::Body;
-use route::{Reply, RouteHandler, FromRequest};
+use route::{Reply, Handler, RouteHandler, FromRequest};
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 
@@ -64,6 +64,14 @@ impl StaticResponse {
     }
     pub fn with_body<B: Into<Body>>(self, body: B) -> HttpResponse {
         HttpResponse::new(self.0, body.into())
+    }
+}
+
+impl<S> Handler<S> for StaticResponse {
+    type Result = HttpResponse;
+
+    fn handle(&self, _: HttpRequest<S>) -> HttpResponse {
+        HttpResponse::new(self.0, Body::Empty)
     }
 }
 

@@ -43,7 +43,7 @@
 //!
 //! fn main() {
 //!     Application::default("/")
-//!       .resource("/ws/", |r| r.method(Method::GET).handler(ws_index))  // <- register websocket route
+//!       .resource("/ws/", |r| r.method(Method::GET).f(ws_index))  // <- register websocket route
 //!       .finish();
 //! }
 //! ```

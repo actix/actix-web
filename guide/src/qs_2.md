@@ -49,7 +49,7 @@ request handler with the application's `resource` on a particular *HTTP method* 
 # }
 # fn main() {
    let app = Application::default("/")
-       .resource("/", |r| r.method(Method::GET).handler(index))
+       .resource("/", |r| r.method(Method::GET).f(index))
        .finish();
 # }
 ```
@@ -80,7 +80,7 @@ fn main() {
 
     HttpServer::new(
         Application::default("/")
-            .resource("/", |r| r.route().handler(index)))
+            .resource("/", |r| r.route().f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");

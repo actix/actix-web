@@ -10,7 +10,10 @@ use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-/// Resource route definition. Route uses builder-like pattern for configuration.
+/// Resource route definition
+///
+/// Route uses builder-like pattern for configuration.
+/// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route<S> {
     preds: Vec<Box<Predicate<S>>>,
     handler: Box<RouteHandler<S>>,
@@ -55,16 +58,21 @@ impl<S: 'static> Route<S> {
         self
     }
 
-
     /// Add method check to route. This method could be called multiple times.
     pub fn method(&mut self, method: Method) -> &mut Self {
         self.preds.push(pred::Method(method));
         self
     }
 
+    /// Set handler object. Usually call to this method is last call
+    /// during route configuration, because it does not return reference to self.
+    pub fn h<H: Handler<S>>(&mut self, handler: H) {
+        self.handler = Box::new(WrapHandler::new(handler));
+    }
+
     /// Set handler function. Usually call to this method is last call
     /// during route configuration, because it does not return reference to self.
-    pub fn handler<F, R>(&mut self, handler: F)
+    pub fn f<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: FromRequest + 'static,
     {
@@ -99,7 +107,7 @@ impl<S: 'static> Route<S> {
 /// fn main() {
 ///     let app = Application::default("/")
 ///         .resource(
-///             "/", |r| r.route().method(Method::GET).handler(|r| HttpResponse::Ok()))
+///             "/", |r| r.route().method(Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
 pub struct Resource<S=()> {
@@ -147,7 +155,7 @@ impl<S> Resource<S> where S: 'static {
     ///             "/", |r| r.route()
     ///                  .p(pred::Any(vec![pred::Get(), pred::Put()]))
     ///                  .p(pred::Header("Content-Type", "text/plain"))
-    ///                  .handler(|r| HttpResponse::Ok()))
+    ///                  .f(|r| HttpResponse::Ok()))
     ///         .finish();
     /// }
     pub fn route(&mut self) -> &mut Route<S> {

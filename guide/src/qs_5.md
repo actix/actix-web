@@ -55,8 +55,8 @@ if no route could be matched default response `HTTPMethodNotAllowed` get resturn
 fn main() {
     Application::default("/")
         .resource("/prefix", |r| {
-           r.method(Method::GET).handler(|r| httpcodes::HTTPOk);
-           r.method(Method::POST).handler(|r| httpcodes::HTTPForbidden);
+           r.method(Method::GET).h(httpcodes::HTTPOk);
+           r.method(Method::POST).h(httpcodes::HTTPForbidden);
         })
         .finish();
 }
@@ -87,7 +87,7 @@ fn index(req: HttpRequest) -> String {
 
 fn main() {
     Application::default("/")
-        .resource("/{name}", |r| r.method(Method::GET).handler(index))
+        .resource("/{name}", |r| r.method(Method::GET).f(index))
         .finish();
 }
 ```
@@ -105,7 +105,7 @@ You can also specify a custom regex in the form `{identifier:regex}`:
 
 fn main() {
     Application::default("/")
-        .resource(r"{name:\d+}", |r| r.method(Method::GET).handler(index))
+        .resource(r"{name:\d+}", |r| r.method(Method::GET).f(index))
         .finish();
 }
 ```
@@ -126,7 +126,7 @@ fn index(req: HttpRequest) -> Result<String> {
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{v1}/{v2}/", |r| r.route().handler(index))
+        .resource(r"/a/{v1}/{v2}/", |r| r.route().f(index))
         .finish();
 }
 ```
@@ -138,7 +138,7 @@ It is possible to match path tail with custom `.*` regex.
 ```rust,ignore
 fn main() {
     Application::default("/")
-        .resource(r"/test/{tail:.*}", |r| r.method(Method::GET).handler(index))
+        .resource(r"/test/{tail:.*}", |r| r.method(Method::GET).f(index))
         .finish();
 }
 ```
@@ -174,7 +174,7 @@ fn index(req: HttpRequest) -> Result<String> {
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{tail:.*}", |r| r.method(Method::GET).handler(index))
+        .resource(r"/a/{tail:.*}", |r| r.method(Method::GET).f(index))
         .finish();
 }
 ```

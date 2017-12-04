@@ -134,8 +134,8 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// fn main() {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).handler(|_| httpcodes::HTTPOk);
-    ///              r.method(Method::HEAD).handler(|_| httpcodes::HTTPMethodNotAllowed);
+    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
     ///         })
     ///         .finish();
     /// }

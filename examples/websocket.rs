@@ -65,7 +65,7 @@ fn main() {
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route
-            .resource("/ws/", |r| r.route().method(Method::GET).handler(ws_index))
+            .resource("/ws/", |r| r.route().method(Method::GET).f(ws_index))
             // static files
             .route("/", fs::StaticFiles::new("examples/static/", true)))
         // start http server on 127.0.0.1:8080

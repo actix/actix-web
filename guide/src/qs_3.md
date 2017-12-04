@@ -21,7 +21,7 @@ has same url path prefix:
 # }
 # fn main() {
    let app = Application::default("/prefix")
-       .resource("/index.html", |r| r.method(Method::GET).handler(index))
+       .resource("/index.html", |r| r.method(Method::GET).f(index))
        .finish()
 # }
 ```
@@ -41,13 +41,13 @@ use tokio_core::net::TcpStream;
 fn main() {
     HttpServer::<TcpStream, SocketAddr, _>::new(vec![
         Application::default("/app1")
-            .resource("/", |r| r.route().handler(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
             .finish(),
         Application::default("/app2")
-            .resource("/", |r| r.route().handler(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
             .finish(),
         Application::default("/")
-            .resource("/", |r| r.route().handler(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
             .finish(),
     ]);
 }

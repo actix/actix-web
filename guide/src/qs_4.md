@@ -79,7 +79,7 @@ fn main() {
     HttpServer::new(
         Application::default("/")
             .resource("/", |r| r.method(
-                Method::GET).handler(|req| {MyObj{name: "user".to_owned()}})))
+                Method::GET).f(|req| {MyObj{name: "user".to_owned()}})))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");
