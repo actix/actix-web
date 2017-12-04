@@ -19,7 +19,6 @@ has same url path prefix:
 # fn index(req: HttpRequest) -> &'static str {
 #    "Hello world!"
 # }
-
 # fn main() {
    let app = Application::default("/prefix")
        .resource("/index.html", |r| r.method(Method::GET).handler(index))
