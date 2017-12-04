@@ -101,24 +101,19 @@ impl From<HttpResponse> for Reply {
     }
 }
 
-impl<T: Into<HttpResponse>, E: Into<Error>> FromRequest for Result<T, E> {
-    type Item = Reply;
-    type Error = E;
+impl<T: FromRequest, E: Into<Error>> FromRequest for Result<T, E>
+{
+    type Item = <T as FromRequest>::Item;
+    type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<Reply, Self::Error> {
+    fn from_request(self, req: HttpRequest) -> Result<Self::Item, Self::Error> {
         match self {
-            Ok(val) => Ok(Reply(ReplyItem::Message(val.into()))),
-            Err(err) => Err(err),
+            Ok(val) => match val.from_request(req) {
+                Ok(val) => Ok(val),
+                Err(err) => Err(err.into()),
+            },
+            Err(err) => Err(err.into()),
         }
-    }
-}
-
-impl<E: Into<Error>> FromRequest for Result<Reply, E> {
-    type Item = Reply;
-    type Error = E;
-
-    fn from_request(self, _: HttpRequest) -> Result<Reply, E> {
-        self
     }
 }
 
