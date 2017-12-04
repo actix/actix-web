@@ -11,7 +11,7 @@ use serde::Serialize;
 use Cookie;
 use body::Body;
 use error::Error;
-use route::FromRequest;
+use handler::FromRequest;
 use encoding::ContentEncoding;
 use httprequest::HttpRequest;
 

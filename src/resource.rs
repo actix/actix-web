@@ -5,7 +5,7 @@ use futures::Future;
 
 use error::Error;
 use pred::{self, Predicate};
-use route::{Reply, Handler, FromRequest, RouteHandler, AsyncHandler, WrapHandler};
+use handler::{Reply, Handler, FromRequest, RouteHandler, AsyncHandler, WrapHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -31,7 +31,7 @@ impl<S: 'static> Default for Route<S> {
 
 impl<S: 'static> Route<S> {
 
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    pub(crate) fn check(&self, req: &mut HttpRequest<S>) -> bool {
         for pred in &self.preds {
             if !pred.check(req) {
                 return false
@@ -40,7 +40,7 @@ impl<S: 'static> Route<S> {
         true
     }
 
-    fn handle(&self, req: HttpRequest<S>) -> Reply {
+    pub(crate) fn handle(&self, req: HttpRequest<S>) -> Reply {
         self.handler.handle(req)
     }
 

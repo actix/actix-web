@@ -3,7 +3,7 @@
 use http::{StatusCode, Error as HttpError};
 
 use body::Body;
-use route::{Reply, Handler, RouteHandler, FromRequest};
+use handler::{Reply, Handler, RouteHandler, FromRequest};
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 

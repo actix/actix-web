@@ -110,7 +110,7 @@ fn main() {
             .middleware(middlewares::Logger::default())  // <- register logger middleware
             .resource("/ws/", |r| 
                 r.method(Method::GET).f(|req| ws::start(req, MyWebSocket))) // <- websocket route
-            .route("/", fs::StaticFiles::new("examples/static/", true))) // <- serve static files
+            .route("/", |r| r.h(fs::StaticFiles::new("examples/static/", true)))) // <- serve static files
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     Arbiter::system().send(msgs::SystemExit(0));

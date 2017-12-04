@@ -56,7 +56,7 @@ use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
 
 use body::Body;
 use context::HttpContext;
-use route::Reply;
+use handler::Reply;
 use payload::Payload;
 use error::{Error, WsHandshakeError};
 use httprequest::HttpRequest;

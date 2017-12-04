@@ -1,13 +1,10 @@
 use std::rc::Rc;
 use std::collections::HashMap;
-use futures::Future;
 
-use error::Error;
-use route::{RouteHandler, Reply, Handler, FromRequest, WrapHandler, AsyncHandler};
-use resource::Resource;
+use handler::{Reply, RouteHandler};
+use resource::{Route, Resource};
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use channel::HttpHandler;
 use pipeline::Pipeline;
 use middlewares::Middleware;
@@ -18,7 +15,7 @@ pub struct Application<S> {
     state: Rc<S>,
     prefix: String,
     default: Resource<S>,
-    handlers: HashMap<String, Box<RouteHandler<S>>>,
+    routes: Vec<(String, Route<S>)>,
     router: RouteRecognizer<Resource<S>>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
@@ -34,10 +31,10 @@ impl<S: 'static> Application<S> {
             }
             h.handle(req)
         } else {
-            for (prefix, handler) in &self.handlers {
-                if req.path().starts_with(prefix) {
-                    req.set_prefix(prefix.len());
-                    return handler.handle(req)
+            for route in &self.routes {
+                if req.path().starts_with(&route.0) && route.1.check(&mut req) {
+                    req.set_prefix(route.0.len());
+                    return route.1.handle(req)
                 }
             }
             self.default.handle(req)
@@ -66,7 +63,7 @@ impl Application<()> {
                 state: (),
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
-                handlers: HashMap::new(),
+                routes: Vec::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),
             })
@@ -85,7 +82,7 @@ impl<S> Application<S> where S: 'static {
                 state: state,
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
-                handlers: HashMap::new(),
+                routes: Vec::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),
             })
@@ -97,7 +94,7 @@ struct ApplicationBuilderParts<S> {
     state: S,
     prefix: String,
     default: Resource<S>,
-    handlers: HashMap<String, Box<RouteHandler<S>>>,
+    routes: Vec<(String, Route<S>)>,
     resources: HashMap<String, Resource<S>>,
     middlewares: Vec<Box<Middleware>>,
 }
@@ -168,8 +165,10 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// This method register handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
+    /// This method register route for specified path prefix.
+    /// Route maches based on path prefix, variable path patterns are not available
+    /// in this case. If you need variable path patterns consider using *resource()*
+    /// method.
     ///
     /// ```rust
     /// extern crate actix_web;
@@ -177,49 +176,31 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = Application::default("/")
-    ///         .handler("/test", |req| {
-    ///              match *req.method() {
-    ///                  Method::GET => httpcodes::HTTPOk,
-    ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,
-    ///                  _ => httpcodes::HTTPNotFound,
-    ///              }
-    ///         })
+    ///         .route("/test", |r| r.f(
+    ///             |req| {
+    ///                 match *req.method() {
+    ///                     Method::GET => httpcodes::HTTPOk,
+    ///                     Method::POST => httpcodes::HTTPMethodNotAllowed,
+    ///                     _ => httpcodes::HTTPNotFound,
+    ///                 }
+    ///             }
+    ///         ))
     ///         .finish();
     /// }
     /// ```
-    pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
+    pub fn route<F, P: Into<String>>(&mut self, path: P, f: F) -> &mut Self
         where P: Into<String>,
-              F: Fn(HttpRequest<S>) -> R + 'static,
-              R: FromRequest + 'static
+              F: FnOnce(&mut Route<S>) + 'static
     {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.routes.push((path.into(), Route::default()));
+            f(&mut parts.routes.last_mut().unwrap().1);
+        }
         self
     }
 
-    /// This method register handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
-    pub fn route<P, H>(&mut self, path: P, handler: H) -> &mut Self
-        where P: Into<String>, H: Handler<S>
-    {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
-        self
-    }
-
-    /// This method register async handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
-    pub fn async<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Future<Item=HttpResponse, Error=Error> + 'static,
-              P: Into<String>,
-    {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(AsyncHandler::new(handler)));
-        self
-    }
-
-    /// Construct application
+    /// Register a middleware
     pub fn middleware<T>(&mut self, mw: T) -> &mut Self
         where T: Middleware + 'static
     {
@@ -232,27 +213,27 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     pub fn finish(&mut self) -> Application<S> {
         let parts = self.parts.take().expect("Use after finish");
 
-        let mut handlers = HashMap::new();
         let prefix = if parts.prefix.ends_with('/') {
             parts.prefix
         } else {
             parts.prefix + "/"
         };
 
-        let mut routes = Vec::new();
+        let mut resources = Vec::new();
         for (path, handler) in parts.resources {
-            routes.push((path, handler))
+            resources.push((path, handler))
         }
 
-        for (path, handler) in parts.handlers {
-            handlers.insert(prefix.clone() + path.trim_left_matches('/'), handler);
+        let mut routes = Vec::new();
+        for (path, route) in parts.routes {
+            routes.push((prefix.clone() + path.trim_left_matches('/'), route));
         }
         Application {
             state: Rc::new(parts.state),
             prefix: prefix.clone(),
             default: parts.default,
-            handlers: handlers,
-            router: RouteRecognizer::new(prefix, routes),
+            routes: routes,
+            router: RouteRecognizer::new(prefix, resources),
             middlewares: Rc::new(parts.middlewares),
         }
     }

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 
 use mime_guess::get_mime_type;
-use route::{Handler, FromRequest};
+use handler::{Handler, FromRequest};
 use recognizer::FromParam;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -198,7 +198,7 @@ impl FromRequest for FilesystemElement {
 ///
 /// fn main() {
 ///     let app = actix_web::Application::default("/")
-///         .route("/static", actix_web::fs::StaticFiles::new(".", true))
+///         .route("/static", |r| r.h(actix_web::fs::StaticFiles::new(".", true)))
 ///         .finish();
 /// }
 /// ```

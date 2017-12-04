@@ -8,7 +8,7 @@ use futures::task::{Task as FutureTask, current as current_task};
 use body::{Body, BodyStream};
 use context::{Frame, IoContext};
 use error::{Error, UnexpectedTaskFrame};
-use route::{Reply, ReplyItem};
+use handler::{Reply, ReplyItem};
 use h1writer::{Writer, WriterState};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;

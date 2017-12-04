@@ -9,7 +9,7 @@
 //! ```
 
 // dev specific
-pub use route::Handler;
+pub use handler::Handler;
 pub use pipeline::Pipeline;
 pub use channel::{HttpChannel, HttpHandler};
 pub use recognizer::{FromParam, RouteRecognizer};

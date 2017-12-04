@@ -66,8 +66,8 @@ fn main() {
                     .secure(false)
                     .finish()
             ))
-            // register simple handle r, handle all methods
-            .handler("/index.html", index)
+            // register simple route, handle all methods
+            .route("/index.html", |r| r.f(index))
             // with path parameters
             .resource("/user/{name}/", |r| r.route().method(Method::GET).f(with_param))
             // async handler
@@ -81,15 +81,15 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             }))
-            .handler("/test", |req| {
+            .route("/test", |r| r.f(|req| {
                 match *req.method() {
                     Method::GET => httpcodes::HTTPOk,
                     Method::POST => httpcodes::HTTPMethodNotAllowed,
                     _ => httpcodes::HTTPNotFound,
                 }
-            })
+            }))
             // static files
-            .route("/static", fs::StaticFiles::new("examples/static/", true)))
+            .route("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true))))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");
