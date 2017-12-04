@@ -314,7 +314,6 @@ pub(crate) fn check_pattern(path: &str) {
 fn parse(pattern: &str) -> String {
     const DEFAULT_PATTERN: &str = "[^/]+";
 
-    let mut hard_stop = false;
     let mut re = String::from("^/");
     let mut in_param = false;
     let mut in_param_pattern = false;
@@ -327,20 +326,10 @@ fn parse(pattern: &str) -> String {
             continue;
         }
 
-        if hard_stop {
-            panic!("Tail '*' section has to be last lection of pattern");
-        }
-
         if in_param {
             // In parameter segment: `{....}`
             if ch == '}' {
-                if param_pattern == "*" {
-                    hard_stop = true;
-                    re.push_str(
-                        &format!(r"(?P<{}>[%/[:word:][:punct:][:space:]]+)", &param_name));
-                } else {
-                    re.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
-                }
+                re.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
 
                 param_name.clear();
                 param_pattern = String::from(DEFAULT_PATTERN);
@@ -398,7 +387,7 @@ mod tests {
             ("/name/{val}", 2),
             ("/name/{val}/index.html", 3),
             ("/v{val}/{val2}/index.html", 4),
-            ("/v/{tail:*}", 5),
+            ("/v/{tail:.*}", 5),
         ];
         rec.set_routes(routes);
 
@@ -488,26 +477,5 @@ mod tests {
         assert_eq!(captures.get(1).unwrap().as_str(), "151");
         assert_eq!(captures.name("version").unwrap().as_str(), "151");
         assert_eq!(captures.name("id").unwrap().as_str(), "adahg32");
-    }
-
-    #[test]
-    fn test_tail_param() {
-        let re = assert_parse("/user/{tail:*}",
-                              r"^/user/(?P<tail>[%/[:word:][:punct:][:space:]]+)$");
-        assert!(re.is_match("/user/profile"));
-        assert!(re.is_match("/user/2345"));
-        assert!(re.is_match("/user/2345/"));
-        assert!(re.is_match("/user/2345/sdg"));
-        assert!(re.is_match("/user/2345/sd-_g/"));
-        assert!(re.is_match("/user/2345/sdg/asddsasd/index.html"));
-
-        let re = assert_parse("/user/v{tail:*}",
-                              r"^/user/v(?P<tail>[%/[:word:][:punct:][:space:]]+)$");
-        assert!(!re.is_match("/user/2345/"));
-        assert!(re.is_match("/user/vprofile"));
-        assert!(re.is_match("/user/v_2345"));
-        assert!(re.is_match("/user/v2345/sdg"));
-        assert!(re.is_match("/user/v2345/sd-_g/test.html"));
-        assert!(re.is_match("/user/v/sdg/asddsasd/index.html"));
     }
 }
