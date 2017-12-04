@@ -1,5 +1,5 @@
 //! Pieces pertaining to the HTTP response.
-use std::{io, mem, str, fmt};
+use std::{mem, str, fmt};
 use std::convert::Into;
 
 use cookie::CookieJar;
@@ -155,17 +155,6 @@ impl HttpResponse {
     /// is chunked encoding enabled
     pub fn chunked(&self) -> bool {
         self.chunked
-    }
-
-    /// Enables automatic chunked transfer encoding
-    pub fn enable_chunked_encoding(&mut self) -> Result<(), io::Error> {
-        if self.headers.contains_key(header::CONTENT_LENGTH) {
-            Err(io::Error::new(io::ErrorKind::Other,
-                "You can't enable chunked encoding when a content length is set"))
-        } else {
-            self.chunked = true;
-            Ok(())
-        }
     }
 
     /// Content encoding
@@ -597,6 +586,7 @@ mod tests {
     fn test_basic_builder() {
         let resp = HttpResponse::Ok()
             .status(StatusCode::NO_CONTENT)
+            .header("X-TEST", "value")
             .version(Version::HTTP_10)
             .finish().unwrap();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
