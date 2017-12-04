@@ -21,8 +21,8 @@ use middlewares::{Response, Middleware};
 ///                 .header("X-Version", "0.2")
 ///                 .finish())
 ///         .resource("/test", |r| {
-///              r.get(|req| httpcodes::HTTPOk);
-///              r.handler(Method::HEAD, |req| httpcodes::HTTPMethodNotAllowed);
+///              r.method(Method::GET).handler(|_| httpcodes::HTTPOk);
+///              r.method(Method::HEAD).handler(|_| httpcodes::HTTPMethodNotAllowed);
 ///         })
 ///         .finish();
 /// }

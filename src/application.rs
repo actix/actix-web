@@ -118,7 +118,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// A variable part is specified in the form `{identifier}`, where
     /// the identifier can be used later in a request handler to access the matched
     /// value for that part. This is done by looking up the identifier
-    /// in the `Params` object returned by `Request.match_info()` method.
+    /// in the `Params` object returned by `HttpRequest.match_info()` method.
     ///
     /// By default, each part matches the regular expression `[^{}/]+`.
     ///
@@ -134,8 +134,8 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// fn main() {
     ///     let app = Application::default("/")
     ///         .resource("/test", |r| {
-    ///              r.get(|req| httpcodes::HTTPOk);
-    ///              r.handler(Method::HEAD, |req| httpcodes::HTTPMethodNotAllowed);
+    ///              r.method(Method::GET).handler(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::HEAD).handler(|_| httpcodes::HTTPMethodNotAllowed);
     ///         })
     ///         .finish();
     /// }

@@ -76,11 +76,14 @@ impl Params {
     ///
     /// If keyed parameter is not available empty string is used as default value.
     ///
-    /// ```rust,ignore
-    /// fn index(req: HttpRequest) -> String {
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// fn index(req: HttpRequest) -> Result<String> {
     ///    let ivalue: isize = req.match_info().query("val")?;
-    ///    format!("isuze value: {:?}", ivalue)
+    ///    Ok(format!("isuze value: {:?}", ivalue))
     /// }
+    /// # fn main() {}
     /// ```
     pub fn query<T: FromParam>(&self, key: &str) -> Result<T, <T as FromParam>::Err>
     {

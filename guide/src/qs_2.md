@@ -29,22 +29,29 @@ In order to implement a web server, first we need to create a request handler.
 A request handler is a function that accepts a `HttpRequest` instance as its only parameter 
 and returns a type that can be converted into `HttpResponse`:
 
-```rust,ignore
-extern crate actix_web;
-use actix_web::*;
-
-fn index(req: HttpRequest) -> &'static str {
-    "Hello world!"
-}
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+  fn index(req: HttpRequest) -> &'static str {
+      "Hello world!"
+  }
+# fn main() {}
 ```
 
 Next, create an `Application` instance and register the
 request handler with the application's `resource` on a particular *HTTP method* and *path*::
 
-```rust,ignore
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+# fn index(req: HttpRequest) -> &'static str {
+#    "Hello world!"
+# }
+# fn main() {
    let app = Application::default("/")
-       .resource("/", |r| r.get(index))
-       .finish()
+       .resource("/", |r| r.method(Method::GET).handler(index))
+       .finish();
+# }
 ```
 
 After that, application instance can be used with `HttpServer` to listen for incoming
@@ -73,7 +80,7 @@ fn main() {
 
     HttpServer::new(
         Application::default("/")
-            .resource("/", |r| r.get(index)))
+            .resource("/", |r| r.route().handler(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");

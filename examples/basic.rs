@@ -69,11 +69,11 @@ fn main() {
             // register simple handle r, handle all methods
             .handler("/index.html", index)
             // with path parameters
-            .resource("/user/{name}/", |r| r.handler(Method::GET, with_param))
+            .resource("/user/{name}/", |r| r.route().method(Method::GET).handler(with_param))
             // async handler
-            .resource("/async/{name}", |r| r.async(Method::GET, index_async))
+            .resource("/async/{name}", |r| r.route().method(Method::GET).async(index_async))
             // redirect
-            .resource("/", |r| r.handler(Method::GET, |req| {
+            .resource("/", |r| r.route().method(Method::GET).handler(|req| {
                 println!("{:?}", req);
 
                 httpcodes::HTTPFound

@@ -8,14 +8,17 @@ which corresponds to requested URL.
 
 Prefix handler:
 
-```rust,ignore
-fn index(req: Httprequest) -> HttpResponse {
-   ...
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+
+fn index(req: HttpRequest) -> HttpResponse {
+   unimplemented!()
 }
 
 fn main() {
     Application::default("/")
-        .handler("/prefix", |req| index)
+        .handler("/prefix", index)
         .finish();
 }
 ```
@@ -24,10 +27,17 @@ In this example `index` get called for any url which starts with `/prefix`.
 
 Application prefix combines with handler prefix i.e
 
-```rust,ignore
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+
+fn index(req: HttpRequest) -> HttpResponse {
+   unimplemented!()
+}
+
 fn main() {
     Application::default("/app")
-        .handler("/prefix", |req| index)
+        .handler("/prefix", index)
         .finish();
 }
 ```
@@ -38,12 +48,15 @@ Resource contains set of route for same endpoint. Route corresponds to handling
 *HTTP method* by calling *web handler*. Resource select route based on *http method*,
 if no route could be matched default response `HTTPMethodNotAllowed` get resturned.
 
-```rust,ignore
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+
 fn main() {
     Application::default("/")
         .resource("/prefix", |r| {
-           r.get(HTTPOk)
-           r.post(HTTPForbidden)
+           r.method(Method::GET).handler(|r| httpcodes::HTTPOk);
+           r.method(Method::POST).handler(|r| httpcodes::HTTPForbidden);
         })
         .finish();
 }
@@ -65,7 +78,7 @@ used later in a request handler to access the matched value for that part. This 
 done by looking up the identifier in the `HttpRequest.match_info` object:
 
 ```rust
-extern crate actix_web;
+# extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> String {
@@ -74,7 +87,7 @@ fn index(req: HttpRequest) -> String {
 
 fn main() {
     Application::default("/")
-        .resource("/{name}", |r| r.get(index))
+        .resource("/{name}", |r| r.method(Method::GET).handler(index))
         .finish();
 }
 ```
@@ -83,10 +96,16 @@ By default, each part matches the regular expression `[^{}/]+`.
 
 You can also specify a custom regex in the form `{identifier:regex}`:
 
-```rust,ignore
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+# fn index(req: HttpRequest) -> String {
+#     format!("Hello, {}", &req.match_info()["name"])
+# }
+
 fn main() {
     Application::default("/")
-        .resource(r"{name:\d+}", |r| r.get(index))
+        .resource(r"{name:\d+}", |r| r.method(Method::GET).handler(index))
         .finish();
 }
 ```
@@ -107,20 +126,19 @@ fn index(req: HttpRequest) -> Result<String> {
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{v1}/{v2}/", |r| r.get(index))
+        .resource(r"/a/{v1}/{v2}/", |r| r.route().handler(index))
         .finish();
 }
 ```
 
 For this example for path '/a/1/2/', values v1 and v2 will resolve to "1" and "2".
 
-To match path tail, `{tail:*}` pattern could be used. Tail pattern must to be last
-component of a path, any text after tail pattern will result in panic.
+It is possible to match path tail with custom `.*` regex.
 
 ```rust,ignore
 fn main() {
     Application::default("/")
-        .resource(r"/test/{tail:*}", |r| r.get(index))
+        .resource(r"/test/{tail:.*}", |r| r.method(Method::GET).handler(index))
         .finish();
 }
 ```
@@ -142,11 +160,10 @@ an `Err` is returned indicating the condition met:
   * Percent-encoding results in invalid UTF8.
 
 As a result of these conditions, a `PathBuf` parsed from request path parameter is
-safe to interpolate within, or use as a suffix of, a path without additional
-checks.
+safe to interpolate within, or use as a suffix of, a path without additional checks.
 
 ```rust
-extern crate actix_web;
+# extern crate actix_web;
 use actix_web::*;
 use std::path::PathBuf;
 
@@ -157,7 +174,7 @@ fn index(req: HttpRequest) -> Result<String> {
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{tail:*}", |r| r.get(index))
+        .resource(r"/a/{tail:.*}", |r| r.method(Method::GET).handler(index))
         .finish();
 }
 ```

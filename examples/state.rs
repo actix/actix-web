@@ -64,7 +64,9 @@ fn main() {
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route
-            .resource("/ws/", |r| r.get(|r| ws::start(r, MyWebSocket{counter: 0})))
+            .resource(
+                "/ws/", |r| r.route().method(Method::GET)
+                    .handler(|req| ws::start(req, MyWebSocket{counter: 0})))
             // register simple handler, handle all methods
             .handler("/", index))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
