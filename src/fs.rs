@@ -205,7 +205,7 @@ impl FromRequest for FilesystemElement {
 pub struct StaticFiles {
     directory: PathBuf,
     accessible: bool,
-    _show_index: bool,
+    show_index: bool,
     _chunk_size: usize,
     _follow_symlinks: bool,
 }
@@ -237,7 +237,7 @@ impl StaticFiles {
         StaticFiles {
             directory: dir,
             accessible: access,
-            _show_index: index,
+            show_index: index,
             _chunk_size: 0,
             _follow_symlinks: false,
         }
@@ -259,7 +259,11 @@ impl<S> Handler<S> for StaticFiles {
             let path = self.directory.join(&relpath).canonicalize()?;
 
             if path.is_dir() {
-                Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
+                if self.show_index {
+                    Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
+                } else {
+                    Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
+                }
             } else {
                 Ok(FilesystemElement::File(NamedFile::open(path)?))
             }
