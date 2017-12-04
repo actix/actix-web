@@ -13,6 +13,19 @@ Following encodings are supported:
  If request headers contains `Content-Encoding` header, request payload get decompressed
  according to header value. Multiple codecs are not supported, i.e: `Content-Encoding: br, gzip`.
  
+Response payload get compressed based on `content_encoding` settings. 
+If `ContentEncoding::Auto` is selected then compression depends on request's
+`Accept-Encoding` header. `ContentEncoding::Identity` could be used to disable compression.
+If other content encoding is selected the compression is enforced.
+
+```rust,ignore
+fn index(req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_encoding(ContentEncoding::Br)
+        .body(Body)
+}
+```
+ 
 ## JSON Response
 
 The `Json` type allows you to respond with well-formed JSON data: simply return a value of 
