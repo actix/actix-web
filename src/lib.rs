@@ -34,7 +34,8 @@ extern crate percent_encoding;
 extern crate actix;
 extern crate h2 as http2;
 
-// extern crate redis_async;
+#[cfg(test)]
+#[macro_use] extern crate serde_derive;
 
 #[cfg(feature="tls")]
 extern crate native_tls;
@@ -81,7 +82,7 @@ pub use application::Application;
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
-pub use route::{Reply, FromRequest};
+pub use route::{Reply, Json, FromRequest};
 pub use resource::Resource;
 pub use recognizer::Params;
 pub use server::HttpServer;

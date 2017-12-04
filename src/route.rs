@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use actix::Actor;
 use futures::Future;
+use serde_json;
+use serde::Serialize;
 
 use error::Error;
 use context::{HttpContext, IoContext};
@@ -221,5 +223,39 @@ impl<S, R, F> RouteHandler<S> for AsyncHandler<S, R, F>
 {
     fn handle(&self, req: HttpRequest<S>) -> Reply {
         Reply::async((self.f)(req))
+    }
+}
+
+
+pub struct Json<T: Serialize> (pub T);
+
+impl<T: Serialize> FromRequest for Json<T> {
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+        let body = serde_json::to_string(&self.0)?;
+
+        Ok(HttpResponse::Ok()
+           .content_type("application/json")
+           .body(body)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::header;
+
+    #[derive(Serialize)]
+    struct MyObj {
+        name: &'static str,
+    }
+
+    #[test]
+    fn test_json() {
+        let json = Json(MyObj{name: "test"});
+        let resp = json.from_request(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json");
     }
 }
