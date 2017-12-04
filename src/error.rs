@@ -28,7 +28,7 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 ///
 /// This typedef is generally used to avoid writing out `actix_web::error::Error` directly and
 /// is otherwise a direct mapping to `Result`.
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T, E=Error> = result::Result<T, E>;
 
 /// General purpose actix web error
 #[derive(Fail, Debug)]

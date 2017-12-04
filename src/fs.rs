@@ -270,3 +270,38 @@ impl<S> Handler<S> for StaticFiles {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::header;
+
+    #[test]
+    fn test_named_file() {
+        assert!(NamedFile::open("test--").is_err());
+        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        { file.file();
+          let _f: &File = &file; }
+        { let _f: &mut File = &mut file; }
+
+        let resp = file.from_request(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml")
+    }
+
+    #[test]
+    fn test_static_files() {
+        let mut st = StaticFiles::new(".", true);
+        st.accessible = false;
+        assert!(st.handle(HttpRequest::default()).is_err());
+
+        st.accessible = true;
+        st.show_index = false;
+        assert!(st.handle(HttpRequest::default()).is_err());
+
+        st.show_index = true;
+        let resp = st.handle(HttpRequest::default()).from_request(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
+        assert!(resp.body().is_binary());
+        assert!(format!("{:?}", resp.body()).contains("README.md"));
+    }
+}
