@@ -11,7 +11,7 @@ Prefix handler:
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
-
+# 
 fn index(req: HttpRequest) -> HttpResponse {
    unimplemented!()
 }
@@ -30,7 +30,7 @@ Application prefix combines with handler prefix i.e
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
-
+# 
 fn index(req: HttpRequest) -> HttpResponse {
    unimplemented!()
 }
@@ -51,7 +51,7 @@ if no route could be matched default response `HTTPMethodNotAllowed` get resturn
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
-
+# 
 fn main() {
     Application::default("/")
         .resource("/prefix", |r| {
@@ -102,7 +102,7 @@ You can also specify a custom regex in the form `{identifier:regex}`:
 # fn index(req: HttpRequest) -> String {
 #     format!("Hello, {}", &req.match_info()["name"])
 # }
-
+# 
 fn main() {
     Application::default("/")
         .resource(r"{name:\d+}", |r| r.method(Method::GET).f(index))
@@ -115,7 +115,7 @@ implements `FromParam` trait. For example most of standard integer types
 implements `FromParam` trait. i.e.:
 
 ```rust
-extern crate actix_web;
+# extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> Result<String> {
@@ -135,7 +135,13 @@ For this example for path '/a/1/2/', values v1 and v2 will resolve to "1" and "2
 
 It is possible to match path tail with custom `.*` regex.
 
-```rust,ignore
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+# 
+# fn index(req: HttpRequest) -> HttpResponse {
+#    unimplemented!()
+# }
 fn main() {
     Application::default("/")
         .resource(r"/test/{tail:.*}", |r| r.method(Method::GET).f(index))

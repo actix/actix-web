@@ -373,6 +373,7 @@ impl HttpResponseBuilder {
         self
     }
 
+    /// Calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: Fn(&mut HttpResponseBuilder) + 'static
     {

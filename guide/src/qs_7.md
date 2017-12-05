@@ -1,9 +1,31 @@
 # HttpRequest & HttpResponse
 
+## Response
+
+Builder-like patter is used to construct an instance of `HttpResponse`.
+`HttpResponse` provides several method that returns `HttpResponseBuilder` instance,
+which is implements various convinience methods that helps build response.
+Check [documentation](../actix_web/dev/struct.HttpResponseBuilder.html)
+for type description. Methods `.body`, `.finish`, `.json` finalizes response creation,
+if this methods get call for the same builder instance, builder will panic.
+
+```rust
+# extern crate actix_web;
+use actix_web::*;
+
+fn index(req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_encoding(ContentEncoding::Br)
+        .content_type("plain/text")
+        .header("X-Hdr", "sample")
+        .body("data").unwrap()
+}
+# fn main() {}
+```
+
 ## Content encoding
 
-Actix automatically *compress*/*decompress* payload. 
-Following codecs are supported: 
+Actix automatically *compress*/*decompress* payload. Following codecs are supported: 
 
  * Brotli
  * Gzip
