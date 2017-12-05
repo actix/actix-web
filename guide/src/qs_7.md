@@ -21,7 +21,7 @@ If other content encoding is selected the compression is enforced for this codec
 to enable `brotli` response's body compression use `ContentEncoding::Br`:
 
 ```rust
-extern crate actix_web;
+# extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> HttpResponse {
@@ -39,7 +39,7 @@ type Json<T> where T is the type of a structure to serialize into *JSON*. The
 type `T` must implement the `Serialize` trait from *serde*.
 
 ```rust
-extern crate actix_web;
+# extern crate actix_web;
 #[macro_use] extern crate serde_derive;
 use actix_web::*;
 
