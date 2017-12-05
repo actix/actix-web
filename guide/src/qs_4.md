@@ -96,31 +96,50 @@ There are two different types of async handlers.
 Response object could be generated asynchronously. In this case handle must
 return `Future` object that resolves to `HttpResponse`, i.e:
 
-```rust,ignore
-fn index(req: HttpRequest) -> Box<Future<HttpResponse, Error>> {
-   ...
-}
-```
+```rust
+# extern crate actix_web;
+# extern crate futures;
+# extern crate bytes;
+# use actix_web::*;
+# use bytes::Bytes;
+# use futures::stream::once;
+# use futures::future::{FutureResult, result};
+fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
 
-This handler can be registered with `ApplicationBuilder::async()` and 
-`Resource::async()` methods.
-
-Or response body can be generated asynchronously. In this case body
-must implement stream trait `Stream<Item=Bytes, Error=Error>`, i.e:
-
-
-```rust,ignore
-fn index(req: HttpRequest) -> HttpResponse {
-    let body: Box<Stream<Item=Bytes, Error=Error>> = Box::new(SomeStream::new());
-
-    HttpResponse::Ok().
-       .content_type("application/json")
-       .body(Body::Streaming(body)).unwrap()
+    result(HttpResponse::Ok()
+           .content_type("text/html")
+           .body(format!("Hello!"))
+           .map_err(|e| e.into()))
 }
 
 fn main() {
     Application::default("/")
-        .async("/async", index)
+        .route("/async", |r| r.a(index))
+        .finish();
+}
+```
+
+Or response body can be generated asynchronously. In this case body
+must implement stream trait `Stream<Item=Bytes, Error=Error>`, i.e:
+
+```rust
+# extern crate actix_web;
+# extern crate futures;
+# extern crate bytes;
+# use actix_web::*;
+# use bytes::Bytes;
+# use futures::stream::once;
+fn index(req: HttpRequest) -> HttpResponse {
+    let body = once(Ok(Bytes::from_static(b"test")));
+
+    HttpResponse::Ok()
+       .content_type("application/json")
+       .body(Body::Streaming(Box::new(body))).unwrap()
+}
+
+fn main() {
+    Application::default("/")
+        .route("/async", |r| r.f(index))
         .finish();
 }
 ```

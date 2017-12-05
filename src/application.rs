@@ -2,7 +2,8 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use handler::{Reply, RouteHandler};
-use resource::{Route, Resource};
+use route::Route;
+use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern};
 use httprequest::HttpRequest;
 use channel::HttpHandler;
