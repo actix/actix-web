@@ -59,6 +59,10 @@ impl<S> Resource<S> where S: 'static {
         self.name = name.into();
     }
 
+    pub(crate) fn get_name(&self) -> Option<String> {
+        if self.name.is_empty() { None } else { Some(self.name.clone()) }
+    }
+
     /// Register a new route and return mutable reference to *Route* object.
     /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.
     ///

@@ -10,6 +10,19 @@ use channel::HttpHandler;
 use pipeline::Pipeline;
 use middlewares::Middleware;
 
+pub struct Router<S>(Rc<RouteRecognizer<Resource<S>>>);
+
+impl<S: 'static> Router<S> {
+    pub fn new(prefix: String, map: HashMap<String, Resource<S>>) -> Router<S>
+    {
+        let mut resources = Vec::new();
+        for (path, resource) in map {
+            resources.push((path, resource.get_name(), resource))
+        }
+
+        Router(Rc::new(RouteRecognizer::new(prefix, resources)))
+    }
+}
 
 /// Application
 pub struct Application<S> {
@@ -17,7 +30,7 @@ pub struct Application<S> {
     prefix: String,
     default: Resource<S>,
     routes: Vec<(String, Route<S>)>,
-    router: RouteRecognizer<Resource<S>>,
+    router: Router<S>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
 
@@ -26,7 +39,7 @@ impl<S: 'static> Application<S> {
     fn run(&self, req: HttpRequest) -> Reply {
         let mut req = req.with_state(Rc::clone(&self.state));
 
-        if let Some((params, h)) = self.router.recognize(req.path()) {
+        if let Some((params, h)) = self.router.0.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
             }
@@ -220,11 +233,6 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             parts.prefix + "/"
         };
 
-        let mut resources = Vec::new();
-        for (path, handler) in parts.resources {
-            resources.push((path, handler))
-        }
-
         let mut routes = Vec::new();
         for (path, route) in parts.routes {
             routes.push((prefix.clone() + path.trim_left_matches('/'), route));
@@ -234,7 +242,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
             prefix: prefix.clone(),
             default: parts.default,
             routes: routes,
-            router: RouteRecognizer::new(prefix, resources),
+            router: Router::new(prefix, parts.resources),
             middlewares: Rc::new(parts.middlewares),
         }
     }

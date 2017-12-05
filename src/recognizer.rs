@@ -201,7 +201,6 @@ FROM_STR!(std::net::SocketAddr);
 FROM_STR!(std::net::SocketAddrV4);
 FROM_STR!(std::net::SocketAddrV6);
 
-
 pub struct RouteRecognizer<T> {
     prefix: usize,
     patterns: RegexSet,
@@ -222,13 +221,13 @@ impl<T> Default for RouteRecognizer<T> {
 impl<T> RouteRecognizer<T> {
 
     pub fn new<P: Into<String>, U>(prefix: P, routes: U) -> Self
-        where U: IntoIterator<Item=(String, T)>
+        where U: IntoIterator<Item=(String, Option<String>, T)>
     {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
         for item in routes {
-            let pat = parse(&item.0);
-            handlers.push((Pattern::new(&pat), item.1));
+            let (pat, elements) = parse(&item.0);
+            handlers.push((Pattern::new(&pat, elements), item.2));
             paths.push(pat);
         };
         let regset = RegexSet::new(&paths);
@@ -240,12 +239,12 @@ impl<T> RouteRecognizer<T> {
         }
     }
 
-    pub fn set_routes(&mut self, routes: Vec<(&str, T)>) {
+    pub fn set_routes(&mut self, routes: Vec<(&str, Option<&str>, T)>) {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
         for item in routes {
-            let pat = parse(item.0);
-            handlers.push((Pattern::new(&pat), item.1));
+            let (pat, elements) = parse(item.0);
+            handlers.push((Pattern::new(&pat, elements), item.2));
             paths.push(pat);
         };
         self.patterns = RegexSet::new(&paths).unwrap();
@@ -276,13 +275,19 @@ impl<T> RouteRecognizer<T> {
     }
 }
 
+enum PatternElement {
+    Str(String),
+    Var(String),
+}
+
 struct Pattern {
     re: Regex,
     names: Rc<HashMap<String, usize>>,
+    elements: Vec<PatternElement>,
 }
 
 impl Pattern {
-    fn new(pattern: &str) -> Self {
+    fn new(pattern: &str, elements: Vec<PatternElement>) -> Self {
         let re = Regex::new(pattern).unwrap();
         let names = re.capture_names()
             .enumerate()
@@ -292,6 +297,7 @@ impl Pattern {
         Pattern {
             re,
             names: Rc::new(names),
+            elements: elements,
         }
     }
 
@@ -306,19 +312,21 @@ impl Pattern {
 }
 
 pub(crate) fn check_pattern(path: &str) {
-    if let Err(err) = Regex::new(&parse(path)) {
+    if let Err(err) = Regex::new(&parse(path).0) {
         panic!("Wrong path pattern: \"{}\" {}", path, err);
     }
 }
 
-fn parse(pattern: &str) -> String {
+fn parse(pattern: &str) -> (String, Vec<PatternElement>) {
     const DEFAULT_PATTERN: &str = "[^/]+";
 
     let mut re = String::from("^/");
+    let mut el = String::new();
     let mut in_param = false;
     let mut in_param_pattern = false;
     let mut param_name = String::new();
     let mut param_pattern = String::from(DEFAULT_PATTERN);
+    let mut elems = Vec::new();
 
     for (index, ch) in pattern.chars().enumerate() {
         // All routes must have a leading slash so its optional to have one
@@ -329,6 +337,7 @@ fn parse(pattern: &str) -> String {
         if in_param {
             // In parameter segment: `{....}`
             if ch == '}' {
+                elems.push(PatternElement::Var(String::from(String::from(param_name.as_str()))));
                 re.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
 
                 param_name.clear();
@@ -350,13 +359,16 @@ fn parse(pattern: &str) -> String {
             }
         } else if ch == '{' {
             in_param = true;
+            elems.push(PatternElement::Str(String::from(el.as_str())));
+            el.clear();
         } else {
             re.push(ch);
+            el.push(ch);
         }
     }
 
     re.push('$');
-    re
+    (re, elems)
 }
 
 #[cfg(test)]
