@@ -395,11 +395,11 @@ mod tests {
         let mut rec = RouteRecognizer::<usize>::default();
 
         let routes = vec![
-            ("/name", 1),
-            ("/name/{val}", 2),
-            ("/name/{val}/index.html", 3),
-            ("/v{val}/{val2}/index.html", 4),
-            ("/v/{tail:.*}", 5),
+            ("/name", None, 1),
+            ("/name/{val}", None, 2),
+            ("/name/{val}/index.html", None, 3),
+            ("/v{val}/{val2}/index.html", None, 4),
+            ("/v/{tail:.*}", None, 5),
         ];
         rec.set_routes(routes);
 
@@ -434,7 +434,7 @@ mod tests {
     }
 
     fn assert_parse(pattern: &str, expected_re: &str) -> Regex {
-        let re_str = parse(pattern);
+        let (re_str, _) = parse(pattern);
         assert_eq!(&*re_str, expected_re);
         Regex::new(&re_str).unwrap()
     }
