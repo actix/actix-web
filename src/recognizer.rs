@@ -32,6 +32,16 @@ pub struct Params {
     names: Rc<HashMap<String, usize>>,
 }
 
+impl Default for Params {
+    fn default() -> Params {
+        Params {
+            text: String::new(),
+            names: Rc::new(HashMap::new()),
+            matches: Vec::new(),
+        }
+    }
+}
+
 impl Params {
     pub(crate) fn new(names: Rc<HashMap<String, usize>>,
                       text: &str,
@@ -44,15 +54,6 @@ impl Params {
                 .iter()
                 .map(|capture| capture.map(|m| (m.start(), m.end())))
                 .collect(),
-        }
-    }
-
-    pub(crate) fn empty() -> Self
-    {
-        Params {
-            text: String::new(),
-            names: Rc::new(HashMap::new()),
-            matches: Vec::new(),
         }
     }
 
@@ -202,9 +203,10 @@ FROM_STR!(std::net::SocketAddrV4);
 FROM_STR!(std::net::SocketAddrV6);
 
 pub struct RouteRecognizer<T> {
+    re: RegexSet,
     prefix: usize,
-    patterns: RegexSet,
     routes: Vec<(Pattern, T)>,
+    patterns: HashMap<String, Pattern>,
 }
 
 impl<T> Default for RouteRecognizer<T> {
@@ -212,8 +214,9 @@ impl<T> Default for RouteRecognizer<T> {
     fn default() -> Self {
         RouteRecognizer {
             prefix: 0,
-            patterns: RegexSet::new([""].iter()).unwrap(),
+            re: RegexSet::new([""].iter()).unwrap(),
             routes: Vec::new(),
+            patterns: HashMap::new(),
         }
     }
 }
@@ -225,30 +228,28 @@ impl<T> RouteRecognizer<T> {
     {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
+        let mut patterns = HashMap::new();
         for item in routes {
             let (pat, elements) = parse(&item.0);
-            handlers.push((Pattern::new(&pat, elements), item.2));
+            let pattern = Pattern::new(&pat, elements);
+            if let Some(ref name) = item.1 {
+                let _ = patterns.insert(name.clone(), pattern.clone());
+            }
+            handlers.push((pattern, item.2));
             paths.push(pat);
         };
         let regset = RegexSet::new(&paths);
 
         RouteRecognizer {
+            re: regset.unwrap(),
             prefix: prefix.into().len() - 1,
-            patterns: regset.unwrap(),
             routes: handlers,
+            patterns: patterns,
         }
     }
 
-    pub fn set_routes(&mut self, routes: Vec<(&str, Option<&str>, T)>) {
-        let mut paths = Vec::new();
-        let mut handlers = Vec::new();
-        for item in routes {
-            let (pat, elements) = parse(item.0);
-            handlers.push((Pattern::new(&pat, elements), item.2));
-            paths.push(pat);
-        };
-        self.patterns = RegexSet::new(&paths).unwrap();
-        self.routes = handlers;
+    pub fn get_pattern(&self, name: &str) -> Option<&Pattern> {
+        self.patterns.get(name)
     }
 
     pub fn set_prefix<P: Into<String>>(&mut self, prefix: P) {
@@ -263,11 +264,11 @@ impl<T> RouteRecognizer<T> {
     pub fn recognize(&self, path: &str) -> Option<(Option<Params>, &T)> {
         let p = &path[self.prefix..];
         if p.is_empty() {
-            if let Some(idx) = self.patterns.matches("/").into_iter().next() {
+            if let Some(idx) = self.re.matches("/").into_iter().next() {
                 let (ref pattern, ref route) = self.routes[idx];
                 return Some((pattern.match_info(&path[self.prefix..]), route))
             }
-        } else if let Some(idx) = self.patterns.matches(p).into_iter().next() {
+        } else if let Some(idx) = self.re.matches(p).into_iter().next() {
             let (ref pattern, ref route) = self.routes[idx];
             return Some((pattern.match_info(&path[self.prefix..]), route))
         }
@@ -275,12 +276,14 @@ impl<T> RouteRecognizer<T> {
     }
 }
 
-enum PatternElement {
+#[derive(Debug, Clone, PartialEq)]
+pub enum PatternElement {
     Str(String),
     Var(String),
 }
 
-struct Pattern {
+#[derive(Clone)]
+pub struct Pattern {
     re: Regex,
     names: Rc<HashMap<String, usize>>,
     elements: Vec<PatternElement>,
@@ -308,6 +311,10 @@ impl Pattern {
         };
 
         Some(Params::new(Rc::clone(&self.names), text, &captures))
+    }
+
+    pub fn elements(&self) -> &Vec<PatternElement> {
+        &self.elements
     }
 }
 
@@ -337,7 +344,7 @@ fn parse(pattern: &str) -> (String, Vec<PatternElement>) {
         if in_param {
             // In parameter segment: `{....}`
             if ch == '}' {
-                elems.push(PatternElement::Var(String::from(String::from(param_name.as_str()))));
+                elems.push(PatternElement::Var(param_name.clone()));
                 re.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
 
                 param_name.clear();
@@ -359,7 +366,7 @@ fn parse(pattern: &str) -> (String, Vec<PatternElement>) {
             }
         } else if ch == '{' {
             in_param = true;
-            elems.push(PatternElement::Str(String::from(el.as_str())));
+            elems.push(PatternElement::Str(el.clone()));
             el.clear();
         } else {
             re.push(ch);

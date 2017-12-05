@@ -12,8 +12,8 @@
 pub use handler::Handler;
 pub use pipeline::Pipeline;
 pub use channel::{HttpChannel, HttpHandler};
-pub use recognizer::{FromParam, RouteRecognizer};
+pub use recognizer::{FromParam, RouteRecognizer, Pattern, PatternElement};
 
+pub use cookie::CookieBuilder;
 pub use application::ApplicationBuilder;
 pub use httpresponse::HttpResponseBuilder;
-pub use cookie::CookieBuilder;

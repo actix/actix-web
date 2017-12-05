@@ -403,6 +403,15 @@ impl ResponseError for UriSegmentError {
     }
 }
 
+/// Errors which can occur when attempting to generate resource uri.
+#[derive(Fail, Debug, PartialEq)]
+pub enum UriGenerationError {
+    #[fail(display="Resource not found")]
+    ResourceNotFound,
+    #[fail(display="Not all path pattern covered")]
+    NotEnoughElements,
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;

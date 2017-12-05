@@ -27,7 +27,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
         req.session().set("counter", 1)?;
     }
 
-    Ok(HttpResponse::Ok().into())
+    Ok("Welcome!".into())
 }
 
 /// async handler

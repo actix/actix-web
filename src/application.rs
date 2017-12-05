@@ -1,10 +1,11 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
+use error::UriGenerationError;
 use handler::{Reply, RouteHandler};
 use route::Route;
 use resource::Resource;
-use recognizer::{RouteRecognizer, check_pattern};
+use recognizer::{RouteRecognizer, check_pattern, PatternElement};
 use httprequest::HttpRequest;
 use channel::HttpHandler;
 use pipeline::Pipeline;
@@ -21,6 +22,36 @@ impl<S: 'static> Router<S> {
         }
 
         Router(Rc::new(RouteRecognizer::new(prefix, resources)))
+    }
+
+    pub fn has_route(&self, path: &str) -> bool {
+        self.0.recognize(path).is_some()
+    }
+
+    pub fn resource_path<'a, U>(&self, prefix: &str, name: &str, elements: U)
+                                -> Result<String, UriGenerationError>
+        where U: IntoIterator<Item=&'a str>
+    {
+        if let Some(pattern) = self.0.get_pattern(name) {
+            let mut iter = elements.into_iter();
+            let mut vec = vec![prefix];
+            for el in pattern.elements() {
+                match *el {
+                    PatternElement::Str(ref s) => vec.push(s),
+                    PatternElement::Var(_) => {
+                        if let Some(val) = iter.next() {
+                            vec.push(val)
+                        } else {
+                            return Err(UriGenerationError::NotEnoughElements)
+                        }
+                    }
+                }
+            }
+            let s = vec.join("/").to_owned();
+            Ok(s)
+        } else {
+            Err(UriGenerationError::ResourceNotFound)
+        }
     }
 }
 
