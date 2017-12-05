@@ -1,16 +1,30 @@
 # Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](http://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
 
-Asynchronous web framework for [Actix](https://github.com/actix/actix).
+Actix web is a small, fast, down-to-earth, open source rust web framework.
+
+```rust,ignore
+extern crate actix_web;
+use actix_web::*;
+
+fn index(req: HttpRequest) -> String {
+    format!("Hello {}!", &req.match_info()["name"])
+}
+
+fn main() {
+    HttpServer::new(
+        Application::default("/")
+            .resource("/{name}", |r| r.method(Method::GET).f(index)))
+        .serve::<_, ()>("127.0.0.1:8080");
+}
+```
+
+## Documentation
 
 * [User Guide](http://actix.github.io/actix-web/guide/)
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
-
----
-
-Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
 
 ## Features
 
@@ -22,15 +36,7 @@ Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licen
   * Configurable request routing
   * Multipart streams
   * Middlewares (Logger, Session included)
-
-## Usage
-
-To use `actix-web`, add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-actix-web = { git = "https://github.com/actix/actix-web" }
-```
+  * Built on top of [Actix](https://github.com/actix/actix).
 
 ## HTTP/2
 
@@ -54,7 +60,7 @@ and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.se
 
 [tls example](https://github.com/actix/actix-web/tree/master/examples/tls)
 
-## Example
+## Examples
 
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state.rs)
@@ -63,27 +69,6 @@ and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.se
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
 * [SockJS Server](https://github.com/actix/actix-sockjs)
 
+## License
 
-```rust
-# extern crate actix;
-# extern crate actix_web;
-# 
-use actix::*;
-use actix_web::*;
-
-fn index(req: HttpRequest) -> String {
-    format!("Hello {}!", &req.match_info()["name"])
-}
-
-fn main() {
-    let sys = actix::System::new("ws-example");
-
-    HttpServer::new(
-        Application::default("/")
-            .resource("/{name}", |r| r.method(Method::GET).f(index)))
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
-
-    Arbiter::system().send(msgs::SystemExit(0));
-    let _ = sys.run();
-}
-```
+Actix web is licensed under the [Apache-2.0 license](http://opensource.org/licenses/APACHE-2.0).
