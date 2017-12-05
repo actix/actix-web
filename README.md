@@ -65,52 +65,22 @@ and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.se
 
 
 ```rust
-extern crate actix;
-extern crate actix_web;
-extern crate env_logger;
-
+# extern crate actix;
+# extern crate actix_web;
+# 
 use actix::*;
 use actix_web::*;
 
-struct MyWebSocket;
-
-/// Actor with http context
-impl Actor for MyWebSocket {
-    type Context = HttpContext<Self>;
-}
-
-/// Standard actix's stream handler for a stream of `ws::Message`
-impl StreamHandler<ws::Message> for MyWebSocket {}
-impl Handler<ws::Message> for MyWebSocket {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
-              -> Response<Self, ws::Message>
-    {
-        // process websocket messages
-        println!("WS: {:?}", msg);
-        match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
-            ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
-            ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
-            ws::Message::Closed | ws::Message::Error => {
-                ctx.stop();
-            }
-            _ => (),
-        }
-        Self::empty()
-    }
+fn index(req: HttpRequest) -> String {
+    format!("Hello {}!", &req.match_info()["name"])
 }
 
 fn main() {
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
         Application::default("/")
-            .middleware(middlewares::Logger::default())  // <- register logger middleware
-            .resource("/ws/", |r| 
-                r.method(Method::GET).f(|req| ws::start(req, MyWebSocket))) // <- websocket route
-            .route("/", |r| r.h(fs::StaticFiles::new("examples/static/", true)))) // <- serve static files
+            .resource("/{name}", |r| r.method(Method::GET).f(index)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     Arbiter::system().send(msgs::SystemExit(0));
