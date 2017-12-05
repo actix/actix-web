@@ -199,16 +199,16 @@ fn main() {
     HttpServer::new(
         Application::build("/", state)
             // redirect to websocket.html
-            .resource("/", |r| r.handler(Method::GET, |req| {
+            .resource("/", |r| r.method(Method::GET).f(|req| {
                 httpcodes::HTTPFound
                     .build()
                     .header("LOCATION", "/static/websocket.html")
                     .body(Body::Empty)
             }))
             // websocket
-            .resource("/ws/", |r| r.get(chat_route))
+            .resource("/ws/", |r| r.route().f(chat_route))
             // static resources
-            .route("/static", fs::StaticFiles::new("static/", true)))
+            .route("/static", |r| r.h(fs::StaticFiles::new("static/", true))))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

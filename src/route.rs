@@ -43,9 +43,9 @@ impl<S: 'static> Route<S> {
         self.handler.handle(req)
     }
 
-    /// Add match predicate to route.
-    pub fn p(&mut self, p: Box<Predicate<S>>) -> &mut Self {
-        self.preds.push(p);
+    /// Add method check to route. This method could be called multiple times.
+    pub fn method(&mut self, method: Method) -> &mut Self {
+        self.preds.push(pred::Method(method));
         self
     }
 
@@ -57,9 +57,9 @@ impl<S: 'static> Route<S> {
         self
     }
 
-    /// Add method check to route. This method could be called multiple times.
-    pub fn method(&mut self, method: Method) -> &mut Self {
-        self.preds.push(pred::Method(method));
+    /// Add match predicate to route.
+    pub fn p(&mut self, p: Box<Predicate<S>>) -> &mut Self {
+        self.preds.push(p);
         self
     }
 

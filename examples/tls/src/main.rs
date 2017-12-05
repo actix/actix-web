@@ -34,9 +34,9 @@ fn main() {
             // enable logger
             .middleware(middlewares::Logger::default())
             // register simple handler, handle all methods
-            .handler("/index.html", index)
+            .route("/index.html", |r| r.f(index))
             // with path parameters
-            .resource("/", |r| r.handler(Method::GET, |req| {
+            .resource("/", |r| r.method(Method::GET).f(|req| {
                 httpcodes::HTTPFound
                     .build()
                     .header("LOCATION", "/index.html")
