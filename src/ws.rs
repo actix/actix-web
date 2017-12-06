@@ -66,13 +66,9 @@ use wsframe;
 use wsproto::*;
 pub use wsproto::CloseCode;
 
-#[doc(hidden)]
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
-#[doc(hidden)]
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
-#[doc(hidden)]
 const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
-// #[doc(hidden)]
 // const SEC_WEBSOCKET_PROTOCOL: &'static str = "SEC-WEBSOCKET-PROTOCOL";
 
 

@@ -209,28 +209,17 @@ pub struct RouteRecognizer<T> {
     patterns: HashMap<String, Pattern>,
 }
 
-impl<T> Default for RouteRecognizer<T> {
-
-    fn default() -> Self {
-        RouteRecognizer {
-            prefix: 0,
-            re: RegexSet::new([""].iter()).unwrap(),
-            routes: Vec::new(),
-            patterns: HashMap::new(),
-        }
-    }
-}
-
 impl<T> RouteRecognizer<T> {
 
-    pub fn new<P: Into<String>, U>(prefix: P, routes: U) -> Self
-        where U: IntoIterator<Item=(String, Option<String>, T)>
+    pub fn new<P: Into<String>, U, K>(prefix: P, routes: U) -> Self
+        where U: IntoIterator<Item=(K, Option<String>, T)>,
+              K: Into<String>,
     {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
         let mut patterns = HashMap::new();
         for item in routes {
-            let (pat, elements) = parse(&item.0);
+            let (pat, elements) = parse(&item.0.into());
             let pattern = Pattern::new(&pat, elements);
             if let Some(ref name) = item.1 {
                 let _ = patterns.insert(name.clone(), pattern.clone());
@@ -399,8 +388,6 @@ mod tests {
 
     #[test]
     fn test_recognizer() {
-        let mut rec = RouteRecognizer::<usize>::default();
-
         let routes = vec![
             ("/name", None, 1),
             ("/name/{val}", None, 2),
@@ -408,7 +395,7 @@ mod tests {
             ("/v{val}/{val2}/index.html", None, 4),
             ("/v/{tail:.*}", None, 5),
         ];
-        rec.set_routes(routes);
+        let mut rec = RouteRecognizer::new("/", routes);
 
         let (params, val) = rec.recognize("/name").unwrap();
         assert_eq!(*val, 1);

@@ -9,11 +9,13 @@ use url::form_urlencoded;
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
 use {Cookie, HttpRange};
+use info::ConnectionInfo;
 use recognizer::Params;
 use payload::Payload;
 use multipart::Multipart;
 use error::{ParseError, PayloadError,
             MultipartError, CookieParseError, HttpRangeError, UrlencodedError};
+
 
 struct HttpMessage {
     version: Version,
@@ -27,6 +29,7 @@ struct HttpMessage {
     cookies_loaded: bool,
     addr: Option<SocketAddr>,
     payload: Payload,
+    info: Option<ConnectionInfo<'static>>,
 }
 
 impl Default for HttpMessage {
@@ -44,6 +47,7 @@ impl Default for HttpMessage {
             addr: None,
             payload: Payload::empty(),
             extensions: Extensions::new(),
+            info: None,
         }
     }
 }
@@ -70,6 +74,7 @@ impl HttpRequest<()> {
                 addr: None,
                 payload: payload,
                 extensions: Extensions::new(),
+                info: None,
             }),
             Rc::new(())
         )
@@ -106,6 +111,15 @@ impl<S> HttpRequest<S> {
         &mut self.as_mut().extensions
     }
 
+    pub(crate) fn set_prefix(&mut self, idx: usize) {
+        self.as_mut().prefix = idx;
+    }
+
+    #[doc(hidden)]
+    pub fn prefix_len(&self) -> usize {
+        self.0.prefix
+    }
+
     /// Read the Request Uri.
     #[inline]
     pub fn uri(&self) -> &Uri { &self.0.uri }
@@ -132,13 +146,15 @@ impl<S> HttpRequest<S> {
         self.0.uri.path()
     }
 
-    pub(crate) fn set_prefix(&mut self, idx: usize) {
-        self.as_mut().prefix = idx;
-    }
-
-    #[doc(hidden)]
-    pub fn prefix_len(&self) -> usize {
-        self.0.prefix
+    /// Load *ConnectionInfo* for currect request.
+    #[inline]
+    pub fn load_connection_info(&mut self) -> &ConnectionInfo {
+        if self.0.info.is_none() {
+            let info: ConnectionInfo<'static> = unsafe{
+                mem::transmute(ConnectionInfo::new(self))};
+            self.as_mut().info = Some(info);
+        }
+        self.0.info.as_ref().unwrap()
     }
 
     /// Remote IP of client initiated HTTP request.
