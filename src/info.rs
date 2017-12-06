@@ -63,9 +63,7 @@ impl<'a> ConnectionInfo<'a> {
                 }
             }
             if scheme.is_none() {
-                if let Some(a) = req.uri().scheme_part() {
-                    scheme = Some(a.as_str())
-                }
+                scheme = req.uri().scheme_part().map(|a| a.as_str());
             }
         }
 
@@ -78,14 +76,10 @@ impl<'a> ConnectionInfo<'a> {
             }
             if host.is_none() {
                 if let Some(h) = req.headers().get(header::HOST) {
-                    if let Ok(h) = h.to_str() {
-                        host = Some(h);
-                    }
+                    host = h.to_str().ok();
                 }
                 if host.is_none() {
-                    if let Some(a) = req.uri().authority_part() {
-                        host = Some(a.as_str())
-                    }
+                    host = req.uri().authority_part().map(|a| a.as_str())
                 }
             }
         }
@@ -99,10 +93,8 @@ impl<'a> ConnectionInfo<'a> {
                 }
             }
             if remote.is_none() {
-                if let Some(addr) = req.peer_addr() {
-                    // get peeraddr from socketaddr
-                    peer = Some(format!("{}", addr));
-                }
+                // get peeraddr from socketaddr
+                peer = req.peer_addr().map(|addr| format!("{}", addr));
             }
         }
 
