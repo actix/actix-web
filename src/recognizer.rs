@@ -395,7 +395,7 @@ mod tests {
             ("/v{val}/{val2}/index.html", None, 4),
             ("/v/{tail:.*}", None, 5),
         ];
-        let mut rec = RouteRecognizer::new("/", routes);
+        let rec = RouteRecognizer::new("/", routes);
 
         let (params, val) = rec.recognize("/name").unwrap();
         assert_eq!(*val, 1);

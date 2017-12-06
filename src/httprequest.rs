@@ -140,10 +140,25 @@ impl<S> HttpRequest<S> {
         &self.0.headers
     }
 
+    #[cfg(test)]
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.as_mut().headers
+    }
+
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
         self.0.uri.path()
+    }
+
+    /// Get previously loaded *ConnectionInfo*.
+    #[inline]
+    pub fn connection_info(&self) -> Option<&ConnectionInfo> {
+        if self.0.info.is_none() {
+            None
+        } else {
+            self.0.info.as_ref()
+        }
     }
 
     /// Load *ConnectionInfo* for currect request.
@@ -157,19 +172,12 @@ impl<S> HttpRequest<S> {
         self.0.info.as_ref().unwrap()
     }
 
-    /// Remote IP of client initiated HTTP request.
-    ///
-    /// The IP is resolved through the following headers, in this order:
-    ///
-    /// - Forwarded
-    /// - X-Forwarded-For
-    /// - peername of opened socket
     #[inline]
-    pub fn remote(&self) -> Option<&SocketAddr> {
+    pub fn peer_addr(&self) -> Option<&SocketAddr> {
         self.0.addr.as_ref()
     }
 
-    pub(crate) fn set_remove_addr(&mut self, addr: Option<SocketAddr>) {
+    pub(crate) fn set_peer_addr(&mut self, addr: Option<SocketAddr>) {
         self.as_mut().addr = addr
     }
 

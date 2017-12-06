@@ -223,7 +223,7 @@ impl Entry {
             parts.method, parts.uri, parts.version, parts.headers, payload);
 
         // set remote addr
-        req.set_remove_addr(addr);
+        req.set_peer_addr(addr);
 
         // Payload sender
         let psender = PayloadType::new(req.headers(), psender);

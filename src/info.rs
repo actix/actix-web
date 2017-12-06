@@ -2,6 +2,7 @@ use std::str::FromStr;
 use http::header::{self, HeaderName};
 use httprequest::HttpRequest;
 
+const X_FORWARDED_FOR: &str = "X-FORWARDED-FOR";
 const X_FORWARDED_HOST: &str = "X-FORWARDED-HOST";
 const X_FORWARDED_PROTO: &str = "X-FORWARDED-PROTO";
 
@@ -13,9 +14,8 @@ const X_FORWARDED_PROTO: &str = "X-FORWARDED-PROTO";
 pub struct ConnectionInfo<'a> {
     scheme: &'a str,
     host: &'a str,
-    remote: String,
-    forwarded_for: Vec<&'a str>,
-    forwarded_by: Vec<&'a str>,
+    remote: Option<&'a str>,
+    peer: Option<String>,
 }
 
 impl<'a> ConnectionInfo<'a> {
@@ -24,20 +24,21 @@ impl<'a> ConnectionInfo<'a> {
     pub fn new<S>(req: &'a HttpRequest<S>) -> ConnectionInfo<'a> {
         let mut host = None;
         let mut scheme = None;
-        let mut forwarded_for = Vec::new();
-        let mut forwarded_by = Vec::new();
+        let mut remote = None;
+        let mut peer = None;
 
         // load forwarded header
         for hdr in req.headers().get_all(header::FORWARDED) {
             if let Ok(val) = hdr.to_str() {
                 for pair in val.split(';') {
                     for el in pair.split(',') {
-                        let mut items = el.splitn(1, '=');
+                        let mut items = el.trim().splitn(2, '=');
                         if let Some(name) = items.next() {
                             if let Some(val) = items.next() {
                                 match &name.to_lowercase() as &str {
-                                    "for" => forwarded_for.push(val.trim()),
-                                    "by" => forwarded_by.push(val.trim()),
+                                    "for" => if remote.is_none() {
+                                        remote = Some(val.trim());
+                                    },
                                     "proto" => if scheme.is_none() {
                                         scheme = Some(val.trim());
                                     },
@@ -89,12 +90,27 @@ impl<'a> ConnectionInfo<'a> {
             }
         }
 
+        // remote addr
+        if remote.is_none() {
+            if let Some(h) = req.headers().get(
+                HeaderName::from_str(X_FORWARDED_FOR).unwrap()) {
+                if let Ok(h) = h.to_str() {
+                    remote = h.split(',').next().map(|v| v.trim());
+                }
+            }
+            if remote.is_none() {
+                if let Some(addr) = req.peer_addr() {
+                    // get peeraddr from socketaddr
+                    peer = Some(format!("{}", addr));
+                }
+            }
+        }
+
         ConnectionInfo {
             scheme: scheme.unwrap_or("http"),
             host: host.unwrap_or("localhost"),
-            remote: String::new(),
-            forwarded_for: forwarded_for,
-            forwarded_by: forwarded_by,
+            remote: remote,
+            peer: peer,
         }
     }
 
@@ -130,19 +146,66 @@ impl<'a> ConnectionInfo<'a> {
     /// - X-Forwarded-For
     /// - peername of opened socket
     #[inline]
-    pub fn remote(&self) -> &str {
-        &self.remote
+    pub fn remote(&self) -> Option<&str> {
+        if let Some(r) = self.remote {
+            Some(r)
+        } else if let Some(ref peer) = self.peer {
+            Some(peer)
+        } else {
+            None
+        }
     }
+}
 
-    /// List of the nodes making the request to the proxy.
-    #[inline]
-    pub fn forwarded_for(&self) -> &Vec<&str> {
-        &self.forwarded_for
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::header::HeaderValue;
 
-    /// List of the user-agent facing interface of the proxies
-    #[inline]
-    pub fn forwarded_by(&self) -> &Vec<&str> {
-        &self.forwarded_by
+    #[test]
+    fn test_forwarded() {
+        let req = HttpRequest::default();
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.scheme(), "http");
+        assert_eq!(info.host(), "localhost");
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(
+            header::FORWARDED,
+            HeaderValue::from_static(
+                "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org"));
+
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.scheme(), "https");
+        assert_eq!(info.host(), "rust-lang.org");
+        assert_eq!(info.remote(), Some("192.0.2.60"));
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(
+            header::HOST, HeaderValue::from_static("rust-lang.org"));
+
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.scheme(), "http");
+        assert_eq!(info.host(), "rust-lang.org");
+        assert_eq!(info.remote(), None);
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(
+            HeaderName::from_str(X_FORWARDED_FOR).unwrap(), HeaderValue::from_static("192.0.2.60"));
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.remote(), Some("192.0.2.60"));
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(
+            HeaderName::from_str(X_FORWARDED_HOST).unwrap(), HeaderValue::from_static("192.0.2.60"));
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.host(), "192.0.2.60");
+        assert_eq!(info.remote(), None);
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(
+            HeaderName::from_str(X_FORWARDED_PROTO).unwrap(), HeaderValue::from_static("https"));
+        let info = ConnectionInfo::new(&req);
+        assert_eq!(info.scheme(), "https");
     }
 }
