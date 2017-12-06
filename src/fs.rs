@@ -198,7 +198,7 @@ impl FromRequest for FilesystemElement {
 ///
 /// fn main() {
 ///     let app = actix_web::Application::default("/")
-///         .route("/static", |r| r.h(actix_web::fs::StaticFiles::new(".", true)))
+///         .resource("/static", |r| r.h(actix_web::fs::StaticFiles::new(".", true)))
 ///         .finish();
 /// }
 /// ```

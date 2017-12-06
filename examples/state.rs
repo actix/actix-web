@@ -65,11 +65,10 @@ fn main() {
             .middleware(middlewares::Logger::default())
             // websocket route
             .resource(
-                "/ws/", |r| r.route()
-                    .method(Method::GET)
+                "/ws/", |r| r.method(Method::GET)
                     .f(|req| ws::start(req, MyWebSocket{counter: 0})))
             // register simple handler, handle all methods
-            .route("/", |r| r.f(index)))
+            .resource("/", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

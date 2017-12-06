@@ -67,13 +67,13 @@ fn main() {
                     .finish()
             ))
             // register simple route, handle all methods
-            .route("/index.html", |r| r.f(index))
+            .resource("/index.html", |r| r.f(index))
             // with path parameters
-            .resource("/user/{name}/", |r| r.route().method(Method::GET).f(with_param))
+            .resource("/user/{name}/", |r| r.method(Method::GET).f(with_param))
             // async handler
-            .resource("/async/{name}", |r| r.route().method(Method::GET).a(index_async))
+            .resource("/async/{name}", |r| r.method(Method::GET).a(index_async))
             // redirect
-            .resource("/", |r| r.route().method(Method::GET).f(|req| {
+            .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);
 
                 httpcodes::HTTPFound
@@ -81,7 +81,7 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             }))
-            .route("/test", |r| r.f(|req| {
+            .resource("/test", |r| r.f(|req| {
                 match *req.method() {
                     Method::GET => httpcodes::HTTPOk,
                     Method::POST => httpcodes::HTTPMethodNotAllowed,
@@ -89,7 +89,7 @@ fn main() {
                 }
             }))
             // static files
-            .route("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true))))
+            .resource("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true))))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

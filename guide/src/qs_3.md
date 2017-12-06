@@ -41,13 +41,13 @@ use tokio_core::net::TcpStream;
 fn main() {
     HttpServer::<TcpStream, SocketAddr, _>::new(vec![
         Application::default("/app1")
-            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.f(|r| httpcodes::HTTPOk))
             .finish(),
         Application::default("/app2")
-            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.f(|r| httpcodes::HTTPOk))
             .finish(),
         Application::default("/")
-            .resource("/", |r| r.route().f(|r| httpcodes::HTTPOk))
+            .resource("/", |r| r.f(|r| httpcodes::HTTPOk))
             .finish(),
     ]);
 }

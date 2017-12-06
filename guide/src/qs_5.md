@@ -18,7 +18,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 fn main() {
     Application::default("/")
-        .route("/prefix", |r| r.f(index))
+        .resource("/prefix", |r| r.f(index))
         .finish();
 }
 ```
@@ -37,7 +37,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 fn main() {
     Application::default("/app")
-        .route("/prefix", |r| r.f(index))
+        .resource("/prefix", |r| r.f(index))
         .finish();
 }
 ```
@@ -126,7 +126,7 @@ fn index(req: HttpRequest) -> Result<String> {
 
 fn main() {
     Application::default("/")
-        .resource(r"/a/{v1}/{v2}/", |r| r.route().f(index))
+        .resource(r"/a/{v1}/{v2}/", |r| r.f(index))
         .finish();
 }
 ```

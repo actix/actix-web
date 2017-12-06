@@ -210,41 +210,6 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// This method register route for specified path prefix.
-    /// Route maches based on path prefix, variable path patterns are not available
-    /// in this case. If you need variable path patterns consider using *resource()*
-    /// method.
-    ///
-    /// ```rust
-    /// extern crate actix_web;
-    /// use actix_web::*;
-    ///
-    /// fn main() {
-    ///     let app = Application::default("/")
-    ///         .route("/test", |r| r.f(
-    ///             |req| {
-    ///                 match *req.method() {
-    ///                     Method::GET => httpcodes::HTTPOk,
-    ///                     Method::POST => httpcodes::HTTPMethodNotAllowed,
-    ///                     _ => httpcodes::HTTPNotFound,
-    ///                 }
-    ///             }
-    ///         ))
-    ///         .finish();
-    /// }
-    /// ```
-    pub fn route<F, P: Into<String>>(&mut self, path: P, f: F) -> &mut Self
-        where P: Into<String>,
-              F: FnOnce(&mut Route<S>) + 'static
-    {
-        {
-            let parts = self.parts.as_mut().expect("Use after finish");
-            parts.routes.push((path.into(), Route::default()));
-            f(&mut parts.routes.last_mut().unwrap().1);
-        }
-        self
-    }
-
     /// Register a middleware
     pub fn middleware<T>(&mut self, mw: T) -> &mut Self
         where T: Middleware + 'static

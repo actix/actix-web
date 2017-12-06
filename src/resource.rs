@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use http::Method;
 
 use route::Route;
-use handler::{Reply, Handler, RouteHandler, WrapHandler};
+use handler::{Reply, Handler, FromRequest, RouteHandler, WrapHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 
@@ -79,15 +79,46 @@ impl<S> Resource<S> where S: 'static {
     ///                  .f(|r| HttpResponse::Ok()))
     ///         .finish();
     /// }
+    /// ```
     pub fn route(&mut self) -> &mut Route<S> {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap()
     }
 
     /// Register a new route and add method check to route.
+    ///
+    /// This is sortcut for:
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().method(Method::GET).f(index)
+    /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().method(method)
+    }
+
+    /// Register a new route and add handler object.
+    ///
+    /// This is sortcut for:
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().h(handler)
+    /// ```
+    pub fn h<H: Handler<S>>(&mut self, handler: H) {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().h(handler)
+    }
+
+    /// Register a new route and add handler function.
+    ///
+    /// This is sortcut for:
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().f(index)
+    /// ```
+    pub fn f<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: FromRequest + 'static,
+    {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().f(handler)
     }
 
     /// Default handler is used if no matched route found.

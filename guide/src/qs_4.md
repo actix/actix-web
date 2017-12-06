@@ -114,7 +114,7 @@ fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
 
 fn main() {
     Application::default("/")
-        .route("/async", |r| r.a(index))
+        .resource("/async", |r| r.route().a(index))
         .finish();
 }
 ```
@@ -139,7 +139,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 fn main() {
     Application::default("/")
-        .route("/async", |r| r.f(index))
+        .resource("/async", |r| r.f(index))
         .finish();
 }
 ```

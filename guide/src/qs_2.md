@@ -80,7 +80,7 @@ fn main() {
 
     HttpServer::new(
         Application::default("/")
-            .resource("/", |r| r.route().f(index)))
+            .resource("/", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");
