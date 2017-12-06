@@ -97,8 +97,10 @@ pub use http::{Method, StatusCode, Version};
 pub use cookie::Cookie;
 pub use http_range::HttpRange;
 
+#[doc(hidden)]
 #[cfg(feature="tls")]
 pub use native_tls::Pkcs12;
 
+#[doc(hidden)]
 #[cfg(feature="openssl")]
 pub use openssl::pkcs12::Pkcs12;
