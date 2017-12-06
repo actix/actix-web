@@ -257,3 +257,53 @@ impl<S: 'static> Iterator for Application<S> {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use http::{Method, Version, Uri, HeaderMap, StatusCode};
+    use super::*;
+    use handler::ReplyItem;
+    use httprequest::HttpRequest;
+    use httpresponse::HttpResponse;
+    use payload::Payload;
+    use httpcodes;
+
+    impl Reply {
+        fn msg(self) -> Option<HttpResponse> {
+            match self.into() {
+                ReplyItem::Message(resp) => Some(resp),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn test_default_resource() {
+        let app = Application::new("/")
+            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/test").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        let resp = app.run(req).msg().unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/blah").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        let resp = app.run(req).msg().unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let app = Application::new("/")
+            .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
+            .finish();
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/blah").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        let resp = app.run(req).msg().unwrap();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+}
