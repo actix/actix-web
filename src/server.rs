@@ -24,7 +24,7 @@ use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
 use tokio_openssl::{SslStream, SslAcceptorExt};
 
-use channel::{HttpChannel, HttpHandler};
+use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
 
 /// An HTTP Server
@@ -47,8 +47,10 @@ impl<T: 'static, A: 'static, H: 'static> Actor for HttpServer<T, A, H> {
 impl<T, A, H> HttpServer<T, A, H> where H: HttpHandler
 {
     /// Create new http server with vec of http handlers
-    pub fn new<U: IntoIterator<Item=H>>(handler: U) -> Self {
-        let apps: Vec<_> = handler.into_iter().collect();
+    pub fn new<V, U: IntoIterator<Item=V>>(handler: U) -> Self
+        where V: IntoHttpHandler<Handler=H>
+    {
+        let apps: Vec<_> = handler.into_iter().map(|h| h.into_handler()).collect();
 
         HttpServer {h: Rc::new(apps),
                     io: PhantomData,

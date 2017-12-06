@@ -17,7 +17,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource("/prefix", |r| r.f(index))
         .finish();
 }
@@ -36,7 +36,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::default("/app")
+    Application::new("/app")
         .resource("/prefix", |r| r.f(index))
         .finish();
 }
@@ -53,7 +53,7 @@ if no route could be matched default response `HTTPMethodNotAllowed` get resturn
 # use actix_web::*;
 # 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource("/prefix", |r| {
            r.method(Method::GET).h(httpcodes::HTTPOk);
            r.method(Method::POST).h(httpcodes::HTTPForbidden);
@@ -86,7 +86,7 @@ fn index(req: HttpRequest) -> String {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource("/{name}", |r| r.method(Method::GET).f(index))
         .finish();
 }
@@ -104,7 +104,7 @@ You can also specify a custom regex in the form `{identifier:regex}`:
 # }
 # 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource(r"{name:\d+}", |r| r.method(Method::GET).f(index))
         .finish();
 }
@@ -125,7 +125,7 @@ fn index(req: HttpRequest) -> Result<String> {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource(r"/a/{v1}/{v2}/", |r| r.f(index))
         .finish();
 }
@@ -143,7 +143,7 @@ It is possible to match path tail with custom `.*` regex.
 #    unimplemented!()
 # }
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource(r"/test/{tail:.*}", |r| r.method(Method::GET).f(index))
         .finish();
 }
@@ -179,7 +179,7 @@ fn index(req: HttpRequest) -> Result<String> {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource(r"/a/{tail:.*}", |r| r.method(Method::GET).f(index))
         .finish();
 }

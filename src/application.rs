@@ -3,11 +3,10 @@ use std::collections::HashMap;
 
 use error::UriGenerationError;
 use handler::{Reply, RouteHandler};
-use route::Route;
 use resource::Resource;
 use recognizer::{RouteRecognizer, check_pattern, PatternElement};
 use httprequest::HttpRequest;
-use channel::HttpHandler;
+use channel::{HttpHandler, IntoHttpHandler};
 use pipeline::Pipeline;
 use middlewares::Middleware;
 
@@ -56,16 +55,15 @@ impl<S: 'static> Router<S> {
 }
 
 /// Application
-pub struct Application<S> {
+pub struct HttpApplication<S> {
     state: Rc<S>,
     prefix: String,
     default: Resource<S>,
-    routes: Vec<(String, Route<S>)>,
     router: Router<S>,
     middlewares: Rc<Vec<Box<Middleware>>>,
 }
 
-impl<S: 'static> Application<S> {
+impl<S: 'static> HttpApplication<S> {
 
     fn run(&self, req: HttpRequest) -> Reply {
         let mut req = req.with_state(Rc::clone(&self.state));
@@ -73,21 +71,16 @@ impl<S: 'static> Application<S> {
         if let Some((params, h)) = self.router.0.recognize(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
+                req.set_prefix(self.router.0.prefix());
             }
             h.handle(req)
         } else {
-            for route in &self.routes {
-                if req.path().starts_with(&route.0) && route.1.check(&mut req) {
-                    req.set_prefix(route.0.len());
-                    return route.1.handle(req)
-                }
-            }
             self.default.handle(req)
         }
     }
 }
 
-impl<S: 'static> HttpHandler for Application<S> {
+impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
@@ -99,16 +92,31 @@ impl<S: 'static> HttpHandler for Application<S> {
     }
 }
 
+struct ApplicationParts<S> {
+    state: S,
+    prefix: String,
+    default: Resource<S>,
+    resources: HashMap<String, Resource<S>>,
+    middlewares: Vec<Box<Middleware>>,
+}
+
+/// Structure that follows the builder pattern for building `Application` structs.
+pub struct Application<S=()> {
+    parts: Option<ApplicationParts<S>>,
+}
+
 impl Application<()> {
 
-    /// Create default `ApplicationBuilder` with no state
-    pub fn default<T: Into<String>>(prefix: T) -> ApplicationBuilder<()> {
-        ApplicationBuilder {
-            parts: Some(ApplicationBuilderParts {
+    /// Create application with empty state. Application can
+    /// be configured with builder-like pattern.
+    ///
+    /// This method accepts path prefix for which it should serve requests.
+    pub fn new<T: Into<String>>(prefix: T) -> Application<()> {
+        Application {
+            parts: Some(ApplicationParts {
                 state: (),
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
-                routes: Vec::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),
             })
@@ -118,38 +126,22 @@ impl Application<()> {
 
 impl<S> Application<S> where S: 'static {
 
-    /// Create application builder with specific state. State is shared with all
-    /// routes within same application and could be
-    /// accessed with `HttpContext::state()` method.
-    pub fn build<T: Into<String>>(prefix: T, state: S) -> ApplicationBuilder<S> {
-        ApplicationBuilder {
-            parts: Some(ApplicationBuilderParts {
+    /// Create application with specific state. Application can be
+    /// configured with builder-like pattern.
+    ///
+    /// State is shared with all reousrces within same application and could be
+    /// accessed with `HttpRequest::state()` method.
+    pub fn with_state<T: Into<String>>(prefix: T, state: S) -> Application<S> {
+        Application {
+            parts: Some(ApplicationParts {
                 state: state,
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
-                routes: Vec::new(),
                 resources: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
     }
-}
-
-struct ApplicationBuilderParts<S> {
-    state: S,
-    prefix: String,
-    default: Resource<S>,
-    routes: Vec<(String, Route<S>)>,
-    resources: HashMap<String, Resource<S>>,
-    middlewares: Vec<Box<Middleware>>,
-}
-
-/// Structure that follows the builder pattern for building `Application` structs.
-pub struct ApplicationBuilder<S=()> {
-    parts: Option<ApplicationBuilderParts<S>>,
-}
-
-impl<S> ApplicationBuilder<S> where S: 'static {
 
     /// Configure resource for specific path.
     ///
@@ -170,11 +162,11 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// store userid and friend in the exposed Params object:
     ///
     /// ```rust
-    /// extern crate actix_web;
+    /// # extern crate actix_web;
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::default("/")
+    ///     let app = Application::new("/")
     ///         .resource("/test", |r| {
     ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
     ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
@@ -219,39 +211,43 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// Construct application
-    pub fn finish(&mut self) -> Application<S> {
+    /// Finish application configuration and create HttpHandler object
+    pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
-
         let prefix = if parts.prefix.ends_with('/') {
             parts.prefix
         } else {
             parts.prefix + "/"
         };
-
-        let mut routes = Vec::new();
-        for (path, route) in parts.routes {
-            routes.push((prefix.clone() + path.trim_left_matches('/'), route));
-        }
-        Application {
+        HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.clone(),
             default: parts.default,
-            routes: routes,
             router: Router::new(prefix, parts.resources),
             middlewares: Rc::new(parts.middlewares),
         }
     }
 }
 
-impl<S: 'static> From<ApplicationBuilder<S>> for Application<S> {
-    fn from(mut builder: ApplicationBuilder<S>) -> Application<S> {
-        builder.finish()
+impl<S: 'static> IntoHttpHandler for Application<S> {
+    type Handler = HttpApplication<S>;
+
+    fn into_handler(mut self) -> HttpApplication<S> {
+        self.finish()
     }
 }
 
-impl<S: 'static> Iterator for ApplicationBuilder<S> {
-    type Item = Application<S>;
+impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
+    type Handler = HttpApplication<S>;
+
+    fn into_handler(self) -> HttpApplication<S> {
+        self.finish()
+    }
+}
+
+#[doc(hidden)]
+impl<S: 'static> Iterator for Application<S> {
+    type Item = HttpApplication<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.parts.is_some() {

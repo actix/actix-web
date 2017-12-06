@@ -194,11 +194,12 @@ impl FromRequest for FilesystemElement {
 /// Can be registered with `Application::route_handler()`.
 ///
 /// ```rust
-/// extern crate actix_web;
+/// # extern crate actix_web;
+/// use actix_web::{fs, Application};
 ///
 /// fn main() {
-///     let app = actix_web::Application::default("/")
-///         .resource("/static", |r| r.h(actix_web::fs::StaticFiles::new(".", true)))
+///     let app = Application::new("/")
+///         .resource("/static", |r| r.h(fs::StaticFiles::new(".", true)))
 ///         .finish();
 /// }
 /// ```

@@ -17,6 +17,23 @@ pub trait HttpHandler: 'static {
     fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest>;
 }
 
+/// Conversion helper trait
+pub trait IntoHttpHandler {
+    /// The associated type which is result of conversion.
+    type Handler: HttpHandler;
+
+    /// Convert into `HttpHandler` object.
+    fn into_handler(self) -> Self::Handler;
+}
+
+impl<T: HttpHandler> IntoHttpHandler for T {
+    type Handler = T;
+
+    fn into_handler(self) -> Self::Handler {
+        self
+    }
+}
+
 enum HttpProtocol<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {

@@ -60,13 +60,13 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
-        Application::build("/", AppState{counter: Cell::new(0)})
+        Application::with_state("/", AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route
             .resource(
-                "/ws/", |r| r.method(Method::GET)
-                    .f(|req| ws::start(req, MyWebSocket{counter: 0})))
+                "/ws/", |r|
+                r.method(Method::GET).f(|req| ws::start(req, MyWebSocket{counter: 0})))
             // register simple handler, handle all methods
             .resource("/", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();

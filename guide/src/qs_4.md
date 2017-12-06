@@ -46,8 +46,8 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 Let's create response for custom type that serializes to `application/json` response:
 
 ```rust
-extern crate actix;
-extern crate actix_web;
+# extern crate actix;
+# extern crate actix_web;
 extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
@@ -77,7 +77,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        Application::default("/")
+        Application::new("/")
             .resource("/", |r| r.method(
                 Method::GET).f(|req| {MyObj{name: "user".to_owned()}})))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
@@ -113,7 +113,7 @@ fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource("/async", |r| r.route().a(index))
         .finish();
 }
@@ -138,7 +138,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource("/async", |r| r.f(index))
         .finish();
 }

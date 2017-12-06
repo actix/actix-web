@@ -22,12 +22,12 @@ use middlewares::{Middleware, Started, Finished};
 ///  %a %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i" %T
 /// ```
 /// ```rust
-/// extern crate actix_web;
+/// # extern crate actix_web;
 /// use actix_web::Application;
 /// use actix_web::middlewares::Logger;
 ///
 /// fn main() {
-///     let app = Application::default("/")
+///     let app = Application::new("/")
 ///         .middleware(Logger::default())
 ///         .middleware(Logger::new("%a %{User-Agent}i"))
 ///         .finish();

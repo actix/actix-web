@@ -18,13 +18,13 @@ use httprequest::HttpRequest;
 /// route considired matched and route handler get called.
 ///
 /// ```rust
-/// extern crate actix_web;
+/// # extern crate actix_web;
 /// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::default("/")
+///     let app = Application::new("/")
 ///         .resource(
-///             "/", |r| r.route().method(Method::GET).f(|r| HttpResponse::Ok()))
+///             "/", |r| r.method(Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
 pub struct Resource<S=()> {
@@ -67,11 +67,11 @@ impl<S> Resource<S> where S: 'static {
     /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.
     ///
     /// ```rust
-    /// extern crate actix_web;
+    /// # extern crate actix_web;
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::default("/")
+    ///     let app = Application::new("/")
     ///         .resource(
     ///             "/", |r| r.route()
     ///                  .p(pred::Any(vec![pred::Get(), pred::Put()]))
@@ -87,7 +87,8 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register a new route and add method check to route.
     ///
-    /// This is sortcut for:
+    /// This is shortcut for:
+    ///
     /// ```rust,ignore
     /// Resource::resource("/", |r| r.route().method(Method::GET).f(index)
     /// ```
@@ -98,7 +99,8 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register a new route and add handler object.
     ///
-    /// This is sortcut for:
+    /// This is shortcut for:
+    ///
     /// ```rust,ignore
     /// Resource::resource("/", |r| r.route().h(handler)
     /// ```
@@ -109,7 +111,8 @@ impl<S> Resource<S> where S: 'static {
 
     /// Register a new route and add handler function.
     ///
-    /// This is sortcut for:
+    /// This is shortcut for:
+    ///
     /// ```rust,ignore
     /// Resource::resource("/", |r| r.route().f(index)
     /// ```

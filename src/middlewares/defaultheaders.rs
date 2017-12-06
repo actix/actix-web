@@ -11,11 +11,11 @@ use middlewares::{Response, Middleware};
 /// This middleware does not set header if response headers already contains it.
 ///
 /// ```rust
-/// extern crate actix_web;
+/// # extern crate actix_web;
 /// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::default("/")
+///     let app = Application::new("/")
 ///         .middleware(
 ///             middlewares::DefaultHeaders::build()
 ///                 .header("X-Version", "0.2")

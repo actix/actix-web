@@ -48,7 +48,7 @@ request handler with the application's `resource` on a particular *HTTP method* 
 #    "Hello world!"
 # }
 # fn main() {
-   let app = Application::default("/")
+   let app = Application::new("/")
        .resource("/", |r| r.method(Method::GET).f(index))
        .finish();
 # }
@@ -79,7 +79,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        Application::default("/")
+        Application::new("/")
             .resource("/", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 

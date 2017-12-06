@@ -227,7 +227,7 @@ pub enum HttpRangeError {
     InvalidRange,
     /// Returned if first-byte-pos of all of the byte-range-spec
     /// values is greater than the content size.
-    /// See https://github.com/golang/go/commit/aa9b3d7
+    /// See `https://github.com/golang/go/commit/aa9b3d7`
     #[fail(display="First-byte-pos of all of the byte-range-spec values is greater than the content size")]
     NoOverlap,
 }

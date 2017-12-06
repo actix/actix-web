@@ -1,4 +1,4 @@
-//! Web framework for [Actix](https://github.com/actix/actix)
+//! Actix web is a small, fast, down-to-earth, open source rust web framework.
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error

@@ -75,7 +75,7 @@ fn index(req: HttpRequest) -> Result<Json<MyObj>> {
 }
 
 fn main() {
-    Application::default("/")
+    Application::new("/")
         .resource(r"/a/{name}", |r| r.method(Method::GET).f(index))
         .finish();
 }

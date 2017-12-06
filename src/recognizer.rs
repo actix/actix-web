@@ -241,6 +241,11 @@ impl<T> RouteRecognizer<T> {
         self.patterns.get(name)
     }
 
+    /// Length of the prefix
+    pub fn prefix(&self) -> usize {
+        self.prefix
+    }
+
     pub fn set_prefix<P: Into<String>>(&mut self, prefix: P) {
         let p = prefix.into();
         if p.ends_with('/') {
