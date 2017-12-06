@@ -9,6 +9,7 @@
 //! ```
 
 // dev specific
+pub use info::ConnectionInfo;
 pub use handler::Handler;
 pub use pipeline::Pipeline;
 pub use channel::{HttpChannel, HttpHandler};

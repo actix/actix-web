@@ -82,7 +82,6 @@ pub use error::{Error, Result};
 pub use encoding::ContentEncoding;
 pub use body::{Body, Binary};
 pub use application::Application;
-pub use info::ConnectionInfo;
 pub use httprequest::{HttpRequest, UrlEncoded};
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
