@@ -37,7 +37,10 @@ impl<S> Router<S> {
         self.0.recognize(path).is_some()
     }
 
-    /// Build named resource path
+    /// Build named resource path.
+    ///
+    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.url_for)
+    /// for detailed information.
     pub fn resource_path<U, I>(&self, name: &str, elements: U)
                                -> Result<String, UrlGenerationError>
         where U: IntoIterator<Item=I>,
