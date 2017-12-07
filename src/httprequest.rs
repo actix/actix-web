@@ -544,14 +544,13 @@ mod tests {
         let mut map = HashMap::new();
         map.insert("/user/{name}.{ext}".to_owned(), resource);
         let router = Router::new("", map);
+        assert!(router.has_route("/user/test.html"));
+        assert!(!router.has_route("/test/unknown"));
 
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::RouterNotAvailable));
 
         let mut req = req.with_state(Rc::new(()), router);
-
-        assert_eq!(req.router().unwrap().has_route("index"));
-        assert_eq!(!req.router().unwrap().has_route("unknown"));
 
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::ResourceNotFound));
