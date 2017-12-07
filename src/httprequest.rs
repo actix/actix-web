@@ -550,6 +550,9 @@ mod tests {
 
         let mut req = req.with_state(Rc::new(()), router);
 
+        assert_eq!(req.router().unwrap().has_route("index"));
+        assert_eq!(!req.router().unwrap().has_route("unknown"));
+
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::ResourceNotFound));
         assert_eq!(req.url_for("index", &["test"]),
