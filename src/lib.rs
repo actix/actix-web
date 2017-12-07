@@ -73,7 +73,6 @@ mod h2writer;
 
 pub mod fs;
 pub mod ws;
-pub mod dev;
 pub mod error;
 pub mod httpcodes;
 pub mod multipart;
@@ -89,14 +88,12 @@ pub use payload::{Payload, PayloadItem};
 pub use handler::{Reply, Json, FromRequest};
 pub use route::Route;
 pub use resource::Resource;
-pub use recognizer::Params;
 pub use server::HttpServer;
 pub use context::HttpContext;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
 pub use cookie::Cookie;
-pub use http_range::HttpRange;
 
 #[doc(hidden)]
 #[cfg(feature="tls")]
@@ -105,3 +102,27 @@ pub use native_tls::Pkcs12;
 #[doc(hidden)]
 #[cfg(feature="openssl")]
 pub use openssl::pkcs12::Pkcs12;
+
+pub mod dev {
+//! The `actix-web` prelude for library developers
+//!
+//! The purpose of this module is to alleviate imports of many common actix traits
+//! by adding a glob import to the top of actix heavy modules:
+//!
+//! ```
+//! # #![allow(unused_imports)]
+//! use actix_web::dev::*;
+//! ```
+
+    // dev specific
+    pub use info::ConnectionInfo;
+    pub use handler::Handler;
+    pub use router::Router;
+    pub use pipeline::Pipeline;
+    pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
+    pub use recognizer::{FromParam, RouteRecognizer, Params, Pattern, PatternElement};
+
+    pub use cookie::CookieBuilder;
+    pub use http_range::HttpRange;
+    pub use httpresponse::HttpResponseBuilder;
+}

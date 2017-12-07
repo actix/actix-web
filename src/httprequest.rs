@@ -6,9 +6,10 @@ use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
 use url::{Url, form_urlencoded};
+pub use http_range::HttpRange;
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
-use {Cookie, HttpRange};
+use Cookie;
 use info::ConnectionInfo;
 use router::Router;
 use recognizer::Params;
