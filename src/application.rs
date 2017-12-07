@@ -1,58 +1,14 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use error::UriGenerationError;
 use handler::{Reply, RouteHandler};
+use router::Router;
 use resource::Resource;
-use recognizer::{RouteRecognizer, check_pattern, PatternElement};
+use recognizer::check_pattern;
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler};
 use pipeline::Pipeline;
 use middlewares::Middleware;
-
-pub struct Router<S>(Rc<RouteRecognizer<Resource<S>>>);
-
-impl<S: 'static> Router<S> {
-    pub fn new(prefix: String, map: HashMap<String, Resource<S>>) -> Router<S>
-    {
-        let mut resources = Vec::new();
-        for (path, resource) in map {
-            resources.push((path, resource.get_name(), resource))
-        }
-
-        Router(Rc::new(RouteRecognizer::new(prefix, resources)))
-    }
-
-    pub fn has_route(&self, path: &str) -> bool {
-        self.0.recognize(path).is_some()
-    }
-
-    pub fn resource_path<'a, U>(&self, prefix: &str, name: &str, elements: U)
-                                -> Result<String, UriGenerationError>
-        where U: IntoIterator<Item=&'a str>
-    {
-        if let Some(pattern) = self.0.get_pattern(name) {
-            let mut iter = elements.into_iter();
-            let mut vec = vec![prefix];
-            for el in pattern.elements() {
-                match *el {
-                    PatternElement::Str(ref s) => vec.push(s),
-                    PatternElement::Var(_) => {
-                        if let Some(val) = iter.next() {
-                            vec.push(val)
-                        } else {
-                            return Err(UriGenerationError::NotEnoughElements)
-                        }
-                    }
-                }
-            }
-            let s = vec.join("/").to_owned();
-            Ok(s)
-        } else {
-            Err(UriGenerationError::ResourceNotFound)
-        }
-    }
-}
 
 /// Application
 pub struct HttpApplication<S> {
@@ -66,12 +22,12 @@ pub struct HttpApplication<S> {
 impl<S: 'static> HttpApplication<S> {
 
     fn run(&self, req: HttpRequest) -> Reply {
-        let mut req = req.with_state(Rc::clone(&self.state));
+        let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
 
-        if let Some((params, h)) = self.router.0.recognize(req.path()) {
+        if let Some((params, h)) = self.router.query(req.path()) {
             if let Some(params) = params {
                 req.set_match_info(params);
-                req.set_prefix(self.router.0.prefix());
+                req.set_prefix(self.router.prefix().len());
             }
             h.handle(req)
         } else {
@@ -214,14 +170,10 @@ impl<S> Application<S> where S: 'static {
     /// Finish application configuration and create HttpHandler object
     pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
-        let prefix = if parts.prefix.ends_with('/') {
-            parts.prefix
-        } else {
-            parts.prefix + "/"
-        };
+        let prefix = parts.prefix.trim().trim_right_matches('/');
         HttpApplication {
             state: Rc::new(parts.state),
-            prefix: prefix.clone(),
+            prefix: prefix.to_owned(),
             default: parts.default,
             router: Router::new(prefix, parts.resources),
             middlewares: Rc::new(parts.middlewares),

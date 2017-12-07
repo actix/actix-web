@@ -5,15 +5,16 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
-use url::form_urlencoded;
+use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
 use {Cookie, HttpRange};
 use info::ConnectionInfo;
+use router::Router;
 use recognizer::Params;
 use payload::Payload;
 use multipart::Multipart;
-use error::{ParseError, PayloadError,
+use error::{ParseError, PayloadError, UrlGenerationError,
             MultipartError, CookieParseError, HttpRangeError, UrlencodedError};
 
 
@@ -30,6 +31,7 @@ struct HttpMessage {
     addr: Option<SocketAddr>,
     payload: Payload,
     info: Option<ConnectionInfo<'static>>,
+
 }
 
 impl Default for HttpMessage {
@@ -53,7 +55,7 @@ impl Default for HttpMessage {
 }
 
 /// An HTTP Request
-pub struct HttpRequest<S=()>(Rc<HttpMessage>, Rc<S>);
+pub struct HttpRequest<S=()>(Rc<HttpMessage>, Rc<S>, Option<Router<S>>);
 
 impl HttpRequest<()> {
     /// Construct a new Request.
@@ -76,13 +78,14 @@ impl HttpRequest<()> {
                 extensions: Extensions::new(),
                 info: None,
             }),
-            Rc::new(())
+            Rc::new(()),
+            None,
         )
     }
 
     /// Construct new http request with state.
-    pub fn with_state<S>(self, state: Rc<S>) -> HttpRequest<S> {
-        HttpRequest(self.0, state)
+    pub fn with_state<S>(self, state: Rc<S>, router: Router<S>) -> HttpRequest<S> {
+        HttpRequest(self.0, state, Some(router))
     }
 }
 
@@ -90,10 +93,11 @@ impl<S> HttpRequest<S> {
 
     /// Construct new http request without state.
     pub fn clone_without_state(&self) -> HttpRequest {
-        HttpRequest(Rc::clone(&self.0), Rc::new(()))
+        HttpRequest(Rc::clone(&self.0), Rc::new(()), None)
     }
 
     /// get mutable reference for inner message
+    #[inline]
     fn as_mut(&mut self) -> &mut HttpMessage {
         let r: &HttpMessage = self.0.as_ref();
         #[allow(mutable_transmutes)]
@@ -101,6 +105,7 @@ impl<S> HttpRequest<S> {
     }
 
     /// Shared application state
+    #[inline]
     pub fn state(&self) -> &S {
         &self.1
     }
@@ -111,6 +116,7 @@ impl<S> HttpRequest<S> {
         &mut self.as_mut().extensions
     }
 
+    #[inline]
     pub(crate) fn set_prefix(&mut self, idx: usize) {
         self.as_mut().prefix = idx;
     }
@@ -162,7 +168,6 @@ impl<S> HttpRequest<S> {
     }
 
     /// Load *ConnectionInfo* for currect request.
-    #[inline]
     pub fn load_connection_info(&mut self) -> &ConnectionInfo {
         if self.0.info.is_none() {
             let info: ConnectionInfo<'static> = unsafe{
@@ -172,17 +177,35 @@ impl<S> HttpRequest<S> {
         self.0.info.as_ref().unwrap()
     }
 
+    pub fn url_for<U, I>(&mut self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
+        where U: IntoIterator<Item=I>,
+              I: AsRef<str>,
+    {
+        if self.router().is_none() {
+            Err(UrlGenerationError::RouterNotAvailable)
+        } else {
+            let path = self.router().unwrap().resource_path(name, elements)?;
+            let conn = self.load_connection_info();
+            Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
+        }
+    }
+
+    #[inline]
+    pub fn router(&self) -> Option<&Router<S>> {
+        self.2.as_ref()
+    }
+
     #[inline]
     pub fn peer_addr(&self) -> Option<&SocketAddr> {
         self.0.addr.as_ref()
     }
 
+    #[inline]
     pub(crate) fn set_peer_addr(&mut self, addr: Option<SocketAddr>) {
         self.as_mut().addr = addr
     }
 
     /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
-    #[inline]
     pub fn query(&self) -> HashMap<String, String> {
         let mut q: HashMap<String, String> = HashMap::new();
         if let Some(query) = self.0.uri.query().as_ref() {
@@ -206,6 +229,7 @@ impl<S> HttpRequest<S> {
     }
 
     /// Return request cookies.
+    #[inline]
     pub fn cookies(&self) -> &Vec<Cookie<'static>> {
         &self.0.cookies
     }
@@ -245,6 +269,7 @@ impl<S> HttpRequest<S> {
     pub fn match_info(&self) -> &Params { &self.0.params }
 
     /// Set request Params.
+    #[inline]
     pub fn set_match_info(&mut self, params: Params) {
         self.as_mut().params = params;
     }
@@ -324,6 +349,7 @@ impl<S> HttpRequest<S> {
     }
 
     /// Return payload
+    #[inline]
     pub fn take_payload(&mut self) -> Payload {
         mem::replace(&mut self.as_mut().payload, Payload::empty())
     }
@@ -387,13 +413,13 @@ impl Default for HttpRequest<()> {
 
     /// Construct default request
     fn default() -> HttpRequest {
-        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()))
+        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()), None)
     }
 }
 
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
-        HttpRequest(Rc::clone(&self.0), Rc::clone(&self.1))
+        HttpRequest(Rc::clone(&self.0), Rc::clone(&self.1), None)
     }
 }
 
@@ -454,9 +480,10 @@ impl Future for UrlEncoded {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::Uri;
     use std::str::FromStr;
     use payload::Payload;
-    use http::Uri;
+    use resource::Resource;
 
     #[test]
     fn test_urlencoded_error() {
@@ -501,5 +528,33 @@ mod tests {
             Version::HTTP_11, headers, Payload::empty());
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::ContentType);
+    }
+
+    #[test]
+    fn test_url_for() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST,
+                       header::HeaderValue::from_static("www.rust-lang.org"));
+        let mut req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
+
+        let mut resource = Resource::default();
+        resource.name("index");
+        let mut map = HashMap::new();
+        map.insert("/user/{name}.{ext}".to_owned(), resource);
+        let router = Router::new("", map);
+
+        assert_eq!(req.url_for("unknown", &["test"]),
+                   Err(UrlGenerationError::RouterNotAvailable));
+
+        let mut req = req.with_state(Rc::new(()), router);
+
+        assert_eq!(req.url_for("unknown", &["test"]),
+                   Err(UrlGenerationError::ResourceNotFound));
+        assert_eq!(req.url_for("index", &["test"]),
+                   Err(UrlGenerationError::NotEnoughElements));
+        let url = req.url_for("index", &["test", "html"]);
+        assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/user/test.html");
     }
 }

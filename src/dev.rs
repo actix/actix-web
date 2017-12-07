@@ -11,6 +11,7 @@
 // dev specific
 pub use info::ConnectionInfo;
 pub use handler::Handler;
+pub use router::Router;
 pub use pipeline::Pipeline;
 pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 pub use recognizer::{FromParam, RouteRecognizer, Pattern, PatternElement};

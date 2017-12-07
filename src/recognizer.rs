@@ -204,16 +204,17 @@ FROM_STR!(std::net::SocketAddrV6);
 
 pub struct RouteRecognizer<T> {
     re: RegexSet,
-    prefix: usize,
+    prefix: String,
     routes: Vec<(Pattern, T)>,
     patterns: HashMap<String, Pattern>,
 }
 
 impl<T> RouteRecognizer<T> {
 
-    pub fn new<P: Into<String>, U, K>(prefix: P, routes: U) -> Self
+    pub fn new<P, U, K>(prefix: P, routes: U) -> Self
         where U: IntoIterator<Item=(K, Option<String>, T)>,
               K: Into<String>,
+              P: Into<String>,
     {
         let mut paths = Vec::new();
         let mut handlers = Vec::new();
@@ -231,7 +232,7 @@ impl<T> RouteRecognizer<T> {
 
         RouteRecognizer {
             re: regset.unwrap(),
-            prefix: prefix.into().len() - 1,
+            prefix: prefix.into(),
             routes: handlers,
             patterns: patterns,
         }
@@ -242,29 +243,20 @@ impl<T> RouteRecognizer<T> {
     }
 
     /// Length of the prefix
-    pub fn prefix(&self) -> usize {
-        self.prefix
-    }
-
-    pub fn set_prefix<P: Into<String>>(&mut self, prefix: P) {
-        let p = prefix.into();
-        if p.ends_with('/') {
-            self.prefix = p.len() - 1;
-        } else {
-            self.prefix = p.len();
-        }
+    pub fn prefix(&self) -> &str {
+        &self.prefix
     }
 
     pub fn recognize(&self, path: &str) -> Option<(Option<Params>, &T)> {
-        let p = &path[self.prefix..];
+        let p = &path[self.prefix.len()..];
         if p.is_empty() {
             if let Some(idx) = self.re.matches("/").into_iter().next() {
                 let (ref pattern, ref route) = self.routes[idx];
-                return Some((pattern.match_info(&path[self.prefix..]), route))
+                return Some((pattern.match_info(&path[self.prefix.len()..]), route))
             }
         } else if let Some(idx) = self.re.matches(p).into_iter().next() {
             let (ref pattern, ref route) = self.routes[idx];
-            return Some((pattern.match_info(&path[self.prefix..]), route))
+            return Some((pattern.match_info(&path[self.prefix.len()..]), route))
         }
         None
     }
@@ -400,7 +392,7 @@ mod tests {
             ("/v{val}/{val2}/index.html", None, 4),
             ("/v/{tail:.*}", None, 5),
         ];
-        let rec = RouteRecognizer::new("/", routes);
+        let rec = RouteRecognizer::new("", routes);
 
         let (params, val) = rec.recognize("/name").unwrap();
         assert_eq!(*val, 1);

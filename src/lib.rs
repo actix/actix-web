@@ -57,6 +57,7 @@ mod httpresponse;
 mod payload;
 mod info;
 mod route;
+mod router;
 mod resource;
 mod recognizer;
 mod handler;

@@ -44,7 +44,7 @@ impl<S> Default for Resource<S> {
     }
 }
 
-impl<S> Resource<S> where S: 'static {
+impl<S> Resource<S> {
 
     pub(crate) fn default_not_found() -> Self {
         Resource {
@@ -62,6 +62,9 @@ impl<S> Resource<S> where S: 'static {
     pub(crate) fn get_name(&self) -> Option<String> {
         if self.name.is_empty() { None } else { Some(self.name.clone()) }
     }
+}
+
+impl<S: 'static> Resource<S> {
 
     /// Register a new route and return mutable reference to *Route* object.
     /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.

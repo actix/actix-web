@@ -92,7 +92,7 @@ fn test_request_match_info() {
     let mut req = HttpRequest::new(Method::GET, Uri::from_str("/value/?id=test").unwrap(),
                                    Version::HTTP_11, HeaderMap::new(), Payload::empty());
 
-    let rec = RouteRecognizer::new("/".to_owned(), vec![("/{key}/".to_owned(), None, 1)]);
+    let rec = RouteRecognizer::new("", vec![("/{key}/".to_owned(), None, 1)]);
     let (params, _) = rec.recognize(req.path()).unwrap();
     let params = params.unwrap();
 

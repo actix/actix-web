@@ -15,6 +15,7 @@ use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
+use url::ParseError as UrlParseError;
 
 // re-exports
 pub use cookie::{ParseError as CookieParseError};
@@ -405,11 +406,24 @@ impl ResponseError for UriSegmentError {
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Fail, Debug, PartialEq)]
-pub enum UriGenerationError {
+pub enum UrlGenerationError {
     #[fail(display="Resource not found")]
     ResourceNotFound,
     #[fail(display="Not all path pattern covered")]
     NotEnoughElements,
+    #[fail(display="Router is not available")]
+    RouterNotAvailable,
+    #[fail(display="{}", _0)]
+    ParseError(#[cause] UrlParseError),
+}
+
+/// `InternalServerError` for `UrlGeneratorError`
+impl ResponseError for UrlGenerationError {}
+
+impl From<UrlParseError> for UrlGenerationError {
+    fn from(err: UrlParseError) -> Self {
+        UrlGenerationError::ParseError(err)
+    }
 }
 
 #[cfg(test)]
