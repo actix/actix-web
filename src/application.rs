@@ -258,4 +258,21 @@ mod tests {
         let resp = app.run(req).msg().unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
+
+    #[test]
+    fn test_unhandled_prefix() {
+        let app = Application::new("/test")
+            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        assert!(app.handle(HttpRequest::default()).is_err());
+    }
+
+    #[test]
+    fn test_state() {
+        let app = Application::with_state("/", 10)
+            .resource("/", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        assert_eq!(
+            app.run(HttpRequest::default()).msg().unwrap().status(), StatusCode::OK);
+    }
 }
