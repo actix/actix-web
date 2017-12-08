@@ -8,6 +8,7 @@ use regex::{Regex, RegexSet};
 use error::UrlGenerationError;
 use resource::Resource;
 use httprequest::HttpRequest;
+use server::ServerSettings;
 
 
 /// Interface for application router.
@@ -19,6 +20,7 @@ struct Inner<S> {
     named: HashMap<String, (Pattern, bool)>,
     patterns: Vec<Pattern>,
     resources: Vec<Resource<S>>,
+    srv: ServerSettings,
 }
 
 impl<S> Router<S> {
@@ -49,13 +51,24 @@ impl<S> Router<S> {
                    regset: RegexSet::new(&paths).unwrap(),
                    named: named,
                    patterns: patterns,
-                   resources: resources }))
+                   resources: resources,
+                   srv: ServerSettings::default() }))
+    }
+
+    pub(crate) fn set_server_settings(&mut self, settings: ServerSettings) {
+        Rc::get_mut(&mut self.0).unwrap().srv = settings;
     }
 
     /// Router prefix
     #[inline]
     pub fn prefix(&self) -> &str {
         &self.0.prefix
+    }
+
+    /// Server settings
+    #[inline]
+    pub fn server_settings(&self) -> &ServerSettings {
+        &self.0.srv
     }
 
     /// Query for matched resource

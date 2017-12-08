@@ -8,6 +8,7 @@ use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler};
 use pipeline::Pipeline;
 use middlewares::Middleware;
+use server::ServerSettings;
 
 /// Application
 pub struct HttpApplication<S> {
@@ -40,6 +41,10 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
         } else {
             Err(req)
         }
+    }
+
+    fn server_settings(&mut self, settings: ServerSettings) {
+        self.router.set_server_settings(settings);
     }
 }
 

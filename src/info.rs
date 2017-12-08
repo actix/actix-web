@@ -64,6 +64,13 @@ impl<'a> ConnectionInfo<'a> {
             }
             if scheme.is_none() {
                 scheme = req.uri().scheme_part().map(|a| a.as_str());
+                if scheme.is_none() {
+                    if let Some(ref router) = req.router() {
+                        if router.server_settings().secure() {
+                            scheme = Some("https")
+                        }
+                    }
+                }
             }
         }
 
@@ -79,7 +86,12 @@ impl<'a> ConnectionInfo<'a> {
                     host = h.to_str().ok();
                 }
                 if host.is_none() {
-                    host = req.uri().authority_part().map(|a| a.as_str())
+                    host = req.uri().authority_part().map(|a| a.as_str());
+                    if host.is_none() {
+                        if let Some(ref router) = req.router() {
+                            host = Some(router.server_settings().host());
+                        }
+                    }
                 }
             }
         }

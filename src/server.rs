@@ -5,8 +5,6 @@ use std::marker::PhantomData;
 
 use actix::dev::*;
 use futures::Stream;
-use http::HttpTryFrom;
-use http::header::HeaderValue;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::{TcpListener, TcpStream};
 
@@ -33,16 +31,26 @@ use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 pub struct ServerSettings {
     addr: Option<SocketAddr>,
     secure: bool,
-    host: Option<HeaderValue>,
+    host: String,
+}
+
+impl Default for ServerSettings {
+    fn default() -> Self {
+        ServerSettings {
+            addr: None,
+            secure: false,
+            host: "localhost:8080".to_owned(),
+        }
+    }
 }
 
 impl ServerSettings {
     /// Crate server settings instance
     fn new(addr: Option<SocketAddr>, secure: bool) -> Self {
         let host = if let Some(ref addr) = addr {
-            HeaderValue::try_from(format!("{}", addr).as_str()).ok()
+            format!("{}", addr)
         } else {
-            None
+            "unknown".to_owned()
         };
         ServerSettings {
             addr: addr,
@@ -62,8 +70,8 @@ impl ServerSettings {
     }
 
     /// Returns host header value
-    pub fn host(&self) -> Option<&HeaderValue> {
-        self.host.as_ref()
+    pub fn host(&self) -> &str {
+        &self.host
     }
 }
 
