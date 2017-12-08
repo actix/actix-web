@@ -80,7 +80,8 @@ fn main() {
                 }
             }))
             // static files
-            .resource("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true)))
+            .resource("/static/{tail:.*}",
+                      |r| r.h(fs::StaticFiles::new("tail", "examples/static/", true)))
             // redirect
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);

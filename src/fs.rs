@@ -191,7 +191,8 @@ impl FromRequest for FilesystemElement {
 
 /// Static files handling
 ///
-/// Can be registered with `Application::route_handler()`.
+/// Can be registered with `Application::resource()`. Resource path has to contain
+/// tail named pattern and this name has to be used in `StaticFile` constructor.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -199,11 +200,12 @@ impl FromRequest for FilesystemElement {
 ///
 /// fn main() {
 ///     let app = Application::new("/")
-///         .resource("/static", |r| r.h(fs::StaticFiles::new(".", true)))
+///         .resource("/static/{tail:.*}", |r| r.h(fs::StaticFiles::new("tail", ".", true)))
 ///         .finish();
 /// }
 /// ```
 pub struct StaticFiles {
+    name: String,
     directory: PathBuf,
     accessible: bool,
     show_index: bool,
@@ -217,7 +219,7 @@ impl StaticFiles {
     /// `dir` - base directory
     ///
     /// `index` - show index for directory
-    pub fn new<D: Into<PathBuf>>(dir: D, index: bool) -> StaticFiles {
+    pub fn new<D: Into<PathBuf>>(name: &str, dir: D, index: bool) -> StaticFiles {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -236,6 +238,7 @@ impl StaticFiles {
         };
 
         StaticFiles {
+            name: name.to_owned(),
             directory: dir,
             accessible: access,
             show_index: index,
@@ -253,7 +256,13 @@ impl<S> Handler<S> for StaticFiles {
         if !self.accessible {
             Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
         } else {
-            let relpath = PathBuf::from_param(&req.path()[req.prefix_len()..])
+            let path = if let Some(path) = req.match_info().get(&self.name) {
+                path
+            } else {
+                return Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
+            };
+
+            let relpath = PathBuf::from_param(path)
                 .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "not found"))?;
 
             // full filepath
@@ -291,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_static_files() {
-        let mut st = StaticFiles::new(".", true);
+        let mut st = StaticFiles::new("tail", ".", true);
         st.accessible = false;
         assert!(st.handle(HttpRequest::default()).is_err());
 
@@ -299,8 +308,11 @@ mod tests {
         st.show_index = false;
         assert!(st.handle(HttpRequest::default()).is_err());
 
+        let mut req = HttpRequest::default();
+        req.match_info_mut().add("tail", "");
+
         st.show_index = true;
-        let resp = st.handle(HttpRequest::default()).from_request(HttpRequest::default()).unwrap();
+        let resp = st.handle(req).from_request(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
         assert!(resp.body().is_binary());
         assert!(format!("{:?}", resp.body()).contains("README.md"));
