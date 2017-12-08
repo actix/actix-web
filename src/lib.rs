@@ -81,10 +81,9 @@ pub mod multipart;
 pub mod middlewares;
 pub mod pred;
 pub use error::{Error, Result};
-pub use encoding::ContentEncoding;
 pub use body::{Body, Binary};
 pub use application::Application;
-pub use httprequest::{HttpRequest, UrlEncoded};
+pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
 pub use handler::{Reply, Json, FromRequest};
@@ -95,7 +94,6 @@ pub use context::HttpContext;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
-pub use cookie::Cookie;
 
 #[doc(hidden)]
 #[cfg(feature="tls")]
@@ -104,6 +102,16 @@ pub use native_tls::Pkcs12;
 #[doc(hidden)]
 #[cfg(feature="openssl")]
 pub use openssl::pkcs12::Pkcs12;
+
+pub mod headers {
+//! Headers implementation
+
+    pub use encoding::ContentEncoding;
+
+    pub use cookie::Cookie;
+    pub use cookie::CookieBuilder;
+    pub use http_range::HttpRange;
+}
 
 pub mod dev {
 //! The `actix-web` prelude for library developers
@@ -116,16 +124,13 @@ pub mod dev {
 //! use actix_web::dev::*;
 //! ```
 
-    // dev specific
     pub use info::ConnectionInfo;
     pub use handler::Handler;
     pub use router::{Router, Pattern};
     pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
-    // pub use recognizer::RouteRecognizer;
     pub use param::{FromParam, Params};
 
-    pub use cookie::CookieBuilder;
-    pub use http_range::HttpRange;
+    pub use httprequest::UrlEncoded;
     pub use httpresponse::HttpResponseBuilder;
 }

@@ -8,7 +8,8 @@ use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
-use Cookie;
+use cookie::Cookie;
+
 use body::Body;
 use error::Error;
 use handler::FromRequest;

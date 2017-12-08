@@ -12,6 +12,7 @@ if this methods get call for the same builder instance, builder will panic.
 ```rust
 # extern crate actix_web;
 use actix_web::*;
+use actix_web::headers::ContentEncoding;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
@@ -45,6 +46,7 @@ to enable `brotli` response's body compression use `ContentEncoding::Br`:
 ```rust
 # extern crate actix_web;
 use actix_web::*;
+use actix_web::headers::ContentEncoding;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()

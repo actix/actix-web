@@ -20,7 +20,7 @@ fn test_response_cookies() {
 
     let resp = httpcodes::HTTPOk
         .build()
-        .cookie(Cookie::build("name", "value")
+        .cookie(headers::Cookie::build("name", "value")
                 .domain("www.rust-lang.org")
                 .path("/test")
                 .http_only(true)
