@@ -108,7 +108,7 @@ impl Writer for H2Writer {
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare response with status: {:?}", msg.status);
+        trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare response
         self.started = true;
@@ -116,25 +116,25 @@ impl Writer for H2Writer {
         self.eof = if let Body::Empty = *msg.body() { true } else { false };
 
         // http2 specific
-        msg.headers.remove(CONNECTION);
-        msg.headers.remove(TRANSFER_ENCODING);
+        msg.headers_mut().remove(CONNECTION);
+        msg.headers_mut().remove(TRANSFER_ENCODING);
 
         // using http::h1::date is quite a lot faster than generating
         // a unique Date header each time like req/s goes up about 10%
-        if !msg.headers.contains_key(DATE) {
+        if !msg.headers().contains_key(DATE) {
             let mut bytes = [0u8; 29];
             date::extend(&mut bytes[..]);
-            msg.headers.insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
+            msg.headers_mut().insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
         }
 
         // default content-type
-        if !msg.headers.contains_key(CONTENT_TYPE) {
-            msg.headers.insert(
+        if !msg.headers().contains_key(CONTENT_TYPE) {
+            msg.headers_mut().insert(
                 CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
         }
 
         let mut resp = Response::new(());
-        *resp.status_mut() = msg.status;
+        *resp.status_mut() = msg.status();
         *resp.version_mut() = Version::HTTP_2;
         for (key, value) in msg.headers().iter() {
             resp.headers_mut().insert(key, value.clone());

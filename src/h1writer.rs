@@ -116,7 +116,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare response with status: {:?}", msg.status);
+        trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare task
         self.started = true;
@@ -126,32 +126,32 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         // Connection upgrade
         let version = msg.version().unwrap_or_else(|| req.version());
         if msg.upgrade() {
-            msg.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
+            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
         else if self.keepalive {
             if version < Version::HTTP_11 {
-                msg.headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+                msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if version >= Version::HTTP_11 {
-            msg.headers.insert(CONNECTION, HeaderValue::from_static("close"));
+            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
         }
 
         // render message
         {
             let buffer = self.encoder.get_mut();
             if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(100 + msg.headers.len() * AVERAGE_HEADER_SIZE + bytes.len());
+                buffer.reserve(100 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                buffer.reserve(100 + msg.headers.len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(100 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
-            if version == Version::HTTP_11 && msg.status == StatusCode::OK {
+            if version == Version::HTTP_11 && msg.status() == StatusCode::OK {
                 buffer.extend(b"HTTP/1.1 200 OK\r\n");
             } else {
-                let _ = write!(buffer, "{:?} {}\r\n", version, msg.status);
+                let _ = write!(buffer, "{:?} {}\r\n", version, msg.status());
             }
-            for (key, value) in &msg.headers {
+            for (key, value) in msg.headers() {
                 let t: &[u8] = key.as_ref();
                 buffer.extend(t);
                 buffer.extend(b": ");
@@ -161,7 +161,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             // using http::h1::date is quite a lot faster than generating
             // a unique Date header each time like req/s goes up about 10%
-            if !msg.headers.contains_key(DATE) {
+            if !msg.headers().contains_key(DATE) {
                 buffer.reserve(date::DATE_VALUE_LENGTH + 8);
                 buffer.extend(b"Date: ");
                 let mut bytes = [0u8; 29];
@@ -171,7 +171,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             }
 
             // default content-type
-            if !msg.headers.contains_key(CONTENT_TYPE) {
+            if !msg.headers().contains_key(CONTENT_TYPE) {
                 buffer.extend(b"ContentType: application/octet-stream\r\n".as_ref());
             }
 

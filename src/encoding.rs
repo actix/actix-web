@@ -346,7 +346,7 @@ impl PayloadEncoder {
         };
 
         // Enable content encoding only if response does not contain Content-Encoding header
-        let mut encoding = if has_body && !resp.headers.contains_key(CONTENT_ENCODING) {
+        let mut encoding = if has_body && !resp.headers().contains_key(CONTENT_ENCODING) {
             let encoding = match *resp.content_encoding() {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
@@ -362,7 +362,8 @@ impl PayloadEncoder {
                 }
                 encoding => encoding,
             };
-            resp.headers.insert(CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+            resp.headers_mut().insert(
+                CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
             encoding
         } else {
             ContentEncoding::Identity
@@ -377,8 +378,8 @@ impl PayloadEncoder {
                 if resp.chunked() {
                     error!("Chunked transfer is enabled but body is set to Empty");
                 }
-                resp.headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-                resp.headers.remove(TRANSFER_ENCODING);
+                resp.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                resp.headers_mut().remove(TRANSFER_ENCODING);
                 TransferEncoding::length(0)
             },
             Body::Binary(ref mut bytes) => {
@@ -399,31 +400,31 @@ impl PayloadEncoder {
                     let _ = enc.write_eof();
                     let b = enc.get_mut().take();
 
-                    resp.headers.insert(
+                    resp.headers_mut().insert(
                         CONTENT_LENGTH,
                         HeaderValue::from_str(format!("{}", b.len()).as_str()).unwrap());
                     *bytes = Binary::from(b);
                     encoding = ContentEncoding::Identity;
                     TransferEncoding::eof()
                 } else {
-                    resp.headers.insert(
+                    resp.headers_mut().insert(
                         CONTENT_LENGTH,
                         HeaderValue::from_str(format!("{}", bytes.len()).as_str()).unwrap());
-                    resp.headers.remove(TRANSFER_ENCODING);
+                    resp.headers_mut().remove(TRANSFER_ENCODING);
                     TransferEncoding::length(bytes.len() as u64)
                 }
             }
             Body::Streaming(_) | Body::StreamingContext => {
                 if resp.chunked() {
-                    resp.headers.remove(CONTENT_LENGTH);
+                    resp.headers_mut().remove(CONTENT_LENGTH);
                     if version != Version::HTTP_11 {
                         error!("Chunked transfer encoding is forbidden for {:?}", version);
                     }
                     if version == Version::HTTP_2 {
-                        resp.headers.remove(TRANSFER_ENCODING);
+                        resp.headers_mut().remove(TRANSFER_ENCODING);
                         TransferEncoding::eof()
                     } else {
-                        resp.headers.insert(
+                        resp.headers_mut().insert(
                             TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
                         TransferEncoding::chunked()
                     }
@@ -447,11 +448,12 @@ impl PayloadEncoder {
                 if version == Version::HTTP_2 {
                     error!("Connection upgrade is forbidden for HTTP/2");
                 } else {
-                    resp.headers.insert(CONNECTION, HeaderValue::from_static("upgrade"));
+                    resp.headers_mut().insert(
+                        CONNECTION, HeaderValue::from_static("upgrade"));
                 }
                 if encoding != ContentEncoding::Identity {
                     encoding = ContentEncoding::Identity;
-                    resp.headers.remove(CONTENT_ENCODING);
+                    resp.headers_mut().remove(CONTENT_ENCODING);
                 }
                 TransferEncoding::eof()
             }

@@ -29,9 +29,9 @@ pub enum ConnectionType {
 
 /// An HTTP Response
 pub struct HttpResponse {
-    pub version: Option<Version>,
-    pub headers: HeaderMap,
-    pub status: StatusCode,
+    version: Option<Version>,
+    headers: HeaderMap,
+    status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
     chunked: bool,

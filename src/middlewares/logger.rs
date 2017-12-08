@@ -102,7 +102,6 @@ impl Logger {
 impl Middleware for Logger {
 
     fn start(&self, req: &mut HttpRequest) -> Started {
-        req.load_connection_info();
         req.extensions().insert(StartTime(time::now()));
         Started::Done
     }
@@ -237,12 +236,11 @@ impl FormatText {
                 fmt.write_fmt(format_args!("{:.6}", response_time_ms))
             },
             FormatText::RemoteAddr => {
-                if let Some(addr) = req.connection_info() {
-                    if let Some(remote) = addr.remote() {
-                        return remote.fmt(fmt);
-                    }
+                if let Some(remote) = req.connection_info().remote() {
+                    return remote.fmt(fmt);
+                } else {
+                    "-".fmt(fmt)
                 }
-                "-".fmt(fmt)
             }
             FormatText::RequestTime => {
                 entry_time.strftime("[%d/%b/%Y:%H:%M:%S %z]")

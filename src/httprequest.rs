@@ -97,11 +97,13 @@ impl<S> HttpRequest<S> {
         HttpRequest(Rc::clone(&self.0), Rc::new(()), None)
     }
 
-    /// get mutable reference for inner message
+    // get mutable reference for inner message
+    // mutable reference should not be returned as result for request's method
     #[inline]
-    fn as_mut(&mut self) -> &mut HttpMessage {
+    #[allow(mutable_transmutes)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    fn as_mut(&self) -> &mut HttpMessage {
         let r: &HttpMessage = self.0.as_ref();
-        #[allow(mutable_transmutes)]
         unsafe{mem::transmute(r)}
     }
 
@@ -158,18 +160,8 @@ impl<S> HttpRequest<S> {
         self.0.uri.path()
     }
 
-    /// Get previously loaded *ConnectionInfo*.
-    #[inline]
-    pub fn connection_info(&self) -> Option<&ConnectionInfo> {
-        if self.0.info.is_none() {
-            None
-        } else {
-            self.0.info.as_ref()
-        }
-    }
-
-    /// Load *ConnectionInfo* for currect request.
-    pub fn load_connection_info(&mut self) -> &ConnectionInfo {
+    /// Get *ConnectionInfo* for currect request.
+    pub fn connection_info(&self) -> &ConnectionInfo {
         if self.0.info.is_none() {
             let info: ConnectionInfo<'static> = unsafe{
                 mem::transmute(ConnectionInfo::new(self))};
@@ -178,7 +170,7 @@ impl<S> HttpRequest<S> {
         self.0.info.as_ref().unwrap()
     }
 
-    pub fn url_for<U, I>(&mut self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
+    pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
         where U: IntoIterator<Item=I>,
               I: AsRef<str>,
     {
@@ -187,7 +179,7 @@ impl<S> HttpRequest<S> {
         } else {
             let path = self.router().unwrap().resource_path(name, elements)?;
             if path.starts_with('/') {
-                let conn = self.load_connection_info();
+                let conn = self.connection_info();
                 Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
             } else {
                 Ok(Url::parse(&path)?)
