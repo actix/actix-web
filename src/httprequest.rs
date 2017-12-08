@@ -23,12 +23,10 @@ struct HttpMessage {
     version: Version,
     method: Method,
     uri: Uri,
-    prefix: usize,
     headers: HeaderMap,
     extensions: Extensions,
     params: Params<'static>,
-    cookies: Vec<Cookie<'static>>,
-    cookies_loaded: bool,
+    cookies: Option<Vec<Cookie<'static>>>,
     addr: Option<SocketAddr>,
     payload: Payload,
     info: Option<ConnectionInfo<'static>>,
@@ -41,12 +39,10 @@ impl Default for HttpMessage {
         HttpMessage {
             method: Method::GET,
             uri: Uri::default(),
-            prefix: 0,
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
             params: Params::default(),
-            cookies: Vec::new(),
-            cookies_loaded: false,
+            cookies: None,
             addr: None,
             payload: Payload::empty(),
             extensions: Extensions::new(),
@@ -68,12 +64,10 @@ impl HttpRequest<()> {
             Rc::new(HttpMessage {
                 method: method,
                 uri: uri,
-                prefix: 0,
                 version: version,
                 headers: headers,
                 params: Params::default(),
-                cookies: Vec::new(),
-                cookies_loaded: false,
+                cookies: None,
                 addr: None,
                 payload: payload,
                 extensions: Extensions::new(),
@@ -119,14 +113,13 @@ impl<S> HttpRequest<S> {
         &mut self.as_mut().extensions
     }
 
-    #[inline]
-    pub(crate) fn set_prefix(&mut self, idx: usize) {
-        self.as_mut().prefix = idx;
-    }
-
     #[doc(hidden)]
     pub fn prefix_len(&self) -> usize {
-        self.0.prefix
+        if let Some(router) = self.router() {
+            router.prefix().len()
+        } else {
+            0
+        }
     }
 
     /// Read the Request Uri.
@@ -225,37 +218,34 @@ impl<S> HttpRequest<S> {
         }
     }
 
-    /// Return request cookies.
+    /// Load request cookies.
     #[inline]
-    pub fn cookies(&self) -> &Vec<Cookie<'static>> {
-        &self.0.cookies
-    }
-
-    /// Return request cookie.
-    pub fn cookie(&self, name: &str) -> Option<&Cookie> {
-        for cookie in &self.0.cookies {
-            if cookie.name() == name {
-                return Some(cookie)
-            }
-        }
-        None
-    }
-
-    /// Load cookies
-    pub fn load_cookies(&mut self) -> Result<&Vec<Cookie<'static>>, CookieParseError>
-    {
-        if !self.0.cookies_loaded {
+    pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
+        if self.0.cookies.is_none() {
             let msg = self.as_mut();
-            msg.cookies_loaded = true;
+            let mut cookies = Vec::new();
             if let Some(val) = msg.headers.get(header::COOKIE) {
                 let s = str::from_utf8(val.as_bytes())
                     .map_err(CookieParseError::from)?;
                 for cookie in s.split("; ") {
-                    msg.cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
+                    cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
+                }
+            }
+            msg.cookies = Some(cookies)
+        }
+        Ok(self.0.cookies.as_ref().unwrap())
+    }
+
+    /// Return request cookie.
+    pub fn cookie(&self, name: &str) -> Option<&Cookie> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies {
+                if cookie.name() == name {
+                    return Some(cookie)
                 }
             }
         }
-        Ok(&self.0.cookies)
+        None
     }
 
     /// Get a reference to the Params object.
@@ -535,7 +525,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::HOST,
                        header::HeaderValue::from_static("www.rust-lang.org"));
-        let mut req = HttpRequest::new(
+        let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(),
             Version::HTTP_11, headers, Payload::empty());
 
@@ -550,7 +540,7 @@ mod tests {
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::RouterNotAvailable));
 
-        let mut req = req.with_state(Rc::new(()), router);
+        let req = req.with_state(Rc::new(()), router);
 
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::ResourceNotFound));
@@ -573,7 +563,7 @@ mod tests {
         let router = Router::new("", map);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
-        let mut req = req.with_state(Rc::new(()), router);
+        let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
         assert_eq!(url.ok().unwrap().as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
     }

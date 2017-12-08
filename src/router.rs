@@ -54,7 +54,7 @@ impl<S> Router<S> {
 
     /// Router prefix
     #[inline]
-    pub(crate) fn prefix(&self) -> &str {
+    pub fn prefix(&self) -> &str {
         &self.0.prefix
     }
 
@@ -74,7 +74,6 @@ impl<S> Router<S> {
 
         if let Some(idx) = idx {
             let path: &str = unsafe{ mem::transmute(&req.path()[self.0.prefix.len()..]) };
-            req.set_prefix(self.prefix().len());
             self.0.patterns[idx].update_match_info(path, req);
             return Some(&self.0.resources[idx])
         } else {

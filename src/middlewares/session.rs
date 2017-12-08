@@ -259,7 +259,7 @@ impl CookieSessionInner {
     }
 
     fn load(&self, req: &mut HttpRequest) -> HashMap<String, String> {
-        if let Ok(cookies) = req.load_cookies() {
+        if let Ok(cookies) = req.cookies() {
             for cookie in cookies {
                 if cookie.name() == self.name {
                     let mut jar = CookieJar::new();

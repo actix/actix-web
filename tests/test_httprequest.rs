@@ -20,12 +20,10 @@ fn test_debug() {
 
 #[test]
 fn test_no_request_cookies() {
-    let mut req = HttpRequest::new(
+    let req = HttpRequest::new(
         Method::GET, Uri::from_str("/").unwrap(),
         Version::HTTP_11, HeaderMap::new(), Payload::empty());
-    assert!(req.cookies().is_empty());
-    let _ = req.load_cookies();
-    assert!(req.cookies().is_empty());
+    assert!(req.cookies().unwrap().is_empty());
 }
 
 #[test]
@@ -34,12 +32,11 @@ fn test_request_cookies() {
     headers.insert(header::COOKIE,
                    header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
-    let mut req = HttpRequest::new(
+    let req = HttpRequest::new(
         Method::GET, Uri::from_str("/").unwrap(),
         Version::HTTP_11, headers, Payload::empty());
-    assert!(req.cookies().is_empty());
     {
-        let cookies = req.load_cookies().unwrap();
+        let cookies = req.cookies().unwrap();
         assert_eq!(cookies.len(), 2);
         assert_eq!(cookies[0].name(), "cookie1");
         assert_eq!(cookies[0].value(), "value1");
