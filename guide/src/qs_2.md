@@ -84,9 +84,7 @@ fn main() {
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");
-    // do not copy this line
-    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
-
+#     actix::Arbiter::system().send(actix::msgs::SystemExit(0));
     let _ = sys.run();
 }
 ```

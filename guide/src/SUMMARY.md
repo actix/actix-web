@@ -4,6 +4,7 @@
 - [Getting Started](./qs_2.md)
 - [Application](./qs_3.md)
 - [Handler](./qs_4.md)
+- [Errors](./qs_4_5.md)
 - [State](./qs_6.md)
 - [Resources and Routes](./qs_5.md)
 - [Request & Response](./qs_7.md)

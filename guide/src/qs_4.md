@@ -1,21 +1,19 @@
 # Handler
 
 A request handler can by any object that implements
-[`Handler` trait](../actix_web/struct.HttpResponse.html#implementations).
+[`Handler` trait](../actix_web/dev/trait.Handler.html#implementors).
+Request handling happen in two stages. First handler object get called. 
+Handle can return any object that implements 
+[`FromRequest` trait](../actix_web/trait.FromRequest.html#foreign-impls).
+Then `from_request()` get called on returned object. And finally
+result of the `from_request()` call get converted to `Reply` object.
 
-By default actix provdes several `Handler` implementations:
-
-* Simple function that accepts `HttpRequest` and returns any object that 
-  implements `FromRequest` trait
-* Function that accepts `HttpRequest` and returns `Result<Reply, Into<Error>>` object.
-* Function that accepts `HttpRequest` and return actor that has `HttpContext<A>`as a context. 
-
-Actix provides response `FromRequest` implementation for some standard types, 
+By default actix provides several `FromRequest` implementations for some standard types, 
 like `&'static str`, `String`, etc.
 For complete list of implementations check 
 [FromRequest documentation](../actix_web/trait.FromRequest.html#foreign-impls).
 
-Examples:
+Examples of valid handlers:
 
 ```rust,ignore
 fn index(req: HttpRequest) -> &'static str {
@@ -41,9 +39,11 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 }
 ```
 
-## Custom conversion
+## Response with custom type
 
-Let's create response for custom type that serializes to `application/json` response:
+To return custom type directly from handler function `FromResponse` trait should be 
+implemented for this type. Let's create response for custom type that 
+serializes to `application/json` response:
 
 ```rust
 # extern crate actix;
@@ -55,7 +55,7 @@ use actix_web::*;
 
 #[derive(Serialize)]
 struct MyObj {
-    name: String,
+    name: &'static str,
 }
 
 /// we have to convert Error into HttpResponse as well
@@ -73,18 +73,20 @@ impl FromRequest for MyObj {
     }
 }
 
+fn index(req: HttpRequest) -> MyObj {
+    MyObj{name: "user"}
+}
+
 fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
         Application::new("/")
-            .resource("/", |r| r.method(
-                Method::GET).f(|req| {MyObj{name: "user".to_owned()}})))
+            .resource("/", |r| r.method(Method::GET).f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
     println!("Started http server: 127.0.0.1:8088");
-    actix::Arbiter::system().send(actix::msgs::SystemExit(0)); // <- remove this line, this code stops system during testing
-
+#    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
     let _ = sys.run();
 }
 ```

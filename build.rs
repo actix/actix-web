@@ -16,6 +16,7 @@ fn main() {
               "guide/src/qs_2.md",
               "guide/src/qs_3.md",
               "guide/src/qs_4.md",
+              "guide/src/qs_4_5.md",
               "guide/src/qs_5.md",
               "guide/src/qs_6.md",
               "guide/src/qs_7.md",

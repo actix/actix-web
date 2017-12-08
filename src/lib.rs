@@ -81,7 +81,7 @@ pub mod httpcodes;
 pub mod multipart;
 pub mod middlewares;
 pub mod pred;
-pub use error::{Error, Result};
+pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use application::Application;
 pub use httprequest::HttpRequest;

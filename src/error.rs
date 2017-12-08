@@ -426,6 +426,50 @@ impl From<UrlParseError> for UrlGenerationError {
     }
 }
 
+
+/// Helper type that can wrap any error and generate *BAD REQUEST* response.
+///
+/// In following example any `io::Error` will be converted into "BAD REQUEST" response
+/// as oposite to *INNTERNAL SERVER ERROR* which is defined by default.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # use actix_web::*;
+/// use actix_web::fs::NamedFile;
+///
+/// fn index(req: HttpRequest) -> Result<fs::NamedFile> {
+///    let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
+///    Ok(f)
+/// }
+/// # fn main() {}
+/// ```
+#[derive(Debug)]
+pub struct ErrorBadRequest<T>(pub T);
+
+unsafe impl<T> Sync for ErrorBadRequest<T> {}
+unsafe impl<T> Send for ErrorBadRequest<T> {}
+
+impl<T> ErrorBadRequest<T> {
+    pub fn cause(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: fmt::Debug + 'static> Fail for ErrorBadRequest<T> {}
+impl<T: fmt::Debug + 'static> fmt::Display for ErrorBadRequest<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BadRequest({:?})", self.0)
+    }
+}
+
+impl<T> ResponseError for ErrorBadRequest<T>
+    where T: Send + Sync + fmt::Debug + 'static,
+{
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;
