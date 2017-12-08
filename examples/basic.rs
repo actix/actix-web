@@ -72,15 +72,6 @@ fn main() {
             .resource("/user/{name}/", |r| r.method(Method::GET).f(with_param))
             // async handler
             .resource("/async/{name}", |r| r.method(Method::GET).a(index_async))
-            // redirect
-            .resource("/", |r| r.method(Method::GET).f(|req| {
-                println!("{:?}", req);
-
-                httpcodes::HTTPFound
-                    .build()
-                    .header("LOCATION", "/index.html")
-                    .body(Body::Empty)
-            }))
             .resource("/test", |r| r.f(|req| {
                 match *req.method() {
                     Method::GET => httpcodes::HTTPOk,
@@ -89,7 +80,16 @@ fn main() {
                 }
             }))
             // static files
-            .resource("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true))))
+            .resource("/static", |r| r.h(fs::StaticFiles::new("examples/static/", true)))
+            // redirect
+            .resource("/", |r| r.method(Method::GET).f(|req| {
+                println!("{:?}", req);
+
+                httpcodes::HTTPFound
+                    .build()
+                    .header("LOCATION", "/index.html")
+                    .body(Body::Empty)
+            })))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     println!("Started http server: 127.0.0.1:8080");

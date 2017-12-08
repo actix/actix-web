@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::net::SocketAddr;
 
 use actix::dev::*;
@@ -10,6 +9,7 @@ use h1;
 use h2;
 use pipeline::Pipeline;
 use httprequest::HttpRequest;
+use server::ServerSettings;
 
 /// Low level http request handler
 pub trait HttpHandler: 'static {
@@ -51,21 +51,17 @@ pub struct HttpChannel<T, H>
 impl<T, H> HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
-    pub fn new(stream: T,
-               local: SocketAddr,
-               secure: bool,
-               peer: Option<SocketAddr>,
-               router: Rc<Vec<H>>,
-               http2: bool) -> HttpChannel<T, H>
+    pub fn new(settings: ServerSettings<H>,
+               stream: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
-                    h2::Http2::new(stream, local, secure, peer, router, Bytes::new()))) }
+                    h2::Http2::new(settings, stream, peer, Bytes::new()))) }
         } else {
             HttpChannel {
                 proto: Some(HttpProtocol::H1(
-                    h1::Http1::new(stream, local, secure, peer, router))) }
+                    h1::Http1::new(settings, stream, peer))) }
         }
     }
 }
@@ -110,9 +106,9 @@ impl<T, H> Future for HttpChannel<T, H>
         let proto = self.proto.take().unwrap();
         match proto {
             HttpProtocol::H1(h1) => {
-                let (stream, local, secure, addr, router, buf) = h1.into_inner();
-                self.proto = Some(HttpProtocol::H2(
-                    h2::Http2::new(stream, local, secure, addr, router, buf)));
+                let (settings, stream, addr, buf) = h1.into_inner();
+                self.proto = Some(
+                    HttpProtocol::H2(h2::Http2::new(settings, stream, addr, buf)));
                 self.poll()
             }
             _ => unreachable!()

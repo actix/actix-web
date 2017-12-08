@@ -1,5 +1,4 @@
 use std::{self, io, ptr};
-use std::rc::Rc;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::collections::VecDeque;
@@ -21,6 +20,7 @@ use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
+use server::ServerSettings;
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -60,8 +60,7 @@ enum Item {
 
 pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
     flags: Flags,
-    router: Rc<Vec<H>>,
-    local: SocketAddr,
+    settings: ServerSettings<H>,
     addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
@@ -79,11 +78,14 @@ impl<T, H> Http1<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(stream: T, local: SocketAddr, secure: bool,
-               addr: Option<SocketAddr>, router: Rc<Vec<H>>) -> Self {
-        Http1{ router: router,
-               local: local,
-               flags: if secure { Flags::SECURE | Flags::KEEPALIVE } else { Flags::KEEPALIVE },
+    pub fn new(settings: ServerSettings<H>, stream: T, addr: Option<SocketAddr>) -> Self {
+        let flags = if settings.secure() {
+            Flags::SECURE | Flags::KEEPALIVE
+        } else {
+            Flags::KEEPALIVE
+        };
+        Http1{ flags: flags,
+               settings: settings,
                addr: addr,
                stream: H1Writer::new(stream),
                reader: Reader::new(),
@@ -92,11 +94,8 @@ impl<T, H> Http1<T, H>
                keepalive_timer: None }
     }
 
-    pub fn into_inner(mut self) -> (T, SocketAddr, bool,
-                                    Option<SocketAddr>, Rc<Vec<H>>, Bytes) {
-        (self.stream.unwrap(), self.local,
-         self.flags.contains(Flags::SECURE),
-         self.addr, self.router, self.read_buf.freeze())
+    pub fn into_inner(mut self) -> (ServerSettings<H>, T, Option<SocketAddr>, Bytes) {
+        (self.settings, self.stream.unwrap(), self.addr, self.read_buf.freeze())
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -205,7 +204,7 @@ impl<T, H> Http1<T, H>
 
                         // start request processing
                         let mut pipe = None;
-                        for h in self.router.iter() {
+                        for h in self.settings.handlers() {
                             req = match h.handle(req) {
                                 Ok(t) => {
                                     pipe = Some(t);

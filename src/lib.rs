@@ -131,7 +131,7 @@ pub mod dev {
     pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
-
+    pub use server::ServerSettings;
     pub use httprequest::UrlEncoded;
     pub use httpresponse::HttpResponseBuilder;
 }

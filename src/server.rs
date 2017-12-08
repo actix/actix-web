@@ -26,6 +26,53 @@ use tokio_openssl::{SslStream, SslAcceptorExt};
 
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
+/// Various server settings
+pub struct ServerSettings<H> (Rc<InnerServerSettings<H>>);
+
+struct InnerServerSettings<H> {
+    h: Vec<H>,
+    addr: Option<SocketAddr>,
+    secure: bool,
+    sethost: bool,
+}
+
+impl<H> Clone for ServerSettings<H> {
+    fn clone(&self) -> Self {
+        ServerSettings(Rc::clone(&self.0))
+    }
+}
+
+impl<H> ServerSettings<H> {
+    /// Crate server settings instance
+    fn new(h: Vec<H>, addr: Option<SocketAddr>, secure: bool, sethost: bool) -> Self {
+        ServerSettings(
+            Rc::new(InnerServerSettings {
+                h: h,
+                addr: addr,
+                secure: secure,
+                sethost: sethost }))
+    }
+
+    /// Returns list of http handlers
+    pub fn handlers(&self) -> &Vec<H> {
+        &self.0.h
+    }
+    /// Returns the socket address of the local half of this TCP connection
+    pub fn local_addr(&self) -> Option<SocketAddr> {
+        self.0.addr
+    }
+
+    /// Returns true if connection is secure(https)
+    pub fn secure(&self) -> bool {
+        self.0.secure
+    }
+
+    /// Should http channel set *HOST* header
+    pub fn set_host_header(&self) -> bool {
+        self.0.sethost
+    }
+}
+
 /// An HTTP Server
 ///
 /// `T` - async stream,  anything that implements `AsyncRead` + `AsyncWrite`.
@@ -34,9 +81,10 @@ use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 ///
 /// `H` - request handler
 pub struct HttpServer<T, A, H> {
-    h: Rc<Vec<H>>,
+    h: Option<Vec<H>>,
     io: PhantomData<T>,
     addr: PhantomData<A>,
+    sethost: bool,
 }
 
 impl<T: 'static, A: 'static, H: 'static> Actor for HttpServer<T, A, H> {
@@ -51,9 +99,16 @@ impl<T, A, H> HttpServer<T, A, H> where H: HttpHandler
     {
         let apps: Vec<_> = handler.into_iter().map(|h| h.into_handler()).collect();
 
-        HttpServer {h: Rc::new(apps),
+        HttpServer {h: Some(apps),
                     io: PhantomData,
-                    addr: PhantomData}
+                    addr: PhantomData,
+                    sethost: false}
+    }
+
+    /// Set *HOST* header if not set
+    pub fn set_host_header(mut self) -> Self {
+        self.sethost = true;
+        self
     }
 }
 
@@ -63,15 +118,18 @@ impl<T, A, H> HttpServer<T, A, H>
           H: HttpHandler,
 {
     /// Start listening for incomming connections from stream.
-    pub fn serve_incoming<S, Addr>(self, stream: S, secure: bool) -> io::Result<Addr>
+    pub fn serve_incoming<S, Addr>(mut self, stream: S, secure: bool) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let settings = ServerSettings::new(
+            self.h.take().unwrap(), Some(addr), secure, self.sethost);
+
         Ok(HttpServer::create(move |ctx| {
-            let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
             ctx.add_stream(stream.map(
-                move |(t, _)| IoStream{io: t, srv: addr,
-                                       peer: None, http2: false, secure: secure}));
+                move |(t, _)| IoStream{settings: settings.clone(),
+                                       io: t, peer: None, http2: false}));
             self
         }))
     }
@@ -107,18 +165,21 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve<S, Addr>(self, addr: S) -> io::Result<Addr>
+    pub fn serve<S, Addr>(mut self, addr: S) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
         let addrs = self.bind(addr)?;
+        let settings = ServerSettings::new(
+            self.h.take().unwrap(), Some(addrs[0].0), false, self.sethost);
 
         Ok(HttpServer::create(move |ctx| {
             for (addr, tcp) in addrs {
                 info!("Starting http server on {}", addr);
+                let s = settings.clone();
                 ctx.add_stream(tcp.incoming().map(
-                    move |(t, a)| IoStream{io: t, srv: addr,
-                                           peer: Some(a), http2: false, secure: false}));
+                    move |(t, a)| IoStream{settings: s.clone(),
+                                           io: t, peer: Some(a), http2: false}));
             }
             self
         }))
@@ -132,11 +193,14 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
+    pub fn serve_tls<S, Addr>(mut self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
         let addrs = self.bind(addr)?;
+        let settings = ServerSettings::new(
+            self.h.take().unwrap(), Some(addrs[0].0.clone()), true, self.sethost);
+
         let acceptor = match TlsAcceptor::builder(pkcs12) {
             Ok(builder) => {
                 match builder.build() {
@@ -151,12 +215,14 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
             for (srv, tcp) in addrs {
                 info!("Starting tls http server on {}", srv);
 
+                let st = settings.clone();
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
+                    let st2 = st.clone();
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
                         .map(move |t|
-                             IoStream{io: t, srv: srv.clone(),
-                                      peer: Some(addr), http2: false, secure: true})
+                             IoStream{settings: st2.clone(),
+                                      io: t, peer: Some(addr), http2: false})
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
                             io::Error::new(io::ErrorKind::Other, err)
@@ -175,15 +241,16 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(self, addr: S, identity: ParsedPkcs12) -> io::Result<Addr>
+    pub fn serve_tls<S, Addr>(mut self, addr: S, identity: ParsedPkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
         let addrs = self.bind(addr)?;
-        let acceptor = match SslAcceptorBuilder::mozilla_intermediate(SslMethod::tls(),
-                                                                      &identity.pkey,
-                                                                      &identity.cert,
-                                                                      &identity.chain)
+        let settings = ServerSettings::new(
+            self.h.take().unwrap(), Some(addrs[0].0.clone()), true, self.sethost);
+
+        let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
+            SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
         {
             Ok(mut builder) => {
                 match builder.builder_mut().set_alpn_protocols(&[b"h2", b"http/1.1"]) {
@@ -198,8 +265,10 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
             for (srv, tcp) in addrs {
                 info!("Starting tls http server on {}", srv);
 
+                let st = settings.clone();
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
+                    let st2 = st.clone();
                     SslAcceptorExt::accept_async(&acc, stream)
                         .map(move |stream| {
                             let http2 = if let Some(p) =
@@ -209,8 +278,8 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
                             } else {
                                 false
                             };
-                            IoStream{io: stream, srv: srv.clone(),
-                                     peer: Some(addr), http2: http2, secure: true}
+                            IoStream{settings: st2.clone(),
+                                     io: stream, peer: Some(addr), http2: http2}
                         })
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
@@ -223,27 +292,26 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
     }
 }
 
-struct IoStream<T> {
+struct IoStream<T, H> {
     io: T,
-    srv: SocketAddr,
     peer: Option<SocketAddr>,
     http2: bool,
-    secure: bool,
+    settings: ServerSettings<H>,
 }
 
-impl<T> ResponseType for IoStream<T>
+impl<T, H> ResponseType for IoStream<T, H>
     where T: AsyncRead + AsyncWrite + 'static
 {
     type Item = ();
     type Error = ();
 }
 
-impl<T, A, H> StreamHandler<IoStream<T>, io::Error> for HttpServer<T, A, H>
+impl<T, A, H> StreamHandler<IoStream<T, H>, io::Error> for HttpServer<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static,
           A: 'static {}
 
-impl<T, A, H> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H>
+impl<T, A, H> Handler<IoStream<T, H>, io::Error> for HttpServer<T, A, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static,
           A: 'static,
@@ -252,12 +320,11 @@ impl<T, A, H> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H>
         debug!("Error handling request: {}", err)
     }
 
-    fn handle(&mut self, msg: IoStream<T>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<T>>
+    fn handle(&mut self, msg: IoStream<T, H>, _: &mut Context<Self>)
+              -> Response<Self, IoStream<T, H>>
     {
         Arbiter::handle().spawn(
-            HttpChannel::new(msg.io, msg.srv, msg.secure,
-                             msg.peer, Rc::clone(&self.h), msg.http2));
+            HttpChannel::new(msg.settings, msg.io, msg.peer, msg.http2));
         Self::empty()
     }
 }
