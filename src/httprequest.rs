@@ -11,8 +11,8 @@ use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
 use Cookie;
 use info::ConnectionInfo;
+use param::Params;
 use router::Router;
-use recognizer::Params;
 use payload::Payload;
 use multipart::Multipart;
 use error::{ParseError, PayloadError, UrlGenerationError,
@@ -26,7 +26,7 @@ struct HttpMessage {
     prefix: usize,
     headers: HeaderMap,
     extensions: Extensions,
-    params: Params,
+    params: Params<'static>,
     cookies: Vec<Cookie<'static>>,
     cookies_loaded: bool,
     addr: Option<SocketAddr>,
@@ -186,8 +186,12 @@ impl<S> HttpRequest<S> {
             Err(UrlGenerationError::RouterNotAvailable)
         } else {
             let path = self.router().unwrap().resource_path(name, elements)?;
-            let conn = self.load_connection_info();
-            Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
+            if path.starts_with('/') {
+                let conn = self.load_connection_info();
+                Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
+            } else {
+                Ok(Url::parse(&path)?)
+            }
         }
     }
 
@@ -267,12 +271,14 @@ impl<S> HttpRequest<S> {
     /// Route supports glob patterns: * for a single wildcard segment and :param
     /// for matching storing that segment of the request url in the Params object.
     #[inline]
-    pub fn match_info(&self) -> &Params { &self.0.params }
+    pub fn match_info(&self) -> &Params {
+        unsafe{ mem::transmute(&self.0.params) }
+    }
 
     /// Set request Params.
     #[inline]
-    pub fn set_match_info(&mut self, params: Params) {
-        self.as_mut().params = params;
+    pub(crate) fn match_info_mut(&mut self) -> &mut Params {
+        unsafe{ mem::transmute(&mut self.as_mut().params) }
     }
 
     /// Checks if a connection should be kept alive.
@@ -431,7 +437,7 @@ impl<S> fmt::Debug for HttpRequest<S> {
         if !self.query_string().is_empty() {
             let _ = write!(f, "  query: ?{:?}\n", self.query_string());
         }
-        if !self.0.params.is_empty() {
+        if !self.match_info().is_empty() {
             let _ = write!(f, "  params: {:?}\n", self.0.params);
         }
         let _ = write!(f, "  headers:\n");
@@ -483,6 +489,7 @@ mod tests {
     use super::*;
     use http::Uri;
     use std::str::FromStr;
+    use router::Pattern;
     use payload::Payload;
     use resource::Resource;
 
@@ -543,7 +550,7 @@ mod tests {
         let mut resource = Resource::default();
         resource.name("index");
         let mut map = HashMap::new();
-        map.insert("/user/{name}.{ext}".to_owned(), resource);
+        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
         let router = Router::new("", map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -559,5 +566,23 @@ mod tests {
                    Err(UrlGenerationError::NotEnoughElements));
         let url = req.url_for("index", &["test", "html"]);
         assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/user/test.html");
+    }
+
+    #[test]
+    fn test_url_for_external() {
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+
+        let mut resource = Resource::<()>::default();
+        resource.name("index");
+        let mut map = HashMap::new();
+        map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None);
+        let router = Router::new("", map);
+        assert!(!router.has_route("https://youtube.com/watch/unknown"));
+
+        let mut req = req.with_state(Rc::new(()), router);
+        let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
+        assert_eq!(url.ok().unwrap().as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
     }
 }

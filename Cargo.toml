@@ -52,6 +52,7 @@ serde_json = "1.0"
 flate2 = "0.2"
 brotli2 = "^0.3.2"
 percent-encoding = "1.0"
+smallvec = "0.6"
 
 # redis-async = { git="https://github.com/benashford/redis-async-rs" }
 

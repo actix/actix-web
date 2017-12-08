@@ -59,8 +59,8 @@ impl<S> Resource<S> {
         self.name = name.into();
     }
 
-    pub(crate) fn get_name(&self) -> Option<String> {
-        if self.name.is_empty() { None } else { Some(self.name.clone()) }
+    pub(crate) fn get_name(&self) -> &str {
+        &self.name
     }
 }
 

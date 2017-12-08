@@ -31,6 +31,7 @@ extern crate serde_json;
 extern crate flate2;
 extern crate brotli2;
 extern crate percent_encoding;
+extern crate smallvec;
 extern crate actix;
 extern crate h2 as http2;
 
@@ -58,8 +59,9 @@ mod payload;
 mod info;
 mod route;
 mod router;
+mod param;
 mod resource;
-mod recognizer;
+// mod recognizer;
 mod handler;
 mod pipeline;
 mod server;
@@ -117,10 +119,11 @@ pub mod dev {
     // dev specific
     pub use info::ConnectionInfo;
     pub use handler::Handler;
-    pub use router::Router;
+    pub use router::{Router, Pattern};
     pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
-    pub use recognizer::{FromParam, RouteRecognizer, Params, Pattern, PatternElement};
+    // pub use recognizer::RouteRecognizer;
+    pub use param::{FromParam, Params};
 
     pub use cookie::CookieBuilder;
     pub use http_range::HttpRange;

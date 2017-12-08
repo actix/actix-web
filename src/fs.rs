@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 
 use mime_guess::get_mime_type;
+use param::FromParam;
 use handler::{Handler, FromRequest};
-use recognizer::FromParam;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::HTTPOk;

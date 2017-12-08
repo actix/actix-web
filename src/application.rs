@@ -2,9 +2,8 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use handler::{Reply, RouteHandler};
-use router::Router;
+use router::{Router, Pattern};
 use resource::Resource;
-use recognizer::check_pattern;
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler};
 use pipeline::Pipeline;
@@ -24,11 +23,7 @@ impl<S: 'static> HttpApplication<S> {
     fn run(&self, req: HttpRequest) -> Reply {
         let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
 
-        if let Some((params, h)) = self.router.query(req.path()) {
-            if let Some(params) = params {
-                req.set_match_info(params);
-                req.set_prefix(self.router.prefix().len());
-            }
+        if let Some(h) = self.router.recognize(&mut req) {
             h.handle(req)
         } else {
             self.default.handle(req)
@@ -52,7 +47,8 @@ struct ApplicationParts<S> {
     state: S,
     prefix: String,
     default: Resource<S>,
-    resources: HashMap<String, Resource<S>>,
+    resources: HashMap<Pattern, Option<Resource<S>>>,
+    external: HashMap<String, Pattern>,
     middlewares: Vec<Box<Middleware>>,
 }
 
@@ -74,6 +70,7 @@ impl Application<()> {
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
+                external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
@@ -94,6 +91,7 @@ impl<S> Application<S> where S: 'static {
                 prefix: prefix.into(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
+                external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
@@ -130,19 +128,22 @@ impl<S> Application<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn resource<F, P: Into<String>>(&mut self, path: P, f: F) -> &mut Self
+    pub fn resource<F>(&mut self, path: &str, f: F) -> &mut Self
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
             // add resource
-            let path = path.into();
-            if !parts.resources.contains_key(&path) {
-                check_pattern(&path);
-                parts.resources.insert(path.clone(), Resource::default());
+            let mut resource = Resource::default();
+            f(&mut resource);
+
+            let pattern = Pattern::new(resource.get_name(), path);
+            if parts.resources.contains_key(&pattern) {
+                panic!("Resource {:?} is registered.", path);
             }
-            f(parts.resources.get_mut(&path).unwrap());
+
+            parts.resources.insert(pattern, Some(resource));
         }
         self
     }
@@ -154,6 +155,44 @@ impl<S> Application<S> where S: 'static {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
             f(&mut parts.default);
+        }
+        self
+    }
+
+    /// Register external resource.
+    ///
+    /// External resources are useful for URL generation purposes only and
+    /// are never considered for matching at request time.
+    /// Call to `HttpRequest::url_for()` will work as expected.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
+    ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
+    ///    assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+    ///    Ok(httpcodes::HTTPOk.into())
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new("/")
+    ///         .resource("/index.html", |r| r.f(index))
+    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
+    ///         .finish();
+    /// }
+    /// ```
+    pub fn external_resource<T, U>(&mut self, name: T, url: U) -> &mut Self
+        where T: AsRef<str>, U: AsRef<str>
+    {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+
+            if parts.external.contains_key(name.as_ref()) {
+                panic!("External resource {:?} is registered.", name.as_ref());
+            }
+            parts.external.insert(
+                String::from(name.as_ref()), Pattern::new(name.as_ref(), url.as_ref()));
         }
         self
     }
@@ -171,11 +210,17 @@ impl<S> Application<S> where S: 'static {
     pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
+
+        let mut resources = parts.resources;
+        for (_, pattern) in parts.external {
+            resources.insert(pattern, None);
+        }
+
         HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.to_owned(),
             default: parts.default,
-            router: Router::new(prefix, parts.resources),
+            router: Router::new(prefix, resources),
             middlewares: Rc::new(parts.middlewares),
         }
     }

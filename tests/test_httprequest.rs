@@ -4,6 +4,7 @@ extern crate time;
 
 use std::str;
 use std::str::FromStr;
+use std::collections::HashMap;
 use actix_web::*;
 use actix_web::dev::*;
 use http::{header, Method, Version, HeaderMap, Uri};
@@ -92,11 +93,13 @@ fn test_request_match_info() {
     let mut req = HttpRequest::new(Method::GET, Uri::from_str("/value/?id=test").unwrap(),
                                    Version::HTTP_11, HeaderMap::new(), Payload::empty());
 
-    let rec = RouteRecognizer::new("", vec![("/{key}/".to_owned(), None, 1)]);
-    let (params, _) = rec.recognize(req.path()).unwrap();
-    let params = params.unwrap();
+    let mut resource = Resource::default();
+    resource.name("index");
+    let mut map = HashMap::new();
+    map.insert(Pattern::new("index", "/{key}/"), Some(resource));
+    let router = Router::new("", map);
+    assert!(router.recognize(&mut req).is_some());
 
-    req.set_match_info(params);
     assert_eq!(req.match_info().get("key"), Some("value"));
 }
 
