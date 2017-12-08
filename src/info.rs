@@ -65,7 +65,7 @@ impl<'a> ConnectionInfo<'a> {
             if scheme.is_none() {
                 scheme = req.uri().scheme_part().map(|a| a.as_str());
                 if scheme.is_none() {
-                    if let Some(ref router) = req.router() {
+                    if let Some(router) = req.router() {
                         if router.server_settings().secure() {
                             scheme = Some("https")
                         }
@@ -88,7 +88,7 @@ impl<'a> ConnectionInfo<'a> {
                 if host.is_none() {
                     host = req.uri().authority_part().map(|a| a.as_str());
                     if host.is_none() {
-                        if let Some(ref router) = req.router() {
+                        if let Some(router) = req.router() {
                             host = Some(router.server_settings().host());
                         }
                     }
@@ -104,8 +104,7 @@ impl<'a> ConnectionInfo<'a> {
                     remote = h.split(',').next().map(|v| v.trim());
                 }
             }
-            if remote.is_none() {
-                // get peeraddr from socketaddr
+            if remote.is_none() { // get peeraddr from socketaddr
                 peer = req.peer_addr().map(|addr| format!("{}", addr));
             }
         }

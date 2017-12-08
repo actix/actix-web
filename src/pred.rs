@@ -146,3 +146,101 @@ impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use http::{Uri, Version, Method};
+    use http::header::{self, HeaderMap};
+    use payload::Payload;
+
+    #[test]
+    fn test_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::TRANSFER_ENCODING,
+                       header::HeaderValue::from_static("chunked"));
+        let mut req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, headers, Payload::empty());
+
+        let pred = Header("transfer-encoding", "chunked");
+        assert!(pred.check(&mut req));
+
+        let pred = Header("transfer-encoding", "other");
+        assert!(!pred.check(&mut req));
+    }
+
+    #[test]
+    fn test_methods() {
+        let mut req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        let mut req2 = HttpRequest::new(
+            Method::POST, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+
+        assert!(Get().check(&mut req));
+        assert!(!Get().check(&mut req2));
+        assert!(Post().check(&mut req2));
+        assert!(!Post().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::PUT, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Put().check(&mut r));
+        assert!(!Put().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::DELETE, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Delete().check(&mut r));
+        assert!(!Delete().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::HEAD, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Head().check(&mut r));
+        assert!(!Head().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::OPTIONS, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Options().check(&mut r));
+        assert!(!Options().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::CONNECT, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Connect().check(&mut r));
+        assert!(!Connect().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::PATCH, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Patch().check(&mut r));
+        assert!(!Patch().check(&mut req));
+
+        let mut r = HttpRequest::new(
+            Method::TRACE, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        assert!(Trace().check(&mut r));
+        assert!(!Trace().check(&mut req));
+    }
+
+    #[test]
+    fn test_preds() {
+        let mut r = HttpRequest::new(
+            Method::TRACE, Uri::from_str("/").unwrap(),
+            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+
+        assert!(Not(Get()).check(&mut r));
+        assert!(!Not(Trace()).check(&mut r));
+
+        assert!(All(vec![Trace(), Trace()]).check(&mut r));
+        assert!(!All(vec![Get(), Trace()]).check(&mut r));
+
+        assert!(Any(vec![Get(), Trace()]).check(&mut r));
+        assert!(!Any(vec![Get(), Get()]).check(&mut r));
+    }
+}

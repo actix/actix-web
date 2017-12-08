@@ -5,16 +5,14 @@ Actix web is a small, fast, down-to-earth, open source rust web framework.
 ```rust,ignore
 use actix_web::*;
 
-fn index(req: HttpRequest) -> String 
-{
-    format!("Hello {}!", 
-            &req.match_info()["name"])
+fn index(req: HttpRequest) -> String {
+    format!("Hello {}!", &req.match_info()["name"])
 }
 
 fn main() {
-    HttpServer::new(Application::new("/")
-        .resource("/{name}", 
-            |r| r.method(Method::GET).f(index)))
+    HttpServer::new(
+        Application::new("/")
+            .resource("/{name}", |r| r.method(Method::GET).f(index)))
         .serve::<_, ()>("127.0.0.1:8080");
 }
 ```
