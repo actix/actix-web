@@ -39,7 +39,7 @@ fn test_serve_incoming() {
             Application::new("/")
                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk)));
         let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
-        srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
+        srv.serve_incoming::<_, ()>(tcp.incoming(), false).unwrap();
         sys.run();
     });
 

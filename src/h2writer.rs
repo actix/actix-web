@@ -16,14 +16,19 @@ use h1writer::{Writer, WriterState};
 const CHUNK_SIZE: usize = 16_384;
 const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
+bitflags! {
+    struct Flags: u8 {
+        const STARTED = 0b0000_0001;
+        const DISCONNECTED = 0b0000_0010;
+        const EOF = 0b0000_0100;
+    }
+}
 
 pub(crate) struct H2Writer {
     respond: Respond<Bytes>,
     stream: Option<SendStream<Bytes>>,
-    started: bool,
     encoder: PayloadEncoder,
-    disconnected: bool,
-    eof: bool,
+    flags: Flags,
     written: u64,
 }
 
@@ -33,10 +38,8 @@ impl H2Writer {
         H2Writer {
             respond: respond,
             stream: None,
-            started: false,
             encoder: PayloadEncoder::default(),
-            disconnected: false,
-            eof: true,
+            flags: Flags::empty(),
             written: 0,
         }
     }
@@ -48,7 +51,7 @@ impl H2Writer {
     }
 
     fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
-        if !self.started {
+        if !self.flags.contains(Flags::STARTED) {
             return Ok(WriterState::Done)
         }
 
@@ -56,7 +59,7 @@ impl H2Writer {
             let buffer = self.encoder.get_mut();
 
             if buffer.is_empty() {
-                if self.eof {
+                if self.flags.contains(Flags::EOF) {
                     let _ = stream.send_data(Bytes::new(), true);
                 }
                 return Ok(WriterState::Done)
@@ -77,7 +80,7 @@ impl H2Writer {
                     Ok(Async::Ready(Some(cap))) => {
                         let len = buffer.len();
                         let bytes = buffer.split_to(cmp::min(cap, len));
-                        let eof = buffer.is_empty() && self.eof;
+                        let eof = buffer.is_empty() && self.flags.contains(Flags::EOF);
                         self.written += bytes.len() as u64;
 
                         if let Err(err) = stream.send_data(bytes.freeze(), eof) {
@@ -111,9 +114,11 @@ impl Writer for H2Writer {
         trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare response
-        self.started = true;
+        self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(req, msg);
-        self.eof = if let Body::Empty = *msg.body() { true } else { false };
+        if let Body::Empty = *msg.body() {
+            self.flags.insert(Flags::EOF);
+        }
 
         // http2 specific
         msg.headers_mut().remove(CONNECTION);
@@ -140,7 +145,7 @@ impl Writer for H2Writer {
             resp.headers_mut().insert(key, value.clone());
         }
 
-        match self.respond.send_response(resp, self.eof) {
+        match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
             Ok(stream) =>
                 self.stream = Some(stream),
             Err(_) =>
@@ -151,7 +156,7 @@ impl Writer for H2Writer {
 
         if msg.body().is_binary() {
             if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
-                self.eof = true;
+                self.flags.insert(Flags::EOF);
                 self.encoder.write(bytes.as_ref())?;
                 if let Some(ref mut stream) = self.stream {
                     stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
@@ -164,8 +169,8 @@ impl Writer for H2Writer {
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
-        if !self.disconnected {
-            if self.started {
+        if !self.flags.contains(Flags::DISCONNECTED) {
+            if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
                 self.encoder.write(payload)?;
             } else {
@@ -184,7 +189,7 @@ impl Writer for H2Writer {
     fn write_eof(&mut self) -> Result<WriterState, io::Error> {
         self.encoder.write_eof()?;
 
-        self.eof = true;
+        self.flags.insert(Flags::EOF);
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))

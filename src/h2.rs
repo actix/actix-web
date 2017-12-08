@@ -25,13 +25,22 @@ use payload::{Payload, PayloadWriter};
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
+bitflags! {
+    struct Flags: u8 {
+        const SECURE = 0b0000_0001;
+        const DISCONNECTED = 0b0000_0010;
+    }
+}
+
+/// HTTP/2 Transport
 pub(crate) struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
+    flags: Flags,
     router: Rc<Vec<H>>,
+    local: SocketAddr,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
-    disconnected: bool,
     tasks: VecDeque<Entry>,
     keepalive_timer: Option<Timeout>,
 }
@@ -46,10 +55,12 @@ impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>, buf: Bytes) -> Self {
-        Http2{ router: router,
+    pub fn new(stream: T, local: SocketAddr, secure: bool,
+               addr: Option<SocketAddr>, router: Rc<Vec<H>>, buf: Bytes) -> Self {
+        Http2{ flags: if secure { Flags::SECURE } else { Flags::empty() },
+               router: router,
+               local: local,
                addr: addr,
-               disconnected: false,
                tasks: VecDeque::new(),
                state: State::Handshake(
                    Server::handshake(IoWrapper{unread: Some(buf), inner: stream})),
@@ -80,33 +91,33 @@ impl<T, H> Http2<T, H>
                     // read payload
                     item.poll_payload();
 
-                    if !item.eof {
+                    if !item.flags.contains(EntryFlags::EOF) {
                         match item.task.poll_io(&mut item.stream) {
                             Ok(Async::Ready(ready)) => {
-                                item.eof = true;
+                                item.flags.insert(EntryFlags::EOF);
                                 if ready {
-                                    item.finished = true;
+                                    item.flags.insert(EntryFlags::FINISHED);
                                 }
                                 not_ready = false;
                             },
                             Ok(Async::NotReady) => (),
                             Err(err) => {
                                 error!("Unhandled error: {}", err);
-                                item.eof = true;
-                                item.error = true;
+                                item.flags.insert(EntryFlags::EOF);
+                                item.flags.insert(EntryFlags::ERROR);
                                 item.stream.reset(Reason::INTERNAL_ERROR);
                             }
                         }
-                    } else if !item.finished {
+                    } else if !item.flags.contains(EntryFlags::FINISHED) {
                         match item.task.poll() {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
                                 not_ready = false;
-                                item.finished = true;
+                                item.flags.insert(EntryFlags::FINISHED);
                             },
                             Err(err) => {
-                                item.error = true;
-                                item.finished = true;
+                                item.flags.insert(EntryFlags::ERROR);
+                                item.flags.insert(EntryFlags::FINISHED);
                                 error!("Unhandled error: {}", err);
                             }
                         }
@@ -115,7 +126,10 @@ impl<T, H> Http2<T, H>
 
                 // cleanup finished tasks
                 while !self.tasks.is_empty() {
-                    if self.tasks[0].eof && self.tasks[0].finished || self.tasks[0].error {
+                    if self.tasks[0].flags.contains(EntryFlags::EOF) &&
+                        self.tasks[0].flags.contains(EntryFlags::FINISHED) ||
+                        self.tasks[0].flags.contains(EntryFlags::ERROR)
+                    {
                         self.tasks.pop_front();
                     } else {
                         break
@@ -123,11 +137,11 @@ impl<T, H> Http2<T, H>
                 }
 
                 // get request
-                if !self.disconnected {
+                if !self.flags.contains(Flags::DISCONNECTED) {
                     match server.poll() {
                         Ok(Async::Ready(None)) => {
                             not_ready = false;
-                            self.disconnected = true;
+                            self.flags.insert(Flags::DISCONNECTED);
                             for entry in &mut self.tasks {
                                 entry.task.disconnected()
                             }
@@ -156,7 +170,7 @@ impl<T, H> Http2<T, H>
                         }
                         Err(err) => {
                             trace!("Connection error: {}", err);
-                            self.disconnected = true;
+                            self.flags.insert(Flags::DISCONNECTED);
                             for entry in &mut self.tasks {
                                 entry.task.disconnected()
                             }
@@ -166,7 +180,7 @@ impl<T, H> Http2<T, H>
                 }
 
                 if not_ready {
-                    if self.tasks.is_empty() && self.disconnected {
+                    if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED) {
                         return Ok(Async::Ready(()))
                     } else {
                         return Ok(Async::NotReady)
@@ -196,16 +210,22 @@ impl<T, H> Http2<T, H>
     }
 }
 
+bitflags! {
+    struct EntryFlags: u8 {
+        const EOF = 0b0000_0001;
+        const REOF = 0b0000_0010;
+        const ERROR = 0b0000_0100;
+        const FINISHED = 0b0000_1000;
+    }
+}
+
 struct Entry {
     task: Pipeline,
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,
-    eof: bool,
-    error: bool,
-    finished: bool,
-    reof: bool,
     capacity: usize,
+    flags: EntryFlags,
 }
 
 impl Entry {
@@ -244,22 +264,19 @@ impl Entry {
                payload: psender,
                recv: recv,
                stream: H2Writer::new(resp),
-               eof: false,
-               error: false,
-               finished: false,
-               reof: false,
+               flags: EntryFlags::empty(),
                capacity: 0,
         }
     }
 
     fn poll_payload(&mut self) {
-        if !self.reof {
+        if !self.flags.contains(EntryFlags::REOF) {
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
                     self.payload.feed_data(chunk);
                 },
                 Ok(Async::Ready(None)) => {
-                    self.reof = true;
+                    self.flags.insert(EntryFlags::REOF);
                 },
                 Ok(Async::NotReady) => (),
                 Err(err) => {

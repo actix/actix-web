@@ -11,6 +11,8 @@ extern crate bytes;
 extern crate sha1;
 extern crate regex;
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
@@ -61,7 +63,6 @@ mod route;
 mod router;
 mod param;
 mod resource;
-// mod recognizer;
 mod handler;
 mod pipeline;
 mod server;

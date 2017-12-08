@@ -51,16 +51,21 @@ pub struct HttpChannel<T, H>
 impl<T, H> HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>, http2: bool)
-               -> HttpChannel<T, H> {
+    pub fn new(stream: T,
+               local: SocketAddr,
+               secure: bool,
+               peer: Option<SocketAddr>,
+               router: Rc<Vec<H>>,
+               http2: bool) -> HttpChannel<T, H>
+    {
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
-                    h2::Http2::new(stream, addr, router, Bytes::new()))) }
+                    h2::Http2::new(stream, local, secure, peer, router, Bytes::new()))) }
         } else {
             HttpChannel {
                 proto: Some(HttpProtocol::H1(
-                    h1::Http1::new(stream, addr, router))) }
+                    h1::Http1::new(stream, local, secure, peer, router))) }
         }
     }
 }
@@ -105,8 +110,9 @@ impl<T, H> Future for HttpChannel<T, H>
         let proto = self.proto.take().unwrap();
         match proto {
             HttpProtocol::H1(h1) => {
-                let (stream, addr, router, buf) = h1.into_inner();
-                self.proto = Some(HttpProtocol::H2(h2::Http2::new(stream, addr, router, buf)));
+                let (stream, local, secure, addr, router, buf) = h1.into_inner();
+                self.proto = Some(HttpProtocol::H2(
+                    h2::Http2::new(stream, local, secure, addr, router, buf)));
                 self.poll()
             }
             _ => unreachable!()

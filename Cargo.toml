@@ -42,7 +42,6 @@ httparse = "0.1"
 http-range = "0.1"
 mime = "0.3"
 mime_guess = "1.8"
-cookie = { version="0.10", features=["percent-encode", "secure"] }
 regex = "0.2"
 sha1 = "0.2"
 url = "1.5"
@@ -53,8 +52,8 @@ flate2 = "0.2"
 brotli2 = "^0.3.2"
 percent-encoding = "1.0"
 smallvec = "0.6"
-
-# redis-async = { git="https://github.com/benashford/redis-async-rs" }
+bitflags = "1.0"
+cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # tokio
 bytes = "0.4"

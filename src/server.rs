@@ -26,7 +26,6 @@ use tokio_openssl::{SslStream, SslAcceptorExt};
 
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
-
 /// An HTTP Server
 ///
 /// `T` - async stream,  anything that implements `AsyncRead` + `AsyncWrite`.
@@ -64,12 +63,15 @@ impl<T, A, H> HttpServer<T, A, H>
           H: HttpHandler,
 {
     /// Start listening for incomming connections from stream.
-    pub fn serve_incoming<S, Addr>(self, stream: S) -> io::Result<Addr>
+    pub fn serve_incoming<S, Addr>(self, stream: S, secure: bool) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(stream.map(|(t, _)| IoStream(t, None, false)));
+            let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+            ctx.add_stream(stream.map(
+                move |(t, _)| IoStream{io: t, srv: addr,
+                                       peer: None, http2: false, secure: secure}));
             self
         }))
     }
@@ -114,7 +116,9 @@ impl<H: HttpHandler> HttpServer<TcpStream, net::SocketAddr, H> {
         Ok(HttpServer::create(move |ctx| {
             for (addr, tcp) in addrs {
                 info!("Starting http server on {}", addr);
-                ctx.add_stream(tcp.incoming().map(|(t, a)| IoStream(t, Some(a), false)));
+                ctx.add_stream(tcp.incoming().map(
+                    move |(t, a)| IoStream{io: t, srv: addr,
+                                           peer: Some(a), http2: false, secure: false}));
             }
             self
         }))
@@ -144,15 +148,15 @@ impl<H: HttpHandler> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H> {
         };
 
         Ok(HttpServer::create(move |ctx| {
-            for (addr, tcp) in addrs {
-                info!("Starting tls http server on {}", addr);
+            for (srv, tcp) in addrs {
+                info!("Starting tls http server on {}", srv);
 
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
                     TlsAcceptorExt::accept_async(acc.as_ref(), stream)
-                        .map(move |t| {
-                            IoStream(t, Some(addr), false)
-                        })
+                        .map(move |t|
+                             IoStream{io: t, srv: srv.clone(),
+                                      peer: Some(addr), http2: false, secure: true})
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
                             io::Error::new(io::ErrorKind::Other, err)
@@ -191,8 +195,8 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
         };
 
         Ok(HttpServer::create(move |ctx| {
-            for (addr, tcp) in addrs {
-                info!("Starting tls http server on {}", addr);
+            for (srv, tcp) in addrs {
+                info!("Starting tls http server on {}", srv);
 
                 let acc = acceptor.clone();
                 ctx.add_stream(tcp.incoming().and_then(move |(stream, addr)| {
@@ -205,7 +209,8 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
                             } else {
                                 false
                             };
-                            IoStream(stream, Some(addr), http2)
+                            IoStream{io: stream, srv: srv.clone(),
+                                     peer: Some(addr), http2: http2, secure: true}
                         })
                         .map_err(|err| {
                             trace!("Error during handling tls connection: {}", err);
@@ -218,7 +223,13 @@ impl<H: HttpHandler> HttpServer<SslStream<TcpStream>, net::SocketAddr, H> {
     }
 }
 
-struct IoStream<T>(T, Option<SocketAddr>, bool);
+struct IoStream<T> {
+    io: T,
+    srv: SocketAddr,
+    peer: Option<SocketAddr>,
+    http2: bool,
+    secure: bool,
+}
 
 impl<T> ResponseType for IoStream<T>
     where T: AsyncRead + AsyncWrite + 'static
@@ -245,7 +256,8 @@ impl<T, A, H> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H>
               -> Response<Self, IoStream<T>>
     {
         Arbiter::handle().spawn(
-            HttpChannel::new(msg.0, msg.1, Rc::clone(&self.h), msg.2));
+            HttpChannel::new(msg.io, msg.srv, msg.secure,
+                             msg.peer, Rc::clone(&self.h), msg.http2));
         Self::empty()
     }
 }

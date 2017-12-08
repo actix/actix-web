@@ -29,6 +29,24 @@ const MAX_HEADERS: usize = 100;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
+bitflags! {
+    struct Flags: u8 {
+        const SECURE = 0b0000_0001;
+        const ERROR = 0b0000_0010;
+        const KEEPALIVE = 0b0000_0100;
+        const H2 = 0b0000_1000;
+    }
+}
+
+bitflags! {
+    struct EntryFlags: u8 {
+        const EOF = 0b0000_0001;
+        const ERROR = 0b0000_0010;
+        const FINISHED = 0b0000_0100;
+    }
+}
+
+
 pub(crate) enum Http1Result {
     Done,
     Switch,
@@ -41,44 +59,44 @@ enum Item {
 }
 
 pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
+    flags: Flags,
     router: Rc<Vec<H>>,
+    local: SocketAddr,
     addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
     read_buf: BytesMut,
-    error: bool,
     tasks: VecDeque<Entry>,
-    keepalive: bool,
     keepalive_timer: Option<Timeout>,
-    h2: bool,
 }
 
 struct Entry {
     pipe: Pipeline,
-    eof: bool,
-    error: bool,
-    finished: bool,
+    flags: EntryFlags,
 }
 
 impl<T, H> Http1<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>) -> Self {
+    pub fn new(stream: T, local: SocketAddr, secure: bool,
+               addr: Option<SocketAddr>, router: Rc<Vec<H>>) -> Self {
         Http1{ router: router,
+               local: local,
+               flags: if secure { Flags::SECURE | Flags::KEEPALIVE } else { Flags::KEEPALIVE },
                addr: addr,
                stream: H1Writer::new(stream),
                reader: Reader::new(),
                read_buf: BytesMut::new(),
-               error: false,
                tasks: VecDeque::new(),
-               keepalive: true,
-               keepalive_timer: None,
-               h2: false }
+               keepalive_timer: None }
     }
 
-    pub fn into_inner(mut self) -> (T, Option<SocketAddr>, Rc<Vec<H>>, Bytes) {
-        (self.stream.unwrap(), self.addr, self.router, self.read_buf.freeze())
+    pub fn into_inner(mut self) -> (T, SocketAddr, bool,
+                                    Option<SocketAddr>, Rc<Vec<H>>, Bytes) {
+        (self.stream.unwrap(), self.local,
+         self.flags.contains(Flags::SECURE),
+         self.addr, self.router, self.read_buf.freeze())
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -103,8 +121,8 @@ impl<T, H> Http1<T, H>
             while idx < self.tasks.len() {
                 let item = &mut self.tasks[idx];
 
-                if !io && !item.eof {
-                    if item.error {
+                if !io && !item.flags.contains(EntryFlags::EOF) {
+                    if item.flags.contains(EntryFlags::ERROR) {
                         return Err(())
                     }
 
@@ -113,14 +131,16 @@ impl<T, H> Http1<T, H>
                             not_ready = false;
 
                             // overide keep-alive state
-                            if self.keepalive {
-                                self.keepalive = self.stream.keepalive();
+                            if self.stream.keepalive() {
+                                self.flags.insert(Flags::KEEPALIVE);
+                            } else {
+                                self.flags.remove(Flags::KEEPALIVE);
                             }
                             self.stream = H1Writer::new(self.stream.unwrap());
 
-                            item.eof = true;
+                            item.flags.insert(EntryFlags::EOF);
                             if ready {
-                                item.finished = true;
+                                item.flags.insert(EntryFlags::FINISHED);
                             }
                         },
                         Ok(Async::NotReady) => {
@@ -134,15 +154,15 @@ impl<T, H> Http1<T, H>
                             return Err(())
                         }
                     }
-                } else if !item.finished {
+                } else if !item.flags.contains(EntryFlags::FINISHED) {
                     match item.pipe.poll() {
                         Ok(Async::NotReady) => (),
                         Ok(Async::Ready(_)) => {
                             not_ready = false;
-                            item.finished = true;
+                            item.flags.insert(EntryFlags::FINISHED);
                         },
                         Err(err) => {
-                            item.error = true;
+                            item.flags.insert(EntryFlags::ERROR);
                             error!("Unhandled error: {}", err);
                         }
                     }
@@ -152,7 +172,9 @@ impl<T, H> Http1<T, H>
 
             // cleanup finished tasks
             while !self.tasks.is_empty() {
-                if self.tasks[0].eof && self.tasks[0].finished {
+                if self.tasks[0].flags.contains(EntryFlags::EOF) &&
+                    self.tasks[0].flags.contains(EntryFlags::FINISHED)
+                {
                     self.tasks.pop_front();
                 } else {
                     break
@@ -160,8 +182,8 @@ impl<T, H> Http1<T, H>
             }
 
             // no keep-alive
-            if !self.keepalive && self.tasks.is_empty() {
-                if self.h2 {
+            if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
+                if self.flags.contains(Flags::H2) {
                     return Ok(Async::Ready(Http1Result::Switch))
                 } else {
                     return Ok(Async::Ready(Http1Result::Done))
@@ -169,7 +191,8 @@ impl<T, H> Http1<T, H>
             }
 
             // read incoming data
-            while !self.error && !self.h2 && self.tasks.len() < MAX_PIPELINED_MESSAGES {
+            while !self.flags.contains(Flags::ERROR) && !self.flags.contains(Flags::H2) &&
+                    self.tasks.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
                     Ok(Async::Ready(Item::Http1(mut req))) => {
                         not_ready = false;
@@ -194,16 +217,14 @@ impl<T, H> Http1<T, H>
 
                         self.tasks.push_back(
                             Entry {pipe: pipe.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
-                                   eof: false,
-                                   error: false,
-                                   finished: false});
+                                   flags: EntryFlags::empty()});
                     }
                     Ok(Async::Ready(Item::Http2)) => {
-                        self.h2 = true;
+                        self.flags.insert(Flags::H2);
                     }
                     Err(ReaderError::Disconnect) => {
                         not_ready = false;
-                        self.error = true;
+                        self.flags.insert(Flags::ERROR);
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
                             entry.pipe.disconnected()
@@ -218,26 +239,24 @@ impl<T, H> Http1<T, H>
                         }
 
                         // kill keepalive
-                        self.keepalive = false;
+                        self.flags.remove(Flags::KEEPALIVE);
                         self.keepalive_timer.take();
 
                         // on parse error, stop reading stream but tasks need to be completed
-                        self.error = true;
+                        self.flags.insert(Flags::ERROR);
 
                         if self.tasks.is_empty() {
                             if let ReaderError::Error(err) = err {
                                 self.tasks.push_back(
                                     Entry {pipe: Pipeline::error(err.error_response()),
-                                           eof: false,
-                                           error: false,
-                                           finished: false});
+                                           flags: EntryFlags::empty()});
                             }
                         }
                     }
                     Ok(Async::NotReady) => {
                         // start keep-alive timer, this is also slow request timeout
                         if self.tasks.is_empty() {
-                            if self.keepalive {
+                            if self.flags.contains(Flags::KEEPALIVE) {
                                 if self.keepalive_timer.is_none() {
                                     trace!("Start keep-alive timer");
                                     let mut timeout = Timeout::new(
@@ -259,10 +278,10 @@ impl<T, H> Http1<T, H>
 
             // check for parse error
             if self.tasks.is_empty() {
-                if self.h2 {
+                if self.flags.contains(Flags::H2) {
                     return Ok(Async::Ready(Http1Result::Switch))
                 }
-                if self.error || self.keepalive_timer.is_none() {
+                if self.flags.contains(Flags::ERROR) || self.keepalive_timer.is_none() {
                     return Ok(Async::Ready(Http1Result::Done))
                 }
             }

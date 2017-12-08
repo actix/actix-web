@@ -35,28 +35,30 @@ pub(crate) trait Writer {
     fn poll_complete(&mut self) -> Poll<(), io::Error>;
 }
 
+bitflags! {
+    struct Flags: u8 {
+        const STARTED = 0b0000_0001;
+        const UPGRADE = 0b0000_0010;
+        const KEEPALIVE = 0b0000_0100;
+        const DISCONNECTED = 0b0000_1000;
+    }
+}
 
 pub(crate) struct H1Writer<T: AsyncWrite> {
+    flags: Flags,
     stream: Option<T>,
-    started: bool,
     encoder: PayloadEncoder,
-    upgrade: bool,
-    keepalive: bool,
-    disconnected: bool,
     written: u64,
-    headers_size: u64,
+    headers_size: u32,
 }
 
 impl<T: AsyncWrite> H1Writer<T> {
 
     pub fn new(stream: T) -> H1Writer<T> {
         H1Writer {
+            flags: Flags::empty(),
             stream: Some(stream),
-            started: false,
             encoder: PayloadEncoder::default(),
-            upgrade: false,
-            keepalive: false,
-            disconnected: false,
             written: 0,
             headers_size: 0,
         }
@@ -75,7 +77,7 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 
     pub fn keepalive(&self) -> bool {
-        self.keepalive && !self.upgrade
+        self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
     fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
@@ -105,9 +107,10 @@ impl<T: AsyncWrite> H1Writer<T> {
 
 impl<T: AsyncWrite> Writer for H1Writer<T> {
 
+    #[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
     fn written(&self) -> u64 {
-        if self.written > self.headers_size {
-            self.written - self.headers_size
+        if self.written > self.headers_size as u64 {
+            self.written - self.headers_size as u64
         } else {
             0
         }
@@ -119,9 +122,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare task
-        self.started = true;
+        self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(req, msg);
-        self.keepalive = msg.keep_alive().unwrap_or_else(|| req.keep_alive());
+        if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
+            self.flags.insert(Flags::KEEPALIVE);
+        }
 
         // Connection upgrade
         let version = msg.version().unwrap_or_else(|| req.version());
@@ -129,7 +134,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
-        else if self.keepalive {
+        else if self.flags.contains(Flags::KEEPALIVE) {
             if version < Version::HTTP_11 {
                 msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
@@ -177,7 +182,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             // msg eof
             buffer.extend(b"\r\n");
-            self.headers_size = buffer.len() as u64;
+            self.headers_size = buffer.len() as u32;
         }
 
         trace!("Response: {:?}", msg);
@@ -193,8 +198,8 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
-        if !self.disconnected {
-            if self.started {
+        if !self.flags.contains(Flags::DISCONNECTED) {
+            if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
                 self.encoder.write(payload)?;
             } else {
