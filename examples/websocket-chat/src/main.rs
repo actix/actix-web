@@ -197,7 +197,7 @@ fn main() {
 
     // Create Http server with websocket support
     HttpServer::new(
-        Application::build("/", state)
+        Application::with_state("/", state)
             // redirect to websocket.html
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 httpcodes::HTTPFound
@@ -208,7 +208,7 @@ fn main() {
             // websocket
             .resource("/ws/", |r| r.route().f(chat_route))
             // static resources
-            .route("/static", |r| r.h(fs::StaticFiles::new("static/", true))))
+            .resource("/static", |r| r.h(fs::StaticFiles::new("static/", true))))
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();

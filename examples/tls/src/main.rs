@@ -30,11 +30,11 @@ fn main() {
     let pkcs12 = Pkcs12::from_der(&pkcs12).unwrap().parse("12345").unwrap();
 
     HttpServer::new(
-        Application::default("/")
+        Application::new("/")
             // enable logger
             .middleware(middlewares::Logger::default())
             // register simple handler, handle all methods
-            .route("/index.html", |r| r.f(index))
+            .resource("/index.html", |r| r.f(index))
             // with path parameters
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 httpcodes::HTTPFound
