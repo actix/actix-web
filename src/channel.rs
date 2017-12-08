@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::net::SocketAddr;
 
 use actix::dev::*;
@@ -12,9 +13,13 @@ use httprequest::HttpRequest;
 use server::ServerSettings;
 
 /// Low level http request handler
+#[allow(unused_variables)]
 pub trait HttpHandler: 'static {
     /// Handle request
     fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest>;
+
+    /// Set server settings
+    fn server_settings(&mut self, settings: ServerSettings) {}
 }
 
 /// Conversion helper trait
@@ -51,17 +56,16 @@ pub struct HttpChannel<T, H>
 impl<T, H> HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
-    pub fn new(settings: ServerSettings<H>,
-               stream: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
+    pub fn new(h: Rc<Vec<H>>, io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
-                    h2::Http2::new(settings, stream, peer, Bytes::new()))) }
+                    h2::Http2::new(h, io, peer, Bytes::new()))) }
         } else {
             HttpChannel {
                 proto: Some(HttpProtocol::H1(
-                    h1::Http1::new(settings, stream, peer))) }
+                    h1::Http1::new(h, io, peer))) }
         }
     }
 }
@@ -97,8 +101,7 @@ impl<T, H> Future for HttpChannel<T, H>
                         return Err(()),
                 }
             }
-            Some(HttpProtocol::H2(ref mut h2)) =>
-                return h2.poll(),
+            Some(HttpProtocol::H2(ref mut h2)) => return h2.poll(),
             None => unreachable!(),
         }
 
@@ -106,9 +109,9 @@ impl<T, H> Future for HttpChannel<T, H>
         let proto = self.proto.take().unwrap();
         match proto {
             HttpProtocol::H1(h1) => {
-                let (settings, stream, addr, buf) = h1.into_inner();
+                let (h, io, addr, buf) = h1.into_inner();
                 self.proto = Some(
-                    HttpProtocol::H2(h2::Http2::new(settings, stream, addr, buf)));
+                    HttpProtocol::H2(h2::Http2::new(h, io, addr, buf)));
                 self.poll()
             }
             _ => unreachable!()

@@ -1,4 +1,5 @@
 use std::{io, cmp, mem};
+use std::rc::Rc;
 use std::io::{Read, Write};
 use std::time::Duration;
 use std::net::SocketAddr;
@@ -21,13 +22,11 @@ use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
-use server::ServerSettings;
 
 const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
 bitflags! {
     struct Flags: u8 {
-        const SECURE = 0b0000_0001;
         const DISCONNECTED = 0b0000_0010;
     }
 }
@@ -37,7 +36,7 @@ pub(crate) struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     flags: Flags,
-    settings: ServerSettings<H>,
+    handlers: Rc<Vec<H>>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry>,
@@ -54,10 +53,10 @@ impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(settings: ServerSettings<H>, stream: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
+    pub fn new(h: Rc<Vec<H>>, stream: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
     {
-        Http2{ flags: if settings.secure() { Flags::SECURE } else { Flags::empty() },
-               settings: settings,
+        Http2{ flags: Flags::empty(),
+               handlers: h,
                addr: addr,
                tasks: VecDeque::new(),
                state: State::Handshake(
@@ -152,7 +151,7 @@ impl<T, H> Http2<T, H>
                             self.keepalive_timer.take();
 
                             self.tasks.push_back(
-                                Entry::new(parts, body, resp, self.addr, &self.settings));
+                                Entry::new(parts, body, resp, self.addr, &self.handlers));
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
@@ -231,7 +230,7 @@ impl Entry {
               recv: RecvStream,
               resp: Respond<Bytes>,
               addr: Option<SocketAddr>,
-              settings: &ServerSettings<H>) -> Entry
+              handlers: &Rc<Vec<H>>) -> Entry
         where H: HttpHandler + 'static
     {
         // Payload and Content-Encoding
@@ -248,7 +247,7 @@ impl Entry {
 
         // start request processing
         let mut task = None;
-        for h in settings.handlers() {
+        for h in handlers.iter() {
             req = match h.handle(req) {
                 Ok(t) => {
                     task = Some(t);

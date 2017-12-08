@@ -142,7 +142,8 @@ impl<S> HttpRequest<S> {
         &self.0.headers
     }
 
-    #[cfg(test)]
+    #[doc(hidden)]
+    #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.as_mut().headers
     }
