@@ -426,6 +426,34 @@ impl From<UrlParseError> for UrlGenerationError {
     }
 }
 
+macro_rules! ERROR_WRAP {
+    ($type:ty, $status:expr) => {
+        unsafe impl<T> Sync for $type {}
+        unsafe impl<T> Send for $type {}
+
+        impl<T> $type {
+            pub fn cause(&self) -> &T {
+                &self.0
+            }
+        }
+
+        impl<T: fmt::Debug + 'static> Fail for $type {}
+        impl<T: fmt::Debug + 'static> fmt::Display for $type {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{:?}", self.0)
+            }
+        }
+
+        impl<T> ResponseError for $type
+            where T: Send + Sync + fmt::Debug + 'static,
+        {
+            fn error_response(&self) -> HttpResponse {
+                HttpResponse::new($status, Body::Empty)
+            }
+        }
+
+    }
+}
 
 /// Helper type that can wrap any error and generate *BAD REQUEST* response.
 ///
@@ -445,30 +473,57 @@ impl From<UrlParseError> for UrlGenerationError {
 /// ```
 #[derive(Debug)]
 pub struct ErrorBadRequest<T>(pub T);
+ERROR_WRAP!(ErrorBadRequest<T>, StatusCode::BAD_REQUEST);
 
-unsafe impl<T> Sync for ErrorBadRequest<T> {}
-unsafe impl<T> Send for ErrorBadRequest<T> {}
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *UNAUTHORIZED* response.
+pub struct ErrorUnauthorized<T>(pub T);
+ERROR_WRAP!(ErrorUnauthorized<T>, StatusCode::UNAUTHORIZED);
 
-impl<T> ErrorBadRequest<T> {
-    pub fn cause(&self) -> &T {
-        &self.0
-    }
-}
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *FORBIDDEN* response.
+pub struct ErrorForbidden<T>(pub T);
+ERROR_WRAP!(ErrorForbidden<T>, StatusCode::FORBIDDEN);
 
-impl<T: fmt::Debug + 'static> Fail for ErrorBadRequest<T> {}
-impl<T: fmt::Debug + 'static> fmt::Display for ErrorBadRequest<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BadRequest({:?})", self.0)
-    }
-}
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *NOT FOUND* response.
+pub struct ErrorNotFound<T>(pub T);
+ERROR_WRAP!(ErrorNotFound<T>, StatusCode::NOT_FOUND);
 
-impl<T> ResponseError for ErrorBadRequest<T>
-    where T: Send + Sync + fmt::Debug + 'static,
-{
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
-    }
-}
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *METHOD_NOT_ALLOWED* response.
+pub struct ErrorMethodNotAllowed<T>(pub T);
+ERROR_WRAP!(ErrorMethodNotAllowed<T>, StatusCode::METHOD_NOT_ALLOWED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *REQUEST_TIMEOUT* response.
+pub struct ErrorRequestTimeout<T>(pub T);
+ERROR_WRAP!(ErrorRequestTimeout<T>, StatusCode::REQUEST_TIMEOUT);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *CONFLICT* response.
+pub struct ErrorConflict<T>(pub T);
+ERROR_WRAP!(ErrorConflict<T>, StatusCode::CONFLICT);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *GONE* response.
+pub struct ErrorGone<T>(pub T);
+ERROR_WRAP!(ErrorGone<T>, StatusCode::GONE);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *PRECONDITION_FAILED* response.
+pub struct ErrorPreconditionFailed<T>(pub T);
+ERROR_WRAP!(ErrorPreconditionFailed<T>, StatusCode::PRECONDITION_FAILED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *EXPECTATION_FAILED* response.
+pub struct ErrorExpectationFailed<T>(pub T);
+ERROR_WRAP!(ErrorExpectationFailed<T>, StatusCode::EXPECTATION_FAILED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *INTERNAL_SERVER_ERROR* response.
+pub struct ErrorInternalServerError<T>(pub T);
+ERROR_WRAP!(ErrorInternalServerError<T>, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(test)]
 mod tests {
