@@ -184,3 +184,41 @@ fn main() {
         .finish();
 }
 ```
+
+### Path normalization
+
+By normalizing it means:
+
+ - Add a trailing slash to the path.
+ - Double slashes are replaced by one.
+
+The handler returns as soon as it finds a path that resolves
+correctly. The order if all enable is 1) merge, 3) both merge and append
+and 3) append. If the path resolves with
+at least one of those conditions, it will redirect to the new path.
+
+If *append* is *true* append slash when needed. If a resource is
+defined with trailing slash and the request comes without it, it will
+append it automatically.
+
+If *merge* is *true*, merge multiple consecutive slashes in the path into one.
+
+This handler designed to be use as a handler for application's *default resource*.
+
+```rust
+# extern crate actix_web;
+# #[macro_use] extern crate serde_derive;
+# use actix_web::*;
+#
+# fn index(req: HttpRequest) -> httpcodes::StaticResponse {
+#    httpcodes::HTTPOk
+# }
+fn main() {
+    let app = Application::new("/")
+        .resource("/resource/", |r| r.f(index))
+        .default_resource(|r| r.h(NormalizePath::default()))
+        .finish();
+}
+```
+
+In this example `/resource`, `//resource///` will be redirected to `/resource/` url.
