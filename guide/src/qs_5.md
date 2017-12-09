@@ -222,3 +222,26 @@ fn main() {
 ```
 
 In this example `/resource`, `//resource///` will be redirected to `/resource/` url.
+
+In this example path normalization handler get registered for all method,
+but you should not rely on this mechanism to redirect *POST* requests. The redirect of the
+slash-appending *Not Found* will turn a *POST* request into a GET, losing any 
+*POST* data in the original request.
+
+It is possible to register path normalization only for *GET* requests only
+
+```rust
+# extern crate actix_web;
+# #[macro_use] extern crate serde_derive;
+# use actix_web::*;
+#
+# fn index(req: HttpRequest) -> httpcodes::StaticResponse {
+#    httpcodes::HTTPOk
+# }
+fn main() {
+    let app = Application::new("/")
+        .resource("/resource/", |r| r.f(index))
+        .default_resource(|r| r.method(Method::GET).h(NormalizePath::default()))
+        .finish();
+}
+```
