@@ -266,14 +266,16 @@ impl<T: Serialize> FromRequest for Json<T> {
     }
 }
 
-/// Handler that normalizes the path of a request. By normalizing it means:
+/// Path normalization helper
+///
+/// By normalizing it means:
 ///
 /// - Add a trailing slash to the path.
 /// - Double slashes are replaced by one.
 ///
 /// The handler returns as soon as it finds a path that resolves
-/// correctly. The order if all enable is 1) merge, 2) append
-/// and 3) both merge and append. If the path resolves with
+/// correctly. The order if all enable is 1) merge, 3) both merge and append
+/// and 3) append. If the path resolves with
 /// at least one of those conditions, it will redirect to the new path.
 ///
 /// If *append* is *true* append slash when needed. If a resource is
@@ -283,6 +285,23 @@ impl<T: Serialize> FromRequest for Json<T> {
 /// If *merge* is *true*, merge multiple consecutive slashes in the path into one.
 ///
 /// This handler designed to be use as a handler for application's *default resource*.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # #[macro_use] extern crate serde_derive;
+/// # use actix_web::*;
+/// #
+/// # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
+/// #     httpcodes::HTTPOk
+/// # }
+/// fn main() {
+///     let app = Application::new("/")
+///         .resource("/test/", |r| r.f(index))
+///         .default_resource(|r| r.h(NormalizePath::default()))
+///         .finish();
+/// }
+/// ```
+/// In this example `/test`, `/test///` will be redirected to `/test/` url.
 pub struct NormalizePath {
     append: bool,
     merge: bool,
@@ -292,6 +311,8 @@ pub struct NormalizePath {
 }
 
 impl Default for NormalizePath {
+    /// Create default `NormalizePath` instance, *append* is set to *true*,
+    /// *merge* is set to *true* and *redirect* is set to `StatusCode::MOVED_PERMANENTLY`
     fn default() -> NormalizePath {
         NormalizePath {
             append: true,
@@ -304,6 +325,7 @@ impl Default for NormalizePath {
 }
 
 impl NormalizePath {
+    /// Create new `NoramlizePath` instance
     pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
         NormalizePath {
             append: append,
