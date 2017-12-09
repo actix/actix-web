@@ -4,7 +4,10 @@ use actix::Actor;
 use futures::Future;
 use serde_json;
 use serde::Serialize;
+use regex::Regex;
+use http::{header, StatusCode, Error as HttpError};
 
+use body::Body;
 use error::Error;
 use context::{HttpContext, IoContext};
 use httprequest::HttpRequest;
@@ -260,6 +263,94 @@ impl<T: Serialize> FromRequest for Json<T> {
         Ok(HttpResponse::Ok()
            .content_type("application/json")
            .body(body)?)
+    }
+}
+
+/// Handler that normalizes the path of a request. By normalizing it means:
+///
+/// - Add a trailing slash to the path.
+/// - Double slashes are replaced by one.
+///
+/// The handler returns as soon as it finds a path that resolves
+/// correctly. The order if all enable is 1) merge, 2) append
+/// and 3) both merge and append. If the path resolves with
+/// at least one of those conditions, it will redirect to the new path.
+///
+/// If *append* is *true* append slash when needed. If a resource is
+/// defined with trailing slash and the request comes without it, it will
+/// append it automatically.
+///
+/// If *merge* is *true*, merge multiple consecutive slashes in the path into one.
+///
+/// This handler designed to be use as a handler for application's *default resource*.
+pub struct NormalizePath {
+    append: bool,
+    merge: bool,
+    re_merge: Regex,
+    redirect: StatusCode,
+    not_found: StatusCode,
+}
+
+impl Default for NormalizePath {
+    fn default() -> NormalizePath {
+        NormalizePath {
+            append: true,
+            merge: true,
+            re_merge: Regex::new("//+").unwrap(),
+            redirect: StatusCode::MOVED_PERMANENTLY,
+            not_found: StatusCode::NOT_FOUND,
+        }
+    }
+}
+
+impl NormalizePath {
+    pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
+        NormalizePath {
+            append: append,
+            merge: merge,
+            re_merge: Regex::new("//+").unwrap(),
+            redirect: redirect,
+            not_found: StatusCode::NOT_FOUND,
+        }
+    }
+}
+
+impl<S> Handler<S> for NormalizePath {
+    type Result = Result<HttpResponse, HttpError>;
+
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+        if let Some(router) = req.router() {
+            if self.merge {
+                // merge slashes
+                let p = self.re_merge.replace_all(req.path(), "/");
+                if p.len() != req.path().len() {
+                    if router.has_route(p.as_ref()) {
+                        return HttpResponse::build(self.redirect)
+                            .header(header::LOCATION, p.as_ref())
+                            .body(Body::Empty);
+                    }
+                    // merge slashes and append trailing slash
+                    if self.append && !p.ends_with('/') {
+                        let p = p.as_ref().to_owned() + "/";
+                        if router.has_route(&p) {
+                            return HttpResponse::build(self.redirect)
+                                .header(header::LOCATION, p.as_str())
+                                .body(Body::Empty);
+                        }
+                    }
+                }
+            }
+            // append trailing slash
+            if self.append && !req.path().ends_with('/') {
+                let p = req.path().to_owned() + "/";
+                if router.has_route(&p) {
+                    return HttpResponse::build(self.redirect)
+                        .header(header::LOCATION, p.as_str())
+                        .body(Body::Empty);
+                }
+            }
+        }
+        Ok(HttpResponse::new(self.not_found, Body::Empty))
     }
 }
 
