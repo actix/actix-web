@@ -15,7 +15,7 @@ use bytes::{Bytes, BytesMut, BufMut, Writer};
 
 use body::{Body, Binary};
 use error::PayloadError;
-use httprequest::HttpRequest;
+use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
 
@@ -336,8 +336,8 @@ impl Default for PayloadEncoder {
 
 impl PayloadEncoder {
 
-    pub fn new(req: &HttpRequest, resp: &mut HttpResponse) -> PayloadEncoder {
-        let version = resp.version().unwrap_or_else(|| req.version());
+    pub fn new(req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
+        let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
         let has_body = match body {
             Body::Empty => false,
@@ -350,7 +350,7 @@ impl PayloadEncoder {
             let encoding = match *resp.content_encoding() {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
-                    if let Some(val) = req.headers().get(ACCEPT_ENCODING) {
+                    if let Some(val) = req.headers.get(ACCEPT_ENCODING) {
                         if let Ok(enc) = val.to_str() {
                             AcceptEncoding::parse(enc)
                         } else {

@@ -5,7 +5,7 @@ use handler::{Reply, RouteHandler};
 use router::{Router, Pattern};
 use resource::Resource;
 use httprequest::HttpRequest;
-use channel::{HttpHandler, IntoHttpHandler};
+use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
 use pipeline::Pipeline;
 use middlewares::Middleware;
 use server::ServerSettings;
@@ -16,14 +16,12 @@ pub struct HttpApplication<S> {
     prefix: String,
     default: Resource<S>,
     router: Router<S>,
-    middlewares: Rc<Vec<Box<Middleware>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 impl<S: 'static> HttpApplication<S> {
 
-    fn run(&self, req: HttpRequest) -> Reply {
-        let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
-
+    fn run(&self, mut req: HttpRequest<S>) -> Reply {
         if let Some(h) = self.router.recognize(&mut req) {
             h.handle(req)
         } else {
@@ -34,10 +32,12 @@ impl<S: 'static> HttpApplication<S> {
 
 impl<S: 'static> HttpHandler for HttpApplication<S> {
 
-    fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest> {
+    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
-            Ok(Pipeline::new(req, Rc::clone(&self.middlewares),
-                             &|req: HttpRequest| self.run(req)))
+            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
+
+            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares),
+                                      &|req: HttpRequest<S>| self.run(req))))
         } else {
             Err(req)
         }
@@ -54,7 +54,7 @@ struct ApplicationParts<S> {
     default: Resource<S>,
     resources: HashMap<Pattern, Option<Resource<S>>>,
     external: HashMap<String, Pattern>,
-    middlewares: Vec<Box<Middleware>>,
+    middlewares: Vec<Box<Middleware<S>>>,
 }
 
 /// Structure that follows the builder pattern for building `Application` structs.
@@ -204,7 +204,7 @@ impl<S> Application<S> where S: 'static {
 
     /// Register a middleware
     pub fn middleware<T>(&mut self, mw: T) -> &mut Self
-        where T: Middleware + 'static
+        where T: Middleware<S> + 'static
     {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
@@ -322,7 +322,8 @@ mod tests {
         let app = Application::with_state("/", 10)
             .resource("/", |r| r.h(httpcodes::HTTPOk))
             .finish();
+        let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         assert_eq!(
-            app.run(HttpRequest::default()).msg().unwrap().status(), StatusCode::OK);
+            app.run(req).msg().unwrap().status(), StatusCode::OK);
     }
 }

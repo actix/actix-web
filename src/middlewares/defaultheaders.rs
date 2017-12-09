@@ -35,9 +35,9 @@ impl DefaultHeaders {
     }
 }
 
-impl Middleware for DefaultHeaders {
+impl<S> Middleware<S> for DefaultHeaders {
 
-    fn response(&self, _: &mut HttpRequest, mut resp: HttpResponse) -> Response {
+    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Response {
         for (key, value) in self.0.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());

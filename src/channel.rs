@@ -8,18 +8,29 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use h1;
 use h2;
-use pipeline::Pipeline;
+use error::Error;
+use h1writer::Writer;
 use httprequest::HttpRequest;
 use server::ServerSettings;
 
 /// Low level http request handler
 #[allow(unused_variables)]
 pub trait HttpHandler: 'static {
+
     /// Handle request
-    fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest>;
+    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
 
     /// Set server settings
     fn server_settings(&mut self, settings: ServerSettings) {}
+}
+
+pub trait HttpHandlerTask {
+
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
+
+    fn poll(&mut self) -> Poll<(), Error>;
+
+    fn disconnected(&mut self);
 }
 
 /// Conversion helper trait
@@ -40,7 +51,7 @@ impl<T: HttpHandler> IntoHttpHandler for T {
 }
 
 enum HttpProtocol<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: 'static
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
@@ -48,7 +59,7 @@ enum HttpProtocol<T, H>
 
 #[doc(hidden)]
 pub struct HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: 'static
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
     proto: Option<HttpProtocol<T, H>>,
 }

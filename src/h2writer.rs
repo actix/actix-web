@@ -9,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, TRANSFER_ENCODING, DAT
 use date;
 use body::Body;
 use encoding::PayloadEncoder;
-use httprequest::HttpRequest;
+use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use h1writer::{Writer, WriterState};
 
@@ -108,7 +108,7 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
         trace!("Prepare response with status: {:?}", msg.status());

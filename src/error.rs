@@ -491,12 +491,12 @@ pub struct ErrorNotFound<T>(pub T);
 ERROR_WRAP!(ErrorNotFound<T>, StatusCode::NOT_FOUND);
 
 #[derive(Debug)]
-/// Helper type that can wrap any error and generate *METHOD_NOT_ALLOWED* response.
+/// Helper type that can wrap any error and generate *METHOD NOT ALLOWED* response.
 pub struct ErrorMethodNotAllowed<T>(pub T);
 ERROR_WRAP!(ErrorMethodNotAllowed<T>, StatusCode::METHOD_NOT_ALLOWED);
 
 #[derive(Debug)]
-/// Helper type that can wrap any error and generate *REQUEST_TIMEOUT* response.
+/// Helper type that can wrap any error and generate *REQUEST TIMEOUT* response.
 pub struct ErrorRequestTimeout<T>(pub T);
 ERROR_WRAP!(ErrorRequestTimeout<T>, StatusCode::REQUEST_TIMEOUT);
 
@@ -511,17 +511,17 @@ pub struct ErrorGone<T>(pub T);
 ERROR_WRAP!(ErrorGone<T>, StatusCode::GONE);
 
 #[derive(Debug)]
-/// Helper type that can wrap any error and generate *PRECONDITION_FAILED* response.
+/// Helper type that can wrap any error and generate *PRECONDITION FAILED* response.
 pub struct ErrorPreconditionFailed<T>(pub T);
 ERROR_WRAP!(ErrorPreconditionFailed<T>, StatusCode::PRECONDITION_FAILED);
 
 #[derive(Debug)]
-/// Helper type that can wrap any error and generate *EXPECTATION_FAILED* response.
+/// Helper type that can wrap any error and generate *EXPECTATION FAILED* response.
 pub struct ErrorExpectationFailed<T>(pub T);
 ERROR_WRAP!(ErrorExpectationFailed<T>, StatusCode::EXPECTATION_FAILED);
 
 #[derive(Debug)]
-/// Helper type that can wrap any error and generate *INTERNAL_SERVER_ERROR* response.
+/// Helper type that can wrap any error and generate *INTERNAL SERVER ERROR* response.
 pub struct ErrorInternalServerError<T>(pub T);
 ERROR_WRAP!(ErrorInternalServerError<T>, StatusCode::INTERNAL_SERVER_ERROR);
 

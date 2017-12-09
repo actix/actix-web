@@ -19,18 +19,17 @@ use error::{ParseError, PayloadError, UrlGenerationError,
             MultipartError, CookieParseError, HttpRangeError, UrlencodedError};
 
 
-struct HttpMessage {
-    version: Version,
-    method: Method,
-    uri: Uri,
-    headers: HeaderMap,
-    extensions: Extensions,
-    params: Params<'static>,
-    cookies: Option<Vec<Cookie<'static>>>,
-    addr: Option<SocketAddr>,
-    payload: Payload,
-    info: Option<ConnectionInfo<'static>>,
-
+pub struct HttpMessage {
+    pub version: Version,
+    pub method: Method,
+    pub uri: Uri,
+    pub headers: HeaderMap,
+    pub extensions: Extensions,
+    pub params: Params<'static>,
+    pub cookies: Option<Vec<Cookie<'static>>>,
+    pub addr: Option<SocketAddr>,
+    pub payload: Payload,
+    pub info: Option<ConnectionInfo<'static>>,
 }
 
 impl Default for HttpMessage {
@@ -47,6 +46,27 @@ impl Default for HttpMessage {
             payload: Payload::empty(),
             extensions: Extensions::new(),
             info: None,
+        }
+    }
+}
+
+impl HttpMessage {
+
+    /// Checks if a connection should be kept alive.
+    pub fn keep_alive(&self) -> bool {
+        if let Some(conn) = self.headers.get(header::CONNECTION) {
+            if let Ok(conn) = conn.to_str() {
+                if self.version == Version::HTTP_10 && conn.contains("keep-alive") {
+                    true
+                } else {
+                    self.version == Version::HTTP_11 &&
+                        !(conn.contains("close") || conn.contains("upgrade"))
+                }
+            } else {
+                false
+            }
+        } else {
+            self.version != Version::HTTP_10
         }
     }
 }
@@ -99,6 +119,10 @@ impl<S> HttpRequest<S> {
     fn as_mut(&self) -> &mut HttpMessage {
         let r: &HttpMessage = self.0.as_ref();
         unsafe{mem::transmute(r)}
+    }
+
+    pub(crate) fn get_inner(&mut self) -> &mut HttpMessage {
+        self.as_mut()
     }
 
     /// Shared application state

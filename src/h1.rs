@@ -15,7 +15,7 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use encoding::PayloadType;
-use channel::HttpHandler;
+use channel::{HttpHandler, HttpHandlerTask};
 use h1writer::H1Writer;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
@@ -69,7 +69,7 @@ pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
 }
 
 struct Entry {
-    pipe: Pipeline,
+    pipe: Box<HttpHandlerTask>,
     flags: EntryFlags,
 }
 

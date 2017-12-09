@@ -16,7 +16,7 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use h2writer::H2Writer;
-use channel::HttpHandler;
+use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
 use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
@@ -217,7 +217,7 @@ bitflags! {
 }
 
 struct Entry {
-    task: Pipeline,
+    task: Box<HttpHandlerTask>,
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,

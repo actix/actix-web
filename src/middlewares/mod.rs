@@ -46,22 +46,22 @@ pub enum Finished {
 
 /// Middleware definition
 #[allow(unused_variables)]
-pub trait Middleware {
+pub trait Middleware<S> {
 
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&self, req: &mut HttpRequest) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Started {
         Started::Done
     }
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
-    fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> Response {
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
         Response::Done(resp)
     }
 
     /// Method is called after body stream get sent to peer.
-    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         Finished::Done
     }
 }

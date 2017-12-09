@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use futures::{Async, Poll, Future, Stream};
 use futures::task::{Task as FutureTask, current as current_task};
 
+use channel::HttpHandlerTask;
 use body::{Body, BodyStream};
 use context::{Frame, IoContext};
 use error::{Error, UnexpectedTaskFrame};
@@ -14,23 +15,23 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middlewares::{Middleware, Finished, Started, Response};
 
-type Handler = Fn(HttpRequest) -> Reply;
-pub(crate) type PipelineHandler<'a> = &'a Fn(HttpRequest) -> Reply;
+type Handler<S> = Fn(HttpRequest<S>) -> Reply;
+pub(crate) type PipelineHandler<'a, S> = &'a Fn(HttpRequest<S>) -> Reply;
 
-pub struct Pipeline(PipelineState);
+pub struct Pipeline<S>(PipelineState<S>);
 
-enum PipelineState {
+enum PipelineState<S> {
     None,
     Error,
-    Starting(StartMiddlewares),
-    Handler(WaitingResponse),
-    RunMiddlewares(RunMiddlewares),
-    Response(ProcessResponse),
-    Finishing(FinishingMiddlewares),
-    Completed(Completed),
+    Starting(StartMiddlewares<S>),
+    Handler(WaitingResponse<S>),
+    RunMiddlewares(RunMiddlewares<S>),
+    Response(ProcessResponse<S>),
+    Finishing(FinishingMiddlewares<S>),
+    Completed(Completed<S>),
 }
 
-impl PipelineState {
+impl<S> PipelineState<S> {
 
     fn is_done(&self) -> bool {
         match *self {
@@ -71,16 +72,16 @@ impl PipelineState {
     }
 }
 
-struct PipelineInfo {
-    req: HttpRequest,
+struct PipelineInfo<S> {
+    req: HttpRequest<S>,
     count: usize,
-    mws: Rc<Vec<Box<Middleware>>>,
+    mws: Rc<Vec<Box<Middleware<S>>>>,
     context: Option<Box<IoContext>>,
     error: Option<Error>,
 }
 
-impl PipelineInfo {
-    fn new(req: HttpRequest) -> PipelineInfo {
+impl<S> PipelineInfo<S> {
+    fn new(req: HttpRequest<S>) -> PipelineInfo<S> {
         PipelineInfo {
             req: req,
             count: 0,
@@ -91,7 +92,7 @@ impl PipelineInfo {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    fn req_mut(&self) -> &mut HttpRequest {
+    fn req_mut(&self) -> &mut HttpRequest<S> {
         #[allow(mutable_transmutes)]
         unsafe{mem::transmute(&self.req)}
     }
@@ -158,25 +159,30 @@ impl Future for DrainFut {
 }
 
 
-impl Pipeline {
+impl<S> Pipeline<S> {
 
-    pub fn new(req: HttpRequest,
-               mw: Rc<Vec<Box<Middleware>>>,
-               handler: PipelineHandler) -> Pipeline
+    pub fn new(req: HttpRequest<S>,
+               mw: Rc<Vec<Box<Middleware<S>>>>,
+               handler: PipelineHandler<S>) -> Pipeline<S>
     {
         Pipeline(StartMiddlewares::init(mw, req, handler))
     }
+}
 
-    pub fn error<R: Into<HttpResponse>>(err: R) -> Self {
-        Pipeline(ProcessResponse::init(
-            Box::new(PipelineInfo::new(HttpRequest::default())), err.into()))
+impl Pipeline<()> {
+    pub fn error<R: Into<HttpResponse>>(err: R) -> Box<HttpHandlerTask> {
+        Box::new(Pipeline(ProcessResponse::init(
+            PipelineInfo::new(HttpRequest::default()), err.into())))
     }
+}
 
-    pub(crate) fn disconnected(&mut self) {
+impl<S> HttpHandlerTask for Pipeline<S> {
+
+    fn disconnected(&mut self) {
         self.0.disconnect()
     }
 
-    pub(crate) fn poll_io<T: Writer>(&mut self, io: &mut T) -> Poll<bool, Error> {
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
         loop {
             let state = mem::replace(&mut self.0, PipelineState::None);
             match state {
@@ -256,7 +262,7 @@ impl Pipeline {
         }
     }
 
-    pub(crate) fn poll(&mut self) -> Poll<(), Error> {
+    fn poll(&mut self) -> Poll<(), Error> {
         loop {
             let state = mem::replace(&mut self.0, PipelineState::None);
             match state {
@@ -327,16 +333,16 @@ impl Pipeline {
 type Fut = Box<Future<Item=Option<HttpResponse>, Error=Error>>;
 
 /// Middlewares start executor
-struct StartMiddlewares {
-    hnd: *mut Handler,
+struct StartMiddlewares<S> {
+    hnd: *mut Handler<S>,
     fut: Option<Fut>,
-    info: Box<PipelineInfo>,
+    info: PipelineInfo<S>,
 }
 
-impl StartMiddlewares {
+impl<S> StartMiddlewares<S> {
 
-    fn init(mws: Rc<Vec<Box<Middleware>>>,
-            req: HttpRequest, handler: PipelineHandler) -> PipelineState {
+    fn init(mws: Rc<Vec<Box<Middleware<S>>>>,
+            req: HttpRequest<S>, handler: PipelineHandler<S>) -> PipelineState<S> {
         let mut info = PipelineInfo {
             req: req,
             count: 0,
@@ -351,37 +357,37 @@ impl StartMiddlewares {
         loop {
             if info.count == len {
                 let reply = (&*handler)(info.req.clone());
-                return WaitingResponse::init(Box::new(info), reply)
+                return WaitingResponse::init(info, reply)
             } else {
                 match info.mws[info.count].start(&mut info.req) {
                     Started::Done =>
                         info.count += 1,
                     Started::Response(resp) =>
-                        return RunMiddlewares::init(Box::new(info), resp),
+                        return RunMiddlewares::init(info, resp),
                     Started::Future(mut fut) =>
                         match fut.poll() {
                             Ok(Async::NotReady) =>
                                 return PipelineState::Starting(StartMiddlewares {
                                     hnd: handler as *const _ as *mut _,
                                     fut: Some(fut),
-                                    info: Box::new(info)}),
+                                    info: info}),
                             Ok(Async::Ready(resp)) => {
                                 if let Some(resp) = resp {
-                                    return RunMiddlewares::init(Box::new(info), resp);
+                                    return RunMiddlewares::init(info, resp);
                                 }
                                 info.count += 1;
                             }
                             Err(err) =>
-                                return ProcessResponse::init(Box::new(info), err.into()),
+                                return ProcessResponse::init(info, err.into()),
                         },
                     Started::Err(err) =>
-                        return ProcessResponse::init(Box::new(info), err.into()),
+                        return ProcessResponse::init(info, err.into()),
                 }
             }
         }
     }
 
-    fn poll(mut self) -> Result<PipelineState, PipelineState> {
+    fn poll(mut self) -> Result<PipelineState<S>, PipelineState<S>> {
         let len = self.info.mws.len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
@@ -421,14 +427,14 @@ impl StartMiddlewares {
 }
 
 // waiting for response
-struct WaitingResponse {
-    info: Box<PipelineInfo>,
+struct WaitingResponse<S> {
+    info: PipelineInfo<S>,
     stream: PipelineResponse,
 }
 
-impl WaitingResponse {
+impl<S> WaitingResponse<S> {
 
-    fn init(info: Box<PipelineInfo>, reply: Reply) -> PipelineState
+    fn init(info: PipelineInfo<S>, reply: Reply) -> PipelineState<S>
     {
         let stream = match reply.into() {
             ReplyItem::Message(resp) =>
@@ -443,7 +449,7 @@ impl WaitingResponse {
             WaitingResponse { info: info, stream: stream })
     }
 
-    fn poll(mut self) -> Result<PipelineState, PipelineState> {
+    fn poll(mut self) -> Result<PipelineState<S>, PipelineState<S>> {
         let stream = mem::replace(&mut self.stream, PipelineResponse::None);
 
         match stream {
@@ -494,15 +500,15 @@ impl WaitingResponse {
 }
 
 /// Middlewares response executor
-pub(crate) struct RunMiddlewares {
-    info: Box<PipelineInfo>,
+struct RunMiddlewares<S> {
+    info: PipelineInfo<S>,
     curr: usize,
     fut: Option<Box<Future<Item=HttpResponse, Error=Error>>>,
 }
 
-impl RunMiddlewares {
+impl<S> RunMiddlewares<S> {
 
-    fn init(mut info: Box<PipelineInfo>, mut resp: HttpResponse) -> PipelineState
+    fn init(mut info: PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S>
     {
         if info.count == 0 {
             return ProcessResponse::init(info, resp);
@@ -532,7 +538,7 @@ impl RunMiddlewares {
         }
     }
 
-    fn poll(mut self) -> Result<PipelineState, PipelineState> {
+    fn poll(mut self) -> Result<PipelineState<S>, PipelineState<S>> {
         let len = self.info.mws.len();
 
         loop {
@@ -570,12 +576,12 @@ impl RunMiddlewares {
     }
 }
 
-struct ProcessResponse {
+struct ProcessResponse<S> {
     resp: HttpResponse,
     iostate: IOState,
     running: RunningState,
     drain: DrainVec,
-    info: Box<PipelineInfo>,
+    info: PipelineInfo<S>,
 }
 
 #[derive(PartialEq)]
@@ -625,9 +631,9 @@ impl Drop for DrainVec {
     }
 }
 
-impl ProcessResponse {
+impl<S> ProcessResponse<S> {
 
-    fn init(info: Box<PipelineInfo>, resp: HttpResponse) -> PipelineState
+    fn init(info: PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S>
     {
         PipelineState::Response(
             ProcessResponse{ resp: resp,
@@ -637,14 +643,15 @@ impl ProcessResponse {
                              info: info})
     }
 
-    fn poll_io<T: Writer>(mut self, io: &mut T) -> Result<PipelineState, PipelineState> {
+    fn poll_io(mut self, io: &mut Writer) -> Result<PipelineState<S>, PipelineState<S>> {
         if self.drain.0.is_empty() && self.running != RunningState::Paused {
             // if task is paused, write buffer is probably full
 
             loop {
                 let result = match mem::replace(&mut self.iostate, IOState::Done) {
                     IOState::Response => {
-                        let result = match io.start(self.info.req_mut(), &mut self.resp) {
+                        let result = match io.start(self.info.req_mut().get_inner(),
+                                                    &mut self.resp) {
                             Ok(res) => res,
                             Err(err) => {
                                 self.info.error = Some(err.into());
@@ -804,15 +811,15 @@ impl ProcessResponse {
 }
 
 /// Middlewares start executor
-struct FinishingMiddlewares {
-    info: Box<PipelineInfo>,
+struct FinishingMiddlewares<S> {
+    info: PipelineInfo<S>,
     resp: HttpResponse,
     fut: Option<Box<Future<Item=(), Error=Error>>>,
 }
 
-impl FinishingMiddlewares {
+impl<S> FinishingMiddlewares<S> {
 
-    fn init(info: Box<PipelineInfo>, resp: HttpResponse) -> PipelineState {
+    fn init(info: PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S> {
         if info.count == 0 {
             Completed::init(info)
         } else {
@@ -822,7 +829,7 @@ impl FinishingMiddlewares {
         }
     }
 
-    fn poll(mut self) -> Result<PipelineState, PipelineState> {
+    fn poll(mut self) -> Result<PipelineState<S>, PipelineState<S>> {
         loop {
             // poll latest fut
             let not_ready = if let Some(ref mut fut) = self.fut {
@@ -861,11 +868,11 @@ impl FinishingMiddlewares {
     }
 }
 
-struct Completed(Box<PipelineInfo>);
+struct Completed<S>(PipelineInfo<S>);
 
-impl Completed {
+impl<S> Completed<S> {
 
-    fn init(info: Box<PipelineInfo>) -> PipelineState {
+    fn init(info: PipelineInfo<S>) -> PipelineState<S> {
         if info.context.is_none() {
             PipelineState::None
         } else {
@@ -873,7 +880,7 @@ impl Completed {
         }
     }
 
-    fn poll(mut self) -> Result<PipelineState, PipelineState> {
+    fn poll(mut self) -> Result<PipelineState<S>, PipelineState<S>> {
         match self.0.poll_context() {
             Ok(Async::NotReady) => Ok(PipelineState::Completed(self)),
             Ok(Async::Ready(())) => Ok(PipelineState::None),
@@ -890,11 +897,11 @@ mod tests {
     use tokio_core::reactor::Core;
     use futures::future::{lazy, result};
 
-    impl PipelineState {
+    impl<S> PipelineState<S> {
         fn is_none(&self) -> Option<bool> {
             if let PipelineState::None = *self { Some(true) } else { None }
         }
-        fn completed(self) -> Option<Completed> {
+        fn completed(self) -> Option<Completed<S>> {
             if let PipelineState::Completed(c) = self { Some(c) } else { None }
         }
     }

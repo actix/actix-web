@@ -8,7 +8,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, DATE};
 use date;
 use body::Body;
 use encoding::PayloadEncoder;
-use httprequest::HttpRequest;
+use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -16,16 +16,16 @@ const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 
 #[derive(Debug)]
-pub(crate) enum WriterState {
+pub enum WriterState {
     Done,
     Pause,
 }
 
 /// Send stream
-pub(crate) trait Writer {
+pub trait Writer {
     fn written(&self) -> u64;
 
-    fn start(&mut self, req: &mut HttpRequest, resp: &mut HttpResponse)
+    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse)
              -> Result<WriterState, io::Error>;
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error>;
@@ -116,7 +116,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
-    fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
         trace!("Prepare response with status: {:?}", msg.status());
@@ -129,7 +129,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
 
         // Connection upgrade
-        let version = msg.version().unwrap_or_else(|| req.version());
+        let version = msg.version().unwrap_or_else(|| req.version);
         if msg.upgrade() {
             msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }

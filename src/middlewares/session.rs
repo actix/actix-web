@@ -3,6 +3,7 @@
 use std::any::Any;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use serde_json;
@@ -79,18 +80,18 @@ unsafe impl Send for SessionImplBox {}
 unsafe impl Sync for SessionImplBox {}
 
 /// Session storage middleware
-pub struct SessionStorage<T>(T);
+pub struct SessionStorage<T, S>(T, PhantomData<S>);
 
-impl<T: SessionBackend> SessionStorage<T> {
+impl<S, T: SessionBackend<S>> SessionStorage<T, S> {
     /// Create session storage
-    pub fn new(backend: T) -> SessionStorage<T> {
-        SessionStorage(backend)
+    pub fn new(backend: T) -> SessionStorage<T, S> {
+        SessionStorage(backend, PhantomData)
     }
 }
 
-impl<T: SessionBackend> Middleware for SessionStorage<T> {
+impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
 
-    fn start(&self, req: &mut HttpRequest) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Started {
         let mut req = req.clone();
 
         let fut = self.0.from_request(&mut req)
@@ -106,7 +107,7 @@ impl<T: SessionBackend> Middleware for SessionStorage<T> {
         Started::Future(Box::new(fut))
     }
 
-    fn response(&self, req: &mut HttpRequest, resp: HttpResponse) -> Response {
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
         if let Some(s_box) = req.extensions().remove::<Arc<SessionImplBox>>() {
             s_box.0.write(resp)
         } else {
@@ -133,12 +134,12 @@ pub trait SessionImpl: 'static {
 
 /// Session's storage backend trait definition.
 #[doc(hidden)]
-pub trait SessionBackend: Sized + 'static {
+pub trait SessionBackend<S>: Sized + 'static {
     type Session: SessionImpl;
     type ReadFuture: Future<Item=Self::Session, Error=Error>;
 
     /// Parse the session from request and load data from a storage backend.
-    fn from_request(&self, request: &mut HttpRequest) -> Self::ReadFuture;
+    fn from_request(&self, request: &mut HttpRequest<S>) -> Self::ReadFuture;
 }
 
 /// Dummy session impl, does not do anything
@@ -258,7 +259,7 @@ impl CookieSessionInner {
         Ok(())
     }
 
-    fn load(&self, req: &mut HttpRequest) -> HashMap<String, String> {
+    fn load<S>(&self, req: &mut HttpRequest<S>) -> HashMap<String, String> {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies {
                 if cookie.name() == self.name {
@@ -316,12 +317,12 @@ impl CookieSessionBackend {
     }
 }
 
-impl SessionBackend for CookieSessionBackend {
+impl<S> SessionBackend<S> for CookieSessionBackend {
 
     type Session = CookieSession;
     type ReadFuture = FutureResult<CookieSession, Error>;
 
-    fn from_request(&self, req: &mut HttpRequest) -> Self::ReadFuture {
+    fn from_request(&self, req: &mut HttpRequest<S>) -> Self::ReadFuture {
         let state = self.0.load(req);
         FutOk(
             CookieSession {

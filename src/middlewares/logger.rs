@@ -86,7 +86,7 @@ struct StartTime(time::Tm);
 
 impl Logger {
 
-    fn log(&self, req: &mut HttpRequest, resp: &HttpResponse) {
+    fn log<S>(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) {
         let entry_time = req.extensions().get::<StartTime>().unwrap().0;
 
         let render = |fmt: &mut Formatter| {
@@ -99,14 +99,14 @@ impl Logger {
     }
 }
 
-impl Middleware for Logger {
+impl<S> Middleware<S> for Logger {
 
-    fn start(&self, req: &mut HttpRequest) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Started {
         req.extensions().insert(StartTime(time::now()));
         Started::Done
     }
 
-    fn finish(&self, req: &mut HttpRequest, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         self.log(req, resp);
         Finished::Done
     }
@@ -199,10 +199,10 @@ pub enum FormatText {
 
 impl FormatText {
 
-    fn render(&self, fmt: &mut Formatter,
-              req: &HttpRequest,
-              resp: &HttpResponse,
-              entry_time: time::Tm) -> Result<(), fmt::Error>
+    fn render<S>(&self, fmt: &mut Formatter,
+                 req: &HttpRequest<S>,
+                 resp: &HttpResponse,
+                 entry_time: time::Tm) -> Result<(), fmt::Error>
     {
         match *self {
             FormatText::Str(ref string) => fmt.write_str(string),
