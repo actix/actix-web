@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::BytesMut;
 use futures::{Async, Future, Stream, Poll};
-use url::{Url, form_urlencoded};
 use cookie::Cookie;
 use http_range::HttpRange;
+use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
 use info::ConnectionInfo;
@@ -90,6 +90,31 @@ impl HttpRequest<()> {
                 cookies: None,
                 addr: None,
                 payload: payload,
+                extensions: Extensions::new(),
+                info: None,
+            }),
+            Rc::new(()),
+            None,
+        )
+    }
+
+    /// Construct a new Request.
+    #[inline]
+    #[cfg(test)]
+    pub fn from_path(path: &str) -> HttpRequest
+    {
+        use std::str::FromStr;
+
+        HttpRequest(
+            Rc::new(HttpMessage {
+                method: Method::GET,
+                uri: Uri::from_str(path).unwrap(),
+                version: Version::HTTP_11,
+                headers: HeaderMap::new(),
+                params: Params::default(),
+                cookies: None,
+                addr: None,
+                payload: Payload::empty(),
                 extensions: Extensions::new(),
                 info: None,
             }),

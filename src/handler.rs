@@ -79,6 +79,14 @@ impl Reply {
     pub(crate) fn into(self) -> ReplyItem {
         self.0
     }
+
+    #[cfg(test)]
+    pub(crate) fn as_response(&self) -> Option<&HttpResponse> {
+        match self.0 {
+            ReplyItem::Message(ref resp) => Some(resp),
+            _ => None,
+        }
+    }
 }
 
 impl FromRequest for Reply {
@@ -342,11 +350,13 @@ impl<S> Handler<S> for NormalizePath {
 
     fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         if let Some(router) = req.router() {
+            let query = req.query_string();
             if self.merge {
                 // merge slashes
                 let p = self.re_merge.replace_all(req.path(), "/");
                 if p.len() != req.path().len() {
                     if router.has_route(p.as_ref()) {
+                        let p = if !query.is_empty() { p + "?" + query } else { p };
                         return HttpResponse::build(self.redirect)
                             .header(header::LOCATION, p.as_ref())
                             .body(Body::Empty);
@@ -355,6 +365,7 @@ impl<S> Handler<S> for NormalizePath {
                     if self.append && !p.ends_with('/') {
                         let p = p.as_ref().to_owned() + "/";
                         if router.has_route(&p) {
+                            let p = if !query.is_empty() { p + "?" + query } else { p };
                             return HttpResponse::build(self.redirect)
                                 .header(header::LOCATION, p.as_str())
                                 .body(Body::Empty);
@@ -366,6 +377,7 @@ impl<S> Handler<S> for NormalizePath {
             if self.append && !req.path().ends_with('/') {
                 let p = req.path().to_owned() + "/";
                 if router.has_route(&p) {
+                    let p = if !query.is_empty() { p + "?" + query } else { p };
                     return HttpResponse::build(self.redirect)
                         .header(header::LOCATION, p.as_str())
                         .body(Body::Empty);
@@ -379,7 +391,8 @@ impl<S> Handler<S> for NormalizePath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::header;
+    use http::{header, Method};
+    use application::Application;
 
     #[derive(Serialize)]
     struct MyObj {
@@ -392,4 +405,161 @@ mod tests {
         let resp = json.from_request(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json");
     }
+
+    fn index(_req: HttpRequest) -> HttpResponse {
+        HttpResponse::new(StatusCode::OK, Body::Empty)
+    }
+
+    #[test]
+    fn test_normalize_path_trailing_slashes() {
+        let app = Application::new("/")
+            .resource("/resource1", |r| r.method(Method::GET).f(index))
+            .resource("/resource2/", |r| r.method(Method::GET).f(index))
+            .default_resource(|r| r.h(NormalizePath::default()))
+            .finish();
+
+        // trailing slashes
+        let params = vec![("/resource1", "", StatusCode::OK),
+                          ("/resource1/", "", StatusCode::NOT_FOUND),
+                          ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
+                          ("/resource2/", "", StatusCode::OK),
+                          ("/resource1?p1=1&p2=2", "", StatusCode::OK),
+                          ("/resource1/?p1=1&p2=2", "", StatusCode::NOT_FOUND),
+                          ("/resource2?p1=1&p2=2", "/resource2/?p1=1&p2=2",
+                           StatusCode::MOVED_PERMANENTLY),
+                          ("/resource2/?p1=1&p2=2", "", StatusCode::OK)
+        ];
+        for (path, target, code) in params {
+            let req = app.prepare_request(HttpRequest::from_path(path));
+            let resp = app.run(req);
+            let r = resp.as_response().unwrap();
+            assert_eq!(r.status(), code);
+            if !target.is_empty() {
+                assert_eq!(
+                    target,
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn test_normalize_path_trailing_slashes_disabled() {
+        let app = Application::new("/")
+            .resource("/resource1", |r| r.method(Method::GET).f(index))
+            .resource("/resource2/", |r| r.method(Method::GET).f(index))
+            .default_resource(|r| r.h(
+                NormalizePath::new(false, true, StatusCode::MOVED_PERMANENTLY)))
+            .finish();
+
+        // trailing slashes
+        let params = vec![("/resource1", StatusCode::OK),
+                          ("/resource1/", StatusCode::NOT_FOUND),
+                          ("/resource2", StatusCode::NOT_FOUND),
+                          ("/resource2/", StatusCode::OK),
+                          ("/resource1?p1=1&p2=2", StatusCode::OK),
+                          ("/resource1/?p1=1&p2=2", StatusCode::NOT_FOUND),
+                          ("/resource2?p1=1&p2=2", StatusCode::NOT_FOUND),
+                          ("/resource2/?p1=1&p2=2", StatusCode::OK)
+        ];
+        for (path, code) in params {
+            let req = app.prepare_request(HttpRequest::from_path(path));
+            let resp = app.run(req);
+            let r = resp.as_response().unwrap();
+            assert_eq!(r.status(), code);
+        }
+    }
+
+    #[test]
+    fn test_normalize_path_merge_slashes() {
+        let app = Application::new("/")
+            .resource("/resource1", |r| r.method(Method::GET).f(index))
+            .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
+            .default_resource(|r| r.h(NormalizePath::default()))
+            .finish();
+
+        // trailing slashes
+        let params = vec![
+            ("/resource1/a/b", "", StatusCode::OK),
+            ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("//resource1//a//b/", "", StatusCode::NOT_FOUND),
+            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a//b/", "", StatusCode::NOT_FOUND),
+            ("/resource1/a/b?p=1", "", StatusCode::OK),
+            ("//resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("//resource1//a//b/?p=1", "", StatusCode::NOT_FOUND),
+            ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a//b/?p=1", "", StatusCode::NOT_FOUND),
+        ];
+        for (path, target, code) in params {
+            let req = app.prepare_request(HttpRequest::from_path(path));
+            let resp = app.run(req);
+            let r = resp.as_response().unwrap();
+            assert_eq!(r.status(), code);
+            if !target.is_empty() {
+                assert_eq!(
+                    target,
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn test_normalize_path_merge_and_append_slashes() {
+        let app = Application::new("/")
+            .resource("/resource1", |r| r.method(Method::GET).f(index))
+            .resource("/resource2/", |r| r.method(Method::GET).f(index))
+            .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
+            .resource("/resource2/a/b/", |r| r.method(Method::GET).f(index))
+            .default_resource(|r| r.h(NormalizePath::default()))
+            .finish();
+
+        // trailing slashes
+        let params = vec![
+            ("/resource1/a/b", "", StatusCode::OK),
+            ("/resource1/a/b/", "", StatusCode::NOT_FOUND),
+            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("///resource1//a//b/", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a///b/", "", StatusCode::NOT_FOUND),
+            ("/resource2/a/b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("/resource2/a/b/", "", StatusCode::OK),
+            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("///resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("///resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource2/a///b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource2/a///b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("/resource1/a/b?p=1", "", StatusCode::OK),
+            ("/resource1/a/b/?p=1", "", StatusCode::NOT_FOUND),
+            ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("///resource1//a//b/?p=1", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a///b/?p=1", "", StatusCode::NOT_FOUND),
+            ("/resource2/a/b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("///resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("///resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource2/a///b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource2/a///b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+        ];
+        for (path, target, code) in params {
+            let req = app.prepare_request(HttpRequest::from_path(path));
+            let resp = app.run(req);
+            let r = resp.as_response().unwrap();
+            assert_eq!(r.status(), code);
+            if !target.is_empty() {
+                assert_eq!(
+                    target, r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+            }
+        }
+    }
+
+
 }

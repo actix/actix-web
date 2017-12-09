@@ -21,7 +21,11 @@ pub struct HttpApplication<S> {
 
 impl<S: 'static> HttpApplication<S> {
 
-    fn run(&self, mut req: HttpRequest<S>) -> Reply {
+    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
+        req.with_state(Rc::clone(&self.state), self.router.clone())
+    }
+
+    pub(crate) fn run(&self, mut req: HttpRequest<S>) -> Reply {
         if let Some(h) = self.router.recognize(&mut req) {
             h.handle(req)
         } else {
@@ -34,8 +38,7 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
-            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
-
+            let req = self.prepare_request(req);
             Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares),
                                       &|req: HttpRequest<S>| self.run(req))))
         } else {
@@ -266,20 +269,9 @@ mod tests {
     use std::str::FromStr;
     use http::{Method, Version, Uri, HeaderMap, StatusCode};
     use super::*;
-    use handler::ReplyItem;
     use httprequest::HttpRequest;
-    use httpresponse::HttpResponse;
     use payload::Payload;
     use httpcodes;
-
-    impl Reply {
-        fn msg(self) -> Option<HttpResponse> {
-            match self.into() {
-                ReplyItem::Message(resp) => Some(resp),
-                _ => None,
-            }
-        }
-    }
 
     #[test]
     fn test_default_resource() {
@@ -290,14 +282,14 @@ mod tests {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/test").unwrap(),
             Version::HTTP_11, HeaderMap::new(), Payload::empty());
-        let resp = app.run(req).msg().unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/blah").unwrap(),
             Version::HTTP_11, HeaderMap::new(), Payload::empty());
-        let resp = app.run(req).msg().unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
         let app = Application::new("/")
             .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
@@ -305,8 +297,8 @@ mod tests {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/blah").unwrap(),
             Version::HTTP_11, HeaderMap::new(), Payload::empty());
-        let resp = app.run(req).msg().unwrap();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[test]
@@ -323,7 +315,7 @@ mod tests {
             .resource("/", |r| r.h(httpcodes::HTTPOk))
             .finish();
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
-        assert_eq!(
-            app.run(req).msg().unwrap().status(), StatusCode::OK);
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
     }
 }
