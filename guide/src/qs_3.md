@@ -5,8 +5,8 @@ It provides routing, middlewares, pre-processing of requests, and post-processin
 websocket protcol handling, multipart streams, etc.
 
 All actix web server is built around `Application` instance.
-It is used for registering handlers for routes and resources, middlewares.
-Also it stores applicationspecific state that is shared accross all handlers 
+It is used for registering routes for resources, middlewares.
+Also it stores application specific state that is shared accross all handlers
 within same application.
 
 Application acts as namespace for all routes, i.e all routes for specific application
@@ -20,7 +20,8 @@ has same url path prefix:
 #    "Hello world!"
 # }
 # fn main() {
-   let app = Application::new("/prefix")
+   let app = Application::new()
+       .prefix("/prefix")
        .resource("/index.html", |r| r.method(Method::GET).f(index))
        .finish()
 # }
@@ -28,23 +29,27 @@ has same url path prefix:
 
 In this example application with `/prefix` prefix and `index.html` resource
 get created. This resource is available as on `/prefix/index.html` url.
+For more information check 
+[*URL Matching*](./qs_5.html#using-a-application-prefix-to-compose-applications) section.
 
 Multiple applications could be served with one server:
 
 ```rust
 # extern crate actix_web;
 # extern crate tokio_core;
-use std::net::SocketAddr;
+# use tokio_core::net::TcpStream;
+# use std::net::SocketAddr;
 use actix_web::*;
-use tokio_core::net::TcpStream;
 
 fn main() {
     HttpServer::<TcpStream, SocketAddr, _>::new(vec![
-        Application::new("/app1")
+        Application::new()
+            .prefix("/app1")
             .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
-        Application::new("/app2")
+        Application::new()
+            .prefix("/app2")
             .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
-        Application::new("/")
+        Application::new()
             .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
     ]);
 }

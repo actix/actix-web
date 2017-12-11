@@ -1,4 +1,4 @@
-# HttpRequest & HttpResponse
+# Request & Response
 
 ## Response
 
@@ -77,7 +77,7 @@ fn index(req: HttpRequest) -> Result<Json<MyObj>> {
 }
 
 fn main() {
-    Application::new("/")
+    Application::new()
         .resource(r"/a/{name}", |r| r.method(Method::GET).f(index))
         .finish();
 }

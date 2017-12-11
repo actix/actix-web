@@ -199,7 +199,7 @@ impl FromRequest for FilesystemElement {
 /// use actix_web::{fs, Application};
 ///
 /// fn main() {
-///     let app = Application::new("/")
+///     let app = Application::new()
 ///         .resource("/static/{tail:.*}", |r| r.h(fs::StaticFiles::new("tail", ".", true)))
 ///         .finish();
 /// }

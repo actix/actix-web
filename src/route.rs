@@ -1,8 +1,7 @@
-use http::Method;
 use futures::Future;
 
 use error::Error;
-use pred::{self, Predicate};
+use pred::Predicate;
 use handler::{Reply, Handler, FromRequest, RouteHandler, AsyncHandler, WrapHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
@@ -41,20 +40,6 @@ impl<S: 'static> Route<S> {
 
     pub(crate) fn handle(&self, req: HttpRequest<S>) -> Reply {
         self.handler.handle(req)
-    }
-
-    /// Add method check to route. This method could be called multiple times.
-    pub fn method(&mut self, method: Method) -> &mut Self {
-        self.preds.push(pred::Method(method));
-        self
-    }
-
-    /// Add predicates to route.
-    pub fn predicates<P>(&mut self, preds: P) -> &mut Self
-        where P: IntoIterator<Item=Box<Predicate<S>>>
-    {
-        self.preds.extend(preds.into_iter());
-        self
     }
 
     /// Add match predicate to route.

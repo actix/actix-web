@@ -2,8 +2,9 @@ use std::marker::PhantomData;
 
 use http::Method;
 
+use pred;
 use route::Route;
-use handler::{Reply, Handler, FromRequest, RouteHandler, WrapHandler};
+use handler::{Reply, Handler, FromRequest, RouteHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 
@@ -22,7 +23,7 @@ use httprequest::HttpRequest;
 /// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::new("/")
+///     let app = Application::new()
 ///         .resource(
 ///             "/", |r| r.method(Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
@@ -31,7 +32,6 @@ pub struct Resource<S=()> {
     name: String,
     state: PhantomData<S>,
     routes: Vec<Route<S>>,
-    default: Box<RouteHandler<S>>,
 }
 
 impl<S> Default for Resource<S> {
@@ -39,8 +39,7 @@ impl<S> Default for Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new(),
-            default: Box::new(HTTPNotFound)}
+            routes: Vec::new() }
     }
 }
 
@@ -50,8 +49,7 @@ impl<S> Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new(),
-            default: Box::new(HTTPNotFound)}
+            routes: Vec::new() }
     }
 
     /// Set resource name
@@ -74,7 +72,7 @@ impl<S: 'static> Resource<S> {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::new("/")
+    ///     let app = Application::new()
     ///         .resource(
     ///             "/", |r| r.route()
     ///                  .p(pred::Any(vec![pred::Get(), pred::Put()]))
@@ -97,7 +95,7 @@ impl<S: 'static> Resource<S> {
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().method(method)
+        self.routes.last_mut().unwrap().p(pred::Method(method))
     }
 
     /// Register a new route and add handler object.
@@ -126,12 +124,6 @@ impl<S: 'static> Resource<S> {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)
     }
-
-    /// Default handler is used if no matched route found.
-    /// By default `HTTPNotFound` is used.
-    pub fn default_handler<H>(&mut self, handler: H) where H: Handler<S> {
-        self.default = Box::new(WrapHandler::new(handler));
-    }
 }
 
 impl<S: 'static> RouteHandler<S> for Resource<S> {
@@ -142,6 +134,6 @@ impl<S: 'static> RouteHandler<S> for Resource<S> {
                 return route.handle(req)
             }
         }
-        self.default.handle(req)
+        Reply::response(HTTPNotFound)
     }
 }

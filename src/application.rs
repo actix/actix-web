@@ -69,19 +69,23 @@ impl Application<()> {
 
     /// Create application with empty state. Application can
     /// be configured with builder-like pattern.
-    ///
-    /// This method accepts path prefix for which it should serve requests.
-    pub fn new<T: Into<String>>(prefix: T) -> Application<()> {
+    pub fn new() -> Application<()> {
         Application {
             parts: Some(ApplicationParts {
                 state: (),
-                prefix: prefix.into(),
+                prefix: "/".to_owned(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
+    }
+}
+
+impl Default for Application<()> {
+    fn default() -> Self {
+        Application::new()
     }
 }
 
@@ -92,17 +96,53 @@ impl<S> Application<S> where S: 'static {
     ///
     /// State is shared with all reousrces within same application and could be
     /// accessed with `HttpRequest::state()` method.
-    pub fn with_state<T: Into<String>>(prefix: T, state: S) -> Application<S> {
+    pub fn with_state(state: S) -> Application<S> {
         Application {
             parts: Some(ApplicationParts {
                 state: state,
-                prefix: prefix.into(),
+                prefix: "/".to_owned(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
+    }
+
+    /// Set application prefix.
+    ///
+    /// Only requests that matches application's prefix get processed by this application.
+    /// Application prefix always contains laading "/" slash. If supplied prefix
+    /// does not contain leading slash, it get inserted.
+    ///
+    /// Inthe following example only requests with "/app/" path prefix
+    /// get handled. Request with path "/app/test/" will be handled,
+    /// but request with path "/other/..." will return *NOT FOUND*
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .prefix("/app")
+    ///         .resource("/test", |r| {
+    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+    ///         })
+    ///         .finish();
+    /// }
+    /// ```
+    pub fn prefix<P: Into<String>>(&mut self, prefix: P) -> &mut Self {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            let mut prefix = prefix.into();
+            if !prefix.starts_with('/') {
+                prefix.insert(0, '/')
+            }
+            parts.prefix = prefix;
+        }
+        self
     }
 
     /// Configure resource for specific path.
@@ -128,7 +168,7 @@ impl<S> Application<S> where S: 'static {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::new("/")
+    ///     let app = Application::new()
     ///         .resource("/test", |r| {
     ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
     ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
@@ -184,7 +224,7 @@ impl<S> Application<S> where S: 'static {
     /// }
     ///
     /// fn main() {
-    ///     let app = Application::new("/")
+    ///     let app = Application::new()
     ///         .resource("/index.html", |r| r.f(index))
     ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
     ///         .finish();
@@ -275,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let app = Application::new("/")
+        let app = Application::new()
             .resource("/test", |r| r.h(httpcodes::HTTPOk))
             .finish();
 
@@ -291,7 +331,7 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
-        let app = Application::new("/")
+        let app = Application::new()
             .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
             .finish();
         let req = HttpRequest::new(
@@ -303,7 +343,8 @@ mod tests {
 
     #[test]
     fn test_unhandled_prefix() {
-        let app = Application::new("/test")
+        let app = Application::new()
+            .prefix("/test")
             .resource("/test", |r| r.h(httpcodes::HTTPOk))
             .finish();
         assert!(app.handle(HttpRequest::default()).is_err());
@@ -311,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let app = Application::with_state("/", 10)
+        let app = Application::with_state(10)
             .resource("/", |r| r.h(httpcodes::HTTPOk))
             .finish();
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());

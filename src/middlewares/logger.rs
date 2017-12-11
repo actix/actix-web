@@ -27,7 +27,7 @@ use middlewares::{Middleware, Started, Finished};
 /// use actix_web::middlewares::Logger;
 ///
 /// fn main() {
-///     let app = Application::new("/")
+///     let app = Application::new()
 ///         .middleware(Logger::default())
 ///         .middleware(Logger::new("%a %{User-Agent}i"))
 ///         .finish();

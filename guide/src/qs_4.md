@@ -81,7 +81,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        Application::new("/")
+        Application::new()
             .resource("/", |r| r.method(Method::GET).f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 
@@ -115,7 +115,7 @@ fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
 }
 
 fn main() {
-    Application::new("/")
+    Application::new()
         .resource("/async", |r| r.route().a(index))
         .finish();
 }
@@ -140,7 +140,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::new("/")
+    Application::new()
         .resource("/async", |r| r.f(index))
         .finish();
 }

@@ -303,7 +303,7 @@ impl<T: Serialize> FromRequest for Json<T> {
 /// #     httpcodes::HTTPOk
 /// # }
 /// fn main() {
-///     let app = Application::new("/")
+///     let app = Application::new()
 ///         .resource("/test/", |r| r.f(index))
 ///         .default_resource(|r| r.h(NormalizePath::default()))
 ///         .finish();
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes() {
-        let app = Application::new("/")
+        let app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes_disabled() {
-        let app = Application::new("/")
+        let app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_slashes() {
-        let app = Application::new("/")
+        let app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -507,7 +507,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_and_append_slashes() {
-        let app = Application::new("/")
+        let app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))

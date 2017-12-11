@@ -16,7 +16,7 @@ fn test_serve() {
     thread::spawn(|| {
         let sys = System::new("test");
         let srv = HttpServer::new(
-            vec![Application::new("/")
+            vec![Application::new()
                  .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
         srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
         sys.run();
@@ -36,7 +36,7 @@ fn test_serve_incoming() {
         let sys = System::new("test");
 
         let srv = HttpServer::new(
-            Application::new("/")
+            Application::new()
                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk)));
         let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
         srv.serve_incoming::<_, ()>(tcp.incoming(), false).unwrap();
@@ -84,7 +84,7 @@ fn test_middlewares() {
         let sys = System::new("test");
 
         HttpServer::new(
-            vec![Application::new("/")
+            vec![Application::new()
                  .middleware(MiddlewareTest{start: act_num1,
                                             response: act_num2,
                                             finish: act_num3})

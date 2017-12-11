@@ -170,7 +170,7 @@ mod tests {
         let pred = Header("transfer-encoding", "other");
         assert!(!pred.check(&mut req));
 
-        let pred = Header("content-tye", "other");
+        let pred = Header("content-type", "other");
         assert!(!pred.check(&mut req));
     }
 

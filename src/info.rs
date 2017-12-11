@@ -21,6 +21,7 @@ pub struct ConnectionInfo<'a> {
 impl<'a> ConnectionInfo<'a> {
 
     /// Create *ConnectionInfo* instance for a request.
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn new<S>(req: &'a HttpRequest<S>) -> ConnectionInfo<'a> {
         let mut host = None;
         let mut scheme = None;

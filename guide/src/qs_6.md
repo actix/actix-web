@@ -30,7 +30,7 @@ fn index(req: HttpRequest<AppState>) -> String {
 }
 
 fn main() {
-    Application::with_state("/", AppState{counter: Cell::new(0)})
+    Application::with_state(AppState{counter: Cell::new(0)})
         .resource("/", |r| r.method(Method::GET).f(index))
         .finish();
 }

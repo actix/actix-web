@@ -6,7 +6,7 @@
 - [Handler](./qs_4.md)
 - [Errors](./qs_4_5.md)
 - [State](./qs_6.md)
-- [Resources and Routes](./qs_5.md)
+- [URL Dispatch](./qs_5.md)
 - [Request & Response](./qs_7.md)
 - [WebSockets](./qs_9.md)
 - [Middlewares](./qs_10.md)

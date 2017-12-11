@@ -15,7 +15,7 @@ use middlewares::{Response, Middleware};
 /// use actix_web::*;
 ///
 /// fn main() {
-///     let app = Application::new("/")
+///     let app = Application::new()
 ///         .middleware(
 ///             middlewares::DefaultHeaders::build()
 ///                 .header("X-Version", "0.2")
