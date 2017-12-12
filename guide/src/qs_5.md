@@ -535,7 +535,7 @@ To override *NOT FOUND* resource use `Application::default_resource()` method.
 This method accepts *configuration function* same as normal resource registration
 with `Application::resource()` method.
 
-``rust
+```rust
 # extern crate actix_web;
 # extern crate http;
 use actix_web::*;
