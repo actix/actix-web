@@ -19,7 +19,7 @@ pub struct HttpApplication<S> {
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S: Send + 'static> HttpApplication<S> {
+impl<S: 'static> HttpApplication<S> {
 
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
@@ -34,7 +34,7 @@ impl<S: Send + 'static> HttpApplication<S> {
     }
 }
 
-impl<S: Send + 'static> HttpHandler for HttpApplication<S> {
+impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
@@ -89,7 +89,7 @@ impl Default for Application<()> {
     }
 }
 
-impl<S> Application<S> where S: Send + 'static {
+impl<S> Application<S> where S: 'static {
 
     /// Create application with specific state. Application can be
     /// configured with builder-like pattern.
@@ -274,7 +274,7 @@ impl<S> Application<S> where S: Send + 'static {
     }
 }
 
-impl<S: Send + 'static> IntoHttpHandler for Application<S> {
+impl<S: 'static> IntoHttpHandler for Application<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(mut self) -> HttpApplication<S> {
@@ -282,7 +282,7 @@ impl<S: Send + 'static> IntoHttpHandler for Application<S> {
     }
 }
 
-impl<'a, S: Send + 'static> IntoHttpHandler for &'a mut Application<S> {
+impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(self) -> HttpApplication<S> {
@@ -291,7 +291,7 @@ impl<'a, S: Send + 'static> IntoHttpHandler for &'a mut Application<S> {
 }
 
 #[doc(hidden)]
-impl<S: Send + 'static> Iterator for Application<S> {
+impl<S: 'static> Iterator for Application<S> {
     type Item = HttpApplication<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
