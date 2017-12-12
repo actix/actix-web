@@ -57,7 +57,7 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
-        Application::new()
+        || Application::new()
             // enable logger
             .middleware(middlewares::Logger::default())
             // cookie session middleware

@@ -54,13 +54,14 @@ impl Handler<ws::Message> for MyWebSocket {
     }
 }
 
+
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
     HttpServer::new(
-        Application::with_state(AppState{counter: Cell::new(0)})
+        || Application::with_state(AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middlewares::Logger::default())
             // websocket route

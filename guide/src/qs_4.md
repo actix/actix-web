@@ -81,7 +81,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        Application::new()
+        || Application::new()
             .resource("/", |r| r.method(Method::GET).f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 

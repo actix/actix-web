@@ -95,10 +95,11 @@ impl<T: 'static, A: 'static, H: 'static> Actor for HttpServer<T, A, H> {
 impl<T, A, H> HttpServer<T, A, H> where H: HttpHandler
 {
     /// Create new http server with vec of http handlers
-    pub fn new<V, U: IntoIterator<Item=V>>(handler: U) -> Self
-        where V: IntoHttpHandler<Handler=H>
+    pub fn new<V, F, U: IntoIterator<Item=V>>(factory: F) -> Self
+        where F: Fn() -> U + Send,
+              V: IntoHttpHandler<Handler=H>
     {
-        let apps: Vec<_> = handler.into_iter().map(|h| h.into_handler()).collect();
+        let apps: Vec<_> = factory().into_iter().map(|h| h.into_handler()).collect();
 
         HttpServer{ h: Rc::new(apps),
                     io: PhantomData,

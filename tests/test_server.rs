@@ -4,6 +4,7 @@ extern crate tokio_core;
 extern crate reqwest;
 
 use std::{net, thread};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_core::net::TcpListener;
@@ -16,8 +17,8 @@ fn test_serve() {
     thread::spawn(|| {
         let sys = System::new("test");
         let srv = HttpServer::new(
-            vec![Application::new()
-                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
+            || vec![Application::new()
+                    .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
         srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
         sys.run();
     });
@@ -36,7 +37,7 @@ fn test_serve_incoming() {
         let sys = System::new("test");
 
         let srv = HttpServer::new(
-            Application::new()
+            || Application::new()
                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk)));
         let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
         srv.serve_incoming::<_, ()>(tcp.incoming(), false).unwrap();
@@ -51,6 +52,7 @@ struct MiddlewareTest {
     start: Arc<AtomicUsize>,
     response: Arc<AtomicUsize>,
     finish: Arc<AtomicUsize>,
+    test: Rc<usize>,
 }
 
 impl<S> middlewares::Middleware<S> for MiddlewareTest {
@@ -84,12 +86,11 @@ fn test_middlewares() {
         let sys = System::new("test");
 
         HttpServer::new(
-            vec![Application::new()
-                 .middleware(MiddlewareTest{start: act_num1,
-                                            response: act_num2,
-                                            finish: act_num3})
-                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))
-                 .finish()])
+            move || vec![Application::new()
+                         .middleware(MiddlewareTest{start: act_num1.clone(),
+                                                    response: act_num2.clone(),
+                                                    finish: act_num3.clone(), test: Rc::new(1)})
+                         .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))])
             .serve::<_, ()>("127.0.0.1:58904").unwrap();
         sys.run();
     });

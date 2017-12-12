@@ -42,7 +42,7 @@ Multiple applications could be served with one server:
 use actix_web::*;
 
 fn main() {
-    HttpServer::<TcpStream, SocketAddr, _>::new(vec![
+    HttpServer::<TcpStream, SocketAddr, _>::new(|| vec![
         Application::new()
             .prefix("/app1")
             .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),

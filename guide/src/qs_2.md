@@ -55,10 +55,10 @@ request handler with the application's `resource` on a particular *HTTP method* 
 ```
 
 After that, application instance can be used with `HttpServer` to listen for incoming
-connections:
+connections. Server accepts function that should return `HttpHandler` instance:
 
 ```rust,ignore
-   HttpServer::new(app).serve::<_, ()>("127.0.0.1:8088");
+   HttpServer::new(|| app).serve::<_, ()>("127.0.0.1:8088");
 ```
 
 That's it. Now, compile and run the program with cargo run. 
@@ -79,7 +79,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        Application::new()
+        || Application::new()
             .resource("/", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8088").unwrap();
 

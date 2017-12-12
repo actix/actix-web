@@ -19,7 +19,7 @@ pub struct HttpApplication<S> {
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S: 'static> HttpApplication<S> {
+impl<S: Send + 'static> HttpApplication<S> {
 
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
@@ -34,7 +34,7 @@ impl<S: 'static> HttpApplication<S> {
     }
 }
 
-impl<S: 'static> HttpHandler for HttpApplication<S> {
+impl<S: Send + 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
@@ -89,7 +89,7 @@ impl Default for Application<()> {
     }
 }
 
-impl<S> Application<S> where S: 'static {
+impl<S> Application<S> where S: Send + 'static {
 
     /// Create application with specific state. Application can be
     /// configured with builder-like pattern.
@@ -133,7 +133,7 @@ impl<S> Application<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn prefix<P: Into<String>>(&mut self, prefix: P) -> &mut Self {
+    pub fn prefix<P: Into<String>>(mut self, prefix: P) -> Application<S> {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
             let mut prefix = prefix.into();
@@ -176,7 +176,7 @@ impl<S> Application<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn resource<F>(&mut self, path: &str, f: F) -> &mut Self
+    pub fn resource<F>(mut self, path: &str, f: F) -> Application<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
@@ -197,7 +197,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Default resource is used if no matched route could be found.
-    pub fn default_resource<F>(&mut self, f: F) -> &mut Self
+    pub fn default_resource<F>(mut self, f: F) -> Application<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
@@ -230,7 +230,7 @@ impl<S> Application<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn external_resource<T, U>(&mut self, name: T, url: U) -> &mut Self
+    pub fn external_resource<T, U>(mut self, name: T, url: U) -> Application<S>
         where T: AsRef<str>, U: AsRef<str>
     {
         {
@@ -246,7 +246,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Register a middleware
-    pub fn middleware<T>(&mut self, mw: T) -> &mut Self
+    pub fn middleware<T>(mut self, mw: T) -> Application<S>
         where T: Middleware<S> + 'static
     {
         self.parts.as_mut().expect("Use after finish")
@@ -274,7 +274,7 @@ impl<S> Application<S> where S: 'static {
     }
 }
 
-impl<S: 'static> IntoHttpHandler for Application<S> {
+impl<S: Send + 'static> IntoHttpHandler for Application<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(mut self) -> HttpApplication<S> {
@@ -282,7 +282,7 @@ impl<S: 'static> IntoHttpHandler for Application<S> {
     }
 }
 
-impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
+impl<'a, S: Send + 'static> IntoHttpHandler for &'a mut Application<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(self) -> HttpApplication<S> {
@@ -291,7 +291,7 @@ impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
 }
 
 #[doc(hidden)]
-impl<S: 'static> Iterator for Application<S> {
+impl<S: Send + 'static> Iterator for Application<S> {
     type Item = HttpApplication<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
