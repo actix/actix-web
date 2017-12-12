@@ -543,9 +543,9 @@ use actix_web::httpcodes::*;
 
 fn main() {
     Application::new()
-        .default_resource(|r|
+        .default_resource(|r| {
               r.method(Method::GET).f(|req| HTTPNotFound);
-              r.route().p(pred::Not(pred::Get()).f(|req| HTTPMethodNotAllowed);
+              r.route().p(pred::Not(pred::Get())).f(|req| HTTPMethodNotAllowed);
          })
         .finish();
 }
