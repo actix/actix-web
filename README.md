@@ -12,7 +12,7 @@ fn index(req: HttpRequest) -> String {
 fn main() {
     HttpServer::new(
         Application::new()
-            .resource("/{name}", |r| r.method(Method::GET).f(index)))
+            .resource("/{name}", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8080");
 }
 ```
