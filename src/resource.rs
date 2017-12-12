@@ -1,12 +1,13 @@
 use std::marker::PhantomData;
 
-use http::Method;
+use http::{Method, StatusCode};
 
 use pred;
+use body::Body;
 use route::Route;
-use handler::{Reply, Handler, FromRequest, RouteHandler};
-use httpcodes::HTTPNotFound;
+use handler::{Reply, Handler, FromRequest};
 use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -124,16 +125,19 @@ impl<S: 'static> Resource<S> {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)
     }
-}
 
-impl<S: 'static> RouteHandler<S> for Resource<S> {
-
-    fn handle(&self, mut req: HttpRequest<S>) -> Reply {
+    pub(crate) fn handle(&self, mut req: HttpRequest<S>, default: Option<&Resource<S>>)
+                         -> Reply
+    {
         for route in &self.routes {
             if route.check(&mut req) {
                 return route.handle(req)
             }
         }
-        Reply::response(HTTPNotFound)
+        if let Some(resource) = default {
+            resource.handle(req, None)
+        } else {
+            Reply::response(HttpResponse::new(StatusCode::NOT_FOUND, Body::Empty))
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use handler::{Reply, RouteHandler};
+use handler::Reply;
 use router::{Router, Pattern};
 use resource::Resource;
 use httprequest::HttpRequest;
@@ -27,9 +27,9 @@ impl<S: 'static> HttpApplication<S> {
 
     pub(crate) fn run(&self, mut req: HttpRequest<S>) -> Reply {
         if let Some(h) = self.router.recognize(&mut req) {
-            h.handle(req)
+            h.handle(req.clone(), Some(&self.default))
         } else {
-            self.default.handle(req)
+            self.default.handle(req, None)
         }
     }
 }
@@ -196,7 +196,7 @@ impl<S> Application<S> where S: 'static {
         self
     }
 
-    /// Default resource is used if no match route could be found.
+    /// Default resource is used if no matched route could be found.
     pub fn default_resource<F>(&mut self, f: F) -> &mut Self
         where F: FnOnce(&mut Resource<S>) + 'static
     {

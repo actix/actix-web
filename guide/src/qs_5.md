@@ -526,3 +526,27 @@ predicates match. i.e:
 ```rust,ignore
     pred::All(vec![pred::Get(), pred::Header("content-type", "plain/text")])
 ```
+
+## Changing the default Not Found response
+
+If path pattern can not be found in routing table or resource can not find matching
+route default resource is used. Default response is *NOT FOUND* response.
+To override *NOT FOUND* resource use `Application::default_resource()` method.
+This method accepts *configuration function* same as normal resource registration
+with `Application::resource()` method.
+
+``rust
+# extern crate actix_web;
+# extern crate http;
+use actix_web::*;
+use actix_web::httpcodes::*;
+
+fn main() {
+    Application::new()
+        .default_resource(|r|
+              r.method(Method::GET).f(|req| HTTPNotFound);
+              r.route().p(pred::Not(pred::Get()).f(|req| HTTPMethodNotAllowed);
+         })
+        .finish();
+}
+```
