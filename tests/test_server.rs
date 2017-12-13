@@ -4,7 +4,6 @@ extern crate tokio_core;
 extern crate reqwest;
 
 use std::{net, thread};
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio_core::net::TcpListener;
@@ -52,7 +51,6 @@ struct MiddlewareTest {
     start: Arc<AtomicUsize>,
     response: Arc<AtomicUsize>,
     finish: Arc<AtomicUsize>,
-    test: Rc<usize>,
 }
 
 impl<S> middlewares::Middleware<S> for MiddlewareTest {
@@ -89,7 +87,7 @@ fn test_middlewares() {
             move || vec![Application::new()
                          .middleware(MiddlewareTest{start: act_num1.clone(),
                                                     response: act_num2.clone(),
-                                                    finish: act_num3.clone(), test: Rc::new(1)})
+                                                    finish: act_num3.clone()})
                          .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))])
             .serve::<_, ()>("127.0.0.1:58904").unwrap();
         sys.run();

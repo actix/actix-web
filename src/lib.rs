@@ -34,6 +34,8 @@ extern crate flate2;
 extern crate brotli2;
 extern crate percent_encoding;
 extern crate smallvec;
+extern crate num_cpus;
+extern crate socket2;
 extern crate actix;
 extern crate h2 as http2;
 

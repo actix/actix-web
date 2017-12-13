@@ -30,7 +30,7 @@ fn main() {
     let pkcs12 = Pkcs12::from_der(&pkcs12).unwrap().parse("12345").unwrap();
 
     HttpServer::new(
-        Application::new("/")
+        || Application::new()
             // enable logger
             .middleware(middlewares::Logger::default())
             // register simple handler, handle all methods
@@ -42,7 +42,7 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             })))
-        .serve_tls::<_, ()>("127.0.0.1:8443", pkcs12).unwrap();
+        .serve_tls::<_, ()>("127.0.0.1:8443", &pkcs12).unwrap();
 
     println!("Started http server: 127.0.0.1:8443");
     let _ = sys.run();
