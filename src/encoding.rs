@@ -402,14 +402,14 @@ impl PayloadEncoder {
 
                     resp.headers_mut().insert(
                         CONTENT_LENGTH,
-                        HeaderValue::from_str(format!("{}", b.len()).as_str()).unwrap());
+                        HeaderValue::from_str(&b.len().to_string()).unwrap());
                     *bytes = Binary::from(b);
                     encoding = ContentEncoding::Identity;
                     TransferEncoding::eof()
                 } else {
                     resp.headers_mut().insert(
                         CONTENT_LENGTH,
-                        HeaderValue::from_str(format!("{}", bytes.len()).as_str()).unwrap());
+                        HeaderValue::from_str(&bytes.len().to_string()).unwrap());
                     resp.headers_mut().remove(TRANSFER_ENCODING);
                     TransferEncoding::length(bytes.len() as u64)
                 }
@@ -478,22 +478,27 @@ impl PayloadEncoder {
 
 impl PayloadEncoder {
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.0.get_ref().len()
     }
 
+    #[inline]
     pub fn get_mut(&mut self) -> &mut BytesMut {
         self.0.get_mut()
     }
 
+    #[inline]
     pub fn is_eof(&self) -> bool {
         self.0.is_eof()
     }
 
+    #[inline]
     pub fn write(&mut self, payload: &[u8]) -> Result<(), io::Error> {
         self.0.write(payload)
     }
 
+    #[inline]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         self.0.write_eof()
     }
@@ -508,6 +513,7 @@ enum ContentEncoder {
 
 impl ContentEncoder {
 
+    #[inline]
     pub fn is_eof(&self) -> bool {
         match *self {
             ContentEncoder::Br(ref encoder) =>
@@ -521,6 +527,7 @@ impl ContentEncoder {
         }
     }
 
+    #[inline]
     pub fn get_ref(&self) -> &BytesMut {
         match *self {
             ContentEncoder::Br(ref encoder) =>
@@ -534,6 +541,7 @@ impl ContentEncoder {
         }
     }
 
+    #[inline]
     pub fn get_mut(&mut self) -> &mut BytesMut {
         match *self {
             ContentEncoder::Br(ref mut encoder) =>
@@ -547,6 +555,7 @@ impl ContentEncoder {
         }
     }
 
+    #[inline]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         let encoder = mem::replace(self, ContentEncoder::Identity(TransferEncoding::eof()));
 
@@ -555,7 +564,6 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
-                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -565,7 +573,6 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
-                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -575,7 +582,6 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
-                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -583,19 +589,18 @@ impl ContentEncoder {
             },
             ContentEncoder::Identity(mut writer) => {
                 writer.encode_eof();
-                *self = ContentEncoder::Identity(writer);
                 Ok(())
             }
         }
     }
 
+    #[inline]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
                 match encoder.write(data) {
-                    Ok(_) => {
-                        encoder.flush()
-                    },
+                    Ok(_) =>
+                        encoder.flush(),
                     Err(err) => {
                         trace!("Error decoding br encoding: {}", err);
                         Err(err)
@@ -604,20 +609,18 @@ impl ContentEncoder {
             },
             ContentEncoder::Gzip(ref mut encoder) => {
                 match encoder.write(data) {
-                    Ok(_) => {
-                        encoder.flush()
-                    },
+                    Ok(_) =>
+                        encoder.flush(),
                     Err(err) => {
-                        trace!("Error decoding br encoding: {}", err);
+                        trace!("Error decoding gzip encoding: {}", err);
                         Err(err)
                     },
                 }
             }
             ContentEncoder::Deflate(ref mut encoder) => {
                 match encoder.write(data) {
-                    Ok(_) => {
-                        encoder.flush()
-                    },
+                    Ok(_) =>
+                        encoder.flush(),
                     Err(err) => {
                         trace!("Error decoding deflate encoding: {}", err);
                         Err(err)
@@ -655,6 +658,7 @@ enum TransferEncodingKind {
 
 impl TransferEncoding {
 
+    #[inline]
     pub fn eof() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Eof,
@@ -662,6 +666,7 @@ impl TransferEncoding {
         }
     }
 
+    #[inline]
     pub fn chunked() -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Chunked(false),
@@ -669,6 +674,7 @@ impl TransferEncoding {
         }
     }
 
+    #[inline]
     pub fn length(len: u64) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Length(len),
@@ -676,6 +682,7 @@ impl TransferEncoding {
         }
     }
 
+    #[inline]
     pub fn is_eof(&self) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => true,
@@ -687,6 +694,7 @@ impl TransferEncoding {
     }
 
     /// Encode message. Return `EOF` state of encoder
+    #[inline]
     pub fn encode(&mut self, msg: &[u8]) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => {
@@ -724,6 +732,7 @@ impl TransferEncoding {
     }
 
     /// Encode eof. Return `EOF` state of encoder
+    #[inline]
     pub fn encode_eof(&mut self) {
         match self.kind {
             TransferEncodingKind::Eof | TransferEncodingKind::Length(_) => (),
@@ -739,11 +748,13 @@ impl TransferEncoding {
 
 impl io::Write for TransferEncoding {
 
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.encode(buf);
         Ok(buf.len())
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }

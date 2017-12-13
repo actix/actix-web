@@ -28,7 +28,7 @@ pub struct HttpMessage {
     pub params: Params<'static>,
     pub cookies: Option<Vec<Cookie<'static>>>,
     pub addr: Option<SocketAddr>,
-    pub payload: Payload,
+    pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
 }
 
@@ -43,7 +43,7 @@ impl Default for HttpMessage {
             params: Params::default(),
             cookies: None,
             addr: None,
-            payload: Payload::empty(),
+            payload: None,
             extensions: Extensions::new(),
             info: None,
         }
@@ -72,13 +72,13 @@ impl HttpMessage {
 }
 
 /// An HTTP Request
-pub struct HttpRequest<S=()>(Rc<HttpMessage>, Rc<S>, Option<Router<S>>);
+pub struct HttpRequest<S=()>(Rc<HttpMessage>, Option<Rc<S>>, Option<Router<S>>);
 
 impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
     pub fn new(method: Method, uri: Uri,
-               version: Version, headers: HeaderMap, payload: Payload) -> HttpRequest
+               version: Version, headers: HeaderMap, payload: Option<Payload>) -> HttpRequest
     {
         HttpRequest(
             Rc::new(HttpMessage {
@@ -93,7 +93,7 @@ impl HttpRequest<()> {
                 extensions: Extensions::new(),
                 info: None,
             }),
-            Rc::new(()),
+            None,
             None,
         )
     }
@@ -118,14 +118,14 @@ impl HttpRequest<()> {
                 extensions: Extensions::new(),
                 info: None,
             }),
-            Rc::new(()),
+            None,
             None,
         )
     }
 
     /// Construct new http request with state.
     pub fn with_state<S>(self, state: Rc<S>, router: Router<S>) -> HttpRequest<S> {
-        HttpRequest(self.0, state, Some(router))
+        HttpRequest(self.0, Some(state), Some(router))
     }
 }
 
@@ -133,7 +133,7 @@ impl<S> HttpRequest<S> {
 
     /// Construct new http request without state.
     pub fn clone_without_state(&self) -> HttpRequest {
-        HttpRequest(Rc::clone(&self.0), Rc::new(()), None)
+        HttpRequest(Rc::clone(&self.0), None, None)
     }
 
     // get mutable reference for inner message
@@ -153,7 +153,7 @@ impl<S> HttpRequest<S> {
     /// Shared application state
     #[inline]
     pub fn state(&self) -> &S {
-        &self.1
+        self.1.as_ref().unwrap()
     }
 
     /// Protocol extensions.
@@ -377,20 +377,20 @@ impl<S> HttpRequest<S> {
 
     /// Returns reference to the associated http payload.
     #[inline]
-    pub fn payload(&self) -> &Payload {
-        &self.0.payload
+    pub fn payload(&self) -> Option<&Payload> {
+        self.0.payload.as_ref()
     }
 
     /// Returns mutable reference to the associated http payload.
     #[inline]
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.as_mut().payload
+    pub fn payload_mut(&mut self) -> Option<&mut Payload> {
+        self.as_mut().payload.as_mut()
     }
 
     /// Return payload
     #[inline]
-    pub fn take_payload(&mut self) -> Payload {
-        mem::replace(&mut self.as_mut().payload, Payload::empty())
+    pub fn take_payload(&mut self) -> Option<Payload> {
+        self.as_mut().payload.take()
     }
     
     /// Return stream to process BODY as multipart.
@@ -398,7 +398,11 @@ impl<S> HttpRequest<S> {
     /// Content-type: multipart/form-data;
     pub fn multipart(&mut self) -> Result<Multipart, MultipartError> {
         let boundary = Multipart::boundary(&self.0.headers)?;
-        Ok(Multipart::new(boundary, self.take_payload()))
+        if let Some(payload) = self.take_payload() {
+            Ok(Multipart::new(boundary, payload))
+        } else {
+            Err(MultipartError::NoPayload)
+        }
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.
@@ -441,7 +445,11 @@ impl<S> HttpRequest<S> {
         };
 
         if t {
-            Ok(UrlEncoded{pl: self.take_payload(), body: BytesMut::new()})
+            if let Some(payload) = self.take_payload() {
+                Ok(UrlEncoded{pl: payload, body: BytesMut::new()})
+            } else {
+                Err(UrlencodedError::NoPayload)
+            }
         } else {
             Err(UrlencodedError::ContentType)
         }
@@ -452,13 +460,13 @@ impl Default for HttpRequest<()> {
 
     /// Construct default request
     fn default() -> HttpRequest {
-        HttpRequest(Rc::new(HttpMessage::default()), Rc::new(()), None)
+        HttpRequest(Rc::new(HttpMessage::default()), None, None)
     }
 }
 
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
-        HttpRequest(Rc::clone(&self.0), Rc::clone(&self.1), None)
+        HttpRequest(Rc::clone(&self.0), self.1.clone(), None)
     }
 }
 

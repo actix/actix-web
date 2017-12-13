@@ -545,28 +545,25 @@ impl Reader {
             }
         }
 
-        let (mut psender, payload) = Payload::new(false);
-        let msg = HttpRequest::new(method, uri, version, headers, payload);
-
-        let decoder = if msg.upgrade() {
+        let decoder = if upgrade(&method, &headers) {
             Decoder::eof()
         } else {
-            let has_len = msg.headers().contains_key(header::CONTENT_LENGTH);
+            let has_len = headers.contains_key(header::CONTENT_LENGTH);
 
             // Chunked encoding
-            if msg.chunked()? {
+            if chunked(&headers)? {
                 if has_len {
                     return Err(ParseError::Header)
                 }
                 Decoder::chunked()
             } else {
                 if !has_len {
-                    psender.feed_eof();
+                    let msg = HttpRequest::new(method, uri, version, headers, None);
                     return Ok(Message::Http1(msg, None))
                 }
 
                 // Content-Length
-                let len = msg.headers().get(header::CONTENT_LENGTH).unwrap();
+                let len = headers.get(header::CONTENT_LENGTH).unwrap();
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<u64>() {
                         Decoder::length(len)
@@ -581,11 +578,13 @@ impl Reader {
             }
         };
 
-        let payload = PayloadInfo {
-            tx: PayloadType::new(msg.headers(), psender),
+        let (psender, payload) = Payload::new(false);
+        let info = PayloadInfo {
+            tx: PayloadType::new(&headers, psender),
             decoder: decoder,
         };
-        Ok(Message::Http1(msg, Some(payload)))
+        let msg = HttpRequest::new(method, uri, version, headers, Some(payload));
+        Ok(Message::Http1(msg, Some(info)))
     }
 }
 
@@ -607,6 +606,32 @@ fn record_header_indices(bytes: &[u8],
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
         indices.value = (value_start, value_end);
+    }
+}
+
+/// Check if request is UPGRADE
+fn upgrade(method: &Method, headers: &HeaderMap) -> bool {
+    if let Some(conn) = headers.get(header::CONNECTION) {
+        if let Ok(s) = conn.to_str() {
+            s.to_lowercase().contains("upgrade")
+        } else {
+            *method == Method::CONNECT
+        }
+    } else {
+        *method == Method::CONNECT
+    }
+}
+
+/// Check if request has chunked transfer encoding
+fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
+    if let Some(encodings) = headers.get(header::TRANSFER_ENCODING) {
+        if let Ok(s) = encodings.to_str() {
+            Ok(s.to_lowercase().contains("chunked"))
+        } else {
+            Err(ParseError::Header)
+        }
+    } else {
+        Ok(false)
     }
 }
 

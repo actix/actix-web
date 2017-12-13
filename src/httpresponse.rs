@@ -222,20 +222,20 @@ struct Parts {
     chunked: bool,
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
-    cookies: CookieJar,
+    cookies: Option<CookieJar>,
 }
 
 impl Parts {
     fn new(status: StatusCode) -> Self {
         Parts {
             version: None,
-            headers: HeaderMap::new(),
+            headers: HeaderMap::with_capacity(8),
             status: status,
             reason: None,
             chunked: false,
             encoding: ContentEncoding::Auto,
             connection_type: None,
-            cookies: CookieJar::new(),
+            cookies: None,
         }
     }
 }
@@ -359,7 +359,13 @@ impl HttpResponseBuilder {
     /// Set a cookie
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
-            parts.cookies.add(cookie.into_owned());
+            if parts.cookies.is_none() {
+                let mut jar = CookieJar::new();
+                jar.add(cookie.into_owned());
+                parts.cookies = Some(jar)
+            } else {
+                parts.cookies.as_mut().unwrap().add(cookie.into_owned());
+            }
         }
         self
     }
@@ -367,9 +373,13 @@ impl HttpResponseBuilder {
     /// Remote cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
         if let Some(parts) = parts(&mut self.parts, &self.err) {
+            if parts.cookies.is_none() {
+                parts.cookies = Some(CookieJar::new())
+            }
+            let mut jar = parts.cookies.as_mut().unwrap();
             let cookie = cookie.clone().into_owned();
-            parts.cookies.add_original(cookie.clone());
-            parts.cookies.remove(cookie);
+            jar.add_original(cookie.clone());
+            jar.remove(cookie);
         }
         self
     }
@@ -391,10 +401,12 @@ impl HttpResponseBuilder {
         if let Some(e) = self.err.take() {
             return Err(e)
         }
-        for cookie in parts.cookies.delta() {
-            parts.headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&cookie.to_string())?);
+        if let Some(jar) = parts.cookies {
+            for cookie in jar.delta() {
+                parts.headers.append(
+                    header::SET_COOKIE,
+                    HeaderValue::from_str(&cookie.to_string())?);
+            }
         }
         Ok(HttpResponse {
             version: parts.version,

@@ -96,11 +96,15 @@ pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
 {
     let resp = handshake(&req)?;
 
-    let stream = WsStream::new(&mut req);
-    let mut ctx = HttpContext::new(req, actor);
-    ctx.start(resp);
-    ctx.add_stream(stream);
-    Ok(ctx.into())
+    if let Some(payload) = req.take_payload() {
+        let stream = WsStream::new(payload);
+        let mut ctx = HttpContext::new(req, actor);
+        ctx.start(resp);
+        ctx.add_stream(stream);
+        Ok(ctx.into())
+    } else {
+        Err(WsHandshakeError::NoPayload.into())
+    }
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -178,8 +182,11 @@ pub struct WsStream {
 }
 
 impl WsStream {
-    pub fn new<S>(req: &mut HttpRequest<S>) -> WsStream {
-        WsStream { rx: req.take_payload(), buf: BytesMut::new(), closed: false, error_sent: false }
+    pub fn new(payload: Payload) -> WsStream {
+        WsStream { rx: payload,
+                   buf: BytesMut::new(),
+                   closed: false,
+                   error_sent: false }
     }
 }
 

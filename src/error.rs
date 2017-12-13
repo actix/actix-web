@@ -262,6 +262,9 @@ pub enum MultipartError {
     /// Multipart boundary is not found
     #[fail(display="Multipart boundary is not found")]
     Boundary,
+    /// Request does not contain payload
+    #[fail(display="Request does not contain payload")]
+    NoPayload,
     /// Error during field parsing
     #[fail(display="{}", _0)]
     Parse(#[cause] ParseError),
@@ -329,6 +332,9 @@ pub enum WsHandshakeError {
     /// Websocket key is not set or wrong
     #[fail(display="Unknown websocket key")]
     BadWebsocketKey,
+    /// Request does not contain payload
+    #[fail(display="Request does not contain payload")]
+    NoPayload,
 }
 
 impl ResponseError for WsHandshakeError {
@@ -351,7 +357,9 @@ impl ResponseError for WsHandshakeError {
             WsHandshakeError::UnsupportedVersion =>
                 HTTPBadRequest.with_reason("Unsupported version"),
             WsHandshakeError::BadWebsocketKey =>
-                HTTPBadRequest.with_reason("Handshake error")
+                HTTPBadRequest.with_reason("Handshake error"),
+            WsHandshakeError::NoPayload =>
+                HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty),
         }
     }
 }
@@ -371,6 +379,9 @@ pub enum UrlencodedError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Request does not contain payload
+    #[fail(display="Request does not contain payload")]
+    NoPayload,
 }
 
 /// Return `BadRequest` for `UrlencodedError`

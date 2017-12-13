@@ -13,9 +13,11 @@ use futures::future::{FutureResult, result};
 /// simple handler
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
-    if let Ok(ch) = req.payload_mut().readany() {
-        if let futures::Async::Ready(Some(d)) = ch {
-            println!("{}", String::from_utf8_lossy(d.0.as_ref()));
+    if let Some(payload) = req.payload_mut() {
+        if let Ok(ch) = payload.readany() {
+            if let futures::Async::Ready(Some(d)) = ch {
+                println!("{}", String::from_utf8_lossy(d.0.as_ref()));
+            }
         }
     }
 

@@ -237,7 +237,7 @@ impl Entry {
         let (psender, payload) = Payload::new(false);
 
         let mut req = HttpRequest::new(
-            parts.method, parts.uri, parts.version, parts.headers, payload);
+            parts.method, parts.uri, parts.version, parts.headers, Some(payload));
 
         // set remote addr
         req.set_peer_addr(addr);

@@ -58,6 +58,7 @@ pub(crate) enum ReplyItem {
 impl Reply {
 
     /// Create actor response
+    #[inline]
     pub fn actor<A, S>(ctx: HttpContext<A, S>) -> Reply
         where A: Actor<Context=HttpContext<A, S>>, S: 'static
     {
@@ -65,6 +66,7 @@ impl Reply {
     }
 
     /// Create async response
+    #[inline]
     pub fn async<F>(fut: F) -> Reply
         where F: Future<Item=HttpResponse, Error=Error> + 'static
     {
@@ -72,10 +74,12 @@ impl Reply {
     }
 
     /// Send response
+    #[inline]
     pub fn response<R: Into<HttpResponse>>(response: R) -> Reply {
         Reply(ReplyItem::Message(response.into()))
     }
 
+    #[inline]
     pub(crate) fn into(self) -> ReplyItem {
         self.0
     }
