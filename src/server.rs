@@ -1,6 +1,7 @@
 use std::{io, net, thread};
 use std::rc::Rc;
 use std::sync::Arc;
+//use std::time::Duration;
 use std::marker::PhantomData;
 
 use actix::dev::*;
@@ -207,7 +208,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         }
     }
 
-    fn start_workers(&mut self, settings: &ServerSettings)
+    fn start_workers(&mut self, settings: &ServerSettings, handler: &StreamHandlerType)
                      -> Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>
     {
         // start workers
@@ -216,6 +217,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
             let s = settings.clone();
             let (tx, rx) = mpsc::unbounded::<IoStream<net::TcpStream>>();
 
+            let h = handler.clone();
             let factory = Arc::clone(&self.factory);
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
                 let mut apps: Vec<_> = (*factory)()
@@ -224,7 +226,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     app.server_settings(s.clone());
                 }
                 ctx.add_stream(rx);
-                Worker{h: Rc::new(apps)}
+                Worker{h: Rc::new(apps), handler: h}
             });
             workers.push(tx);
             self.workers.push(addr);
@@ -250,32 +252,12 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     {
         let addrs = self.bind(addr)?;
         let settings = ServerSettings::new(Some(addrs[0].0), false);
-        let workers = self.start_workers(&settings);
+        let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
 
         // start acceptors threads
         for (addr, sock) in addrs {
-            let wrks = workers.clone();
-            let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
-                let mut next = 0;
-                loop {
-                    match sock.accept() {
-                        Ok((socket, addr)) => {
-                            let addr = if let Some(addr) = addr.as_inet() {
-                                net::SocketAddr::V4(addr)
-                            } else {
-                                net::SocketAddr::V6(addr.as_inet6().unwrap())
-                            };
-                            let msg = IoStream{
-                                io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
-                            println!("next: {}", next);
-                            wrks[next].unbounded_send(msg).expect("worker thread died");
-                            next = (next + 1) % wrks.len();
-                        }
-                        Err(err) => error!("Error accepting connection: {:?}", err),
-                    }
-                }
-            });
             info!("Starting http server on {}", addr);
+            start_accept_thread(sock, addr, workers.clone());
         }
 
         // start http server actor
@@ -292,7 +274,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
+    pub fn serve_tls<S, Addr>(mut self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
@@ -307,52 +289,12 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             }
             Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
         };
-
-        // start workers
-        let mut workers = Vec::new();
-        for _ in 0..self.threads {
-            let s = settings.clone();
-            let (tx, rx) = mpsc::unbounded::<IoStream<net::TcpStream>>();
-
-            let acc = acceptor.clone();
-            let factory = Arc::clone(&self.factory);
-            let _addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                let mut apps: Vec<_> = (*factory)()
-                    .into_iter().map(|h| h.into_handler()).collect();
-                for app in &mut apps {
-                    app.server_settings(s.clone());
-                }
-                ctx.add_stream(rx);
-                TlsWorker{h: Rc::new(apps), acceptor: acc}
-            });
-            workers.push(tx);
-            // self.workers.push(addr);
-        }
-        info!("Starting {} http workers", self.threads);
+        let workers = self.start_workers(&settings, &StreamHandlerType::Tls(acceptor));
 
         // start acceptors threads
         for (addr, sock) in addrs {
-            let wrks = workers.clone();
-            let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
-                let mut next = 0;
-                loop {
-                    match sock.accept() {
-                        Ok((socket, addr)) => {
-                            let addr = if let Some(addr) = addr.as_inet() {
-                                net::SocketAddr::V4(addr)
-                            } else {
-                                net::SocketAddr::V6(addr.as_inet6().unwrap())
-                            };
-                            let msg = IoStream{
-                                io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
-                            wrks[next].unbounded_send(msg).expect("worker thread died");
-                            next = (next + 1) % wrks.len();
-                        }
-                        Err(err) => error!("Error accepting connection: {:?}", err),
-                    }
-                }
-            });
             info!("Starting tls http server on {}", addr);
+            start_accept_thread(sock, addr, workers.clone());
         }
 
         // start http server actor
@@ -369,7 +311,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(self, addr: S, identity: &ParsedPkcs12) -> io::Result<Addr>
+    pub fn serve_tls<S, Addr>(mut self, addr: S, identity: &ParsedPkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
@@ -386,52 +328,12 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             },
             Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
         };
-
-        // start workers
-        let mut workers = Vec::new();
-        for _ in 0..self.threads {
-            let s = settings.clone();
-            let (tx, rx) = mpsc::unbounded::<IoStream<net::TcpStream>>();
-
-            let acc = acceptor.clone();
-            let factory = Arc::clone(&self.factory);
-            let _addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                let mut apps: Vec<_> = (*factory)()
-                    .into_iter().map(|h| h.into_handler()).collect();
-                for app in &mut apps {
-                    app.server_settings(s.clone());
-                }
-                ctx.add_stream(rx);
-                AlpnWorker{h: Rc::new(apps), acceptor: acc}
-            });
-            workers.push(tx);
-            // self.workers.push(addr);
-        }
-        info!("Starting {} http workers", self.threads);
+        let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
 
         // start acceptors threads
         for (addr, sock) in addrs {
-            let wrks = workers.clone();
-            let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
-                let mut next = 0;
-                loop {
-                    match sock.accept() {
-                        Ok((socket, addr)) => {
-                            let addr = if let Some(addr) = addr.as_inet() {
-                                net::SocketAddr::V4(addr)
-                            } else {
-                                net::SocketAddr::V6(addr.as_inet6().unwrap())
-                            };
-                            let msg = IoStream{
-                                io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
-                            wrks[next].unbounded_send(msg).expect("worker thread died");
-                            next = (next + 1) % wrks.len();
-                        }
-                        Err(err) => error!("Error accepting connection: {:?}", err),
-                    }
-                }
-            });
             info!("Starting tls http server on {}", addr);
+            start_accept_thread(sock, addr, workers.clone());
         }
 
         // start http server actor
@@ -482,10 +384,15 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
 /// Worker accepts Socket objects via unbounded channel and start requests processing.
 struct Worker<H> {
     h: Rc<Vec<H>>,
+    handler: StreamHandlerType,
 }
 
 impl<H: 'static> Actor for Worker<H> {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+
+    }
 }
 
 impl<H> StreamHandler<IoStream<net::TcpStream>> for Worker<H>
@@ -497,113 +404,96 @@ impl<H> Handler<IoStream<net::TcpStream>> for Worker<H>
     fn handle(&mut self, msg: IoStream<net::TcpStream>, _: &mut Context<Self>)
               -> Response<Self, IoStream<net::TcpStream>>
     {
-        let io = TcpStream::from_stream(msg.io, Arbiter::handle())
-            .expect("failed to associate TCP stream");
-
-        Arbiter::handle().spawn(
-            HttpChannel::new(Rc::clone(&self.h), io, msg.peer, msg.http2));
+        self.handler.handle(Rc::clone(&self.h), msg);
         Self::empty()
     }
 }
 
-/// Tls http workers
-///
-/// Worker accepts Socket objects via unbounded channel and start requests processing.
-#[cfg(feature="tls")]
-struct TlsWorker<H> {
-    h: Rc<Vec<H>>,
-    acceptor: TlsAcceptor,
+#[derive(Clone)]
+enum StreamHandlerType {
+    Normal,
+    #[cfg(feature="tls")]
+    Tls(TlsAcceptor),
+    #[cfg(feature="alpn")]
+    Alpn(SslAcceptor),
 }
 
-#[cfg(feature="tls")]
-impl<H: 'static> Actor for TlsWorker<H> {
-    type Context = Context<Self>;
-}
+impl StreamHandlerType {
+    fn handle<H: HttpHandler>(&mut self, h: Rc<Vec<H>>, msg: IoStream<net::TcpStream>) {
+        match *self {
+            StreamHandlerType::Normal => {
+                let io = TcpStream::from_stream(msg.io, Arbiter::handle())
+                    .expect("failed to associate TCP stream");
 
-#[cfg(feature="tls")]
-impl<H> StreamHandler<IoStream<net::TcpStream>> for TlsWorker<H>
-    where H: HttpHandler + 'static {}
+                Arbiter::handle().spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
+            }
+            #[cfg(feature="tls")]
+            StreamHandlerType::Tls(ref acceptor) => {
+                let IoStream { io, peer, http2 } = msg;
+                let io = TcpStream::from_stream(io, Arbiter::handle())
+                    .expect("failed to associate TCP stream");
 
-#[cfg(feature="tls")]
-impl<H> Handler<IoStream<net::TcpStream>> for TlsWorker<H>
-    where H: HttpHandler + 'static,
-{
-    fn handle(&mut self, msg: IoStream<net::TcpStream>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<net::TcpStream>>
-    {
-        let IoStream { io, peer, http2 } = msg;
-        let io = TcpStream::from_stream(io, Arbiter::handle())
-            .expect("failed to associate TCP stream");
-
-        let h = Rc::clone(&self.h);
-
-        Arbiter::handle().spawn(
-            TlsAcceptorExt::accept_async(&self.acceptor, io).then(move |res| {
-                match res {
-                    Ok(io) => Arbiter::handle().spawn(
-                        HttpChannel::new(h, io, peer, http2)),
-                    Err(err) =>
-                        trace!("Error during handling tls connection: {}", err),
-                };
-                future::result(Ok(()))
-            })
-        );
-
-        Self::empty()
-    }
-}
-
-/// Tls http workers with alpn support
-///
-/// Worker accepts Socket objects via unbounded channel and start requests processing.
-#[cfg(feature="alpn")]
-struct AlpnWorker<H> {
-    h: Rc<Vec<H>>,
-    acceptor: SslAcceptor,
-}
-
-#[cfg(feature="alpn")]
-impl<H: 'static> Actor for AlpnWorker<H> {
-    type Context = Context<Self>;
-}
-
-#[cfg(feature="alpn")]
-impl<H> StreamHandler<IoStream<net::TcpStream>> for AlpnWorker<H>
-    where H: HttpHandler + 'static {}
-
-#[cfg(feature="alpn")]
-impl<H> Handler<IoStream<net::TcpStream>> for AlpnWorker<H>
-    where H: HttpHandler + 'static,
-{
-    fn handle(&mut self, msg: IoStream<net::TcpStream>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<net::TcpStream>>
-    {
-        let IoStream { io, peer, .. } = msg;
-        let io = TcpStream::from_stream(io, Arbiter::handle())
-            .expect("failed to associate TCP stream");
-
-        let h = Rc::clone(&self.h);
-
-        Arbiter::handle().spawn(
-            SslAcceptorExt::accept_async(&self.acceptor, io).then(move |res| {
-                match res {
-                    Ok(io) => {
-                        let http2 = if let Some(p) = io.get_ref().ssl().selected_alpn_protocol()
-                        {
-                            p.len() == 2 && &p == b"h2"
-                        } else {
-                            false
+                Arbiter::handle().spawn(
+                    TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                        match res {
+                            Ok(io) => Arbiter::handle().spawn(
+                                HttpChannel::new(h, io, peer, http2)),
+                            Err(err) =>
+                                trace!("Error during handling tls connection: {}", err),
                         };
-                        Arbiter::handle().spawn(
-                            HttpChannel::new(h, io, peer, http2));
-                    },
-                    Err(err) =>
-                        trace!("Error during handling tls connection: {}", err),
-                };
-                future::result(Ok(()))
-            })
-        );
+                        future::result(Ok(()))
+                    })
+                );
+            }
+            #[cfg(feature="alpn")]
+            StreamHandlerType::Alpn(ref acceptor) => {
+                let IoStream { io, peer, .. } = msg;
+                let io = TcpStream::from_stream(io, Arbiter::handle())
+                    .expect("failed to associate TCP stream");
 
-        Self::empty()
+                Arbiter::handle().spawn(
+                    SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                        match res {
+                            Ok(io) => {
+                                let http2 = if let Some(p) = io.get_ref().ssl().selected_alpn_protocol()
+                                {
+                                    p.len() == 2 && &p == b"h2"
+                                } else {
+                                    false
+                                };
+                                Arbiter::handle().spawn(HttpChannel::new(h, io, peer, http2));
+                            },
+                            Err(err) =>
+                                trace!("Error during handling tls connection: {}", err),
+                        };
+                        future::result(Ok(()))
+                    })
+                );
+            }
+        }
     }
+}
+
+fn start_accept_thread(sock: Socket, addr: net::SocketAddr,
+                       workers: Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>) {
+    // start acceptors thread
+    let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
+        let mut next = 0;
+        loop {
+            match sock.accept() {
+                Ok((socket, addr)) => {
+                    let addr = if let Some(addr) = addr.as_inet() {
+                        net::SocketAddr::V4(addr)
+                    } else {
+                        net::SocketAddr::V6(addr.as_inet6().unwrap())
+                    };
+                    let msg = IoStream{
+                        io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
+                    workers[next].unbounded_send(msg).expect("worker thread died");
+                    next = (next + 1) % workers.len();
+                }
+                Err(err) => error!("Error accepting connection: {:?}", err),
+            }
+        }
+    });
 }

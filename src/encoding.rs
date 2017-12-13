@@ -379,8 +379,7 @@ impl PayloadEncoder {
                     error!("Chunked transfer is enabled but body is set to Empty");
                 }
                 resp.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-                resp.headers_mut().remove(TRANSFER_ENCODING);
-                TransferEncoding::length(0)
+                TransferEncoding::eof()
             },
             Body::Binary(ref mut bytes) => {
                 if compression {
@@ -410,8 +409,7 @@ impl PayloadEncoder {
                     resp.headers_mut().insert(
                         CONTENT_LENGTH,
                         HeaderValue::from_str(&bytes.len().to_string()).unwrap());
-                    resp.headers_mut().remove(TRANSFER_ENCODING);
-                    TransferEncoding::length(bytes.len() as u64)
+                    TransferEncoding::eof()
                 }
             }
             Body::Streaming(_) | Body::StreamingContext => {
@@ -555,7 +553,7 @@ impl ContentEncoder {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         let encoder = mem::replace(self, ContentEncoder::Identity(TransferEncoding::eof()));
 
@@ -594,7 +592,7 @@ impl ContentEncoder {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
@@ -694,7 +692,7 @@ impl TransferEncoding {
     }
 
     /// Encode message. Return `EOF` state of encoder
-    #[inline]
+    #[inline(always)]
     pub fn encode(&mut self, msg: &[u8]) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => {
@@ -732,7 +730,7 @@ impl TransferEncoding {
     }
 
     /// Encode eof. Return `EOF` state of encoder
-    #[inline]
+    #[inline(always)]
     pub fn encode_eof(&mut self) {
         match self.kind {
             TransferEncodingKind::Eof | TransferEncodingKind::Length(_) => (),

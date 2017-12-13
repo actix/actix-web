@@ -145,9 +145,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         {
             let buffer = self.encoder.get_mut();
             if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(100 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                buffer.reserve(130 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                buffer.reserve(100 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(130 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
             match version {
