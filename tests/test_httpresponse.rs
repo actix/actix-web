@@ -15,7 +15,7 @@ fn test_response_cookies() {
                    header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
     let cookies = req.cookies().unwrap();
 
     let resp = httpcodes::HTTPOk

@@ -310,7 +310,6 @@ mod tests {
     use http::{Method, Version, Uri, HeaderMap, StatusCode};
     use super::*;
     use httprequest::HttpRequest;
-    use payload::Payload;
     use httpcodes;
 
     #[test]
@@ -321,13 +320,13 @@ mod tests {
 
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/test").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/blah").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
@@ -336,7 +335,7 @@ mod tests {
             .finish();
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/blah").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
     }

@@ -13,16 +13,14 @@ use http::{header, Method, Version, HeaderMap, Uri};
 #[test]
 fn test_debug() {
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11,
-        HeaderMap::new(), Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
     let _ = format!("{:?}", req);
 }
 
 #[test]
 fn test_no_request_cookies() {
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(),
-        Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
     assert!(req.cookies().unwrap().is_empty());
 }
 
@@ -33,8 +31,7 @@ fn test_request_cookies() {
                    header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(),
-        Version::HTTP_11, headers, Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
     {
         let cookies = req.cookies().unwrap();
         assert_eq!(cookies.len(), 2);
@@ -57,7 +54,7 @@ fn test_request_cookies() {
 #[test]
 fn test_no_request_range_header() {
     let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                               Version::HTTP_11, HeaderMap::new(), Payload::empty());
+                               Version::HTTP_11, HeaderMap::new(), None);
     let ranges = req.range(100).unwrap();
     assert!(ranges.is_empty());
 }
@@ -69,7 +66,7 @@ fn test_request_range_header() {
                    header::HeaderValue::from_static("bytes=0-4"));
 
     let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                               Version::HTTP_11, headers, Payload::empty());
+                               Version::HTTP_11, headers, None);
     let ranges = req.range(100).unwrap();
     assert_eq!(ranges.len(), 1);
     assert_eq!(ranges[0].start, 0);
@@ -79,7 +76,7 @@ fn test_request_range_header() {
 #[test]
 fn test_request_query() {
     let req = HttpRequest::new(Method::GET, Uri::from_str("/?id=test").unwrap(),
-                               Version::HTTP_11, HeaderMap::new(), Payload::empty());
+                               Version::HTTP_11, HeaderMap::new(), None);
     assert_eq!(req.query_string(), "id=test");
     let query = req.query();
     assert_eq!(&query["id"], "test");
@@ -88,7 +85,7 @@ fn test_request_query() {
 #[test]
 fn test_request_match_info() {
     let mut req = HttpRequest::new(Method::GET, Uri::from_str("/value/?id=test").unwrap(),
-                                   Version::HTTP_11, HeaderMap::new(), Payload::empty());
+                                   Version::HTTP_11, HeaderMap::new(), None);
 
     let mut resource = Resource::default();
     resource.name("index");
@@ -103,16 +100,14 @@ fn test_request_match_info() {
 #[test]
 fn test_chunked() {
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(),
-        Version::HTTP_11, HeaderMap::new(), Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
     assert!(!req.chunked().unwrap());
 
     let mut headers = HeaderMap::new();
     headers.insert(header::TRANSFER_ENCODING,
                    header::HeaderValue::from_static("chunked"));
     let req = HttpRequest::new(
-        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11,
-        headers, Payload::empty());
+        Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
     assert!(req.chunked().unwrap());
 
     let mut headers = HeaderMap::new();
@@ -122,6 +117,6 @@ fn test_chunked() {
                    header::HeaderValue::from_str(s).unwrap());
     let req = HttpRequest::new(
         Method::GET, Uri::from_str("/").unwrap(),
-        Version::HTTP_11, headers, Payload::empty());
+        Version::HTTP_11, headers, None);
     assert!(req.chunked().is_err());
 }

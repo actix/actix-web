@@ -114,7 +114,7 @@ impl HttpRequest<()> {
                 params: Params::default(),
                 cookies: None,
                 addr: None,
-                payload: Payload::empty(),
+                payload: None,
                 extensions: Extensions::new(),
                 info: None,
             }),
@@ -530,7 +530,6 @@ mod tests {
     use http::Uri;
     use std::str::FromStr;
     use router::Pattern;
-    use payload::Payload;
     use resource::Resource;
 
     #[test]
@@ -539,8 +538,7 @@ mod tests {
         headers.insert(header::TRANSFER_ENCODING,
                        header::HeaderValue::from_static("chunked"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Chunked);
 
@@ -550,8 +548,7 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("xxxx"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11,
-            headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::UnknownLength);
 
@@ -561,8 +558,7 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("1000000"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Overflow);
 
@@ -572,8 +568,7 @@ mod tests {
         headers.insert(header::CONTENT_LENGTH,
                        header::HeaderValue::from_static("10"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::ContentType);
     }
@@ -584,8 +579,7 @@ mod tests {
         headers.insert(header::HOST,
                        header::HeaderValue::from_static("www.rust-lang.org"));
         let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         let mut resource = Resource::default();
         resource.name("index");
@@ -612,7 +606,7 @@ mod tests {
     fn test_url_for_external() {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
 
         let mut resource = Resource::<()>::default();
         resource.name("index");

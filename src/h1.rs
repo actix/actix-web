@@ -998,7 +998,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
+                assert!(req.payload().is_none());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1021,7 +1021,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::PUT);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
+                assert!(req.payload().is_none());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1038,7 +1038,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_10);
                 assert_eq!(*req.method(), Method::POST);
                 assert_eq!(req.path(), "/test2");
-                assert!(req.payload().eof());
+                assert!(req.payload().is_none());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1055,7 +1055,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"body");
+                assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"body");
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1073,7 +1073,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"body");
+                assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"body");
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1093,7 +1093,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
+                assert!(req.payload().is_none());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1120,7 +1120,7 @@ mod tests {
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
                 assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
-                assert!(req.payload().eof());
+                assert!(req.payload().is_none());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1229,7 +1229,7 @@ mod tests {
              connection: upgrade\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
         assert!(req.upgrade());
     }
 
@@ -1241,7 +1241,7 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
     }
 
     #[test]
@@ -1251,7 +1251,7 @@ mod tests {
              transfer-encoding: chunked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.payload().eof());
+        assert!(req.payload().is_some());
         if let Ok(val) = req.chunked() {
             assert!(val);
         } else {
@@ -1263,7 +1263,7 @@ mod tests {
              transfer-encoding: chnked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(req.payload().eof());
+        assert!(req.payload().is_none());
         if let Ok(val) = req.chunked() {
             assert!(!val);
         } else {
@@ -1323,7 +1323,7 @@ mod tests {
         let mut req = parse_ready!(&mut buf);
         assert!(!req.keep_alive());
         assert!(req.upgrade());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"some raw data");
+        assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"some raw data");
     }
 
     #[test]
@@ -1371,13 +1371,13 @@ mod tests {
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
         assert!(req.chunked().unwrap());
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
         not_ready!(reader.parse(&mut buf, &mut readbuf));
-        assert!(!req.payload().eof());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
-        assert!(req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
+        assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
+        assert!(req.payload().unwrap().eof());
     }
 
     #[test]
@@ -1391,7 +1391,7 @@ mod tests {
 
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
         assert!(req.chunked().unwrap());
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
 
         buf.feed_data(
             "4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
@@ -1401,10 +1401,10 @@ mod tests {
         let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
         assert_eq!(*req2.method(), Method::POST);
         assert!(req2.chunked().unwrap());
-        assert!(!req2.payload().eof());
+        assert!(!req2.payload().unwrap().eof());
 
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
-        assert!(req.payload().eof());
+        assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
+        assert!(req.payload().unwrap().eof());
     }
 
     #[test]
@@ -1417,7 +1417,7 @@ mod tests {
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
         assert!(req.chunked().unwrap());
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4\r\ndata\r");
         not_ready!(reader.parse(&mut buf, &mut readbuf));
@@ -1439,12 +1439,12 @@ mod tests {
         //buf.feed_data("test: test\r\n");
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
 
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
-        assert!(!req.payload().eof());
+        assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
+        assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("\r\n");
         not_ready!(reader.parse(&mut buf, &mut readbuf));
-        assert!(req.payload().eof());
+        assert!(req.payload().unwrap().eof());
     }
 
     #[test]
@@ -1457,13 +1457,13 @@ mod tests {
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
         assert!(req.chunked().unwrap());
-        assert!(!req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
         not_ready!(reader.parse(&mut buf, &mut readbuf));
-        assert!(!req.payload().eof());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
-        assert!(req.payload().eof());
+        assert!(!req.payload().unwrap().eof());
+        assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
+        assert!(req.payload().unwrap().eof());
     }
 
     /*#[test]

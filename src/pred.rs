@@ -153,7 +153,6 @@ mod tests {
     use std::str::FromStr;
     use http::{Uri, Version, Method};
     use http::header::{self, HeaderMap};
-    use payload::Payload;
 
     #[test]
     fn test_header() {
@@ -161,8 +160,7 @@ mod tests {
         headers.insert(header::TRANSFER_ENCODING,
                        header::HeaderValue::from_static("chunked"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
         let pred = Header("transfer-encoding", "chunked");
         assert!(pred.check(&mut req));
@@ -178,10 +176,10 @@ mod tests {
     fn test_methods() {
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         let mut req2 = HttpRequest::new(
             Method::POST, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
 
         assert!(Get().check(&mut req));
         assert!(!Get().check(&mut req2));
@@ -190,43 +188,43 @@ mod tests {
 
         let mut r = HttpRequest::new(
             Method::PUT, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Put().check(&mut r));
         assert!(!Put().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::DELETE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Delete().check(&mut r));
         assert!(!Delete().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::HEAD, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Head().check(&mut r));
         assert!(!Head().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::OPTIONS, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Options().check(&mut r));
         assert!(!Options().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::CONNECT, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Connect().check(&mut r));
         assert!(!Connect().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::PATCH, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Patch().check(&mut r));
         assert!(!Patch().check(&mut req));
 
         let mut r = HttpRequest::new(
             Method::TRACE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(Trace().check(&mut r));
         assert!(!Trace().check(&mut req));
     }
@@ -235,7 +233,7 @@ mod tests {
     fn test_preds() {
         let mut r = HttpRequest::new(
             Method::TRACE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
 
         assert!(Not(Get()).check(&mut r));
         assert!(!Not(Trace()).check(&mut r));

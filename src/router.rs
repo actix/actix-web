@@ -305,7 +305,6 @@ mod tests {
     use http::{Uri, Version, Method};
     use http::header::HeaderMap;
     use std::str::FromStr;
-    use payload::Payload;
 
     #[test]
     fn test_recognizer() {
@@ -320,39 +319,39 @@ mod tests {
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/name").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert!(req.match_info().is_empty());
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/name/value").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/name/value2/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "value2");
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/vtest/ttt/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "test");
         assert_eq!(req.match_info().get("val2").unwrap(), "ttt");
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/v/blah-blah/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("tail").unwrap(), "blah-blah/index.html");
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/bbb/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("test").unwrap(), "bbb");
     }

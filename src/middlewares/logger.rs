@@ -291,7 +291,6 @@ mod tests {
     use time;
     use http::{Method, Version, StatusCode, Uri};
     use http::header::{self, HeaderMap};
-    use payload::Payload;
 
     #[test]
     fn test_logger() {
@@ -300,8 +299,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
         let resp = HttpResponse::build(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close().body(Body::Empty).unwrap();
@@ -332,8 +330,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, headers, Payload::empty());
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
         let resp = HttpResponse::build(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();
@@ -351,7 +348,7 @@ mod tests {
 
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/?test").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), Payload::empty());
+            Version::HTTP_11, HeaderMap::new(), None);
         let resp = HttpResponse::build(StatusCode::OK)
             .force_close().body(Body::Empty).unwrap();
         let entry_time = time::now();
