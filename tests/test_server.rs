@@ -59,7 +59,7 @@ impl<S> middlewares::Middleware<S> for MiddlewareTest {
         middlewares::Started::Done
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middlewares::Response {
+    fn response(&self, _: &mut HttpRequest<S>, resp: Box<HttpResponse>) -> middlewares::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middlewares::Response::Done(resp)
     }
@@ -85,9 +85,9 @@ fn test_middlewares() {
 
         HttpServer::new(
             move || vec![Application::new()
-                         .middleware(MiddlewareTest{start: act_num1.clone(),
-                                                    response: act_num2.clone(),
-                                                    finish: act_num3.clone()})
+                         .middleware(MiddlewareTest{start: Arc::clone(&act_num1),
+                                                    response: Arc::clone(&act_num2),
+                                                    finish: Arc::clone(&act_num3)})
                          .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))])
             .serve::<_, ()>("127.0.0.1:58904").unwrap();
         sys.run();

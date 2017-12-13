@@ -1,8 +1,7 @@
 use std::io;
-use std::fmt::Write;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
-use http::{Version, StatusCode};
+use http::Version;
 use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, DATE};
 
 use date;
@@ -151,11 +150,17 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 buffer.reserve(100 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
-            if version == Version::HTTP_11 && msg.status() == StatusCode::OK {
-                buffer.extend(b"HTTP/1.1 200 OK\r\n");
-            } else {
-                let _ = write!(buffer, "{:?} {}\r\n", version, msg.status());
+            match version {
+                Version::HTTP_11 => buffer.extend(b"HTTP/1.1 "),
+                Version::HTTP_2 => buffer.extend(b"HTTP/2.0 "),
+                Version::HTTP_10 => buffer.extend(b"HTTP/1.0 "),
+                Version::HTTP_09 => buffer.extend(b"HTTP/0.9 "),
             }
+            buffer.extend(msg.status().as_u16().to_string().as_bytes());
+            buffer.extend(b" ");
+            buffer.extend(msg.reason().as_bytes());
+            buffer.extend(b"\r\n");
+
             for (key, value) in msg.headers() {
                 let t: &[u8] = key.as_ref();
                 buffer.extend(t);

@@ -37,7 +37,7 @@ impl DefaultHeaders {
 
 impl<S> Middleware<S> for DefaultHeaders {
 
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Response {
+    fn response(&self, _: &mut HttpRequest<S>, mut resp: Box<HttpResponse>) -> Response {
         for (key, value) in self.0.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());
@@ -97,14 +97,14 @@ mod tests {
         let mut req = HttpRequest::default();
 
         let resp = HttpResponse::Ok().finish().unwrap();
-        let resp = match mw.response(&mut req, resp) {
+        let resp = match mw.response(&mut req, Box::new(resp)) {
             Response::Done(resp) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish().unwrap();
-        let resp = match mw.response(&mut req, resp) {
+        let resp = match mw.response(&mut req, Box::new(resp)) {
             Response::Done(resp) => resp,
             _ => panic!(),
         };

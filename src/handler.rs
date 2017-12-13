@@ -50,7 +50,7 @@ impl<F, R, S> Handler<S> for F
 pub struct Reply(ReplyItem);
 
 pub(crate) enum ReplyItem {
-    Message(HttpResponse),
+    Message(Box<HttpResponse>),
     Actor(Box<IoContext>),
     Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
@@ -76,7 +76,7 @@ impl Reply {
     /// Send response
     #[inline]
     pub fn response<R: Into<HttpResponse>>(response: R) -> Reply {
-        Reply(ReplyItem::Message(response.into()))
+        Reply(ReplyItem::Message(Box::new(response.into())))
     }
 
     #[inline]
@@ -107,14 +107,14 @@ impl FromRequest for HttpResponse {
     type Error = Error;
 
     fn from_request(self, _: HttpRequest) -> Result<Reply, Error> {
-        Ok(Reply(ReplyItem::Message(self)))
+        Ok(Reply(ReplyItem::Message(Box::new(self))))
     }
 }
 
 impl From<HttpResponse> for Reply {
 
     fn from(resp: HttpResponse) -> Reply {
-        Reply(ReplyItem::Message(resp))
+        Reply(ReplyItem::Message(Box::new(resp)))
     }
 }
 
@@ -138,7 +138,7 @@ impl<E: Into<Error>> From<Result<Reply, E>> for Reply {
     fn from(res: Result<Reply, E>) -> Self {
         match res {
             Ok(val) => val,
-            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+            Err(err) => Reply(ReplyItem::Message(Box::new(err.into().into()))),
         }
     }
 }

@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_with_reason() {
         let resp = HTTPOk.response();
-        assert_eq!(resp.reason(), "");
+        assert_eq!(resp.reason(), "OK");
 
         let resp = HTTPBadRequest.with_reason("test");
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);

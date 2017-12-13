@@ -267,6 +267,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
                             };
                             let msg = IoStream{
                                 io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
+                            println!("next: {}", next);
                             wrks[next].unbounded_send(msg).expect("worker thread died");
                             next = (next + 1) % wrks.len();
                         }

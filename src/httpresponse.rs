@@ -119,7 +119,7 @@ impl HttpResponse {
         if let Some(reason) = self.reason {
             reason
         } else {
-            ""
+            self.status.canonical_reason().unwrap_or("<unknown status code>")
         }
     }
 

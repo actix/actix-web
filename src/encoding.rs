@@ -125,9 +125,9 @@ impl PayloadWriter for PayloadType {
 }
 
 enum Decoder {
-    Deflate(DeflateDecoder<Writer<BytesMut>>),
-    Gzip(Option<GzDecoder<Wrapper>>),
-    Br(BrotliDecoder<Writer<BytesMut>>),
+    Deflate(Box<DeflateDecoder<Writer<BytesMut>>>),
+    Gzip(Box<Option<GzDecoder<Wrapper>>>),
+    Br(Box<BrotliDecoder<Writer<BytesMut>>>),
     Identity,
 }
 
@@ -158,10 +158,10 @@ impl EncodedPayload {
     pub fn new(inner: PayloadSender, enc: ContentEncoding) -> EncodedPayload {
         let dec = match enc {
             ContentEncoding::Br => Decoder::Br(
-                BrotliDecoder::new(BytesMut::with_capacity(8192).writer())),
+                Box::new(BrotliDecoder::new(BytesMut::with_capacity(8192).writer()))),
             ContentEncoding::Deflate => Decoder::Deflate(
-                DeflateDecoder::new(BytesMut::with_capacity(8192).writer())),
-            ContentEncoding::Gzip => Decoder::Gzip(None),
+                Box::new(DeflateDecoder::new(BytesMut::with_capacity(8192).writer()))),
+            ContentEncoding::Gzip => Decoder::Gzip(Box::new(None)),
             _ => Decoder::Identity,
         };
         EncodedPayload {
@@ -204,13 +204,13 @@ impl PayloadWriter for EncodedPayload {
                 }
                 loop {
                     let len = self.dst.get_ref().len();
-                    let len_buf = decoder.as_mut().unwrap().get_mut().buf.len();
+                    let len_buf = decoder.as_mut().as_mut().unwrap().get_mut().buf.len();
 
                     if len < len_buf * 2 {
                         self.dst.get_mut().reserve(len_buf * 2 - len);
                         unsafe{self.dst.get_mut().set_len(len_buf * 2)};
                     }
-                    match decoder.as_mut().unwrap().read(&mut self.dst.get_mut()) {
+                    match decoder.as_mut().as_mut().unwrap().read(&mut self.dst.get_mut()) {
                         Ok(n) =>  {
                             if n == 0 {
                                 self.inner.feed_eof();
@@ -271,13 +271,13 @@ impl PayloadWriter for EncodedPayload {
                 if decoder.is_none() {
                     let mut buf = BytesMut::new();
                     buf.extend(data);
-                    *decoder = Some(GzDecoder::new(Wrapper{buf: buf}).unwrap());
+                    *(decoder.as_mut()) = Some(GzDecoder::new(Wrapper{buf: buf}).unwrap());
                 } else {
-                    decoder.as_mut().unwrap().get_mut().buf.extend(data);
+                    decoder.as_mut().as_mut().unwrap().get_mut().buf.extend(data);
                 }
 
                 loop {
-                    let len_buf = decoder.as_mut().unwrap().get_mut().buf.len();
+                    let len_buf = decoder.as_mut().as_mut().unwrap().get_mut().buf.len();
                     if len_buf == 0 {
                         return
                     }
@@ -287,7 +287,7 @@ impl PayloadWriter for EncodedPayload {
                         self.dst.get_mut().reserve(len_buf * 2 - len);
                         unsafe{self.dst.get_mut().set_len(len_buf * 2)};
                     }
-                    match decoder.as_mut().unwrap().read(&mut self.dst.get_mut()) {
+                    match decoder.as_mut().as_mut().unwrap().read(&mut self.dst.get_mut()) {
                         Ok(n) =>  {
                             if n == 0 {
                                 return

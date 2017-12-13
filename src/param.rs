@@ -20,7 +20,7 @@ pub trait FromParam: Sized {
 ///
 /// If resource path contains variable patterns, `Params` stores this variables.
 #[derive(Debug)]
-pub struct Params<'a>(SmallVec<[(&'a str, &'a str); 4]>);
+pub struct Params<'a>(SmallVec<[(&'a str, &'a str); 3]>);
 
 impl<'a> Default for Params<'a> {
     fn default() -> Params<'a> {
