@@ -28,7 +28,7 @@ use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
 use tokio_openssl::{SslStream, SslAcceptorExt};
 
-use utils;
+use helpers;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
 /// Various server settings
@@ -109,7 +109,7 @@ impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
 
 impl<T: 'static, A: 'static, H, U: 'static>  HttpServer<T, A, H, U> {
     fn update_time(&self, ctx: &mut Context<Self>) {
-        utils::update_date();
+        helpers::update_date();
         ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 }
@@ -434,7 +434,7 @@ impl<H: 'static> Worker<H> {
     }
     
     fn update_time(&self, ctx: &mut Context<Self>) {
-        utils::update_date();
+        helpers::update_date();
         ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 }

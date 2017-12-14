@@ -4,7 +4,7 @@ use tokio_io::AsyncWrite;
 use http::Version;
 use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, DATE};
 
-use utils;
+use helpers;
 use body::Body;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
@@ -159,7 +159,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 Version::HTTP_10 => buffer.extend_from_slice(b"HTTP/1.0 "),
                 Version::HTTP_09 => buffer.extend_from_slice(b"HTTP/0.9 "),
             }
-            utils::convert_u16(msg.status().as_u16(), &mut buffer);
+            helpers::convert_u16(msg.status().as_u16(), &mut buffer);
             buffer.extend_from_slice(b" ");
             buffer.extend_from_slice(msg.reason().as_bytes());
             buffer.extend_from_slice(b"\r\n");
@@ -172,11 +172,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 buffer.extend_from_slice(b"\r\n");
             }
 
-            // using utils::date is quite a lot faster
+            // using helpers::date is quite a lot faster
             if !msg.headers().contains_key(DATE) {
-                buffer.reserve(utils::DATE_VALUE_LENGTH + 8);
+                buffer.reserve(helpers::DATE_VALUE_LENGTH + 8);
                 buffer.extend_from_slice(b"Date: ");
-                utils::extend(&mut buffer);
+                helpers::date(&mut buffer);
                 buffer.extend_from_slice(b"\r\n");
             }
 

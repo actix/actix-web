@@ -55,7 +55,7 @@ extern crate tokio_openssl;
 mod application;
 mod body;
 mod context;
-mod utils;
+mod helpers;
 mod encoding;
 mod httprequest;
 mod httpresponse;

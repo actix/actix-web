@@ -13,7 +13,7 @@ use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
-use utils;
+use helpers;
 use body::{Body, Binary};
 use error::PayloadError;
 use httprequest::HttpMessage;
@@ -411,13 +411,13 @@ impl PayloadEncoder {
                     let b = enc.get_mut().take();
 
                     resp.headers_mut().insert(
-                        CONTENT_LENGTH, utils::convert_into_header(b.len()));
+                        CONTENT_LENGTH, helpers::convert_into_header(b.len()));
                     *bytes = Binary::from(b);
                     encoding = ContentEncoding::Identity;
                     TransferEncoding::eof()
                 } else {
                     resp.headers_mut().insert(
-                        CONTENT_LENGTH, utils::convert_into_header(bytes.len()));
+                        CONTENT_LENGTH, helpers::convert_into_header(bytes.len()));
                     TransferEncoding::eof()
                 }
             }

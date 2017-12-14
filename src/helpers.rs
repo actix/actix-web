@@ -8,7 +8,7 @@ use http::header::HeaderValue;
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
 
-pub fn extend(dst: &mut BytesMut) {
+pub fn date(dst: &mut BytesMut) {
     CACHED.with(|cache| {
         dst.extend_from_slice(cache.borrow().buffer());
     })

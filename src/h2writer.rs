@@ -6,7 +6,7 @@ use http2::server::Respond;
 use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, TRANSFER_ENCODING, DATE};
 
-use utils;
+use helpers;
 use body::Body;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
@@ -124,10 +124,10 @@ impl Writer for H2Writer {
         msg.headers_mut().remove(CONNECTION);
         msg.headers_mut().remove(TRANSFER_ENCODING);
 
-        // using utils::date is quite a lot faster
+        // using helpers::date is quite a lot faster
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
-            utils::extend(&mut bytes);
+            helpers::date(&mut bytes);
             msg.headers_mut().insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
         }
 
