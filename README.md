@@ -27,7 +27,7 @@ fn main() {
 
 ## Features
 
-  * Supported HTTP/1 and HTTP/2 protocols
+  * Supported *HTTP/1.x* and *HTTP/2.0* protocols
   * Streaming and pipelining
   * Keep-alive and slow requests handling
   * [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)

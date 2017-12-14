@@ -401,7 +401,7 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
     }
 }
 
-/// Http workers
+/// Http worker
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests processing.
 struct Worker<H> {

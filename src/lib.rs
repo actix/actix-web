@@ -1,4 +1,37 @@
 //! Actix web is a small, fast, down-to-earth, open source rust web framework.
+//!
+//! ```rust,ignore
+//! use actix_web::*;
+//!
+//! fn index(req: HttpRequest) -> String {
+//!     format!("Hello {}!", &req.match_info()["name"])
+//! }
+//!
+//! fn main() {
+//!     HttpServer::new(
+//!         || Application::new()
+//!             .resource("/{name}", |r| r.f(index)))
+//!         .serve::<_, ()>("127.0.0.1:8080");
+//! }
+//! ```
+//!
+//! ## Documentation
+//!
+//! * [User Guide](http://actix.github.io/actix-web/guide/)
+//! * Cargo package: [actix-web](https://crates.io/crates/actix-web)
+//! * Minimum supported Rust version: 1.20 or later
+//!
+//! ## Features
+//!
+//! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
+//! * Streaming and pipelining
+//! * Keep-alive and slow requests handling
+//! * `WebSockets`
+//! * Transparent content compression/decompression (br, gzip, deflate)
+//! * Configurable request routing
+//! * Multipart streams
+//! * Middlewares (`Logger`, `Session`, `DefaultHeaders`)
+//! * Built on top of [Actix](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
