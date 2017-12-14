@@ -82,3 +82,45 @@ fn main() {
         .finish();
 }
 ```
+
+## Chunked transfer encoding
+
+Actix automatically decode *chunked* encoding. `HttpRequest::payload()` already contains
+decoded bytes stream. If request payload compressed with one of supported
+compression codecs (br, gzip, deflate) bytes stream get decompressed.
+
+Chunked encoding on response could be enabled with `HttpResponseBuilder::chunked()` method.
+But this takes effect only for `Body::Streaming(BodyStream)` or `Body::StreamingContext` bodies.
+Also if response payload compression is enabled and streaming body is used, chunked encoding
+get enabled automatically.
+
+Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
+
+```rust
+# extern crate actix_web;
+use actix_web::*;
+use actix_web::headers::ContentEncoding;
+
+fn index(req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .chunked()
+        .body(Body::Streaming(Payload::empty().stream())).unwrap()
+}
+# fn main() {}
+```
+
+## Cookies
+
+[WIP]
+
+## Multipart body
+
+[WIP]
+
+## Urlencoded body
+
+[WIP]
+
+## Streaming request
+
+[WIP]

@@ -128,6 +128,7 @@ pub mod dev {
 //! use actix_web::dev::*;
 //! ```
 
+    pub use body::BodyStream;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
     pub use router::{Router, Pattern};

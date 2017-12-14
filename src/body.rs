@@ -6,8 +6,8 @@ use futures::Stream;
 
 use error::Error;
 
-pub(crate) type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
-
+/// Type represent streaming body
+pub type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
 
 /// Represents various types of http message body.
 pub enum Body {

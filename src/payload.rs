@@ -7,6 +7,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
+use body::BodyStream;
 use actix::ResponseType;
 use error::PayloadError;
 
@@ -120,6 +121,11 @@ impl Payload {
     /// Set size of payload buffer
     pub fn set_buffer_size(&self, size: usize) {
         self.inner.borrow_mut().set_buffer_size(size)
+    }
+
+    /// Convert payload into BodyStream
+    pub fn stream(self) -> BodyStream {
+        Box::new(self.map(|item| item.0).map_err(|e| e.into()))
     }
 }
 

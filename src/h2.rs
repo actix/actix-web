@@ -159,7 +159,7 @@ impl<T, H> Http2<T, H>
                                     if keep_alive > 0 && self.keepalive_timer.is_none() {
                                         trace!("Start keep-alive timer");
                                         let mut timeout = Timeout::new(
-                                            Duration::new(keep_alive as u64, 0),
+                                            Duration::new(keep_alive, 0),
                                             Arbiter::handle()).unwrap();
                                         // register timeout
                                         let _ = timeout.poll();

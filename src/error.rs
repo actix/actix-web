@@ -213,6 +213,9 @@ impl From<IoError> for PayloadError {
     }
 }
 
+/// `InternalServerError` for `PayloadError`
+impl ResponseError for PayloadError {}
+
 /// Return `BadRequest` for `cookie::ParseError`
 impl ResponseError for cookie::ParseError {
     fn error_response(&self) -> HttpResponse {

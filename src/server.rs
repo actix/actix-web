@@ -94,7 +94,7 @@ pub struct HttpServer<T, A, H, U>
     io: PhantomData<T>,
     addr: PhantomData<A>,
     threads: usize,
-    keep_alive: Option<u16>,
+    keep_alive: Option<u64>,
     factory: Arc<Fn() -> U + Send + Sync>,
     workers: Vec<SyncAddress<Worker<H>>>,
 }
@@ -152,7 +152,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     ///  - `Some(0)` - disable
     ///
     ///  - `None` - use `SO_KEEPALIVE` socket option
-    pub fn keep_alive(mut self, val: Option<u16>) -> Self {
+    pub fn keep_alive(mut self, val: Option<u64>) -> Self {
         self.keep_alive = val;
         self
     }
@@ -240,7 +240,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
             let (tx, rx) = mpsc::unbounded::<IoStream<Socket>>();
 
             let h = handler.clone();
-            let ka = self.keep_alive.clone();
+            let ka = self.keep_alive;
             let factory = Arc::clone(&self.factory);
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
                 let mut apps: Vec<_> = (*factory)()
@@ -396,7 +396,7 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
               -> Response<Self, IoStream<T>>
     {
         Arbiter::handle().spawn(
-            HttpChannel::new(Rc::clone(&self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
+            HttpChannel::new(Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
         Self::empty()
     }
 }
@@ -412,21 +412,21 @@ struct Worker<H> {
 
 pub(crate) struct WorkerSettings<H> {
     h: Vec<H>,
-    keep_alive: Option<u16>,
+    keep_alive: Option<u64>,
 }
 
 impl<H> WorkerSettings<H> {
     pub fn handlers(&self) -> &Vec<H> {
         &self.h
     }
-    pub fn keep_alive(&self) -> Option<u16> {
+    pub fn keep_alive(&self) -> Option<u64> {
         self.keep_alive
     }
 }
 
 impl<H: 'static> Worker<H> {
 
-    fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u16>) -> Worker<H> {
+    fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u64>) -> Worker<H> {
         Worker {
             h: Rc::new(WorkerSettings{h: h, keep_alive: keep_alive}),
             handler: handler,
@@ -456,10 +456,10 @@ impl<H> Handler<IoStream<Socket>> for Worker<H>
     fn handle(&mut self, msg: IoStream<Socket>, _: &mut Context<Self>)
               -> Response<Self, IoStream<Socket>>
     {
-        if let None = self.h.keep_alive {
-            if msg.io.set_keepalive(Some(Duration::new(75, 0))).is_err() {
-                error!("Can not set socket keep-alive option");
-            }
+        if self.h.keep_alive.is_none() &&
+            msg.io.set_keepalive(Some(Duration::new(75, 0))).is_err()
+        {
+            error!("Can not set socket keep-alive option");
         }
         self.handler.handle(Rc::clone(&self.h), msg);
         Self::empty()

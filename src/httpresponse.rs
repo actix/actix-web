@@ -309,7 +309,7 @@ impl HttpResponseBuilder {
 
     /// Enables automatic chunked transfer encoding
     #[inline]
-    pub fn enable_chunked(&mut self) -> &mut Self {
+    pub fn chunked(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.chunked = true;
         }

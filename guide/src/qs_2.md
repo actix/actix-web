@@ -49,7 +49,7 @@ request handler with the application's `resource` on a particular *HTTP method* 
 # }
 # fn main() {
    let app = Application::new()
-       .resource("/", |r| r.method(Method::GET).f(index))
+       .resource("/", |r| r.f(index))
        .finish();
 # }
 ```
