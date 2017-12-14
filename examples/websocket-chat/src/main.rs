@@ -192,23 +192,27 @@ fn main() {
             Ok(())
         }));
 
-    // Websocket sessions state
-    let state = WsChatSessionState { addr: server };
 
     // Create Http server with websocket support
     HttpServer::new(
-        Application::with_state("/", state)
+        move || {
+            // Websocket sessions state
+            let state = WsChatSessionState { addr: server.clone() };
+
+            Application::with_state(state)
             // redirect to websocket.html
-            .resource("/", |r| r.method(Method::GET).f(|req| {
-                httpcodes::HTTPFound
-                    .build()
-                    .header("LOCATION", "/static/websocket.html")
-                    .body(Body::Empty)
-            }))
+                .resource("/", |r| r.method(Method::GET).f(|req| {
+                    httpcodes::HTTPFound
+                        .build()
+                        .header("LOCATION", "/static/websocket.html")
+                        .body(Body::Empty)
+                }))
             // websocket
-            .resource("/ws/", |r| r.route().f(chat_route))
+                .resource("/ws/", |r| r.route().f(chat_route))
             // static resources
-            .resource("/static", |r| r.h(fs::StaticFiles::new("static/", true))))
+                .resource("/static/{tail:.*}",
+                          |r| r.h(fs::StaticFiles::new("tail", "static/", true)))
+        })
         .serve::<_, ()>("127.0.0.1:8080").unwrap();
 
     let _ = sys.run();
