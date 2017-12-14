@@ -2,7 +2,7 @@ use std::io;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
 use http::Version;
-use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, DATE};
+use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
 use body::Body;
@@ -178,11 +178,6 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 buffer.extend_from_slice(b"Date: ");
                 helpers::date(&mut buffer);
                 buffer.extend_from_slice(b"\r\n");
-            }
-
-            // default content-type
-            if !msg.headers().contains_key(CONTENT_TYPE) {
-                buffer.extend_from_slice(b"ContentType: application/octet-stream\r\n");
             }
 
             // msg eof

@@ -94,8 +94,8 @@ impl<T, H> Http1<T, H>
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
         // keep-alive timer
-        if let Some(ref mut timeout) = self.keepalive_timer {
-            match timeout.poll() {
+        if self.keepalive_timer.is_some() {
+            match self.keepalive_timer.as_mut().unwrap().poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Keep-alive timeout, close connection");
                     return Ok(Async::Ready(Http1Result::Done))
@@ -124,10 +124,12 @@ impl<T, H> Http1<T, H>
                             not_ready = false;
 
                             // overide keep-alive state
-                            if self.stream.keepalive() {
-                                self.flags.insert(Flags::KEEPALIVE);
-                            } else {
-                                self.flags.remove(Flags::KEEPALIVE);
+                            if self.settings.keep_alive_enabled() {
+                                if self.stream.keepalive() {
+                                    self.flags.insert(Flags::KEEPALIVE);
+                                } else {
+                                    self.flags.remove(Flags::KEEPALIVE);
+                                }
                             }
                             self.stream.reset();
 
@@ -249,7 +251,8 @@ impl<T, H> Http1<T, H>
                     Ok(Async::NotReady) => {
                         // start keep-alive timer, this is also slow request timeout
                         if self.tasks.is_empty() {
-                            if let Some(keep_alive) = self.settings.keep_alive() {
+                            if self.settings.keep_alive_enabled() {
+                                let keep_alive = self.settings.keep_alive();
                                 if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
                                     if self.keepalive_timer.is_none() {
                                         trace!("Start keep-alive timer");

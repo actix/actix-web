@@ -155,7 +155,8 @@ impl<T, H> Http2<T, H>
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
                             if self.tasks.is_empty() {
-                                if let Some(keep_alive) = self.settings.keep_alive() {
+                                if self.settings.keep_alive_enabled() {
+                                    let keep_alive = self.settings.keep_alive();
                                     if keep_alive > 0 && self.keepalive_timer.is_none() {
                                         trace!("Start keep-alive timer");
                                         let mut timeout = Timeout::new(

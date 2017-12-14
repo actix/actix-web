@@ -171,7 +171,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         for app in &mut apps {
             app.server_settings(settings.clone());
         }
-        self.h = Some(Rc::new(WorkerSettings{h: apps, keep_alive: self.keep_alive}));
+        self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server
         Ok(HttpServer::create(move |ctx| {
@@ -411,15 +411,27 @@ struct Worker<H> {
 
 pub(crate) struct WorkerSettings<H> {
     h: Vec<H>,
-    keep_alive: Option<u64>,
+    enabled: bool,
+    keep_alive: u64,
 }
 
 impl<H> WorkerSettings<H> {
+    fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
+        WorkerSettings {
+            h: h,
+            enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
+            keep_alive: keep_alive.unwrap_or(0),
+        }
+    }
+
     pub fn handlers(&self) -> &Vec<H> {
         &self.h
     }
-    pub fn keep_alive(&self) -> Option<u64> {
+    pub fn keep_alive(&self) -> u64 {
         self.keep_alive
+    }
+    pub fn keep_alive_enabled(&self) -> bool {
+        self.enabled
     }
 }
 
@@ -427,7 +439,7 @@ impl<H: 'static> Worker<H> {
 
     fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u64>) -> Worker<H> {
         Worker {
-            h: Rc::new(WorkerSettings{h: h, keep_alive: keep_alive}),
+            h: Rc::new(WorkerSettings::new(h, keep_alive)),
             handler: handler,
         }
     }
@@ -455,7 +467,7 @@ impl<H> Handler<IoStream<Socket>> for Worker<H>
     fn handle(&mut self, msg: IoStream<Socket>, _: &mut Context<Self>)
               -> Response<Self, IoStream<Socket>>
     {
-        if self.h.keep_alive.is_none() &&
+        if !self.h.keep_alive_enabled() &&
             msg.io.set_keepalive(Some(Duration::new(75, 0))).is_err()
         {
             error!("Can not set socket keep-alive option");

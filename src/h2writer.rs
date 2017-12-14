@@ -4,7 +4,7 @@ use futures::{Async, Poll};
 use http2::{Reason, SendStream};
 use http2::server::Respond;
 use http::{Version, HttpTryFrom, Response};
-use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, TRANSFER_ENCODING, DATE};
+use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE};
 
 use helpers;
 use body::Body;
@@ -129,12 +129,6 @@ impl Writer for H2Writer {
             let mut bytes = BytesMut::with_capacity(29);
             helpers::date(&mut bytes);
             msg.headers_mut().insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
-        }
-
-        // default content-type
-        if !msg.headers().contains_key(CONTENT_TYPE) {
-            msg.headers_mut().insert(
-                CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
         }
 
         let mut resp = Response::new(());

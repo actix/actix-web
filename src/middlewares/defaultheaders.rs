@@ -1,6 +1,6 @@
 //! Default response headers
 use http::{HeaderMap, HttpTryFrom};
-use http::header::{HeaderName, HeaderValue};
+use http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -27,21 +27,29 @@ use middlewares::{Response, Middleware};
 ///         .finish();
 /// }
 /// ```
-pub struct DefaultHeaders(HeaderMap);
+pub struct DefaultHeaders{
+    ct: bool,
+    headers: HeaderMap,
+}
 
 impl DefaultHeaders {
     pub fn build() -> DefaultHeadersBuilder {
-        DefaultHeadersBuilder{headers: Some(HeaderMap::new())}
+        DefaultHeadersBuilder{ct: false, headers: Some(HeaderMap::new())}
     }
 }
 
 impl<S> Middleware<S> for DefaultHeaders {
 
     fn response(&self, _: &mut HttpRequest<S>, mut resp: Box<HttpResponse>) -> Response {
-        for (key, value) in self.0.iter() {
+        for (key, value) in self.headers.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());
             }
+        }
+        // default content-type
+        if self.ct && !resp.headers().contains_key(CONTENT_TYPE) {
+            resp.headers_mut().insert(
+                CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
         }
         Response::Done(resp)
     }
@@ -50,6 +58,7 @@ impl<S> Middleware<S> for DefaultHeaders {
 /// Structure that follows the builder pattern for building `DefaultHeaders` middleware.
 #[derive(Debug)]
 pub struct DefaultHeadersBuilder {
+    ct: bool,
     headers: Option<HeaderMap>,
 }
 
@@ -76,10 +85,16 @@ impl DefaultHeadersBuilder {
         self
     }
 
+    /// Set *CONTENT-TYPE* header if response does not contain this header.
+    pub fn content_type(&mut self) -> &mut Self {
+        self.ct = true;
+        self
+    }
+
     /// Finishes building and returns the built `DefaultHeaders` middleware.
     pub fn finish(&mut self) -> DefaultHeaders {
         let headers = self.headers.take().expect("cannot reuse middleware builder");
-        DefaultHeaders(headers)
+        DefaultHeaders{ ct: self.ct, headers: headers }
     }
 }
 
