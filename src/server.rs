@@ -334,7 +334,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     ///
     /// This methods converts address to list of `SocketAddr`
     /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(mut self, addr: S, identity: &ParsedPkcs12) -> io::Result<Addr>
+    pub fn serve_ssl<S, Addr>(mut self, addr: S, identity: &ParsedPkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: net::ToSocketAddrs,
     {
