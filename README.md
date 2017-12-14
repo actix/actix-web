@@ -11,7 +11,7 @@ fn index(req: HttpRequest) -> String {
 
 fn main() {
     HttpServer::new(
-        Application::new()
+        || Application::new()
             .resource("/{name}", |r| r.f(index)))
         .serve::<_, ()>("127.0.0.1:8080");
 }
@@ -34,7 +34,7 @@ fn main() {
   * Transparent content compression/decompression (br, gzip, deflate)
   * Configurable request routing
   * Multipart streams
-  * Middlewares (Logger, Session included)
+  * Middlewares (Logger, Session, DefaultHeaders)
   * Built on top of [Actix](https://github.com/actix/actix).
 
 ## HTTP/2
