@@ -2,7 +2,7 @@ use futures::Future;
 
 use error::Error;
 use pred::Predicate;
-use handler::{Reply, Handler, FromRequest, RouteHandler, AsyncHandler, WrapHandler};
+use handler::{Reply, Handler, Responder, RouteHandler, AsyncHandler, WrapHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -58,7 +58,7 @@ impl<S: 'static> Route<S> {
     /// during route configuration, because it does not return reference to self.
     pub fn f<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: FromRequest + 'static,
+              R: Responder + 'static,
     {
         self.handler = Box::new(WrapHandler::new(handler));
     }

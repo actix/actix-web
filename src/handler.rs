@@ -18,26 +18,30 @@ use httpresponse::HttpResponse;
 pub trait Handler<S>: 'static {
 
     /// The type of value that handler will return.
-    type Result: FromRequest;
+    type Result: Responder;
 
     /// Handle request
     fn handle(&self, req: HttpRequest<S>) -> Self::Result;
 }
 
-pub trait FromRequest {
+/// Trait implemented by types that generate responses for clients.
+///
+/// Types that implement this trait can be used as the return type of a handler.
+pub trait Responder {
     /// The associated item which can be returned.
     type Item: Into<Reply>;
 
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    fn from_request(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
+    /// Convert itself to `Reply` or `Error`.
+    fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
 /// Handler<S> for Fn()
 impl<F, R, S> Handler<S> for F
     where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: FromRequest + 'static
+          R: Responder + 'static
 {
     type Result = R;
 
@@ -93,20 +97,20 @@ impl Reply {
     }
 }
 
-impl FromRequest for Reply {
+impl Responder for Reply {
     type Item = Reply;
     type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(self)
     }
 }
 
-impl FromRequest for HttpResponse {
+impl Responder for HttpResponse {
     type Item = Reply;
     type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Message(Box::new(self))))
     }
 }
@@ -118,14 +122,14 @@ impl From<HttpResponse> for Reply {
     }
 }
 
-impl<T: FromRequest, E: Into<Error>> FromRequest for Result<T, E>
+impl<T: Responder, E: Into<Error>> Responder for Result<T, E>
 {
-    type Item = <T as FromRequest>::Item;
+    type Item = <T as Responder>::Item;
     type Error = Error;
 
-    fn from_request(self, req: HttpRequest) -> Result<Self::Item, Self::Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error> {
         match self {
-            Ok(val) => match val.from_request(req) {
+            Ok(val) => match val.respond_to(req) {
                 Ok(val) => Ok(val),
                 Err(err) => Err(err.into()),
             },
@@ -143,12 +147,12 @@ impl<E: Into<Error>> From<Result<Reply, E>> for Reply {
     }
 }
 
-impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> FromRequest for HttpContext<A, S>
+impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> Responder for HttpContext<A, S>
 {
     type Item = Reply;
     type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Actor(Box::new(self))))
     }
 }
@@ -160,12 +164,12 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> fo
     }
 }
 
-impl FromRequest for Box<Future<Item=HttpResponse, Error=Error>>
+impl Responder for Box<Future<Item=HttpResponse, Error=Error>>
 {
     type Item = Reply;
     type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Future(self)))
     }
 }
@@ -179,7 +183,7 @@ pub(crate) trait RouteHandler<S>: 'static {
 pub(crate)
 struct WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: FromRequest,
+          R: Responder,
           S: 'static,
 {
     h: H,
@@ -188,7 +192,7 @@ struct WrapHandler<S, H, R>
 
 impl<S, H, R> WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: FromRequest,
+          R: Responder,
           S: 'static,
 {
     pub fn new(h: H) -> Self {
@@ -198,12 +202,12 @@ impl<S, H, R> WrapHandler<S, H, R>
 
 impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
     where H: Handler<S, Result=R>,
-          R: FromRequest + 'static,
+          R: Responder + 'static,
           S: 'static,
 {
     fn handle(&self, req: HttpRequest<S>) -> Reply {
         let req2 = req.clone_without_state();
-        match self.h.handle(req).from_request(req2) {
+        match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
             Err(err) => Reply::response(err.into()),
         }
@@ -265,11 +269,11 @@ impl<S, R, F> RouteHandler<S> for AsyncHandler<S, R, F>
 /// ```
 pub struct Json<T: Serialize> (pub T);
 
-impl<T: Serialize> FromRequest for Json<T> {
+impl<T: Serialize> Responder for Json<T> {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&self.0)?;
 
         Ok(HttpResponse::Ok()
@@ -406,7 +410,7 @@ mod tests {
     #[test]
     fn test_json() {
         let json = Json(MyObj{name: "test"});
-        let resp = json.from_request(HttpRequest::default()).unwrap();
+        let resp = json.respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json");
     }
 

@@ -4,14 +4,14 @@ A request handler can by any object that implements
 [`Handler` trait](../actix_web/dev/trait.Handler.html#implementors).
 Request handling happen in two stages. First handler object get called. 
 Handle can return any object that implements 
-[`FromRequest` trait](../actix_web/trait.FromRequest.html#foreign-impls).
-Then `from_request()` get called on returned object. And finally
-result of the `from_request()` call get converted to `Reply` object.
+[*Responder trait*](../actix_web/trait.Responder.html#foreign-impls).
+Then `respond_to()` get called on returned object. And finally
+result of the `respond_to()` call get converted to `Reply` object.
 
-By default actix provides several `FromRequest` implementations for some standard types, 
+By default actix provides `Responder` implementations for some standard types, 
 like `&'static str`, `String`, etc.
 For complete list of implementations check 
-[FromRequest documentation](../actix_web/trait.FromRequest.html#foreign-impls).
+[Responder documentation](../actix_web/trait.Responder.html#foreign-impls).
 
 Examples of valid handlers:
 
@@ -59,11 +59,11 @@ struct MyObj {
 }
 
 /// we have to convert Error into HttpResponse as well
-impl FromRequest for MyObj {
+impl Responder for MyObj {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn from_request(self, req: HttpRequest) -> Result<HttpResponse> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse> {
         let body = serde_json::to_string(&self)?;
 
         // Create response and set content type

@@ -12,7 +12,7 @@ use cookie::Cookie;
 
 use body::Body;
 use error::Error;
-use handler::FromRequest;
+use handler::Responder;
 use encoding::ContentEncoding;
 use httprequest::HttpRequest;
 
@@ -431,11 +431,11 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl FromRequest for HttpResponseBuilder {
+impl Responder for HttpResponseBuilder {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(mut self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         self.finish()
     }
 }
@@ -449,11 +449,11 @@ impl From<&'static str> for HttpResponse {
     }
 }
 
-impl FromRequest for &'static str {
+impl Responder for &'static str {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -469,11 +469,11 @@ impl From<&'static [u8]> for HttpResponse {
     }
 }
 
-impl FromRequest for &'static [u8] {
+impl Responder for &'static [u8] {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
@@ -489,11 +489,11 @@ impl From<String> for HttpResponse {
     }
 }
 
-impl FromRequest for String {
+impl Responder for String {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -509,11 +509,11 @@ impl<'a> From<&'a String> for HttpResponse {
     }
 }
 
-impl<'a> FromRequest for &'a String {
+impl<'a> Responder for &'a String {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -529,11 +529,11 @@ impl From<Bytes> for HttpResponse {
     }
 }
 
-impl FromRequest for Bytes {
+impl Responder for Bytes {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
@@ -549,11 +549,11 @@ impl From<BytesMut> for HttpResponse {
     }
 }
 
-impl FromRequest for BytesMut {
+impl Responder for BytesMut {
     type Item = HttpResponse;
     type Error = HttpError;
 
-    fn from_request(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
@@ -689,7 +689,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
-        let resp: HttpResponse = "test".from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = "test".respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
@@ -703,7 +703,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
 
-        let resp: HttpResponse = b"test".as_ref().from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b"test".as_ref().respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
@@ -717,7 +717,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
 
-        let resp: HttpResponse = "test".to_owned().from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = "test".to_owned().respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
@@ -731,7 +731,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from((&"test".to_owned())));
 
-        let resp: HttpResponse = (&"test".to_owned()).from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = (&"test".to_owned()).respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
@@ -747,7 +747,7 @@ mod tests {
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
 
         let b = Bytes::from_static(b"test");
-        let resp: HttpResponse = b.from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
@@ -763,7 +763,7 @@ mod tests {
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
 
         let b = BytesMut::from("test");
-        let resp: HttpResponse = b.from_request(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));

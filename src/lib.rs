@@ -122,7 +122,7 @@ pub use application::Application;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use payload::{Payload, PayloadItem};
-pub use handler::{Reply, FromRequest, Json, NormalizePath};
+pub use handler::{Reply, Responder, Json, NormalizePath};
 pub use route::Route;
 pub use resource::Resource;
 pub use server::HttpServer;

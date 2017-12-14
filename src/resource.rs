@@ -5,7 +5,7 @@ use http::{Method, StatusCode};
 use pred;
 use body::Body;
 use route::Route;
-use handler::{Reply, Handler, FromRequest};
+use handler::{Reply, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -120,7 +120,7 @@ impl<S: 'static> Resource<S> {
     /// ```
     pub fn f<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: FromRequest + 'static,
+              R: Responder + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)

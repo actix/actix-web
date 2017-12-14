@@ -10,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 
 use mime_guess::get_mime_type;
 use param::FromParam;
-use handler::{Handler, FromRequest};
+use handler::{Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::HTTPOk;
@@ -77,11 +77,11 @@ impl DerefMut for NamedFile {
     }
 }
 
-impl FromRequest for NamedFile {
+impl Responder for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn from_request(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
+    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
         let mut resp = HTTPOk.build();
         if let Some(ext) = self.path().extension() {
             let mime = get_mime_type(&ext.to_string_lossy());
@@ -124,11 +124,11 @@ impl Directory {
     }
 }
 
-impl FromRequest for Directory {
+impl Responder for Directory {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn from_request(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         let index_of = format!("Index of {}", req.path());
         let mut body = String::new();
         let base = Path::new(req.path());
@@ -176,14 +176,14 @@ pub enum FilesystemElement {
     Directory(Directory),
 }
 
-impl FromRequest for FilesystemElement {
+impl Responder for FilesystemElement {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn from_request(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         match self {
-            FilesystemElement::File(file) => file.from_request(req),
-            FilesystemElement::Directory(dir) => dir.from_request(req),
+            FilesystemElement::File(file) => file.respond_to(req),
+            FilesystemElement::Directory(dir) => dir.respond_to(req),
         }
     }
 }
@@ -294,7 +294,7 @@ mod tests {
           let _f: &File = &file; }
         { let _f: &mut File = &mut file; }
 
-        let resp = file.from_request(HttpRequest::default()).unwrap();
+        let resp = file.respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml")
     }
 
@@ -312,7 +312,7 @@ mod tests {
         req.match_info_mut().add("tail", "");
 
         st.show_index = true;
-        let resp = st.handle(req).from_request(HttpRequest::default()).unwrap();
+        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
         assert!(resp.body().is_binary());
         assert!(format!("{:?}", resp.body()).contains("README.md"));
