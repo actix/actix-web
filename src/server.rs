@@ -82,7 +82,7 @@ impl ServerSettings {
 
 /// An HTTP Server
 ///
-/// `T` - async stream,  anything that implements `AsyncRead` + `AsyncWrite`.
+/// `T` - async stream, anything that implements `AsyncRead` + `AsyncWrite`.
 ///
 /// `A` - peer address
 ///
@@ -121,7 +121,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Create new http server with vec of http handlers
+    /// Create new http server with application factory
     pub fn new<F>(factory: F) -> Self
         where F: Sync + Send + 'static + Fn() -> U,
     {
@@ -400,7 +400,6 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
         Self::empty()
     }
 }
-
 
 /// Http workers
 ///

@@ -166,8 +166,8 @@ fn test_date_len() {
 #[test]
 fn test_date() {
     let mut buf1 = BytesMut::new();
-    extend(&mut buf1);
+    date(&mut buf1);
     let mut buf2 = BytesMut::new();
-    extend(&mut buf2);
+    date(&mut buf2);
     assert_eq!(buf1, buf2);
 }
