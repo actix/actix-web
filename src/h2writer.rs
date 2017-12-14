@@ -1,12 +1,12 @@
 use std::{io, cmp};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::{Reason, SendStream};
 use http2::server::Respond;
 use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, TRANSFER_ENCODING, DATE};
 
-use date;
+use utils;
 use body::Body;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
@@ -124,11 +124,10 @@ impl Writer for H2Writer {
         msg.headers_mut().remove(CONNECTION);
         msg.headers_mut().remove(TRANSFER_ENCODING);
 
-        // using http::h1::date is quite a lot faster than generating
-        // a unique Date header each time like req/s goes up about 10%
+        // using utils::date is quite a lot faster
         if !msg.headers().contains_key(DATE) {
-            let mut bytes = [0u8; 29];
-            date::extend(&mut bytes[..]);
+            let mut bytes = BytesMut::with_capacity(29);
+            utils::extend(&mut bytes);
             msg.headers_mut().insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
         }
 

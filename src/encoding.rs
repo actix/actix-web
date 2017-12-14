@@ -13,6 +13,7 @@ use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
+use utils;
 use body::{Body, Binary};
 use error::PayloadError;
 use httprequest::HttpMessage;
@@ -35,6 +36,14 @@ pub enum ContentEncoding {
 }
 
 impl ContentEncoding {
+
+    fn is_compression(&self) -> bool {
+        match *self {
+            ContentEncoding::Identity | ContentEncoding::Auto => false,
+            _ => true
+        }
+    }
+
     fn as_str(&self) -> &'static str {
         match *self {
             ContentEncoding::Br => "br",
@@ -270,10 +279,10 @@ impl PayloadWriter for EncodedPayload {
             Decoder::Gzip(ref mut decoder) => {
                 if decoder.is_none() {
                     let mut buf = BytesMut::new();
-                    buf.extend(data);
+                    buf.extend_from_slice(&data);
                     *(decoder.as_mut()) = Some(GzDecoder::new(Wrapper{buf: buf}).unwrap());
                 } else {
-                    decoder.as_mut().as_mut().unwrap().get_mut().buf.extend(data);
+                    decoder.as_mut().as_mut().unwrap().get_mut().buf.extend_from_slice(&data);
                 }
 
                 loop {
@@ -362,8 +371,10 @@ impl PayloadEncoder {
                 }
                 encoding => encoding,
             };
-            resp.headers_mut().insert(
-                CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+            if encoding.is_compression() {
+                resp.headers_mut().insert(
+                    CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+            }
             encoding
         } else {
             ContentEncoding::Identity
@@ -400,15 +411,13 @@ impl PayloadEncoder {
                     let b = enc.get_mut().take();
 
                     resp.headers_mut().insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::from_str(&b.len().to_string()).unwrap());
+                        CONTENT_LENGTH, utils::convert_into_header(b.len()));
                     *bytes = Binary::from(b);
                     encoding = ContentEncoding::Identity;
                     TransferEncoding::eof()
                 } else {
                     resp.headers_mut().insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::from_str(&bytes.len().to_string()).unwrap());
+                        CONTENT_LENGTH, utils::convert_into_header(bytes.len()));
                     TransferEncoding::eof()
                 }
             }
@@ -491,12 +500,14 @@ impl PayloadEncoder {
         self.0.is_eof()
     }
 
-    #[inline]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[inline(always)]
     pub fn write(&mut self, payload: &[u8]) -> Result<(), io::Error> {
         self.0.write(payload)
     }
 
-    #[inline]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[inline(always)]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         self.0.write_eof()
     }
@@ -553,6 +564,7 @@ impl ContentEncoder {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         let encoder = mem::replace(self, ContentEncoder::Identity(TransferEncoding::eof()));
@@ -592,6 +604,7 @@ impl ContentEncoder {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
@@ -692,11 +705,11 @@ impl TransferEncoding {
     }
 
     /// Encode message. Return `EOF` state of encoder
-    #[inline(always)]
+    #[inline]
     pub fn encode(&mut self, msg: &[u8]) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => {
-                self.buffer.extend(msg);
+                self.buffer.extend_from_slice(msg);
                 msg.is_empty()
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
@@ -706,11 +719,11 @@ impl TransferEncoding {
 
                 if msg.is_empty() {
                     *eof = true;
-                    self.buffer.extend(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 } else {
                     write!(self.buffer, "{:X}\r\n", msg.len()).unwrap();
-                    self.buffer.extend(msg);
-                    self.buffer.extend(b"\r\n");
+                    self.buffer.extend_from_slice(msg);
+                    self.buffer.extend_from_slice(b"\r\n");
                 }
                 *eof
             },
@@ -720,7 +733,7 @@ impl TransferEncoding {
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
                 trace!("sized write = {}", max);
-                self.buffer.extend(msg[..max as usize].as_ref());
+                self.buffer.extend_from_slice(msg[..max as usize].as_ref());
 
                 *remaining -= max as u64;
                 trace!("encoded {} bytes, remaining = {}", max, remaining);
@@ -730,14 +743,14 @@ impl TransferEncoding {
     }
 
     /// Encode eof. Return `EOF` state of encoder
-    #[inline(always)]
+    #[inline]
     pub fn encode_eof(&mut self) {
         match self.kind {
             TransferEncodingKind::Eof | TransferEncodingKind::Length(_) => (),
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
-                    self.buffer.extend(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 }
             },
         }

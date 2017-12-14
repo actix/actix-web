@@ -88,8 +88,8 @@ impl<T, H> Http1<T, H>
                keepalive_timer: None }
     }
 
-    pub fn into_inner(mut self) -> (Rc<Vec<H>>, T, Option<SocketAddr>, Bytes) {
-        (self.handlers, self.stream.unwrap(), self.addr, self.read_buf.freeze())
+    pub fn into_inner(self) -> (Rc<Vec<H>>, T, Option<SocketAddr>, Bytes) {
+        (self.handlers, self.stream.into_inner(), self.addr, self.read_buf.freeze())
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -129,7 +129,7 @@ impl<T, H> Http1<T, H>
                             } else {
                                 self.flags.remove(Flags::KEEPALIVE);
                             }
-                            self.stream = H1Writer::new(self.stream.unwrap());
+                            self.stream.reset();
 
                             item.flags.insert(EntryFlags::EOF);
                             if ready {
@@ -185,7 +185,7 @@ impl<T, H> Http1<T, H>
 
             // read incoming data
             while !self.flags.contains(Flags::ERROR) && !self.flags.contains(Flags::H2) &&
-                    self.tasks.len() < MAX_PIPELINED_MESSAGES {
+                self.tasks.len() < MAX_PIPELINED_MESSAGES {
                 match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
                     Ok(Async::Ready(Item::Http1(mut req))) => {
                         not_ready = false;
@@ -252,12 +252,12 @@ impl<T, H> Http1<T, H>
                             if self.flags.contains(Flags::KEEPALIVE) {
                                 if self.keepalive_timer.is_none() {
                                     trace!("Start keep-alive timer");
-                                    let mut timeout = Timeout::new(
+                                    let mut to = Timeout::new(
                                         Duration::new(KEEPALIVE_PERIOD, 0),
                                         Arbiter::handle()).unwrap();
                                     // register timeout
-                                    let _ = timeout.poll();
-                                    self.keepalive_timer = Some(timeout);
+                                    let _ = to.poll();
+                                    self.keepalive_timer = Some(to);
                                 }
                             } else {
                                 // keep-alive disable, drop connection
@@ -482,8 +482,7 @@ impl Reader {
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Result<Message, ParseError>
-    {
+    fn parse_message(buf: &mut BytesMut) -> Result<Message, ParseError> {
         if buf.is_empty() {
             return Ok(Message::NotReady);
         }

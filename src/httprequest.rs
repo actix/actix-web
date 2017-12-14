@@ -515,7 +515,7 @@ impl Future for UrlEncoded {
                     Ok(Async::Ready(m))
                 },
                 Ok(Async::Ready(Some(item))) => {
-                    self.body.extend(item.0);
+                    self.body.extend_from_slice(&item.0);
                     continue
                 },
                 Err(err) => Err(err),

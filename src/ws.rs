@@ -201,7 +201,7 @@ impl Stream for WsStream {
             loop {
                 match self.rx.readany() {
                     Ok(Async::Ready(Some(chunk))) => {
-                        self.buf.extend(chunk.0)
+                        self.buf.extend_from_slice(&chunk.0)
                     }
                     Ok(Async::Ready(None)) => {
                         done = true;

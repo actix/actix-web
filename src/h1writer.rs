@@ -4,7 +4,7 @@ use tokio_io::AsyncWrite;
 use http::Version;
 use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, DATE};
 
-use date;
+use utils;
 use body::Body;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
@@ -45,7 +45,7 @@ bitflags! {
 
 pub(crate) struct H1Writer<T: AsyncWrite> {
     flags: Flags,
-    stream: Option<T>,
+    stream: T,
     encoder: PayloadEncoder,
     written: u64,
     headers_size: u32,
@@ -56,7 +56,7 @@ impl<T: AsyncWrite> H1Writer<T> {
     pub fn new(stream: T) -> H1Writer<T> {
         H1Writer {
             flags: Flags::empty(),
-            stream: Some(stream),
+            stream: stream,
             encoder: PayloadEncoder::default(),
             written: 0,
             headers_size: 0,
@@ -64,11 +64,16 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 
     pub fn get_mut(&mut self) -> &mut T {
-        self.stream.as_mut().unwrap()
+        &mut self.stream
     }
 
-    pub fn unwrap(&mut self) -> T {
-        self.stream.take().unwrap()
+    pub fn reset(&mut self) {
+        self.written = 0;
+        self.flags = Flags::empty();
+    }
+
+    pub fn into_inner(self) -> T {
+        self.stream
     }
 
     pub fn disconnected(&mut self) {
@@ -82,22 +87,20 @@ impl<T: AsyncWrite> H1Writer<T> {
     fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
         let buffer = self.encoder.get_mut();
 
-        if let Some(ref mut stream) = self.stream {
-            while !buffer.is_empty() {
-                match stream.write(buffer.as_ref()) {
-                    Ok(n) => {
-                        buffer.split_to(n);
-                        self.written += n as u64;
-                    },
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        if buffer.len() > MAX_WRITE_BUFFER_SIZE {
-                            return Ok(WriterState::Pause)
-                        } else {
-                            return Ok(WriterState::Done)
-                        }
+        while !buffer.is_empty() {
+            match self.stream.write(buffer.as_ref()) {
+                Ok(n) => {
+                    buffer.split_to(n);
+                    self.written += n as u64;
+                },
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    if buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                        return Ok(WriterState::Pause)
+                    } else {
+                        return Ok(WriterState::Done)
                     }
-                    Err(err) => return Err(err),
                 }
+                Err(err) => return Err(err),
             }
         }
         Ok(WriterState::Done)
@@ -143,50 +146,47 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         // render message
         {
-            let buffer = self.encoder.get_mut();
+            let mut buffer = self.encoder.get_mut();
             if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(130 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                buffer.reserve(150 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                buffer.reserve(130 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(150 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
             match version {
-                Version::HTTP_11 => buffer.extend(b"HTTP/1.1 "),
-                Version::HTTP_2 => buffer.extend(b"HTTP/2.0 "),
-                Version::HTTP_10 => buffer.extend(b"HTTP/1.0 "),
-                Version::HTTP_09 => buffer.extend(b"HTTP/0.9 "),
+                Version::HTTP_11 => buffer.extend_from_slice(b"HTTP/1.1 "),
+                Version::HTTP_2 => buffer.extend_from_slice(b"HTTP/2.0 "),
+                Version::HTTP_10 => buffer.extend_from_slice(b"HTTP/1.0 "),
+                Version::HTTP_09 => buffer.extend_from_slice(b"HTTP/0.9 "),
             }
-            buffer.extend(msg.status().as_u16().to_string().as_bytes());
-            buffer.extend(b" ");
-            buffer.extend(msg.reason().as_bytes());
-            buffer.extend(b"\r\n");
+            utils::convert_u16(msg.status().as_u16(), &mut buffer);
+            buffer.extend_from_slice(b" ");
+            buffer.extend_from_slice(msg.reason().as_bytes());
+            buffer.extend_from_slice(b"\r\n");
 
             for (key, value) in msg.headers() {
                 let t: &[u8] = key.as_ref();
-                buffer.extend(t);
-                buffer.extend(b": ");
-                buffer.extend(value.as_ref());
-                buffer.extend(b"\r\n");
+                buffer.extend_from_slice(t);
+                buffer.extend_from_slice(b": ");
+                buffer.extend_from_slice(value.as_ref());
+                buffer.extend_from_slice(b"\r\n");
             }
 
-            // using http::h1::date is quite a lot faster than generating
-            // a unique Date header each time like req/s goes up about 10%
+            // using utils::date is quite a lot faster
             if !msg.headers().contains_key(DATE) {
-                buffer.reserve(date::DATE_VALUE_LENGTH + 8);
-                buffer.extend(b"Date: ");
-                let mut bytes = [0u8; 29];
-                date::extend(&mut bytes[..]);
-                buffer.extend(&bytes);
-                buffer.extend(b"\r\n");
+                buffer.reserve(utils::DATE_VALUE_LENGTH + 8);
+                buffer.extend_from_slice(b"Date: ");
+                utils::extend(&mut buffer);
+                buffer.extend_from_slice(b"\r\n");
             }
 
             // default content-type
             if !msg.headers().contains_key(CONTENT_TYPE) {
-                buffer.extend(b"ContentType: application/octet-stream\r\n".as_ref());
+                buffer.extend_from_slice(b"ContentType: application/octet-stream\r\n");
             }
 
             // msg eof
-            buffer.extend(b"\r\n");
+            buffer.extend_from_slice(b"\r\n");
             self.headers_size = buffer.len() as u32;
         }
 

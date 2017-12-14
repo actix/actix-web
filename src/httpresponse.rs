@@ -47,8 +47,9 @@ impl HttpResponse {
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
         HttpResponseBuilder {
-            parts: Some(Parts::new(status)),
+            response: Some(HttpResponse::new(status, Body::Empty)),
             err: None,
+            cookies: None,
         }
     }
 
@@ -57,7 +58,7 @@ impl HttpResponse {
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
         HttpResponse {
             version: None,
-            headers: Default::default(),
+            headers: HeaderMap::with_capacity(8),
             status: status,
             reason: None,
             body: body,
@@ -213,49 +214,22 @@ impl fmt::Debug for HttpResponse {
     }
 }
 
-#[derive(Debug)]
-struct Parts {
-    version: Option<Version>,
-    headers: HeaderMap,
-    status: StatusCode,
-    reason: Option<&'static str>,
-    chunked: bool,
-    encoding: ContentEncoding,
-    connection_type: Option<ConnectionType>,
-    cookies: Option<CookieJar>,
-}
-
-impl Parts {
-    fn new(status: StatusCode) -> Self {
-        Parts {
-            version: None,
-            headers: HeaderMap::with_capacity(8),
-            status: status,
-            reason: None,
-            chunked: false,
-            encoding: ContentEncoding::Auto,
-            connection_type: None,
-            cookies: None,
-        }
-    }
-}
-
-
 /// An HTTP response builder
 ///
 /// This type can be used to construct an instance of `HttpResponse` through a
 /// builder-like pattern.
 #[derive(Debug)]
 pub struct HttpResponseBuilder {
-    parts: Option<Parts>,
+    response: Option<HttpResponse>,
     err: Option<HttpError>,
+    cookies: Option<CookieJar>,
 }
 
 impl HttpResponseBuilder {
     /// Set the HTTP version of this response.
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.version = Some(version);
         }
         self
@@ -264,7 +238,7 @@ impl HttpResponseBuilder {
     /// Set the `StatusCode` for this response.
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.status = status;
         }
         self
@@ -276,7 +250,7 @@ impl HttpResponseBuilder {
         where HeaderName: HttpTryFrom<K>,
               HeaderValue: HttpTryFrom<V>
     {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => {
                     match HeaderValue::try_from(value) {
@@ -293,7 +267,7 @@ impl HttpResponseBuilder {
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.reason = Some(reason);
         }
         self
@@ -306,7 +280,7 @@ impl HttpResponseBuilder {
     /// To enforce specific encoding, use specific ContentEncoding` value.
     #[inline]
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.encoding = enc;
         }
         self
@@ -315,7 +289,7 @@ impl HttpResponseBuilder {
     /// Set connection type
     #[inline]
     pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.connection_type = Some(conn);
         }
         self
@@ -336,7 +310,7 @@ impl HttpResponseBuilder {
     /// Enables automatic chunked transfer encoding
     #[inline]
     pub fn enable_chunked(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.chunked = true;
         }
         self
@@ -347,7 +321,7 @@ impl HttpResponseBuilder {
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
         where HeaderValue: HttpTryFrom<V>
     {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderValue::try_from(value) {
                 Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
                 Err(e) => self.err = Some(e.into()),
@@ -358,25 +332,23 @@ impl HttpResponseBuilder {
 
     /// Set a cookie
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
-            if parts.cookies.is_none() {
-                let mut jar = CookieJar::new();
-                jar.add(cookie.into_owned());
-                parts.cookies = Some(jar)
-            } else {
-                parts.cookies.as_mut().unwrap().add(cookie.into_owned());
-            }
+        if self.cookies.is_none() {
+            let mut jar = CookieJar::new();
+            jar.add(cookie.into_owned());
+            self.cookies = Some(jar)
+        } else {
+            self.cookies.as_mut().unwrap().add(cookie.into_owned());
         }
         self
     }
 
     /// Remote cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
-            if parts.cookies.is_none() {
-                parts.cookies = Some(CookieJar::new())
+        {
+            if self.cookies.is_none() {
+                self.cookies = Some(CookieJar::new())
             }
-            let mut jar = parts.cookies.as_mut().unwrap();
+            let jar = self.cookies.as_mut().unwrap();
             let cookie = cookie.clone().into_owned();
             jar.add_original(cookie.clone());
             jar.remove(cookie);
@@ -397,36 +369,26 @@ impl HttpResponseBuilder {
     /// Set a body and generate `HttpResponse`.
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
-        let mut parts = self.parts.take().expect("cannot reuse response builder");
         if let Some(e) = self.err.take() {
             return Err(e)
         }
-        if let Some(jar) = parts.cookies {
+        let mut response = self.response.take().expect("cannot reuse response builder");
+        if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
-                parts.headers.append(
+                response.headers.append(
                     header::SET_COOKIE,
                     HeaderValue::from_str(&cookie.to_string())?);
             }
         }
-        Ok(HttpResponse {
-            version: parts.version,
-            headers: parts.headers,
-            status: parts.status,
-            reason: parts.reason,
-            body: body.into(),
-            chunked: parts.chunked,
-            encoding: parts.encoding,
-            connection_type: parts.connection_type,
-            response_size: 0,
-            error: None,
-        })
+        response.body = body.into();
+        Ok(response)
     }
 
     /// Set a json body and generate `HttpResponse`
     pub fn json<T: Serialize>(&mut self, value: T) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&value)?;
 
-        let contains = if let Some(parts) = parts(&mut self.parts, &self.err) {
+        let contains = if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.headers.contains_key(header::CONTENT_TYPE)
         } else {
             true
@@ -444,7 +406,8 @@ impl HttpResponseBuilder {
     }
 }
 
-fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
+fn parts<'a>(parts: &'a mut Option<HttpResponse>, err: &Option<HttpError>)
+             -> Option<&'a mut HttpResponse>
 {
     if err.is_some() {
         return None

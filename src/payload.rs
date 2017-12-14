@@ -250,7 +250,7 @@ impl Inner {
                 let mut chunk = self.items.pop_front().unwrap();
                 let rem = cmp::min(size - buf.len(), chunk.len());
                 self.len -= rem;
-                buf.extend(&chunk.split_to(rem));
+                buf.extend_from_slice(&chunk.split_to(rem));
                 if !chunk.is_empty() {
                     self.items.push_front(chunk);
                     return Ok(Async::Ready(buf.freeze()))
@@ -299,12 +299,12 @@ impl Inner {
                 let mut buf = BytesMut::with_capacity(length);
                 if num > 0 {
                     for _ in 0..num {
-                        buf.extend(self.items.pop_front().unwrap());
+                        buf.extend_from_slice(&self.items.pop_front().unwrap());
                     }
                 }
                 if offset > 0 {
                     let mut chunk = self.items.pop_front().unwrap();
-                    buf.extend(chunk.split_to(offset));
+                    buf.extend_from_slice(&chunk.split_to(offset));
                     if !chunk.is_empty() {
                         self.items.push_front(chunk)
                     }
@@ -330,7 +330,7 @@ impl Inner {
         if len > 0 {
             let mut buf = BytesMut::with_capacity(len);
             for item in &self.items {
-                buf.extend(item);
+                buf.extend_from_slice(item);
             }
             self.items = VecDeque::new();
             self.len = 0;

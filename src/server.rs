@@ -1,7 +1,7 @@
 use std::{io, net, thread};
 use std::rc::Rc;
 use std::sync::Arc;
-//use std::time::Duration;
+use std::time::Duration;
 use std::marker::PhantomData;
 
 use actix::dev::*;
@@ -28,6 +28,7 @@ use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
 use tokio_openssl::{SslStream, SslAcceptorExt};
 
+use utils;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
 /// Various server settings
@@ -99,10 +100,23 @@ pub struct HttpServer<T, A, H, U>
 
 impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.update_time(ctx);
+    }
+}
+
+impl<T: 'static, A: 'static, H, U: 'static>  HttpServer<T, A, H, U> {
+    fn update_time(&self, ctx: &mut Context<Self>) {
+        utils::update_date();
+        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
+    }
 }
 
 impl<T, A, H, U, V> HttpServer<T, A, H, U>
-    where H: HttpHandler,
+    where A: 'static,
+          T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
@@ -126,15 +140,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         self.threads = num;
         self
     }
-}
 
-impl<T, A, H, U, V> HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
-          A: 'static,
-          H: HttpHandler,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-{
     /// Start listening for incomming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
@@ -387,11 +393,18 @@ struct Worker<H> {
     handler: StreamHandlerType,
 }
 
+impl<H: 'static> Worker<H> {
+    fn update_time(&self, ctx: &mut Context<Self>) {
+        utils::update_date();
+        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
+    }
+}
+
 impl<H: 'static> Actor for Worker<H> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-
+        self.update_time(ctx);
     }
 }
 

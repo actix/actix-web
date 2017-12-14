@@ -48,6 +48,7 @@ pub enum Binary {
 
 impl Body {
     /// Does this body streaming.
+    #[inline]
     pub fn is_streaming(&self) -> bool {
         match *self {
             Body::Streaming(_) | Body::StreamingContext
@@ -57,6 +58,7 @@ impl Body {
     }
 
     /// Is this binary body.
+    #[inline]
     pub fn is_binary(&self) -> bool {
         match *self {
             Body::Binary(_) => true,
@@ -114,10 +116,12 @@ impl<T> From<T> for Body where T: Into<Binary>{
 }
 
 impl Binary {
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         match *self {
             Binary::Bytes(ref bytes) => bytes.len(),
