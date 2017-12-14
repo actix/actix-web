@@ -16,14 +16,13 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use h2writer::H2Writer;
+use server::WorkerSettings;
 use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
 use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
-
-const KEEPALIVE_PERIOD: u64 = 15; // seconds
 
 bitflags! {
     struct Flags: u8 {
@@ -36,7 +35,7 @@ pub(crate) struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     flags: Flags,
-    handlers: Rc<Vec<H>>,
+    settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry>,
@@ -53,14 +52,14 @@ impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<Vec<H>>, stream: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
+    pub fn new(h: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
     {
         Http2{ flags: Flags::empty(),
-               handlers: h,
+               settings: h,
                addr: addr,
                tasks: VecDeque::new(),
                state: State::Handshake(
-                   Server::handshake(IoWrapper{unread: Some(buf), inner: stream})),
+                   Server::handshake(IoWrapper{unread: Some(buf), inner: io})),
                keepalive_timer: None,
         }
     }
@@ -151,18 +150,28 @@ impl<T, H> Http2<T, H>
                             self.keepalive_timer.take();
 
                             self.tasks.push_back(
-                                Entry::new(parts, body, resp, self.addr, &self.handlers));
+                                Entry::new(parts, body, resp, self.addr, &self.settings));
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
-                            if self.tasks.is_empty() && self.keepalive_timer.is_none() {
-                                trace!("Start keep-alive timer");
-                                let mut timeout = Timeout::new(
-                                    Duration::new(KEEPALIVE_PERIOD, 0),
-                                    Arbiter::handle()).unwrap();
-                                // register timeout
-                                let _ = timeout.poll();
-                                self.keepalive_timer = Some(timeout);
+                            if self.tasks.is_empty() {
+                                if let Some(keep_alive) = self.settings.keep_alive() {
+                                    if keep_alive > 0 && self.keepalive_timer.is_none() {
+                                        trace!("Start keep-alive timer");
+                                        let mut timeout = Timeout::new(
+                                            Duration::new(keep_alive as u64, 0),
+                                            Arbiter::handle()).unwrap();
+                                        // register timeout
+                                        let _ = timeout.poll();
+                                        self.keepalive_timer = Some(timeout);
+                                    }
+                                } else {
+                                    // keep-alive disable, drop connection
+                                    return Ok(Async::Ready(()))
+                                }
+                            } else {
+                                // keep-alive unset, rely on operating system
+                                return Ok(Async::NotReady)
                             }
                         }
                         Err(err) => {
@@ -230,7 +239,7 @@ impl Entry {
               recv: RecvStream,
               resp: Respond<Bytes>,
               addr: Option<SocketAddr>,
-              handlers: &Rc<Vec<H>>) -> Entry
+              settings: &Rc<WorkerSettings<H>>) -> Entry
         where H: HttpHandler + 'static
     {
         // Payload and Content-Encoding
@@ -247,7 +256,7 @@ impl Entry {
 
         // start request processing
         let mut task = None;
-        for h in handlers.iter() {
+        for h in settings.handlers().iter() {
             req = match h.handle(req) {
                 Ok(t) => {
                     task = Some(t);

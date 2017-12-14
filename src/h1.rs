@@ -17,12 +17,12 @@ use pipeline::Pipeline;
 use encoding::PayloadType;
 use channel::{HttpHandler, HttpHandlerTask};
 use h1writer::H1Writer;
+use server::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
-const KEEPALIVE_PERIOD: u64 = 15; // seconds
 const INIT_BUFFER_SIZE: usize = 8192;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 100;
@@ -59,7 +59,7 @@ enum Item {
 
 pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
     flags: Flags,
-    handlers: Rc<Vec<H>>,
+    settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
@@ -77,9 +77,9 @@ impl<T, H> Http1<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<Vec<H>>, stream: T, addr: Option<SocketAddr>) -> Self {
+    pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>) -> Self {
         Http1{ flags: Flags::KEEPALIVE,
-               handlers: h,
+               settings: h,
                addr: addr,
                stream: H1Writer::new(stream),
                reader: Reader::new(),
@@ -88,8 +88,8 @@ impl<T, H> Http1<T, H>
                keepalive_timer: None }
     }
 
-    pub fn into_inner(self) -> (Rc<Vec<H>>, T, Option<SocketAddr>, Bytes) {
-        (self.handlers, self.stream.into_inner(), self.addr, self.read_buf.freeze())
+    pub fn into_inner(self) -> (Rc<WorkerSettings<H>>, T, Option<SocketAddr>, Bytes) {
+        (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -198,7 +198,7 @@ impl<T, H> Http1<T, H>
 
                         // start request processing
                         let mut pipe = None;
-                        for h in self.handlers.iter() {
+                        for h in self.settings.handlers().iter() {
                             req = match h.handle(req) {
                                 Ok(t) => {
                                     pipe = Some(t);
@@ -249,19 +249,24 @@ impl<T, H> Http1<T, H>
                     Ok(Async::NotReady) => {
                         // start keep-alive timer, this is also slow request timeout
                         if self.tasks.is_empty() {
-                            if self.flags.contains(Flags::KEEPALIVE) {
-                                if self.keepalive_timer.is_none() {
-                                    trace!("Start keep-alive timer");
-                                    let mut to = Timeout::new(
-                                        Duration::new(KEEPALIVE_PERIOD, 0),
-                                        Arbiter::handle()).unwrap();
-                                    // register timeout
-                                    let _ = to.poll();
-                                    self.keepalive_timer = Some(to);
+                            if let Some(keep_alive) = self.settings.keep_alive() {
+                                if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
+                                    if self.keepalive_timer.is_none() {
+                                        trace!("Start keep-alive timer");
+                                        let mut to = Timeout::new(
+                                            Duration::new(keep_alive as u64, 0),
+                                            Arbiter::handle()).unwrap();
+                                        // register timeout
+                                        let _ = to.poll();
+                                        self.keepalive_timer = Some(to);
+                                    }
+                                } else {
+                                    // keep-alive disable, drop connection
+                                    return Ok(Async::Ready(Http1Result::Done))
                                 }
                             } else {
-                                // keep-alive disable, drop connection
-                                return Ok(Async::Ready(Http1Result::Done))
+                                // keep-alive unset, rely on operating system
+                                return Ok(Async::NotReady)
                             }
                         }
                         break

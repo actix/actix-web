@@ -90,10 +90,11 @@ impl ServerSettings {
 pub struct HttpServer<T, A, H, U>
     where H: 'static
 {
-    h: Rc<Vec<H>>,
+    h: Option<Rc<WorkerSettings<H>>>,
     io: PhantomData<T>,
     addr: PhantomData<A>,
     threads: usize,
+    keep_alive: Option<u16>,
     factory: Arc<Fn() -> U + Send + Sync>,
     workers: Vec<SyncAddress<Worker<H>>>,
 }
@@ -124,10 +125,11 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     pub fn new<F>(factory: F) -> Self
         where F: Sync + Send + 'static + Fn() -> U,
     {
-        HttpServer{ h: Rc::new(Vec::new()),
+        HttpServer{ h: None,
                     io: PhantomData,
                     addr: PhantomData,
                     threads: num_cpus::get(),
+                    keep_alive: None,
                     factory: Arc::new(factory),
                     workers: Vec::new(),
         }
@@ -138,6 +140,20 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// By default http server uses number of available logical cpu as threads count.
     pub fn threads(mut self, num: usize) -> Self {
         self.threads = num;
+        self
+    }
+
+    /// Set server keep-alive setting.
+    ///
+    /// By default keep alive is enabled.
+    ///
+    ///  - `Some(75)` - enable
+    ///
+    ///  - `Some(0)` - disable
+    ///
+    ///  - `None` - use `SO_KEEPALIVE` socket option
+    pub fn keep_alive(mut self, val: Option<u16>) -> Self {
+        self.keep_alive = val;
         self
     }
 
@@ -155,7 +171,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         for app in &mut apps {
             app.server_settings(settings.clone());
         }
-        self.h = Rc::new(apps);
+        self.h = Some(Rc::new(WorkerSettings{h: apps, keep_alive: self.keep_alive}));
 
         // start server
         Ok(HttpServer::create(move |ctx| {
@@ -215,15 +231,16 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 
     fn start_workers(&mut self, settings: &ServerSettings, handler: &StreamHandlerType)
-                     -> Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>
+                     -> Vec<mpsc::UnboundedSender<IoStream<Socket>>>
     {
         // start workers
         let mut workers = Vec::new();
         for _ in 0..self.threads {
             let s = settings.clone();
-            let (tx, rx) = mpsc::unbounded::<IoStream<net::TcpStream>>();
+            let (tx, rx) = mpsc::unbounded::<IoStream<Socket>>();
 
             let h = handler.clone();
+            let ka = self.keep_alive.clone();
             let factory = Arc::clone(&self.factory);
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
                 let mut apps: Vec<_> = (*factory)()
@@ -232,7 +249,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     app.server_settings(s.clone());
                 }
                 ctx.add_stream(rx);
-                Worker{h: Rc::new(apps), handler: h}
+                Worker::new(apps, h, ka)
             });
             workers.push(tx);
             self.workers.push(addr);
@@ -379,7 +396,7 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
               -> Response<Self, IoStream<T>>
     {
         Arbiter::handle().spawn(
-            HttpChannel::new(Rc::clone(&self.h), msg.io, msg.peer, msg.http2));
+            HttpChannel::new(Rc::clone(&self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
         Self::empty()
     }
 }
@@ -389,11 +406,33 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests processing.
 struct Worker<H> {
-    h: Rc<Vec<H>>,
+    h: Rc<WorkerSettings<H>>,
     handler: StreamHandlerType,
 }
 
+pub(crate) struct WorkerSettings<H> {
+    h: Vec<H>,
+    keep_alive: Option<u16>,
+}
+
+impl<H> WorkerSettings<H> {
+    pub fn handlers(&self) -> &Vec<H> {
+        &self.h
+    }
+    pub fn keep_alive(&self) -> Option<u16> {
+        self.keep_alive
+    }
+}
+
 impl<H: 'static> Worker<H> {
+
+    fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u16>) -> Worker<H> {
+        Worker {
+            h: Rc::new(WorkerSettings{h: h, keep_alive: keep_alive}),
+            handler: handler,
+        }
+    }
+    
     fn update_time(&self, ctx: &mut Context<Self>) {
         utils::update_date();
         ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
@@ -408,15 +447,20 @@ impl<H: 'static> Actor for Worker<H> {
     }
 }
 
-impl<H> StreamHandler<IoStream<net::TcpStream>> for Worker<H>
+impl<H> StreamHandler<IoStream<Socket>> for Worker<H>
     where H: HttpHandler + 'static {}
 
-impl<H> Handler<IoStream<net::TcpStream>> for Worker<H>
+impl<H> Handler<IoStream<Socket>> for Worker<H>
     where H: HttpHandler + 'static,
 {
-    fn handle(&mut self, msg: IoStream<net::TcpStream>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<net::TcpStream>>
+    fn handle(&mut self, msg: IoStream<Socket>, _: &mut Context<Self>)
+              -> Response<Self, IoStream<Socket>>
     {
+        if let None = self.h.keep_alive {
+            if msg.io.set_keepalive(Some(Duration::new(75, 0))).is_err() {
+                error!("Can not set socket keep-alive option");
+            }
+        }
         self.handler.handle(Rc::clone(&self.h), msg);
         Self::empty()
     }
@@ -432,10 +476,11 @@ enum StreamHandlerType {
 }
 
 impl StreamHandlerType {
-    fn handle<H: HttpHandler>(&mut self, h: Rc<Vec<H>>, msg: IoStream<net::TcpStream>) {
+
+    fn handle<H: HttpHandler>(&mut self, h: Rc<WorkerSettings<H>>, msg: IoStream<Socket>) {
         match *self {
             StreamHandlerType::Normal => {
-                let io = TcpStream::from_stream(msg.io, Arbiter::handle())
+                let io = TcpStream::from_stream(msg.io.into_tcp_stream(), Arbiter::handle())
                     .expect("failed to associate TCP stream");
 
                 Arbiter::handle().spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
@@ -443,7 +488,7 @@ impl StreamHandlerType {
             #[cfg(feature="tls")]
             StreamHandlerType::Tls(ref acceptor) => {
                 let IoStream { io, peer, http2 } = msg;
-                let io = TcpStream::from_stream(io, Arbiter::handle())
+                let io = TcpStream::from_stream(io.into_tcp_stream(), Arbiter::handle())
                     .expect("failed to associate TCP stream");
 
                 Arbiter::handle().spawn(
@@ -461,7 +506,7 @@ impl StreamHandlerType {
             #[cfg(feature="alpn")]
             StreamHandlerType::Alpn(ref acceptor) => {
                 let IoStream { io, peer, .. } = msg;
-                let io = TcpStream::from_stream(io, Arbiter::handle())
+                let io = TcpStream::from_stream(io.into_tcp_stream(), Arbiter::handle())
                     .expect("failed to associate TCP stream");
 
                 Arbiter::handle().spawn(
@@ -488,7 +533,7 @@ impl StreamHandlerType {
 }
 
 fn start_accept_thread(sock: Socket, addr: net::SocketAddr,
-                       workers: Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>) {
+                       workers: Vec<mpsc::UnboundedSender<IoStream<Socket>>>) {
     // start acceptors thread
     let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
         let mut next = 0;
@@ -500,8 +545,7 @@ fn start_accept_thread(sock: Socket, addr: net::SocketAddr,
                     } else {
                         net::SocketAddr::V6(addr.as_inet6().unwrap())
                     };
-                    let msg = IoStream{
-                        io: socket.into_tcp_stream(), peer: Some(addr), http2: false};
+                    let msg = IoStream{io: socket, peer: Some(addr), http2: false};
                     workers[next].unbounded_send(msg).expect("worker thread died");
                     next = (next + 1) % workers.len();
                 }

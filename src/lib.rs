@@ -110,6 +110,7 @@ pub mod headers {
 //! Headers implementation
 
     pub use encoding::ContentEncoding;
+    pub use httpresponse::ConnectionType;
 
     pub use cookie::Cookie;
     pub use cookie::CookieBuilder;

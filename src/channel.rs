@@ -11,7 +11,7 @@ use h2;
 use error::Error;
 use h1writer::Writer;
 use httprequest::HttpRequest;
-use server::ServerSettings;
+use server::{ServerSettings, WorkerSettings};
 
 /// Low level http request handler
 #[allow(unused_variables)]
@@ -67,7 +67,8 @@ pub struct HttpChannel<T, H>
 impl<T, H> HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<Vec<H>>, io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
+    pub(crate) fn new(h: Rc<WorkerSettings<H>>,
+               io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
         if http2 {
             HttpChannel {
