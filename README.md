@@ -59,6 +59,37 @@ and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.se
 
 [tls example](https://github.com/actix/actix-web/tree/master/examples/tls)
 
+## Benchmarks
+
+This is totally unscientific and probably pretty useless. In real world business
+logic would dominate on performance side. But in any case. i took several web frameworks
+for rust and used theirs *hello world* example. All projects are compiled with
+`--release` parameter. I didnt test single thread performance for iron and rocket.
+As a testing tool i used `wrk` and following commands
+
+`wrk -t20 -c100 -d10s http://127.0.0.1:8080/`
+
+`wrk -t20 -c100 -d10s http://127.0.0.1:8080/ -s ./pipeline.lua --latency -- / 128`
+
+I ran all tests on localhost on MacBook Pro late 2017. It has 4 cpu and 8 logical cpus.
+Each result is best of five runs. All measurements are req/sec.
+
+ Name | 1 thread | 1 pipeline | 3 thread | 3 pipeline | 8 thread | 8 pipeline |
+--- | --- | --- | --- | --- | --- |
+Actix | 81400 | 710200 | 121000 | 1684000 | 106300 | 2206000 |
+Gotham | 61000 | 178000 |   |   |   |   |
+Iron |   |   |   |   | 94500 | 78000 |
+Rocket |   |   |   |   | 95500 | failed |
+Shio | 71800 | 317800 |   |   |   |   |
+tokio-minihttp | 106900 | 1047000 |   |   |   |   |
+
+Some notes on results. Iron and Rocket got tested with 8 threads,
+which showed best results. Gothan and tokio-minihttp seem does not support
+multithreading, or at least i couldn't figured out. I manually enabled pipelining
+for *Shio* and Gotham*. While shio seems support multithreading, but it showed
+absolutly same results for any how number of threads (maybe macos?)
+Rocket completely failed in pipelined tests.
+
 ## Examples
 
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)

@@ -41,9 +41,8 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
 ## Response with custom type
 
-To return custom type directly from handler function `FromResponse` trait should be 
-implemented for this type. Let's create response for custom type that 
-serializes to `application/json` response:
+To return custom type directly from handler function type needs to implement `Responder` trait.
+Let's create response for custom type that serializes to `application/json` response:
 
 ```rust
 # extern crate actix;

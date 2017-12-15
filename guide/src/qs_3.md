@@ -6,7 +6,7 @@ websocket protcol handling, multipart streams, etc.
 
 All actix web server is built around `Application` instance.
 It is used for registering routes for resources, middlewares.
-Also it stores application specific state that is shared accross all handlers
+Also it stores application specific state that is shared across all handlers
 within same application.
 
 Application acts as namespace for all routes, i.e all routes for specific application
