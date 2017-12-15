@@ -54,7 +54,7 @@ Each result is best of five runs. All measurements are req/sec.
 
 Name | 1 thread | 1 pipeline | 3 thread | 3 pipeline | 8 thread | 8 pipeline
 ---- | -------- | ---------- | -------- | ---------- | -------- | ----------
-Actix | 87.200 | 813.200 | 122.100 | 1.877.000 | 107.400 | 2.390.000
+Actix | 89.100 | 815.200 | 122.100 | 1.877.000 | 107.400 | 2.350.000
 Gotham | 61.000 | 178.000 |   |   |   |
 Iron |   |   |   |   | 94.500 | 78.000
 Rocket |   |   |   |   | 95.500 | failed
@@ -65,7 +65,7 @@ Some notes on results. Iron and Rocket got tested with 8 threads,
 which showed best results. Gothan and tokio-minihttp seem does not support
 multithreading, or at least i couldn't figured out. I manually enabled pipelining
 for *Shio* and Gotham*. While shio seems support multithreading, but it showed
-absolutly same results for any how number of threads (maybe macos?)
+absolutly same results for any how number of threads (maybe macos problem?)
 Rocket completely failed in pipelined tests.
 
 ## Examples
