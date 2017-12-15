@@ -131,7 +131,8 @@ impl Writer for H2Writer {
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
             helpers::date(&mut bytes);
-            msg.headers_mut().insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
+            msg.headers_mut().insert(
+                DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
         }
 
         let mut resp = Response::new(());

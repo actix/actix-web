@@ -539,13 +539,12 @@ impl Reader {
         }
 
         // Parse http message
-        let mut headers_indices = [HeaderIndices {
-            name: (0, 0),
-            value: (0, 0)
-        }; MAX_HEADERS];
+        let mut headers_indices: [HeaderIndices; MAX_HEADERS] =
+            unsafe{std::mem::uninitialized()};
 
         let (len, method, path, version, headers_len) = {
-            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
+            let mut headers: [httparse::Header; MAX_HEADERS] =
+                unsafe{std::mem::uninitialized()};
             let mut req = httparse::Request::new(&mut headers);
             match try!(req.parse(buf)) {
                 httparse::Status::Complete(len) => {
