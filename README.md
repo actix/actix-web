@@ -37,28 +37,6 @@ fn main() {
   * Middlewares (Logger, Session, DefaultHeaders)
   * Built on top of [Actix](https://github.com/actix/actix).
 
-## HTTP/2
-
-Actix web automatically upgrades connection to `http/2` if possible.
-
-### Negotiation
-
-`HTTP/2` protocol over tls without prior knowlage requires
-[tls alpn](https://tools.ietf.org/html/rfc7301). At the moment only
-`rust-openssl` supports alpn.
-
-```toml
-[dependencies]
-actix-web = { git = "https://github.com/actix/actix-web", features=["alpn"] }
-```
-
-Upgrade to `http/2` schema described in
-[rfc section 3.2](https://http2.github.io/http2-spec/#rfc.section.3.2) is not supported.
-Starting `http/2` with prior knowledge is supported for both clear text connection
-and tls connection. [rfc section 3.4](https://http2.github.io/http2-spec/#rfc.section.3.4)
-
-[tls example](https://github.com/actix/actix-web/tree/master/examples/tls)
-
 ## Benchmarks
 
 This is totally unscientific and probably pretty useless. In real world business
