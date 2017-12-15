@@ -76,12 +76,12 @@ Each result is best of five runs. All measurements are req/sec.
 
 Name | 1 thread | 1 pipeline | 3 thread | 3 pipeline | 8 thread | 8 pipeline
 ---- | -------- | ---------- | -------- | ---------- | -------- | ----------
-Actix | 81400 | 710200 | 121000 | 1684000 | 106300 | 2206000
-Gotham | 61000 | 178000 |   |   |   |
-Iron |   |   |   |   | 94500 | 78000
-Rocket |   |   |   |   | 95500 | failed
-Shio | 71800 | 317800 |   |   |   |   |
-tokio-minihttp | 106900 | 1047000 |   |   |   |
+Actix | 81.400 | 710.200 | 121.000 | 1.684.000 | 106.300 | 2.206.000
+Gotham | 61..000 | 178.000 |   |   |   |
+Iron |   |   |   |   | 94.500 | 78.000
+Rocket |   |   |   |   | 95.500 | failed
+Shio | 71.800 | 317.800 |   |   |   |   |
+tokio-minihttp | 106.900 | 1.047.000 |   |   |   |
 
 Some notes on results. Iron and Rocket got tested with 8 threads,
 which showed best results. Gothan and tokio-minihttp seem does not support

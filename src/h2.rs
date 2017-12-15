@@ -246,11 +246,15 @@ impl Entry {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
-        let mut req = HttpRequest::new(
-            parts.method, parts.uri, parts.version, parts.headers, Some(payload));
+        let msg = settings.get_http_message();
+        msg.get_mut().uri = parts.uri;
+        msg.get_mut().method = parts.method;
+        msg.get_mut().version = parts.version;
+        msg.get_mut().headers = parts.headers;
+        msg.get_mut().payload = Some(payload);
+        msg.get_mut().addr = addr;
 
-        // set remote addr
-        req.set_peer_addr(addr);
+        let mut req = HttpRequest::from_message(msg);
 
         // Payload sender
         let psender = PayloadType::new(req.headers(), psender);
@@ -270,7 +274,7 @@ impl Entry {
         Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                payload: psender,
                recv: recv,
-               stream: H2Writer::new(resp),
+               stream: H2Writer::new(resp, settings.get_shared_bytes()),
                flags: EntryFlags::empty(),
                capacity: 0,
         }

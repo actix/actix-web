@@ -569,7 +569,7 @@ impl ContentEncoder {
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         let encoder = mem::replace(
-            self, ContentEncoder::Identity(TransferEncoding::eof(SharedBytes::default())));
+            self, ContentEncoder::Identity(TransferEncoding::eof(SharedBytes::empty())));
 
         match encoder {
             ContentEncoder::Br(encoder) => {

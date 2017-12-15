@@ -99,6 +99,10 @@ impl Drop for SharedBytes {
 
 impl SharedBytes {
 
+    pub fn empty() -> Self {
+        SharedBytes(None, None)
+    }
+
     pub fn new(bytes: Rc<BytesMut>, pool: Rc<SharedBytesPool>) -> SharedBytes {
         SharedBytes(Some(bytes), Some(pool))
     }

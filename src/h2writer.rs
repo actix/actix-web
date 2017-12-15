@@ -31,17 +31,19 @@ pub(crate) struct H2Writer {
     encoder: PayloadEncoder,
     flags: Flags,
     written: u64,
+    buffer: SharedBytes,
 }
 
 impl H2Writer {
 
-    pub fn new(respond: Respond<Bytes>) -> H2Writer {
+    pub fn new(respond: Respond<Bytes>, buf: SharedBytes) -> H2Writer {
         H2Writer {
             respond: respond,
             stream: None,
-            encoder: PayloadEncoder::empty(SharedBytes::default()),
+            encoder: PayloadEncoder::empty(buf.clone()),
             flags: Flags::empty(),
             written: 0,
+            buffer: buf,
         }
     }
 
@@ -116,7 +118,7 @@ impl Writer for H2Writer {
 
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(SharedBytes::default(), req, msg);
+        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }
