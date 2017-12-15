@@ -1,4 +1,4 @@
-use std::{self, io, ptr};
+use std::{self, io};
 use std::rc::Rc;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -16,14 +16,15 @@ use tokio_core::reactor::Timeout;
 use pipeline::Pipeline;
 use encoding::PayloadType;
 use channel::{HttpHandler, HttpHandlerTask};
-use h1writer::H1Writer;
+use h1writer::{Writer, H1Writer};
 use server::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
-const INIT_BUFFER_SIZE: usize = 8192;
+const LW_BUFFER_SIZE: usize = 4096;
+const HW_BUFFER_SIZE: usize = 16_384;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 100;
 const MAX_PIPELINED_MESSAGES: usize = 16;
@@ -78,10 +79,11 @@ impl<T, H> Http1<T, H>
           H: HttpHandler + 'static
 {
     pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>) -> Self {
+        let bytes = h.get_shared_bytes();
         Http1{ flags: Flags::KEEPALIVE,
                settings: h,
                addr: addr,
-               stream: H1Writer::new(stream),
+               stream: H1Writer::new(stream, bytes),
                reader: Reader::new(),
                read_buf: BytesMut::new(),
                tasks: VecDeque::new(),
@@ -90,6 +92,18 @@ impl<T, H> Http1<T, H>
 
     pub fn into_inner(self) -> (Rc<WorkerSettings<H>>, T, Option<SocketAddr>, Bytes) {
         (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
+    }
+
+    fn poll_completed(&mut self) -> Result<bool, ()> {
+        // check stream state
+        match self.stream.poll_completed() {
+            Ok(Async::Ready(_)) => Ok(false),
+            Ok(Async::NotReady) => Ok(true),
+            Err(err) => {
+                debug!("Error sending data: {}", err);
+                Err(())
+            }
+        }
     }
 
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
@@ -116,6 +130,10 @@ impl<T, H> Http1<T, H>
 
                 if !io && !item.flags.contains(EntryFlags::EOF) {
                     if item.flags.contains(EntryFlags::ERROR) {
+                        // check stream state
+                        if let Ok(Async::NotReady) = self.stream.poll_completed() {
+                            return Ok(Async::NotReady)
+                        }
                         return Err(())
                     }
 
@@ -146,6 +164,12 @@ impl<T, H> Http1<T, H>
                             // it is not possible to recover from error
                             // during pipe handling, so just drop connection
                             error!("Unhandled error: {}", err);
+                            item.flags.insert(EntryFlags::ERROR);
+
+                            // check stream state, we still can have valid data in buffer
+                            if let Ok(Async::NotReady) = self.stream.poll_completed() {
+                                return Ok(Async::NotReady)
+                            }
                             return Err(())
                         }
                     }
@@ -178,6 +202,10 @@ impl<T, H> Http1<T, H>
 
             // no keep-alive
             if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
+                // check stream state
+                if self.poll_completed()? {
+                    return Ok(Async::NotReady)
+                }
                 if self.flags.contains(Flags::H2) {
                     return Ok(Async::Ready(Http1Result::Switch))
                 } else {
@@ -188,7 +216,9 @@ impl<T, H> Http1<T, H>
             // read incoming data
             while !self.flags.contains(Flags::ERROR) && !self.flags.contains(Flags::H2) &&
                 self.tasks.len() < MAX_PIPELINED_MESSAGES {
-                match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
+                    match self.reader.parse(self.stream.get_mut(),
+                                            &mut self.read_buf, &self.settings)
+                    {
                     Ok(Async::Ready(Item::Http1(mut req))) => {
                         not_ready = false;
 
@@ -264,10 +294,16 @@ impl<T, H> Http1<T, H>
                                         self.keepalive_timer = Some(to);
                                     }
                                 } else {
+                                    // check stream state
+                                    if self.poll_completed()? {
+                                        return Ok(Async::NotReady)
+                                    }
                                     // keep-alive disable, drop connection
                                     return Ok(Async::Ready(Http1Result::Done))
                                 }
                             } else {
+                                // check stream state
+                                self.poll_completed()?;
                                 // keep-alive unset, rely on operating system
                                 return Ok(Async::NotReady)
                             }
@@ -279,6 +315,11 @@ impl<T, H> Http1<T, H>
 
             // check for parse error
             if self.tasks.is_empty() {
+                // check stream state
+                if self.poll_completed()? {
+                    return Ok(Async::NotReady)
+                }
+
                 if self.flags.contains(Flags::H2) {
                     return Ok(Async::Ready(Http1Result::Switch))
                 }
@@ -288,6 +329,7 @@ impl<T, H> Http1<T, H>
             }
 
             if not_ready {
+                self.poll_completed()?;
                 return Ok(Async::NotReady)
             }
         }
@@ -358,7 +400,9 @@ impl Reader {
         }
     }
     
-    pub fn parse<T>(&mut self, io: &mut T, buf: &mut BytesMut) -> Poll<Item, ReaderError>
+    pub fn parse<T, H>(&mut self, io: &mut T,
+                       buf: &mut BytesMut,
+                       settings: &WorkerSettings<H>) -> Poll<Item, ReaderError>
         where T: AsyncRead
     {
         loop {
@@ -394,7 +438,7 @@ impl Reader {
         }
 
         loop {
-            match Reader::parse_message(buf).map_err(ReaderError::Error)? {
+            match Reader::parse_message(buf, settings).map_err(ReaderError::Error)? {
                 Message::Http1(msg, decoder) => {
                     if let Some(payload) = decoder {
                         self.payload = Some(payload);
@@ -465,15 +509,9 @@ impl Reader {
     }
 
     fn read_from_io<T: AsyncRead>(&mut self, io: &mut T, buf: &mut BytesMut)
-                                  -> Poll<usize, io::Error>
-    {
-        if buf.remaining_mut() < INIT_BUFFER_SIZE {
-            buf.reserve(INIT_BUFFER_SIZE);
-            unsafe { // Zero out unused memory
-                let b = buf.bytes_mut();
-                let len = b.len();
-                ptr::write_bytes(b.as_mut_ptr(), 0, len);
-            }
+                                  -> Poll<usize, io::Error> {
+        if buf.remaining_mut() < LW_BUFFER_SIZE {
+            buf.reserve(HW_BUFFER_SIZE);
         }
         unsafe {
             let n = match io.read(buf.bytes_mut()) {
@@ -490,7 +528,9 @@ impl Reader {
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Result<Message, ParseError> {
+    fn parse_message<H>(buf: &mut BytesMut, settings: &WorkerSettings<H>)
+                        -> Result<Message, ParseError>
+    {
         if buf.is_empty() {
             return Ok(Message::NotReady);
         }
@@ -537,13 +577,14 @@ impl Reader {
         let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
 
         // convert headers
-        let mut headers = HeaderMap::with_capacity(headers_len);
+        let msg = settings.get_http_message();
+        msg.get_mut().headers.reserve(headers_len);
         for header in headers_indices[..headers_len].iter() {
             if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
                 if let Ok(value) = HeaderValue::try_from(
                     slice.slice(header.value.0, header.value.1))
                 {
-                    headers.append(name, value);
+                    msg.get_mut().headers.append(name, value);
                 } else {
                     return Err(ParseError::Header)
                 }
@@ -552,25 +593,27 @@ impl Reader {
             }
         }
 
-        let decoder = if upgrade(&method, &headers) {
+        let decoder = if upgrade(&method, &msg.get_mut().headers) {
             Decoder::eof()
         } else {
-            let has_len = headers.contains_key(header::CONTENT_LENGTH);
+            let has_len = msg.get_mut().headers.contains_key(header::CONTENT_LENGTH);
 
             // Chunked encoding
-            if chunked(&headers)? {
+            if chunked(&msg.get_mut().headers)? {
                 if has_len {
                     return Err(ParseError::Header)
                 }
                 Decoder::chunked()
             } else {
                 if !has_len {
-                    let msg = HttpRequest::new(method, uri, version, headers, None);
-                    return Ok(Message::Http1(msg, None))
+                    msg.get_mut().uri = uri;
+                    msg.get_mut().method = method;
+                    msg.get_mut().version = version;
+                    return Ok(Message::Http1(HttpRequest::from_message(msg), None))
                 }
 
                 // Content-Length
-                let len = headers.get(header::CONTENT_LENGTH).unwrap();
+                let len = msg.get_mut().headers.get(header::CONTENT_LENGTH).unwrap();
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<u64>() {
                         Decoder::length(len)
@@ -587,11 +630,14 @@ impl Reader {
 
         let (psender, payload) = Payload::new(false);
         let info = PayloadInfo {
-            tx: PayloadType::new(&headers, psender),
+            tx: PayloadType::new(&msg.get_mut().headers, psender),
             decoder: decoder,
         };
-        let msg = HttpRequest::new(method, uri, version, headers, Some(payload));
-        Ok(Message::Http1(msg, Some(info)))
+        msg.get_mut().uri = uri;
+        msg.get_mut().method = method;
+        msg.get_mut().version = version;
+        msg.get_mut().payload = Some(payload);
+        Ok(Message::Http1(HttpRequest::from_message(msg), Some(info)))
     }
 }
 

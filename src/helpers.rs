@@ -1,9 +1,14 @@
 use std::{str, mem, ptr, slice};
 use std::cell::RefCell;
 use std::fmt::{self, Write};
+use std::rc::Rc;
+use std::ops::{Deref, DerefMut};
+use std::collections::VecDeque;
 use time;
 use bytes::BytesMut;
 use http::header::HeaderValue;
+
+use httprequest::HttpMessage;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
@@ -48,6 +53,171 @@ impl fmt::Write for CachedDate {
         self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
         self.pos += len;
         Ok(())
+    }
+}
+
+/// Internal use only! unsafe
+#[derive(Debug)]
+pub(crate) struct SharedBytesPool(RefCell<VecDeque<Rc<BytesMut>>>);
+
+impl SharedBytesPool {
+    pub fn new() -> SharedBytesPool {
+        SharedBytesPool(RefCell::new(VecDeque::with_capacity(128)))
+    }
+
+    pub fn get_bytes(&self) -> Rc<BytesMut> {
+        if let Some(bytes) = self.0.borrow_mut().pop_front() {
+            bytes
+        } else {
+            Rc::new(BytesMut::new())
+        }
+    }
+
+    pub fn release_bytes(&self, mut bytes: Rc<BytesMut>) {
+        if self.0.borrow().len() < 128 {
+            Rc::get_mut(&mut bytes).unwrap().take();
+            self.0.borrow_mut().push_front(bytes);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SharedBytes(
+    Option<Rc<BytesMut>>, Option<Rc<SharedBytesPool>>);
+
+impl Drop for SharedBytes {
+    fn drop(&mut self) {
+        if let Some(ref pool) = self.1 {
+            if let Some(bytes) = self.0.take() {
+                if Rc::strong_count(&bytes) == 1 {
+                    pool.release_bytes(bytes);
+                }
+            }
+        }
+    }
+}
+
+impl SharedBytes {
+
+    pub fn new(bytes: Rc<BytesMut>, pool: Rc<SharedBytesPool>) -> SharedBytes {
+        SharedBytes(Some(bytes), Some(pool))
+    }
+
+    #[inline]
+    #[allow(mutable_transmutes)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    pub fn get_mut(&self) -> &mut BytesMut {
+        let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
+        unsafe{mem::transmute(r)}
+    }
+
+    #[inline]
+    pub fn get_ref(&self) -> &BytesMut {
+        self.0.as_ref().unwrap()
+    }
+}
+
+impl Default for SharedBytes {
+    fn default() -> Self {
+        SharedBytes(Some(Rc::new(BytesMut::new())), None)
+    }
+}
+
+impl Clone for SharedBytes {
+    fn clone(&self) -> SharedBytes {
+        SharedBytes(self.0.clone(), self.1.clone())
+    }
+}
+
+/// Internal use only! unsafe
+pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpMessage>>>);
+
+impl SharedMessagePool {
+    pub fn new() -> SharedMessagePool {
+        SharedMessagePool(RefCell::new(VecDeque::with_capacity(128)))
+    }
+
+    pub fn get(&self) -> Rc<HttpMessage> {
+        if let Some(msg) = self.0.borrow_mut().pop_front() {
+            msg
+        } else {
+            Rc::new(HttpMessage::default())
+        }
+    }
+
+    pub fn release(&self, mut msg: Rc<HttpMessage>) {
+        if self.0.borrow().len() < 128 {
+            Rc::get_mut(&mut msg).unwrap().reset();
+            self.0.borrow_mut().push_front(msg);
+        }
+    }
+}
+
+pub(crate) struct SharedHttpMessage(
+    Option<Rc<HttpMessage>>, Option<Rc<SharedMessagePool>>);
+
+impl Drop for SharedHttpMessage {
+    fn drop(&mut self) {
+        if let Some(ref pool) = self.1 {
+            if let Some(msg) = self.0.take() {
+                if Rc::strong_count(&msg) == 1 {
+                    pool.release(msg);
+                }
+            }
+        }
+    }
+}
+
+impl Deref for SharedHttpMessage {
+    type Target = HttpMessage;
+
+    fn deref(&self) -> &HttpMessage {
+        self.get_ref()
+    }
+}
+
+impl DerefMut for SharedHttpMessage {
+
+    fn deref_mut(&mut self) -> &mut HttpMessage {
+        self.get_mut()
+    }
+}
+
+impl Clone for SharedHttpMessage {
+
+    fn clone(&self) -> SharedHttpMessage {
+        SharedHttpMessage(self.0.clone(), self.1.clone())
+    }
+}
+
+impl Default for SharedHttpMessage {
+
+    fn default() -> SharedHttpMessage {
+        SharedHttpMessage(Some(Rc::new(HttpMessage::default())), None)
+    }
+}
+
+impl SharedHttpMessage {
+
+    pub fn from_message(msg: HttpMessage) -> SharedHttpMessage {
+        SharedHttpMessage(Some(Rc::new(msg)), None)
+    }
+
+    pub fn new(msg: Rc<HttpMessage>, pool: Rc<SharedMessagePool>) -> SharedHttpMessage {
+        SharedHttpMessage(Some(msg), Some(pool))
+    }
+
+    #[inline(always)]
+    #[allow(mutable_transmutes)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
+    pub fn get_mut(&self) -> &mut HttpMessage {
+        let r: &HttpMessage = self.0.as_ref().unwrap().as_ref();
+        unsafe{mem::transmute(r)}
+    }
+
+    #[inline]
+    pub fn get_ref(&self) -> &HttpMessage {
+        self.0.as_ref().unwrap()
     }
 }
 

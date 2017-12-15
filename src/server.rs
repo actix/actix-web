@@ -413,6 +413,8 @@ pub(crate) struct WorkerSettings<H> {
     h: Vec<H>,
     enabled: bool,
     keep_alive: u64,
+    bytes: Rc<helpers::SharedBytesPool>,
+    messages: Rc<helpers::SharedMessagePool>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -421,6 +423,8 @@ impl<H> WorkerSettings<H> {
             h: h,
             enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
             keep_alive: keep_alive.unwrap_or(0),
+            bytes: Rc::new(helpers::SharedBytesPool::new()),
+            messages: Rc::new(helpers::SharedMessagePool::new()),
         }
     }
 
@@ -432,6 +436,12 @@ impl<H> WorkerSettings<H> {
     }
     pub fn keep_alive_enabled(&self) -> bool {
         self.enabled
+    }
+    pub fn get_shared_bytes(&self) -> helpers::SharedBytes {
+        helpers::SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
+    }
+    pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
+        helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
     }
 }
 

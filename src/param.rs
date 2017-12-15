@@ -30,6 +30,10 @@ impl<'a> Default for Params<'a> {
 
 impl<'a> Params<'a> {
 
+    pub(crate) fn clear(&mut self) {
+        self.0.clear();
+    }
+
     pub(crate) fn add(&mut self, name: &'a str, value: &'a str) {
         self.0.push((name, value));
     }

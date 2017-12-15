@@ -6,6 +6,7 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
 use body::Body;
+use helpers::SharedBytes;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
@@ -31,7 +32,7 @@ pub trait Writer {
 
     fn write_eof(&mut self) -> Result<WriterState, io::Error>;
 
-    fn poll_complete(&mut self) -> Poll<(), io::Error>;
+    fn poll_completed(&mut self) -> Poll<(), io::Error>;
 }
 
 bitflags! {
@@ -49,17 +50,19 @@ pub(crate) struct H1Writer<T: AsyncWrite> {
     encoder: PayloadEncoder,
     written: u64,
     headers_size: u32,
+    buffer: SharedBytes,
 }
 
 impl<T: AsyncWrite> H1Writer<T> {
 
-    pub fn new(stream: T) -> H1Writer<T> {
+    pub fn new(stream: T, buf: SharedBytes) -> H1Writer<T> {
         H1Writer {
             flags: Flags::empty(),
             stream: stream,
-            encoder: PayloadEncoder::default(),
+            encoder: PayloadEncoder::empty(buf.clone()),
             written: 0,
             headers_size: 0,
+            buffer: buf,
         }
     }
 
@@ -125,7 +128,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         // prepare task
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(req, msg);
+        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags.insert(Flags::KEEPALIVE);
         }
@@ -148,9 +151,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         {
             let mut buffer = self.encoder.get_mut();
             if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(150 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                buffer.reserve(150 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
             match version {
@@ -229,7 +232,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
-    fn poll_complete(&mut self) -> Poll<(), io::Error> {
+    fn poll_completed(&mut self) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => Ok(Async::Ready(())),
             Ok(WriterState::Pause) => Ok(Async::NotReady),

@@ -8,6 +8,7 @@ use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE};
 
 use helpers;
 use body::Body;
+use helpers::SharedBytes;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
@@ -38,7 +39,7 @@ impl H2Writer {
         H2Writer {
             respond: respond,
             stream: None,
-            encoder: PayloadEncoder::default(),
+            encoder: PayloadEncoder::empty(SharedBytes::default()),
             flags: Flags::empty(),
             written: 0,
         }
@@ -115,7 +116,7 @@ impl Writer for H2Writer {
 
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(req, msg);
+        self.encoder = PayloadEncoder::new(SharedBytes::default(), req, msg);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }
@@ -193,7 +194,7 @@ impl Writer for H2Writer {
         }
     }
 
-    fn poll_complete(&mut self) -> Poll<(), io::Error> {
+    fn poll_completed(&mut self) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => Ok(Async::Ready(())),
             Ok(WriterState::Pause) => Ok(Async::NotReady),

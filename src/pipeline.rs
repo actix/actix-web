@@ -755,16 +755,18 @@ impl<S> ProcessResponse<S> {
             }
         }
 
-        // flush io
-        match io.poll_complete() {
-            Ok(Async::Ready(_)) =>
-                self.running.resume(),
-            Ok(Async::NotReady) =>
-                return Err(PipelineState::Response(self)),
-            Err(err) => {
-                debug!("Error sending data: {}", err);
-                info.error = Some(err.into());
-                return Ok(FinishingMiddlewares::init(info, self.resp))
+        // flush io but only if we need to
+        if self.running == RunningState::Paused || !self.drain.0.is_empty() {
+            match io.poll_completed() {
+                Ok(Async::Ready(_)) =>
+                    self.running.resume(),
+                Ok(Async::NotReady) =>
+                    return Err(PipelineState::Response(self)),
+                Err(err) => {
+                    debug!("Error sending data: {}", err);
+                    info.error = Some(err.into());
+                    return Ok(FinishingMiddlewares::init(info, self.resp))
+                }
             }
         }
 

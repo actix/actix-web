@@ -15,6 +15,7 @@ use param::Params;
 use router::Router;
 use payload::Payload;
 use multipart::Multipart;
+use helpers::SharedHttpMessage;
 use error::{ParseError, PayloadError, UrlGenerationError,
             MultipartError, CookieParseError, HttpRangeError, UrlencodedError};
 
@@ -69,10 +70,20 @@ impl HttpMessage {
             self.version != Version::HTTP_10
         }
     }
+
+    pub(crate) fn reset(&mut self) {
+        self.headers.clear();
+        self.extensions.clear();
+        self.params.clear();
+        self.cookies.take();
+        self.addr.take();
+        self.payload.take();
+        self.info.take();
+    }
 }
 
 /// An HTTP Request
-pub struct HttpRequest<S=()>(Rc<HttpMessage>, Option<Rc<S>>, Option<Router<S>>);
+pub struct HttpRequest<S=()>(SharedHttpMessage, Option<Rc<S>>, Option<Router<S>>);
 
 impl HttpRequest<()> {
     /// Construct a new Request.
@@ -81,7 +92,7 @@ impl HttpRequest<()> {
                version: Version, headers: HeaderMap, payload: Option<Payload>) -> HttpRequest
     {
         HttpRequest(
-            Rc::new(HttpMessage {
+            SharedHttpMessage::from_message(HttpMessage {
                 method: method,
                 uri: uri,
                 version: version,
@@ -98,6 +109,10 @@ impl HttpRequest<()> {
         )
     }
 
+    pub(crate) fn from_message(msg: SharedHttpMessage) -> HttpRequest {
+        HttpRequest(msg, None, None)
+    }
+
     /// Construct a new Request.
     #[inline]
     #[cfg(test)]
@@ -106,7 +121,7 @@ impl HttpRequest<()> {
         use std::str::FromStr;
 
         HttpRequest(
-            Rc::new(HttpMessage {
+            SharedHttpMessage::from_message(HttpMessage {
                 method: Method::GET,
                 uri: Uri::from_str(path).unwrap(),
                 version: Version::HTTP_11,
@@ -133,7 +148,7 @@ impl<S> HttpRequest<S> {
 
     /// Construct new http request without state.
     pub fn clone_without_state(&self) -> HttpRequest {
-        HttpRequest(Rc::clone(&self.0), None, None)
+        HttpRequest(self.0.clone(), None, None)
     }
 
     // get mutable reference for inner message
@@ -142,10 +157,15 @@ impl<S> HttpRequest<S> {
     #[allow(mutable_transmutes)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn as_mut(&self) -> &mut HttpMessage {
-        let r: &HttpMessage = self.0.as_ref();
-        unsafe{mem::transmute(r)}
+        self.0.get_mut()
     }
 
+    #[inline]
+    fn as_ref(&self) -> &HttpMessage {
+        self.0.get_ref()
+    }
+
+    #[inline]
     pub(crate) fn get_inner(&mut self) -> &mut HttpMessage {
         self.as_mut()
     }
@@ -173,22 +193,22 @@ impl<S> HttpRequest<S> {
 
     /// Read the Request Uri.
     #[inline]
-    pub fn uri(&self) -> &Uri { &self.0.uri }
+    pub fn uri(&self) -> &Uri { &self.as_ref().uri }
 
     /// Read the Request method.
     #[inline]
-    pub fn method(&self) -> &Method { &self.0.method }
+    pub fn method(&self) -> &Method { &self.as_ref().method }
 
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.0.version
+        self.as_ref().version
     }
 
     /// Read the Request Headers.
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
-        &self.0.headers
+        &self.as_ref().headers
     }
 
     #[doc(hidden)]
@@ -200,17 +220,17 @@ impl<S> HttpRequest<S> {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.0.uri.path()
+        self.as_ref().uri.path()
     }
 
     /// Get *ConnectionInfo* for currect request.
     pub fn connection_info(&self) -> &ConnectionInfo {
-        if self.0.info.is_none() {
+        if self.as_ref().info.is_none() {
             let info: ConnectionInfo<'static> = unsafe{
                 mem::transmute(ConnectionInfo::new(self))};
             self.as_mut().info = Some(info);
         }
-        self.0.info.as_ref().unwrap()
+        self.as_ref().info.as_ref().unwrap()
     }
 
     pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
@@ -237,7 +257,7 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     pub fn peer_addr(&self) -> Option<&SocketAddr> {
-        self.0.addr.as_ref()
+        self.as_ref().addr.as_ref()
     }
 
     #[inline]
@@ -248,7 +268,7 @@ impl<S> HttpRequest<S> {
     /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
     pub fn query(&self) -> HashMap<String, String> {
         let mut q: HashMap<String, String> = HashMap::new();
-        if let Some(query) = self.0.uri.query().as_ref() {
+        if let Some(query) = self.as_ref().uri.query().as_ref() {
             for (key, val) in form_urlencoded::parse(query.as_ref()) {
                 q.insert(key.to_string(), val.to_string());
             }
@@ -261,7 +281,7 @@ impl<S> HttpRequest<S> {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.0.uri.query().as_ref() {
+        if let Some(query) = self.as_ref().uri.query().as_ref() {
             query
         } else {
             ""
@@ -271,7 +291,7 @@ impl<S> HttpRequest<S> {
     /// Load request cookies.
     #[inline]
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
-        if self.0.cookies.is_none() {
+        if self.as_ref().cookies.is_none() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
             if let Some(val) = msg.headers.get(header::COOKIE) {
@@ -283,7 +303,7 @@ impl<S> HttpRequest<S> {
             }
             msg.cookies = Some(cookies)
         }
-        Ok(self.0.cookies.as_ref().unwrap())
+        Ok(self.as_ref().cookies.as_ref().unwrap())
     }
 
     /// Return request cookie.
@@ -304,7 +324,7 @@ impl<S> HttpRequest<S> {
     /// for matching storing that segment of the request url in the Params object.
     #[inline]
     pub fn match_info(&self) -> &Params {
-        unsafe{ mem::transmute(&self.0.params) }
+        unsafe{ mem::transmute(&self.as_ref().params) }
     }
 
     /// Set request Params.
@@ -315,25 +335,25 @@ impl<S> HttpRequest<S> {
 
     /// Checks if a connection should be kept alive.
     pub fn keep_alive(&self) -> bool {
-        if let Some(conn) = self.0.headers.get(header::CONNECTION) {
+        if let Some(conn) = self.headers().get(header::CONNECTION) {
             if let Ok(conn) = conn.to_str() {
-                if self.0.version == Version::HTTP_10 && conn.contains("keep-alive") {
+                if self.as_ref().version == Version::HTTP_10 && conn.contains("keep-alive") {
                     true
                 } else {
-                    self.0.version == Version::HTTP_11 &&
+                    self.as_ref().version == Version::HTTP_11 &&
                         !(conn.contains("close") || conn.contains("upgrade"))
                 }
             } else {
                 false
             }
         } else {
-            self.0.version != Version::HTTP_10
+            self.as_ref().version != Version::HTTP_10
         }
     }
 
     /// Read the request content type
     pub fn content_type(&self) -> &str {
-        if let Some(content_type) = self.0.headers.get(header::CONTENT_TYPE) {
+        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 return content_type
             }
@@ -343,17 +363,17 @@ impl<S> HttpRequest<S> {
 
     /// Check if request requires connection upgrade
     pub(crate) fn upgrade(&self) -> bool {
-        if let Some(conn) = self.0.headers.get(header::CONNECTION) {
+        if let Some(conn) = self.as_ref().headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade")
             }
         }
-        self.0.method == Method::CONNECT
+        self.as_ref().method == Method::CONNECT
     }
 
     /// Check if request has chunked transfer encoding
     pub fn chunked(&self) -> Result<bool, ParseError> {
-        if let Some(encodings) = self.0.headers.get(header::TRANSFER_ENCODING) {
+        if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
                 Ok(s.to_lowercase().contains("chunked"))
             } else {
@@ -367,7 +387,7 @@ impl<S> HttpRequest<S> {
     /// Parses Range HTTP header string as per RFC 2616.
     /// `size` is full size of response (file).
     pub fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
-        if let Some(range) = self.0.headers.get(header::RANGE) {
+        if let Some(range) = self.headers().get(header::RANGE) {
             HttpRange::parse(unsafe{str::from_utf8_unchecked(range.as_bytes())}, size)
                 .map_err(|e| e.into())
         } else {
@@ -378,7 +398,7 @@ impl<S> HttpRequest<S> {
     /// Returns reference to the associated http payload.
     #[inline]
     pub fn payload(&self) -> Option<&Payload> {
-        self.0.payload.as_ref()
+        self.as_ref().payload.as_ref()
     }
 
     /// Returns mutable reference to the associated http payload.
@@ -397,7 +417,7 @@ impl<S> HttpRequest<S> {
     ///
     /// Content-type: multipart/form-data;
     pub fn multipart(&mut self) -> Result<Multipart, MultipartError> {
-        let boundary = Multipart::boundary(&self.0.headers)?;
+        let boundary = Multipart::boundary(self.headers())?;
         if let Some(payload) = self.take_payload() {
             Ok(Multipart::new(boundary, payload))
         } else {
@@ -434,7 +454,7 @@ impl<S> HttpRequest<S> {
         }
 
         // check content type
-        let t = if let Some(content_type) = self.0.headers.get(header::CONTENT_TYPE) {
+        let t = if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 content_type.to_lowercase() == "application/x-www-form-urlencoded"
             } else {
@@ -460,29 +480,29 @@ impl Default for HttpRequest<()> {
 
     /// Construct default request
     fn default() -> HttpRequest {
-        HttpRequest(Rc::new(HttpMessage::default()), None, None)
+        HttpRequest(SharedHttpMessage::default(), None, None)
     }
 }
 
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
-        HttpRequest(Rc::clone(&self.0), self.1.clone(), None)
+        HttpRequest(self.0.clone(), self.1.clone(), None)
     }
 }
 
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
-                         self.0.version, self.0.method, self.0.uri);
+                         self.as_ref().version, self.as_ref().method, self.as_ref().uri);
         if !self.query_string().is_empty() {
             let _ = write!(f, "  query: ?{:?}\n", self.query_string());
         }
         if !self.match_info().is_empty() {
-            let _ = write!(f, "  params: {:?}\n", self.0.params);
+            let _ = write!(f, "  params: {:?}\n", self.as_ref().params);
         }
         let _ = write!(f, "  headers:\n");
-        for key in self.0.headers.keys() {
-            let vals: Vec<_> = self.0.headers.get_all(key).iter().collect();
+        for key in self.as_ref().headers.keys() {
+            let vals: Vec<_> = self.as_ref().headers.get_all(key).iter().collect();
             if vals.len() > 1 {
                 let _ = write!(f, "    {:?}: {:?}\n", key, vals);
             } else {
