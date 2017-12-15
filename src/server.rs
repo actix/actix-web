@@ -418,7 +418,7 @@ pub(crate) struct WorkerSettings<H> {
 }
 
 impl<H> WorkerSettings<H> {
-    fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
+    pub(crate) fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
         WorkerSettings {
             h: h,
             enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },

@@ -11,7 +11,7 @@ use middlewares::Middleware;
 use server::ServerSettings;
 
 /// Application
-pub struct HttpApplication<S> {
+pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
     default: Resource<S>,

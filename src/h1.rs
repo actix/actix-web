@@ -959,6 +959,8 @@ mod tests {
     use tokio_io::AsyncRead;
     use http::{Version, Method};
     use super::*;
+    use application::HttpApplication;
+    use server::WorkerSettings;
 
     struct Buffer {
         buf: Bytes,
@@ -1006,13 +1008,14 @@ mod tests {
     }
 
     macro_rules! parse_ready {
-        ($e:expr) => (
-            match Reader::new().parse($e, &mut BytesMut::new()) {
+        ($e:expr) => ({
+            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+            match Reader::new().parse($e, &mut BytesMut::new(), &settings) {
                 Ok(Async::Ready(Item::Http1(req))) => req,
                 Ok(_) => panic!("Eof during parsing http request"),
                 Err(err) => panic!("Error during parsing http request: {:?}", err),
             }
-        )
+        })
     }
 
     macro_rules! reader_parse_ready {
@@ -1028,7 +1031,9 @@ mod tests {
     macro_rules! expect_parse_err {
         ($e:expr) => ({
             let mut buf = BytesMut::new();
-            match Reader::new().parse($e, &mut buf) {
+            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+
+            match Reader::new().parse($e, &mut buf, &settings) {
                 Err(err) => match err {
                     ReaderError::Error(_) => (),
                     _ => panic!("Parse error expected"),
@@ -1044,9 +1049,10 @@ mod tests {
     fn test_parse() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1061,15 +1067,16 @@ mod tests {
     fn test_parse_partial() {
         let mut buf = Buffer::new("PUT /test HTTP/1");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::NotReady) => (),
             _ => panic!("Error"),
         }
 
         buf.feed_data(".1\r\n\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::PUT);
@@ -1084,9 +1091,10 @@ mod tests {
     fn test_parse_post() {
         let mut buf = Buffer::new("POST /test2 HTTP/1.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_10);
                 assert_eq!(*req.method(), Method::POST);
@@ -1101,9 +1109,10 @@ mod tests {
     fn test_parse_body() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(mut req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1119,9 +1128,10 @@ mod tests {
         let mut buf = Buffer::new(
             "\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(mut req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1136,12 +1146,13 @@ mod tests {
     fn test_parse_partial_eof() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1156,18 +1167,19 @@ mod tests {
     fn test_headers_split_field() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("t");
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("es");
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("t: value\r\n\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1186,9 +1198,10 @@ mod tests {
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 let val: Vec<_> = req.headers().get_all("Set-Cookie")
                     .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
@@ -1420,14 +1433,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().unwrap().eof());
         assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
         assert!(req.payload().unwrap().eof());
@@ -1439,10 +1453,11 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
 
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().unwrap().eof());
 
@@ -1451,7 +1466,7 @@ mod tests {
              POST /test2 HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
 
-        let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert_eq!(*req2.method(), Method::POST);
         assert!(req2.chunked().unwrap());
         assert!(!req2.payload().unwrap().eof());
@@ -1466,28 +1481,29 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4\r\ndata\r");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("\n4");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("\r");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         buf.feed_data("\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("li");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("ne\r\n0\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         //buf.feed_data("test: test\r\n");
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
@@ -1496,7 +1512,7 @@ mod tests {
         assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.payload().unwrap().eof());
     }
 
@@ -1506,14 +1522,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().unwrap().eof());
 
         buf.feed_data("4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().unwrap().eof());
         assert_eq!(req.payload_mut().unwrap().readall().unwrap().as_ref(), b"dataline");
         assert!(req.payload().unwrap().eof());
@@ -1540,9 +1557,10 @@ mod tests {
     fn test_http2_prefix() {
         let mut buf = Buffer::new("PRI * HTTP/2.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http2)) => (),
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
