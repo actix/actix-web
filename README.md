@@ -39,18 +39,18 @@ fn main() {
 
 ## Benchmarks
 
-This is totally unscientific and probably pretty useless. In real world business
-logic would dominate on performance side. But in any case. i took several web frameworks
-for rust and used theirs *hello world* example. All projects are compiled with
-`--release` parameter. I didnt test single thread performance for iron and rocket.
+This is totally unscientific and probably pretty useless. In real world, business
+logic would dominate on performance side. I took several web frameworks
+for rust and used *hello world* examples for tests. All projects are compiled with
+`--release` parameter. I didnt test single thread performance for *iron* and *rocket*.
 As a testing tool i used `wrk` and following commands
 
 `wrk -t20 -c100 -d10s http://127.0.0.1:8080/`
 
 `wrk -t20 -c100 -d10s http://127.0.0.1:8080/ -s ./pipeline.lua --latency -- / 128`
 
-I ran all tests on localhost on MacBook Pro late 2017. It has 4 cpu and 8 logical cpus.
-Each result is best of five runs. All measurements are req/sec.
+I ran all tests on my MacBook Pro with 2.9Gh i7 with 4 physical cpus and 8 logical cpus.
+Each result is best of five runs. All measurements are *req/sec*.
 
 Name | 1 thread | 1 pipeline | 3 thread | 3 pipeline | 8 thread | 8 pipeline
 ---- | -------- | ---------- | -------- | ---------- | -------- | ----------
@@ -61,12 +61,13 @@ Rocket |   |   |   |   | 95.500 | failed
 Shio | 71.800 | 317.800 |   |   |   |   |
 tokio-minihttp | 106.900 | 1.047.000 |   |   |   |
 
-Some notes on results. Iron and Rocket got tested with 8 threads,
-which showed best results. Gothan and tokio-minihttp seem does not support
-multithreading, or at least i couldn't figured out. I manually enabled pipelining
-for *Shio* and Gotham*. While shio seems support multithreading, but it showed
-absolutly same results for any how number of threads (maybe macos problem?)
-Rocket completely failed in pipelined tests.
+I got best performance for sync frameworks with 8 threads, other number of 
+threads always gave me worse performance. *Iron* could handle piplined 
+requests with lower performace. Interestingly, *Rocket* completely failed in pipelined test.
+*Gothan* seems does not support multithreading, or at least i couldn't figured out. 
+I manually enabled pipelining for *Shio* and *Gotham*. While *shio* seems support 
+multithreading, but it result absolutly same results for any how number of threads
+(maybe macos problem?).
 
 ## Examples
 
