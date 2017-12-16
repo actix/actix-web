@@ -899,7 +899,7 @@ mod tests {
             let mut ctx = HttpContext::new(req.clone(), MyActor);
             let addr: Address<_> = ctx.address();
             let mut info = PipelineInfo::new(req);
-            info.context = Some(ctx);
+            info.context = Some(Box::new(ctx));
             let mut state = Completed::init(&mut info).completed().unwrap();
 
             let st = state.poll(&mut info).ok().unwrap();

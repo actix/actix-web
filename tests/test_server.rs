@@ -59,7 +59,7 @@ impl<S> middlewares::Middleware<S> for MiddlewareTest {
         middlewares::Started::Done
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, resp: Box<HttpResponse>) -> middlewares::Response {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middlewares::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middlewares::Response::Done(resp)
     }

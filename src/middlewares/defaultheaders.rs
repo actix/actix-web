@@ -112,14 +112,14 @@ mod tests {
         let mut req = HttpRequest::default();
 
         let resp = HttpResponse::Ok().finish().unwrap();
-        let resp = match mw.response(&mut req, Box::new(resp)) {
+        let resp = match mw.response(&mut req, resp) {
             Response::Done(resp) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish().unwrap();
-        let resp = match mw.response(&mut req, Box::new(resp)) {
+        let resp = match mw.response(&mut req, resp) {
             Response::Done(resp) => resp,
             _ => panic!(),
         };
