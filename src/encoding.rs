@@ -13,10 +13,9 @@ use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
-use helpers;
-use helpers::SharedBytes;
 use body::{Body, Binary};
 use error::PayloadError;
+use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
@@ -390,7 +389,7 @@ impl PayloadEncoder {
                 if resp.chunked() {
                     error!("Chunked transfer is enabled but body is set to Empty");
                 }
-                resp.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                resp.headers_mut().remove(CONTENT_LENGTH);
                 TransferEncoding::eof(buf)
             },
             Body::Binary(ref mut bytes) => {
@@ -409,18 +408,12 @@ impl PayloadEncoder {
                     // TODO return error!
                     let _ = enc.write(bytes.as_ref());
                     let _ = enc.write_eof();
-                    let b = enc.get_mut().take();
 
-                    resp.headers_mut().insert(
-                        CONTENT_LENGTH, helpers::convert_into_header(b.len()));
-                    *bytes = Binary::from(b);
+                    *bytes = Binary::from(enc.get_mut().take());
                     encoding = ContentEncoding::Identity;
-                    TransferEncoding::eof(buf)
-                } else {
-                    resp.headers_mut().insert(
-                        CONTENT_LENGTH, helpers::convert_into_header(bytes.len()));
-                    TransferEncoding::eof(buf)
                 }
+                resp.headers_mut().remove(CONTENT_LENGTH);
+                TransferEncoding::eof(buf)
             }
             Body::Streaming(_) | Body::StreamingContext => {
                 if resp.chunked() {
@@ -734,11 +727,9 @@ impl TransferEncoding {
                     return *remaining == 0
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
-                trace!("sized write = {}", max);
                 self.buffer.get_mut().extend_from_slice(msg[..max as usize].as_ref());
 
                 *remaining -= max as u64;
-                trace!("encoded {} bytes, remaining = {}", max, remaining);
                 *remaining == 0
             },
         }

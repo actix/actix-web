@@ -6,7 +6,6 @@ use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
 use time;
 use bytes::BytesMut;
-use http::header::HeaderValue;
 
 use httprequest::HttpMessage;
 
@@ -285,7 +284,7 @@ pub(crate) fn convert_u16(mut n: u16, bytes: &mut BytesMut) {
     }
 }
 
-pub(crate) fn convert_into_header(mut n: usize) -> HeaderValue {
+pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     let mut curr: isize = 39;
     let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
     let buf_ptr = buf.as_mut_ptr();
@@ -330,8 +329,8 @@ pub(crate) fn convert_into_header(mut n: usize) -> HeaderValue {
     }
 
     unsafe {
-        HeaderValue::from_bytes(
-            slice::from_raw_parts(buf_ptr.offset(curr), buf.len() - curr as usize)).unwrap()
+        bytes.extend_from_slice(
+            slice::from_raw_parts(buf_ptr.offset(curr), buf.len() - curr as usize));
     }
 }
 

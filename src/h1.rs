@@ -435,7 +435,7 @@ impl Reader {
         let read = if buf.is_empty() {
             match self.read_from_io(io, buf) {
                 Ok(Async::Ready(0)) => {
-                    debug!("Ignored premature client disconnection");
+                    // debug!("Ignored premature client disconnection");
                     return Err(ReaderError::Disconnect);
                 },
                 Ok(Async::Ready(_)) => (),
@@ -713,7 +713,6 @@ impl Decoder {
     pub fn decode(&mut self, body: &mut BytesMut) -> Poll<Option<Bytes>, io::Error> {
         match self.kind {
             Kind::Length(ref mut remaining) => {
-                trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
                     Ok(Async::Ready(None))
                 } else {
@@ -794,7 +793,6 @@ impl ChunkedState {
         }
     }
     fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
-        trace!("Read chunk hex size");
         let radix = 16;
         match byte!(rdr) {
             b @ b'0'...b'9' => {
@@ -833,14 +831,12 @@ impl ChunkedState {
         }
     }
     fn read_extension(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
-        trace!("read_extension");
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
             _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
         }
     }
     fn read_size_lf(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
-        trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
             b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),

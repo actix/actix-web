@@ -4,7 +4,7 @@ use futures::{Async, Poll};
 use http2::{Reason, SendStream};
 use http2::server::Respond;
 use http::{Version, HttpTryFrom, Response};
-use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE};
+use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
 use helpers;
 use body::Body;
@@ -114,7 +114,7 @@ impl Writer for H2Writer {
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare response with status: {:?}", msg.status());
+        // trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare response
         self.flags.insert(Flags::STARTED);
@@ -142,6 +142,19 @@ impl Writer for H2Writer {
             resp.headers_mut().insert(key, value.clone());
         }
 
+        match *msg.body() {
+            Body::Binary(ref bytes) => {
+                let mut val = BytesMut::new();
+                helpers::convert_usize(bytes.len(), &mut val);
+                resp.headers_mut().insert(
+                    CONTENT_LENGTH, HeaderValue::try_from(val.freeze()).unwrap());
+            }
+            Body::Empty => {
+                resp.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+            },
+            _ => (),
+        }
+
         match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
             Ok(stream) =>
                 self.stream = Some(stream),
@@ -149,7 +162,7 @@ impl Writer for H2Writer {
                 return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
 
-        trace!("Response: {:?}", msg);
+        // trace!("Response: {:?}", msg);
 
         if msg.body().is_binary() {
             if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {

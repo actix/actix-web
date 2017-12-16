@@ -54,7 +54,7 @@ Each result is best of five runs. All measurements are req/sec.
 
 Name | 1 thread | 1 pipeline | 3 thread | 3 pipeline | 8 thread | 8 pipeline
 ---- | -------- | ---------- | -------- | ---------- | -------- | ----------
-Actix | 91.200 | 912.000 | 122.100 | 2.083.000 | 107.400 | 2.650.000
+Actix | 91.200 | 950.000 | 122.100 | 2.083.000 | 107.400 | 2.730.000
 Gotham | 61.000 | 178.000 |   |   |   |
 Iron |   |   |   |   | 94.500 | 78.000
 Rocket |   |   |   |   | 95.500 | failed

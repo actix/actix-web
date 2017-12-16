@@ -2,7 +2,7 @@ use std::io;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
 use http::Version;
-use http::header::{HeaderValue, CONNECTION, DATE};
+use http::header::{HeaderValue, CONNECTION, DATE, CONTENT_LENGTH};
 
 use helpers;
 use body::Body;
@@ -124,7 +124,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare response with status: {:?}", msg.status());
+        //trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare task
         self.flags.insert(Flags::STARTED);
@@ -146,11 +146,12 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         } else if version >= Version::HTTP_11 {
             msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
         }
+        let body = msg.replace_body(Body::Empty);
 
         // render message
         {
             let mut buffer = self.encoder.get_mut();
-            if let Body::Binary(ref bytes) = *msg.body() {
+            if let Body::Binary(ref bytes) = body {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
@@ -174,6 +175,20 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 buffer.extend_from_slice(b"\r\n");
             }
 
+            match body {
+                Body::Empty => {
+                    buffer.extend_from_slice(CONTENT_LENGTH.as_str().as_bytes());
+                    buffer.extend_from_slice(b": 0\r\n");
+                }
+                Body::Binary(ref bytes) => {
+                    buffer.extend_from_slice(CONTENT_LENGTH.as_str().as_bytes());
+                    buffer.extend_from_slice(b": ");
+                    helpers::convert_usize(bytes.len(), &mut buffer);
+                    buffer.extend_from_slice(b"\r\n");
+                }
+                _ => ()
+            }
+            
             // using helpers::date is quite a lot faster
             if !msg.headers().contains_key(DATE) {
                 buffer.reserve(helpers::DATE_VALUE_LENGTH + 8);
@@ -187,14 +202,13 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             self.headers_size = buffer.len() as u32;
         }
 
-        trace!("Response: {:?}", msg);
+        // trace!("Response: {:?}", msg);
 
-        if msg.body().is_binary() {
-            let body = msg.replace_body(Body::Empty);
-            if let Body::Binary(bytes) = body {
-                self.encoder.write(bytes.as_ref())?;
-                return Ok(WriterState::Done)
-            }
+        if let Body::Binary(bytes) = body {
+            self.encoder.write(bytes.as_ref())?;
+            return Ok(WriterState::Done)
+        } else {
+            msg.replace_body(body);
         }
         Ok(WriterState::Done)
     }
@@ -221,7 +235,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         self.encoder.write_eof()?;
 
         if !self.encoder.is_eof() {
-            //debug!("last payload item, but it is not EOF ");
+            // debug!("last payload item, but it is not EOF ");
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
         } else if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
