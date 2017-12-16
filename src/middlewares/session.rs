@@ -107,7 +107,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
         Started::Future(Box::new(fut))
     }
 
-    fn response(&self, req: &mut HttpRequest<S>, resp: Box<HttpResponse>) -> Response {
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
         if let Some(s_box) = req.extensions().remove::<Arc<SessionImplBox>>() {
             s_box.0.write(resp)
         } else {
@@ -129,7 +129,7 @@ pub trait SessionImpl: 'static {
     fn clear(&mut self);
 
     /// Write session to storage backend.
-    fn write(&self, resp: Box<HttpResponse>) -> Response;
+    fn write(&self, resp: HttpResponse) -> Response;
 }
 
 /// Session's storage backend trait definition.
@@ -155,7 +155,7 @@ impl SessionImpl for DummySessionImpl {
     fn set(&mut self, key: &str, value: String) {}
     fn remove(&mut self, key: &str) {}
     fn clear(&mut self) {}
-    fn write(&self, resp: Box<HttpResponse>) -> Response {
+    fn write(&self, resp: HttpResponse) -> Response {
         Response::Done(resp)
     }
 }
@@ -205,7 +205,7 @@ impl SessionImpl for CookieSession {
         self.state.clear()
     }
 
-    fn write(&self, mut resp: Box<HttpResponse>) -> Response {
+    fn write(&self, mut resp: HttpResponse) -> Response {
         if self.changed {
             let _ = self.inner.set_cookie(&mut resp, &self.state);
         }

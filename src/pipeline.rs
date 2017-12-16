@@ -142,7 +142,7 @@ impl Pipeline<()> {
     pub fn error<R: Into<HttpResponse>>(err: R) -> Box<HttpHandlerTask> {
         Box::new(Pipeline(
             PipelineInfo::new(
-                HttpRequest::default()), ProcessResponse::init(Box::new(err.into()))))
+                HttpRequest::default()), ProcessResponse::init(err.into())))
     }
 }
 
@@ -347,15 +347,15 @@ impl<S> StartMiddlewares<S> {
                                     fut: Some(fut)}),
                             Ok(Async::Ready(resp)) => {
                                 if let Some(resp) = resp {
-                                    return RunMiddlewares::init(info, Box::new(resp));
+                                    return RunMiddlewares::init(info, resp);
                                 }
                                 info.count += 1;
                             }
                             Err(err) =>
-                                return ProcessResponse::init(Box::new(err.into())),
+                                return ProcessResponse::init(err.into()),
                         },
                     Started::Err(err) =>
-                        return ProcessResponse::init(Box::new(err.into())),
+                        return ProcessResponse::init(err.into()),
                 }
             }
         }
@@ -370,7 +370,7 @@ impl<S> StartMiddlewares<S> {
                 Ok(Async::Ready(resp)) => {
                     info.count += 1;
                     if let Some(resp) = resp {
-                        return Ok(RunMiddlewares::init(info, Box::new(resp)));
+                        return Ok(RunMiddlewares::init(info, resp));
                     }
                     if info.count == len {
                         let reply = (unsafe{&*self.hnd})(info.req.clone());
@@ -388,13 +388,13 @@ impl<S> StartMiddlewares<S> {
                                     continue 'outer
                                 },
                                 Started::Err(err) =>
-                                    return Ok(ProcessResponse::init(Box::new(err.into())))
+                                    return Ok(ProcessResponse::init(err.into()))
                             }
                         }
                     }
                 }
                 Err(err) =>
-                    return Ok(ProcessResponse::init(Box::new(err.into())))
+                    return Ok(ProcessResponse::init(err.into()))
             }
         }
     }
@@ -442,14 +442,14 @@ impl<S> WaitingResponse<S> {
                         Ok(Async::Ready(None)) => {
                             error!("Unexpected eof");
                             let err: Error = UnexpectedTaskFrame.into();
-                            return Ok(ProcessResponse::init(Box::new(err.into())))
+                            return Ok(ProcessResponse::init(err.into()))
                         },
                         Ok(Async::NotReady) => {
                             self.stream = PipelineResponse::Context(context);
                             return Err(PipelineState::Handler(self))
                         },
                         Err(err) =>
-                            return Ok(ProcessResponse::init(Box::new(err.into())))
+                            return Ok(ProcessResponse::init(err.into()))
                     }
                 }
             },
@@ -460,9 +460,9 @@ impl<S> WaitingResponse<S> {
                         Err(PipelineState::Handler(self))
                     }
                     Ok(Async::Ready(response)) =>
-                        Ok(RunMiddlewares::init(info, Box::new(response))),
+                        Ok(RunMiddlewares::init(info, response)),
                     Err(err) =>
-                        Ok(ProcessResponse::init(Box::new(err.into()))),
+                        Ok(ProcessResponse::init(err.into())),
                 }
             }
             PipelineResponse::None => {
@@ -482,7 +482,7 @@ struct RunMiddlewares<S> {
 
 impl<S> RunMiddlewares<S> {
 
-    fn init(info: &mut PipelineInfo<S>, mut resp: Box<HttpResponse>) -> PipelineState<S>
+    fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S>
     {
         if info.count == 0 {
             return ProcessResponse::init(resp);
@@ -494,7 +494,7 @@ impl<S> RunMiddlewares<S> {
             resp = match info.mws[curr].response(info.req_mut(), resp) {
                 Response::Err(err) => {
                     info.count = curr + 1;
-                    return ProcessResponse::init(Box::new(err.into()))
+                    return ProcessResponse::init(err.into())
                 }
                 Response::Done(r) => {
                     curr += 1;
@@ -522,10 +522,10 @@ impl<S> RunMiddlewares<S> {
                     return Ok(PipelineState::RunMiddlewares(self)),
                 Ok(Async::Ready(resp)) => {
                     self.curr += 1;
-                    Box::new(resp)
+                    resp
                 }
                 Err(err) =>
-                    return Ok(ProcessResponse::init(Box::new(err.into()))),
+                    return Ok(ProcessResponse::init(err.into())),
             };
 
             loop {
@@ -534,7 +534,7 @@ impl<S> RunMiddlewares<S> {
                 } else {
                     match info.mws[self.curr].response(info.req_mut(), resp) {
                         Response::Err(err) =>
-                            return Ok(ProcessResponse::init(Box::new(err.into()))),
+                            return Ok(ProcessResponse::init(err.into())),
                         Response::Done(r) => {
                             self.curr += 1;
                             resp = r
@@ -551,7 +551,7 @@ impl<S> RunMiddlewares<S> {
 }
 
 struct ProcessResponse<S> {
-    resp: Box<HttpResponse>,
+    resp: HttpResponse,
     iostate: IOState,
     running: RunningState,
     drain: DrainVec,
@@ -608,7 +608,7 @@ impl Drop for DrainVec {
 
 impl<S> ProcessResponse<S> {
 
-    fn init(resp: Box<HttpResponse>) -> PipelineState<S>
+    fn init(resp: HttpResponse) -> PipelineState<S>
     {
         PipelineState::Response(
             ProcessResponse{ resp: resp,
@@ -790,14 +790,14 @@ impl<S> ProcessResponse<S> {
 
 /// Middlewares start executor
 struct FinishingMiddlewares<S> {
-    resp: Box<HttpResponse>,
+    resp: HttpResponse,
     fut: Option<Box<Future<Item=(), Error=Error>>>,
     _s: PhantomData<S>,
 }
 
 impl<S> FinishingMiddlewares<S> {
 
-    fn init(info: &mut PipelineInfo<S>, resp: Box<HttpResponse>) -> PipelineState<S> {
+    fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S> {
         if info.count == 0 {
             Completed::init(info)
         } else {
@@ -899,7 +899,7 @@ mod tests {
             let mut ctx = HttpContext::new(req.clone(), MyActor);
             let addr: Address<_> = ctx.address();
             let mut info = PipelineInfo::new(req);
-            info.context = Some(Box::new(ctx));
+            info.context = Some(ctx);
             let mut state = Completed::init(&mut info).completed().unwrap();
 
             let st = state.poll(&mut info).ok().unwrap();

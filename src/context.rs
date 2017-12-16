@@ -25,7 +25,7 @@ pub(crate) trait IoContext: 'static {
 
 #[derive(Debug)]
 pub(crate) enum Frame {
-    Message(Box<HttpResponse>),
+    Message(HttpResponse),
     Payload(Option<Binary>),
     Drain(Rc<RefCell<DrainFut>>),
 }
@@ -141,7 +141,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
             Body::StreamingContext | Body::UpgradeContext => self.streaming = true,
             _ => (),
         }
-        self.stream.push_back(Frame::Message(Box::new(resp)))
+        self.stream.push_back(Frame::Message(resp))
     }
 
     /// Write payload

@@ -21,7 +21,7 @@ pub enum Started {
     Err(Error),
     /// New http response got generated. If middleware generates response
     /// handler execution halts.
-    Response(Box<HttpResponse>),
+    Response(HttpResponse),
     /// Execution completed, runs future to completion.
     Future(Box<Future<Item=Option<HttpResponse>, Error=Error>>),
 }
@@ -31,7 +31,7 @@ pub enum Response {
     /// Moddleware error
     Err(Error),
     /// New http response got generated
-    Done(Box<HttpResponse>),
+    Done(HttpResponse),
     /// Result is a future that resolves to a new http response
     Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
@@ -56,7 +56,7 @@ pub trait Middleware<S> {
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
-    fn response(&self, req: &mut HttpRequest<S>, resp: Box<HttpResponse>) -> Response {
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
         Response::Done(resp)
     }
 

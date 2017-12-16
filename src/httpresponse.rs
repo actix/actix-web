@@ -1,6 +1,8 @@
 //! Pieces pertaining to the HTTP response.
 use std::{mem, str, fmt};
+use std::cell::RefCell;
 use std::convert::Into;
+use std::collections::VecDeque;
 
 use cookie::CookieJar;
 use bytes::{Bytes, BytesMut};
@@ -27,8 +29,8 @@ pub enum ConnectionType {
     Upgrade,
 }
 
-/// An HTTP Response
-pub struct HttpResponse {
+#[derive(Debug)]
+struct InnerHttpResponse {
     version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
@@ -41,22 +43,11 @@ pub struct HttpResponse {
     error: Option<Error>,
 }
 
-impl HttpResponse {
+impl InnerHttpResponse {
 
-    /// Create http response builder with specific status.
     #[inline]
-    pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        HttpResponseBuilder {
-            response: Some(HttpResponse::new(status, Body::Empty)),
-            err: None,
-            cookies: None,
-        }
-    }
-
-    /// Constructs a response
-    #[inline]
-    pub fn new(status: StatusCode, body: Body) -> HttpResponse {
-        HttpResponse {
+    fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
+        InnerHttpResponse {
             version: None,
             headers: HeaderMap::with_capacity(8),
             status: status,
@@ -70,81 +61,178 @@ impl HttpResponse {
         }
     }
 
+}
+
+impl Default for InnerHttpResponse {
+
+    fn default() -> InnerHttpResponse {
+        InnerHttpResponse::new(StatusCode::OK, Body::Empty)
+    }
+}
+
+/// Internal use only! unsafe
+struct Pool(VecDeque<Box<InnerHttpResponse>>);
+
+thread_local!(static POOL: RefCell<Pool> = RefCell::new(Pool::new()));
+
+impl Pool {
+    fn new() -> Pool {
+        Pool(VecDeque::with_capacity(128))
+    }
+
+    fn get() -> Box<InnerHttpResponse> {
+        POOL.with(|pool| {
+            if let Some(resp) = pool.borrow_mut().0.pop_front() {
+                resp
+            } else {
+                Box::new(InnerHttpResponse::default())
+            }
+        })
+    }
+
+    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+    fn release(mut inner: Box<InnerHttpResponse>) {
+        POOL.with(|pool| {
+            if pool.borrow().0.len() < 128 {
+                inner.version.take();
+                inner.headers.clear();
+                inner.chunked = false;
+                inner.reason.take();
+                inner.body = Body::Empty;
+                inner.encoding = ContentEncoding::Auto;
+                inner.connection_type.take();
+                inner.response_size = 0;
+                inner.error.take();
+                pool.borrow_mut().0.push_front(inner);
+            }
+        })
+    }
+}
+
+/// An HTTP Response
+pub struct HttpResponse(Option<Box<InnerHttpResponse>>);
+
+impl Drop for HttpResponse {
+    fn drop(&mut self) {
+        if let Some(inner) = self.0.take() {
+            Pool::release(inner)
+        }
+    }
+}
+
+impl HttpResponse {
+
+    #[inline(always)]
+    fn get_ref(&self) -> &InnerHttpResponse {
+        self.0.as_ref().unwrap()
+    }
+
+    #[inline(always)]
+    fn get_mut(&mut self) -> &mut InnerHttpResponse {
+        self.0.as_mut().unwrap()
+    }
+
+    #[inline]
+    fn from_inner(inner: Box<InnerHttpResponse>) -> HttpResponse {
+        HttpResponse(Some(inner))
+    }
+
+    /// Create http response builder with specific status.
+    #[inline]
+    pub fn build(status: StatusCode) -> HttpResponseBuilder {
+        let mut inner = Pool::get();
+        inner.status = status;
+        HttpResponseBuilder {
+            response: Some(inner),
+            err: None,
+            cookies: None,
+        }
+    }
+
+    /// Constructs a response
+    #[inline]
+    pub fn new(status: StatusCode, body: Body) -> HttpResponse {
+        let mut inner = Pool::get();
+        inner.status = status;
+        inner.body = body;
+        HttpResponse(Some(inner))
+    }
+
     /// Constructs a error response
     #[inline]
     pub fn from_error(error: Error) -> HttpResponse {
         let mut resp = error.cause().error_response();
-        resp.error = Some(error);
+        resp.get_mut().error = Some(error);
         resp
     }
 
     /// The source `error` for this response
     #[inline]
     pub fn error(&self) -> Option<&Error> {
-        self.error.as_ref()
+        self.get_ref().error.as_ref()
     }
 
     /// Get the HTTP version of this response.
     #[inline]
     pub fn version(&self) -> Option<Version> {
-        self.version
+        self.get_ref().version
     }
 
     /// Get the headers from the response.
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.get_ref().headers
     }
 
     /// Get a mutable reference to the headers.
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.headers
+        &mut self.get_mut().headers
     }
 
     /// Get the status from the server.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        self.status
+        self.get_ref().status
     }
 
     /// Set the `StatusCode` for this response.
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
-        &mut self.status
+        &mut self.get_mut().status
     }
 
     /// Get custom reason for the response.
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
+        if let Some(reason) = self.get_ref().reason {
             reason
         } else {
-            self.status.canonical_reason().unwrap_or("<unknown status code>")
+            self.get_ref().status.canonical_reason().unwrap_or("<unknown status code>")
         }
     }
 
     /// Set the custom reason for the response.
     #[inline]
     pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
-        self.reason = Some(reason);
+        self.get_mut().reason = Some(reason);
         self
     }
 
     /// Set connection type
     pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self {
-        self.connection_type = Some(conn);
+        self.get_mut().connection_type = Some(conn);
         self
     }
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        self.connection_type == Some(ConnectionType::Upgrade)
+        self.get_ref().connection_type == Some(ConnectionType::Upgrade)
     }
 
     /// Keep-alive status for this connection
     pub fn keep_alive(&self) -> Option<bool> {
-        if let Some(ct) = self.connection_type {
+        if let Some(ct) = self.get_ref().connection_type {
             match ct {
                 ConnectionType::KeepAlive => Some(true),
                 ConnectionType::Close | ConnectionType::Upgrade => Some(false),
@@ -156,54 +244,55 @@ impl HttpResponse {
 
     /// is chunked encoding enabled
     pub fn chunked(&self) -> bool {
-        self.chunked
+        self.get_ref().chunked
     }
 
     /// Content encoding
     pub fn content_encoding(&self) -> &ContentEncoding {
-        &self.encoding
+        &self.get_ref().encoding
     }
 
     /// Set content encoding
     pub fn set_content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        self.encoding = enc;
+        self.get_mut().encoding = enc;
         self
     }
 
     /// Get body os this response
     pub fn body(&self) -> &Body {
-        &self.body
+        &self.get_ref().body
     }
 
     /// Set a body
     pub fn set_body<B: Into<Body>>(&mut self, body: B) {
-        self.body = body.into();
+        self.get_mut().body = body.into();
     }
 
     /// Set a body and return previous body value
     pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
-        mem::replace(&mut self.body, body.into())
+        mem::replace(&mut self.get_mut().body, body.into())
     }
 
     /// Size of response in bytes, excluding HTTP headers
     pub fn response_size(&self) -> u64 {
-        self.response_size
+        self.get_ref().response_size
     }
 
     /// Set content encoding
     pub(crate) fn set_response_size(&mut self, size: u64) {
-        self.response_size = size;
+        self.get_mut().response_size = size;
     }
 }
 
 impl fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpResponse {:?} {}{}\n",
-                         self.version, self.status, self.reason.unwrap_or(""));
-        let _ = write!(f, "  encoding: {:?}\n", self.encoding);
+                         self.get_ref().version, self.get_ref().status,
+                         self.get_ref().reason.unwrap_or(""));
+        let _ = write!(f, "  encoding: {:?}\n", self.get_ref().encoding);
         let _ = write!(f, "  headers:\n");
-        for key in self.headers.keys() {
-            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
+        for key in self.get_ref().headers.keys() {
+            let vals: Vec<_> = self.get_ref().headers.get_all(key).iter().collect();
             if vals.len() > 1 {
                 let _ = write!(f, "    {:?}: {:?}\n", key, vals);
             } else {
@@ -220,7 +309,7 @@ impl fmt::Debug for HttpResponse {
 /// builder-like pattern.
 #[derive(Debug)]
 pub struct HttpResponseBuilder {
-    response: Option<HttpResponse>,
+    response: Option<Box<InnerHttpResponse>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
 }
@@ -381,7 +470,7 @@ impl HttpResponseBuilder {
             }
         }
         response.body = body.into();
-        Ok(response)
+        Ok(HttpResponse::from_inner(response))
     }
 
     /// Set a json body and generate `HttpResponse`
@@ -406,8 +495,9 @@ impl HttpResponseBuilder {
     }
 }
 
-fn parts<'a>(parts: &'a mut Option<HttpResponse>, err: &Option<HttpError>)
-             -> Option<&'a mut HttpResponse>
+#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+fn parts<'a>(parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>)
+             -> Option<&'a mut Box<InnerHttpResponse>>
 {
     if err.is_some() {
         return None
