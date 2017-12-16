@@ -168,8 +168,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             buffer.extend_from_slice(b"\r\n");
 
             for (key, value) in msg.headers() {
-                let t: &[u8] = key.as_ref();
-                buffer.extend_from_slice(t);
+                buffer.extend_from_slice(key.as_str().as_bytes());
                 buffer.extend_from_slice(b": ");
                 buffer.extend_from_slice(value.as_ref());
                 buffer.extend_from_slice(b"\r\n");

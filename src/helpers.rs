@@ -74,9 +74,10 @@ impl SharedBytesPool {
     }
 
     pub fn release_bytes(&self, mut bytes: Rc<BytesMut>) {
-        if self.0.borrow().len() < 128 {
+        let v = &mut self.0.borrow_mut();
+        if v.len() < 128 {
             Rc::get_mut(&mut bytes).unwrap().take();
-            self.0.borrow_mut().push_front(bytes);
+            v.push_front(bytes);
         }
     }
 }
@@ -107,9 +108,9 @@ impl SharedBytes {
         SharedBytes(Some(bytes), Some(pool))
     }
 
-    #[inline]
+    #[inline(always)]
     #[allow(mutable_transmutes)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub fn get_mut(&self) -> &mut BytesMut {
         let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
         unsafe{mem::transmute(r)}
@@ -150,9 +151,10 @@ impl SharedMessagePool {
     }
 
     pub fn release(&self, mut msg: Rc<HttpMessage>) {
-        if self.0.borrow().len() < 128 {
+        let v = &mut self.0.borrow_mut();
+        if v.len() < 128 {
             Rc::get_mut(&mut msg).unwrap().reset();
-            self.0.borrow_mut().push_front(msg);
+            v.push_front(msg);
         }
     }
 }
@@ -219,7 +221,8 @@ impl SharedHttpMessage {
         unsafe{mem::transmute(r)}
     }
 
-    #[inline]
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     pub fn get_ref(&self) -> &HttpMessage {
         self.0.as_ref().unwrap()
     }
@@ -234,7 +237,7 @@ const DEC_DIGITS_LUT: &[u8] =
 
 pub(crate) fn convert_u16(mut n: u16, bytes: &mut BytesMut) {
     let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
-    let mut curr = buf.len() as isize;
+    let mut curr: isize = 39;
     let buf_ptr = buf.as_mut_ptr();
     let lut_ptr = DEC_DIGITS_LUT.as_ptr();
 

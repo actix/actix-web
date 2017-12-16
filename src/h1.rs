@@ -20,6 +20,7 @@ use h1writer::{Writer, H1Writer};
 use server::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
+use helpers::SharedHttpMessage;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
@@ -527,60 +528,60 @@ impl Reader {
         }
 
         // Parse http message
-        let mut headers_indices: [HeaderIndices; MAX_HEADERS] =
-            unsafe{std::mem::uninitialized()};
-
-        let (len, method, path, version, headers_len) = {
+        let msg = {
+            let bytes_ptr = buf.as_ref().as_ptr() as usize;
             let mut headers: [httparse::Header; MAX_HEADERS] =
                 unsafe{std::mem::uninitialized()};
-            let mut req = httparse::Request::new(&mut headers);
-            match try!(req.parse(buf)) {
-                httparse::Status::Complete(len) => {
-                    let method = Method::try_from(req.method.unwrap())
-                        .map_err(|_| ParseError::Method)?;
-                    let path = req.path.unwrap();
-                    let bytes_ptr = buf.as_ref().as_ptr() as usize;
-                    let path_start = path.as_ptr() as usize - bytes_ptr;
-                    let path_end = path_start + path.len();
-                    let path = (path_start, path_end);
 
-                    let version = if req.version.unwrap() == 1 {
-                        Version::HTTP_11
-                    } else {
-                        Version::HTTP_10
-                    };
+            let (len, method, path, version, headers_len) = {
+                let b = unsafe{ let b: &[u8] = buf; std::mem::transmute(b) };
+                let mut req = httparse::Request::new(&mut headers);
+                match req.parse(b)? {
+                    httparse::Status::Complete(len) => {
+                        let method = Method::try_from(req.method.unwrap())
+                            .map_err(|_| ParseError::Method)?;
+                        let path = req.path.unwrap();
+                        let path_start = path.as_ptr() as usize - bytes_ptr;
+                        let path_end = path_start + path.len();
+                        let path = (path_start, path_end);
 
-                    record_header_indices(buf.as_ref(), req.headers, &mut headers_indices);
-                    let headers_len = req.headers.len();
-                    (len, method, path, version, headers_len)
+                        let version = if req.version.unwrap() == 1 {
+                            Version::HTTP_11
+                        } else {
+                            Version::HTTP_10
+                        };
+                        (len, method, path, version, req.headers.len())
+                    }
+                    httparse::Status::Partial => return Ok(Message::NotReady),
                 }
-                httparse::Status::Partial => return Ok(Message::NotReady),
-            }
-        };
+            };
 
-        let slice = buf.split_to(len).freeze();
-        let path = slice.slice(path.0, path.1);
-        // path was found to be utf8 by httparse
-        let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
+            let slice = buf.split_to(len).freeze();
 
-        // convert headers
-        let msg = settings.get_http_message();
-        msg.get_mut().headers.reserve(headers_len);
-        for header in headers_indices[..headers_len].iter() {
-            if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
-                if let Ok(value) = HeaderValue::try_from(
-                    slice.slice(header.value.0, header.value.1))
-                {
+            // convert headers
+            let msg = settings.get_http_message();
+            for header in headers[..headers_len].iter() {
+                if let Ok(name) = HeaderName::try_from(header.name) {
+                    let v_start = header.value.as_ptr() as usize - bytes_ptr;
+                    let v_end = v_start + header.value.len();
+                    let value = unsafe {
+                        HeaderValue::from_shared_unchecked(slice.slice(v_start, v_end)) };
                     msg.get_mut().headers.append(name, value);
                 } else {
                     return Err(ParseError::Header)
                 }
-            } else {
-                return Err(ParseError::Header)
             }
-        }
 
-        let decoder = if upgrade(&method, &msg.get_mut().headers) {
+            let path = slice.slice(path.0, path.1);
+            let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
+
+            msg.get_mut().uri = uri;
+            msg.get_mut().method = method;
+            msg.get_mut().version = version;
+            msg
+        };
+
+        let decoder = if upgrade(&msg) {
             Decoder::eof()
         } else {
             let has_len = msg.get_mut().headers.contains_key(header::CONTENT_LENGTH);
@@ -593,9 +594,6 @@ impl Reader {
                 Decoder::chunked()
             } else {
                 if !has_len {
-                    msg.get_mut().uri = uri;
-                    msg.get_mut().method = method;
-                    msg.get_mut().version = version;
                     return Ok(Message::Http1(HttpRequest::from_message(msg), None))
                 }
 
@@ -620,45 +618,21 @@ impl Reader {
             tx: PayloadType::new(&msg.get_mut().headers, psender),
             decoder: decoder,
         };
-        msg.get_mut().uri = uri;
-        msg.get_mut().method = method;
-        msg.get_mut().version = version;
         msg.get_mut().payload = Some(payload);
         Ok(Message::Http1(HttpRequest::from_message(msg), Some(info)))
     }
 }
 
-#[derive(Clone, Copy)]
-struct HeaderIndices {
-    name: (usize, usize),
-    value: (usize, usize),
-}
-
-fn record_header_indices(bytes: &[u8],
-                         headers: &[httparse::Header],
-                         indices: &mut [HeaderIndices])
-{
-    let bytes_ptr = bytes.as_ptr() as usize;
-    for (header, indices) in headers.iter().zip(indices.iter_mut()) {
-        let name_start = header.name.as_ptr() as usize - bytes_ptr;
-        let name_end = name_start + header.name.len();
-        indices.name = (name_start, name_end);
-        let value_start = header.value.as_ptr() as usize - bytes_ptr;
-        let value_end = value_start + header.value.len();
-        indices.value = (value_start, value_end);
-    }
-}
-
 /// Check if request is UPGRADE
-fn upgrade(method: &Method, headers: &HeaderMap) -> bool {
-    if let Some(conn) = headers.get(header::CONNECTION) {
+fn upgrade(msg: &SharedHttpMessage) -> bool {
+    if let Some(conn) = msg.get_ref().headers.get(header::CONNECTION) {
         if let Ok(s) = conn.to_str() {
             s.to_lowercase().contains("upgrade")
         } else {
-            *method == Method::CONNECT
+            msg.get_ref().method == Method::CONNECT
         }
     } else {
-        *method == Method::CONNECT
+        msg.get_ref().method == Method::CONNECT
     }
 }
 
@@ -733,18 +707,6 @@ enum ChunkedState {
     EndCr,
     EndLf,
     End,
-}
-
-impl Decoder {
-    /*pub fn is_eof(&self) -> bool {
-        trace!("is_eof? {:?}", self);
-        match self.kind {
-            Kind::Length(0) |
-            Kind::Chunked(ChunkedState::End, _) |
-            Kind::Eof(true) => true,
-            _ => false,
-        }
-    }*/
 }
 
 impl Decoder {

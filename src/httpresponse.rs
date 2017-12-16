@@ -584,7 +584,7 @@ impl InnerHttpResponse {
     fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
         InnerHttpResponse {
             version: None,
-            headers: HeaderMap::with_capacity(8),
+            headers: HeaderMap::with_capacity(16),
             status: status,
             reason: None,
             body: body,
@@ -595,19 +595,17 @@ impl InnerHttpResponse {
             error: None,
         }
     }
-
 }
 
 /// Internal use only! unsafe
 struct Pool(VecDeque<Box<InnerHttpResponse>>);
 
-thread_local!(static POOL: RefCell<Pool> = RefCell::new(Pool::new()));
+thread_local!(static POOL: RefCell<Pool> =
+              RefCell::new(Pool(VecDeque::with_capacity(128))));
 
 impl Pool {
-    fn new() -> Pool {
-        Pool(VecDeque::with_capacity(128))
-    }
 
+    #[inline]
     fn get(status: StatusCode) -> Box<InnerHttpResponse> {
         POOL.with(|pool| {
             if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
@@ -620,6 +618,7 @@ impl Pool {
         })
     }
 
+    #[inline]
     fn with_body(status: StatusCode, body: Body) -> Box<InnerHttpResponse> {
         POOL.with(|pool| {
             if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
@@ -632,7 +631,8 @@ impl Pool {
         })
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
     fn release(mut inner: Box<InnerHttpResponse>) {
         POOL.with(|pool| {
             let v = &mut pool.borrow_mut().0;

@@ -40,7 +40,7 @@ impl Default for HttpMessage {
             method: Method::GET,
             uri: Uri::default(),
             version: Version::HTTP_11,
-            headers: HeaderMap::new(),
+            headers: HeaderMap::with_capacity(16),
             params: Params::default(),
             cookies: None,
             addr: None,
@@ -54,6 +54,7 @@ impl Default for HttpMessage {
 impl HttpMessage {
 
     /// Checks if a connection should be kept alive.
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         if let Some(conn) = self.headers.get(header::CONNECTION) {
             if let Ok(conn) = conn.to_str() {
@@ -71,14 +72,15 @@ impl HttpMessage {
         }
     }
 
+    #[inline]
     pub(crate) fn reset(&mut self) {
         self.headers.clear();
         self.extensions.clear();
         self.params.clear();
-        self.cookies.take();
-        self.addr.take();
-        self.payload.take();
-        self.info.take();
+        self.cookies = None;
+        self.addr = None;
+        self.payload = None;
+        self.info = None;
     }
 }
 
@@ -109,6 +111,8 @@ impl HttpRequest<()> {
         )
     }
 
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     pub(crate) fn from_message(msg: SharedHttpMessage) -> HttpRequest {
         HttpRequest(msg, None, None)
     }
@@ -138,6 +142,7 @@ impl HttpRequest<()> {
         )
     }
 
+    #[inline]
     /// Construct new http request with state.
     pub fn with_state<S>(self, state: Rc<S>, router: Router<S>) -> HttpRequest<S> {
         HttpRequest(self.0, Some(state), Some(router))
@@ -146,6 +151,7 @@ impl HttpRequest<()> {
 
 impl<S> HttpRequest<S> {
 
+    #[inline]
     /// Construct new http request without state.
     pub fn clone_without_state(&self) -> HttpRequest {
         HttpRequest(self.0.clone(), None, None)
@@ -153,13 +159,14 @@ impl<S> HttpRequest<S> {
 
     // get mutable reference for inner message
     // mutable reference should not be returned as result for request's method
-    #[inline]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     fn as_mut(&self) -> &mut HttpMessage {
         self.0.get_mut()
     }
 
-    #[inline]
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     fn as_ref(&self) -> &HttpMessage {
         self.0.get_ref()
     }
@@ -183,11 +190,7 @@ impl<S> HttpRequest<S> {
 
     #[doc(hidden)]
     pub fn prefix_len(&self) -> usize {
-        if let Some(router) = self.router() {
-            router.prefix().len()
-        } else {
-            0
-        }
+        if let Some(router) = self.router() { router.prefix().len() } else { 0 }
     }
 
     /// Read the Request Uri.
@@ -288,7 +291,6 @@ impl<S> HttpRequest<S> {
     }
 
     /// Load request cookies.
-    #[inline]
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
         if self.as_ref().cookies.is_none() {
             let msg = self.as_mut();
@@ -334,20 +336,7 @@ impl<S> HttpRequest<S> {
 
     /// Checks if a connection should be kept alive.
     pub fn keep_alive(&self) -> bool {
-        if let Some(conn) = self.headers().get(header::CONNECTION) {
-            if let Ok(conn) = conn.to_str() {
-                if self.as_ref().version == Version::HTTP_10 && conn.contains("keep-alive") {
-                    true
-                } else {
-                    self.as_ref().version == Version::HTTP_11 &&
-                        !(conn.contains("close") || conn.contains("upgrade"))
-                }
-            } else {
-                false
-            }
-        } else {
-            self.as_ref().version != Version::HTTP_10
-        }
+        self.as_ref().keep_alive()
     }
 
     /// Read the request content type
