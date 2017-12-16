@@ -29,86 +29,6 @@ pub enum ConnectionType {
     Upgrade,
 }
 
-#[derive(Debug)]
-struct InnerHttpResponse {
-    version: Option<Version>,
-    headers: HeaderMap,
-    status: StatusCode,
-    reason: Option<&'static str>,
-    body: Body,
-    chunked: bool,
-    encoding: ContentEncoding,
-    connection_type: Option<ConnectionType>,
-    response_size: u64,
-    error: Option<Error>,
-}
-
-impl InnerHttpResponse {
-
-    #[inline]
-    fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
-        InnerHttpResponse {
-            version: None,
-            headers: HeaderMap::with_capacity(8),
-            status: status,
-            reason: None,
-            body: body,
-            chunked: false,
-            encoding: ContentEncoding::Auto,
-            connection_type: None,
-            response_size: 0,
-            error: None,
-        }
-    }
-
-}
-
-impl Default for InnerHttpResponse {
-
-    fn default() -> InnerHttpResponse {
-        InnerHttpResponse::new(StatusCode::OK, Body::Empty)
-    }
-}
-
-/// Internal use only! unsafe
-struct Pool(VecDeque<Box<InnerHttpResponse>>);
-
-thread_local!(static POOL: RefCell<Pool> = RefCell::new(Pool::new()));
-
-impl Pool {
-    fn new() -> Pool {
-        Pool(VecDeque::with_capacity(128))
-    }
-
-    fn get() -> Box<InnerHttpResponse> {
-        POOL.with(|pool| {
-            if let Some(resp) = pool.borrow_mut().0.pop_front() {
-                resp
-            } else {
-                Box::new(InnerHttpResponse::default())
-            }
-        })
-    }
-
-    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
-    fn release(mut inner: Box<InnerHttpResponse>) {
-        POOL.with(|pool| {
-            if pool.borrow().0.len() < 128 {
-                inner.version.take();
-                inner.headers.clear();
-                inner.chunked = false;
-                inner.reason.take();
-                inner.body = Body::Empty;
-                inner.encoding = ContentEncoding::Auto;
-                inner.connection_type.take();
-                inner.response_size = 0;
-                inner.error.take();
-                pool.borrow_mut().0.push_front(inner);
-            }
-        })
-    }
-}
-
 /// An HTTP Response
 pub struct HttpResponse(Option<Box<InnerHttpResponse>>);
 
@@ -123,27 +43,22 @@ impl Drop for HttpResponse {
 impl HttpResponse {
 
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     fn get_ref(&self) -> &InnerHttpResponse {
         self.0.as_ref().unwrap()
     }
 
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     fn get_mut(&mut self) -> &mut InnerHttpResponse {
         self.0.as_mut().unwrap()
-    }
-
-    #[inline]
-    fn from_inner(inner: Box<InnerHttpResponse>) -> HttpResponse {
-        HttpResponse(Some(inner))
     }
 
     /// Create http response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        let mut inner = Pool::get();
-        inner.status = status;
         HttpResponseBuilder {
-            response: Some(inner),
+            response: Some(Pool::get(status)),
             err: None,
             cookies: None,
         }
@@ -152,10 +67,7 @@ impl HttpResponse {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
-        let mut inner = Pool::get();
-        inner.status = status;
-        inner.body = body;
-        HttpResponse(Some(inner))
+        HttpResponse(Some(Pool::with_body(status, body)))
     }
 
     /// Constructs a error response
@@ -470,7 +382,7 @@ impl HttpResponseBuilder {
             }
         }
         response.body = body.into();
-        Ok(HttpResponse::from_inner(response))
+        Ok(HttpResponse(Some(response)))
     }
 
     /// Set a json body and generate `HttpResponse`
@@ -495,6 +407,7 @@ impl HttpResponseBuilder {
     }
 }
 
+#[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>)
              -> Option<&'a mut Box<InnerHttpResponse>>
@@ -525,6 +438,7 @@ impl Responder for HttpResponseBuilder {
     type Item = HttpResponse;
     type Error = HttpError;
 
+    #[inline]
     fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
         self.finish()
     }
@@ -647,6 +561,93 @@ impl Responder for BytesMut {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
+    }
+}
+
+#[derive(Debug)]
+struct InnerHttpResponse {
+    version: Option<Version>,
+    headers: HeaderMap,
+    status: StatusCode,
+    reason: Option<&'static str>,
+    body: Body,
+    chunked: bool,
+    encoding: ContentEncoding,
+    connection_type: Option<ConnectionType>,
+    response_size: u64,
+    error: Option<Error>,
+}
+
+impl InnerHttpResponse {
+
+    #[inline]
+    fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
+        InnerHttpResponse {
+            version: None,
+            headers: HeaderMap::with_capacity(8),
+            status: status,
+            reason: None,
+            body: body,
+            chunked: false,
+            encoding: ContentEncoding::Auto,
+            connection_type: None,
+            response_size: 0,
+            error: None,
+        }
+    }
+
+}
+
+/// Internal use only! unsafe
+struct Pool(VecDeque<Box<InnerHttpResponse>>);
+
+thread_local!(static POOL: RefCell<Pool> = RefCell::new(Pool::new()));
+
+impl Pool {
+    fn new() -> Pool {
+        Pool(VecDeque::with_capacity(128))
+    }
+
+    fn get(status: StatusCode) -> Box<InnerHttpResponse> {
+        POOL.with(|pool| {
+            if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
+                resp.body = Body::Empty;
+                resp.status = status;
+                resp
+            } else {
+                Box::new(InnerHttpResponse::new(status, Body::Empty))
+            }
+        })
+    }
+
+    fn with_body(status: StatusCode, body: Body) -> Box<InnerHttpResponse> {
+        POOL.with(|pool| {
+            if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
+                resp.status = status;
+                resp.body = Body::Empty;
+                resp
+            } else {
+                Box::new(InnerHttpResponse::new(status, body))
+            }
+        })
+    }
+
+    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+    fn release(mut inner: Box<InnerHttpResponse>) {
+        POOL.with(|pool| {
+            let v = &mut pool.borrow_mut().0;
+            if v.len() < 128 {
+                inner.headers.clear();
+                inner.version = None;
+                inner.chunked = false;
+                inner.reason = None;
+                inner.encoding = ContentEncoding::Auto;
+                inner.connection_type = None;
+                inner.response_size = 0;
+                inner.error = None;
+                v.push_front(inner);
+            }
+        })
     }
 }
 

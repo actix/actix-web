@@ -408,19 +408,19 @@ struct WaitingResponse<S> {
 
 impl<S> WaitingResponse<S> {
 
+    #[inline]
     fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S>
     {
-        let stream = match reply.into() {
+        match reply.into() {
             ReplyItem::Message(resp) =>
-                return RunMiddlewares::init(info, resp),
+                RunMiddlewares::init(info, resp),
             ReplyItem::Actor(ctx) =>
-                PipelineResponse::Context(ctx),
+                PipelineState::Handler(
+                    WaitingResponse { stream: PipelineResponse::Context(ctx), _s: PhantomData }),
             ReplyItem::Future(fut) =>
-                PipelineResponse::Response(fut),
-        };
-
-        PipelineState::Handler(
-            WaitingResponse { stream: stream, _s: PhantomData })
+                PipelineState::Handler(
+                    WaitingResponse { stream: PipelineResponse::Response(fut), _s: PhantomData }),
+        }
     }
 
     fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S>, PipelineState<S>> {
@@ -587,15 +587,6 @@ enum IOState {
     Done,
 }
 
-impl IOState {
-    fn is_done(&self) -> bool {
-        match *self {
-            IOState::Done => true,
-            _ => false
-        }
-    }
-}
-
 struct DrainVec(Vec<Rc<RefCell<DrainFut>>>);
 
 impl Drop for DrainVec {
@@ -608,6 +599,7 @@ impl Drop for DrainVec {
 
 impl<S> ProcessResponse<S> {
 
+    #[inline]
     fn init(resp: HttpResponse) -> PipelineState<S>
     {
         PipelineState::Response(
@@ -779,11 +771,12 @@ impl<S> ProcessResponse<S> {
         }
 
         // response is completed
-        if self.iostate.is_done() {
-            self.resp.set_response_size(io.written());
-            Ok(FinishingMiddlewares::init(info, self.resp))
-        } else {
-            Err(PipelineState::Response(self))
+        match self.iostate {
+            IOState::Done => {
+                self.resp.set_response_size(io.written());
+                Ok(FinishingMiddlewares::init(info, self.resp))
+            }
+            _ => Err(PipelineState::Response(self))
         }
     }
 }
@@ -850,6 +843,7 @@ struct Completed<S>(PhantomData<S>);
 
 impl<S> Completed<S> {
 
+    #[inline]
     fn init(info: &mut PipelineInfo<S>) -> PipelineState<S> {
         if info.context.is_none() {
             PipelineState::None
@@ -858,6 +852,7 @@ impl<S> Completed<S> {
         }
     }
 
+    #[inline]
     fn poll(self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S>, PipelineState<S>> {
         match info.poll_context() {
             Ok(Async::NotReady) => Ok(PipelineState::Completed(Completed(PhantomData))),

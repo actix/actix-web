@@ -110,6 +110,7 @@ impl Responder for HttpResponse {
     type Item = Reply;
     type Error = Error;
 
+    #[inline]
     fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Message(self)))
     }
@@ -117,6 +118,7 @@ impl Responder for HttpResponse {
 
 impl From<HttpResponse> for Reply {
 
+    #[inline]
     fn from(resp: HttpResponse) -> Reply {
         Reply(ReplyItem::Message(resp))
     }
@@ -152,6 +154,7 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> Responder for HttpContext<
     type Item = Reply;
     type Error = Error;
 
+    #[inline]
     fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Actor(Box::new(self))))
     }
@@ -159,6 +162,7 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> Responder for HttpContext<
 
 impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> for Reply {
 
+    #[inline]
     fn from(ctx: HttpContext<A, S>) -> Reply {
         Reply(ReplyItem::Actor(Box::new(ctx)))
     }
@@ -169,6 +173,7 @@ impl Responder for Box<Future<Item=HttpResponse, Error=Error>>
     type Item = Reply;
     type Error = Error;
 
+    #[inline]
     fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
         Ok(Reply(ReplyItem::Future(self)))
     }
