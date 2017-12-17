@@ -34,7 +34,10 @@ fn main() {
   * Transparent content compression/decompression (br, gzip, deflate)
   * Configurable request routing
   * Multipart streams
-  * Middlewares (Logger, Session, DefaultHeaders)
+  * Middlewares (
+    [Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging), 
+    [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
+    [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers))
   * Built on top of [Actix](https://github.com/actix/actix).
 
 ## Benchmarks
