@@ -70,7 +70,8 @@ fn main() {
             .resource("/{tail:.*}",
                       |r| r.h(fs::StaticFiles::new("tail", "examples/static/", true))))
         // start http server on 127.0.0.1:8080
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
+        .bind("127.0.0.1:8080").unwrap()
+        .start().unwrap();
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

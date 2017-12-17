@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
-keywords = ["http", "http2", "web", "async", "futures"]
+keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://github.com/actix/actix-web"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web/"
@@ -74,8 +74,6 @@ tokio-openssl = { version="0.1", optional = true }
 
 [dependencies.actix]
 version = "^0.3.1"
-#path = "../actix"
-#git = "https://github.com/actix/actix.git"
 default-features = false
 features = []
 
@@ -96,4 +94,4 @@ version_check = "0.1"
 [profile.release]
 lto = true
 opt-level = 3
-debug = true
+# debug = true

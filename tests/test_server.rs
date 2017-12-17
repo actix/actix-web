@@ -18,7 +18,7 @@ fn test_serve() {
         let srv = HttpServer::new(
             || vec![Application::new()
                     .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
-        srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
+        srv.bind("127.0.0.1:58902").unwrap().start().unwrap();
         sys.run();
     });
     assert!(reqwest::get("http://localhost:58902/").unwrap().status().is_success());
@@ -39,7 +39,7 @@ fn test_serve_incoming() {
             || Application::new()
                 .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk)));
         let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
-        srv.serve_incoming::<_, ()>(tcp.incoming(), false).unwrap();
+        srv.start_incoming::<_, ()>(tcp.incoming(), false).unwrap();
         sys.run();
     });
 
@@ -89,7 +89,8 @@ fn test_middlewares() {
                                                     response: Arc::clone(&act_num2),
                                                     finish: Arc::clone(&act_num3)})
                          .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))])
-            .serve::<_, ()>("127.0.0.1:58904").unwrap();
+            .bind("127.0.0.1:58904").unwrap()
+            .start().unwrap();
         sys.run();
     });
 

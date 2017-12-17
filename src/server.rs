@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use actix::dev::*;
 use futures::Stream;
@@ -94,9 +95,11 @@ pub struct HttpServer<T, A, H, U>
     io: PhantomData<T>,
     addr: PhantomData<A>,
     threads: usize,
+    backlog: i32,
     keep_alive: Option<u64>,
     factory: Arc<Fn() -> U + Send + Sync>,
     workers: Vec<SyncAddress<Worker<H>>>,
+    sockets: HashMap<net::SocketAddr, Socket>,
 }
 
 impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
@@ -129,9 +132,11 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     io: PhantomData,
                     addr: PhantomData,
                     threads: num_cpus::get(),
+                    backlog: 2048,
                     keep_alive: None,
                     factory: Arc::new(factory),
                     workers: Vec::new(),
+                    sockets: HashMap::new(),
         }
     }
 
@@ -140,6 +145,18 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// By default http server uses number of available logical cpu as threads count.
     pub fn threads(mut self, num: usize) -> Self {
         self.threads = num;
+        self
+    }
+
+    /// Set the maximum number of pending connections.
+    ///
+    /// This refers to the number of clients that can be waiting to be served.
+    /// Exceeding this number results in the client getting an error when
+    /// attempting to connect. It should only affect servers under significant load.
+    ///
+    /// Generally set in the 64-2048 range. Default value is 2048.
+    pub fn backlog(mut self, num: i32) -> Self {
+        self.backlog = num;
         self
     }
 
@@ -160,10 +177,22 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// Start listening for incomming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn serve_incoming<S, Addr>(mut self, stream: S, secure: bool) -> io::Result<Addr>
+    pub fn start_incoming<S, Addr>(mut self, stream: S, secure: bool) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
               S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
+        if !self.sockets.is_empty() {
+            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
+
+            // start acceptors threads
+            for (addr, sock) in addrs {
+                info!("Starting http server on {}", addr);
+                start_accept_thread(sock, addr, workers.clone());
+            }
+        }
+
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let settings = ServerSettings::new(Some(addr), secure);
@@ -181,52 +210,53 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         }))
     }
 
-    fn bind<S: net::ToSocketAddrs>(&self, addr: S)
-                                   -> io::Result<Vec<(net::SocketAddr, Socket)>>
-    {
+    /// The socket address to bind
+    ///
+    /// To mind multiple addresses this method can be call multiple times.
+    pub fn bind<S: net::ToSocketAddrs>(mut self, addr: S) -> io::Result<Self> {
         let mut err = None;
-        let mut sockets = Vec::new();
+        let mut succ = false;
         if let Ok(iter) = addr.to_socket_addrs() {
             for addr in iter {
-                match addr {
+                let socket = match addr {
                     net::SocketAddr::V4(a) => {
                         let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
                         match socket.bind(&a.into()) {
-                            Ok(_) => {
-                                socket.listen(1024)
-                                    .expect("failed to set socket backlog");
-                                socket.set_reuse_address(true)
-                                    .expect("failed to set socket reuse address");
-                                sockets.push((addr, socket));
-                            },
-                            Err(e) => err = Some(e),
+                            Ok(_) => socket,
+                            Err(e) => {
+                                err = Some(e);
+                                continue;
+                            }
                         }
                     }
                     net::SocketAddr::V6(a) => {
                         let socket = Socket::new(Domain::ipv6(), Type::stream(), None)?;
                         match socket.bind(&a.into()) {
-                            Ok(_) => {
-                                socket.listen(1024)
-                                    .expect("failed to set socket backlog");
-                                socket.set_reuse_address(true)
-                                    .expect("failed to set socket reuse address");
-                                sockets.push((addr, socket))
+                            Ok(_) => socket,
+                            Err(e) => {
+                                err = Some(e);
+                                continue
                             }
-                            Err(e) => err = Some(e),
                         }
                     }
-                }
+                };
+                succ = true;
+                socket.listen(self.backlog)
+                    .expect("failed to set socket backlog");
+                socket.set_reuse_address(true)
+                    .expect("failed to set socket reuse address");
+                self.sockets.insert(addr, socket);
             }
         }
 
-        if sockets.is_empty() {
+        if !succ {
             if let Some(e) = err.take() {
                 Err(e)
             } else {
                 Err(io::Error::new(io::ErrorKind::Other, "Can not bind to address."))
             }
         } else {
-            Ok(sockets)
+            Ok(self)
         }
     }
 
@@ -265,26 +295,26 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
 {
     /// Start listening for incomming connections.
     ///
-    /// This methods converts address to list of `SocketAddr`
-    /// then binds to all available addresses.
-    /// It also starts number of http handler workers in seperate threads.
+    /// This method starts number of http handler workers in seperate threads.
     /// For each address this method starts separate thread which does `accept()` in a loop.
-    pub fn serve<S, Addr>(mut self, addr: S) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>,
-              S: net::ToSocketAddrs,
+    pub fn start(mut self) -> io::Result<SyncAddress<Self>>
     {
-        let addrs = self.bind(addr)?;
-        let settings = ServerSettings::new(Some(addrs[0].0), false);
-        let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
+        if self.sockets.is_empty() {
+            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+        } else {
+            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
 
-        // start acceptors threads
-        for (addr, sock) in addrs {
-            info!("Starting http server on {}", addr);
-            start_accept_thread(sock, addr, workers.clone());
+            // start acceptors threads
+            for (addr, sock) in addrs {
+                info!("Starting http server on {}", addr);
+                start_accept_thread(sock, addr, workers.clone());
+            }
+
+            // start http server actor
+            Ok(HttpServer::create(|_| {self}))
         }
-
-        // start http server actor
-        Ok(HttpServer::create(|_| {self}))
     }
 }
 
@@ -294,34 +324,34 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
           V: IntoHttpHandler<Handler=H>,
 {
     /// Start listening for incomming tls connections.
-    ///
-    /// This methods converts address to list of `SocketAddr`
-    /// then binds to all available addresses.
-    pub fn serve_tls<S, Addr>(mut self, addr: S, pkcs12: ::Pkcs12) -> io::Result<Addr>
+    pub fn start_tls<Addr>(mut self, pkcs12: ::Pkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
-              S: net::ToSocketAddrs,
     {
-        let addrs = self.bind(addr)?;
-        let settings = ServerSettings::new(Some(addrs[0].0), false);
-        let acceptor = match TlsAcceptor::builder(pkcs12) {
-            Ok(builder) => {
-                match builder.build() {
-                    Ok(acceptor) => acceptor,
-                    Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+        if self.sockets.is_empty() {
+            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+        } else {
+            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let acceptor = match TlsAcceptor::builder(pkcs12) {
+                Ok(builder) => {
+                    match builder.build() {
+                        Ok(acceptor) => acceptor,
+                        Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+                    }
                 }
+                Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+            };
+            let workers = self.start_workers(&settings, &StreamHandlerType::Tls(acceptor));
+
+            // start acceptors threads
+            for (addr, sock) in addrs {
+                info!("Starting tls http server on {}", addr);
+                start_accept_thread(sock, addr, workers.clone());
             }
-            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-        };
-        let workers = self.start_workers(&settings, &StreamHandlerType::Tls(acceptor));
 
-        // start acceptors threads
-        for (addr, sock) in addrs {
-            info!("Starting tls http server on {}", addr);
-            start_accept_thread(sock, addr, workers.clone());
+            // start http server actor
+            Ok(HttpServer::create(|_| {self}))
         }
-
-        // start http server actor
-        Ok(HttpServer::create(|_| {self}))
     }
 }
 
@@ -332,35 +362,37 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
 {
     /// Start listening for incomming tls connections.
     ///
-    /// This methods converts address to list of `SocketAddr`
-    /// then binds to all available addresses.
-    pub fn serve_ssl<S, Addr>(mut self, addr: S, identity: &ParsedPkcs12) -> io::Result<Addr>
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn start_ssl<Addr>(mut self, identity: &ParsedPkcs12) -> io::Result<Addr>
         where Self: ActorAddress<Self, Addr>,
-              S: net::ToSocketAddrs,
     {
-        let addrs = self.bind(addr)?;
-        let settings = ServerSettings::new(Some(addrs[0].0), false);
-        let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
-            SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
-        {
-            Ok(mut builder) => {
-                match builder.set_alpn_protocols(&[b"h2", b"http/1.1"]) {
-                    Ok(_) => builder.build(),
-                    Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err)),
-                }
-            },
-            Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-        };
-        let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
+        if self.sockets.is_empty() {
+            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+        } else {
+            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
+                SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
+            {
+                Ok(mut builder) => {
+                    match builder.set_alpn_protocols(&[b"h2", b"http/1.1"]) {
+                        Ok(_) => builder.build(),
+                        Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err)),
+                    }
+                },
+                Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
+            };
+            let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
 
-        // start acceptors threads
-        for (addr, sock) in addrs {
-            info!("Starting tls http server on {}", addr);
-            start_accept_thread(sock, addr, workers.clone());
+            // start acceptors threads
+            for (addr, sock) in addrs {
+                info!("Starting tls http server on {}", addr);
+                start_accept_thread(sock, addr, workers.clone());
+            }
+
+            // start http server actor
+            Ok(HttpServer::create(|_| {self}))
         }
-
-        // start http server actor
-        Ok(HttpServer::create(|_| {self}))
     }
 }
 

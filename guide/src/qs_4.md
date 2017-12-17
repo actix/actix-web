@@ -82,7 +82,8 @@ fn main() {
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.method(Method::GET).f(index)))
-        .serve::<_, ()>("127.0.0.1:8088").unwrap();
+        .bind("127.0.0.1:8088").unwrap()
+        .start();
 
     println!("Started http server: 127.0.0.1:8088");
 #    actix::Arbiter::system().send(actix::msgs::SystemExit(0));

@@ -93,7 +93,8 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             })))
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
+        .bind("127.0.0.1:8080").unwrap()
+        .start().unwrap();
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
