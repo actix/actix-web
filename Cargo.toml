@@ -10,7 +10,7 @@ repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server", "web-programming::websocket"]
-license = "Apache-2.0"
+license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
