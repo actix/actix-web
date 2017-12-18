@@ -56,7 +56,7 @@ fn with_param(req: HttpRequest) -> Result<HttpResponse>
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
     let _ = env_logger::init();
-    let sys = actix::System::new("ws-example");
+    let sys = actix::System::new("basic-example");
 
     HttpServer::new(
         || Application::new()
