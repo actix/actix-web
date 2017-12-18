@@ -11,7 +11,8 @@
 //!     HttpServer::new(
 //!         || Application::new()
 //!             .resource("/{name}", |r| r.f(index)))
-//!         .serve("127.0.0.1:8080");
+//!         .bind("127.0.0.1:8080")?
+//!         .start()
 //! }
 //! ```
 //!

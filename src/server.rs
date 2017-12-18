@@ -177,9 +177,8 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// Start listening for incomming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<S, Addr>(mut self, stream: S, secure: bool) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>,
-              S: Stream<Item=(T, A), Error=io::Error> + 'static
+    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> io::Result<SyncAddress<Self>>
+        where S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         if !self.sockets.is_empty() {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
@@ -324,9 +323,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
           V: IntoHttpHandler<Handler=H>,
 {
     /// Start listening for incomming tls connections.
-    pub fn start_tls<Addr>(mut self, pkcs12: ::Pkcs12) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>,
-    {
+    pub fn start_tls(mut self, pkcs12: ::Pkcs12) -> io::Result<SyncAddress<Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
@@ -363,9 +360,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     /// Start listening for incomming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn start_ssl<Addr>(mut self, identity: &ParsedPkcs12) -> io::Result<Addr>
-        where Self: ActorAddress<Self, Addr>,
-    {
+    pub fn start_ssl(mut self, identity: &ParsedPkcs12) -> io::Result<SyncAddress<Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {

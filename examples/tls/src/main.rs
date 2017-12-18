@@ -42,7 +42,8 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             })))
-        .serve_ssl::<_, ()>("127.0.0.1:8443", &pkcs12).unwrap();
+        .bind("127.0.0.1:8443").unwrap()
+        .start_ssl(&pkcs12).unwrap();
 
     println!("Started http server: 127.0.0.1:8443");
     let _ = sys.run();

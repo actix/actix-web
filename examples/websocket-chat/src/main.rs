@@ -207,13 +207,14 @@ fn main() {
                         .header("LOCATION", "/static/websocket.html")
                         .body(Body::Empty)
                 }))
-            // websocket
+                // websocket
                 .resource("/ws/", |r| r.route().f(chat_route))
-            // static resources
+                // static resources
                 .resource("/static/{tail:.*}",
                           |r| r.h(fs::StaticFiles::new("tail", "static/", true)))
         })
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
+        .bind("127.0.0.1:8080").unwrap()
+        .start().unwrap();
 
     let _ = sys.run();
 }
