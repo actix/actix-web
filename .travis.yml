@@ -29,6 +29,11 @@ before_script:
 
 script:
   - USE_SKEPTIC=1 cargo test --features=alpn
+  - cd examples/diesel && cargo check && cd ../..
+  - cd examples/multipart && cargo check && cd ../..
+  - cd examples/template_tera && cargo check && cd ../..
+  - cd examples/tls && cargo check && cd ../..
+  - cd examples/websocket-chat && cargo check && cd ../..
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
         cargo clippy
