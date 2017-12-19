@@ -1,6 +1,8 @@
+# This script could be used for actix-web multipart example test
+# just start server and run client.py
+
 import asyncio
 import aiohttp
-
 
 async def req1():
     with aiohttp.MultipartWriter() as writer:

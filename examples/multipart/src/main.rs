@@ -13,11 +13,10 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 {
     println!("{:?}", req);
 
-    // get multipart stream and iterate over multipart items
     Box::new(
-        req.multipart() // <- get multipart stream for current request
-            .map_err(Error::from)
-            .and_then(|item| {  // <- iterate over multipart items
+        req.multipart()            // <- get multipart stream for current request
+            .map_err(Error::from)  // <- convert multipart errors
+            .and_then(|item| {     // <- iterate over multipart items
                 match item {
                     // Handle multipart Field
                     multipart::MultipartItem::Field(field) => {
@@ -50,8 +49,7 @@ fn main() {
 
     HttpServer::new(
         || Application::new()
-            // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middlewares::Logger::default()) // <- logger
             .resource("/multipart", |r| r.method(Method::POST).a(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();
