@@ -174,41 +174,6 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         self
     }
 
-    /// Start listening for incomming connections from a stream.
-    ///
-    /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> io::Result<SyncAddress<Self>>
-        where S: Stream<Item=(T, A), Error=io::Error> + 'static
-    {
-        if !self.sockets.is_empty() {
-            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
-            let settings = ServerSettings::new(Some(addrs[0].0), false);
-            let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
-
-            // start acceptors threads
-            for (addr, sock) in addrs {
-                info!("Starting http server on {}", addr);
-                start_accept_thread(sock, addr, workers.clone());
-            }
-        }
-
-        // set server settings
-        let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let settings = ServerSettings::new(Some(addr), secure);
-        let mut apps: Vec<_> = (*self.factory)().into_iter().map(|h| h.into_handler()).collect();
-        for app in &mut apps {
-            app.server_settings(settings.clone());
-        }
-        self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
-
-        // start server
-        Ok(HttpServer::create(move |ctx| {
-            ctx.add_stream(stream.map(
-                move |(t, _)| IoStream{io: t, peer: None, http2: false}));
-            self
-        }))
-    }
-
     /// The socket address to bind
     ///
     /// To mind multiple addresses this method can be call multiple times.
@@ -388,6 +353,49 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             // start http server actor
             Ok(HttpServer::create(|_| {self}))
         }
+    }
+}
+
+impl<T, A, H, U, V> HttpServer<T, A, H, U>
+    where A: 'static,
+          T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
+{
+    /// Start listening for incomming connections from a stream.
+    ///
+    /// This method uses only one thread for handling incoming connections.
+    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> io::Result<SyncAddress<Self>>
+        where S: Stream<Item=(T, A), Error=io::Error> + 'static
+    {
+        if !self.sockets.is_empty() {
+            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
+
+            // start acceptors threads
+            for (addr, sock) in addrs {
+                info!("Starting http server on {}", addr);
+                start_accept_thread(sock, addr, workers.clone());
+            }
+        }
+
+        // set server settings
+        let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let settings = ServerSettings::new(Some(addr), secure);
+        let mut apps: Vec<_> = (*self.factory)().into_iter().map(|h| h.into_handler()).collect();
+        for app in &mut apps {
+            app.server_settings(settings.clone());
+        }
+        self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
+
+        // start server
+        Ok(HttpServer::create(move |ctx| {
+            ctx.add_stream(stream.map(
+                move |(t, _)| IoStream{io: t, peer: None, http2: false}));
+            self
+        }))
     }
 }
 
