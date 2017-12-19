@@ -138,7 +138,7 @@ future object that resolve to Bytes object.
 * *readuntil* method returns *Future* that resolves when specified bytes string
   matches in input bytes stream
 
-Here is example that reads request payload and prints it.
+In this example handle reads request payload chunk by chunk and prints every chunk.
 
 ```rust
 # extern crate actix_web;

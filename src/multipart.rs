@@ -14,6 +14,7 @@ use futures::task::{Task, current as current_task};
 
 use error::{ParseError, PayloadError, MultipartError};
 use payload::Payload;
+use httprequest::HttpRequest;
 
 const MAX_HEADERS: usize = 32;
 
@@ -26,7 +27,8 @@ const MAX_HEADERS: usize = 32;
 #[derive(Debug)]
 pub struct Multipart {
     safety: Safety,
-    inner: Rc<RefCell<InnerMultipart>>,
+    error: Option<MultipartError>,
+    inner: Option<Rc<RefCell<InnerMultipart>>>,
 }
 
 ///
@@ -66,17 +68,32 @@ struct InnerMultipart {
 }
 
 impl Multipart {
+
     /// Create multipart instance for boundary.
     pub fn new(boundary: String, payload: Payload) -> Multipart {
         Multipart {
+            error: None,
             safety: Safety::new(),
-            inner: Rc::new(RefCell::new(
+            inner: Some(Rc::new(RefCell::new(
                 InnerMultipart {
                     payload: PayloadRef::new(payload),
                     boundary: boundary,
                     state: InnerState::FirstBoundary,
                     item: InnerMultipartItem::None,
-                }))
+                })))
+        }
+    }
+
+    /// Create multipart instance for request.
+    pub fn from_request<S>(req: &mut HttpRequest<S>) -> Multipart {
+        match Multipart::boundary(req.headers()) {
+            Ok(boundary) => Multipart::new(boundary, req.payload().clone()),
+            Err(err) =>
+                Multipart {
+                    error: Some(err),
+                    safety: Safety::new(),
+                    inner: None,
+                }
         }
     }
 
@@ -107,8 +124,10 @@ impl Stream for Multipart {
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if self.safety.current() {
-            self.inner.borrow_mut().poll(&self.safety)
+        if let Some(err) = self.error.take() {
+            Err(err)
+        } else if self.safety.current() {
+            self.inner.as_mut().unwrap().borrow_mut().poll(&self.safety)
         } else {
             Ok(Async::NotReady)
         }
@@ -327,7 +346,9 @@ impl InnerMultipart {
 
                 Ok(Async::Ready(Some(
                     MultipartItem::Nested(
-                        Multipart{safety: safety.clone(), inner: inner}))))
+                        Multipart{safety: safety.clone(),
+                                  error: None,
+                                  inner: Some(inner)}))))
             } else {
                 let field = Rc::new(RefCell::new(InnerField::new(
                     self.payload.clone(), self.boundary.clone(), &headers)?));

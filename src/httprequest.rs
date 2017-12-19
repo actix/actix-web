@@ -17,7 +17,7 @@ use payload::Payload;
 use multipart::Multipart;
 use helpers::SharedHttpMessage;
 use error::{ParseError, PayloadError, UrlGenerationError,
-            MultipartError, CookieParseError, HttpRangeError, UrlencodedError};
+            CookieParseError, HttpRangeError, UrlencodedError};
 
 
 pub struct HttpMessage {
@@ -406,9 +406,8 @@ impl<S> HttpRequest<S> {
     /// Return stream to process BODY as multipart.
     ///
     /// Content-type: multipart/form-data;
-    pub fn multipart(&mut self) -> Result<Multipart, MultipartError> {
-        let boundary = Multipart::boundary(self.headers())?;
-        Ok(Multipart::new(boundary, self.payload().clone()))
+    pub fn multipart(&mut self) -> Multipart {
+        Multipart::from_request(self)
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.

@@ -2,76 +2,60 @@
 extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
+extern crate futures;
 
-use actix::*;
 use actix_web::*;
+use futures::{Future, Stream};
+use futures::future::{result, Either};
 
-struct MyRoute;
 
-impl Actor for MyRoute {
-    type Context = HttpContext<Self>;
-}
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
+{
+    println!("{:?}", req);
 
-impl Route for MyRoute {
-    type State = ();
-
-    fn request(mut req: HttpRequest, ctx: &mut HttpContext<Self>) -> RouteResult<Self> {
-        println!("{:?}", req);
-
-        let multipart = req.multipart()?;
-
-        // get Multipart stream
-        WrapStream::<MyRoute>::actstream(multipart)
-            .and_then(|item, act, ctx| {
+    // get multipart stream and iterate over multipart items
+    Box::new(
+        req.multipart()
+            .map_err(Error::from)
+            .and_then(|item| {
                 // Multipart stream is a stream of Fields and nested Multiparts
                 match item {
                     multipart::MultipartItem::Field(field) => {
                         println!("==== FIELD ==== {:?}", field);
 
                         // Read field's stream
-                        fut::Either::A(
-                            field.actstream()
-                                .map(|chunk, act, ctx| {
-                                    println!(
-                                        "-- CHUNK: \n{}",
-                                        std::str::from_utf8(&chunk.0).unwrap());
-                                })
-                                .finish())
+                        Either::A(
+                            field.map_err(Error::from)
+                                .map(|chunk| {
+                                    println!("-- CHUNK: \n{}",
+                                             std::str::from_utf8(&chunk.0).unwrap());})
+                                .fold((), |_, _| result::<_, Error>(Ok(()))))
                     },
                     multipart::MultipartItem::Nested(mp) => {
                         // Do nothing for nested multipart stream
-                        fut::Either::B(fut::ok(()))
+                        Either::B(result(Ok(())))
                     }
                 }
             })
             // wait until stream finish
-            .finish()
-            .map_err(|e, act, ctx| {
-                ctx.start(httpcodes::HTTPBadRequest);
-                ctx.write_eof();
-            })
-            .map(|_, act, ctx| {
-                ctx.start(httpcodes::HTTPOk);
-                ctx.write_eof();
-            })
-            .spawn(ctx);
-
-        Reply::async(MyRoute)
-    }
+            .fold((), |_, _| result::<_, Error>(Ok(())))
+            .map(|_| httpcodes::HTTPOk.response())
+    )
 }
 
 fn main() {
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
     let _ = env_logger::init();
     let sys = actix::System::new("multipart-example");
 
     HttpServer::new(
-        vec![
-            Application::default("/")
-                .resource("/multipart", |r| {
-                    r.post::<MyRoute>();
-                }).finish()
-        ])
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
+        || Application::new()
+            // enable logger
+            .middleware(middlewares::Logger::default())
+            .resource("/multipart", |r| r.method(Method::POST).a(index)))
+        .bind("127.0.0.1:8080").unwrap()
+        .start();
 
+    println!("Starting http server: 127.0.0.1:8080");
     let _ = sys.run();
 }
