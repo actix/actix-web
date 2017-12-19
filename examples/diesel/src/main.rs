@@ -3,7 +3,7 @@
 //! Diesel does not support tokio, so we have to run it in separate threads.
 //! Actix supports sync actors by default, so we going to create sync actor that will
 //! use diesel. Technically sync actors are worker style actors, multiple of them
-//! can run in parallele and process messages from same queue.
+//! can run in parallel and process messages from same queue.
 extern crate serde;
 extern crate serde_json;
 #[macro_use]
