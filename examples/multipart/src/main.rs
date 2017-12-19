@@ -15,15 +15,15 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 
     // get multipart stream and iterate over multipart items
     Box::new(
-        req.multipart()
+        req.multipart() // <- get multipart stream for current request
             .map_err(Error::from)
-            .and_then(|item| {
-                // Multipart stream is a stream of Fields and nested Multiparts
+            .and_then(|item| {  // <- iterate over multipart items
                 match item {
+                    // Handle multipart Field
                     multipart::MultipartItem::Field(field) => {
                         println!("==== FIELD ==== {:?}", field);
 
-                        // Read field's stream
+                        // Field in turn is stream of *Bytes* object
                         Either::A(
                             field.map_err(Error::from)
                                 .map(|chunk| {
@@ -32,12 +32,12 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
                                 .fold((), |_, _| result::<_, Error>(Ok(()))))
                     },
                     multipart::MultipartItem::Nested(mp) => {
-                        // Do nothing for nested multipart stream
+                        // Or item could be nested Multipart stream
                         Either::B(result(Ok(())))
                     }
                 }
             })
-            // wait until stream finish
+            // wait until stream finishes
             .fold((), |_, _| result::<_, Error>(Ok(())))
             .map(|_| httpcodes::HTTPOk.response())
     )

@@ -114,9 +114,44 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## Multipart body
 
+Actix provides multipart stream support. 
+[*Multipart*](../actix_web/multipart/struct.Multipart.html) is implemented as 
+a stream of multipart items, each item could be
+[*Field*](../actix_web/multipart/struct.Field.html) or nested *Multipart* stream.
+`HttpResponse::multipart()` method returns *Multipart* stream for current request.
 
+In simple form multipart stream handling could be implemented similar to this example
 
-[WIP]
+```rust,ignore
+# extern crate actix_web;
+use actix_web::*;
+
+fn index(req: HttpRequest) -> Box<Future<...>> {
+    req.multipart()        // <- get multipart stream for current request
+       .and_then(|item| {  // <- iterate over multipart items
+           match item {
+                           // Handle multipart Field
+              multipart::MultipartItem::Field(field) => {
+                 println!("==== FIELD ==== {:?} {:?}", field.heders(), field.content_type());
+                 
+                 Either::A(
+                           // Field in turn is a stream of *Bytes* objects
+                   field.map(|chunk| {
+                        println!("-- CHUNK: \n{}",
+                                 std::str::from_utf8(&chunk).unwrap());})
+                      .fold((), |_, _| result(Ok(()))))
+                },
+              multipart::MultipartItem::Nested(mp) => {
+                         // Or item could be nested Multipart stream 
+                 Either::B(result(Ok(())))
+              }
+         }
+   })
+}
+```
+
+Full example is available in 
+[examples directory](https://github.com/actix/actix-web/tree/master/examples/multipart/).
 
 ## Urlencoded body
 
