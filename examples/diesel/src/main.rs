@@ -16,12 +16,10 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-use actix::prelude::*;
 use actix_web::*;
-use futures::future::{Future, ok};
-use diesel::Connection;
-use diesel::sqlite::SqliteConnection;
+use actix::prelude::*;
 use diesel::prelude::*;
+use futures::future::{Future, ok};
 
 mod models;
 mod schema;
@@ -36,7 +34,7 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
     let name = &req.match_info()["name"];
 
     Box::new(
-        req.state().db.call_fut(CreatePerson{name: name.to_owned()})
+        req.state().db.call_fut(CreateUser{name: name.to_owned()})
             .and_then(|res| {
                 match res {
                     Ok(person) => ok(httpcodes::HTTPOk.build().json(person).unwrap()),
@@ -51,11 +49,11 @@ struct DbExecutor(SqliteConnection);
 
 /// This is only message that this actor can handle, but it is easy to extend number of
 /// messages.
-struct CreatePerson {
+struct CreateUser {
     name: String,
 }
 
-impl ResponseType for CreatePerson {
+impl ResponseType for CreateUser {
     type Item = models::User;
     type Error = Error;
 }
@@ -64,9 +62,9 @@ impl Actor for DbExecutor {
     type Context = SyncContext<Self>;
 }
 
-impl Handler<CreatePerson> for DbExecutor {
-    fn handle(&mut self, msg: CreatePerson, _: &mut Self::Context)
-              -> Response<Self, CreatePerson>
+impl Handler<CreateUser> for DbExecutor {
+    fn handle(&mut self, msg: CreateUser, _: &mut Self::Context)
+              -> Response<Self, CreateUser>
     {
         use self::schema::users::dsl::*;
 
@@ -89,7 +87,6 @@ impl Handler<CreatePerson> for DbExecutor {
         Self::reply(items.pop().unwrap())
     }
 }
-
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
