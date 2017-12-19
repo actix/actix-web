@@ -37,7 +37,7 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
         req.state().db.call_fut(CreateUser{name: name.to_owned()})
             .and_then(|res| {
                 match res {
-                    Ok(person) => ok(httpcodes::HTTPOk.build().json(person).unwrap()),
+                    Ok(user) => ok(httpcodes::HTTPOk.build().json(user).unwrap()),
                     Err(_) => ok(httpcodes::HTTPInternalServerError.response())
                 }
             })
