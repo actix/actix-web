@@ -37,7 +37,7 @@ fn main() {
             .middleware(middlewares::Logger::default())
             .resource("/", |r| r.method(Method::GET).f(index))})
         .bind("127.0.0.1:8080").unwrap()
-        .start().unwrap();
+        .start();
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

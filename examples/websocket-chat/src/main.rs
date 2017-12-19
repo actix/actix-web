@@ -214,7 +214,7 @@ fn main() {
                           |r| r.h(fs::StaticFiles::new("tail", "static/", true)))
         })
         .bind("127.0.0.1:8080").unwrap()
-        .start().unwrap();
+        .start();
 
     let _ = sys.run();
 }

@@ -261,10 +261,12 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     ///
     /// This method starts number of http handler workers in seperate threads.
     /// For each address this method starts separate thread which does `accept()` in a loop.
-    pub fn start(mut self) -> io::Result<SyncAddress<Self>>
+    ///
+    /// This methods panics if no socket addresses get bound.
+    pub fn start(mut self) -> SyncAddress<Self>
     {
         if self.sockets.is_empty() {
-            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+            panic!("HttpServer::bind() has to be called befor start()");
         } else {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), false);
@@ -277,7 +279,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             }
 
             // start http server actor
-            Ok(HttpServer::create(|_| {self}))
+            HttpServer::create(|_| {self})
         }
     }
 }
@@ -366,7 +368,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// Start listening for incomming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> io::Result<SyncAddress<Self>>
+    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
         where S: Stream<Item=(T, A), Error=io::Error> + 'static
     {
         if !self.sockets.is_empty() {
@@ -391,11 +393,11 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server
-        Ok(HttpServer::create(move |ctx| {
+        HttpServer::create(move |ctx| {
             ctx.add_stream(stream.map(
                 move |(t, _)| IoStream{io: t, peer: None, http2: false}));
             self
-        }))
+        })
     }
 }
 

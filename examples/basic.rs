@@ -93,7 +93,7 @@ fn main() {
                     .body(Body::Empty)
             })))
         .bind("127.0.0.1:8080").unwrap()
-        .start().unwrap();
+        .start();
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
