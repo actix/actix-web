@@ -155,7 +155,37 @@ Full example is available in
 
 ## Urlencoded body
 
-[WIP]
+Actix provides support for *application/x-www-form-urlencoded* encoded body.
+`HttpResponse::urlencoded()` method returns
+[*UrlEncoded*](../actix_web/dev/struct.UrlEncoded.html) future, it resolves 
+into `HashMap<String, String>` which contains decoded parameters.
+*UrlEncoded* future can resolve into a error in several cases:
+
+* content type is not `application/x-www-form-urlencoded`
+* transfer encoding is `chunked`.
+* content-length is greater than 256k
+* payload terminates with error.
+
+
+```rust
+# extern crate actix_web;
+# extern crate futures;
+use actix_web::*;
+use futures::future::{Future, ok};
+
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    Box::new(
+        req.urlencoded()         // <- get UrlEncoded future
+           .and_then(|params| {  // <- url encoded parameters
+                 println!("==== BODY ==== {:?}", params);
+                 ok(httpcodes::HTTPOk.response())
+           })
+           .map_err(Error::from)
+   )
+}
+# fn main() {}
+```
+
 
 ## Streaming request
 

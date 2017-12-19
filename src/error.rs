@@ -360,7 +360,7 @@ impl ResponseError for WsHandshakeError {
 }
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Fail, Debug, PartialEq)]
+#[derive(Fail, Debug)]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding
     #[fail(display="Can not decode chunked transfer encoding")]
@@ -374,6 +374,9 @@ pub enum UrlencodedError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Payload error
+    #[fail(display="Error that occur during reading payload")]
+    Payload(PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
@@ -381,6 +384,12 @@ impl ResponseError for UrlencodedError {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
+impl From<PayloadError> for UrlencodedError {
+    fn from(err: PayloadError) -> UrlencodedError {
+        UrlencodedError::Payload(err)
     }
 }
 

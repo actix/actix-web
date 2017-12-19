@@ -17,8 +17,7 @@ use router::Router;
 use payload::Payload;
 use multipart::Multipart;
 use helpers::SharedHttpMessage;
-use error::{ParseError, PayloadError, UrlGenerationError,
-            CookieParseError, HttpRangeError, UrlencodedError};
+use error::{ParseError, UrlGenerationError, CookieParseError, HttpRangeError, UrlencodedError};
 
 
 pub struct HttpMessage {
@@ -447,41 +446,27 @@ impl<S> HttpRequest<S> {
     /// * content type is not `application/x-www-form-urlencoded`
     /// * transfer encoding is `chunked`.
     /// * content-length is greater than 256k
-    pub fn urlencoded(&mut self) -> Result<UrlEncoded, UrlencodedError> {
-        if let Ok(true) = self.chunked() {
-            return Err(UrlencodedError::Chunked)
-        }
-
-        if let Some(len) = self.headers().get(header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    if len > 262_144 {
-                        return Err(UrlencodedError::Overflow)
-                    }
-                } else {
-                    return Err(UrlencodedError::UnknownLength)
-                }
-            } else {
-                return Err(UrlencodedError::UnknownLength)
-            }
-        }
-
-        // check content type
-        let t = if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
-            if let Ok(content_type) = content_type.to_str() {
-                content_type.to_lowercase() == "application/x-www-form-urlencoded"
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        if t {
-            Ok(UrlEncoded{pl: self.payload().clone(), body: BytesMut::new()})
-        } else {
-            Err(UrlencodedError::ContentType)
-        }
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// use actix_web::*;
+    /// use futures::future::{Future, ok};
+    ///
+    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    ///     Box::new(
+    ///         req.urlencoded()         // <- get UrlEncoded future
+    ///             .and_then(|params| {  // <- url encoded parameters
+    ///                 println!("==== BODY ==== {:?}", params);
+    ///                 ok(httpcodes::HTTPOk.response())
+    ///             })
+    ///             .map_err(Error::from)
+    ///     )
+    /// }
+    /// # fn main() {}
+    /// ```
+    pub fn urlencoded(&mut self) -> UrlEncoded {
+        UrlEncoded::from_request(self)
     }
 }
 
@@ -526,13 +511,59 @@ impl<S> fmt::Debug for HttpRequest<S> {
 pub struct UrlEncoded {
     pl: Payload,
     body: BytesMut,
+    error: Option<UrlencodedError>,
+}
+
+impl UrlEncoded {
+    pub fn from_request<S>(req: &mut HttpRequest<S>) -> UrlEncoded {
+        let mut encoded = UrlEncoded {
+            pl: req.payload_mut().clone(),
+            body: BytesMut::new(),
+            error: None
+        };
+
+        if let Ok(true) = req.chunked() {
+            encoded.error = Some(UrlencodedError::Chunked);
+        } else if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
+            if let Ok(s) = len.to_str() {
+                if let Ok(len) = s.parse::<u64>() {
+                    if len > 262_144 {
+                        encoded.error = Some(UrlencodedError::Overflow);
+                    }
+                } else {
+                    encoded.error = Some(UrlencodedError::UnknownLength);
+                }
+            } else {
+                encoded.error = Some(UrlencodedError::UnknownLength);
+            }
+        }
+
+        // check content type
+        if encoded.error.is_none() {
+            if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+                if let Ok(content_type) = content_type.to_str() {
+                    if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
+                        return encoded
+                    }
+                }
+            }
+            encoded.error = Some(UrlencodedError::ContentType);
+            return encoded
+        }
+
+        encoded
+    }
 }
 
 impl Future for UrlEncoded {
     type Item = HashMap<String, String>;
-    type Error = PayloadError;
+    type Error = UrlencodedError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(err) = self.error.take() {
+            return Err(err)
+        }
+
         loop {
             return match self.pl.poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -547,7 +578,7 @@ impl Future for UrlEncoded {
                     self.body.extend_from_slice(&item);
                     continue
                 },
-                Err(err) => Err(err),
+                Err(err) => Err(err.into()),
             }
         }
     }
@@ -673,6 +704,30 @@ mod tests {
         assert!(req.chunked().is_err());
     }
 
+    impl PartialEq for UrlencodedError {
+        fn eq(&self, other: &UrlencodedError) -> bool {
+            match *self {
+                UrlencodedError::Chunked => match *other {
+                    UrlencodedError::Chunked => true,
+                    _ => false,
+                },
+                UrlencodedError::Overflow => match *other {
+                    UrlencodedError::Overflow => true,
+                    _ => false,
+                },
+                UrlencodedError::UnknownLength => match *other {
+                    UrlencodedError::UnknownLength => true,
+                    _ => false,
+                },
+                UrlencodedError::ContentType => match *other {
+                    UrlencodedError::ContentType => true,
+                    _ => false,
+                },
+                _ => false,
+            }
+        }
+    }
+
     #[test]
     fn test_urlencoded_error() {
         let mut headers = HeaderMap::new();
@@ -681,7 +736,7 @@ mod tests {
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
-        assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Chunked);
+        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::Chunked);
 
         let mut headers = HeaderMap::new();
         headers.insert(header::CONTENT_TYPE,
@@ -691,7 +746,7 @@ mod tests {
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
-        assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::UnknownLength);
+        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::UnknownLength);
 
         let mut headers = HeaderMap::new();
         headers.insert(header::CONTENT_TYPE,
@@ -701,7 +756,7 @@ mod tests {
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
-        assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::Overflow);
+        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::Overflow);
 
         let mut headers = HeaderMap::new();
         headers.insert(header::CONTENT_TYPE,
@@ -711,7 +766,7 @@ mod tests {
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
-        assert_eq!(req.urlencoded().err().unwrap(), UrlencodedError::ContentType);
+        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::ContentType);
     }
 
     #[test]

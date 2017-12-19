@@ -107,6 +107,8 @@ impl<T, H> Http1<T, H>
         }
     }
 
+    // TODO: refacrtor
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
         // keep-alive timer
         if self.keepalive_timer.is_some() {
