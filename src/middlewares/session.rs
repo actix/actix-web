@@ -42,6 +42,23 @@ impl RequestSession for HttpRequest {
 /// Session object could be obtained with
 /// [`RequestSession::session`](trait.RequestSession.html#tymethod.session)
 /// method. `RequestSession` trait is implemented for `HttpRequest`.
+///
+/// ```rust
+/// use actix_web::*;
+/// use actix_web::middlewares::RequestSession;
+///
+/// fn index(mut req: HttpRequest) -> Result<&'static str> {
+///     // access session data
+///     if let Some(count) = req.session().get::<i32>("counter")? {
+///         req.session().set("counter", count+1)?;
+///     } else {
+///         req.session().set("counter", 1)?;
+///     }
+///
+///     Ok("Welcome!")
+/// }
+/// # fn main() {}
+/// ```
 pub struct Session<'a>(&'a mut SessionImpl);
 
 impl<'a> Session<'a> {
@@ -80,6 +97,21 @@ unsafe impl Send for SessionImplBox {}
 unsafe impl Sync for SessionImplBox {}
 
 /// Session storage middleware
+///
+/// ```rust
+/// # extern crate actix;
+/// # extern crate actix_web;
+/// use actix_web::*;
+///
+/// fn main() {
+///    let app = Application::new()
+///        .middleware(middlewares::SessionStorage::new(          // <- create session middlewares
+///           middlewares::CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
+///        .secure(false)
+///        .finish())
+///    );
+/// }
+/// ```
 pub struct SessionStorage<T, S>(T, PhantomData<S>);
 
 impl<S, T: SessionBackend<S>> SessionStorage<T, S> {
