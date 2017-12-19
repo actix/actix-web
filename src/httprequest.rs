@@ -223,7 +223,7 @@ impl<S> HttpRequest<S> {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.as_ref().uri.path()
+        self.uri().path()
     }
 
     /// Get *ConnectionInfo* for currect request.
@@ -310,7 +310,7 @@ impl<S> HttpRequest<S> {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.as_ref().uri.query().as_ref() {
+        if let Some(query) = self.uri().query().as_ref() {
             query
         } else {
             ""
@@ -355,7 +355,7 @@ impl<S> HttpRequest<S> {
         unsafe{ mem::transmute(&self.as_ref().params) }
     }
 
-    /// Set request Params.
+    /// Get mutable reference to request's Params.
     #[inline]
     pub(crate) fn match_info_mut(&mut self) -> &mut Params {
         unsafe{ mem::transmute(&mut self.as_mut().params) }
@@ -366,7 +366,8 @@ impl<S> HttpRequest<S> {
         self.as_ref().keep_alive()
     }
 
-    /// Read the request content type
+    /// Read the request content type. If request does not contain
+    /// *Content-Type* header, empty str get returned.
     pub fn content_type(&self) -> &str {
         if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
