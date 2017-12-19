@@ -154,7 +154,7 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     /// Construct new http request without state.
-    pub fn clone_without_state(&self) -> HttpRequest {
+    pub(crate) fn clone_without_state(&self) -> HttpRequest {
         HttpRequest(self.0.clone(), None, None)
     }
 
