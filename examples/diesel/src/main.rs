@@ -26,11 +26,12 @@ use diesel::prelude::*;
 mod models;
 mod schema;
 
-
+/// State with DbExecutor address
 struct State {
     db: SyncAddress<DbExecutor>,
 }
 
+/// Async request handler
 fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let name = &req.match_info()["name"];
 
