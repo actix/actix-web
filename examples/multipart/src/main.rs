@@ -28,7 +28,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
                             field.map_err(Error::from)
                                 .map(|chunk| {
                                     println!("-- CHUNK: \n{}",
-                                             std::str::from_utf8(&chunk.0).unwrap());})
+                                             std::str::from_utf8(&chunk).unwrap());})
                                 .fold((), |_, _| result::<_, Error>(Ok(()))))
                     },
                     multipart::MultipartItem::Nested(mp) => {

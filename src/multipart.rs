@@ -377,10 +377,6 @@ pub struct Field {
     safety: Safety,
 }
 
-/// A field's chunk
-#[derive(PartialEq, Debug)]
-pub struct FieldChunk(pub Bytes);
-
 impl Field {
 
     fn new(safety: Safety, headers: HeaderMap,
@@ -403,7 +399,7 @@ impl Field {
 }
 
 impl Stream for Field {
-    type Item = FieldChunk;
+    type Item = Bytes;
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -522,7 +518,7 @@ impl InnerField {
         }
     }
 
-    fn poll(&mut self, s: &Safety) -> Poll<Option<FieldChunk>, MultipartError> {
+    fn poll(&mut self, s: &Safety) -> Poll<Option<Bytes>, MultipartError> {
         if self.payload.is_none() {
             return Ok(Async::Ready(None))
         }
@@ -554,7 +550,7 @@ impl InnerField {
 
             match res {
                 Async::NotReady => Async::NotReady,
-                Async::Ready(Some(bytes)) => Async::Ready(Some(FieldChunk(bytes))),
+                Async::Ready(Some(bytes)) => Async::Ready(Some(bytes)),
                 Async::Ready(None) => {
                     self.eof = true;
                     match payload.readline().poll()? {
@@ -734,7 +730,7 @@ mod tests {
 
                             match field.poll() {
                                 Ok(Async::Ready(Some(chunk))) =>
-                                    assert_eq!(chunk.0, "test"),
+                                    assert_eq!(chunk, "test"),
                                 _ => unreachable!()
                             }
                             match field.poll() {
@@ -757,7 +753,7 @@ mod tests {
 
                             match field.poll() {
                                 Ok(Async::Ready(Some(chunk))) =>
-                                    assert_eq!(chunk.0, "data"),
+                                    assert_eq!(chunk, "data"),
                                 _ => unreachable!()
                             }
                             match field.poll() {
