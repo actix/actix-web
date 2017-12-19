@@ -167,6 +167,7 @@ pub mod dev {
     pub use handler::Handler;
     pub use router::{Router, Pattern};
     pub use pipeline::Pipeline;
+    pub use payload::{PayloadSender, PayloadWriter};
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
     pub use server::ServerSettings;

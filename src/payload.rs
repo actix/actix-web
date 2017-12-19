@@ -45,6 +45,7 @@ impl fmt::Debug for PayloadItem {
 /// Stream of byte chunks
 ///
 /// Payload stores chunks in vector. First chunk can be received with `.readany()` method.
+/// Payload stream is not thread safe.
 #[derive(Debug)]
 pub struct Payload {
     inner: Rc<RefCell<Inner>>,
@@ -52,7 +53,14 @@ pub struct Payload {
 
 impl Payload {
 
-    pub(crate) fn new(eof: bool) -> (PayloadSender, Payload) {
+    /// Create payload stream.
+    ///
+    /// This method construct two objects responsible for bytes stream generation.
+    ///
+    /// * `PayloadSender` - *Sender* side of the stream
+    ///
+    /// * `Payload` - *Receiver* side of the stream
+    pub fn new(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
         (PayloadSender{inner: Rc::downgrade(&shared)}, Payload{inner: shared})
@@ -138,17 +146,23 @@ impl Stream for Payload {
     }
 }
 
-pub(crate) trait PayloadWriter {
+pub trait PayloadWriter {
+
+    /// Set stream error.
     fn set_error(&mut self, err: PayloadError);
 
+    /// Write eof into a stream which closes reading side of a stream.
     fn feed_eof(&mut self);
 
+    /// Feed bytes into a payload stream
     fn feed_data(&mut self, data: Bytes);
 
+    /// Get estimated available capacity
     fn capacity(&self) -> usize;
 }
 
-pub(crate) struct PayloadSender {
+/// Sender part of the payload stream
+pub struct PayloadSender {
     inner: Weak<RefCell<Inner>>,
 }
 
