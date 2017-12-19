@@ -48,9 +48,12 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state.rs)
-* [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart)
+* [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
-* [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat)
+* [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
+* [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
+* [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)
+* [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
 * [SockJS Server](https://github.com/actix/actix-sockjs)
 
 ## License
