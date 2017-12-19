@@ -5,6 +5,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 extern crate futures;
+use futures::Stream;
 
 use actix_web::*;
 use actix_web::middlewares::RequestSession;
@@ -13,11 +14,9 @@ use futures::future::{FutureResult, result};
 /// simple handler
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
-    if let Some(payload) = req.payload_mut() {
-        if let Ok(ch) = payload.readany() {
-            if let futures::Async::Ready(Some(d)) = ch {
-                println!("{}", String::from_utf8_lossy(d.0.as_ref()));
-            }
+    if let Ok(ch) = req.payload_mut().readany().poll() {
+        if let futures::Async::Ready(Some(d)) = ch {
+            println!("{}", String::from_utf8_lossy(d.as_ref()));
         }
     }
 

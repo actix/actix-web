@@ -9,7 +9,7 @@ use httparse;
 use bytes::Bytes;
 use http::HttpTryFrom;
 use http::header::{self, HeaderMap, HeaderName, HeaderValue};
-use futures::{Async, Stream, Poll};
+use futures::{Async, Future, Stream, Poll};
 use futures::task::{Task, current as current_task};
 
 use error::{ParseError, PayloadError, MultipartError};
@@ -119,7 +119,7 @@ impl InnerMultipart {
 
     fn read_headers(payload: &mut Payload) -> Poll<HeaderMap, MultipartError>
     {
-        match payload.readuntil(b"\r\n\r\n")? {
+        match payload.readuntil(b"\r\n\r\n").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(bytes) => {
                 let mut hdrs = [httparse::EMPTY_HEADER; MAX_HEADERS];
@@ -150,7 +150,7 @@ impl InnerMultipart {
     fn read_boundary(payload: &mut Payload, boundary: &str) -> Poll<bool, MultipartError>
     {
         // TODO: need to read epilogue
-        match payload.readline()? {
+        match payload.readline().poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(chunk) => {
                 if chunk.len() == boundary.len() + 4 &&
@@ -175,7 +175,7 @@ impl InnerMultipart {
     {
         let mut eof = false;
         loop {
-            if let Async::Ready(chunk) = payload.readline()? {
+            if let Async::Ready(chunk) = payload.readline().poll()? {
                 if chunk.is_empty() {
                     //ValueError("Could not find starting boundary %r"
                     //% (self._boundary))
@@ -452,15 +452,15 @@ impl InnerField {
         if *size == 0 {
             Ok(Async::Ready(None))
         } else {
-            match payload.readany() {
+            match payload.readany().poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
                 Ok(Async::Ready(Some(mut chunk))) => {
-                    let len = cmp::min(chunk.0.len() as u64, *size);
+                    let len = cmp::min(chunk.len() as u64, *size);
                     *size -= len;
-                    let ch = chunk.0.split_to(len as usize);
-                    if !chunk.0.is_empty() {
-                        payload.unread_data(chunk.0);
+                    let ch = chunk.split_to(len as usize);
+                    if !chunk.is_empty() {
+                        payload.unread_data(chunk);
                     }
                     Ok(Async::Ready(Some(ch)))
                 },
@@ -473,12 +473,12 @@ impl InnerField {
     /// The `Content-Length` header for body part is not necessary.
     fn read_stream(payload: &mut Payload, boundary: &str) -> Poll<Option<Bytes>, MultipartError>
     {
-        match payload.readuntil(b"\r")? {
+        match payload.readuntil(b"\r").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(mut chunk) => {
                 if chunk.len() == 1 {
                     payload.unread_data(chunk);
-                    match payload.readexactly(boundary.len() + 4)? {
+                    match payload.readexactly(boundary.len() + 4).poll()? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(chunk) => {
                             if &chunk[..2] == b"\r\n" && &chunk[2..4] == b"--" &&
@@ -507,7 +507,7 @@ impl InnerField {
         }
         if self.eof {
             if let Some(payload) = self.payload.as_ref().unwrap().get_mut(s) {
-                match payload.readline()? {
+                match payload.readline().poll()? {
                     Async::NotReady =>
                         return Ok(Async::NotReady),
                     Async::Ready(chunk) => {
@@ -536,7 +536,7 @@ impl InnerField {
                 Async::Ready(Some(bytes)) => Async::Ready(Some(FieldChunk(bytes))),
                 Async::Ready(None) => {
                     self.eof = true;
-                    match payload.readline()? {
+                    match payload.readline().poll()? {
                         Async::NotReady => Async::NotReady,
                         Async::Ready(chunk) => {
                             assert_eq!(

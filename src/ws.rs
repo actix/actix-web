@@ -57,7 +57,7 @@ use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
 use body::Body;
 use context::HttpContext;
 use handler::Reply;
-use payload::Payload;
+use payload::ReadAny;
 use error::{Error, WsHandshakeError};
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse};
@@ -96,15 +96,11 @@ pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
 {
     let resp = handshake(&req)?;
 
-    if let Some(payload) = req.take_payload() {
-        let stream = WsStream::new(payload);
-        let mut ctx = HttpContext::new(req, actor);
-        ctx.start(resp);
-        ctx.add_stream(stream);
-        Ok(ctx.into())
-    } else {
-        Err(WsHandshakeError::NoPayload.into())
-    }
+    let stream = WsStream::new(req.payload_mut().readany());
+    let mut ctx = HttpContext::new(req, actor);
+    ctx.start(resp);
+    ctx.add_stream(stream);
+    Ok(ctx.into())
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -175,14 +171,14 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
 
 /// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream {
-    rx: Payload,
+    rx: ReadAny,
     buf: BytesMut,
     closed: bool,
     error_sent: bool,
 }
 
 impl WsStream {
-    pub fn new(payload: Payload) -> WsStream {
+    pub fn new(payload: ReadAny) -> WsStream {
         WsStream { rx: payload,
                    buf: BytesMut::new(),
                    closed: false,
@@ -199,9 +195,9 @@ impl Stream for WsStream {
 
         if !self.closed {
             loop {
-                match self.rx.readany() {
+                match self.rx.poll() {
                     Ok(Async::Ready(Some(chunk))) => {
-                        self.buf.extend_from_slice(&chunk.0)
+                        self.buf.extend_from_slice(&chunk)
                     }
                     Ok(Async::Ready(None)) => {
                         done = true;

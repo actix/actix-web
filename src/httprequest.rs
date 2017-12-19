@@ -79,8 +79,8 @@ impl HttpMessage {
         self.params.clear();
         self.cookies = None;
         self.addr = None;
-        self.payload = None;
         self.info = None;
+        self.payload = None;
     }
 }
 
@@ -385,32 +385,30 @@ impl<S> HttpRequest<S> {
 
     /// Returns reference to the associated http payload.
     #[inline]
-    pub fn payload(&self) -> Option<&Payload> {
-        self.as_ref().payload.as_ref()
+    pub fn payload(&self) -> &Payload {
+        let msg = self.as_mut();
+        if msg.payload.is_none() {
+            msg.payload = Some(Payload::empty());
+        }
+        msg.payload.as_ref().unwrap()
     }
 
     /// Returns mutable reference to the associated http payload.
     #[inline]
-    pub fn payload_mut(&mut self) -> Option<&mut Payload> {
-        self.as_mut().payload.as_mut()
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        let msg = self.as_mut();
+        if msg.payload.is_none() {
+            msg.payload = Some(Payload::empty());
+        }
+        msg.payload.as_mut().unwrap()
     }
 
-    /// Return payload
-    #[inline]
-    pub fn take_payload(&mut self) -> Option<Payload> {
-        self.as_mut().payload.take()
-    }
-    
     /// Return stream to process BODY as multipart.
     ///
     /// Content-type: multipart/form-data;
     pub fn multipart(&mut self) -> Result<Multipart, MultipartError> {
         let boundary = Multipart::boundary(self.headers())?;
-        if let Some(payload) = self.take_payload() {
-            Ok(Multipart::new(boundary, payload))
-        } else {
-            Err(MultipartError::NoPayload)
-        }
+        Ok(Multipart::new(boundary, self.payload().clone()))
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.
@@ -453,11 +451,7 @@ impl<S> HttpRequest<S> {
         };
 
         if t {
-            if let Some(payload) = self.take_payload() {
-                Ok(UrlEncoded{pl: payload, body: BytesMut::new()})
-            } else {
-                Err(UrlencodedError::NoPayload)
-            }
+            Ok(UrlEncoded{pl: self.payload().clone(), body: BytesMut::new()})
         } else {
             Err(UrlencodedError::ContentType)
         }
@@ -523,7 +517,7 @@ impl Future for UrlEncoded {
                     Ok(Async::Ready(m))
                 },
                 Ok(Async::Ready(Some(item))) => {
-                    self.body.extend_from_slice(&item.0);
+                    self.body.extend_from_slice(&item);
                     continue
                 },
                 Err(err) => Err(err),

@@ -1,10 +1,11 @@
+//! Payload stream
 use std::{fmt, cmp};
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::ops::{Deref, DerefMut};
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Poll, Stream};
+use futures::{Future, Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
 use body::BodyStream;
@@ -88,27 +89,23 @@ impl Payload {
     }
 
     /// Get first available chunk of data.
-    /// Returns Some(PayloadItem) as chunk, `None` indicates eof.
-    pub fn readany(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
-        self.inner.borrow_mut().readany()
+    pub fn readany(&mut self) -> ReadAny {
+        ReadAny(Rc::clone(&self.inner))
     }
 
-    /// Get exactly number of bytes
-    /// Returns Some(PayloadItem) as chunk, `None` indicates eof.
-    pub fn readexactly(&mut self, size: usize) -> Result<Async<Bytes>, PayloadError> {
-        self.inner.borrow_mut().readexactly(size)
+    /// Get exact number of bytes
+    pub fn readexactly(&mut self, size: usize) -> ReadExactly {
+        ReadExactly(Rc::clone(&self.inner), size)
     }
 
     /// Read until `\n`
-    /// Returns Some(PayloadItem) as line, `None` indicates eof.
-    pub fn readline(&mut self) -> Result<Async<Bytes>, PayloadError> {
-        self.inner.borrow_mut().readline()
+    pub fn readline(&mut self) -> ReadLine {
+        ReadLine(Rc::clone(&self.inner))
     }
 
     /// Read until match line
-    /// Returns Some(PayloadItem) as line, `None` indicates eof.
-    pub fn readuntil(&mut self, line: &[u8]) -> Result<Async<Bytes>, PayloadError> {
-        self.inner.borrow_mut().readuntil(line)
+    pub fn readuntil(&mut self, line: &[u8]) -> ReadUntil {
+        ReadUntil(Rc::clone(&self.inner), line.to_vec())
     }
 
     #[doc(hidden)]
@@ -133,19 +130,91 @@ impl Payload {
 
     /// Convert payload into BodyStream
     pub fn stream(self) -> BodyStream {
-        Box::new(self.map(|item| item.0).map_err(|e| e.into()))
+        Box::new(self.map_err(|e| e.into()))
     }
 }
 
 impl Stream for Payload {
-    type Item = PayloadItem;
+    type Item = Bytes;
     type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
-        self.readany()
+    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        match self.inner.borrow_mut().readany()? {
+            Async::Ready(Some(item)) => Ok(Async::Ready(Some(item.0))),
+            Async::Ready(None) => Ok(Async::Ready(None)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
     }
 }
 
+impl Clone for Payload {
+    fn clone(&self) -> Payload {
+        Payload{inner: Rc::clone(&self.inner)}
+    }
+}
+
+/// Get first available chunk of data
+pub struct ReadAny(Rc<RefCell<Inner>>);
+
+impl Stream for ReadAny {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Option<Bytes>, Self::Error> {
+        match self.0.borrow_mut().readany()? {
+            Async::Ready(Some(item)) => Ok(Async::Ready(Some(item.0))),
+            Async::Ready(None) => Ok(Async::Ready(None)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+}
+
+/// Get exact number of bytes
+pub struct ReadExactly(Rc<RefCell<Inner>>, usize);
+
+impl Future for ReadExactly {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.0.borrow_mut().readexactly(self.1)? {
+            Async::Ready(chunk) => Ok(Async::Ready(chunk)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+}
+
+/// Read until `\n`
+pub struct ReadLine(Rc<RefCell<Inner>>);
+
+impl Future for ReadLine {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.0.borrow_mut().readline()? {
+            Async::Ready(chunk) => Ok(Async::Ready(chunk)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+}
+
+/// Read until match line
+pub struct ReadUntil(Rc<RefCell<Inner>>, Vec<u8>);
+
+impl Future for ReadUntil {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.0.borrow_mut().readuntil(&self.1)? {
+            Async::Ready(chunk) => Ok(Async::Ready(chunk)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+}
+
+/// Payload writer interface.
 pub trait PayloadWriter {
 
     /// Set stream error.
@@ -408,7 +477,7 @@ mod tests {
             assert!(!payload.eof());
             assert!(payload.is_empty());
             assert_eq!(payload.len(), 0);
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+            assert_eq!(Async::NotReady, payload.readany().poll().ok().unwrap());
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -420,7 +489,7 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+            assert_eq!(Async::NotReady, payload.readany().poll().ok().unwrap());
             assert!(!payload.eof());
 
             sender.feed_data(Bytes::from("data"));
@@ -428,13 +497,13 @@ mod tests {
 
             assert!(!payload.eof());
 
-            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("data")))),
-                       payload.readany().ok().unwrap());
+            assert_eq!(Async::Ready(Some(Bytes::from("data"))),
+                       payload.readany().poll().ok().unwrap());
             assert!(payload.is_empty());
             assert!(payload.eof());
             assert_eq!(payload.len(), 0);
 
-            assert_eq!(Async::Ready(None), payload.readany().ok().unwrap());
+            assert_eq!(Async::Ready(None), payload.readany().poll().ok().unwrap());
             let res: Result<(), ()> = Ok(());
             result(res)
         })).unwrap();
@@ -445,10 +514,10 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+            assert_eq!(Async::NotReady, payload.readany().poll().ok().unwrap());
 
             sender.set_error(PayloadError::Incomplete);
-            payload.readany().err().unwrap();
+            payload.readany().poll().err().unwrap();
             let res: Result<(), ()> = Ok(());
             result(res)
         })).unwrap();
@@ -468,8 +537,8 @@ mod tests {
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 10);
 
-            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("line1")))),
-                       payload.readany().ok().unwrap());
+            assert_eq!(Async::Ready(Some(Bytes::from("line1"))),
+                       payload.readany().poll().ok().unwrap());
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 5);
 
@@ -483,20 +552,22 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            assert_eq!(Async::NotReady, payload.readexactly(2).ok().unwrap());
+            assert_eq!(Async::NotReady, payload.readexactly(2).poll().ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
             assert_eq!(payload.len(), 10);
 
-            assert_eq!(Async::Ready(Bytes::from("li")), payload.readexactly(2).ok().unwrap());
+            assert_eq!(Async::Ready(Bytes::from("li")),
+                       payload.readexactly(2).poll().ok().unwrap());
             assert_eq!(payload.len(), 8);
 
-            assert_eq!(Async::Ready(Bytes::from("ne1l")), payload.readexactly(4).ok().unwrap());
+            assert_eq!(Async::Ready(Bytes::from("ne1l")),
+                       payload.readexactly(4).poll().ok().unwrap());
             assert_eq!(payload.len(), 4);
 
             sender.set_error(PayloadError::Incomplete);
-            payload.readexactly(10).err().unwrap();
+            payload.readexactly(10).poll().err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -508,22 +579,22 @@ mod tests {
         Core::new().unwrap().run(lazy(|| {
             let (mut sender, mut payload) = Payload::new(false);
 
-            assert_eq!(Async::NotReady, payload.readuntil(b"ne").ok().unwrap());
+            assert_eq!(Async::NotReady, payload.readuntil(b"ne").poll().ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
             assert_eq!(payload.len(), 10);
 
             assert_eq!(Async::Ready(Bytes::from("line")),
-                       payload.readuntil(b"ne").ok().unwrap());
+                       payload.readuntil(b"ne").poll().ok().unwrap());
             assert_eq!(payload.len(), 6);
 
             assert_eq!(Async::Ready(Bytes::from("1line2")),
-                       payload.readuntil(b"2").ok().unwrap());
+                       payload.readuntil(b"2").poll().ok().unwrap());
             assert_eq!(payload.len(), 0);
 
             sender.set_error(PayloadError::Incomplete);
-            payload.readuntil(b"b").err().unwrap();
+            payload.readuntil(b"b").poll().err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -539,8 +610,8 @@ mod tests {
             assert!(!payload.is_empty());
             assert_eq!(payload.len(), 4);
 
-            assert_eq!(Async::Ready(Some(PayloadItem(Bytes::from("data")))),
-                       payload.readany().ok().unwrap());
+            assert_eq!(Async::Ready(Some(Bytes::from("data"))),
+                       payload.readany().poll().ok().unwrap());
 
             let res: Result<(), ()> = Ok(());
             result(res)

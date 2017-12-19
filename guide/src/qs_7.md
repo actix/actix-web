@@ -99,12 +99,11 @@ Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
 ```rust
 # extern crate actix_web;
 use actix_web::*;
-use actix_web::headers::ContentEncoding;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .chunked()
-        .body(Body::Streaming(Payload::empty().stream())).unwrap()
+        .body(Body::Streaming(payload::Payload::empty().stream())).unwrap()
 }
 # fn main() {}
 ```
@@ -123,4 +122,42 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## Streaming request
 
-[WIP]
+Actix uses [*Payload*](../actix_web/struct.Payload.html) object as request payload stream.
+*HttpRequest* provides several methods, which can be used for payload access.
+At the same time *Payload* implements *Stream* trait, so it could be used with various
+stream combinators. Also *Payload* provides serveral convinience methods that return
+future object that resolve to Bytes object.
+
+* *readany* method returns *Stream* of *Bytes* objects.
+
+* *readexactly* method returns *Future* that resolves when specified number of bytes
+  get received.
+  
+* *readline* method returns *Future* that resolves when `\n` get received.
+
+* *readuntil* method returns *Future* that resolves when specified bytes string
+  matches in input bytes stream
+
+Here is example that reads request payload and prints it.
+
+```rust
+# extern crate actix_web;
+# extern crate futures;
+# use futures::future::result;
+use actix_web::*;
+use futures::{Future, Stream};
+
+
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    Box::new(
+        req.payload_mut()
+            .readany()
+            .fold((), |_, chunk| {
+                println!("Chunk: {:?}", chunk);
+                result::<_, error::PayloadError>(Ok(()))
+            })
+            .map_err(|e| Error::from(e))
+            .map(|_| HttpResponse::Ok().finish().unwrap()))
+}
+# fn main() {}
+```
