@@ -317,10 +317,18 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this.
 # use actix_web::httpcodes::*;
 # 
 fn index(req: HttpRequest) -> HttpResponse {
-     let url = req.url_for("foo", &["1", "2", "3"]);
-     HTTPOk.into()
+    let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    HTTPOk.into()
 }
-# fn main() {}
+
+fn main() {
+    let app = Application::new()
+        .resource("/test/{one}/{two}/{three}", |r| {
+             r.name("foo");  // <- set resource name, then it could be used in `url_for`
+             r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+        })
+        .finish();
+}
 ```
 
 This would return something like the string *http://example.com/1/2/3* (at least if

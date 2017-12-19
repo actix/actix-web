@@ -1,5 +1,6 @@
 //! HTTP Request message related code.
 use std::{str, fmt, mem};
+use std::borrow::Cow;
 use std::rc::Rc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
@@ -235,6 +236,27 @@ impl<S> HttpRequest<S> {
         self.as_ref().info.as_ref().unwrap()
     }
 
+    /// Generate url for named resource
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    ///     HTTPOk.into()
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .resource("/test/{one}/{two}/{three}", |r| {
+    ///              r.name("foo");  // <- set resource name, then it could be used in `url_for`
+    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///         })
+    ///         .finish();
+    /// }
+    /// ```
     pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
         where U: IntoIterator<Item=I>,
               I: AsRef<str>,
@@ -252,11 +274,18 @@ impl<S> HttpRequest<S> {
         }
     }
 
+    /// This method returns reference to current `Router` object.
     #[inline]
     pub fn router(&self) -> Option<&Router<S>> {
         self.2.as_ref()
     }
 
+    /// Peer socket address
+    ///
+    /// Peer address is actuall socket address, if proxy is used in front of
+    /// actix http server, then peer address would be address of this proxy.
+    ///
+    /// To get client connection information `connection_info()` method should be used.
     #[inline]
     pub fn peer_addr(&self) -> Option<&SocketAddr> {
         self.as_ref().addr.as_ref()
@@ -268,12 +297,10 @@ impl<S> HttpRequest<S> {
     }
 
     /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
-    pub fn query(&self) -> HashMap<String, String> {
-        let mut q: HashMap<String, String> = HashMap::new();
-        if let Some(query) = self.as_ref().uri.query().as_ref() {
-            for (key, val) in form_urlencoded::parse(query.as_ref()) {
-                q.insert(key.to_string(), val.to_string());
-            }
+    pub fn query(&self) -> HashMap<Cow<str>,  Cow<str>> {
+        let mut q = HashMap::new();
+        for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
+            q.insert(key, val);
         }
         q
     }
