@@ -122,7 +122,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## Streaming request
 
-Actix uses [*Payload*](../actix_web/struct.Payload.html) object as request payload stream.
+Actix uses [*Payload*](../actix_web/payload/struct.Payload.html) object as request payload stream.
 *HttpRequest* provides several methods, which can be used for payload access.
 At the same time *Payload* implements *Stream* trait, so it could be used with various
 stream combinators. Also *Payload* provides serveral convinience methods that return

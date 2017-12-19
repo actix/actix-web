@@ -43,10 +43,12 @@ impl fmt::Debug for PayloadItem {
     }
 }
 
-/// Stream of byte chunks
+/// Buffered stream of bytes chunks
 ///
-/// Payload stores chunks in vector. First chunk can be received with `.readany()` method.
+/// Payload stores chunks in a vector. First chunk can be received with `.readany()` method.
 /// Payload stream is not thread safe.
+///
+/// Payload stream can be used as `HttpResponse` body stream.
 #[derive(Debug)]
 pub struct Payload {
     inner: Rc<RefCell<Inner>>,
@@ -128,7 +130,7 @@ impl Payload {
         self.inner.borrow_mut().set_buffer_size(size)
     }
 
-    /// Convert payload into BodyStream
+    /// Convert payload into compatible `HttpResponse` body stream
     pub fn stream(self) -> BodyStream {
         Box::new(self.map_err(|e| e.into()))
     }
