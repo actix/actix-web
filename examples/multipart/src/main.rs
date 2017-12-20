@@ -4,6 +4,7 @@ extern crate actix_web;
 extern crate env_logger;
 extern crate futures;
 
+use actix::*;
 use actix_web::*;
 use futures::{Future, Stream};
 use futures::future::{result, Either};
@@ -28,7 +29,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
                                 .map(|chunk| {
                                     println!("-- CHUNK: \n{}",
                                              std::str::from_utf8(&chunk).unwrap());})
-                                .fold((), |_, _| result::<_, Error>(Ok(()))))
+                                .finish())
                     },
                     multipart::MultipartItem::Nested(mp) => {
                         // Or item could be nested Multipart stream
@@ -36,8 +37,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
                     }
                 }
             })
-            // wait until stream finishes
-            .fold((), |_, _| result::<_, Error>(Ok(())))
+            .finish()  // <- Stream::finish() combinator from actix
             .map(|_| httpcodes::HTTPOk.response())
     )
 }
