@@ -20,6 +20,23 @@ use httpresponse::HttpResponse;
 use middlewares::{Middleware, Started, Response};
 
 /// The helper trait to obtain your session data from a request.
+///
+/// ```rust
+/// use actix_web::*;
+/// use actix_web::middlewares::RequestSession;
+///
+/// fn index(mut req: HttpRequest) -> Result<&'static str> {
+///     // access session data
+///     if let Some(count) = req.session().get::<i32>("counter")? {
+///         req.session().set("counter", count+1)?;
+///     } else {
+///         req.session().set("counter", 1)?;
+///     }
+///
+///     Ok("Welcome!")
+/// }
+/// # fn main() {}
+/// ```
 pub trait RequestSession {
     fn session(&mut self) -> Session;
 }
@@ -101,14 +118,15 @@ unsafe impl Sync for SessionImplBox {}
 /// ```rust
 /// # extern crate actix;
 /// # extern crate actix_web;
+/// # use actix_web::middlewares::{SessionStorage, CookieSessionBackend};
 /// use actix_web::*;
 ///
 /// fn main() {
-///    let app = Application::new()
-///        .middleware(middlewares::SessionStorage::new(          // <- create session middlewares
-///           middlewares::CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
-///        .secure(false)
-///        .finish())
+///    let app = Application::new().middleware(
+///        SessionStorage::new(                      // <- create session middlewares
+///            CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
+///               .secure(false)
+///               .finish())
 ///    );
 /// }
 /// ```
