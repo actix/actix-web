@@ -58,7 +58,9 @@ After that, application instance can be used with `HttpServer` to listen for inc
 connections. Server accepts function that should return `HttpHandler` instance:
 
 ```rust,ignore
-   HttpServer::new(|| app).serve::<_, ()>("127.0.0.1:8088");
+   HttpServer::new(|| app)
+       .bind("127.0.0.1:8088")?
+       .start();
 ```
 
 That's it. Now, compile and run the program with cargo run. 
@@ -92,5 +94,5 @@ fn main() {
 
 Note on `actix` crate. Actix web framework is built on top of actix actor library. 
 `actix::System` initializes actor system, `HttpServer` is an actor and must run within
-proper configured actix system. For more information please check
+properly configured actix system. For more information please check
 [actix documentation](https://actix.github.io/actix/actix/)
