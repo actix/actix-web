@@ -33,6 +33,7 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
        cd examples/diesel && cargo check && cd ../..
        cd examples/multipart && cargo check && cd ../..
+       cd examples/json && cargo check && cd ../..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
