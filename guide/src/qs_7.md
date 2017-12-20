@@ -59,8 +59,8 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## JSON Request
 
-Unfortunately, because of async nature of actix web framework, deserializing json
-requests is not very ergonomic process. First you need to load whole body into
+Unfortunately, because of async nature of actix web framework, json requests deserialization
+is not very ergonomic process. First you need to load whole body into a
 temporal storage and only then you can deserialize it.
 
 Here is simple example. We will deserialize *MyObj* struct.
@@ -73,17 +73,16 @@ struct MyObj {
 }
 ```
 
-We need to load request body first.
+We need to load request body first and then deserialize json into object.
 
 ```rust,ignore
 fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
-
    req.payload_mut().readany()
      .fold(BytesMut::new(), |mut body, chunk| {   // <- load request body
          body.extend(chunk);
-         result::<_, error::PayloadError>(Ok(body))
+         ok(body)
      })
-    .and_then(|body| {  // <- body is loaded, now we can deserialize json
+    .and_then(|body| {                   // <- body is loaded, now we can deserialize json
         let obj = serde_json::from_slice::<MyObj>(&body).unwrap();
         println!("MODEL: {:?}", obj);    // <- do something with payload
         ok(httpcodes::HTTPOk.response()) // <- send response

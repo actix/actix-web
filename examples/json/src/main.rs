@@ -9,7 +9,7 @@ extern crate serde_json;
 use actix_web::*;
 use bytes::BytesMut;
 use futures::Stream;
-use futures::future::{Future, ok, err, result};
+use futures::future::{Future, ok, err};
 
 #[derive(Debug, Deserialize)]
 struct MyObj {
@@ -18,25 +18,23 @@ struct MyObj {
 }
 
 fn index(mut req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>> {
-    // check content-type, early error exit
+    // check content-type
     if req.content_type() != "application/json" {
         return Err(error::ErrorBadRequest("wrong content-type").into())
     }
 
     Ok(Box::new(
-        // load request body
-        req.payload_mut()
+        req.payload_mut()      // <- load request body
             .readany()
             .fold(BytesMut::new(), |mut body, chunk| {
                 body.extend(chunk);
-                result::<_, error::PayloadError>(Ok(body))
+                ok::<_, error::PayloadError>(body)
             })
             .map_err(|e| Error::from(e))
-            .and_then(|body| {
-                // body is loaded, now we can deserialize json
+            .and_then(|body| { // <- body is loaded, now we can deserialize json
                 match serde_json::from_slice::<MyObj>(&body) {
                     Ok(obj) => {
-                        println!("MODEL: {:?}", obj);    // <- do something with payload
+                        println!("model: {:?}", obj);    // <- do something with payload
                         ok(httpcodes::HTTPOk.response()) // <- send response
                     },
                     Err(e) => {
