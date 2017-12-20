@@ -68,4 +68,4 @@ This project is licensed under either of
 at your option.
 
 
-[![Analytics](https://ga-beacon.appspot.com/UA-110322332-2/actix-web/readme)](https://github.com/igrigorik/ga-beacon)
+[![Analytics](https://ga-beacon.appspot.com/UA-110322332-2/actix-web/readme?pixel)](https://github.com/igrigorik/ga-beacon)
