@@ -260,7 +260,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
                     Ok(reply) => match reply.into().0 {
                         ReplyItem::Message(resp) => ok(resp),
                         _ => panic!("Nested async replies are not supported"),
-                    }
+                    },
                     Err(e) => err(e),
                 }
             });

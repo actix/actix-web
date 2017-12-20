@@ -76,7 +76,7 @@ impl<S: 'static> Resource<S> {
     ///     let app = Application::new()
     ///         .resource(
     ///             "/", |r| r.route()
-    ///                  .p(pred::Any(vec![pred::Get(), pred::Put()]))
+    ///                  .p(pred::Any(pred::Get()).or(pred::Put()))
     ///                  .p(pred::Header("Content-Type", "text/plain"))
     ///                  .f(|r| HttpResponse::Ok()))
     ///         .finish();

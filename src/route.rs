@@ -57,8 +57,8 @@ impl<S: 'static> Route<S> {
     /// #      .finish();
     /// # }
     /// ```
-    pub fn p(&mut self, p: Box<Predicate<S>>) -> &mut Self {
-        self.preds.push(p);
+    pub fn p<T: Predicate<S> + 'static>(&mut self, p: T) -> &mut Self {
+        self.preds.push(Box::new(p));
         self
     }
 

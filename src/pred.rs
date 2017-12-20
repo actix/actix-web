@@ -16,13 +16,36 @@ pub trait Predicate<S> {
 }
 
 /// Return predicate that matches if any of supplied predicate matches.
-pub fn Any<T, S: 'static>(preds: T) -> Box<Predicate<S>>
-    where T: IntoIterator<Item=Box<Predicate<S>>>
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # extern crate http;
+/// # use actix_web::*;
+/// # use actix_web::httpcodes::*;
+/// use actix_web::pred;
+///
+/// fn main() {
+///     Application::new()
+///         .resource("/index.html", |r| r.route()
+///             .p(pred::Any(pred::Get()).or(pred::Post()))
+///             .h(HTTPMethodNotAllowed));
+/// }
+/// ```
+pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S>
 {
-    Box::new(AnyPredicate(preds.into_iter().collect()))
+    AnyPredicate(vec![Box::new(pred)])
 }
 
-struct AnyPredicate<S>(Vec<Box<Predicate<S>>>);
+/// Matches if any of supplied predicate matches.
+pub struct AnyPredicate<S>(Vec<Box<Predicate<S>>>);
+
+impl<S> AnyPredicate<S> {
+    /// Add new predicate to list of predicates to check
+    pub fn or<P: Predicate<S> + 'static>(mut self, pred: P) -> Self {
+        self.0.push(Box::new(pred));
+        self
+    }
+}
 
 impl<S: 'static> Predicate<S> for AnyPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
@@ -36,13 +59,36 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 }
 
 /// Return predicate that matches if all of supplied predicate matches.
-pub fn All<T, S: 'static>(preds: T) -> Box<Predicate<S>>
-    where T: IntoIterator<Item=Box<Predicate<S>>>
-{
-    Box::new(AllPredicate(preds.into_iter().collect()))
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # extern crate http;
+/// # use actix_web::*;
+/// # use actix_web::httpcodes::*;
+/// use actix_web::pred;
+///
+/// fn main() {
+///     Application::new()
+///         .resource("/index.html", |r| r.route()
+///            .p(pred::All(pred::Get())
+///                 .and(pred::Header("content-type", "plain/text")))
+///            .h(HTTPMethodNotAllowed));
+/// }
+/// ```
+pub fn All<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AllPredicate<S> {
+    AllPredicate(vec![Box::new(pred)])
 }
 
-struct AllPredicate<S>(Vec<Box<Predicate<S>>>);
+/// Matches if all of supplied predicate matches.
+pub struct AllPredicate<S>(Vec<Box<Predicate<S>>>);
+
+impl<S> AllPredicate<S> {
+    /// Add new predicate to list of predicates to check
+    pub fn and<P: Predicate<S> + 'static>(mut self, pred: P) -> Self {
+        self.0.push(Box::new(pred));
+        self
+    }
+}
 
 impl<S: 'static> Predicate<S> for AllPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
@@ -56,12 +102,13 @@ impl<S: 'static> Predicate<S> for AllPredicate<S> {
 }
 
 /// Return predicate that matches if supplied predicate does not match.
-pub fn Not<S: 'static>(pred: Box<Predicate<S>>) -> Box<Predicate<S>>
+pub fn Not<S: 'static, P: Predicate<S> + 'static>(pred: P) -> NotPredicate<S>
 {
-    Box::new(NotPredicate(pred))
+    NotPredicate(Box::new(pred))
 }
 
-struct NotPredicate<S>(Box<Predicate<S>>);
+#[doc(hidden)]
+pub struct NotPredicate<S>(Box<Predicate<S>>);
 
 impl<S: 'static> Predicate<S> for NotPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
@@ -70,7 +117,8 @@ impl<S: 'static> Predicate<S> for NotPredicate<S> {
 }
 
 /// Http method predicate
-struct MethodPredicate<S>(http::Method, PhantomData<S>);
+#[doc(hidden)]
+pub struct MethodPredicate<S>(http::Method, PhantomData<S>);
 
 impl<S: 'static> Predicate<S> for MethodPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
@@ -79,64 +127,65 @@ impl<S: 'static> Predicate<S> for MethodPredicate<S> {
 }
 
 /// Predicate to match *GET* http method
-pub fn Get<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::GET, PhantomData))
+pub fn Get<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::GET, PhantomData)
 }
 
 /// Predicate to match *POST* http method
-pub fn Post<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::POST, PhantomData))
+pub fn Post<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::POST, PhantomData)
 }
 
 /// Predicate to match *PUT* http method
-pub fn Put<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::PUT, PhantomData))
+pub fn Put<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::PUT, PhantomData)
 }
 
 /// Predicate to match *DELETE* http method
-pub fn Delete<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::DELETE, PhantomData))
+pub fn Delete<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::DELETE, PhantomData)
 }
 
 /// Predicate to match *HEAD* http method
-pub fn Head<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::HEAD, PhantomData))
+pub fn Head<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::HEAD, PhantomData)
 }
 
 /// Predicate to match *OPTIONS* http method
-pub fn Options<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::OPTIONS, PhantomData))
+pub fn Options<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::OPTIONS, PhantomData)
 }
 
 /// Predicate to match *CONNECT* http method
-pub fn Connect<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::CONNECT, PhantomData))
+pub fn Connect<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::CONNECT, PhantomData)
 }
 
 /// Predicate to match *PATCH* http method
-pub fn Patch<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::PATCH, PhantomData))
+pub fn Patch<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::PATCH, PhantomData)
 }
 
 /// Predicate to match *TRACE* http method
-pub fn Trace<S: 'static>() -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(http::Method::TRACE, PhantomData))
+pub fn Trace<S: 'static>() -> MethodPredicate<S> {
+    MethodPredicate(http::Method::TRACE, PhantomData)
 }
 
 /// Predicate to match specified http method
-pub fn Method<S: 'static>(method: http::Method) -> Box<Predicate<S>> {
-    Box::new(MethodPredicate(method, PhantomData))
+pub fn Method<S: 'static>(method: http::Method) -> MethodPredicate<S> {
+    MethodPredicate(method, PhantomData)
 }
 
 /// Return predicate that matches if request contains specified header and value.
-pub fn Header<S: 'static>(name: &'static str, value: &'static str) -> Box<Predicate<S>>
+pub fn Header<S: 'static>(name: &'static str, value: &'static str) -> HeaderPredicate<S>
 {
-    Box::new(HeaderPredicate(header::HeaderName::try_from(name).unwrap(),
-                             header::HeaderValue::from_static(value),
-                             PhantomData))
+    HeaderPredicate(header::HeaderName::try_from(name).unwrap(),
+                    header::HeaderValue::from_static(value),
+                    PhantomData)
 }
 
-struct HeaderPredicate<S>(header::HeaderName, header::HeaderValue, PhantomData<S>);
+#[doc(hidden)]
+pub struct HeaderPredicate<S>(header::HeaderName, header::HeaderValue, PhantomData<S>);
 
 impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
@@ -238,10 +287,10 @@ mod tests {
         assert!(Not(Get()).check(&mut r));
         assert!(!Not(Trace()).check(&mut r));
 
-        assert!(All(vec![Trace(), Trace()]).check(&mut r));
-        assert!(!All(vec![Get(), Trace()]).check(&mut r));
+        assert!(All(Trace()).and(Trace()).check(&mut r));
+        assert!(!All(Get()).and(Trace()).check(&mut r));
 
-        assert!(Any(vec![Get(), Trace()]).check(&mut r));
-        assert!(!Any(vec![Get(), Get()]).check(&mut r));
+        assert!(Any(Get()).or(Trace()).check(&mut r));
+        assert!(!Any(Get()).or(Get()).check(&mut r));
     }
 }

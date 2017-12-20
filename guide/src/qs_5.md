@@ -506,9 +506,8 @@ fn main() {
     Application::new()
         .resource("/index.html", |r|
            r.route()
-              .p(Box::new(ContentTypeHeader))
-              .f(|req| HTTPOk))
-        .finish();
+              .p(ContentTypeHeader)
+              .h(HTTPOk));
 }
 ```
 
@@ -545,14 +544,14 @@ fn main() {
 predicates match. i.e:
 
 ```rust,ignore
-    pred::Any(vec![pred::Get(), pred::Post()])
+    pred::Any(pred::Get()).or(pred::Post())
 ```
 
 `All` predicate accept list of predicates and matches if all of the supplied
 predicates match. i.e:
 
 ```rust,ignore
-    pred::All(vec![pred::Get(), pred::Header("content-type", "plain/text")])
+    pred::All(pred::Get()).and(pred::Header("content-type", "plain/text"))
 ```
 
 ## Changing the default Not Found response
