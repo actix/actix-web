@@ -168,14 +168,26 @@ impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> fo
     }
 }
 
-impl Responder for Box<Future<Item=HttpResponse, Error=Error>>
+impl<I, E> Responder for Box<Future<Item=I, Error=E>>
+    where I: Responder + 'static,
+          E: Into<Error> + 'static
 {
     type Item = Reply;
     type Error = Error;
 
     #[inline]
-    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
-        Ok(Reply(ReplyItem::Future(self)))
+    fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
+        let fut = self.map_err(|e| e.into())
+            .then(move |r| {
+                match r.respond_to(req) {
+                    Ok(reply) => match reply.into().0 {
+                        ReplyItem::Message(resp) => ok(resp),
+                        _ => panic!("Nested async replies are not supported"),
+                    },
+                    Err(e) => err(e),
+                }
+            });
+        Ok(Reply::async(fut))
     }
 }
 
