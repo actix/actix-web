@@ -43,6 +43,22 @@ impl<S: 'static> Route<S> {
     }
 
     /// Add match predicate to route.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// # fn main() {
+    /// Application::new()
+    ///    .resource("/path", |r|
+    ///       r.route()
+    ///          .p(pred::Get())
+    ///          .p(pred::Header("content-type", "text/plain"))
+    ///          .f(|req| HTTPOk)
+    ///       )
+    /// #      .finish();
+    /// # }
+    /// ```
     pub fn p(&mut self, p: Box<Predicate<S>>) -> &mut Self {
         self.preds.push(p);
         self

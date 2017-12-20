@@ -92,7 +92,7 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().method(Method::GET).f(index)
+    /// Resource::resource("/", |r| r.route().p(pred::Get()).f(index)
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());

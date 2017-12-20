@@ -83,6 +83,27 @@ if request contains `Content-Type` header and value of this header is *text/plai
 and path equals to `/test`. Resource calls handle of the first matches route.
 If resource can not match any route "NOT FOUND" response get returned.
 
+[*Resource::route()*](../actix_web/struct.Resource.html#method.route) method returns
+[*Route*](../actix_web/struct.Route.html) object. Route can be configured with 
+builder-like pattern. Following configuration methods are available:
+
+* [*Route::p()*](../actix_web/struct.Route.html#method.p) method registers new predicate,
+  any number of predicates could be registered for each route.
+  
+* [*Route::f()*](../actix_web/struct.Route.html#method.f) method registers handler function
+  for this route. Only one handler could be registered. Usually handler registeration
+  is the last config operation. Handler fanction could be function or closure and has type
+  `Fn(HttpRequest<S>) -> R + 'static`
+
+* [*Route::h()*](../actix_web/struct.Route.html#method.h) method registers handler object
+  that implements `Handler` trait. This is similar to `f()` method, only one handler could 
+  be registered. Handler registeration is the last config operation. 
+
+* [*Route::a()*](../actix_web/struct.Route.html#method.a) method registers asynchandler 
+  function for this route. Only one handler could be registered. Handler registeration
+  is the last config operation. Handler fanction could be function or closure and has type
+  `Fn(HttpRequest<S>) -> Future<Item = HttpResponse, Error = Error> + 'static`
+
 ## Route matching
 
 The main purpose of route configuration is to match (or not match) the request's `path`
@@ -323,7 +344,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 fn main() {
     let app = Application::new()
-        .resource("/test/{one}/{two}/{three}", |r| {
+        .resource("/test/{a}/{b}/{c}", |r| {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
         })
@@ -331,7 +352,7 @@ fn main() {
 }
 ```
 
-This would return something like the string *http://example.com/1/2/3* (at least if
+This would return something like the string *http://example.com/test/1/2/3* (at least if
 the current protocol and hostname implied http://example.com).
 `url_for()` method return [*Url object*](https://docs.rs/url/1.6.0/url/struct.Url.html) so you 
 can modify this url (add query parameters, anchor, etc).
@@ -462,8 +483,7 @@ and returns *true* or *false*. Formally predicate is any object that implements
 several predicates, you can check [functions section](../actix_web/pred/index.html#functions) 
 of api docs.
 
-Here is simple predicates that check that request contains specific *header* and predicate
-usage:
+Here is simple predicates that check that request contains specific *header*:
 
 ```rust
 # extern crate actix_web;
@@ -538,9 +558,9 @@ predicates match. i.e:
 ## Changing the default Not Found response
 
 If path pattern can not be found in routing table or resource can not find matching
-route default resource is used. Default response is *NOT FOUND* response.
-To override *NOT FOUND* resource use `Application::default_resource()` method.
-This method accepts *configuration function* same as normal resource registration
+route, default resource is used. Default response is *NOT FOUND* response.
+It is possible to override *NOT FOUND* response with `Application::default_resource()` method.
+This method accepts *configuration function* same as normal resource configuration
 with `Application::resource()` method.
 
 ```rust
@@ -555,6 +575,6 @@ fn main() {
               r.method(Method::GET).f(|req| HTTPNotFound);
               r.route().p(pred::Not(pred::Get())).f(|req| HTTPMethodNotAllowed);
          })
-        .finish();
+#        .finish();
 }
 ```
