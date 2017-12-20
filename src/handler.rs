@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use actix::Actor;
-use futures::Future;
+use futures::future::{Future, ok, err};
 use serde_json;
 use serde::Serialize;
 use regex::Regex;
@@ -221,35 +221,52 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 
 /// Async route handler
 pub(crate)
-struct AsyncHandler<S, R, F>
-    where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Future<Item=HttpResponse, Error=Error> + 'static,
+struct AsyncHandler<S, H, F, R, E>
+    where H: Fn(HttpRequest<S>) -> F + 'static,
+          F: Future<Item=R, Error=E> + 'static,
+          R: Responder + 'static,
+          E: Into<Error> + 'static,
           S: 'static,
 {
-    f: Box<F>,
+    h: Box<H>,
     s: PhantomData<S>,
 }
 
-impl<S, R, F> AsyncHandler<S, R, F>
-    where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Future<Item=HttpResponse, Error=Error> + 'static,
+impl<S, H, F, R, E> AsyncHandler<S, H, F, R, E>
+    where H: Fn(HttpRequest<S>) -> F + 'static,
+          F: Future<Item=R, Error=E> + 'static,
+          R: Responder + 'static,
+          E: Into<Error> + 'static,
           S: 'static,
 {
-    pub fn new(f: F) -> Self {
-        AsyncHandler{f: Box::new(f), s: PhantomData}
+    pub fn new(h: H) -> Self {
+        AsyncHandler{h: Box::new(h), s: PhantomData}
     }
 }
 
-impl<S, R, F> RouteHandler<S> for AsyncHandler<S, R, F>
-    where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Future<Item=HttpResponse, Error=Error> + 'static,
+impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
+    where H: Fn(HttpRequest<S>) -> F + 'static,
+          F: Future<Item=R, Error=E> + 'static,
+          R: Responder + 'static,
+          E: Into<Error> + 'static,
           S: 'static,
 {
     fn handle(&self, req: HttpRequest<S>) -> Reply {
-        Reply::async((self.f)(req))
+        let req2 = req.clone_without_state();
+        let fut = (self.h)(req)
+            .map_err(|e| e.into())
+            .then(move |r| {
+                match r.respond_to(req2) {
+                    Ok(reply) => match reply.into().0 {
+                        ReplyItem::Message(resp) => ok(resp),
+                        _ => panic!("Nested async replies are not supported"),
+                    }
+                    Err(e) => err(e),
+                }
+            });
+        Reply::async(fut)
     }
 }
-
 
 /// Json response helper
 ///

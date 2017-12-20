@@ -5,8 +5,6 @@ use pred::Predicate;
 use handler::{Reply, Handler, Responder, RouteHandler, AsyncHandler, WrapHandler};
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
-
 
 /// Resource route definition
 ///
@@ -80,9 +78,11 @@ impl<S: 'static> Route<S> {
     }
 
     /// Set async handler function.
-    pub fn a<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Future<Item=HttpResponse, Error=Error> + 'static,
+    pub fn a<H, R, F, E>(&mut self, handler: H)
+        where H: Fn(HttpRequest<S>) -> F + 'static,
+              F: Future<Item=R, Error=E> + 'static,
+              R: Responder + 'static,
+              E: Into<Error> + 'static
     {
         self.handler = Box::new(AsyncHandler::new(handler));
     }

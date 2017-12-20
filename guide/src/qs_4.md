@@ -95,8 +95,9 @@ fn main() {
 
 There are two different types of async handlers. 
 
-Response object could be generated asynchronously. In this case handle must
-return `Future` object that resolves to `HttpResponse`, i.e:
+Response object could be generated asynchronously or more precisely, any type
+that implements [*Responder*](../actix_web/trait.Responder.html) trait. In this case handle must
+return `Future` object that resolves to *Responder* type, i.e:
 
 ```rust
 # extern crate actix_web;
@@ -114,9 +115,14 @@ fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
            .map_err(|e| e.into()))
 }
 
+fn index2(req: HttpRequest) -> FutureResult<&'static str, Error> {
+    result(Ok("Welcome!"))
+}
+
 fn main() {
     Application::new()
         .resource("/async", |r| r.route().a(index))
+        .resource("/", |r| r.route().a(index2))
         .finish();
 }
 ```
