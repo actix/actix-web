@@ -66,3 +66,6 @@ This project is licensed under either of
    http://opensource.org/licenses/MIT)
 
 at your option.
+
+
+[![Analytics](https://ga-beacon.appspot.com/UA-111455201-1/actix-web/readme)](https://github.com/igrigorik/ga-beacon)
