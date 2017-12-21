@@ -740,12 +740,11 @@ mod tests {
     #[test]
     fn test_basic_builder() {
         let resp = HttpResponse::Ok()
-            .status(StatusCode::NO_CONTENT)
             .header("X-TEST", "value")
             .version(Version::HTTP_10)
             .finish().unwrap();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
-        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
