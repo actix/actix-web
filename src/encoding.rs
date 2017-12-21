@@ -394,7 +394,8 @@ impl PayloadEncoder {
             },
             Body::Binary(ref mut bytes) => {
                 if compression {
-                    let transfer = TransferEncoding::eof(SharedBytes::default());
+                    let mut buf = SharedBytes::default();
+                    let transfer = TransferEncoding::eof(buf.clone());
                     let mut enc = match encoding {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
                             DeflateEncoder::new(transfer, Compression::Default)),
