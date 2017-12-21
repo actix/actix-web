@@ -410,7 +410,7 @@ impl PayloadEncoder {
                     let _ = enc.write(bytes.as_ref());
                     let _ = enc.write_eof();
 
-                    *bytes = Binary::from(enc.get_mut().take());
+                    *bytes = Binary::from(buf.get_mut().take());
                     encoding = ContentEncoding::Identity;
                 }
                 resp.headers_mut().remove(CONTENT_LENGTH);
