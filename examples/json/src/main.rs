@@ -1,17 +1,15 @@
 extern crate actix;
 extern crate actix_web;
-extern crate bytes;
 extern crate futures;
 extern crate env_logger;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 
 use actix_web::*;
-use bytes::BytesMut;
 use futures::Stream;
 use futures::future::{Future, ok, err};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
     name: String,
     number: i32,
@@ -24,22 +22,23 @@ fn index(mut req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Err
     }
 
     Ok(Box::new(
-        req.payload_mut()      // <- load request body
-            .readany()
-            .fold(BytesMut::new(), |mut body, chunk| {
-                body.extend(chunk);
-                ok::<_, error::PayloadError>(body)
-            })
-            .map_err(|e| Error::from(e))
+        // `concat2` will asynchronously read each chunk of the request body and
+        // return a single, concatenated, chunk
+        req.payload_mut().readany().concat2()
+            // `Future::from_err` acts like `?` in that it coerces the error type from
+            // the future into the final error type
+            .from_err()
+            // `Future::and_then` can be used to merge an asynchronous workflow with a
+            // synchronous workflow
             .and_then(|body| { // <- body is loaded, now we can deserialize json
                 match serde_json::from_slice::<MyObj>(&body) {
                     Ok(obj) => {
                         println!("model: {:?}", obj);    // <- do something with payload
-                        ok(httpcodes::HTTPOk.response()) // <- send response
+                        ok(httpcodes::HTTPOk.build()     // <- send response
+                           .content_type("application/json")
+                           .json(obj).unwrap())
                     },
-                    Err(e) => {
-                        err(error::ErrorBadRequest(e).into())
-                    }
+                    Err(e) => err(error::ErrorBadRequest(e).into())
                 }
             })))
 }

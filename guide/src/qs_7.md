@@ -77,16 +77,20 @@ We need to load request body first and then deserialize json into object.
 
 ```rust,ignore
 fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
-   req.payload_mut().readany()
-     .fold(BytesMut::new(), |mut body, chunk| {   // <- load request body
-         body.extend(chunk);
-         ok(body)
-     })
-    .and_then(|body| {                   // <- body is loaded, now we can deserialize json
-        let obj = serde_json::from_slice::<MyObj>(&body).unwrap();
-        println!("MODEL: {:?}", obj);    // <- do something with payload
-        ok(httpcodes::HTTPOk.response()) // <- send response
-    })
+   // `concat2` will asynchronously read each chunk of the request body and
+   // return a single, concatenated, chunk
+   req.payload_mut().readany().concat2()
+      // `Future::from_err` acts like `?` in that it coerces the error type from
+      // the future into the final error type
+      .from_err()
+      // `Future::and_then` can be used to merge an asynchronous workflow with a
+      // synchronous workflow
+      .and_then(|body| {                   // <- body is loaded, now we can deserialize json
+          let obj = serde_json::from_slice::<MyObj>(&body).unwrap();
+          ok(httpcodes::HTTPOk.build()     // <- send response
+                .content_type("application/json")
+                .json(obj).unwrap())
+      })
 }
 ```
 
