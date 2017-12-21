@@ -85,6 +85,7 @@ pub struct JsonBody<S, T: DeserializeOwned>{
 
 impl<S, T: DeserializeOwned> JsonBody<S, T> {
 
+    /// Create `JsonBody` for request.
     pub fn from_request(req: &mut HttpRequest<S>) -> Self {
         JsonBody{
             limit: 262_144,
