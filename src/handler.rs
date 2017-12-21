@@ -36,6 +36,7 @@ pub trait Responder {
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
+#[doc(hidden)]
 /// Convinience trait that convert `Future` object into `Boxed` future
 pub trait AsyncResponder<I, E>: Sized {
     fn responder(self) -> Box<Future<Item=I, Error=E>>;

@@ -14,32 +14,31 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 {
     println!("{:?}", req);
 
-    Box::new(
-        req.multipart()            // <- get multipart stream for current request
-            .from_err()            // <- convert multipart errors
-            .and_then(|item| {     // <- iterate over multipart items
-                match item {
-                    // Handle multipart Field
-                    multipart::MultipartItem::Field(field) => {
-                        println!("==== FIELD ==== {:?}", field);
+    req.multipart()            // <- get multipart stream for current request
+        .from_err()            // <- convert multipart errors
+        .and_then(|item| {     // <- iterate over multipart items
+            match item {
+                // Handle multipart Field
+                multipart::MultipartItem::Field(field) => {
+                    println!("==== FIELD ==== {:?}", field);
 
-                        // Field in turn is stream of *Bytes* object
-                        Either::A(
-                            field.map_err(Error::from)
-                                .map(|chunk| {
-                                    println!("-- CHUNK: \n{}",
-                                             std::str::from_utf8(&chunk).unwrap());})
-                                .finish())
-                    },
-                    multipart::MultipartItem::Nested(mp) => {
-                        // Or item could be nested Multipart stream
-                        Either::B(result(Ok(())))
-                    }
+                    // Field in turn is stream of *Bytes* object
+                    Either::A(
+                        field.map_err(Error::from)
+                            .map(|chunk| {
+                                println!("-- CHUNK: \n{}",
+                                         std::str::from_utf8(&chunk).unwrap());})
+                            .finish())
+                },
+                multipart::MultipartItem::Nested(mp) => {
+                    // Or item could be nested Multipart stream
+                    Either::B(result(Ok(())))
                 }
-            })
-            .finish()  // <- Stream::finish() combinator from actix
-            .map(|_| httpcodes::HTTPOk.response())
-    )
+            }
+        })
+        .finish()  // <- Stream::finish() combinator from actix
+        .map(|_| httpcodes::HTTPOk.response())
+        .responder()
 }
 
 fn main() {

@@ -168,10 +168,6 @@ fn index(req: HttpRequest) -> HttpResponse {
 # fn main() {}
 ```
 
-## Cookies
-
-[WIP]
-
 ## Multipart body
 
 Actix provides multipart stream support. 

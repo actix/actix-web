@@ -227,7 +227,9 @@ pub struct HttpResponseBuilder {
 }
 
 impl HttpResponseBuilder {
-    /// Set the HTTP version of this response.
+    /// Set HTTP version of this response.
+    ///
+    /// By default response's http version depends on request's version.
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
@@ -236,16 +238,24 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set the `StatusCode` for this response.
-    #[inline]
-    pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.status = status;
-        }
-        self
-    }
-
     /// Set a header.
+    ///
+    /// ```rust
+    /// # extern crate http;
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use http::header;
+    ///
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     Ok(HTTPOk.build()
+    ///         .header("X-TEST", "value")
+    ///         .header(header::CONTENT_TYPE, "application/json")
+    ///         .finish()?)
+    /// }
+    /// fn main() {}
+    /// ```
     #[inline]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
         where HeaderName: HttpTryFrom<K>,
@@ -289,6 +299,7 @@ impl HttpResponseBuilder {
 
     /// Set connection type
     #[inline]
+    #[doc(hidden)]
     pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.connection_type = Some(conn);
@@ -298,6 +309,7 @@ impl HttpResponseBuilder {
 
     /// Set connection type to Upgrade
     #[inline]
+    #[doc(hidden)]
     pub fn upgrade(&mut self) -> &mut Self {
         self.connection_type(ConnectionType::Upgrade)
     }
@@ -332,6 +344,27 @@ impl HttpResponseBuilder {
     }
 
     /// Set a cookie
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use actix_web::headers::Cookie;
+    ///
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     Ok(HTTPOk.build()
+    ///         .cookie(
+    ///             Cookie::build("name", "value")
+    ///                 .domain("www.rust-lang.org")
+    ///                 .path("/")
+    ///                 .secure(true)
+    ///                 .http_only(true)
+    ///                 .finish())
+    ///         .finish()?)
+    /// }
+    /// fn main() {}
+    /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
@@ -343,7 +376,7 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Remote cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
+    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
         {
             if self.cookies.is_none() {
@@ -357,7 +390,7 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Calls provided closure with builder reference if value is true.
+    /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: Fn(&mut HttpResponseBuilder) + 'static
     {
@@ -368,6 +401,7 @@ impl HttpResponseBuilder {
     }
 
     /// Set a body and generate `HttpResponse`.
+    ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
         if let Some(e) = self.err.take() {
@@ -386,6 +420,8 @@ impl HttpResponseBuilder {
     }
 
     /// Set a json body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&value)?;
 
@@ -402,6 +438,8 @@ impl HttpResponseBuilder {
     }
 
     /// Set an empty body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
         self.body(Body::Empty)
     }

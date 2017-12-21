@@ -115,6 +115,7 @@ impl ResponseError for header::InvalidHeaderValue {}
 impl ResponseError for Canceled {}
 
 /// Internal error
+#[doc(hidden)]
 #[derive(Fail, Debug)]
 #[fail(display="Unexpected task frame")]
 pub struct UnexpectedTaskFrame;
