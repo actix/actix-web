@@ -57,7 +57,7 @@ struct MyObj {
     name: &'static str,
 }
 
-/// we have to convert Error into HttpResponse as well
+/// Responder
 impl Responder for MyObj {
     type Item = HttpResponse;
     type Error = Error;
@@ -72,6 +72,7 @@ impl Responder for MyObj {
     }
 }
 
+/// Because `MyObj` implements `Responder`, it is possible to return it directly
 fn index(req: HttpRequest) -> MyObj {
     MyObj{name: "user"}
 }
