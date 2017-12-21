@@ -19,7 +19,7 @@ extern crate env_logger;
 use actix_web::*;
 use actix::prelude::*;
 use diesel::prelude::*;
-use futures::future::{Future, ok};
+use futures::future::Future;
 
 mod models;
 mod schema;
@@ -35,13 +35,13 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
 
     Box::new(
         req.state().db.call_fut(CreateUser{name: name.to_owned()})
+            .from_err()
             .and_then(|res| {
                 match res {
-                    Ok(user) => ok(httpcodes::HTTPOk.build().json(user).unwrap()),
-                    Err(_) => ok(httpcodes::HTTPInternalServerError.response())
+                    Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
+                    Err(_) => Ok(httpcodes::HTTPInternalServerError.response())
                 }
-            })
-            .map_err(|e| error::ErrorInternalServerError(e).into()))
+            }))
 }
 
 /// This is db executor actor. We are going to run 3 of them in parallele.

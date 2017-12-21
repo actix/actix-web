@@ -200,12 +200,12 @@ fn main() {
             let state = WsChatSessionState { addr: server.clone() };
 
             Application::with_state(state)
-            // redirect to websocket.html
-                .resource("/", |r| r.method(Method::GET).f(|req| {
+                // redirect to websocket.html
+                .resource("/", |r| r.method(Method::GET).f(|_| {
                     httpcodes::HTTPFound
                         .build()
                         .header("LOCATION", "/static/websocket.html")
-                        .body(Body::Empty)
+                        .finish()
                 }))
                 // websocket
                 .resource("/ws/", |r| r.route().f(chat_route))

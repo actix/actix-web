@@ -16,7 +16,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 
     Box::new(
         req.multipart()            // <- get multipart stream for current request
-            .map_err(Error::from)  // <- convert multipart errors
+            .from_err()            // <- convert multipart errors
             .and_then(|item| {     // <- iterate over multipart items
                 match item {
                     // Handle multipart Field

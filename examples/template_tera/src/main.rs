@@ -9,19 +9,20 @@ struct State {
     template: tera::Tera,  // <- store tera template in application state
 }
 
-fn index(req: HttpRequest<State>) -> HttpResponse {
+fn index(req: HttpRequest<State>) -> Result<HttpResponse> {
     let s = if let Some(name) = req.query().get("name") { // <- submitted form
         let mut ctx = tera::Context::new();
         ctx.add("name", name);
         ctx.add("text", &"Welcome!".to_owned());
-        req.state().template.render("user.html", &ctx).unwrap()
+        req.state().template.render("user.html", &ctx)
+            .map_err(|_| error::ErrorInternalServerError("Template error"))?
     } else {
-        req.state().template.render("index.html", &tera::Context::new()).unwrap()
+        req.state().template.render("index.html", &tera::Context::new())
+            .map_err(|_| error::ErrorInternalServerError("Template error"))?
     };
-    httpcodes::HTTPOk.build()
-        .content_type("text/html")
-        .body(s)
-        .unwrap()
+    Ok(httpcodes::HTTPOk.build()
+       .content_type("text/html")
+       .body(s)?)
 }
 
 fn main() {

@@ -90,7 +90,7 @@ fn main() {
                 httpcodes::HTTPFound
                     .build()
                     .header("LOCATION", "/index.html")
-                    .body(Body::Empty)
+                    .finish()
             })))
         .bind("127.0.0.1:8080").unwrap()
         .start();
