@@ -10,6 +10,7 @@ use std::error::Error as StdError;
 use cookie;
 use httparse;
 use failure::Fail;
+use futures::Canceled;
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
@@ -109,6 +110,9 @@ impl ResponseError for io::Error {
 
 /// `InternalServerError` for `InvalidHeaderValue`
 impl ResponseError for header::InvalidHeaderValue {}
+
+/// `InternalServerError` for `futures::Canceled`
+impl ResponseError for Canceled {}
 
 /// Internal error
 #[derive(Fail, Debug)]
@@ -390,6 +394,43 @@ impl ResponseError for UrlencodedError {
 impl From<PayloadError> for UrlencodedError {
     fn from(err: PayloadError) -> UrlencodedError {
         UrlencodedError::Payload(err)
+    }
+}
+
+/// A set of errors that can occur during parsing json payloads
+#[derive(Fail, Debug)]
+pub enum JsonPayloadError {
+    /// Payload size is bigger than 256k
+    #[fail(display="Payload size is bigger than 256k")]
+    Overflow,
+    /// Content type error
+    #[fail(display="Content type error")]
+    ContentType,
+    /// Deserialize error
+    #[fail(display="Json deserialize error")]
+    Deserialize(JsonError),
+    /// Payload error
+    #[fail(display="Error that occur during reading payload")]
+    Payload(PayloadError),
+}
+
+/// Return `BadRequest` for `UrlencodedError`
+impl ResponseError for JsonPayloadError {
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
+impl From<PayloadError> for JsonPayloadError {
+    fn from(err: PayloadError) -> JsonPayloadError {
+        JsonPayloadError::Payload(err)
+    }
+}
+
+impl From<JsonError> for JsonPayloadError {
+    fn from(err: JsonError) -> JsonPayloadError {
+        JsonPayloadError::Deserialize(err)
     }
 }
 

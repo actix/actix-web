@@ -433,7 +433,7 @@ impl Inner {
 
     fn unread_data(&mut self, data: Bytes) {
         self.len += data.len();
-        self.items.push_front(data)
+        self.items.push_front(data);
     }
 
     fn capacity(&self) -> usize {

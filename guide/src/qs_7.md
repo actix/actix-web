@@ -59,21 +59,41 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## JSON Request
 
-Unfortunately, because of async nature of actix web framework, json requests deserialization
-is not very ergonomic process. First you need to load whole body into a
-temporal storage and only then you can deserialize it.
+There are two options of json body deserialization. 
 
-Here is simple example. We will deserialize *MyObj* struct.
+First option is to use *HttpResponse::json()* method. This method returns
+[*JsonBody*](../actix_web/dev/struct.JsonBody.html) object which resolves into 
+deserialized value.
 
-```rust,ignore
-#[derive(Debug, Deserialize)]
+```rust
+# extern crate actix;
+# extern crate actix_web;
+# extern crate futures;
+# extern crate env_logger;
+# extern crate serde_json;
+# #[macro_use] extern crate serde_derive;
+# use actix_web::*;
+# use futures::Future;
+#[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
     name: String,
     number: i32,
 }
+
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    req.json().from_err()
+        .and_then(|val: MyObj| {
+            println!("model: {:?}", val);
+            Ok(httpcodes::HTTPOk.build().json(val)?)  // <- send response
+        })
+        .responder()
+}
+# fn main() {}
 ```
 
-We need to load request body first and then deserialize json into object.
+Or you can manually load payload into memory and ther deserialize it.
+Here is simple example. We will deserialize *MyObj* struct. We need to load request
+body first and then deserialize json into object.
 
 ```rust,ignore
 fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
@@ -92,7 +112,7 @@ fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
 }
 ```
 
-Full example is available in 
+Example is available in 
 [examples directory](https://github.com/actix/actix-web/tree/master/examples/json/).
 
 

@@ -124,7 +124,7 @@ pub use json::{Json};
 pub use application::Application;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Reply, Responder, NormalizePath};
+pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
 pub use route::Route;
 pub use resource::Resource;
 pub use server::HttpServer;
@@ -166,6 +166,7 @@ pub mod dev {
     pub use body::BodyStream;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
+    pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};

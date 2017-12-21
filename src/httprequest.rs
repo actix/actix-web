@@ -5,9 +5,10 @@ use std::rc::Rc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::BytesMut;
-use futures::{Async, Future, Stream, Poll};
 use cookie::Cookie;
+use futures::{Async, Future, Stream, Poll};
 use http_range::HttpRange;
+use serde::de::DeserializeOwned;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
@@ -15,6 +16,7 @@ use info::ConnectionInfo;
 use param::Params;
 use router::Router;
 use payload::Payload;
+use json::JsonBody;
 use multipart::Multipart;
 use helpers::SharedHttpMessage;
 use error::{ParseError, UrlGenerationError, CookieParseError, HttpRangeError, UrlencodedError};
@@ -467,6 +469,40 @@ impl<S> HttpRequest<S> {
     /// ```
     pub fn urlencoded(&mut self) -> UrlEncoded {
         UrlEncoded::from_request(self)
+    }
+
+    /// Parse `application/json` encoded body.
+    /// Return `JsonBody<T>` future. It resolves to a `T` value.
+    ///
+    /// Returns error:
+    ///
+    /// * content type is not `application/json`
+    /// * content length is greater than 256k
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// # #[macro_use] extern crate serde_derive;
+    /// use actix_web::*;
+    /// use futures::future::{Future, ok};
+    ///
+    /// #[derive(Deserialize, Debug)]
+    /// struct MyObj {
+    ///     name: String,
+    /// }
+    ///
+    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    ///     req.json()                   // <- get JsonBody future
+    ///        .from_err()
+    ///        .and_then(|val: MyObj| {  // <- deserialized value
+    ///            println!("==== BODY ==== {:?}", val);
+    ///            Ok(httpcodes::HTTPOk.response())
+    ///        }).responder()
+    /// }
+    /// # fn main() {}
+    /// ```
+    pub fn json<T: DeserializeOwned>(&mut self) -> JsonBody<S, T> {
+        JsonBody::from_request(self)
     }
 }
 

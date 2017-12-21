@@ -6,7 +6,7 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 
 use actix_web::*;
-use futures::{Future, Stream};
+use futures::Future;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -14,28 +14,13 @@ struct MyObj {
     number: i32,
 }
 
-fn index(mut req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>> {
-    // check content-type
-    if req.content_type() != "application/json" {
-        return Err(error::ErrorBadRequest("wrong content-type").into())
-    }
-
-    Ok(Box::new(
-        // `concat2` will asynchronously read each chunk of the request body and
-        // return a single, concatenated, chunk
-        req.payload_mut().readany().concat2()
-            // `Future::from_err` acts like `?` in that it coerces the error type from
-            // the future into the final error type
-            .from_err()
-            // `Future::and_then` can be used to merge an asynchronous workflow with a
-            // synchronous workflow
-            .and_then(|body| { // <- body is loaded, now we can deserialize json
-                let obj = serde_json::from_slice::<MyObj>(&body).map_err(error::ErrorBadRequest)?;
-
-                println!("model: {:?}", obj);
-                Ok(httpcodes::HTTPOk.build().json(obj)?)  // <- send response
-            })
-    ))
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    req.json().from_err()
+        .and_then(|val: MyObj| {
+            println!("model: {:?}", val);
+            Ok(httpcodes::HTTPOk.build().json(val)?)  // <- send response
+        })
+        .responder()
 }
 
 fn main() {
