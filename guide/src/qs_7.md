@@ -85,11 +85,9 @@ fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
       .from_err()
       // `Future::and_then` can be used to merge an asynchronous workflow with a
       // synchronous workflow
-      .and_then(|body| {                   // <- body is loaded, now we can deserialize json
-          let obj = serde_json::from_slice::<MyObj>(&body).unwrap();
-          ok(httpcodes::HTTPOk.build()     // <- send response
-                .content_type("application/json")
-                .json(obj).unwrap())
+      .and_then(|body| {                           // <- body is loaded, now we can deserialize json
+          let obj = serde_json::from_slice::<MyObj>(&body)?;
+          Ok(httpcodes::HTTPOk.build().json(obj)?) // <- send response
       })
 }
 ```

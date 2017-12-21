@@ -6,8 +6,7 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 
 use actix_web::*;
-use futures::Stream;
-use futures::future::{Future, ok, err};
+use futures::{Future, Stream};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -31,16 +30,12 @@ fn index(mut req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Err
             // `Future::and_then` can be used to merge an asynchronous workflow with a
             // synchronous workflow
             .and_then(|body| { // <- body is loaded, now we can deserialize json
-                match serde_json::from_slice::<MyObj>(&body) {
-                    Ok(obj) => {
-                        println!("model: {:?}", obj);    // <- do something with payload
-                        ok(httpcodes::HTTPOk.build()     // <- send response
-                           .content_type("application/json")
-                           .json(obj).unwrap())
-                    },
-                    Err(e) => err(error::ErrorBadRequest(e).into())
-                }
-            })))
+                let obj = serde_json::from_slice::<MyObj>(&body).map_err(error::ErrorBadRequest)?;
+
+                println!("model: {:?}", obj);
+                Ok(httpcodes::HTTPOk.build().json(obj)?)  // <- send response
+            })
+    ))
 }
 
 fn main() {
