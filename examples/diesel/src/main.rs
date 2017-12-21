@@ -37,15 +37,15 @@ struct State {
 fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let name = &req.match_info()["name"];
 
-    Box::new(
-        req.state().db.call_fut(CreateUser{name: name.to_owned()})
-            .from_err()
-            .and_then(|res| {
-                match res {
-                    Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
-                    Err(_) => Ok(httpcodes::HTTPInternalServerError.response())
-                }
-            }))
+    req.state().db.call_fut(CreateUser{name: name.to_owned()})
+        .from_err()
+        .and_then(|res| {
+            match res {
+                Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
+                Err(_) => Ok(httpcodes::HTTPInternalServerError.response())
+            }
+        })
+        .responder()
 }
 
 fn main() {

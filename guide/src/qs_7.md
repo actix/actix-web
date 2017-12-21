@@ -234,14 +234,13 @@ use actix_web::*;
 use futures::future::{Future, ok};
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    Box::new(
-        req.urlencoded()         // <- get UrlEncoded future
-           .and_then(|params| {  // <- url encoded parameters
-                 println!("==== BODY ==== {:?}", params);
-                 ok(httpcodes::HTTPOk.response())
-           })
-           .map_err(Error::from)
-   )
+    req.urlencoded()         // <- get UrlEncoded future
+       .from_err()
+       .and_then(|params| {  // <- url encoded parameters
+             println!("==== BODY ==== {:?}", params);
+             ok(httpcodes::HTTPOk.response())
+       })
+       .responder()
 }
 # fn main() {}
 ```
@@ -276,15 +275,15 @@ use futures::{Future, Stream};
 
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    Box::new(
-        req.payload_mut()
-            .readany()
-            .fold((), |_, chunk| {
-                println!("Chunk: {:?}", chunk);
-                result::<_, error::PayloadError>(Ok(()))
-            })
-            .map_err(|e| Error::from(e))
-            .map(|_| HttpResponse::Ok().finish().unwrap()))
+    req.payload_mut()
+       .readany()
+       .from_err()
+       .fold((), |_, chunk| {
+            println!("Chunk: {:?}", chunk);
+            result::<_, error::PayloadError>(Ok(()))
+        })
+       .map(|_| HttpResponse::Ok().finish().unwrap())
+       .responder()
 }
 # fn main() {}
 ```

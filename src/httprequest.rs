@@ -456,14 +456,13 @@ impl<S> HttpRequest<S> {
     /// use futures::future::{Future, ok};
     ///
     /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    ///     Box::new(
-    ///         req.urlencoded()         // <- get UrlEncoded future
-    ///             .and_then(|params| {  // <- url encoded parameters
-    ///                 println!("==== BODY ==== {:?}", params);
-    ///                 ok(httpcodes::HTTPOk.response())
-    ///             })
-    ///             .map_err(Error::from)
-    ///     )
+    ///     req.urlencoded()         // <- get UrlEncoded future
+    ///        .from_err()
+    ///        .and_then(|params| {  // <- url encoded parameters
+    ///             println!("==== BODY ==== {:?}", params);
+    ///             ok(httpcodes::HTTPOk.response())
+    ///        })
+    ///        .responder()
     /// }
     /// # fn main() {}
     /// ```
