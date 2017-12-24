@@ -20,7 +20,6 @@ use h1writer::{Writer, H1Writer};
 use server::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use helpers::SharedHttpMessage;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
@@ -46,7 +45,6 @@ bitflags! {
         const FINISHED = 0b0000_0100;
     }
 }
-
 
 pub(crate) enum Http1Result {
     Done,
@@ -583,58 +581,41 @@ impl Reader {
             msg
         };
 
-        let decoder = if upgrade(&msg) {
-            Decoder::eof()
-        } else {
-            let has_len = msg.get_mut().headers.contains_key(header::CONTENT_LENGTH);
-
-            // Chunked encoding
-            if chunked(&msg.get_mut().headers)? {
-                if has_len {
-                    return Err(ParseError::Header)
-                }
-                Decoder::chunked()
-            } else {
-                if !has_len {
-                    return Ok(Message::Http1(HttpRequest::from_message(msg), None))
-                }
-
-                // Content-Length
-                let len = msg.get_mut().headers.get(header::CONTENT_LENGTH).unwrap();
-                if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<u64>() {
-                        Decoder::length(len)
-                    } else {
-                        debug!("illegal Content-Length: {:?}", len);
-                        return Err(ParseError::Header)
-                    }
+        let decoder = if let Some(len) = msg.get_ref().headers.get(header::CONTENT_LENGTH) {
+            // Content-Length
+            if let Ok(s) = len.to_str() {
+                if let Ok(len) = s.parse::<u64>() {
+                    Some(Decoder::length(len))
                 } else {
                     debug!("illegal Content-Length: {:?}", len);
                     return Err(ParseError::Header)
                 }
+            } else {
+                debug!("illegal Content-Length: {:?}", len);
+                return Err(ParseError::Header)
             }
-        };
-
-        let (psender, payload) = Payload::new(false);
-        let info = PayloadInfo {
-            tx: PayloadType::new(&msg.get_mut().headers, psender),
-            decoder: decoder,
-        };
-        msg.get_mut().payload = Some(payload);
-        Ok(Message::Http1(HttpRequest::from_message(msg), Some(info)))
-    }
-}
-
-/// Check if request is UPGRADE
-fn upgrade(msg: &SharedHttpMessage) -> bool {
-    if let Some(conn) = msg.get_ref().headers.get(header::CONNECTION) {
-        if let Ok(s) = conn.to_str() {
-            s.to_lowercase().contains("upgrade")
-        } else {
+        } else if chunked(&msg.get_mut().headers)? {
+            // Chunked encoding
+            Some(Decoder::chunked())
+        } else if msg.get_ref().headers.contains_key(header::UPGRADE) ||
             msg.get_ref().method == Method::CONNECT
+        {
+            Some(Decoder::eof())
+        } else {
+            None
+        };
+
+        if let Some(decoder) = decoder {
+            let (psender, payload) = Payload::new(false);
+            let info = PayloadInfo {
+                tx: PayloadType::new(&msg.get_mut().headers, psender),
+                decoder: decoder,
+            };
+            msg.get_mut().payload = Some(payload);
+            Ok(Message::Http1(HttpRequest::from_message(msg), Some(info)))
+        } else {
+            Ok(Message::Http1(HttpRequest::from_message(msg), None))
         }
-    } else {
-        msg.get_ref().method == Method::CONNECT
     }
 }
 
