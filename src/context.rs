@@ -1,10 +1,8 @@
 use std;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
-use futures::{Async, Future, Poll};
+use futures::{Async, Poll};
 use futures::sync::oneshot::Sender;
+use futures::unsync::oneshot;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Handler, Subscriber, ResponseType};
@@ -16,7 +14,7 @@ use body::{Body, Binary};
 use error::Error;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use pipeline::DrainFut;
+
 
 pub(crate) trait IoContext: 'static {
     fn disconnected(&mut self);
@@ -27,7 +25,7 @@ pub(crate) trait IoContext: 'static {
 pub(crate) enum Frame {
     Message(HttpResponse),
     Payload(Option<Binary>),
-    Drain(Rc<RefCell<DrainFut>>),
+    Drain(oneshot::Sender<()>),
 }
 
 /// Http actor execution context
@@ -161,11 +159,11 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 
     /// Returns drain future
-    pub fn drain(&mut self) -> Drain<A> {
-        let fut = Rc::new(RefCell::new(DrainFut::default()));
-        self.stream.push_back(Frame::Drain(Rc::clone(&fut)));
+    pub fn drain(&mut self) -> oneshot::Receiver<()> {
+        let (tx, rx) = oneshot::channel();
         self.modified = true;
-        Drain{ a: PhantomData, inner: fut }
+        self.stream.push_back(Frame::Drain(tx));
+        rx
     }
 
     /// Check if connection still open
@@ -303,23 +301,5 @@ impl<A, S> ToEnvelope<A> for HttpContext<A, S>
               M::Error: Send
     {
         RemoteEnvelope::new(msg, tx).into()
-    }
-}
-
-
-pub struct Drain<A> {
-    a: PhantomData<A>,
-    inner: Rc<RefCell<DrainFut>>
-}
-
-impl<A> ActorFuture for Drain<A>
-    where A: Actor
-{
-    type Item = ();
-    type Error = ();
-    type Actor = A;
-
-    fn poll(&mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context) -> Poll<(), ()> {
-        self.inner.borrow_mut().poll()
     }
 }

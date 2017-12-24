@@ -92,7 +92,7 @@ fn main() {
                     .header("LOCATION", "/index.html")
                     .finish()
             })))
-        .bind("127.0.0.1:8080").unwrap()
+        .bind("0.0.0.0:8080").unwrap()
         .start();
 
     println!("Starting http server: 127.0.0.1:8080");

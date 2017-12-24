@@ -1,10 +1,9 @@
 use std::{io, mem};
 use std::rc::Rc;
-use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use futures::{Async, Poll, Future, Stream};
-use futures::task::{Task as FutureTask, current as current_task};
+use futures::unsync::oneshot;
 
 use channel::HttpHandlerTask;
 use body::{Body, BodyStream};
@@ -75,49 +74,6 @@ enum PipelineResponse {
     Context(Box<IoContext>),
     Response(Box<Future<Item=HttpResponse, Error=Error>>),
 }
-
-/// Future that resolves when all buffered data get sent
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct DrainFut {
-    drained: bool,
-    task: Option<FutureTask>,
-}
-
-impl Default for DrainFut {
-
-    fn default() -> DrainFut {
-        DrainFut {
-            drained: false,
-            task: None,
-        }
-    }
-}
-
-impl DrainFut {
-
-    fn set(&mut self) {
-        self.drained = true;
-        if let Some(task) = self.task.take() {
-            task.notify()
-        }
-    }
-}
-
-impl Future for DrainFut {
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<(), ()> {
-        if self.drained {
-            Ok(Async::Ready(()))
-        } else {
-            self.task = Some(current_task());
-            Ok(Async::NotReady)
-        }
-    }
-}
-
 
 impl<S> Pipeline<S> {
 
@@ -554,7 +510,7 @@ struct ProcessResponse<S> {
     resp: HttpResponse,
     iostate: IOState,
     running: RunningState,
-    drain: DrainVec,
+    drain: Option<oneshot::Sender<()>>,
     _s: PhantomData<S>,
 }
 
@@ -587,16 +543,6 @@ enum IOState {
     Done,
 }
 
-struct DrainVec(Vec<Rc<RefCell<DrainFut>>>);
-
-impl Drop for DrainVec {
-    fn drop(&mut self) {
-        for drain in &mut self.0 {
-            drain.borrow_mut().set()
-        }
-    }
-}
-
 impl<S> ProcessResponse<S> {
 
     #[inline]
@@ -606,14 +552,14 @@ impl<S> ProcessResponse<S> {
             ProcessResponse{ resp: resp,
                              iostate: IOState::Response,
                              running: RunningState::Running,
-                             drain: DrainVec(Vec::new()),
+                             drain: None,
                              _s: PhantomData})
     }
 
     fn poll_io(mut self, io: &mut Writer, info: &mut PipelineInfo<S>)
                -> Result<PipelineState<S>, PipelineState<S>>
     {
-        if self.drain.0.is_empty() && self.running != RunningState::Paused {
+        if self.drain.is_none() && self.running != RunningState::Paused {
             // if task is paused, write buffer is probably full
 
             loop {
@@ -712,7 +658,7 @@ impl<S> ProcessResponse<S> {
                                         }
                                     },
                                     Frame::Drain(fut) => {
-                                        self.drain.0.push(fut);
+                                        self.drain = Some(fut);
                                         break
                                     }
                                 }
@@ -748,7 +694,7 @@ impl<S> ProcessResponse<S> {
         }
 
         // flush io but only if we need to
-        if self.running == RunningState::Paused || !self.drain.0.is_empty() {
+        if self.running == RunningState::Paused || self.drain.is_some() {
             match io.poll_completed() {
                 Ok(Async::Ready(_)) =>
                     self.running.resume(),
@@ -763,11 +709,8 @@ impl<S> ProcessResponse<S> {
         }
 
         // drain futures
-        if !self.drain.0.is_empty() {
-            for fut in &mut self.drain.0 {
-                fut.borrow_mut().set()
-            }
-            self.drain.0.clear();
+        if let Some(tx) = self.drain.take() {
+            let _ = tx.send(());
         }
 
         // response is completed
