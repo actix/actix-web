@@ -13,9 +13,9 @@ a response object. More informatin is available in [handler section](../qs_4.htm
 Resource configuraiton is the act of adding a new resource to an application.
 A resource has a name, which acts as an identifier to be used for URL generation. 
 The name also allows developers to add routes to existing resources. 
-A resource also has a pattern, meant to match against the *PATH* portion of a *URL* 
-(the portion following the scheme and port, e.g., */foo/bar* in the 
-*URL* *http://localhost:8080/foo/bar*).
+A resource also has a pattern, meant to match against the *PATH* portion of a *URL*,
+it does not match against *QUERY* portion (the portion following the scheme and
+port, e.g., */foo/bar* in the *URL* *http://localhost:8080/foo/bar?q=value*).
 
 The [Application::resource](../actix_web/struct.Application.html#method.resource) methods
 add a single resource to application routing table. This method accepts *path pattern*

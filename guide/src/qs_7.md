@@ -69,7 +69,6 @@ deserialized value.
 # extern crate actix;
 # extern crate actix_web;
 # extern crate futures;
-# extern crate env_logger;
 # extern crate serde_json;
 # #[macro_use] extern crate serde_derive;
 # use actix_web::*;
@@ -95,8 +94,18 @@ Or you can manually load payload into memory and ther deserialize it.
 Here is simple example. We will deserialize *MyObj* struct. We need to load request
 body first and then deserialize json into object.
 
-```rust,ignore
-fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
+```rust
+# extern crate actix_web;
+# extern crate futures;
+# use actix_web::*;
+# #[macro_use] extern crate serde_derive;
+extern crate serde_json;
+use futures::{Future, Stream};
+
+#[derive(Serialize, Deserialize)]
+struct MyObj {name: String, number: i32}
+
+fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
    // `concat2` will asynchronously read each chunk of the request body and
    // return a single, concatenated, chunk
    req.payload_mut().readany().concat2()
@@ -109,10 +118,12 @@ fn index(mut req: HttpRequest) -> Future<Item=HttpResponse, Error=Error> {
           let obj = serde_json::from_slice::<MyObj>(&body)?;
           Ok(httpcodes::HTTPOk.build().json(obj)?) // <- send response
       })
+      .responder()
 }
+# fn main() {}
 ```
 
-Example is available in 
+Complete example for both options is available in 
 [examples directory](https://github.com/actix/actix-web/tree/master/examples/json/).
 
 
