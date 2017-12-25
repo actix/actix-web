@@ -581,9 +581,7 @@ impl Reader {
             msg
         };
 
-        let decoder = if msg.get_ref().method == Method::CONNECT {
-            Some(Decoder::eof())
-        } else if let Some(len) = msg.get_ref().headers.get(header::CONTENT_LENGTH) {
+        let decoder = if let Some(len) = msg.get_ref().headers.get(header::CONTENT_LENGTH) {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
@@ -599,7 +597,9 @@ impl Reader {
         } else if chunked(&msg.get_mut().headers)? {
             // Chunked encoding
             Some(Decoder::chunked())
-        } else if msg.get_ref().headers.contains_key(header::UPGRADE) {
+        } else if msg.get_ref().headers.contains_key(header::UPGRADE) ||
+            msg.get_ref().method == Method::CONNECT
+        {
             Some(Decoder::eof())
         } else {
             None
@@ -1227,8 +1227,7 @@ mod tests {
     fn test_conn_upgrade_connect_method() {
         let mut buf = Buffer::new(
             "CONNECT /test HTTP/1.1\r\n\
-             upgrade: websockets\r\n\
-             content-length: 0\r\n\r\n");
+             content-type: text/plain\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
