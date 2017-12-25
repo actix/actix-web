@@ -48,9 +48,8 @@ request handler with the application's `resource` on a particular *HTTP method* 
 #    "Hello world!"
 # }
 # fn main() {
-   let app = Application::new()
-       .resource("/", |r| r.f(index))
-       .finish();
+   Application::new()
+       .resource("/", |r| r.f(index));
 # }
 ```
 
@@ -58,7 +57,9 @@ After that, application instance can be used with `HttpServer` to listen for inc
 connections. Server accepts function that should return `HttpHandler` instance:
 
 ```rust,ignore
-   HttpServer::new(|| app)
+   HttpServer::new(
+       || Application::new()
+           .resource("/", |r| r.f(index)))
        .bind("127.0.0.1:8088")?
        .start();
 ```
@@ -83,7 +84,7 @@ fn main() {
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.f(index)))
-        .bind("127.0.0.1:8088").unwrap()
+        .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
         .start();
 
     println!("Started http server: 127.0.0.1:8088");
