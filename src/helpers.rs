@@ -6,6 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
 use time;
 use bytes::BytesMut;
+use http::Version;
 
 use httprequest::HttpMessage;
 
@@ -14,7 +15,11 @@ pub const DATE_VALUE_LENGTH: usize = 29;
 
 pub fn date(dst: &mut BytesMut) {
     CACHED.with(|cache| {
-        dst.extend_from_slice(cache.borrow().buffer());
+        let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
+        buf[..6].copy_from_slice(b"date: ");
+        buf[6..35].copy_from_slice(cache.borrow().buffer());
+        buf[35..].copy_from_slice(b"\r\n\r\n");
+        dst.extend_from_slice(&buf);
     })
 }
 
@@ -234,26 +239,31 @@ const DEC_DIGITS_LUT: &[u8] =
       6061626364656667686970717273747576777879\
       8081828384858687888990919293949596979899";
 
-pub(crate) fn convert_u16(mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
-    let mut curr: isize = 39;
+pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
+    let mut buf: [u8; 14] = [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1',
+                             b' ', b' ', b' ', b' ', b' ', b' '];
+    match version {
+        Version::HTTP_2 => buf[5] = b'2',
+        Version::HTTP_10 => buf[7] = b'0',
+        Version::HTTP_09 => {buf[5] = b'0'; buf[7] = b'9';},
+        _ => (),
+    }
+
+    let mut curr: isize = 13;
     let buf_ptr = buf.as_mut_ptr();
     let lut_ptr = DEC_DIGITS_LUT.as_ptr();
 
     unsafe {
-        // need at least 16 bits for the 4-characters-at-a-time to work.
-        if mem::size_of::<u16>() >= 2 {
-            // eagerly decode 4 characters at a time
-            while n >= 10_000 {
-                let rem = (n % 10_000) as isize;
-                n /= 10_000;
+        // eagerly decode 4 characters at a time
+        while n >= 10_000 {
+            let rem = (n % 10_000) as isize;
+            n /= 10_000;
 
-                let d1 = (rem / 100) << 1;
-                let d2 = (rem % 100) << 1;
-                curr -= 4;
-                ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-                ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
-            }
+            let d1 = (rem / 100) << 1;
+            let d2 = (rem % 100) << 1;
+            curr -= 4;
+            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
+            ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
         }
 
         // if we reach here numbers are <= 9999, so at most 4 chars long
@@ -278,32 +288,28 @@ pub(crate) fn convert_u16(mut n: u16, bytes: &mut BytesMut) {
         }
     }
 
-    unsafe {
-        bytes.extend_from_slice(
-            slice::from_raw_parts(buf_ptr.offset(curr), buf.len() - curr as usize));
-    }
+    bytes.extend_from_slice(&buf);
 }
 
 pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     let mut curr: isize = 39;
-    let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
+    let mut buf: [u8; 41] = unsafe { mem::uninitialized() };
+    buf[39] = b'\r';
+    buf[40] = b'\n';
     let buf_ptr = buf.as_mut_ptr();
     let lut_ptr = DEC_DIGITS_LUT.as_ptr();
 
     unsafe {
-        // need at least 16 bits for the 4-characters-at-a-time to work.
-        if mem::size_of::<usize>() >= 2 {
-            // eagerly decode 4 characters at a time
-            while n >= 10_000 {
-                let rem = (n % 10_000) as isize;
-                n /= 10_000;
+        // eagerly decode 4 characters at a time
+        while n >= 10_000 {
+            let rem = (n % 10_000) as isize;
+            n /= 10_000;
 
-                let d1 = (rem / 100) << 1;
-                let d2 = (rem % 100) << 1;
-                curr -= 4;
-                ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-                ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
-            }
+            let d1 = (rem / 100) << 1;
+            let d2 = (rem % 100) << 1;
+            curr -= 4;
+            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
+            ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
         }
 
         // if we reach here numbers are <= 9999, so at most 4 chars long
@@ -330,7 +336,7 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
 
     unsafe {
         bytes.extend_from_slice(
-            slice::from_raw_parts(buf_ptr.offset(curr), buf.len() - curr as usize));
+            slice::from_raw_parts(buf_ptr.offset(curr), 41 - curr as usize));
     }
 }
 
