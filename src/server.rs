@@ -264,6 +264,27 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     /// For each address this method starts separate thread which does `accept()` in a loop.
     ///
     /// This methods panics if no socket addresses get bound.
+    ///
+    /// This method requires to run within properly configured `Actix` system.
+    ///
+    /// ```rust
+    /// extern crate actix;
+    /// extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let sys = actix::System::new("example");  // <- create Actix system
+    ///
+    ///     HttpServer::new(
+    ///         || Application::new()
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
+    ///         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
+    ///         .start();
+    /// #  actix::Arbiter::system().send(actix::msgs::SystemExit(0));
+    ///
+    ///    let _ = sys.run();  // <- Run actix system, this method actually starts all async processes
+    /// }
+    /// ```
     pub fn start(mut self) -> SyncAddress<Self>
     {
         if self.sockets.is_empty() {
