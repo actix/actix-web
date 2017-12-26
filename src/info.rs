@@ -8,9 +8,6 @@ const X_FORWARDED_PROTO: &str = "X-FORWARDED-PROTO";
 
 
 /// `HttpRequest` connection information
-///
-/// While it is possible to create `ConnectionInfo` directly,
-/// consider using `HttpRequest::load_connection_info()` which cache result.
 pub struct ConnectionInfo<'a> {
     scheme: &'a str,
     host: &'a str,
@@ -138,6 +135,7 @@ impl<'a> ConnectionInfo<'a> {
     /// - X-Forwarded-Host
     /// - Host
     /// - Uri
+    /// - Server hostname
     pub fn host(&self) -> &str {
         self.host
     }

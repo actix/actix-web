@@ -87,8 +87,7 @@ fn main() {
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);
 
-                httpcodes::HTTPFound
-                    .build()
+                HttpResponse::Found()
                     .header("LOCATION", "/index.html")
                     .finish()
             })))

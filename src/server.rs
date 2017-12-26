@@ -53,11 +53,13 @@ impl Default for ServerSettings {
 
 impl ServerSettings {
     /// Crate server settings instance
-    fn new(addr: Option<net::SocketAddr>, secure: bool) -> Self {
-        let host = if let Some(ref addr) = addr {
+    fn new(addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool) -> Self {
+        let host = if let Some(ref host) = *host {
+            host.clone()
+        } else if let Some(ref addr) = addr {
             format!("{}", addr)
         } else {
-            "unknown".to_owned()
+            "localhost".to_owned()
         };
         ServerSettings {
             addr: addr,
@@ -97,6 +99,7 @@ pub struct HttpServer<T, A, H, U>
     addr: PhantomData<A>,
     threads: usize,
     backlog: i32,
+    host: Option<String>,
     keep_alive: Option<u64>,
     factory: Arc<Fn() -> U + Send + Sync>,
     workers: Vec<SyncAddress<Worker<H>>>,
@@ -134,6 +137,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     addr: PhantomData,
                     threads: num_cpus::get(),
                     backlog: 2048,
+                    host: None,
                     keep_alive: None,
                     factory: Arc::new(factory),
                     workers: Vec::new(),
@@ -172,6 +176,16 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     ///  - `None` - use `SO_KEEPALIVE` socket option
     pub fn keep_alive(mut self, val: Option<u64>) -> Self {
         self.keep_alive = val;
+        self
+    }
+
+    /// Set server host name.
+    ///
+    /// Host name is used by application router aa a hostname for url generation.
+    /// Check [ConnectionInfo](./dev/struct.ConnectionInfo.html#method.host) documentation
+    /// for more information.
+    pub fn server_hostname(mut self, val: String) -> Self {
+        self.host = Some(val);
         self
     }
 
@@ -291,7 +305,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             panic!("HttpServer::bind() has to be called befor start()");
         } else {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
-            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
 
             // start acceptors threads
@@ -395,7 +409,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     {
         if !self.sockets.is_empty() {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
-            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
 
             // start acceptors threads
@@ -407,7 +421,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
 
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let settings = ServerSettings::new(Some(addr), secure);
+        let settings = ServerSettings::new(Some(addr), &self.host, secure);
         let mut apps: Vec<_> = (*self.factory)().into_iter().map(|h| h.into_handler()).collect();
         for app in &mut apps {
             app.server_settings(settings.clone());
