@@ -12,20 +12,20 @@ use server::ServerSettings;
 
 
 /// Interface for application router.
-pub struct Router<S>(Rc<Inner<S>>);
+pub struct Router(Rc<Inner>);
 
-struct Inner<S> {
+struct Inner {
     prefix: String,
     regset: RegexSet,
     named: HashMap<String, (Pattern, bool)>,
     patterns: Vec<Pattern>,
-    resources: Vec<Resource<S>>,
     srv: ServerSettings,
 }
 
-impl<S> Router<S> {
+impl Router {
     /// Create new router
-    pub fn new(prefix: &str, map: HashMap<Pattern, Option<Resource<S>>>) -> Router<S>
+    pub fn new<S>(prefix: &str, map: HashMap<Pattern, Option<Resource<S>>>)
+                  -> (Router, Vec<Resource<S>>)
     {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
@@ -46,13 +46,12 @@ impl<S> Router<S> {
             }
         }
 
-        Router(Rc::new(
+        (Router(Rc::new(
             Inner{ prefix: prefix,
                    regset: RegexSet::new(&paths).unwrap(),
                    named: named,
                    patterns: patterns,
-                   resources: resources,
-                   srv: ServerSettings::default() }))
+                   srv: ServerSettings::default() })), resources)
     }
 
     pub(crate) fn set_server_settings(&mut self, settings: ServerSettings) {
@@ -72,7 +71,7 @@ impl<S> Router<S> {
     }
 
     /// Query for matched resource
-    pub fn recognize(&self, req: &mut HttpRequest<S>) -> Option<&Resource<S>> {
+    pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
         let mut idx = None;
         {
             let path = &req.path()[self.0.prefix.len()..];
@@ -88,7 +87,7 @@ impl<S> Router<S> {
         if let Some(idx) = idx {
             let path: &str = unsafe{ mem::transmute(&req.path()[self.0.prefix.len()..]) };
             self.0.patterns[idx].update_match_info(path, req);
-            return Some(&self.0.resources[idx])
+            return Some(idx)
         } else {
             None
         }
@@ -128,8 +127,8 @@ impl<S> Router<S> {
     }
 }
 
-impl<S: 'static> Clone for Router<S> {
-    fn clone(&self) -> Router<S> {
+impl Clone for Router {
+    fn clone(&self) -> Router {
         Router(Rc::clone(&self.0))
     }
 }
@@ -315,7 +314,7 @@ mod tests {
         routes.insert(Pattern::new("", "/v{val}/{val2}/index.html"), Some(Resource::default()));
         routes.insert(Pattern::new("", "/v/{tail:.*}"), Some(Resource::default()));
         routes.insert(Pattern::new("", "{test}/index.html"), Some(Resource::default()));
-        let rec = Router::new("", routes);
+        let (rec, _) = Router::new::<()>("", routes);
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/name").unwrap(),

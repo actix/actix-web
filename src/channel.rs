@@ -18,7 +18,7 @@ use server::{ServerSettings, WorkerSettings};
 pub trait HttpHandler: 'static {
 
     /// Handle request
-    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
+    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
 
     /// Set server settings
     fn server_settings(&mut self, settings: ServerSettings) {}

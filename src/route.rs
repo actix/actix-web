@@ -36,7 +36,7 @@ impl<S: 'static> Route<S> {
         true
     }
 
-    pub(crate) fn handle(&self, req: HttpRequest<S>) -> Reply {
+    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> Reply {
         self.handler.handle(req)
     }
 

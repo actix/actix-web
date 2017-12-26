@@ -261,7 +261,7 @@ impl Entry {
 
         // start request processing
         let mut task = None;
-        for h in settings.handlers().iter() {
+        for h in settings.handlers().iter_mut() {
             req = match h.handle(req) {
                 Ok(t) => {
                     task = Some(t);

@@ -15,7 +15,8 @@ pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
     default: Resource<S>,
-    router: Router<S>,
+    router: Router,
+    resources: Vec<Resource<S>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
@@ -25,9 +26,9 @@ impl<S: 'static> HttpApplication<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
     }
 
-    pub(crate) fn run(&self, mut req: HttpRequest<S>) -> Reply {
-        if let Some(h) = self.router.recognize(&mut req) {
-            h.handle(req.clone(), Some(&self.default))
+    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
+        if let Some(idx) = self.router.recognize(&mut req) {
+            self.resources[idx].handle(req.clone(), Some(&mut self.default))
         } else {
             self.default.handle(req, None)
         }
@@ -36,11 +37,12 @@ impl<S: 'static> HttpApplication<S> {
 
 impl<S: 'static> HttpHandler for HttpApplication<S> {
 
-    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
             let req = self.prepare_request(req);
+            // TODO: redesign run callback
             Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares),
-                                      &|req: HttpRequest<S>| self.run(req))))
+                                      &mut |req: HttpRequest<S>| self.run(req))))
         } else {
             Err(req)
         }
@@ -264,11 +266,13 @@ impl<S> Application<S> where S: 'static {
             resources.insert(pattern, None);
         }
 
+        let (router, resources) = Router::new(prefix, resources);
         HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.to_owned(),
             default: parts.default,
-            router: Router::new(prefix, resources),
+            router: router,
+            resources: resources,
             middlewares: Rc::new(parts.middlewares),
         }
     }
@@ -314,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let app = Application::new()
+        let mut app = Application::new()
             .resource("/test", |r| r.h(httpcodes::HTTPOk))
             .finish();
 
@@ -330,7 +334,7 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
-        let app = Application::new()
+        let mut app = Application::new()
             .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
             .finish();
         let req = HttpRequest::new(
@@ -342,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_unhandled_prefix() {
-        let app = Application::new()
+        let mut app = Application::new()
             .prefix("/test")
             .resource("/test", |r| r.h(httpcodes::HTTPOk))
             .finish();
@@ -351,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let app = Application::with_state(10)
+        let mut app = Application::with_state(10)
             .resource("/", |r| r.h(httpcodes::HTTPOk))
             .finish();
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());

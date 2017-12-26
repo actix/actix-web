@@ -1,5 +1,6 @@
 use std::{io, net, thread};
 use std::rc::Rc;
+use std::cell::{RefCell, RefMut};
 use std::sync::Arc;
 use std::time::Duration;
 use std::marker::PhantomData;
@@ -447,7 +448,7 @@ struct Worker<H> {
 }
 
 pub(crate) struct WorkerSettings<H> {
-    h: Vec<H>,
+    h: RefCell<Vec<H>>,
     enabled: bool,
     keep_alive: u64,
     bytes: Rc<helpers::SharedBytesPool>,
@@ -457,7 +458,7 @@ pub(crate) struct WorkerSettings<H> {
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
         WorkerSettings {
-            h: h,
+            h: RefCell::new(h),
             enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
             keep_alive: keep_alive.unwrap_or(0),
             bytes: Rc::new(helpers::SharedBytesPool::new()),
@@ -465,8 +466,8 @@ impl<H> WorkerSettings<H> {
         }
     }
 
-    pub fn handlers(&self) -> &Vec<H> {
-        &self.h
+    pub fn handlers(&self) -> RefMut<Vec<H>> {
+        self.h.borrow_mut()
     }
     pub fn keep_alive(&self) -> u64 {
         self.keep_alive

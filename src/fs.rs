@@ -252,7 +252,7 @@ impl StaticFiles {
 impl<S> Handler<S> for StaticFiles {
     type Result = Result<FilesystemElement, io::Error>;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
             Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
         } else {

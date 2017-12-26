@@ -231,7 +231,7 @@ impl<T, H> Http1<T, H>
 
                         // start request processing
                         let mut pipe = None;
-                        for h in self.settings.handlers().iter() {
+                        for h in self.settings.handlers().iter_mut() {
                             req = match h.handle(req) {
                                 Ok(t) => {
                                     pipe = Some(t);

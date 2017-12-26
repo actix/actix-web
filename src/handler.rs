@@ -19,7 +19,7 @@ pub trait Handler<S>: 'static {
     type Result: Responder;
 
     /// Handle request
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result;
+    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result;
 }
 
 /// Trait implemented by types that generate responses for clients.
@@ -59,7 +59,7 @@ impl<F, R, S> Handler<S> for F
 {
     type Result = R;
 
-    fn handle(&self, req: HttpRequest<S>) -> R {
+    fn handle(&mut self, req: HttpRequest<S>) -> R {
         (self)(req)
     }
 }
@@ -207,7 +207,7 @@ impl<I, E> Responder for Box<Future<Item=I, Error=E>>
 
 /// Trait defines object that could be regestered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    fn handle(&self, req: HttpRequest<S>) -> Reply;
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply;
 }
 
 /// Route handler wrapper for Handler
@@ -236,7 +236,7 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
           R: Responder + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply {
         let req2 = req.clone_without_state();
         match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
@@ -277,7 +277,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
           E: Into<Error> + 'static,
           S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply {
         let req2 = req.clone_without_state();
         let fut = (self.h)(req)
             .map_err(|e| e.into())
@@ -368,7 +368,7 @@ impl NormalizePath {
 impl<S> Handler<S> for NormalizePath {
     type Result = Result<HttpResponse, HttpError>;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if let Some(router) = req.router() {
             let query = req.query_string();
             if self.merge {
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes() {
-        let app = Application::new()
+        let mut app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -452,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes_disabled() {
-        let app = Application::new()
+        let mut app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(
@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_slashes() {
-        let app = Application::new()
+        let mut app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -515,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_and_append_slashes() {
-        let app = Application::new()
+        let mut app = Application::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))

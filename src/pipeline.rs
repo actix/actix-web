@@ -15,8 +15,8 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middlewares::{Middleware, Finished, Started, Response};
 
-type Handler<S> = Fn(HttpRequest<S>) -> Reply;
-pub(crate) type PipelineHandler<'a, S> = &'a Fn(HttpRequest<S>) -> Reply;
+type Handler<S> = FnMut(HttpRequest<S>) -> Reply;
+pub(crate) type PipelineHandler<'a, S> = &'a mut FnMut(HttpRequest<S>) -> Reply;
 
 pub struct Pipeline<S>(PipelineInfo<S>, PipelineState<S>);
 
@@ -287,7 +287,7 @@ impl<S> StartMiddlewares<S> {
         let len = info.mws.len();
         loop {
             if info.count == len {
-                let reply = (&*handler)(info.req.clone());
+                let reply = (&mut *handler)(info.req.clone());
                 return WaitingResponse::init(info, reply)
             } else {
                 match info.mws[info.count].start(&mut info.req) {
@@ -329,7 +329,7 @@ impl<S> StartMiddlewares<S> {
                         return Ok(RunMiddlewares::init(info, resp));
                     }
                     if info.count == len {
-                        let reply = (unsafe{&*self.hnd})(info.req.clone());
+                        let reply = (unsafe{&mut *self.hnd})(info.req.clone());
                         return Ok(WaitingResponse::init(info, reply));
                     } else {
                         loop {

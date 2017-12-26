@@ -87,7 +87,7 @@ impl HttpMessage {
 }
 
 /// An HTTP Request
-pub struct HttpRequest<S=()>(SharedHttpMessage, Option<Rc<S>>, Option<Router<S>>);
+pub struct HttpRequest<S=()>(SharedHttpMessage, Option<Rc<S>>, Option<Router>);
 
 impl HttpRequest<()> {
     /// Construct a new Request.
@@ -146,7 +146,7 @@ impl HttpRequest<()> {
 
     #[inline]
     /// Construct new http request with state.
-    pub fn with_state<S>(self, state: Rc<S>, router: Router<S>) -> HttpRequest<S> {
+    pub fn with_state<S>(self, state: Rc<S>, router: Router) -> HttpRequest<S> {
         HttpRequest(self.0, Some(state), Some(router))
     }
 }
@@ -277,7 +277,7 @@ impl<S> HttpRequest<S> {
 
     /// This method returns reference to current `Router` object.
     #[inline]
-    pub fn router(&self) -> Option<&Router<S>> {
+    pub fn router(&self) -> Option<&Router> {
         self.2.as_ref()
     }
 
@@ -736,11 +736,11 @@ mod tests {
         let mut req = HttpRequest::new(Method::GET, Uri::from_str("/value/?id=test").unwrap(),
                                        Version::HTTP_11, HeaderMap::new(), None);
 
-        let mut resource = Resource::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("index", "/{key}/"), Some(resource));
-        let router = Router::new("", map);
+        let (router, _) = Router::new("", map);
         assert!(router.recognize(&mut req).is_some());
 
         assert_eq!(req.match_info().get("key"), Some("value"));
@@ -843,11 +843,11 @@ mod tests {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
 
-        let mut resource = Resource::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
-        let router = Router::new("", map);
+        let (router, _) = Router::new("", map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
 
@@ -874,7 +874,7 @@ mod tests {
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None);
-        let router = Router::new("", map);
+        let (router, _) = Router::new::<()>("", map);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
         let req = req.with_state(Rc::new(()), router);

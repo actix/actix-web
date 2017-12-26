@@ -39,6 +39,81 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 }
 ```
 
+Some notes on shared application state and handler state. If you noticed
+*Handler* trait is generic over *S*, which defines application state type. So
+application state is accessible from handler with `HttpRequest::state()` method. 
+But state is accessible as a read-only reference, if you need mutable access to state
+you have to implement it yourself. On other hand handler can mutable access it's own state
+as `handle` method takes mutable reference to *self*. Beware, actix creates multiple copies
+of application state and handlers, unique for each thread, so if you run your
+application in several threads actix will create same amount as number of threads 
+of application state objects and handler objects.
+
+Here is example of handler that stores number of processed requests:
+
+```rust
+# extern crate actix;
+# extern crate actix_web;
+use actix_web::*;
+use actix_web::dev::Handler;
+
+struct MyHandler(usize);
+
+impl<S> Handler<S> for MyHandler {
+    type Result = HttpResponse;
+
+    /// Handle request
+    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+        self.0 += 1;
+        httpcodes::HTTPOk.response()
+    }
+}
+# fn main() {}
+```
+
+This handler will work, but `self.0` value will be different depends on number of threads and
+number of requests processed per thread. Proper implementation would use `Arc` and `AtomicUsize`
+
+```rust
+# extern crate actix;
+# extern crate actix_web;
+use actix_web::*;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+struct MyHandler(Arc<AtomicUsize>);
+
+impl<S> Handler<S> for MyHandler {
+    type Result = HttpResponse;
+
+    /// Handle request
+    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+        let num = self.0.load(Ordering::Relaxed) + 1;
+        self.0.store(num, Ordering::Relaxed);
+        httpcodes::HTTPOk.response()
+    }
+}
+
+fn main() {
+    let sys = actix::System::new("example");
+
+    let inc = Arc::new(AtomicUsize::new(0));
+
+    HttpServer::new(
+        move || { 
+            let cloned = inc.clone();
+            Application::new()
+            .resource("/", move |r| r.h(MyHandler(cloned)))
+        })
+        .bind("127.0.0.1:8088").unwrap()
+        .start();
+
+    println!("Started http server: 127.0.0.1:8088");
+#    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
+    let _ = sys.run();
+}
+```
+
 ## Response with custom type
 
 To return custom type directly from handler function type needs to implement `Responder` trait.

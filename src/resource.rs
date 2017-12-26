@@ -126,10 +126,10 @@ impl<S: 'static> Resource<S> {
         self.routes.last_mut().unwrap().f(handler)
     }
 
-    pub(crate) fn handle(&self, mut req: HttpRequest<S>, default: Option<&Resource<S>>)
+    pub(crate) fn handle(&mut self, mut req: HttpRequest<S>, default: Option<&mut Resource<S>>)
                          -> Reply
     {
-        for route in &self.routes {
+        for route in &mut self.routes {
             if route.check(&mut req) {
                 return route.handle(req)
             }

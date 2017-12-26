@@ -70,13 +70,13 @@ impl StaticResponse {
 impl<S> Handler<S> for StaticResponse {
     type Result = HttpResponse;
 
-    fn handle(&self, _: HttpRequest<S>) -> HttpResponse {
+    fn handle(&mut self, _: HttpRequest<S>) -> HttpResponse {
         HttpResponse::new(self.0, Body::Empty)
     }
 }
 
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, _: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, _: HttpRequest<S>) -> Reply {
         Reply::response(HttpResponse::new(self.0, Body::Empty))
     }
 }
