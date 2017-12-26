@@ -336,7 +336,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
-            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let acceptor = match TlsAcceptor::builder(pkcs12) {
                 Ok(builder) => {
                     match builder.build() {
@@ -373,7 +373,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
             let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
-            let settings = ServerSettings::new(Some(addrs[0].0), false);
+            let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
                 SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
             {
