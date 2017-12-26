@@ -6,8 +6,9 @@ Builder-like patter is used to construct an instance of `HttpResponse`.
 `HttpResponse` provides several method that returns `HttpResponseBuilder` instance,
 which is implements various convinience methods that helps build response.
 Check [documentation](../actix_web/dev/struct.HttpResponseBuilder.html)
-for type description. Methods `.body`, `.finish`, `.json` finalizes response creation,
-if this methods get call for the same builder instance, builder will panic.
+for type description. Methods `.body`, `.finish`, `.json` finalizes response creation and
+returns constructed *HttpResponse* instance. if this methods get called for the same
+builder instance multiple times, builder will panic.
 
 ```rust
 # extern crate actix_web;

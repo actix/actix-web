@@ -1,7 +1,7 @@
 # Handler
 
-A request handler can by any object that implements
-[`Handler` trait](../actix_web/dev/trait.Handler.html#implementors).
+A request handler can by any object that implements 
+[*Handler trait*](../actix_web/dev/trait.Handler.html).
 Request handling happen in two stages. First handler object get called. 
 Handle can return any object that implements 
 [*Responder trait*](../actix_web/trait.Responder.html#foreign-impls).
@@ -11,7 +11,7 @@ result of the `respond_to()` call get converted to `Reply` object.
 By default actix provides `Responder` implementations for some standard types, 
 like `&'static str`, `String`, etc.
 For complete list of implementations check 
-[Responder documentation](../actix_web/trait.Responder.html#foreign-impls).
+[*Responder documentation*](../actix_web/trait.Responder.html#foreign-impls).
 
 Examples of valid handlers:
 
@@ -114,6 +114,11 @@ fn main() {
     let _ = sys.run();
 }
 ```
+
+Be careful with synchronization primitives like *Mutex* or *RwLock*. Actix web framework
+handles request asynchronously, by blocking thread execution all concurrent
+request handling processes would block. If you need to share or update some state 
+from multiple threads consider using [actix](https://actix.github.io/actix/actix/)  actor system.
 
 ## Response with custom type
 
