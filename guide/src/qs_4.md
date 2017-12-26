@@ -78,6 +78,7 @@ number of requests processed per thread. Proper implementation would use `Arc` a
 # extern crate actix;
 # extern crate actix_web;
 use actix_web::*;
+use actix_web::dev::Handler;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
