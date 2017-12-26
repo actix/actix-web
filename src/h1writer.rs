@@ -161,14 +161,12 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             buffer.extend_from_slice(msg.reason().as_bytes());
 
             match body {
-                Body::Empty => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
-                }
-                Body::Binary(ref bytes) => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: ");
-                    helpers::convert_usize(bytes.len(), &mut buffer);
-                }
-                _ => buffer.extend_from_slice(b"\r\n"),
+                Body::Empty =>
+                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n"),
+                Body::Binary(ref bytes) =>
+                    helpers::write_content_length(bytes.len(), &mut buffer),
+                _ =>
+                    buffer.extend_from_slice(b"\r\n"),
             }
 
             // write headers

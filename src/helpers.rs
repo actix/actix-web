@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
 use time;
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use http::Version;
 
 use httprequest::HttpMessage;
@@ -240,8 +240,8 @@ const DEC_DIGITS_LUT: &[u8] =
       8081828384858687888990919293949596979899";
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 14] = [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1',
-                             b' ', b' ', b' ', b' ', b' ', b' '];
+    let mut buf: [u8; 13] = [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1',
+                             b' ', b' ', b' ', b' ', b' '];
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
@@ -249,33 +249,17 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
         _ => (),
     }
 
-    let mut curr: isize = 13;
+    let mut curr: isize = 12;
     let buf_ptr = buf.as_mut_ptr();
     let lut_ptr = DEC_DIGITS_LUT.as_ptr();
+    let four = n > 999;
 
     unsafe {
-        // eagerly decode 4 characters at a time
-        while n >= 10_000 {
-            let rem = (n % 10_000) as isize;
-            n /= 10_000;
-
-            let d1 = (rem / 100) << 1;
-            let d2 = (rem % 100) << 1;
-            curr -= 4;
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-            ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
-        }
-
-        // if we reach here numbers are <= 9999, so at most 4 chars long
-        let mut n = n as isize; // possibly reduce 64bit math
-
         // decode 2 more chars, if > 2 chars
-        if n >= 100 {
-            let d1 = (n % 100) << 1;
-            n /= 100;
-            curr -= 2;
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-        }
+        let d1 = (n % 100) << 1;
+        n /= 100;
+        curr -= 2;
+        ptr::copy_nonoverlapping(lut_ptr.offset(d1 as isize), buf_ptr.offset(curr), 2);
 
         // decode last 1 or 2 chars
         if n < 10 {
@@ -284,11 +268,57 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
         } else {
             let d1 = n << 1;
             curr -= 2;
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
+            ptr::copy_nonoverlapping(lut_ptr.offset(d1 as isize), buf_ptr.offset(curr), 2);
         }
     }
 
     bytes.extend_from_slice(&buf);
+    if four {
+        bytes.put(b' ');
+    }
+}
+
+pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
+    if n < 10 {
+        let mut buf: [u8; 21] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
+                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
+                                 b't',b'h',b':',b' ',b'0',b'\r',b'\n'];
+        buf[18] = (n as u8) + b'0';
+        bytes.extend_from_slice(&buf);
+    } else if n < 100 {
+        let mut buf: [u8; 22] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
+                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
+                                 b't',b'h',b':',b' ',b'0',b'0',b'\r',b'\n'];
+        let d1 = n << 1;
+        unsafe {
+            ptr::copy_nonoverlapping(
+                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(18), 2);
+        }
+        bytes.extend_from_slice(&buf);
+    } else if n < 1000 {
+        let mut buf: [u8; 23] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
+                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
+                                 b't',b'h',b':',b' ',b'0',b'0',b'0',b'\r',b'\n'];
+        // decode 2 more chars, if > 2 chars
+        let d1 = (n % 100) << 1;
+        n /= 100;
+        unsafe {ptr::copy_nonoverlapping(
+            DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(18), 2)};
+
+        // decode last 1 or 2 chars
+        if n < 10 {
+            buf[20] = (n as u8) + b'0';
+        } else {
+            let d1 = n << 1;
+            unsafe {ptr::copy_nonoverlapping(
+                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(17), 2)};
+        }
+
+        bytes.extend_from_slice(&buf);
+    } else {
+        bytes.extend_from_slice(b"\r\ncontent-length: ");
+        convert_usize(n, bytes);
+    }
 }
 
 pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
@@ -340,16 +370,22 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     }
 }
 
-#[test]
-fn test_date_len() {
-    assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
-}
 
-#[test]
-fn test_date() {
-    let mut buf1 = BytesMut::new();
-    date(&mut buf1);
-    let mut buf2 = BytesMut::new();
-    date(&mut buf2);
-    assert_eq!(buf1, buf2);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_date_len() {
+        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
+    }
+
+    #[test]
+    fn test_date() {
+        let mut buf1 = BytesMut::new();
+        date(&mut buf1);
+        let mut buf2 = BytesMut::new();
+        date(&mut buf2);
+        assert_eq!(buf1, buf2);
+    }
 }
