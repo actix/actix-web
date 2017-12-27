@@ -2,10 +2,12 @@ extern crate actix;
 extern crate actix_web;
 extern crate tokio_core;
 extern crate reqwest;
+extern crate futures;
 
-use std::thread;
+use std::{net, thread};
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use futures::Future;
 
 use actix_web::*;
 use actix::System;
@@ -20,12 +22,22 @@ fn test_start() {
         let srv = HttpServer::new(
             || vec![Application::new()
                     .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
+
         let srv = srv.bind("127.0.0.1:0").unwrap();
-        let _ = tx.send(srv.addrs()[0].clone());
-        srv.start();
+        let addr = srv.addrs()[0].clone();
+        let srv_addr = srv.start();
+        let _ = tx.send((addr, srv_addr));
         sys.run();
     });
-    let addr = rx.recv().unwrap();
+    let (addr, srv_addr) = rx.recv().unwrap();
+    assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
+
+    // pause
+    let _ = srv_addr.call_fut(dev::PauseServer).wait();
+    assert!(net::TcpStream::connect(addr).is_err());
+
+    // resume
+    let _ = srv_addr.call_fut(dev::ResumeServer).wait();
     assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
 }
 

@@ -71,8 +71,8 @@ extern crate brotli2;
 extern crate percent_encoding;
 extern crate smallvec;
 extern crate num_cpus;
-extern crate actix;
 extern crate h2 as http2;
+#[macro_use] extern crate actix;
 
 #[cfg(test)]
 #[macro_use] extern crate serde_derive;
@@ -173,7 +173,8 @@ pub mod dev {
     pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
-    pub use server::ServerSettings;
     pub use httprequest::UrlEncoded;
     pub use httpresponse::HttpResponseBuilder;
+
+    pub use server::{ServerSettings, PauseServer, ResumeServer, StopServer};
 }

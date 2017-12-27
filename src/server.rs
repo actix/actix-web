@@ -1,7 +1,7 @@
 use std::{io, net, thread};
 use std::rc::Rc;
 use std::cell::{RefCell, RefMut};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc as sync_mpsc};
 use std::time::Duration;
 use std::marker::PhantomData;
 use std::collections::HashMap;
@@ -106,6 +106,7 @@ pub struct HttpServer<T, A, H, U>
     factory: Arc<Fn() -> U + Send + Sync>,
     workers: Vec<SyncAddress<Worker<H>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
+    accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
 }
 
 impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
@@ -144,6 +145,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     factory: Arc::new(factory),
                     workers: Vec::new(),
                     sockets: HashMap::new(),
+                    accept: Vec::new(),
         }
     }
 
@@ -206,19 +208,10 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         let mut succ = false;
         if let Ok(iter) = addr.to_socket_addrs() {
             for addr in iter {
-                let builder = match addr {
-                    net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-                    net::SocketAddr::V6(_) => TcpBuilder::new_v6()?,
-                };
-                match builder.bind(addr) {
-                    Ok(builder) => match builder.reuse_address(true) {
-                        Ok(builder) => {
-                            succ = true;
-                            let lst = builder.listen(self.backlog)
-                                .expect("failed to set socket backlog");
-                            self.sockets.insert(lst.local_addr().unwrap(), lst);
-                        },
-                        Err(e) => err = Some(e)
+                match create_tcp_listener(addr, self.backlog) {
+                    Ok(lst) => {
+                        succ = true;
+                        self.sockets.insert(lst.local_addr().unwrap(), lst);
                     },
                     Err(e) => err = Some(e),
                 }
@@ -309,7 +302,8 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting http server on {}", addr);
-                start_accept_thread(sock, addr, workers.clone());
+                self.accept.push(
+                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
 
             // start http server actor
@@ -328,7 +322,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
-            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let acceptor = match TlsAcceptor::builder(pkcs12) {
                 Ok(builder) => {
@@ -344,7 +338,8 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting tls http server on {}", addr);
-                start_accept_thread(sock, addr, workers.clone());
+                self.accept.push(
+                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
 
             // start http server actor
@@ -365,7 +360,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
-            let addrs: Vec<(net::SocketAddr, Socket)> = self.sockets.drain().collect();
+            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
                 SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
@@ -383,7 +378,8 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting tls http server on {}", addr);
-                start_accept_thread(sock, addr, workers.clone());
+                self.accept.push(
+                    start_accept_thread(sock, addr, workers.clone(), self.backlog));
             }
 
             // start http server actor
@@ -414,7 +410,8 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting http server on {}", addr);
-                start_accept_thread(sock, addr, workers.clone());
+                self.accept.push(
+                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
         }
 
@@ -436,16 +433,11 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 }
 
+#[derive(Message)]
 struct IoStream<T> {
     io: T,
     peer: Option<net::SocketAddr>,
     http2: bool,
-}
-
-impl<T> ResponseType for IoStream<T>
-{
-    type Item = ();
-    type Error = ();
 }
 
 impl<T, A, H, U> StreamHandler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
@@ -469,6 +461,67 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
     {
         Arbiter::handle().spawn(
             HttpChannel::new(Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
+        Self::empty()
+    }
+}
+
+/// Pause connection accepting process
+#[derive(Message)]
+pub struct PauseServer;
+
+/// Resume connection accepting process
+#[derive(Message)]
+pub struct ResumeServer;
+
+/// Stop connection processing and exit
+#[derive(Message)]
+pub struct StopServer;
+
+impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          U: 'static,
+          A: 'static,
+{
+    fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) -> Response<Self, PauseServer>
+    {
+        for item in &self.accept {
+            let _ = item.1.send(Command::Pause);
+            let _ = item.0.set_readiness(mio::Ready::readable());
+        }
+        Self::empty()
+    }
+}
+
+impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          U: 'static,
+          A: 'static,
+{
+    fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) -> Response<Self, ResumeServer>
+    {
+        for item in &self.accept {
+            let _ = item.1.send(Command::Resume);
+            let _ = item.0.set_readiness(mio::Ready::readable());
+        }
+        Self::empty()
+    }
+}
+
+impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          U: 'static,
+          A: 'static,
+{
+    fn handle(&mut self, _: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
+    {
+        for item in &self.accept {
+            let _ = item.1.send(Command::Stop);
+            let _ = item.0.set_readiness(mio::Ready::readable());
+        }
+        ctx.stop();
         Self::empty()
     }
 }
@@ -589,10 +642,11 @@ impl StreamHandlerType {
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
-                Arbiter::handle().spawn(
+                hnd.spawn(
                     TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
                         match res {
-                            Ok(io) => hnd.spawn(HttpChannel::new(h, io, peer, http2)),
+                            Ok(io) => Arbiter::handle().spawn(
+                                HttpChannel::new(h, io, peer, http2)),
                             Err(err) =>
                                 trace!("Error during handling tls connection: {}", err),
                         };
@@ -629,14 +683,27 @@ impl StreamHandlerType {
     }
 }
 
-fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr,
-                       workers: Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>) {
+enum Command {
+    Pause,
+    Resume,
+    Stop,
+}
+
+fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i32,
+                       workers: Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>)
+                       -> (mio::SetReadiness, sync_mpsc::Sender<Command>)
+{
+    let (tx, rx) = sync_mpsc::channel();
+    let (reg, readiness) = mio::Registration::new2();
+
     // start accept thread
     let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(move || {
-        let mut next = 0;
-        let server = mio::net::TcpListener::from_listener(sock, &addr)
-            .expect("Can not create mio::net::TcpListener");
-        const SERVER: mio::Token = mio::Token(0);
+        const SRV: mio::Token = mio::Token(0);
+        const CMD: mio::Token = mio::Token(1);
+
+        let mut server = Some(
+            mio::net::TcpListener::from_listener(sock, &addr)
+                .expect("Can not create mio::net::TcpListener"));
 
         // Create a poll instance
         let poll = match mio::Poll::new() {
@@ -645,14 +712,23 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr,
         };
 
         // Start listening for incoming connections
-        if let Err(err) = poll.register(&server, SERVER,
+        if let Some(ref srv) = server {
+            if let Err(err) = poll.register(
+                srv, SRV, mio::Ready::readable(), mio::PollOpt::edge()) {
+                panic!("Can not register io: {}", err);
+            }
+        }
+
+        // Start listening for incommin commands
+        if let Err(err) = poll.register(&reg, CMD,
                                         mio::Ready::readable(), mio::PollOpt::edge()) {
-            panic!("Can not register io: {}", err);
+            panic!("Can not register Registration: {}", err);
         }
 
         // Create storage for events
         let mut events = mio::Events::with_capacity(128);
 
+        let mut next = 0;
         loop {
             if let Err(err) = poll.poll(&mut events, None) {
                 panic!("Poll error: {}", err);
@@ -660,22 +736,60 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr,
 
             for event in events.iter() {
                 match event.token() {
-                    SERVER => {
-                        loop {
-                            match server.accept_std() {
-                                Ok((sock, addr)) => {
-                                    let msg = IoStream{io: sock, peer: Some(addr), http2: false};
-                                    workers[next]
-                                        .unbounded_send(msg).expect("worker thread died");
-                                    next = (next + 1) % workers.len();
-                                },
-                                Err(err) => if err.kind() == io::ErrorKind::WouldBlock {
-                                    break
-                                } else {
-                                    error!("Error accepting connection: {:?}", err);
-                                    return
+                    SRV => {
+                        if let Some(ref server) = server {
+                            loop {
+                                match server.accept_std() {
+                                    Ok((sock, addr)) => {
+                                        let msg = IoStream{
+                                            io: sock, peer: Some(addr), http2: false};
+                                        workers[next].unbounded_send(msg)
+                                            .expect("worker thread died");
+                                        next = (next + 1) % workers.len();
+                                    },
+                                    Err(err) => if err.kind() == io::ErrorKind::WouldBlock {
+                                        break
+                                    } else {
+                                        error!("Error accepting connection: {:?}", err);
+                                        return
+                                    }
                                 }
                             }
+                        }
+                    },
+                    CMD => match rx.try_recv() {
+                        Ok(cmd) => match cmd {
+                            Command::Pause => if let Some(server) = server.take() {
+                                if let Err(err) = poll.deregister(&server) {
+                                    error!("Can not deregister server socket {}", err);
+                                } else {
+                                    info!("Paused accepting connections on {}", addr);
+                                }
+                            },
+                            Command::Resume => {
+                                let lst = create_tcp_listener(addr, backlog)
+                                    .expect("Can not create net::TcpListener");
+
+                                server = Some(
+                                    mio::net::TcpListener::from_listener(lst, &addr)
+                                        .expect("Can not create mio::net::TcpListener"));
+
+                                if let Some(ref server) = server {
+                                    if let Err(err) = poll.register(
+                                        server, SRV, mio::Ready::readable(), mio::PollOpt::edge())
+                                    {
+                                        error!("Can not resume socket accept process: {}", err);
+                                    } else {
+                                        info!("Accepting connections on {} has been resumed",
+                                              addr);
+                                    }
+                                }
+                            },
+                            Command::Stop => return,
+                        },
+                        Err(err) => match err {
+                            sync_mpsc::TryRecvError::Empty => (),
+                            sync_mpsc::TryRecvError::Disconnected => return,
                         }
                     }
                     _ => unreachable!(),
@@ -683,4 +797,16 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr,
             }
         }
     });
+
+    (readiness, tx)
+}
+
+fn create_tcp_listener(addr: net::SocketAddr, backlog: i32) -> io::Result<net::TcpListener> {
+    let builder = match addr {
+        net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+        net::SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    };
+    builder.bind(addr)?;
+    builder.reuse_address(true)?;
+    Ok(builder.listen(backlog)?)
 }
