@@ -9,8 +9,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use actix_web::*;
 
 #[test]
-fn test_serve() {
+fn test_simple() {
     let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
+}
+
+#[test]
+fn test_application() {
+    let srv = test::TestServer::with_factory(
+        || Application::new().resource("/", |r| r.h(httpcodes::HTTPOk)));
     assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
 }
 

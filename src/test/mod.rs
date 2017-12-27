@@ -8,7 +8,7 @@ use tokio_core::net::TcpListener;
 
 use server::HttpServer;
 use handler::Handler;
-use channel::IntoHttpHandler;
+use channel::{HttpHandler, IntoHttpHandler};
 use middlewares::Middleware;
 use application::{Application, HttpApplication};
 
@@ -54,6 +54,36 @@ impl TestServer {
         where F: Sync + Send + 'static + Fn(&mut TestApp<()>),
     {
         TestServer::with_state(||(), config)
+    }
+
+    /// Start new test server with application factory
+    pub fn with_factory<H, F, U, V>(factory: F) -> Self
+        where H: HttpHandler,
+              F: Sync + Send + 'static + Fn() -> U,
+              U: IntoIterator<Item=V> + 'static,
+              V: IntoHttpHandler<Handler=H>,
+    {
+        let (tx, rx) = mpsc::channel();
+
+        // run server in separate thread
+        let join = thread::spawn(move || {
+            let sys = System::new("actix-test-server");
+            let tcp = net::TcpListener::bind("0.0.0.0:0").unwrap();
+            let local_addr = tcp.local_addr().unwrap();
+            let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
+
+            HttpServer::new(factory).start_incoming(tcp.incoming(), false);
+
+            tx.send((Arbiter::system(), local_addr)).unwrap();
+            let _ = sys.run();
+        });
+
+        let (sys, addr) = rx.recv().unwrap();
+        TestServer {
+            addr: addr,
+            thread: Some(join),
+            sys: sys,
+        }
     }
 
     /// Start new test server with custom application state
