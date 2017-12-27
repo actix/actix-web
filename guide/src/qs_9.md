@@ -21,8 +21,8 @@ impl Actor for Ws {
 }
 
 /// Define Handler for ws::Message message
-# impl StreamHandler<ws::Message> for WsRoute {}
-impl Handler<ws::Message> for WsRoute {
+# impl StreamHandler<ws::Message> for Ws {}
+impl Handler<ws::Message> for Ws {
     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) -> Response<Self, ws::Message>
     {
         match msg {
@@ -37,7 +37,7 @@ impl Handler<ws::Message> for WsRoute {
 
 fn main() {
     Application::new()
-      .resource("/ws/", |r| r.f(|req| ws::start(req, WS))  // <- register websocket route
+      .resource("/ws/", |r| r.f(|req| ws::start(req, Ws)))  // <- register websocket route
       .finish();
 }
 ```

@@ -28,7 +28,13 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - USE_SKEPTIC=1 cargo test --features=alpn
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2017-12-21" ]]; then
+       USE_SKEPTIC=1 cargo test --features=alpn
+    else
+       cargo test --features=alpn
+    fi
+
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
        cd examples/diesel && cargo check && cd ../..
