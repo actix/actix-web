@@ -50,6 +50,8 @@ extern crate bitflags;
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
+extern crate mio;
+extern crate net2;
 
 extern crate failure;
 #[macro_use] extern crate failure_derive;
@@ -69,7 +71,6 @@ extern crate brotli2;
 extern crate percent_encoding;
 extern crate smallvec;
 extern crate num_cpus;
-extern crate socket2;
 extern crate actix;
 extern crate h2 as http2;
 

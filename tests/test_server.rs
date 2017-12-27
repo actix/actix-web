@@ -4,7 +4,7 @@ extern crate tokio_core;
 extern crate reqwest;
 
 use std::thread;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use actix_web::*;
@@ -12,16 +12,20 @@ use actix::System;
 
 #[test]
 fn test_start() {
-    let addr = test::TestServer::unused_addr();
-    let srv_addr = addr.clone();
+    let _ = test::TestServer::unused_addr();
+    let (tx, rx) = mpsc::channel();
+
     thread::spawn(move || {
         let sys = System::new("test");
         let srv = HttpServer::new(
             || vec![Application::new()
                     .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
-        srv.bind(srv_addr).unwrap().start();
+        let srv = srv.bind("127.0.0.1:0").unwrap();
+        let _ = tx.send(srv.addrs()[0].clone());
+        srv.start();
         sys.run();
     });
+    let addr = rx.recv().unwrap();
     assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
 }
 
