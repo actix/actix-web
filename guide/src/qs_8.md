@@ -3,6 +3,43 @@
 Every application should be well tested and. Actix provides the tools to perform unit and
 integration tests.
 
+## Unit tests
+
+For unit testing actix provides request builder type and simple handler runner.
+[*TestRequest*](../actix_web/test/struct.TestRequest.html) implements builder-like pattern.
+You can generate `HttpRequest` instance with `finish()` method or you can
+run your handler with `run()` or `run_async()` methods.
+
+```rust
+# extern crate http;
+# extern crate actix_web;
+use http::{header, StatusCode};
+use actix_web::*;
+use actix_web::test::TestRequest;
+
+fn index(req: HttpRequest) -> HttpResponse {
+     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
+        if let Ok(s) = hdr.to_str() {
+            return httpcodes::HTTPOk.response()
+        }
+     }
+     httpcodes::HTTPBadRequest.response()
+}
+
+fn main() {
+    let resp = TestRequest::with_header("content-type", "text/plain")
+        .run(index)
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let resp = TestRequest::default()
+        .run(index)
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+```
+
+
 ## Integration tests
 
 There are several methods how you can test your application. Actix provides 

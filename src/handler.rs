@@ -412,6 +412,7 @@ impl<S> Handler<S> for NormalizePath {
 mod tests {
     use super::*;
     use http::{header, Method};
+    use test::TestRequest;
     use application::Application;
 
     fn index(_req: HttpRequest) -> HttpResponse {
@@ -438,7 +439,7 @@ mod tests {
                           ("/resource2/?p1=1&p2=2", "", StatusCode::OK)
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(HttpRequest::from_path(path));
+            let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
             let r = resp.as_response().unwrap();
             assert_eq!(r.status(), code);
@@ -470,7 +471,7 @@ mod tests {
                           ("/resource2/?p1=1&p2=2", StatusCode::OK)
         ];
         for (path, code) in params {
-            let req = app.prepare_request(HttpRequest::from_path(path));
+            let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
             let r = resp.as_response().unwrap();
             assert_eq!(r.status(), code);
@@ -501,7 +502,7 @@ mod tests {
             ("/////resource1/a//b/?p=1", "", StatusCode::NOT_FOUND),
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(HttpRequest::from_path(path));
+            let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
             let r = resp.as_response().unwrap();
             assert_eq!(r.status(), code);
@@ -558,7 +559,7 @@ mod tests {
             ("/////resource2/a///b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(HttpRequest::from_path(path));
+            let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
             let r = resp.as_response().unwrap();
             assert_eq!(r.status(), code);

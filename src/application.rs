@@ -313,6 +313,7 @@ mod tests {
     use std::str::FromStr;
     use http::{Method, Version, Uri, HeaderMap, StatusCode};
     use super::*;
+    use test::TestRequest;
     use httprequest::HttpRequest;
     use httpcodes;
 
@@ -322,9 +323,7 @@ mod tests {
             .resource("/test", |r| r.h(httpcodes::HTTPOk))
             .finish();
 
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/test").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 

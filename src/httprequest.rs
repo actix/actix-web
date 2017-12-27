@@ -119,31 +119,6 @@ impl HttpRequest<()> {
         HttpRequest(msg, None, None)
     }
 
-    /// Construct a new Request.
-    #[inline]
-    #[cfg(test)]
-    pub fn from_path(path: &str) -> HttpRequest
-    {
-        use std::str::FromStr;
-
-        HttpRequest(
-            SharedHttpMessage::from_message(HttpMessage {
-                method: Method::GET,
-                uri: Uri::from_str(path).unwrap(),
-                version: Version::HTTP_11,
-                headers: HeaderMap::new(),
-                params: Params::default(),
-                cookies: None,
-                addr: None,
-                payload: None,
-                extensions: Extensions::new(),
-                info: None,
-            }),
-            None,
-            None,
-        )
-    }
-
     #[inline]
     /// Construct new http request with state.
     pub fn with_state<S>(self, state: Rc<S>, router: Router) -> HttpRequest<S> {
@@ -163,7 +138,7 @@ impl<S> HttpRequest<S> {
     // mutable reference should not be returned as result for request's method
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    fn as_mut(&self) -> &mut HttpMessage {
+    pub(crate) fn as_mut(&self) -> &mut HttpMessage {
         self.0.get_mut()
     }
 
@@ -657,30 +632,25 @@ mod tests {
     use std::str::FromStr;
     use router::Pattern;
     use resource::Resource;
+    use test::TestRequest;
 
     #[test]
     fn test_debug() {
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
+        let req = TestRequest::with_header("content-type", "text/plain").finish();
         let dbg = format!("{:?}", req);
         assert!(dbg.contains("HttpRequest"));
     }
 
     #[test]
     fn test_no_request_cookies() {
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
+        let req = HttpRequest::default();
         assert!(req.cookies().unwrap().is_empty());
     }
 
     #[test]
     fn test_request_cookies() {
-        let mut headers = HeaderMap::new();
-        headers.insert(header::COOKIE,
-                       header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
-
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+        let req = TestRequest::with_header(
+            header::COOKIE, "cookie1=value1; cookie2=value2").finish();
         {
             let cookies = req.cookies().unwrap();
             assert_eq!(cookies.len(), 2);
@@ -733,8 +703,7 @@ mod tests {
 
     #[test]
     fn test_request_match_info() {
-        let mut req = HttpRequest::new(Method::GET, Uri::from_str("/value/?id=test").unwrap(),
-                                       Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/value/?id=test").finish();
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
@@ -748,15 +717,10 @@ mod tests {
 
     #[test]
     fn test_chunked() {
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, HeaderMap::new(), None);
+        let req = HttpRequest::default();
         assert!(!req.chunked().unwrap());
 
-        let mut headers = HeaderMap::new();
-        headers.insert(header::TRANSFER_ENCODING,
-                       header::HeaderValue::from_static("chunked"));
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+        let req = TestRequest::with_header(header::TRANSFER_ENCODING, "chunked").finish();
         assert!(req.chunked().unwrap());
 
         let mut headers = HeaderMap::new();
