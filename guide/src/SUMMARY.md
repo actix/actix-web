@@ -8,6 +8,7 @@
 - [Errors](./qs_4_5.md)
 - [URL Dispatch](./qs_5.md)
 - [Request & Response](./qs_7.md)
+- [Testing](./qs_8.md)
 - [WebSockets](./qs_9.md)
 - [Middlewares](./qs_10.md)
 - [Static file handling](./qs_12.md)
