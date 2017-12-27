@@ -13,7 +13,7 @@ use handler::{Reply, ReplyItem};
 use h1writer::{Writer, WriterState};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middlewares::{Middleware, Finished, Started, Response};
+use middleware::{Middleware, Finished, Started, Response};
 
 type Handler<S> = FnMut(HttpRequest<S>) -> Reply;
 pub(crate) type PipelineHandler<'a, S> = &'a mut FnMut(HttpRequest<S>) -> Reply;

@@ -48,7 +48,7 @@ fn main() {
 
     HttpServer::new(
         || Application::new()
-            .middleware(middlewares::Logger::default()) // <- logger
+            .middleware(middleware::Logger::default()) // <- logger
             .resource("/multipart", |r| r.method(Method::POST).a(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();

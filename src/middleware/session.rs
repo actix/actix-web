@@ -17,13 +17,13 @@ use futures::future::{FutureResult, ok as FutOk, err as FutErr};
 use error::{Result, Error, ResponseError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middlewares::{Middleware, Started, Response};
+use middleware::{Middleware, Started, Response};
 
 /// The helper trait to obtain your session data from a request.
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middlewares::RequestSession;
+/// use actix_web::middleware::RequestSession;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
@@ -62,7 +62,7 @@ impl RequestSession for HttpRequest {
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middlewares::RequestSession;
+/// use actix_web::middleware::RequestSession;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
@@ -118,12 +118,12 @@ unsafe impl Sync for SessionImplBox {}
 /// ```rust
 /// # extern crate actix;
 /// # extern crate actix_web;
-/// # use actix_web::middlewares::{SessionStorage, CookieSessionBackend};
+/// # use actix_web::middleware::{SessionStorage, CookieSessionBackend};
 /// use actix_web::*;
 ///
 /// fn main() {
 ///    let app = Application::new().middleware(
-///        SessionStorage::new(                      // <- create session middlewares
+///        SessionStorage::new(                      // <- create session middleware
 ///            CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
 ///               .secure(false)
 ///               .finish())
@@ -358,7 +358,7 @@ impl CookieSessionBackend {
     /// # Example
     ///
     /// ```
-    /// use actix_web::middlewares::CookieSessionBackend;
+    /// use actix_web::middleware::CookieSessionBackend;
     ///
     /// let backend = CookieSessionBackend::build(&[0; 32]).finish();
     /// ```
@@ -396,7 +396,7 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
 /// ```rust
 /// # extern crate actix_web;
 ///
-/// use actix_web::middlewares::CookieSessionBackend;
+/// use actix_web::middleware::CookieSessionBackend;
 ///
 /// # fn main() {
 /// let backend: CookieSessionBackend = CookieSessionBackend::build(&[0; 32])

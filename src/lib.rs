@@ -115,7 +115,7 @@ pub mod ws;
 pub mod error;
 pub mod httpcodes;
 pub mod multipart;
-pub mod middlewares;
+pub mod middleware;
 pub mod pred;
 pub mod test;
 pub mod payload;

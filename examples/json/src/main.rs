@@ -67,7 +67,7 @@ fn main() {
     HttpServer::new(|| {
         Application::new()
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             .resource("/manual", |r| r.method(Method::POST).f(index_manual))
             .resource("/", |r| r.method(Method::POST).f(index))})
         .bind("127.0.0.1:8080").unwrap()

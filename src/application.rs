@@ -7,7 +7,7 @@ use resource::Resource;
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
 use pipeline::Pipeline;
-use middlewares::Middleware;
+use middleware::Middleware;
 use server::ServerSettings;
 
 /// Application

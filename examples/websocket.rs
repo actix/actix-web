@@ -63,7 +63,7 @@ fn main() {
     HttpServer::new(
         || Application::new()
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             // websocket route
             .resource("/ws/", |r| r.method(Method::GET).f(ws_index))
             // static files

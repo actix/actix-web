@@ -62,7 +62,7 @@ fn main() {
     HttpServer::new(move || {
         Application::with_state(State{db: addr.clone()})
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             .resource("/{name}", |r| r.method(Method::GET).a(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();

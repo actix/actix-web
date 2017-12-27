@@ -9,13 +9,13 @@ use regex::Regex;
 
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middlewares::{Middleware, Started, Finished};
+use middleware::{Middleware, Started, Finished};
 
 /// `Middleware` for logging request and response info to the terminal.
 ///
 /// ## Usage
 ///
-/// Create `Logger` middlewares with the specified `format`.
+/// Create `Logger` middleware with the specified `format`.
 /// Default `Logger` could be created with `default` method, it uses the default format:
 ///
 /// ```ignore
@@ -24,7 +24,7 @@ use middlewares::{Middleware, Started, Finished};
 /// ```rust
 /// # extern crate actix_web;
 /// use actix_web::Application;
-/// use actix_web::middlewares::Logger;
+/// use actix_web::middleware::Logger;
 ///
 /// fn main() {
 ///     let app = Application::new()

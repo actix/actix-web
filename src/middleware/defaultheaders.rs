@@ -4,7 +4,7 @@ use http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middlewares::{Response, Middleware};
+use middleware::{Response, Middleware};
 
 /// `Middleware` for setting default response headers.
 ///
@@ -17,7 +17,7 @@ use middlewares::{Response, Middleware};
 /// fn main() {
 ///     let app = Application::new()
 ///         .middleware(
-///             middlewares::DefaultHeaders::build()
+///             middleware::DefaultHeaders::build()
 ///                 .header("X-Version", "0.2")
 ///                 .finish())
 ///         .resource("/test", |r| {

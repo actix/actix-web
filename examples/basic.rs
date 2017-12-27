@@ -8,7 +8,7 @@ extern crate futures;
 use futures::Stream;
 
 use actix_web::*;
-use actix_web::middlewares::RequestSession;
+use actix_web::middleware::RequestSession;
 use futures::future::{FutureResult, result};
 
 /// simple handler
@@ -60,10 +60,10 @@ fn main() {
     HttpServer::new(
         || Application::new()
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             // cookie session middleware
-            .middleware(middlewares::SessionStorage::new(
-                middlewares::CookieSessionBackend::build(&[0; 32])
+            .middleware(middleware::SessionStorage::new(
+                middleware::CookieSessionBackend::build(&[0; 32])
                     .secure(false)
                     .finish()
             ))

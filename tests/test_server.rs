@@ -27,20 +27,20 @@ struct MiddlewareTest {
     finish: Arc<AtomicUsize>,
 }
 
-impl<S> middlewares::Middleware<S> for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> middlewares::Started {
+impl<S> middleware::Middleware<S> for MiddlewareTest {
+    fn start(&self, _: &mut HttpRequest<S>) -> middleware::Started {
         self.start.store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Started::Done
+        middleware::Started::Done
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middlewares::Response {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middleware::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Response::Done(resp)
+        middleware::Response::Done(resp)
     }
 
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middlewares::Finished {
+    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         self.finish.store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Finished::Done
+        middleware::Finished::Done
     }
 }
 

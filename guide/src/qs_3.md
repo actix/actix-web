@@ -62,16 +62,16 @@ All `/app1` requests route to first application, `/app2` to second and then all 
 Application state is shared with all routes and resources within same application.
 State could be accessed with `HttpRequest::state()` method as a read-only item
 but interior mutability pattern with `RefCell` could be used to archive state mutability.
-State could be accessed with `HttpContext::state()` in case of http actor. 
+State could be accessed with `HttpContext::state()` in case of http actor.
 State also available to route matching predicates and middlewares.
 
 Let's write simple application that uses shared state. We are going to store requests count
-in the state: 
- 
+in the state:
+
 ```rust
 # extern crate actix;
 # extern crate actix_web;
-# 
+#
 use actix_web::*;
 use std::cell::Cell;
 

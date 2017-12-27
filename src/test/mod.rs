@@ -18,7 +18,7 @@ use error::Error;
 use server::HttpServer;
 use handler::{Handler, Responder, ReplyItem};
 use channel::{HttpHandler, IntoHttpHandler};
-use middlewares::Middleware;
+use middleware::Middleware;
 use application::{Application, HttpApplication};
 use param::Params;
 use router::Router;

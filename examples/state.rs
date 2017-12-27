@@ -63,7 +63,7 @@ fn main() {
     HttpServer::new(
         || Application::with_state(AppState{counter: Cell::new(0)})
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             // websocket route
             .resource(
                 "/ws/", |r|

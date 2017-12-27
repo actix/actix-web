@@ -35,7 +35,7 @@ fn main() {
 
         Application::with_state(State{template: tera})
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             .resource("/", |r| r.method(Method::GET).f(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
