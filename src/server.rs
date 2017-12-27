@@ -379,7 +379,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             for (addr, sock) in addrs {
                 info!("Starting tls http server on {}", addr);
                 self.accept.push(
-                    start_accept_thread(sock, addr, workers.clone(), self.backlog));
+                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
 
             // start http server actor
@@ -791,7 +791,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                             sync_mpsc::TryRecvError::Empty => (),
                             sync_mpsc::TryRecvError::Disconnected => return,
                         }
-                    }
+                    },
                     _ => unreachable!(),
                 }
             }
