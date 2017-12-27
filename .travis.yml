@@ -36,11 +36,14 @@ script:
     fi
 
   - |
+    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+      cd examples/multipart && cargo check && cd ../..
+      cd examples/json && cargo check && cd ../..
+      cd examples/template_tera && cargo check && cd ../..
+    fi
+  - |
     if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
        cd examples/diesel && cargo check && cd ../..
-       cd examples/multipart && cargo check && cd ../..
-       cd examples/json && cargo check && cd ../..
-       cd examples/template_tera && cargo check && cd ../..
        cd examples/tls && cargo check && cd ../..
        cd examples/websocket-chat && cargo check && cd ../..
     fi
