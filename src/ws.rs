@@ -6,28 +6,26 @@
 //! ## Example
 //!
 //! ```rust
-//! extern crate actix;
-//! extern crate actix_web;
-//!
+//! # extern crate actix;
+//! # extern crate actix_web;
 //! use actix::*;
 //! use actix_web::*;
 //!
 //! // do websocket handshake and start actor
 //! fn ws_index(req: HttpRequest) -> Result<Reply> {
-//!     ws::start(req, WsRoute)
+//!     ws::start(req, Ws)
 //! }
 //!
-//! // WebSocket Route
-//! struct WsRoute;
+//! struct Ws;
 //!
-//! impl Actor for WsRoute {
+//! impl Actor for Ws {
 //!     type Context = HttpContext<Self>;
 //! }
 //!
 //! // Define Handler for ws::Message message
-//! impl StreamHandler<ws::Message> for WsRoute {}
-//!
-//! impl Handler<ws::Message> for WsRoute {
+//! # impl StreamHandler<ws::Message> for Ws {}
+//! #
+//! impl Handler<ws::Message> for Ws {
 //!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
 //!               -> Response<Self, ws::Message>
 //!     {
@@ -40,12 +38,12 @@
 //!         Self::empty()
 //!     }
 //! }
-//!
-//! fn main() {
-//!     Application::new()
-//!       .resource("/ws/", |r| r.method(Method::GET).f(ws_index))  // <- register websocket route
-//!       .finish();
-//! }
+//! #
+//! # fn main() {
+//! #    Application::new()
+//! #      .resource("/ws/", |r| r.f(ws_index))  // <- register websocket route
+//! #      .finish();
+//! # }
 //! ```
 use std::vec::Vec;
 use http::{Method, StatusCode, header};

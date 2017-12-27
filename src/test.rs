@@ -11,6 +11,7 @@ use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue};
 use futures::Future;
+use socket2::{Socket, Domain, Type};
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 
@@ -137,7 +138,11 @@ impl TestServer {
 
     /// Get firat available unused address
     pub fn unused_addr() -> net::SocketAddr {
-        let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let socket = Socket::new(Domain::ipv4(), Type::stream(), None).unwrap();
+        socket.bind(&addr.into()).unwrap();
+        socket.set_reuse_address(true).unwrap();
+        let tcp = socket.into_tcp_listener();
         tcp.local_addr().unwrap()
     }
 
