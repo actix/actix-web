@@ -191,7 +191,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
 
     /// Get addresses of bound sockets.
     pub fn addrs(&self) -> Vec<net::SocketAddr> {
-        self.sockets.keys().map(|addr| addr.clone()).collect()
+        self.sockets.keys().cloned().collect()
     }
 
     /// The socket address to bind

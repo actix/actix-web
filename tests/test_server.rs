@@ -3,48 +3,15 @@ extern crate actix_web;
 extern crate tokio_core;
 extern crate reqwest;
 
-use std::{net, thread};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio_core::net::TcpListener;
 
-use actix::*;
 use actix_web::*;
 
 #[test]
 fn test_serve() {
-    thread::spawn(|| {
-        let sys = System::new("test");
-        let srv = HttpServer::new(
-            || vec![Application::new()
-                    .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
-        srv.bind("127.0.0.1:58902").unwrap().start();
-        sys.run();
-    });
-    assert!(reqwest::get("http://localhost:58902/").unwrap().status().is_success());
-}
-
-#[test]
-fn test_serve_incoming() {
-    let loopback = net::Ipv4Addr::new(127, 0, 0, 1);
-    let socket = net::SocketAddrV4::new(loopback, 0);
-    let tcp = net::TcpListener::bind(socket).unwrap();
-    let addr1 = tcp.local_addr().unwrap();
-    let addr2 = tcp.local_addr().unwrap();
-
-    thread::spawn(move || {
-        let sys = System::new("test");
-
-        let srv = HttpServer::new(
-            || Application::new()
-                .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk)));
-        let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
-        srv.start_incoming(tcp.incoming(), false);
-        sys.run();
-    });
-
-    assert!(reqwest::get(&format!("http://{}/", addr1))
-            .unwrap().status().is_success());
+    let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
 }
 
 struct MiddlewareTest {
@@ -80,21 +47,14 @@ fn test_middlewares() {
     let act_num2 = Arc::clone(&num2);
     let act_num3 = Arc::clone(&num3);
 
-    thread::spawn(move || {
-        let sys = System::new("test");
-
-        HttpServer::new(
-            move || vec![Application::new()
-                         .middleware(MiddlewareTest{start: Arc::clone(&act_num1),
-                                                    response: Arc::clone(&act_num2),
-                                                    finish: Arc::clone(&act_num3)})
-                         .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))])
-            .bind("127.0.0.1:58904").unwrap()
-            .start();
-        sys.run();
-    });
-
-    assert!(reqwest::get("http://localhost:58904/").unwrap().status().is_success());
+    let srv = test::TestServer::new(
+        move |app| app.middleware(MiddlewareTest{start: Arc::clone(&act_num1),
+                                                 response: Arc::clone(&act_num2),
+                                                 finish: Arc::clone(&act_num3)})
+            .handler(httpcodes::HTTPOk)
+    );
+    
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     assert_eq!(num3.load(Ordering::Relaxed), 1);

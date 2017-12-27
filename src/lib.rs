@@ -117,6 +117,7 @@ pub mod httpcodes;
 pub mod multipart;
 pub mod middlewares;
 pub mod pred;
+pub mod test;
 pub mod payload;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
