@@ -81,7 +81,7 @@ impl TestServer {
         // run server in separate thread
         let join = thread::spawn(move || {
             let sys = System::new("actix-test-server");
-            let tcp = net::TcpListener::bind("0.0.0.0:0").unwrap();
+            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
 
@@ -113,7 +113,7 @@ impl TestServer {
         let join = thread::spawn(move || {
             let sys = System::new("actix-test-server");
 
-            let tcp = net::TcpListener::bind("0.0.0.0:0").unwrap();
+            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
 
@@ -133,6 +133,12 @@ impl TestServer {
             thread: Some(join),
             sys: sys,
         }
+    }
+
+    /// Get firat available unused address
+    pub fn unused_addr() -> net::SocketAddr {
+        let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+        tcp.local_addr().unwrap()
     }
 
     /// Construct test server url

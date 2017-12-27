@@ -3,10 +3,27 @@ extern crate actix_web;
 extern crate tokio_core;
 extern crate reqwest;
 
+use std::thread;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use actix_web::*;
+use actix::System;
+
+#[test]
+fn test_start() {
+    let addr = test::TestServer::unused_addr();
+    let srv_addr = addr.clone();
+    thread::spawn(move || {
+        let sys = System::new("test");
+        let srv = HttpServer::new(
+            || vec![Application::new()
+                    .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
+        srv.bind(srv_addr).unwrap().start();
+        sys.run();
+    });
+    assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
+}
 
 #[test]
 fn test_simple() {
