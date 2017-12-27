@@ -3,7 +3,7 @@
 Actix supports WebSockets out-of-the-box. It is possible to convert request's `Payload`
 to a stream of [*ws::Message*](../actix_web/ws/enum.Message.html) with 
 a [*ws::WsStream*](../actix_web/ws/struct.WsStream.html) and then use stream
-combinators to handle actual messages. But it is simplier to handle websocket communication
+combinators to handle actual messages. But it is simplier to handle websocket communications
 with http actor.
 
 ```rust

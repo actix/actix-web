@@ -122,7 +122,7 @@ from multiple threads consider using [actix](https://actix.github.io/actix/actix
 
 ## Response with custom type
 
-To return custom type directly from handler function type needs to implement `Responder` trait.
+To return custom type directly from handler function, type needs to implement `Responder` trait.
 Let's create response for custom type that serializes to `application/json` response:
 
 ```rust
