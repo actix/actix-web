@@ -29,7 +29,7 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2017-12-21" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
        USE_SKEPTIC=1 cargo test --features=alpn
     else
        cargo test --features=alpn
