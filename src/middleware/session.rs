@@ -401,6 +401,7 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
 /// # fn main() {
 /// let backend: CookieSessionBackend = CookieSessionBackend::build(&[0; 32])
 ///     .domain("www.rust-lang.org")
+///     .name("actix_session")
 ///     .path("/")
 ///     .secure(true)
 ///     .finish();
@@ -417,6 +418,12 @@ impl CookieSessionBackendBuilder {
     /// Sets the `path` field in the session cookie being built.
     pub fn path<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
         self.0.path = value.into();
+        self
+    }
+
+    /// Sets the `name` field in the session cookie being built.
+    pub fn name<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
+        self.0.name = value.into();
         self
     }
 
