@@ -41,7 +41,7 @@ pub trait RequestSession {
     fn session(&mut self) -> Session;
 }
 
-impl RequestSession for HttpRequest {
+impl<S> RequestSession for HttpRequest<S> {
 
     fn session(&mut self) -> Session {
         if let Some(s_impl) = self.extensions().get_mut::<Arc<SessionImplBox>>() {

@@ -350,7 +350,8 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .spawn();
     ///
-    ///     let _ = addr.call_fut(dev::StopServer).wait();  // <- Send `StopServer` message to server.
+    ///     let _ = addr.call_fut(
+    ///           dev::StopServer{graceful:true}).wait();  // <- Send `StopServer` message to server.
     /// }
     /// ```
     pub fn spawn(mut self) -> SyncAddress<Self> {
