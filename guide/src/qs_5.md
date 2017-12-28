@@ -146,9 +146,9 @@ and:
 /{foo}/bar/baz
 ```
 
-A *variable part*(replacement marker) is specified in the form *{identifier}*, 
+A *variable part* (replacement marker) is specified in the form *{identifier}*, 
 where this means "accept any characters up to the next slash character and use this 
-as the name in the `HttpRequest.match_info` object". 
+as the name in the `HttpRequest.match_info()` object". 
 
 A replacement marker in a pattern matches the regular expression `[^{}/]+`.
 

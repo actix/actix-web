@@ -1,6 +1,5 @@
 //! HTTP Request message related code.
 use std::{str, fmt, mem};
-use std::borrow::Cow;
 use std::rc::Rc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
@@ -30,6 +29,8 @@ pub struct HttpMessage {
     pub extensions: Extensions,
     pub params: Params<'static>,
     pub cookies: Option<Vec<Cookie<'static>>>,
+    pub query: Params<'static>,
+    pub query_loaded: bool,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
@@ -44,6 +45,8 @@ impl Default for HttpMessage {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             params: Params::default(),
+            query: Params::default(),
+            query_loaded: false,
             cookies: None,
             addr: None,
             payload: None,
@@ -79,6 +82,8 @@ impl HttpMessage {
         self.headers.clear();
         self.extensions.clear();
         self.params.clear();
+        self.query.clear();
+        self.query_loaded = false;
         self.cookies = None;
         self.addr = None;
         self.info = None;
@@ -102,6 +107,8 @@ impl HttpRequest<()> {
                 version: version,
                 headers: headers,
                 params: Params::default(),
+                query: Params::default(),
+                query_loaded: false,
                 cookies: None,
                 addr: None,
                 payload: payload,
@@ -272,13 +279,17 @@ impl<S> HttpRequest<S> {
         self.as_mut().addr = addr
     }
 
-    /// Return a new iterator that yields pairs of `Cow<str>` for query parameters
-    pub fn query(&self) -> HashMap<Cow<str>,  Cow<str>> {
-        let mut q = HashMap::new();
-        for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
-            q.insert(key, val);
+    /// Get a reference to the Params object.
+    /// Params is a container for url query parameters.
+    pub fn query(&self) -> &Params {
+        if !self.as_ref().query_loaded {
+            let params: &mut Params = unsafe{ mem::transmute(&mut self.as_mut().query) };
+            self.as_mut().query_loaded = true;
+            for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
+                params.add(key, val);
+            }
         }
-        q
+        unsafe{ mem::transmute(&self.as_ref().query) }
     }
 
     /// The query string in the URL.

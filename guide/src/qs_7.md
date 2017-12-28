@@ -262,14 +262,14 @@ At the same time *Payload* implements *Stream* trait, so it could be used with v
 stream combinators. Also *Payload* provides serveral convinience methods that return
 future object that resolve to Bytes object.
 
-* *readany* method returns *Stream* of *Bytes* objects.
+* *readany()* method returns *Stream* of *Bytes* objects.
 
-* *readexactly* method returns *Future* that resolves when specified number of bytes
+* *readexactly()* method returns *Future* that resolves when specified number of bytes
   get received.
   
-* *readline* method returns *Future* that resolves when `\n` get received.
+* *readline()* method returns *Future* that resolves when `\n` get received.
 
-* *readuntil* method returns *Future* that resolves when specified bytes string
+* *readuntil()* method returns *Future* that resolves when specified bytes string
   matches in input bytes stream
 
 In this example handle reads request payload chunk by chunk and prints every chunk.
