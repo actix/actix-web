@@ -33,6 +33,9 @@ use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
 use tokio_openssl::{SslStream, SslAcceptorExt};
 
+#[cfg(feature="signal")]
+use actix::actors::signal;
+
 use helpers;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
 
@@ -108,7 +111,7 @@ pub struct HttpServer<T, A, H, U>
     workers: Vec<SyncAddress<Worker<H>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
-    spawned: bool,
+    exit: bool,
 }
 
 unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: 'static {}
@@ -152,7 +155,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     workers: Vec::new(),
                     sockets: HashMap::new(),
                     accept: Vec::new(),
-                    spawned: false,
+                    exit: false,
         }
     }
 
@@ -199,6 +202,16 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// for more information.
     pub fn server_hostname(mut self, val: String) -> Self {
         self.host = Some(val);
+        self
+    }
+
+    #[cfg(feature="signal")]
+    /// Send `SystemExit` message to actix system
+    ///
+    /// `SystemExit` message stops currently running system arbiter and all
+    /// nested arbiters.
+    pub fn system_exit(mut self) -> Self {
+        self.exit = true;
         self
     }
 
@@ -341,7 +354,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     /// }
     /// ```
     pub fn spawn(mut self) -> SyncAddress<Self> {
-        self.spawned = true;
+        self.exit = true;
 
         let (tx, rx) = sync_mpsc::channel();
         thread::spawn(move || {
@@ -475,6 +488,41 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 }
 
+#[cfg(feature="signal")]
+/// Unix Signals support
+/// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
+/// message to `System` actor.
+impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          U: 'static,
+          A: 'static,
+{
+    fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>)
+              -> Response<Self, signal::Signal>
+    {
+        match msg.0 {
+            signal::SignalType::Int => {
+                info!("SIGINT received, exiting");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: false}, ctx);
+            }
+            signal::SignalType::Term => {
+                info!("SIGTERM received, stopping");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: true}, ctx);
+            }
+            signal::SignalType::Quit => {
+                info!("SIGQUIT received, exiting");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: false}, ctx);
+            }
+            _ => (),
+        };
+        Self::empty()
+    }
+}
+
 #[derive(Message)]
 struct IoStream<T> {
     io: T,
@@ -522,7 +570,9 @@ pub struct ResumeServer;
 ///
 /// If server starts with `spawn()` method, then spawned thread get terminated.
 #[derive(Message)]
-pub struct StopServer;
+pub struct StopServer {
+    pub graceful: bool
+}
 
 impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
     where T: AsyncRead + AsyncWrite + 'static,
@@ -571,7 +621,7 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
         ctx.stop();
 
         // we need to stop system if server was spawned
-        if self.spawned {
+        if self.exit {
             Arbiter::system().send(msgs::SystemExit(0))
         }
         Self::empty()
