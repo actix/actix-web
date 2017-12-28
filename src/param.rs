@@ -2,6 +2,7 @@ use std;
 use std::ops::Index;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::slice::Iter;
 use std::borrow::Cow;
 use smallvec::SmallVec;
 
@@ -76,6 +77,11 @@ impl<'a> Params<'a> {
         } else {
             T::from_param("")
         }
+    }
+
+    /// Return iterator to items in paramter container
+    pub fn iter(&self) -> Iter<(Cow<'a, str>, Cow<'a, str>)> {
+        self.0.iter()
     }
 }
 
