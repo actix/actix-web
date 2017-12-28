@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use actix::dev::*;
+use actix::System;
 use futures::Stream;
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -107,7 +108,12 @@ pub struct HttpServer<T, A, H, U>
     workers: Vec<SyncAddress<Worker<H>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
+    spawned: bool,
 }
+
+unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: 'static {}
+unsafe impl<T, A, H, U> Send for HttpServer<T, A, H, U> where H: 'static {}
+
 
 impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
     type Context = Context<Self>;
@@ -146,6 +152,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     workers: Vec::new(),
                     sockets: HashMap::new(),
                     accept: Vec::new(),
+                    spawned: false,
         }
     }
 
@@ -206,15 +213,13 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     pub fn bind<S: net::ToSocketAddrs>(mut self, addr: S) -> io::Result<Self> {
         let mut err = None;
         let mut succ = false;
-        if let Ok(iter) = addr.to_socket_addrs() {
-            for addr in iter {
-                match create_tcp_listener(addr, self.backlog) {
-                    Ok(lst) => {
-                        succ = true;
-                        self.sockets.insert(lst.local_addr().unwrap(), lst);
-                    },
-                    Err(e) => err = Some(e),
-                }
+        for addr in addr.to_socket_addrs()? {
+            match create_tcp_listener(addr, self.backlog) {
+                Ok(lst) => {
+                    succ = true;
+                    self.sockets.insert(lst.local_addr().unwrap(), lst);
+                },
+                Err(e) => err = Some(e),
             }
         }
 
@@ -282,7 +287,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     ///     HttpServer::new(
     ///         || Application::new()
     ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
-    ///         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
+    ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .start();
     /// #  actix::Arbiter::system().send(actix::msgs::SystemExit(0));
     ///
@@ -309,6 +314,43 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             // start http server actor
             HttpServer::create(|_| {self})
         }
+    }
+
+    /// Spawn new thread and start listening for incomming connections.
+    ///
+    /// This method spawns new thread and starts new actix system. Other than that it is
+    /// similar to `start()` method. This method does not block.
+    ///
+    /// This methods panics if no socket addresses get bound.
+    ///
+    /// ```rust
+    /// # extern crate futures;
+    /// # extern crate actix;
+    /// # extern crate actix_web;
+    /// # use futures::Future;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let addr = HttpServer::new(
+    ///         || Application::new()
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
+    ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
+    ///         .spawn();
+    ///
+    ///     let _ = addr.call_fut(dev::StopServer).wait();  // <- Send `StopServer` message to server.
+    /// }
+    /// ```
+    pub fn spawn(mut self) -> SyncAddress<Self> {
+        self.spawned = true;
+
+        let (tx, rx) = sync_mpsc::channel();
+        thread::spawn(move || {
+            let sys = System::new("http-server");
+            let addr = self.start();
+            let _ = tx.send(addr);
+            sys.run();
+        });
+        rx.recv().unwrap()
     }
 }
 
@@ -465,15 +507,20 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
     }
 }
 
-/// Pause connection accepting process
+/// Pause accepting incoming connections
+///
+/// If socket contains some pending connection, they might be dropped.
+/// All opened connection remains active.
 #[derive(Message)]
 pub struct PauseServer;
 
-/// Resume connection accepting process
+/// Resume accepting incoming connections
 #[derive(Message)]
 pub struct ResumeServer;
 
-/// Stop connection processing and exit
+/// Stop incoming connection processing, stop all workers and exit.
+///
+/// If server starts with `spawn()` method, then spawned thread get terminated.
 #[derive(Message)]
 pub struct StopServer;
 
@@ -522,6 +569,11 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
         ctx.stop();
+
+        // we need to stop system if server was spawned
+        if self.spawned {
+            Arbiter::system().send(msgs::SystemExit(0))
+        }
         Self::empty()
     }
 }
