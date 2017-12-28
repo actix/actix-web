@@ -12,7 +12,7 @@ struct State {
 fn index(req: HttpRequest<State>) -> Result<HttpResponse> {
     let s = if let Some(name) = req.query().get("name") { // <- submitted form
         let mut ctx = tera::Context::new();
-        ctx.add("name", name);
+        ctx.add("name", &name.to_owned());
         ctx.add("text", &"Welcome!".to_owned());
         req.state().template.render("user.html", &ctx)
             .map_err(|_| error::ErrorInternalServerError("Template error"))?
