@@ -4,7 +4,7 @@ extern crate tokio_core;
 extern crate reqwest;
 extern crate futures;
 
-use std::{net, thread};
+use std::{net, thread, time};
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use futures::Future;
@@ -34,6 +34,7 @@ fn test_start() {
 
     // pause
     let _ = srv_addr.call_fut(dev::PauseServer).wait();
+    thread::sleep(time::Duration::from_millis(100));
     assert!(net::TcpStream::connect(addr).is_err());
 
     // resume
