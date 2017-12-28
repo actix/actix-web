@@ -16,27 +16,23 @@ use num_cpus;
 use net2::TcpBuilder;
 
 #[cfg(feature="tls")]
-use futures::{future, Future};
-#[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
-use tokio_tls::{TlsStream, TlsAcceptorExt};
+use tokio_tls::TlsStream;
 
 #[cfg(feature="alpn")]
-use futures::{future, Future};
-#[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslAcceptor, SslAcceptorBuilder};
+use openssl::ssl::{SslMethod, SslAcceptorBuilder};
 #[cfg(feature="alpn")]
 use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
-use tokio_openssl::{SslStream, SslAcceptorExt};
+use tokio_openssl::SslStream;
 
 #[cfg(feature="signal")]
 use actix::actors::signal;
 
 use helpers;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
-use worker::{Conn, Worker, WorkerSettings, StreamHandlerType};
+use worker::{Conn, Worker, WorkerSettings, StreamHandlerType, StopWorker};
 
 /// Various server settings
 #[derive(Debug, Clone)]
@@ -604,13 +600,20 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, _: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
+    fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
     {
+        // stop accept threads
         for item in &self.accept {
             let _ = item.1.send(Command::Stop);
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
         ctx.stop();
+
+        // stop workers
+        let dur = if msg.graceful { Some(Duration::new(30, 0)) } else { None };
+        for worker in &self.workers {
+            worker.send(StopWorker{graceful: dur})
+        }
 
         // we need to stop system if server was spawned
         if self.exit {

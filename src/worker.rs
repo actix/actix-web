@@ -5,7 +5,22 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use net2::TcpStreamExt;
 
+#[cfg(feature="tls")]
+use futures::{future, Future};
+#[cfg(feature="tls")]
+use native_tls::TlsAcceptor;
+#[cfg(feature="tls")]
+use tokio_tls::TlsAcceptorExt;
+
+#[cfg(feature="alpn")]
+use futures::{future, Future};
+#[cfg(feature="alpn")]
+use openssl::ssl::SslAcceptor;
+#[cfg(feature="alpn")]
+use tokio_openssl::SslAcceptorExt;
+
 use actix::{Actor, Arbiter, AsyncContext, Context, Handler, Response, StreamHandler};
+use actix::msgs::StopArbiter;
 
 use helpers;
 use channel::{HttpChannel, HttpHandler};
@@ -16,6 +31,12 @@ pub(crate) struct Conn<T> {
     pub io: T,
     pub peer: Option<net::SocketAddr>,
     pub http2: bool,
+}
+
+/// Stop worker
+#[derive(Message)]
+pub(crate) struct StopWorker {
+    pub graceful: Option<time::Duration>,
 }
 
 pub(crate) struct WorkerSettings<H> {
@@ -104,6 +125,17 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
             error!("Can not set socket keep-alive option");
         }
         self.handler.handle(Rc::clone(&self.h), &self.hnd, msg);
+        Self::empty()
+    }
+}
+
+/// `StopWorker` message handler
+impl<H> Handler<StopWorker> for Worker<H>
+    where H: HttpHandler + 'static,
+{
+    fn handle(&mut self, _: StopWorker, _: &mut Context<Self>) -> Response<Self, StopWorker>
+    {
+        Arbiter::arbiter().send(StopArbiter(0));
         Self::empty()
     }
 }
