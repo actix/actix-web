@@ -2,6 +2,7 @@ use std;
 use std::ops::Index;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::borrow::Cow;
 use smallvec::SmallVec;
 
 use error::{ResponseError, UriSegmentError, ErrorBadRequest};
@@ -20,7 +21,7 @@ pub trait FromParam: Sized {
 ///
 /// If resource path contains variable patterns, `Params` stores this variables.
 #[derive(Debug)]
-pub struct Params<'a>(SmallVec<[(&'a str, &'a str); 3]>);
+pub struct Params<'a>(SmallVec<[(Cow<'a, str>, Cow<'a, str>); 3]>);
 
 impl<'a> Default for Params<'a> {
     fn default() -> Params<'a> {
@@ -34,8 +35,10 @@ impl<'a> Params<'a> {
         self.0.clear();
     }
 
-    pub(crate) fn add(&mut self, name: &'a str, value: &'a str) {
-        self.0.push((name, value));
+    pub(crate) fn add<N, V>(&mut self, name: N, value: V)
+        where N: Into<Cow<'a, str>>, V: Into<Cow<'a, str>>,
+    {
+        self.0.push((name.into(), value.into()));
     }
 
     /// Check if there are any matched patterns
@@ -44,10 +47,10 @@ impl<'a> Params<'a> {
     }
 
     /// Get matched parameter by name without type conversion
-    pub fn get(&self, key: &str) -> Option<&'a str> {
-        for item in &self.0 {
+    pub fn get(&'a self, key: &str) -> Option<&'a str> {
+        for item in self.0.iter() {
             if key == item.0 {
-                return Some(item.1)
+                return Some(item.1.as_ref())
             }
         }
         None
@@ -66,7 +69,7 @@ impl<'a> Params<'a> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn query<T: FromParam>(&self, key: &str) -> Result<T, <T as FromParam>::Err>
+    pub fn query<T: FromParam>(&'a self, key: &str) -> Result<T, <T as FromParam>::Err>
     {
         if let Some(s) = self.get(key) {
             T::from_param(s)
@@ -76,7 +79,7 @@ impl<'a> Params<'a> {
     }
 }
 
-impl<'a, 'b> Index<&'b str> for Params<'a> {
+impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
     type Output = str;
 
     fn index(&self, name: &'b str) -> &str {

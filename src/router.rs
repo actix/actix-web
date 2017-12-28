@@ -190,7 +190,8 @@ impl Pattern {
                 for capture in captures.iter() {
                     if let Some(ref m) = capture {
                         if idx != 0 {
-                            req.match_info_mut().add(&self.names[idx-1], m.as_str());
+                            req.match_info_mut().add(
+                                self.names[idx-1].as_str(), m.as_str());
                         }
                         idx += 1;
                     }
