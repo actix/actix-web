@@ -264,7 +264,7 @@ impl Default for TestRequest<()> {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            params: Params::default(),
+            params: Params::new(),
             cookies: None,
             payload: None,
         }
@@ -297,7 +297,7 @@ impl<S> TestRequest<S> {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            params: Params::default(),
+            params: Params::new(),
             cookies: None,
             payload: None,
         }

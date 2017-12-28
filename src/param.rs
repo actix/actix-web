@@ -24,13 +24,11 @@ pub trait FromParam: Sized {
 #[derive(Debug)]
 pub struct Params<'a>(SmallVec<[(Cow<'a, str>, Cow<'a, str>); 3]>);
 
-impl<'a> Default for Params<'a> {
-    fn default() -> Params<'a> {
+impl<'a> Params<'a> {
+
+    pub(crate) fn new() -> Params<'a> {
         Params(SmallVec::new())
     }
-}
-
-impl<'a> Params<'a> {
 
     pub(crate) fn clear(&mut self) {
         self.0.clear();
