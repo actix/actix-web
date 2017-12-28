@@ -11,7 +11,8 @@ use h2;
 use error::Error;
 use h1writer::Writer;
 use httprequest::HttpRequest;
-use server::{ServerSettings, WorkerSettings};
+use server::ServerSettings;
+use worker::WorkerSettings;
 
 /// Low level http request handler
 #[allow(unused_variables)]

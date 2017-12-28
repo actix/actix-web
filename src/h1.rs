@@ -17,7 +17,7 @@ use pipeline::Pipeline;
 use encoding::PayloadType;
 use channel::{HttpHandler, HttpHandlerTask};
 use h1writer::{Writer, H1Writer};
-use server::WorkerSettings;
+use worker::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
@@ -888,7 +888,7 @@ mod tests {
     use http::{Version, Method};
     use super::*;
     use application::HttpApplication;
-    use server::WorkerSettings;
+    use worker::WorkerSettings;
 
     struct Buffer {
         buf: Bytes,

@@ -24,7 +24,7 @@ fn test_start() {
                     .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
-        let addr = srv.addrs()[0].clone();
+        let addr = srv.addrs()[0];
         let srv_addr = srv.start();
         let _ = tx.send((addr, srv_addr));
         sys.run();

@@ -16,7 +16,7 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use h2writer::H2Writer;
-use server::WorkerSettings;
+use worker::WorkerSettings;
 use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
 use encoding::PayloadType;

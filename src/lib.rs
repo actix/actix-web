@@ -103,6 +103,7 @@ mod resource;
 mod handler;
 mod pipeline;
 mod server;
+mod worker;
 mod channel;
 mod wsframe;
 mod wsproto;
