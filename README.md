@@ -34,6 +34,7 @@ fn main() {
   * [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
   * Transparent content compression/decompression (br, gzip, deflate)
   * Configurable request routing
+  * Graceful server shutdown
   * Multipart streams
   * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging), 
     [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),

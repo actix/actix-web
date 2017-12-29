@@ -32,6 +32,7 @@
 //! * Configurable request routing
 //! * Multipart streams
 //! * Middlewares (`Logger`, `Session`, `DefaultHeaders`)
+//! * Graceful server shutdown
 //! * Built on top of [Actix](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
