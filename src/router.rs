@@ -24,8 +24,9 @@ struct Inner {
 
 impl Router {
     /// Create new router
-    pub fn new<S>(prefix: &str, map: HashMap<Pattern, Option<Resource<S>>>)
-                  -> (Router, Vec<Resource<S>>)
+    pub fn new<S>(prefix: &str,
+                  settings: ServerSettings,
+                  map: HashMap<Pattern, Option<Resource<S>>>) -> (Router, Vec<Resource<S>>)
     {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
@@ -51,14 +52,7 @@ impl Router {
                    regset: RegexSet::new(&paths).unwrap(),
                    named: named,
                    patterns: patterns,
-                   srv: ServerSettings::default() })), resources)
-    }
-
-    #[allow(mutable_transmutes)]
-    pub(crate) fn set_server_settings(&mut self, settings: ServerSettings) {
-        let inner: &Inner = self.0.as_ref();
-        let inner: &mut Inner = unsafe{mem::transmute(inner)};
-        inner.srv = settings;
+                   srv: settings })), resources)
     }
 
     /// Router prefix

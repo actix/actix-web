@@ -19,9 +19,6 @@ pub trait HttpHandler: 'static {
 
     /// Handle request
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
-
-    /// Set server settings
-    fn server_settings(&mut self, settings: ServerSettings) {}
 }
 
 pub trait HttpHandlerTask {
@@ -39,13 +36,13 @@ pub trait IntoHttpHandler {
     type Handler: HttpHandler;
 
     /// Convert into `HttpHandler` object.
-    fn into_handler(self) -> Self::Handler;
+    fn into_handler(self, settings: ServerSettings) -> Self::Handler;
 }
 
 impl<T: HttpHandler> IntoHttpHandler for T {
     type Handler = T;
 
-    fn into_handler(self) -> Self::Handler {
+    fn into_handler(self, _: ServerSettings) -> Self::Handler {
         self
     }
 }

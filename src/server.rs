@@ -268,11 +268,9 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
             let ka = self.keep_alive;
             let factory = Arc::clone(&self.factory);
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                let mut apps: Vec<_> = (*factory)()
-                    .into_iter().map(|h| h.into_handler()).collect();
-                for app in &mut apps {
-                    app.server_settings(s.clone());
-                }
+                let apps: Vec<_> = (*factory)()
+                    .into_iter()
+                    .map(|h| h.into_handler(s.clone())).collect();
                 ctx.add_stream(rx);
                 Worker::new(apps, h, ka)
             });
@@ -482,10 +480,9 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let settings = ServerSettings::new(Some(addr), &self.host, secure);
-        let mut apps: Vec<_> = (*self.factory)().into_iter().map(|h| h.into_handler()).collect();
-        for app in &mut apps {
-            app.server_settings(settings.clone());
-        }
+        let apps: Vec<_> = (*self.factory)()
+            .into_iter()
+            .map(|h| h.into_handler(settings.clone())).collect();
         self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server

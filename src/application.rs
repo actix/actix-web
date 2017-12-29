@@ -37,12 +37,11 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
     }
 }
 
+#[cfg(test)]
 impl<S: 'static> HttpApplication<S> {
-    #[cfg(test)]
     pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
         self.inner.borrow_mut().handle(req)
     }
-    #[cfg(test)]
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
     }
@@ -60,15 +59,12 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
             Err(req)
         }
     }
-
-    fn server_settings(&mut self, settings: ServerSettings) {
-        self.router.set_server_settings(settings);
-    }
 }
 
 struct ApplicationParts<S> {
     state: S,
     prefix: String,
+    settings: ServerSettings,
     default: Resource<S>,
     resources: HashMap<Pattern, Option<Resource<S>>>,
     external: HashMap<String, Pattern>,
@@ -89,6 +85,7 @@ impl Application<()> {
             parts: Some(ApplicationParts {
                 state: (),
                 prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
@@ -116,6 +113,7 @@ impl<S> Application<S> where S: 'static {
             parts: Some(ApplicationParts {
                 state: state,
                 prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
@@ -279,7 +277,7 @@ impl<S> Application<S> where S: 'static {
             resources.insert(pattern, None);
         }
 
-        let (router, resources) = Router::new(prefix, resources);
+        let (router, resources) = Router::new(prefix, parts.settings, resources);
 
         let inner = Rc::new(RefCell::new(
             Inner {
@@ -301,7 +299,11 @@ impl<S> Application<S> where S: 'static {
 impl<S: 'static> IntoHttpHandler for Application<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(mut self) -> HttpApplication<S> {
+    fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
         self.finish()
     }
 }
@@ -309,7 +311,11 @@ impl<S: 'static> IntoHttpHandler for Application<S> {
 impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(self) -> HttpApplication<S> {
+    fn into_handler(self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
         self.finish()
     }
 }
