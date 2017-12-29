@@ -1,25 +1,27 @@
 use std::{net, time};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, RefCell, RefMut};
+use futures::Future;
+use futures::unsync::oneshot;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use net2::TcpStreamExt;
 
 #[cfg(feature="tls")]
-use futures::{future, Future};
+use futures::future;
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
 use tokio_tls::TlsAcceptorExt;
 
 #[cfg(feature="alpn")]
-use futures::{future, Future};
+use futures::future;
 #[cfg(feature="alpn")]
 use openssl::ssl::SslAcceptor;
 #[cfg(feature="alpn")]
 use tokio_openssl::SslAcceptorExt;
 
-use actix::{Actor, Arbiter, AsyncContext, Context, Handler, Response, StreamHandler};
+use actix::*;
 use actix::msgs::StopArbiter;
 
 use helpers;
@@ -33,8 +35,10 @@ pub(crate) struct Conn<T> {
     pub http2: bool,
 }
 
-/// Stop worker
+/// Stop worker message. Returns `true` on successful shutdown
+/// and `false` if some connections still alive.
 #[derive(Message)]
+#[rtype(bool)]
 pub(crate) struct StopWorker {
     pub graceful: Option<time::Duration>,
 }
@@ -45,6 +49,7 @@ pub(crate) struct WorkerSettings<H> {
     keep_alive: u64,
     bytes: Rc<helpers::SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
+    channels: Cell<usize>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -55,6 +60,7 @@ impl<H> WorkerSettings<H> {
             keep_alive: keep_alive.unwrap_or(0),
             bytes: Rc::new(helpers::SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
+            channels: Cell::new(0),
         }
     }
 
@@ -72,6 +78,17 @@ impl<H> WorkerSettings<H> {
     }
     pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
         helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
+    }
+    pub fn add_channel(&self) {
+        self.channels.set(self.channels.get()+1);
+    }
+    pub fn remove_channel(&self) {
+        let num = self.channels.get();
+        if num > 0 {
+            self.channels.set(num-1);
+        } else {
+            error!("Number of removed channels is bigger than added channel. Bug in actix-web");
+        }
     }
 }
 
@@ -99,6 +116,24 @@ impl<H: 'static> Worker<H> {
     fn update_time(&self, ctx: &mut Context<Self>) {
         helpers::update_date();
         ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
+    }
+
+    fn shutdown_timeout(&self, ctx: &mut Context<Self>,
+                        tx: oneshot::Sender<bool>, dur: time::Duration) {
+        // sleep for 1 second and then check again
+        ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
+            let num = slf.h.channels.get();
+            if num == 0 {
+                let _ = tx.send(true);
+                Arbiter::arbiter().send(StopArbiter(0));
+            } else if let Some(d) = dur.checked_sub(time::Duration::new(1, 0)) {
+                slf.shutdown_timeout(ctx, tx, d);
+            } else {
+                info!("Force shutdown http worker, {} connections", num);
+                let _ = tx.send(false);
+                Arbiter::arbiter().send(StopArbiter(0));
+            }
+        });
     }
 }
 
@@ -133,10 +168,21 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
 impl<H> Handler<StopWorker> for Worker<H>
     where H: HttpHandler + 'static,
 {
-    fn handle(&mut self, _: StopWorker, _: &mut Context<Self>) -> Response<Self, StopWorker>
+    fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Response<Self, StopWorker>
     {
-        Arbiter::arbiter().send(StopArbiter(0));
-        Self::empty()
+        let num = self.h.channels.get();
+        if num == 0 {
+            info!("Shutting down http worker, 0 connections");
+            Self::reply(true)
+        } else if let Some(dur) = msg.graceful {
+            info!("Graceful http worker shutdown, {} connections", num);
+            let (tx, rx) = oneshot::channel();
+            self.shutdown_timeout(ctx, tx, dur);
+            Self::async_reply(rx.map_err(|_| ()).actfuture())
+        } else {
+            info!("Force shutdown http worker, {} connections", num);
+            Self::reply(false)
+        }
     }
 }
 

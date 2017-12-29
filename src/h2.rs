@@ -64,6 +64,10 @@ impl<T, H> Http2<T, H>
         }
     }
 
+    pub fn settings(&self) -> &WorkerSettings<H> {
+        self.settings.as_ref()
+    }
+
     pub fn poll(&mut self) -> Poll<(), ()> {
         // server
         if let State::Server(ref mut server) = self.state {

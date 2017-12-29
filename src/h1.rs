@@ -89,6 +89,10 @@ impl<T, H> Http1<T, H>
                keepalive_timer: None }
     }
 
+    pub fn settings(&self) -> &WorkerSettings<H> {
+        self.settings.as_ref()
+    }
+
     pub fn into_inner(self) -> (Rc<WorkerSettings<H>>, T, Option<SocketAddr>, Bytes) {
         (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
     }

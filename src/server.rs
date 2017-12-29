@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use actix::dev::*;
 use actix::System;
-use futures::Stream;
+use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
@@ -107,6 +107,7 @@ pub struct HttpServer<T, A, H, U>
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
+    shutdown_timeout: u16,
 }
 
 unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: 'static {}
@@ -151,6 +152,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     sockets: HashMap::new(),
                     accept: Vec::new(),
                     exit: false,
+                    shutdown_timeout: 30,
         }
     }
 
@@ -207,6 +209,17 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// nested arbiters.
     pub fn system_exit(mut self) -> Self {
         self.exit = true;
+        self
+    }
+
+    /// Timeout for graceful workers shutdown.
+    ///
+    /// After receiving a stop signal, workers have this much time to finish serving requests.
+    /// Workers still alive after the timeout are force dropped.
+    ///
+    /// By default shutdown timeout sets to 30 seconds.
+    pub fn shutdown_timeout(mut self, sec: u16) -> Self {
+        self.shutdown_timeout = sec;
         self
     }
 
@@ -607,19 +620,42 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
             let _ = item.1.send(Command::Stop);
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
-        ctx.stop();
 
         // stop workers
-        let dur = if msg.graceful { Some(Duration::new(30, 0)) } else { None };
+        let (tx, rx) = mpsc::channel(1);
+
+        let dur = if msg.graceful {
+            Some(Duration::new(u64::from(self.shutdown_timeout), 0))
+        } else {
+            None
+        };
         for worker in &self.workers {
-            worker.send(StopWorker{graceful: dur})
+            let tx2 = tx.clone();
+            let fut = worker.call(self, StopWorker{graceful: dur});
+            ActorFuture::then(fut, move |_, slf, _| {
+                slf.workers.pop();
+                if slf.workers.is_empty() {
+                    let _ = tx2.send(());
+
+                    // we need to stop system if server was spawned
+                    if slf.exit {
+                        Arbiter::system().send(msgs::SystemExit(0))
+                    }
+                }
+                fut::ok(())
+            }).spawn(ctx);
         }
 
-        // we need to stop system if server was spawned
-        if self.exit {
-            Arbiter::system().send(msgs::SystemExit(0))
+        if !self.workers.is_empty() {
+            Self::async_reply(
+                rx.into_future().map(|_| ()).map_err(|_| ()).actfuture())
+        } else {
+            // we need to stop system if server was spawned
+            if self.exit {
+                Arbiter::system().send(msgs::SystemExit(0))
+            }
+            Self::empty()
         }
-        Self::empty()
     }
 }
 

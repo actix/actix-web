@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::net::SocketAddr;
 
-use actix::dev::*;
 use bytes::Bytes;
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -71,6 +70,7 @@ impl<T, H> HttpChannel<T, H>
     pub(crate) fn new(h: Rc<WorkerSettings<H>>,
                io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
+        h.add_channel();
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
@@ -89,12 +89,6 @@ impl<T, H> HttpChannel<T, H>
     }
 }*/
 
-impl<T, H> Actor for HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
-{
-    type Context = Context<Self>;
-}
-
 impl<T, H> Future for HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
@@ -105,16 +99,27 @@ impl<T, H> Future for HttpChannel<T, H>
         match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
                 match h1.poll() {
-                    Ok(Async::Ready(h1::Http1Result::Done)) =>
-                        return Ok(Async::Ready(())),
+                    Ok(Async::Ready(h1::Http1Result::Done)) => {
+                        h1.settings().remove_channel();
+                        return Ok(Async::Ready(()))
+                    }
                     Ok(Async::Ready(h1::Http1Result::Switch)) => (),
                     Ok(Async::NotReady) =>
                         return Ok(Async::NotReady),
-                    Err(_) =>
-                        return Err(()),
+                    Err(_) => {
+                        h1.settings().remove_channel();
+                        return Err(())
+                    }
                 }
             }
-            Some(HttpProtocol::H2(ref mut h2)) => return h2.poll(),
+            Some(HttpProtocol::H2(ref mut h2)) => {
+                let result = h2.poll();
+                match result {
+                    Ok(Async::Ready(())) | Err(_) => h2.settings().remove_channel(),
+                    _ => (),
+                }
+                return result
+            }
             None => unreachable!(),
         }
 
