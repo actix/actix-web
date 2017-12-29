@@ -711,8 +711,16 @@ impl<S, H> ProcessResponse<S, H> {
         // flush io but only if we need to
         if self.running == RunningState::Paused || self.drain.is_some() {
             match io.poll_completed() {
-                Ok(Async::Ready(_)) =>
-                    self.running.resume(),
+                Ok(Async::Ready(_)) => {
+                    self.running.resume();
+
+                    // resolve drain futures
+                    if let Some(tx) = self.drain.take() {
+                        let _ = tx.send(());
+                    }
+                    // restart io processing
+                    return self.poll_io(io, info);
+                },
                 Ok(Async::NotReady) =>
                     return Err(PipelineState::Response(self)),
                 Err(err) => {
@@ -721,11 +729,6 @@ impl<S, H> ProcessResponse<S, H> {
                     return Ok(FinishingMiddlewares::init(info, self.resp))
                 }
             }
-        }
-
-        // drain futures
-        if let Some(tx) = self.drain.take() {
-            let _ = tx.send(());
         }
 
         // response is completed

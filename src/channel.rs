@@ -5,8 +5,7 @@ use bytes::Bytes;
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use h1;
-use h2;
+use {h1, h2};
 use error::Error;
 use h1writer::Writer;
 use httprequest::HttpRequest;
