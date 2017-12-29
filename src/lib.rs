@@ -48,15 +48,13 @@ extern crate regex;
 #[macro_use]
 extern crate bitflags;
 #[macro_use]
+extern crate failure;
+#[macro_use]
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
 extern crate mio;
 extern crate net2;
-
-extern crate failure;
-#[macro_use] extern crate failure_derive;
-
 extern crate cookie;
 extern crate http;
 extern crate httparse;

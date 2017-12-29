@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use handler::Reply;
@@ -6,7 +7,7 @@ use router::{Router, Pattern};
 use resource::Resource;
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
-use pipeline::Pipeline;
+use pipeline::{Pipeline, PipelineHandler};
 use middleware::Middleware;
 use server::ServerSettings;
 
@@ -14,19 +15,20 @@ use server::ServerSettings;
 pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
-    default: Resource<S>,
     router: Router,
-    resources: Vec<Resource<S>>,
+    inner: Rc<RefCell<Inner<S>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S: 'static> HttpApplication<S> {
+pub(crate) struct Inner<S> {
+    default: Resource<S>,
+    router: Router,
+    resources: Vec<Resource<S>>,
+}
 
-    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
-        req.with_state(Rc::clone(&self.state), self.router.clone())
-    }
+impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
-    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
         if let Some(idx) = self.router.recognize(&mut req) {
             self.resources[idx].handle(req.clone(), Some(&mut self.default))
         } else {
@@ -35,14 +37,25 @@ impl<S: 'static> HttpApplication<S> {
     }
 }
 
+impl<S: 'static> HttpApplication<S> {
+    #[cfg(test)]
+    pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
+        self.inner.borrow_mut().handle(req)
+    }
+    #[cfg(test)]
+    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
+        req.with_state(Rc::clone(&self.state), self.router.clone())
+    }
+}
+
 impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         if req.path().starts_with(&self.prefix) {
-            let req = self.prepare_request(req);
-            // TODO: redesign run callback
-            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares),
-                                      &mut |req: HttpRequest<S>| self.run(req))))
+            let inner = Rc::clone(&self.inner);
+            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
+
+            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner)))
         } else {
             Err(req)
         }
@@ -267,12 +280,19 @@ impl<S> Application<S> where S: 'static {
         }
 
         let (router, resources) = Router::new(prefix, resources);
+
+        let inner = Rc::new(RefCell::new(
+            Inner {
+                default: parts.default,
+                router: router.clone(),
+                resources: resources }
+        ));
+
         HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.to_owned(),
-            default: parts.default,
-            router: router,
-            resources: resources,
+            inner: inner,
+            router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
         }
     }

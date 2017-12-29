@@ -54,8 +54,11 @@ impl Router {
                    srv: ServerSettings::default() })), resources)
     }
 
+    #[allow(mutable_transmutes)]
     pub(crate) fn set_server_settings(&mut self, settings: ServerSettings) {
-        Rc::get_mut(&mut self.0).unwrap().srv = settings;
+        let inner: &Inner = self.0.as_ref();
+        let inner: &mut Inner = unsafe{mem::transmute(inner)};
+        inner.srv = settings;
     }
 
     /// Router prefix
