@@ -312,7 +312,7 @@ mod tests {
         routes.insert(Pattern::new("", "/v{val}/{val2}/index.html"), Some(Resource::default()));
         routes.insert(Pattern::new("", "/v/{tail:.*}"), Some(Resource::default()));
         routes.insert(Pattern::new("", "{test}/index.html"), Some(Resource::default()));
-        let (rec, _) = Router::new::<()>("", routes);
+        let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
         let mut req = HttpRequest::new(
             Method::GET, Uri::from_str("/name").unwrap(),
