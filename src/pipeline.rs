@@ -17,11 +17,11 @@ use httpresponse::HttpResponse;
 use middleware::{Middleware, Finished, Started, Response};
 use application::Inner;
 
-pub trait PipelineHandler<S> {
+pub(crate) trait PipelineHandler<S> {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply;
 }
 
-pub struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
+pub(crate) struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
 
 enum PipelineState<S, H> {
     None,
