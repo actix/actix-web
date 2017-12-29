@@ -445,7 +445,6 @@ fn main() {
 ## Using a Application Prefix to Compose Applications
 
 The `Applicaiton::prefix()`" method allows to set specific application prefix.
-If route_prefix is supplied to the include method, it must be a string.
 This prefix represents a resource prefix that will be prepended to all resource patterns added 
 by the resource configuration. This can be used to help mount a set of routes at a different
 location than the included callable's author intended while still maintaining the same
@@ -471,7 +470,7 @@ fn main() {
 
 In the above example, the *show_users* route will have an effective route pattern of 
 */users/show* instead of */show* because the application's prefix argument will be prepended 
-to the pattern. The route will then only match if the URL path is /users/show, 
+to the pattern. The route will then only match if the URL path is */users/show*,
 and when the `HttpRequest.url_for()` function is called with the route name show_users, 
 it will generate a URL with that same path.
 

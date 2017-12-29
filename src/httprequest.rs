@@ -823,7 +823,7 @@ mod tests {
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
-        let (router, _) = Router::new("", ServerSettings::default(), map);
+        let (router, _) = Router::new("/", ServerSettings::default(), map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
 
@@ -838,6 +838,27 @@ mod tests {
                    Err(UrlGenerationError::NotEnoughElements));
         let url = req.url_for("index", &["test", "html"]);
         assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/user/test.html");
+    }
+
+    #[test]
+    fn test_url_for_with_prefix() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST,
+                       header::HeaderValue::from_static("www.rust-lang.org"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+
+        let mut resource = Resource::<()>::default();
+        resource.name("index");
+        let mut map = HashMap::new();
+        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
+        let (router, _) = Router::new("/prefix/", ServerSettings::default(), map);
+        assert!(router.has_route("/user/test.html"));
+        assert!(!router.has_route("/prefix/user/test.html"));
+
+        let req = req.with_state(Rc::new(()), router);
+        let url = req.url_for("index", &["test", "html"]);
+        assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/prefix/user/test.html");
     }
 
     #[test]

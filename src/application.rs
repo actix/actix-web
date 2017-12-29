@@ -50,7 +50,13 @@ impl<S: 'static> HttpApplication<S> {
 impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
-        if req.path().starts_with(&self.prefix) {
+        let m = {
+            let path = req.path();
+            path.starts_with(&self.prefix) && (
+                path.len() == self.prefix.len() ||
+                    path.split_at(self.prefix.len()).1.starts_with('/'))
+        };
+        if m {
             let inner = Rc::clone(&self.inner);
             let req = req.with_state(Rc::clone(&self.state), self.router.clone());
 
@@ -126,11 +132,14 @@ impl<S> Application<S> where S: 'static {
     ///
     /// Only requests that matches application's prefix get processed by this application.
     /// Application prefix always contains laading "/" slash. If supplied prefix
-    /// does not contain leading slash, it get inserted.
+    /// does not contain leading slash, it get inserted. Prefix should
+    /// consists of valud path segments. i.e for application with
+    /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
+    /// would match, but path `/application` would not match.
     ///
-    /// Inthe following example only requests with "/app/" path prefix
-    /// get handled. Request with path "/app/test/" will be handled,
-    /// but request with path "/other/..." will return *NOT FOUND*
+    /// In the following example only requests with "/app/" path prefix
+    /// get handled. Request with path "/app/test/" would be handled,
+    /// but request with path "/application" or "/other/..." would return *NOT FOUND*
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -386,5 +395,24 @@ mod tests {
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_prefix() {
+        let mut app = Application::new()
+            .prefix("/test")
+            .resource("/blah", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/testing").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_err());
     }
 }
