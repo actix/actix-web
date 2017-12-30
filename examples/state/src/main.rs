@@ -9,6 +9,7 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
 use std::cell::Cell;
 
 struct AppState {
@@ -60,7 +61,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    HttpServer::new(
+    let addr = HttpServer::new(
         || Application::with_state(AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middleware::Logger::default())
@@ -72,6 +73,11 @@ fn main() {
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();
+
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
