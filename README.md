@@ -47,7 +47,7 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 
 ## Examples
 
-* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
+* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state.rs)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
