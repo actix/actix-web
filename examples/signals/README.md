@@ -1,6 +1,6 @@
 # Signals
 
-This example shows how to handle unix signals and properly stop http server
+This example shows how to handle Unix signals and properly stop http server. This example does not work with Windows.
 
 ## Usage
 
