@@ -9,6 +9,8 @@ use actix_web::*;
 use futures::{Future, Stream};
 use futures::future::{result, Either};
 
+use actix::Arbiter;
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 {
@@ -46,12 +48,15 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("multipart-example");
 
-    HttpServer::new(
+    let addr = HttpServer::new(
         || Application::new()
             .middleware(middleware::Logger::default()) // <- logger
             .resource("/multipart", |r| r.method(Method::POST).a(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();
+
+    let signals = Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Starting http server: 127.0.0.1:8080");
     let _ = sys.run();
