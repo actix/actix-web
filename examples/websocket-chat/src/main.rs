@@ -17,6 +17,8 @@ use std::time::Instant;
 
 use actix::*;
 use actix_web::*;
+use actix::Arbiter;
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 mod codec;
 mod server;
@@ -175,7 +177,6 @@ impl StreamHandler<ws::Message> for WsChatSession
     }
 }
 
-
 fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("websocket-example");
@@ -192,9 +193,8 @@ fn main() {
             Ok(())
         }));
 
-
     // Create Http server with websocket support
-    HttpServer::new(
+    let addr = HttpServer::new(
         move || {
             // Websocket sessions state
             let state = WsChatSessionState { addr: server.clone() };
@@ -216,5 +216,10 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
+    // Subscribe to unix signals
+    let signals = Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
+
+    println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
 }
