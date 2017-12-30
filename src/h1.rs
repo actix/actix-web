@@ -17,7 +17,7 @@ use pipeline::Pipeline;
 use encoding::PayloadType;
 use channel::{HttpHandler, HttpHandlerTask};
 use h1writer::{Writer, H1Writer};
-use server::WorkerSettings;
+use worker::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
@@ -87,6 +87,10 @@ impl<T, H> Http1<T, H>
                read_buf: BytesMut::new(),
                tasks: VecDeque::new(),
                keepalive_timer: None }
+    }
+
+    pub fn settings(&self) -> &WorkerSettings<H> {
+        self.settings.as_ref()
     }
 
     pub fn into_inner(self) -> (Rc<WorkerSettings<H>>, T, Option<SocketAddr>, Bytes) {
@@ -888,7 +892,7 @@ mod tests {
     use http::{Version, Method};
     use super::*;
     use application::HttpApplication;
-    use server::WorkerSettings;
+    use worker::WorkerSettings;
 
     struct Buffer {
         buf: Bytes,

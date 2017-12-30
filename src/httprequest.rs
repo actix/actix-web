@@ -644,6 +644,7 @@ mod tests {
     use router::Pattern;
     use resource::Resource;
     use test::TestRequest;
+    use server::ServerSettings;
 
     #[test]
     fn test_debug() {
@@ -720,7 +721,7 @@ mod tests {
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("index", "/{key}/"), Some(resource));
-        let (router, _) = Router::new("", map);
+        let (router, _) = Router::new("", ServerSettings::default(), map);
         assert!(router.recognize(&mut req).is_some());
 
         assert_eq!(req.match_info().get("key"), Some("value"));
@@ -822,7 +823,7 @@ mod tests {
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
-        let (router, _) = Router::new("", map);
+        let (router, _) = Router::new("/", ServerSettings::default(), map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
 
@@ -840,6 +841,27 @@ mod tests {
     }
 
     #[test]
+    fn test_url_for_with_prefix() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST,
+                       header::HeaderValue::from_static("www.rust-lang.org"));
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+
+        let mut resource = Resource::<()>::default();
+        resource.name("index");
+        let mut map = HashMap::new();
+        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
+        let (router, _) = Router::new("/prefix/", ServerSettings::default(), map);
+        assert!(router.has_route("/user/test.html"));
+        assert!(!router.has_route("/prefix/user/test.html"));
+
+        let req = req.with_state(Rc::new(()), router);
+        let url = req.url_for("index", &["test", "html"]);
+        assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/prefix/user/test.html");
+    }
+
+    #[test]
     fn test_url_for_external() {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(),
@@ -849,7 +871,7 @@ mod tests {
         resource.name("index");
         let mut map = HashMap::new();
         map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None);
-        let (router, _) = Router::new::<()>("", map);
+        let (router, _) = Router::new::<()>("", ServerSettings::default(), map);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
         let req = req.with_state(Rc::new(()), router);

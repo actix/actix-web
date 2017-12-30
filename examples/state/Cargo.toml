@@ -1,14 +1,10 @@
 [package]
-name = "multipart-example"
+name = "state"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 
-[[bin]]
-name = "multipart"
-path = "src/main.rs"
-
 [dependencies]
-env_logger = "*"
-futures = "0.1"
+futures = "*"
+env_logger = "0.4"
 actix = "^0.3.5"
 actix-web = { git = "https://github.com/actix/actix-web", features=["signal"] }

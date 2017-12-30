@@ -10,7 +10,11 @@ Also it stores application specific state that is shared across all handlers
 within same application.
 
 Application acts as namespace for all routes, i.e all routes for specific application
-has same url path prefix:
+has same url path prefix. Application prefix always contains laading "/" slash. 
+If supplied prefix does not contain leading slash, it get inserted. 
+Prefix should consists of valud path segments. i.e for application with prefix `/app` 
+any request with following paths `/app`, `/app/` or `/app/test` would match,
+but path `/application` would not match.
 
 ```rust,ignore
 # extern crate actix_web;
@@ -21,14 +25,14 @@ has same url path prefix:
 # }
 # fn main() {
    let app = Application::new()
-       .prefix("/prefix")
+       .prefix("/app")
        .resource("/index.html", |r| r.method(Method::GET).f(index))
        .finish()
 # }
 ```
 
-In this example application with `/prefix` prefix and `index.html` resource
-get created. This resource is available as on `/prefix/index.html` url.
+In this example application with `/app` prefix and `index.html` resource
+get created. This resource is available as on `/app/index.html` url.
 For more information check 
 [*URL Matching*](./qs_5.html#using-a-application-prefix-to-compose-applications) section.
 
@@ -56,6 +60,10 @@ fn main() {
 ```
 
 All `/app1` requests route to first application, `/app2` to second and then all other to third.
+Applications get matched based on registration order, if application with more general
+prefix is registered before less generic, that would effectively block less generic
+application to get matched. For example if *application* with prefix "/" get registered
+as first application, it would match all incoming requests.
 
 ## State
 

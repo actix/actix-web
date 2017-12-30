@@ -32,6 +32,7 @@
 //! * Configurable request routing
 //! * Multipart streams
 //! * Middlewares (`Logger`, `Session`, `DefaultHeaders`)
+//! * Graceful server shutdown
 //! * Built on top of [Actix](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
@@ -47,15 +48,13 @@ extern crate regex;
 #[macro_use]
 extern crate bitflags;
 #[macro_use]
+extern crate failure;
+#[macro_use]
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
 extern crate mio;
 extern crate net2;
-
-extern crate failure;
-#[macro_use] extern crate failure_derive;
-
 extern crate cookie;
 extern crate http;
 extern crate httparse;
@@ -103,6 +102,7 @@ mod resource;
 mod handler;
 mod pipeline;
 mod server;
+mod worker;
 mod channel;
 mod wsframe;
 mod wsproto;
@@ -170,7 +170,6 @@ pub mod dev {
     pub use handler::Handler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
-    pub use pipeline::Pipeline;
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
     pub use httprequest::UrlEncoded;

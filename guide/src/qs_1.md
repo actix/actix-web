@@ -1,6 +1,6 @@
 # Quick start
 
-Before you can start writing a actix web application, you’ll need a version of Rust installed. 
+Before you can start writing a actix web application, you’ll need a version of Rust installed.
 We recommend you use rustup to install or configure such a version.
 
 ## Install Rust
@@ -31,4 +31,4 @@ cd actix-web
 cargo run --example basic
 ```
 
-Check `examples/` directory for more examples.
+Check [examples/](https://github.com/actix/actix-web/tree/master/examples) directory for more examples.

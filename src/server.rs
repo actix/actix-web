@@ -1,6 +1,5 @@
 use std::{io, net, thread};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
 use std::sync::{Arc, mpsc as sync_mpsc};
 use std::time::Duration;
 use std::marker::PhantomData;
@@ -8,33 +7,32 @@ use std::collections::HashMap;
 
 use actix::dev::*;
 use actix::System;
-use futures::Stream;
+use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_core::reactor::Handle;
 use tokio_core::net::TcpStream;
 use mio;
 use num_cpus;
-use net2::{TcpBuilder, TcpStreamExt};
+use net2::TcpBuilder;
 
-#[cfg(feature="tls")]
-use futures::{future, Future};
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
-use tokio_tls::{TlsStream, TlsAcceptorExt};
+use tokio_tls::TlsStream;
 
 #[cfg(feature="alpn")]
-use futures::{future, Future};
-#[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslAcceptor, SslAcceptorBuilder};
+use openssl::ssl::{SslMethod, SslAcceptorBuilder};
 #[cfg(feature="alpn")]
 use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
-use tokio_openssl::{SslStream, SslAcceptorExt};
+use tokio_openssl::SslStream;
+
+#[cfg(feature="signal")]
+use actix::actors::signal;
 
 use helpers;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
+use worker::{Conn, Worker, WorkerSettings, StreamHandlerType, StopWorker};
 
 /// Various server settings
 #[derive(Debug, Clone)]
@@ -108,7 +106,8 @@ pub struct HttpServer<T, A, H, U>
     workers: Vec<SyncAddress<Worker<H>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
-    spawned: bool,
+    exit: bool,
+    shutdown_timeout: u16,
 }
 
 unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: 'static {}
@@ -152,7 +151,8 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     workers: Vec::new(),
                     sockets: HashMap::new(),
                     accept: Vec::new(),
-                    spawned: false,
+                    exit: false,
+                    shutdown_timeout: 30,
         }
     }
 
@@ -202,6 +202,27 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         self
     }
 
+    #[cfg(feature="signal")]
+    /// Send `SystemExit` message to actix system
+    ///
+    /// `SystemExit` message stops currently running system arbiter and all
+    /// nested arbiters.
+    pub fn system_exit(mut self) -> Self {
+        self.exit = true;
+        self
+    }
+
+    /// Timeout for graceful workers shutdown.
+    ///
+    /// After receiving a stop signal, workers have this much time to finish serving requests.
+    /// Workers still alive after the timeout are force dropped.
+    ///
+    /// By default shutdown timeout sets to 30 seconds.
+    pub fn shutdown_timeout(mut self, sec: u16) -> Self {
+        self.shutdown_timeout = sec;
+        self
+    }
+
     /// Get addresses of bound sockets.
     pub fn addrs(&self) -> Vec<net::SocketAddr> {
         self.sockets.keys().cloned().collect()
@@ -235,23 +256,21 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 
     fn start_workers(&mut self, settings: &ServerSettings, handler: &StreamHandlerType)
-                     -> Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>
+                     -> Vec<mpsc::UnboundedSender<Conn<net::TcpStream>>>
     {
         // start workers
         let mut workers = Vec::new();
         for _ in 0..self.threads {
             let s = settings.clone();
-            let (tx, rx) = mpsc::unbounded::<IoStream<net::TcpStream>>();
+            let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
 
             let h = handler.clone();
             let ka = self.keep_alive;
             let factory = Arc::clone(&self.factory);
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                let mut apps: Vec<_> = (*factory)()
-                    .into_iter().map(|h| h.into_handler()).collect();
-                for app in &mut apps {
-                    app.server_settings(s.clone());
-                }
+                let apps: Vec<_> = (*factory)()
+                    .into_iter()
+                    .map(|h| h.into_handler(s.clone())).collect();
                 ctx.add_stream(rx);
                 Worker::new(apps, h, ka)
             });
@@ -337,11 +356,12 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .spawn();
     ///
-    ///     let _ = addr.call_fut(dev::StopServer).wait();  // <- Send `StopServer` message to server.
+    ///     let _ = addr.call_fut(
+    ///           dev::StopServer{graceful:true}).wait();  // <- Send `StopServer` message to server.
     /// }
     /// ```
     pub fn spawn(mut self) -> SyncAddress<Self> {
-        self.spawned = true;
+        self.exit = true;
 
         let (tx, rx) = sync_mpsc::channel();
         thread::spawn(move || {
@@ -460,35 +480,62 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let settings = ServerSettings::new(Some(addr), &self.host, secure);
-        let mut apps: Vec<_> = (*self.factory)().into_iter().map(|h| h.into_handler()).collect();
-        for app in &mut apps {
-            app.server_settings(settings.clone());
-        }
+        let apps: Vec<_> = (*self.factory)()
+            .into_iter()
+            .map(|h| h.into_handler(settings.clone())).collect();
         self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server
         HttpServer::create(move |ctx| {
             ctx.add_stream(stream.map(
-                move |(t, _)| IoStream{io: t, peer: None, http2: false}));
+                move |(t, _)| Conn{io: t, peer: None, http2: false}));
             self
         })
     }
 }
 
-#[derive(Message)]
-struct IoStream<T> {
-    io: T,
-    peer: Option<net::SocketAddr>,
-    http2: bool,
+#[cfg(feature="signal")]
+/// Unix Signals support
+/// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
+/// message to `System` actor.
+impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
+    where T: AsyncRead + AsyncWrite + 'static,
+          H: HttpHandler + 'static,
+          U: 'static,
+          A: 'static,
+{
+    fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>)
+              -> Response<Self, signal::Signal>
+    {
+        match msg.0 {
+            signal::SignalType::Int => {
+                info!("SIGINT received, exiting");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: false}, ctx);
+            }
+            signal::SignalType::Term => {
+                info!("SIGTERM received, stopping");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: true}, ctx);
+            }
+            signal::SignalType::Quit => {
+                info!("SIGQUIT received, exiting");
+                self.exit = true;
+                Handler::<StopServer>::handle(self, StopServer{graceful: false}, ctx);
+            }
+            _ => (),
+        };
+        Self::empty()
+    }
 }
 
-impl<T, A, H, U> StreamHandler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
+impl<T, A, H, U> StreamHandler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static {}
 
-impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
+impl<T, A, H, U> Handler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static,
           U: 'static,
@@ -498,8 +545,7 @@ impl<T, A, H, U> Handler<IoStream<T>, io::Error> for HttpServer<T, A, H, U>
         debug!("Error handling request: {}", err)
     }
 
-    fn handle(&mut self, msg: IoStream<T>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<T>>
+    fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Response<Self, Conn<T>>
     {
         Arbiter::handle().spawn(
             HttpChannel::new(Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
@@ -522,7 +568,9 @@ pub struct ResumeServer;
 ///
 /// If server starts with `spawn()` method, then spawned thread get terminated.
 #[derive(Message)]
-pub struct StopServer;
+pub struct StopServer {
+    pub graceful: bool
+}
 
 impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
     where T: AsyncRead + AsyncWrite + 'static,
@@ -562,175 +610,48 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, _: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
+    fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
     {
+        // stop accept threads
         for item in &self.accept {
             let _ = item.1.send(Command::Stop);
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
-        ctx.stop();
 
-        // we need to stop system if server was spawned
-        if self.spawned {
-            Arbiter::system().send(msgs::SystemExit(0))
+        // stop workers
+        let (tx, rx) = mpsc::channel(1);
+
+        let dur = if msg.graceful {
+            Some(Duration::new(u64::from(self.shutdown_timeout), 0))
+        } else {
+            None
+        };
+        for worker in &self.workers {
+            let tx2 = tx.clone();
+            let fut = worker.call(self, StopWorker{graceful: dur});
+            ActorFuture::then(fut, move |_, slf, _| {
+                slf.workers.pop();
+                if slf.workers.is_empty() {
+                    let _ = tx2.send(());
+
+                    // we need to stop system if server was spawned
+                    if slf.exit {
+                        Arbiter::system().send(msgs::SystemExit(0))
+                    }
+                }
+                fut::ok(())
+            }).spawn(ctx);
         }
-        Self::empty()
-    }
-}
 
-/// Http worker
-///
-/// Worker accepts Socket objects via unbounded channel and start requests processing.
-struct Worker<H> {
-    h: Rc<WorkerSettings<H>>,
-    hnd: Handle,
-    handler: StreamHandlerType,
-}
-
-pub(crate) struct WorkerSettings<H> {
-    h: RefCell<Vec<H>>,
-    enabled: bool,
-    keep_alive: u64,
-    bytes: Rc<helpers::SharedBytesPool>,
-    messages: Rc<helpers::SharedMessagePool>,
-}
-
-impl<H> WorkerSettings<H> {
-    pub(crate) fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
-        WorkerSettings {
-            h: RefCell::new(h),
-            enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
-            keep_alive: keep_alive.unwrap_or(0),
-            bytes: Rc::new(helpers::SharedBytesPool::new()),
-            messages: Rc::new(helpers::SharedMessagePool::new()),
-        }
-    }
-
-    pub fn handlers(&self) -> RefMut<Vec<H>> {
-        self.h.borrow_mut()
-    }
-    pub fn keep_alive(&self) -> u64 {
-        self.keep_alive
-    }
-    pub fn keep_alive_enabled(&self) -> bool {
-        self.enabled
-    }
-    pub fn get_shared_bytes(&self) -> helpers::SharedBytes {
-        helpers::SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
-    }
-    pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
-        helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
-    }
-}
-
-impl<H: 'static> Worker<H> {
-
-    fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u64>) -> Worker<H> {
-        Worker {
-            h: Rc::new(WorkerSettings::new(h, keep_alive)),
-            hnd: Arbiter::handle().clone(),
-            handler: handler,
-        }
-    }
-    
-    fn update_time(&self, ctx: &mut Context<Self>) {
-        helpers::update_date();
-        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
-    }
-}
-
-impl<H: 'static> Actor for Worker<H> {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.update_time(ctx);
-    }
-}
-
-impl<H> StreamHandler<IoStream<net::TcpStream>> for Worker<H>
-    where H: HttpHandler + 'static {}
-
-impl<H> Handler<IoStream<net::TcpStream>> for Worker<H>
-    where H: HttpHandler + 'static,
-{
-    fn handle(&mut self, msg: IoStream<net::TcpStream>, _: &mut Context<Self>)
-              -> Response<Self, IoStream<net::TcpStream>>
-    {
-        if !self.h.keep_alive_enabled() &&
-            msg.io.set_keepalive(Some(Duration::new(75, 0))).is_err()
-        {
-            error!("Can not set socket keep-alive option");
-        }
-        self.handler.handle(Rc::clone(&self.h), &self.hnd, msg);
-        Self::empty()
-    }
-}
-
-#[derive(Clone)]
-enum StreamHandlerType {
-    Normal,
-    #[cfg(feature="tls")]
-    Tls(TlsAcceptor),
-    #[cfg(feature="alpn")]
-    Alpn(SslAcceptor),
-}
-
-impl StreamHandlerType {
-
-    fn handle<H: HttpHandler>(&mut self,
-                              h: Rc<WorkerSettings<H>>,
-                              hnd: &Handle,
-                              msg: IoStream<net::TcpStream>) {
-        match *self {
-            StreamHandlerType::Normal => {
-                let io = TcpStream::from_stream(msg.io, hnd)
-                    .expect("failed to associate TCP stream");
-
-                hnd.spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
+        if !self.workers.is_empty() {
+            Self::async_reply(
+                rx.into_future().map(|_| ()).map_err(|_| ()).actfuture())
+        } else {
+            // we need to stop system if server was spawned
+            if self.exit {
+                Arbiter::system().send(msgs::SystemExit(0))
             }
-            #[cfg(feature="tls")]
-            StreamHandlerType::Tls(ref acceptor) => {
-                let IoStream { io, peer, http2 } = msg;
-                let io = TcpStream::from_stream(io, hnd)
-                    .expect("failed to associate TCP stream");
-
-                hnd.spawn(
-                    TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => Arbiter::handle().spawn(
-                                HttpChannel::new(h, io, peer, http2)),
-                            Err(err) =>
-                                trace!("Error during handling tls connection: {}", err),
-                        };
-                        future::result(Ok(()))
-                    })
-                );
-            }
-            #[cfg(feature="alpn")]
-            StreamHandlerType::Alpn(ref acceptor) => {
-                let IoStream { io, peer, .. } = msg;
-                let io = TcpStream::from_stream(io, hnd)
-                    .expect("failed to associate TCP stream");
-
-                hnd.spawn(
-                    SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => {
-                                let http2 = if let Some(p) = io.get_ref().ssl().selected_alpn_protocol()
-                                {
-                                    p.len() == 2 && &p == b"h2"
-                                } else {
-                                    false
-                                };
-                                Arbiter::handle().spawn(HttpChannel::new(h, io, peer, http2));
-                            },
-                            Err(err) =>
-                                trace!("Error during handling tls connection: {}", err),
-                        };
-                        future::result(Ok(()))
-                    })
-                );
-            }
+            Self::empty()
         }
     }
 }
@@ -742,7 +663,7 @@ enum Command {
 }
 
 fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i32,
-                       workers: Vec<mpsc::UnboundedSender<IoStream<net::TcpStream>>>)
+                       workers: Vec<mpsc::UnboundedSender<Conn<net::TcpStream>>>)
                        -> (mio::SetReadiness, sync_mpsc::Sender<Command>)
 {
     let (tx, rx) = sync_mpsc::channel();
@@ -793,7 +714,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                             loop {
                                 match server.accept_std() {
                                     Ok((sock, addr)) => {
-                                        let msg = IoStream{
+                                        let msg = Conn{
                                             io: sock, peer: Some(addr), http2: false};
                                         workers[next].unbounded_send(msg)
                                             .expect("worker thread died");

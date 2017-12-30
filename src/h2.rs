@@ -16,7 +16,7 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use h2writer::H2Writer;
-use server::WorkerSettings;
+use worker::WorkerSettings;
 use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
 use encoding::PayloadType;
@@ -62,6 +62,10 @@ impl<T, H> Http2<T, H>
                    Server::handshake(IoWrapper{unread: Some(buf), inner: io})),
                keepalive_timer: None,
         }
+    }
+
+    pub fn settings(&self) -> &WorkerSettings<H> {
+        self.settings.as_ref()
     }
 
     pub fn poll(&mut self) -> Poll<(), ()> {

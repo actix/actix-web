@@ -16,7 +16,7 @@ use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
 use error::Error;
-use server::HttpServer;
+use server::{HttpServer, ServerSettings};
 use handler::{Handler, Responder, ReplyItem};
 use channel::{HttpHandler, IntoHttpHandler};
 use middleware::Middleware;
@@ -199,8 +199,8 @@ impl<S: 'static> TestApp<S> {
 impl<S: 'static> IntoHttpHandler for TestApp<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(self) -> HttpApplication<S> {
-        self.app.unwrap().finish()
+    fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
+        self.app.take().unwrap().into_handler(settings)
     }
 }
 
@@ -347,7 +347,7 @@ impl<S> TestRequest<S> {
         let req = HttpRequest::new(method, uri, version, headers, payload);
         req.as_mut().cookies = cookies;
         req.as_mut().params = params;
-        let (router, _) = Router::new::<S>("/", HashMap::new());
+        let (router, _) = Router::new::<S>("/", ServerSettings::default(), HashMap::new());
         req.with_state(Rc::new(state), router)
     }
 

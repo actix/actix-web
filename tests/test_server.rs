@@ -4,7 +4,7 @@ extern crate tokio_core;
 extern crate reqwest;
 extern crate futures;
 
-use std::{net, thread};
+use std::{net, thread, time};
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use futures::Future;
@@ -24,7 +24,7 @@ fn test_start() {
                     .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
-        let addr = srv.addrs()[0].clone();
+        let addr = srv.addrs()[0];
         let srv_addr = srv.start();
         let _ = tx.send((addr, srv_addr));
         sys.run();
@@ -34,6 +34,7 @@ fn test_start() {
 
     // pause
     let _ = srv_addr.call_fut(dev::PauseServer).wait();
+    thread::sleep(time::Duration::from_millis(100));
     assert!(net::TcpStream::connect(addr).is_err());
 
     // resume

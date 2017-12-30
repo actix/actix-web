@@ -16,6 +16,7 @@ pub struct Router(Rc<Inner>);
 
 struct Inner {
     prefix: String,
+    prefix_len: usize,
     regset: RegexSet,
     named: HashMap<String, (Pattern, bool)>,
     patterns: Vec<Pattern>,
@@ -24,8 +25,9 @@ struct Inner {
 
 impl Router {
     /// Create new router
-    pub fn new<S>(prefix: &str, map: HashMap<Pattern, Option<Resource<S>>>)
-                  -> (Router, Vec<Resource<S>>)
+    pub fn new<S>(prefix: &str,
+                  settings: ServerSettings,
+                  map: HashMap<Pattern, Option<Resource<S>>>) -> (Router, Vec<Resource<S>>)
     {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
@@ -46,16 +48,14 @@ impl Router {
             }
         }
 
+        let len = prefix.len();
         (Router(Rc::new(
             Inner{ prefix: prefix,
+                   prefix_len: len,
                    regset: RegexSet::new(&paths).unwrap(),
                    named: named,
                    patterns: patterns,
-                   srv: ServerSettings::default() })), resources)
-    }
-
-    pub(crate) fn set_server_settings(&mut self, settings: ServerSettings) {
-        Rc::get_mut(&mut self.0).unwrap().srv = settings;
+                   srv: settings })), resources)
     }
 
     /// Router prefix
@@ -74,7 +74,10 @@ impl Router {
     pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
         let mut idx = None;
         {
-            let path = &req.path()[self.0.prefix.len()..];
+            if self.0.prefix_len > req.path().len() {
+                return None
+            }
+            let path = &req.path()[self.0.prefix_len..];
             if path.is_empty() {
                 if let Some(i) = self.0.regset.matches("/").into_iter().next() {
                     idx = Some(i);
@@ -85,7 +88,7 @@ impl Router {
         }
 
         if let Some(idx) = idx {
-            let path: &str = unsafe{ mem::transmute(&req.path()[self.0.prefix.len()..]) };
+            let path: &str = unsafe{ mem::transmute(&req.path()[self.0.prefix_len..]) };
             self.0.patterns[idx].update_match_info(path, req);
             return Some(idx)
         } else {
@@ -94,13 +97,17 @@ impl Router {
     }
 
     /// Check if application contains matching route.
+    ///
+    /// This method does not take `prefix` into account.
+    /// For example if prefix is `/test` and router contains route `/name`,
+    /// following path would be recognizable `/test/name` but `has_route()` call
+    /// would return `false`.
     pub fn has_route(&self, path: &str) -> bool {
-        let p = &path[self.0.prefix.len()..];
-        if p.is_empty() {
+        if path.is_empty() {
             if self.0.regset.matches("/").into_iter().next().is_some() {
                 return true
             }
-        } else if self.0.regset.matches(p).into_iter().next().is_some() {
+        } else if self.0.regset.matches(path).into_iter().next().is_some() {
             return true
         }
         false
@@ -208,12 +215,11 @@ impl Pattern {
     {
         let mut iter = elements.into_iter();
         let mut path = if let Some(prefix) = prefix {
-            let mut path = String::from(prefix);
-            path.push('/');
-            path
+            format!("{}/", prefix)
         } else {
             String::new()
         };
+        println!("TEST: {:?} {:?}", path, prefix);
         for el in &self.elements {
             match *el {
                 PatternElement::Str(ref s) => path.push_str(s),
@@ -300,11 +306,9 @@ impl Hash for Pattern {
 
 #[cfg(test)]
 mod tests {
-    use regex::Regex;
     use super::*;
-    use http::{Uri, Version, Method};
-    use http::header::HeaderMap;
-    use std::str::FromStr;
+    use regex::Regex;
+    use test::TestRequest;
 
     #[test]
     fn test_recognizer() {
@@ -315,45 +319,63 @@ mod tests {
         routes.insert(Pattern::new("", "/v{val}/{val2}/index.html"), Some(Resource::default()));
         routes.insert(Pattern::new("", "/v/{tail:.*}"), Some(Resource::default()));
         routes.insert(Pattern::new("", "{test}/index.html"), Some(Resource::default()));
-        let (rec, _) = Router::new::<()>("", routes);
+        let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/name").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/name").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert!(req.match_info().is_empty());
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/name/value").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/name/value").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/name/value2/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/name/value2/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "value2");
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/vtest/ttt/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "test");
         assert_eq!(req.match_info().get("val2").unwrap(), "ttt");
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/v/blah-blah/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("tail").unwrap(), "blah-blah/index.html");
 
-        let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/bbb/index.html").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let mut req = TestRequest::with_uri("/bbb/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("test").unwrap(), "bbb");
+    }
+
+    #[test]
+    fn test_recognizer_with_prefix() {
+        let mut routes = HashMap::new();
+        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
+
+        let mut req = TestRequest::with_uri("/name").finish();
+        assert!(rec.recognize(&mut req).is_none());
+
+        let mut req = TestRequest::with_uri("/test/name").finish();
+        assert!(rec.recognize(&mut req).is_some());
+
+        let mut req = TestRequest::with_uri("/test/name/value").finish();
+        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(req.match_info().get("val").unwrap(), "value");
+        assert_eq!(&req.match_info()["val"], "value");
+
+        // same patterns
+        let mut routes = HashMap::new();
+        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
+
+        let mut req = TestRequest::with_uri("/name").finish();
+        assert!(rec.recognize(&mut req).is_none());
+        let mut req = TestRequest::with_uri("/test2/name").finish();
+        assert!(rec.recognize(&mut req).is_some());
     }
 
     fn assert_parse(pattern: &str, expected_re: &str) -> Regex {

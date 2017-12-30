@@ -32,6 +32,9 @@ tls = ["native-tls", "tokio-tls"]
 # openssl
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
+# signals
+signal = ["actix/signal"]
+
 [dependencies]
 log = "0.3"
 failure = "0.1"

@@ -28,17 +28,18 @@ fn main() {
 
 ## Features
 
-  * Supported *HTTP/1.x* and *HTTP/2.0* protocols
-  * Streaming and pipelining
-  * Keep-alive and slow requests handling
-  * [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
-  * Transparent content compression/decompression (br, gzip, deflate)
-  * Configurable request routing
-  * Multipart streams
-  * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging), 
-    [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
-    [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers))
-  * Built on top of [Actix](https://github.com/actix/actix).
+* Supported *HTTP/1.x* and *HTTP/2.0* protocols
+* Streaming and pipelining
+* Keep-alive and slow requests handling
+* [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
+* Transparent content compression/decompression (br, gzip, deflate)
+* Configurable request routing
+* Graceful server shutdown
+* Multipart streams
+* Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
+  [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
+  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers))
+* Built on top of [Actix](https://github.com/actix/actix).
 
 ## Benchmarks
 
@@ -46,8 +47,8 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 
 ## Examples
 
-* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic.rs)
-* [Stateful](https://github.com/actix/actix-web/tree/master/examples/state.rs)
+* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic/)
+* [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
 * [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
@@ -55,17 +56,15 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 * [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
 * [SockJS Server](https://github.com/actix/actix-sockjs)
+* [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
 
 ## License
 
 This project is licensed under either of
 
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
+* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 
 at your option.
-
 
 [![Analytics](https://ga-beacon.appspot.com/UA-110322332-2/actix-web/readme?flat&useReferer)](https://github.com/igrigorik/ga-beacon)

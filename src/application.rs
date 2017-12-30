@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use handler::Reply;
@@ -6,7 +7,7 @@ use router::{Router, Pattern};
 use resource::Resource;
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
-use pipeline::Pipeline;
+use pipeline::{Pipeline, PipelineHandler};
 use middleware::Middleware;
 use server::ServerSettings;
 
@@ -14,19 +15,20 @@ use server::ServerSettings;
 pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
-    default: Resource<S>,
     router: Router,
-    resources: Vec<Resource<S>>,
+    inner: Rc<RefCell<Inner<S>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S: 'static> HttpApplication<S> {
+pub(crate) struct Inner<S> {
+    default: Resource<S>,
+    router: Router,
+    resources: Vec<Resource<S>>,
+}
 
-    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
-        req.with_state(Rc::clone(&self.state), self.router.clone())
-    }
+impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
-    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
         if let Some(idx) = self.router.recognize(&mut req) {
             self.resources[idx].handle(req.clone(), Some(&mut self.default))
         } else {
@@ -35,27 +37,40 @@ impl<S: 'static> HttpApplication<S> {
     }
 }
 
+#[cfg(test)]
+impl<S: 'static> HttpApplication<S> {
+    pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
+        self.inner.borrow_mut().handle(req)
+    }
+    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
+        req.with_state(Rc::clone(&self.state), self.router.clone())
+    }
+}
+
 impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
-        if req.path().starts_with(&self.prefix) {
-            let req = self.prepare_request(req);
-            // TODO: redesign run callback
-            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares),
-                                      &mut |req: HttpRequest<S>| self.run(req))))
+        let m = {
+            let path = req.path();
+            path.starts_with(&self.prefix) && (
+                path.len() == self.prefix.len() ||
+                    path.split_at(self.prefix.len()).1.starts_with('/'))
+        };
+        if m {
+            let inner = Rc::clone(&self.inner);
+            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
+
+            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner)))
         } else {
             Err(req)
         }
-    }
-
-    fn server_settings(&mut self, settings: ServerSettings) {
-        self.router.set_server_settings(settings);
     }
 }
 
 struct ApplicationParts<S> {
     state: S,
     prefix: String,
+    settings: ServerSettings,
     default: Resource<S>,
     resources: HashMap<Pattern, Option<Resource<S>>>,
     external: HashMap<String, Pattern>,
@@ -76,6 +91,7 @@ impl Application<()> {
             parts: Some(ApplicationParts {
                 state: (),
                 prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
@@ -103,6 +119,7 @@ impl<S> Application<S> where S: 'static {
             parts: Some(ApplicationParts {
                 state: state,
                 prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
                 external: HashMap::new(),
@@ -115,11 +132,14 @@ impl<S> Application<S> where S: 'static {
     ///
     /// Only requests that matches application's prefix get processed by this application.
     /// Application prefix always contains laading "/" slash. If supplied prefix
-    /// does not contain leading slash, it get inserted.
+    /// does not contain leading slash, it get inserted. Prefix should
+    /// consists of valud path segments. i.e for application with
+    /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
+    /// would match, but path `/application` would not match.
     ///
-    /// Inthe following example only requests with "/app/" path prefix
-    /// get handled. Request with path "/app/test/" will be handled,
-    /// but request with path "/other/..." will return *NOT FOUND*
+    /// In the following example only requests with "/app/" path prefix
+    /// get handled. Request with path "/app/test/" would be handled,
+    /// but request with path "/application" or "/other/..." would return *NOT FOUND*
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -266,13 +286,20 @@ impl<S> Application<S> where S: 'static {
             resources.insert(pattern, None);
         }
 
-        let (router, resources) = Router::new(prefix, resources);
+        let (router, resources) = Router::new(prefix, parts.settings, resources);
+
+        let inner = Rc::new(RefCell::new(
+            Inner {
+                default: parts.default,
+                router: router.clone(),
+                resources: resources }
+        ));
+
         HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.to_owned(),
-            default: parts.default,
-            router: router,
-            resources: resources,
+            inner: inner,
+            router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
         }
     }
@@ -281,7 +308,11 @@ impl<S> Application<S> where S: 'static {
 impl<S: 'static> IntoHttpHandler for Application<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(mut self) -> HttpApplication<S> {
+    fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
         self.finish()
     }
 }
@@ -289,7 +320,11 @@ impl<S: 'static> IntoHttpHandler for Application<S> {
 impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(self) -> HttpApplication<S> {
+    fn into_handler(self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
         self.finish()
     }
 }
@@ -360,5 +395,24 @@ mod tests {
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_prefix() {
+        let mut app = Application::new()
+            .prefix("/test")
+            .resource("/blah", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/testing").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_err());
     }
 }

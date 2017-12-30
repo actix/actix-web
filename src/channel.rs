@@ -1,17 +1,16 @@
 use std::rc::Rc;
 use std::net::SocketAddr;
 
-use actix::dev::*;
 use bytes::Bytes;
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use h1;
-use h2;
+use {h1, h2};
 use error::Error;
 use h1writer::Writer;
 use httprequest::HttpRequest;
-use server::{ServerSettings, WorkerSettings};
+use server::ServerSettings;
+use worker::WorkerSettings;
 
 /// Low level http request handler
 #[allow(unused_variables)]
@@ -19,9 +18,6 @@ pub trait HttpHandler: 'static {
 
     /// Handle request
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
-
-    /// Set server settings
-    fn server_settings(&mut self, settings: ServerSettings) {}
 }
 
 pub trait HttpHandlerTask {
@@ -39,13 +35,13 @@ pub trait IntoHttpHandler {
     type Handler: HttpHandler;
 
     /// Convert into `HttpHandler` object.
-    fn into_handler(self) -> Self::Handler;
+    fn into_handler(self, settings: ServerSettings) -> Self::Handler;
 }
 
 impl<T: HttpHandler> IntoHttpHandler for T {
     type Handler = T;
 
-    fn into_handler(self) -> Self::Handler {
+    fn into_handler(self, _: ServerSettings) -> Self::Handler {
         self
     }
 }
@@ -70,6 +66,7 @@ impl<T, H> HttpChannel<T, H>
     pub(crate) fn new(h: Rc<WorkerSettings<H>>,
                io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
+        h.add_channel();
         if http2 {
             HttpChannel {
                 proto: Some(HttpProtocol::H2(
@@ -88,12 +85,6 @@ impl<T, H> HttpChannel<T, H>
     }
 }*/
 
-impl<T, H> Actor for HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
-{
-    type Context = Context<Self>;
-}
-
 impl<T, H> Future for HttpChannel<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
 {
@@ -104,16 +95,27 @@ impl<T, H> Future for HttpChannel<T, H>
         match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
                 match h1.poll() {
-                    Ok(Async::Ready(h1::Http1Result::Done)) =>
-                        return Ok(Async::Ready(())),
+                    Ok(Async::Ready(h1::Http1Result::Done)) => {
+                        h1.settings().remove_channel();
+                        return Ok(Async::Ready(()))
+                    }
                     Ok(Async::Ready(h1::Http1Result::Switch)) => (),
                     Ok(Async::NotReady) =>
                         return Ok(Async::NotReady),
-                    Err(_) =>
-                        return Err(()),
+                    Err(_) => {
+                        h1.settings().remove_channel();
+                        return Err(())
+                    }
                 }
             }
-            Some(HttpProtocol::H2(ref mut h2)) => return h2.poll(),
+            Some(HttpProtocol::H2(ref mut h2)) => {
+                let result = h2.poll();
+                match result {
+                    Ok(Async::Ready(())) | Err(_) => h2.settings().remove_channel(),
+                    _ => (),
+                }
+                return result
+            }
             None => unreachable!(),
         }
 
