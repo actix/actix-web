@@ -7,14 +7,13 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate json;
 
-
+use actix::*;
 use actix_web::*;
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+
 use bytes::BytesMut;
 use futures::{Future, Stream};
 use json::JsonValue;
-
-use actix::Arbiter;
-use actix::actors::signal::{ProcessSignals, Subscribe};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -97,8 +96,10 @@ fn main() {
         .shutdown_timeout(1)
         .start();
 
-    let signals = Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

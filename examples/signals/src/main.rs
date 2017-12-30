@@ -5,7 +5,7 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
 
 struct MyWebSocket;
 
@@ -34,9 +34,10 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    // Subscribe to unix signals
-    let signals = Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

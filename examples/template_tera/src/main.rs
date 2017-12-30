@@ -3,9 +3,10 @@ extern crate actix_web;
 extern crate env_logger;
 #[macro_use]
 extern crate tera;
+
+use actix::*;
 use actix_web::*;
-use actix::Arbiter;
-use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
 
 struct State {
     template: tera::Tera,  // <- store tera template in application state
@@ -42,9 +43,10 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    // Subscribe to unix signals
-    let signals = Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
