@@ -4,6 +4,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate tera;
 use actix_web::*;
+use actix::Arbiter;
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 struct State {
     template: tera::Tera,  // <- store tera template in application state
@@ -30,7 +32,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("tera-example");
 
-    HttpServer::new(|| {
+    let addr = HttpServer::new(|| {
         let tera = compile_templates!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"));
 
         Application::with_state(State{template: tera})
@@ -39,6 +41,10 @@ fn main() {
             .resource("/", |r| r.method(Method::GET).f(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
+
+    // Subscribe to unix signals
+    let signals = Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
