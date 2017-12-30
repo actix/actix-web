@@ -50,7 +50,7 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 * [Basic](https://github.com/actix/actix-web/tree/master/examples/basic/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
-* [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket.rs)
+* [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
 * [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
 * [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
 * [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)

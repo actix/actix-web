@@ -10,7 +10,7 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// do websocket handshake and start `MyWebSocket` actor
 fn ws_index(r: HttpRequest) -> Reply {
@@ -60,7 +60,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    HttpServer::new(
+    let _addr = HttpServer::new(
         || Application::new()
             // enable logger
             .middleware(middleware::Logger::default())
@@ -68,10 +68,15 @@ fn main() {
             .resource("/ws/", |r| r.method(Method::GET).f(ws_index))
             // static files
             .resource("/{tail:.*}",
-                      |r| r.h(fs::StaticFiles::new("tail", "examples/static/", true))))
+                      |r| r.h(fs::StaticFiles::new("tail", "../static/", true))))
         // start http server on 127.0.0.1:8080
         .bind("127.0.0.1:8080").unwrap()
         .start();
+
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(_addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
