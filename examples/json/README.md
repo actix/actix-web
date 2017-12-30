@@ -12,7 +12,7 @@ cargo run
 # Started http server: 127.0.0.1:8080
 ```
 
-### client
+### web client
 
 With [Postman](https://www.getpostman.com/) or [Rested](moz-extension://60daeb1c-5b1b-4afd-9842-0579ed34dfcb/dist/index.html)
 
@@ -36,3 +36,13 @@ With [Postman](https://www.getpostman.com/) or [Rested](moz-extension://60daeb1c
   - url : ``http://127.0.0.1:8080/mjsonrust``
   - header : ``Content-Type`` = ``application/json``
   - body (raw) : ``{"name": "Test user", "number": 100}`` (you can also test ``{notjson}``)
+
+### python client
+
+- ``pip install aiohttp``
+- ``python client.py``
+
+if ubuntu :
+
+- ``pip3 install aiohttp``
+- ``python3 client.py``
