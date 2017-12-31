@@ -11,9 +11,9 @@ use http::Version;
 use httprequest::HttpMessage;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
-pub const DATE_VALUE_LENGTH: usize = 29;
+pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 
-pub fn date(dst: &mut BytesMut) {
+pub(crate) fn date(dst: &mut BytesMut) {
     CACHED.with(|cache| {
         let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
         buf[..6].copy_from_slice(b"date: ");
@@ -23,7 +23,13 @@ pub fn date(dst: &mut BytesMut) {
     })
 }
 
-pub fn update_date() {
+pub(crate) fn date_value(dst: &mut BytesMut) {
+    CACHED.with(|cache| {
+        dst.extend_from_slice(cache.borrow().buffer());
+    })
+}
+
+pub(crate) fn update_date() {
     CACHED.with(|cache| {
         cache.borrow_mut().update();
     });

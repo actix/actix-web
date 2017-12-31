@@ -576,12 +576,10 @@ impl<S, H> ProcessResponse<S, H> {
     {
         if self.drain.is_none() && self.running != RunningState::Paused {
             // if task is paused, write buffer is probably full
-
             loop {
                 let result = match mem::replace(&mut self.iostate, IOState::Done) {
                     IOState::Response => {
-                        let result = match io.start(info.req_mut().get_inner(),
-                                                    &mut self.resp) {
+                        let result = match io.start(info.req_mut().get_inner(), &mut self.resp) {
                             Ok(res) => res,
                             Err(err) => {
                                 info.error = Some(err.into());
