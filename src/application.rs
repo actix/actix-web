@@ -128,7 +128,7 @@ impl<S> Application<S> where S: 'static {
         }
     }
 
-    /// Set application prefix.
+    /// Set application prefix
     ///
     /// Only requests that matches application's prefix get processed by this application.
     /// Application prefix always contains laading "/" slash. If supplied prefix

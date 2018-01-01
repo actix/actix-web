@@ -246,7 +246,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
        .from_err()
        .and_then(|params| {  // <- url encoded parameters
              println!("==== BODY ==== {:?}", params);
-             ok(httpcodes::HTTPOk.response())
+             ok(httpcodes::HTTPOk.into())
        })
        .responder()
 }

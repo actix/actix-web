@@ -20,10 +20,10 @@ use actix_web::test::TestRequest;
 fn index(req: HttpRequest) -> HttpResponse {
      if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
         if let Ok(s) = hdr.to_str() {
-            return httpcodes::HTTPOk.response()
+            return httpcodes::HTTPOk.into()
         }
      }
-     httpcodes::HTTPBadRequest.response()
+     httpcodes::HTTPBadRequest.into()
 }
 
 fn main() {
@@ -60,7 +60,7 @@ use actix_web::*;
 use actix_web::test::TestServer;
 
 fn index(req: HttpRequest) -> HttpResponse {
-     httpcodes::HTTPOk.response()
+     httpcodes::HTTPOk.into()
 }
 
 fn main() {
@@ -80,7 +80,7 @@ use actix_web::*;
 use actix_web::test::TestServer;
 
 fn index(req: HttpRequest) -> HttpResponse {
-     httpcodes::HTTPOk.response()
+     httpcodes::HTTPOk.into()
 }
 
 /// This function get called by http server.

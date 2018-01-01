@@ -9,19 +9,13 @@ use futures::{Future, Async, Poll, Stream};
 use futures::task::{Task, current as current_task};
 
 use body::BodyStream;
-use actix::ResponseType;
 use error::PayloadError;
 
 pub(crate) const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Just Bytes object
-#[derive(PartialEq)]
+#[derive(PartialEq, Message)]
 pub struct PayloadItem(pub Bytes);
-
-impl ResponseType for PayloadItem {
-    type Item = ();
-    type Error = ();
-}
 
 impl Deref for PayloadItem {
     type Target = Bytes;
@@ -91,27 +85,27 @@ impl Payload {
     }
 
     /// Get first available chunk of data.
-    pub fn readany(&mut self) -> ReadAny {
+    pub fn readany(&self) -> ReadAny {
         ReadAny(Rc::clone(&self.inner))
     }
 
     /// Get exact number of bytes
-    pub fn readexactly(&mut self, size: usize) -> ReadExactly {
+    pub fn readexactly(&self, size: usize) -> ReadExactly {
         ReadExactly(Rc::clone(&self.inner), size)
     }
 
     /// Read until `\n`
-    pub fn readline(&mut self) -> ReadLine {
+    pub fn readline(&self) -> ReadLine {
         ReadLine(Rc::clone(&self.inner))
     }
 
     /// Read until match line
-    pub fn readuntil(&mut self, line: &[u8]) -> ReadUntil {
+    pub fn readuntil(&self, line: &[u8]) -> ReadUntil {
         ReadUntil(Rc::clone(&self.inner), line.to_vec())
     }
 
     #[doc(hidden)]
-    pub fn readall(&mut self) -> Option<Bytes> {
+    pub fn readall(&self) -> Option<Bytes> {
         self.inner.borrow_mut().readall()
     }
 
@@ -132,20 +126,16 @@ impl Payload {
 
     /// Convert payload into compatible `HttpResponse` body stream
     pub fn stream(self) -> BodyStream {
-        Box::new(self.map_err(|e| e.into()))
+        Box::new(self.map(|i| i.0).map_err(|e| e.into()))
     }
 }
 
 impl Stream for Payload {
-    type Item = Bytes;
+    type Item = PayloadItem;
     type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        match self.inner.borrow_mut().readany()? {
-            Async::Ready(Some(item)) => Ok(Async::Ready(Some(item.0))),
-            Async::Ready(None) => Ok(Async::Ready(None)),
-            Async::NotReady => Ok(Async::NotReady),
-        }
+    fn poll(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
+        self.inner.borrow_mut().readany()
     }
 }
 
@@ -474,7 +464,7 @@ mod tests {
     #[test]
     fn test_basic() {
         Core::new().unwrap().run(lazy(|| {
-            let (_, mut payload) = Payload::new(false);
+            let (_, payload) = Payload::new(false);
 
             assert!(!payload.eof());
             assert!(payload.is_empty());
@@ -489,7 +479,7 @@ mod tests {
     #[test]
     fn test_eof() {
         Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
+            let (mut sender, payload) = Payload::new(false);
 
             assert_eq!(Async::NotReady, payload.readany().poll().ok().unwrap());
             assert!(!payload.eof());
@@ -514,7 +504,7 @@ mod tests {
     #[test]
     fn test_err() {
         Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
+            let (mut sender, payload) = Payload::new(false);
 
             assert_eq!(Async::NotReady, payload.readany().poll().ok().unwrap());
 
@@ -528,7 +518,7 @@ mod tests {
     #[test]
     fn test_readany() {
         Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
+            let (mut sender, payload) = Payload::new(false);
 
             sender.feed_data(Bytes::from("line1"));
 
@@ -552,7 +542,7 @@ mod tests {
     #[test]
     fn test_readexactly() {
         Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
+            let (mut sender, payload) = Payload::new(false);
 
             assert_eq!(Async::NotReady, payload.readexactly(2).poll().ok().unwrap());
 
@@ -579,7 +569,7 @@ mod tests {
     #[test]
     fn test_readuntil() {
         Core::new().unwrap().run(lazy(|| {
-            let (mut sender, mut payload) = Payload::new(false);
+            let (mut sender, payload) = Payload::new(false);
 
             assert_eq!(Async::NotReady, payload.readuntil(b"ne").poll().ok().unwrap());
 

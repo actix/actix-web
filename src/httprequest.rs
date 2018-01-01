@@ -136,6 +136,12 @@ impl HttpRequest<()> {
 impl<S> HttpRequest<S> {
 
     #[inline]
+    /// Construct new http request with state.
+    pub fn change_state<NS>(self, state: Rc<NS>) -> HttpRequest<NS> {
+        HttpRequest(self.0, Some(state), self.2.clone())
+    }
+
+    #[inline]
     /// Construct new http request without state.
     pub(crate) fn clone_without_state(&self) -> HttpRequest {
         HttpRequest(self.0.clone(), None, None)
@@ -447,7 +453,7 @@ impl<S> HttpRequest<S> {
     ///             }
     ///         })
     ///         .finish()  // <- Stream::finish() combinator from actix
-    ///         .map(|_| httpcodes::HTTPOk.response())
+    ///         .map(|_| httpcodes::HTTPOk.into())
     ///         .responder()
     /// }
     /// # fn main() {}
@@ -477,7 +483,7 @@ impl<S> HttpRequest<S> {
     ///        .from_err()
     ///        .and_then(|params| {  // <- url encoded parameters
     ///             println!("==== BODY ==== {:?}", params);
-    ///             ok(httpcodes::HTTPOk.response())
+    ///             ok(httpcodes::HTTPOk.into())
     ///        })
     ///        .responder()
     /// }
@@ -512,7 +518,7 @@ impl<S> HttpRequest<S> {
     ///        .from_err()
     ///        .and_then(|val: MyObj| {  // <- deserialized value
     ///            println!("==== BODY ==== {:?}", val);
-    ///            Ok(httpcodes::HTTPOk.response())
+    ///            Ok(httpcodes::HTTPOk.into())
     ///        }).responder()
     /// }
     /// # fn main() {}

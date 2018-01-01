@@ -12,7 +12,7 @@
 //! use actix_web::*;
 //!
 //! // do websocket handshake and start actor
-//! fn ws_index(req: HttpRequest) -> Result<Reply> {
+//! fn ws_index(req: HttpRequest) -> Result<HttpResponse> {
 //!     ws::start(req, Ws)
 //! }
 //!
@@ -52,13 +52,11 @@ use futures::{Async, Poll, Stream};
 
 use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
 
-use body::Body;
-use context::HttpContext;
-use handler::Reply;
 use payload::ReadAny;
 use error::{Error, WsHandshakeError};
+use context::HttpContext;
 use httprequest::HttpRequest;
-use httpresponse::{ConnectionType, HttpResponse};
+use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 
 use wsframe;
 use wsproto::*;
@@ -88,17 +86,17 @@ impl ResponseType for Message {
 }
 
 /// Do websocket handshake and start actor
-pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
+pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
     where A: Actor<Context=HttpContext<A, S>> + StreamHandler<Message>,
           S: 'static
 {
-    let resp = handshake(&req)?;
-
+    let mut resp = handshake(&req)?;
     let stream = WsStream::new(req.payload_mut().readany());
+
     let mut ctx = HttpContext::new(req, actor);
-    ctx.start(resp);
     ctx.add_stream(stream);
-    Ok(ctx.into())
+
+    Ok(resp.body(ctx)?)
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -109,7 +107,7 @@ pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeError> {
+pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(WsHandshakeError::GetMethodRequired)
@@ -163,8 +161,7 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")
        .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
-       .body(Body::UpgradeContext).unwrap()
-    )
+       .take())
 }
 
 /// Maps `Payload` stream into stream of `ws::Message` items
@@ -401,6 +398,7 @@ mod tests {
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
                                    Version::HTTP_11, headers, None);
-        assert_eq!(StatusCode::SWITCHING_PROTOCOLS, handshake(&req).unwrap().status());
+        assert_eq!(StatusCode::SWITCHING_PROTOCOLS,
+                   handshake(&req).unwrap().finish().unwrap().status());
     }
 }

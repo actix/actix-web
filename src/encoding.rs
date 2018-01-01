@@ -416,8 +416,20 @@ impl PayloadEncoder {
                 resp.headers_mut().remove(CONTENT_LENGTH);
                 TransferEncoding::eof(buf)
             }
-            Body::Streaming(_) | Body::StreamingContext => {
-                if resp.chunked() {
+            Body::Streaming(_) | Body::Actor(_) => {
+                if resp.upgrade() {
+                    if version == Version::HTTP_2 {
+                        error!("Connection upgrade is forbidden for HTTP/2");
+                    } else {
+                        resp.headers_mut().insert(
+                            CONNECTION, HeaderValue::from_static("upgrade"));
+                    }
+                    if encoding != ContentEncoding::Identity {
+                        encoding = ContentEncoding::Identity;
+                        resp.headers_mut().remove(CONTENT_ENCODING);
+                    }
+                    TransferEncoding::eof(buf)
+                } else if resp.chunked() {
                     resp.headers_mut().remove(CONTENT_LENGTH);
                     if version != Version::HTTP_11 {
                         error!("Chunked transfer encoding is forbidden for {:?}", version);
@@ -445,19 +457,6 @@ impl PayloadEncoder {
                 } else {
                     TransferEncoding::eof(buf)
                 }
-            }
-            Body::Upgrade(_) | Body::UpgradeContext => {
-                if version == Version::HTTP_2 {
-                    error!("Connection upgrade is forbidden for HTTP/2");
-                } else {
-                    resp.headers_mut().insert(
-                        CONNECTION, HeaderValue::from_static("upgrade"));
-                }
-                if encoding != ContentEncoding::Identity {
-                    encoding = ContentEncoding::Identity;
-                    resp.headers_mut().remove(CONTENT_ENCODING);
-                }
-                TransferEncoding::eof(buf)
             }
         };
         resp.replace_body(body);

@@ -8,8 +8,8 @@ use futures::unsync::oneshot;
 
 use channel::HttpHandlerTask;
 use body::{Body, BodyStream};
-use context::{Frame, IoContext};
-use error::{Error, UnexpectedTaskFrame};
+use context::{Frame, ActorHttpContext};
+use error::Error;
 use handler::{Reply, ReplyItem};
 use h1writer::{Writer, WriterState};
 use httprequest::HttpRequest;
@@ -38,7 +38,7 @@ struct PipelineInfo<S> {
     req: HttpRequest<S>,
     count: usize,
     mws: Rc<Vec<Box<Middleware<S>>>>,
-    context: Option<Box<IoContext>>,
+    context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
 }
 
@@ -70,12 +70,6 @@ impl<S> PipelineInfo<S> {
             Ok(Async::Ready(()))
         }
     }
-}
-
-enum PipelineResponse {
-    None,
-    Context(Box<IoContext>),
-    Response(Box<Future<Item=HttpResponse, Error=Error>>),
 }
 
 impl<S, H: PipelineHandler<S>> Pipeline<S, H> {
@@ -364,7 +358,7 @@ impl<S, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
 // waiting for response
 struct WaitingResponse<S, H> {
-    stream: PipelineResponse,
+    fut: Box<Future<Item=HttpResponse, Error=Error>>,
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
@@ -377,65 +371,22 @@ impl<S, H> WaitingResponse<S, H> {
         match reply.into() {
             ReplyItem::Message(resp) =>
                 RunMiddlewares::init(info, resp),
-            ReplyItem::Actor(ctx) =>
-                PipelineState::Handler(
-                    WaitingResponse { stream: PipelineResponse::Context(ctx),
-                                      _s: PhantomData, _h: PhantomData }),
             ReplyItem::Future(fut) =>
                 PipelineState::Handler(
-                    WaitingResponse { stream: PipelineResponse::Response(fut),
-                                      _s: PhantomData, _h: PhantomData }),
+                    WaitingResponse { fut: fut, _s: PhantomData, _h: PhantomData }),
         }
     }
 
     fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S, H>, PipelineState<S, H>>
     {
-        let stream = mem::replace(&mut self.stream, PipelineResponse::None);
-
-        match stream {
-            PipelineResponse::Context(mut context) => {
-                loop {
-                    match context.poll() {
-                        Ok(Async::Ready(Some(frame))) => {
-                            match frame {
-                                Frame::Message(resp) => {
-                                    info.context = Some(context);
-                                    return Ok(RunMiddlewares::init(info, resp))
-                                }
-                                Frame::Payload(_) | Frame::Drain(_) => (),
-                            }
-                        },
-                        Ok(Async::Ready(None)) => {
-                            error!("Unexpected eof");
-                            let err: Error = UnexpectedTaskFrame.into();
-                            return Ok(ProcessResponse::init(err.into()))
-                        },
-                        Ok(Async::NotReady) => {
-                            self.stream = PipelineResponse::Context(context);
-                            return Err(PipelineState::Handler(self))
-                        },
-                        Err(err) =>
-                            return Ok(ProcessResponse::init(err.into()))
-                    }
-                }
-            },
-            PipelineResponse::Response(mut fut) => {
-                match fut.poll() {
-                    Ok(Async::NotReady) => {
-                        self.stream = PipelineResponse::Response(fut);
-                        Err(PipelineState::Handler(self))
-                    }
-                    Ok(Async::Ready(response)) =>
-                        Ok(RunMiddlewares::init(info, response)),
-                    Err(err) =>
-                        Ok(ProcessResponse::init(err.into())),
-                }
-            }
-            PipelineResponse::None => {
-                unreachable!("Broken internal state")
-            }
+        match self.fut.poll() {
+            Ok(Async::NotReady) =>
+                Err(PipelineState::Handler(self)),
+            Ok(Async::Ready(response)) =>
+                Ok(RunMiddlewares::init(info, response)),
+            Err(err) =>
+                Ok(ProcessResponse::init(err.into())),
         }
-
     }
 }
 
@@ -554,7 +505,7 @@ impl RunningState {
 enum IOState {
     Response,
     Payload(BodyStream),
-    Context,
+    Actor(Box<ActorHttpContext>),
     Done,
 }
 
@@ -588,10 +539,10 @@ impl<S, H> ProcessResponse<S, H> {
                         };
 
                         match self.resp.replace_body(Body::Empty) {
-                            Body::Streaming(stream) | Body::Upgrade(stream) =>
+                            Body::Streaming(stream) =>
                                 self.iostate = IOState::Payload(stream),
-                            Body::StreamingContext | Body::UpgradeContext =>
-                                self.iostate = IOState::Context,
+                            Body::Actor(ctx) =>
+                                self.iostate = IOState::Actor(ctx),
                             _ => (),
                         }
 
@@ -640,17 +591,12 @@ impl<S, H> ProcessResponse<S, H> {
                             }
                         }
                     },
-                    IOState::Context => {
-                        match info.context.as_mut().unwrap().poll() {
+                    IOState::Actor(mut ctx) => {
+                        match ctx.poll() {
                             Ok(Async::Ready(Some(frame))) => {
                                 match frame {
-                                    Frame::Message(msg) => {
-                                        error!("Unexpected message frame {:?}", msg);
-                                        info.error = Some(UnexpectedTaskFrame.into());
-                                        return Ok(
-                                            FinishingMiddlewares::init(info, self.resp))
-                                    },
                                     Frame::Payload(None) => {
+                                        info.context = Some(ctx);
                                         self.iostate = IOState::Done;
                                         if let Err(err) = io.write_eof() {
                                             info.error = Some(err.into());
@@ -660,7 +606,7 @@ impl<S, H> ProcessResponse<S, H> {
                                         break
                                     },
                                     Frame::Payload(Some(chunk)) => {
-                                        self.iostate = IOState::Context;
+                                        self.iostate = IOState::Actor(ctx);
                                         match io.write(chunk.as_ref()) {
                                             Err(err) => {
                                                 info.error = Some(err.into());
@@ -678,11 +624,10 @@ impl<S, H> ProcessResponse<S, H> {
                             },
                             Ok(Async::Ready(None)) => {
                                 self.iostate = IOState::Done;
-                                info.context.take();
                                 break
                             }
                             Ok(Async::NotReady) => {
-                                self.iostate = IOState::Context;
+                                self.iostate = IOState::Actor(ctx);
                                 break
                             }
                             Err(err) => {

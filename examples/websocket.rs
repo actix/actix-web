@@ -13,8 +13,8 @@ use actix_web::*;
 
 
 /// do websocket handshake and start `MyWebSocket` actor
-fn ws_index(r: HttpRequest) -> Reply {
-    ws::start(r, MyWebSocket).into()
+fn ws_index(r: HttpRequest) -> Result<HttpResponse, Error> {
+    ws::start(r, MyWebSocket)
 }
 
 /// websocket connection is long running connection, it easier

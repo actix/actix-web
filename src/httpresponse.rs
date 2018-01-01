@@ -138,6 +138,7 @@ impl HttpResponse {
     }
 
     /// Connection upgrade status
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.get_ref().connection_type == Some(ConnectionType::Upgrade)
     }
@@ -155,11 +156,13 @@ impl HttpResponse {
     }
 
     /// is chunked encoding enabled
+    #[inline]
     pub fn chunked(&self) -> bool {
         self.get_ref().chunked
     }
 
     /// Content encoding
+    #[inline]
     pub fn content_encoding(&self) -> &ContentEncoding {
         &self.get_ref().encoding
     }
@@ -171,6 +174,7 @@ impl HttpResponse {
     }
 
     /// Get body os this response
+    #[inline]
     pub fn body(&self) -> &Body {
         &self.get_ref().body
     }
@@ -442,6 +446,15 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
         self.body(Body::Empty)
+    }
+
+    /// This method construct new `HttpResponseBuilder`
+    pub fn take(&mut self) -> HttpResponseBuilder {
+        HttpResponseBuilder {
+            response: self.response.take(),
+            err: self.err.take(),
+            cookies: self.cookies.take(),
+        }
     }
 }
 

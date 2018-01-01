@@ -41,7 +41,7 @@ use httpresponse::HttpResponse;
 /// # extern crate reqwest;
 /// #
 /// # fn my_handler(req: HttpRequest) -> HttpResponse {
-/// #     httpcodes::HTTPOk.response()
+/// #     httpcodes::HTTPOk.into()
 /// # }
 /// #
 /// # fn main() {
@@ -228,9 +228,9 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         httpcodes::HTTPOk.response()
+///         httpcodes::HTTPOk.into()
 ///     } else {
-///         httpcodes::HTTPBadRequest.response()
+///         httpcodes::HTTPBadRequest.into()
 ///     }
 /// }
 ///
@@ -365,7 +365,6 @@ impl<S> TestRequest<S> {
             Ok(resp) => {
                 match resp.into().into() {
                     ReplyItem::Message(resp) => Ok(resp),
-                    ReplyItem::Actor(_) => panic!("Actor handler is not supported."),
                     ReplyItem::Future(_) => panic!("Async handler is not supported."),
                 }
             },
