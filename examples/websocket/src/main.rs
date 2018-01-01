@@ -10,10 +10,11 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(unix)]
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// do websocket handshake and start `MyWebSocket` actor
-fn ws_index(r: HttpRequest) -> Result<HttpResponse, Error> {
+fn ws_index(r: HttpRequest) -> Result<HttpResponse> {
     ws::start(r, MyWebSocket)
 }
 
@@ -73,7 +74,9 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    if cfg!(target_os = "linux") { // Subscribe to unix signals
+    // Subscribe to unix signals
+    #[cfg(unix)]
+    {
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(_addr.subscriber()));
     }

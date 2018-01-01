@@ -111,5 +111,6 @@ members = [
   "examples/state",
   "examples/template_tera",
   "examples/tls",
+  "examples/websocket",
   "examples/websocket-chat",
 ]
