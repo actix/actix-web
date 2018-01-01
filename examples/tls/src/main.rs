@@ -8,7 +8,7 @@ use std::io::Read;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// somple handle
@@ -49,7 +49,7 @@ fn main() {
         .start_ssl(&pkcs12).unwrap();
 
     // Subscribe to unix signals
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     {
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));

@@ -99,3 +99,5 @@ version_check = "0.1"
 lto = true
 opt-level = 3
 # debug = true
+
+[workspace]

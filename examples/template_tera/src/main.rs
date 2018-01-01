@@ -6,7 +6,9 @@ extern crate tera;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(unix)]
+use actix::actors::signal::{ProcessSignals, Subscribe};
+
 
 struct State {
     template: tera::Tera,  // <- store tera template in application state
@@ -43,7 +45,8 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    if cfg!(target_os = "linux") { // Subscribe to unix signals
+    #[cfg(unix)]
+    { // Subscribe to unix signals
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));
     }

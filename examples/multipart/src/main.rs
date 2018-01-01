@@ -6,7 +6,8 @@ extern crate futures;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(unix)]
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 use futures::{Future, Stream};
 use futures::future::{result, Either};
@@ -55,7 +56,9 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    if cfg!(target_os = "linux") { // Subscribe to unix signals
+    // Subscribe to unix signals
+    #[cfg(unix)]
+    {
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));
     }
