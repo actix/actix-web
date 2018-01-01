@@ -190,7 +190,7 @@ impl Pattern {
     }
 
     /// Extract pattern parameters from the text
-    pub(crate) fn update_match_info<S>(&self, text: &str, req: &mut HttpRequest<S>) {
+    pub fn update_match_info<S>(&self, text: &str, req: &mut HttpRequest<S>) {
         if !self.names.is_empty() {
             if let Some(captures) = self.re.captures(text) {
                 let mut idx = 0;
@@ -208,8 +208,7 @@ impl Pattern {
     }
 
     /// Build pattern path.
-    pub fn path<U, I>(&self, prefix: Option<&str>, elements: U)
-                      -> Result<String, UrlGenerationError>
+    pub fn path<U, I>(&self, prefix: Option<&str>, elements: U) -> Result<String, UrlGenerationError>
         where U: IntoIterator<Item=I>,
               I: AsRef<str>,
     {

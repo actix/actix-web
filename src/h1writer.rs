@@ -192,7 +192,6 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         if let Body::Binary(bytes) = body {
             self.encoder.write(bytes.as_ref())?;
-            return Ok(WriterState::Done)
         } else {
             msg.replace_body(body);
         }

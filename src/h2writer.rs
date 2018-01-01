@@ -92,7 +92,7 @@ impl H2Writer {
                             let cap = cmp::min(buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
-                            return Ok(WriterState::Done)
+                            return Ok(WriterState::Pause)
                         }
                     }
                     Err(_) => {
@@ -130,9 +130,23 @@ impl Writer for H2Writer {
         // using helpers::date is quite a lot faster
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
-            helpers::date(&mut bytes);
-            msg.headers_mut().insert(
-                DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+            helpers::date_value(&mut bytes);
+            msg.headers_mut().insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+        }
+
+        let body = msg.replace_body(Body::Empty);
+        match body {
+            Body::Binary(ref bytes) => {
+                let mut val = BytesMut::new();
+                helpers::convert_usize(bytes.len(), &mut val);
+                let l = val.len();
+                msg.headers_mut().insert(
+                    CONTENT_LENGTH, HeaderValue::try_from(val.split_to(l-2).freeze()).unwrap());
+            }
+            Body::Empty => {
+                msg.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+            },
+            _ => (),
         }
 
         let mut resp = Response::new(());
@@ -142,19 +156,6 @@ impl Writer for H2Writer {
             resp.headers_mut().insert(key, value.clone());
         }
 
-        match *msg.body() {
-            Body::Binary(ref bytes) => {
-                let mut val = BytesMut::new();
-                helpers::convert_usize(bytes.len(), &mut val);
-                resp.headers_mut().insert(
-                    CONTENT_LENGTH, HeaderValue::try_from(val.freeze()).unwrap());
-            }
-            Body::Empty => {
-                resp.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-            },
-            _ => (),
-        }
-
         match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
             Ok(stream) =>
                 self.stream = Some(stream),
@@ -162,20 +163,19 @@ impl Writer for H2Writer {
                 return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
 
-        // trace!("Response: {:?}", msg);
+        trace!("Response: {:?}", msg);
 
-        if msg.body().is_binary() {
-            if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
-                self.flags.insert(Flags::EOF);
-                self.encoder.write(bytes.as_ref())?;
-                if let Some(ref mut stream) = self.stream {
-                    stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
-                }
-                return Ok(WriterState::Done)
+        if let Body::Binary(bytes) = body {
+            self.flags.insert(Flags::EOF);
+            self.encoder.write(bytes.as_ref())?;
+            if let Some(ref mut stream) = self.stream {
+                stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
             }
+            Ok(WriterState::Pause)
+        } else {
+            msg.replace_body(body);
+            Ok(WriterState::Done)
         }
-
-        Ok(WriterState::Done)
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {

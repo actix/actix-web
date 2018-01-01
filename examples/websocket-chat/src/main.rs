@@ -17,7 +17,8 @@ use std::time::Instant;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(unix)]
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 mod codec;
 mod server;
@@ -30,7 +31,7 @@ struct WsChatSessionState {
 }
 
 /// Entry point for our route
-fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<Reply> {
+fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
     ws::start(
         req,
         WsChatSession {
@@ -215,7 +216,9 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    if cfg!(target_os = "linux") { // Subscribe to unix signals
+    // Subscribe to unix signals
+    #[cfg(unix)]
+    {
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));
     }

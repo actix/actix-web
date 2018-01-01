@@ -65,7 +65,7 @@ impl<S> Handler<S> for MyHandler {
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         self.0 += 1;
-        httpcodes::HTTPOk.response()
+        httpcodes::HTTPOk.into()
     }
 }
 # fn main() {}
@@ -91,7 +91,7 @@ impl<S> Handler<S> for MyHandler {
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         let num = self.0.load(Ordering::Relaxed) + 1;
         self.0.store(num, Ordering::Relaxed);
-        httpcodes::HTTPOk.response()
+        httpcodes::HTTPOk.into()
     }
 }
 
@@ -104,7 +104,7 @@ fn main() {
         move || { 
             let cloned = inc.clone();
             Application::new()
-            .resource("/", move |r| r.h(MyHandler(cloned)))
+                .resource("/", move |r| r.h(MyHandler(cloned)))
         })
         .bind("127.0.0.1:8088").unwrap()
         .start();

@@ -5,6 +5,7 @@ use bytes::{Bytes, BytesMut};
 use futures::Stream;
 
 use error::Error;
+use context::ActorHttpContext;
 
 /// Type represent streaming body
 pub type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
@@ -18,12 +19,8 @@ pub enum Body {
     /// Unspecified streaming response. Developer is responsible for setting
     /// right `Content-Length` or `Transfer-Encoding` headers.
     Streaming(BodyStream),
-    /// Upgrade connection.
-    Upgrade(BodyStream),
-    /// Special body type for actor streaming response.
-    StreamingContext,
-    /// Special body type for actor upgrade response.
-    UpgradeContext,
+    /// Special body type for actor response.
+    Actor(Box<ActorHttpContext>),
 }
 
 /// Represents various types of binary body.
@@ -51,8 +48,7 @@ impl Body {
     #[inline]
     pub fn is_streaming(&self) -> bool {
         match *self {
-            Body::Streaming(_) | Body::StreamingContext
-                | Body::Upgrade(_) | Body::UpgradeContext => true,
+            Body::Streaming(_) | Body::Actor(_) => true,
             _ => false
         }
     }
@@ -83,15 +79,7 @@ impl PartialEq for Body {
                 Body::Binary(ref b2) => b == b2,
                 _ => false,
             },
-            Body::StreamingContext => match *other {
-                Body::StreamingContext => true,
-                _ => false,
-            },
-            Body::UpgradeContext => match *other {
-                Body::UpgradeContext => true,
-                _ => false,
-            },
-            Body::Streaming(_) | Body::Upgrade(_) => false,
+            Body::Streaming(_) | Body::Actor(_) => false,
         }
     }
 }
@@ -102,9 +90,7 @@ impl fmt::Debug for Body {
             Body::Empty => write!(f, "Body::Empty"),
             Body::Binary(ref b) => write!(f, "Body::Binary({:?})", b),
             Body::Streaming(_) => write!(f, "Body::Streaming(_)"),
-            Body::Upgrade(_) => write!(f, "Body::Upgrade(_)"),
-            Body::StreamingContext => write!(f, "Body::StreamingContext"),
-            Body::UpgradeContext => write!(f, "Body::UpgradeContext"),
+            Body::Actor(_) => write!(f, "Body::Actor(_)"),
         }
     }
 }
@@ -112,6 +98,12 @@ impl fmt::Debug for Body {
 impl<T> From<T> for Body where T: Into<Binary>{
     fn from(b: T) -> Body {
         Body::Binary(b.into())
+    }
+}
+
+impl From<Box<ActorHttpContext>> for Body {
+    fn from(ctx: Box<ActorHttpContext>) -> Body {
+        Body::Actor(ctx)
     }
 }
 

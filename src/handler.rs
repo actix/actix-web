@@ -1,13 +1,11 @@
 use std::marker::PhantomData;
 
-use actix::Actor;
-use futures::future::{Future, ok, err};
 use regex::Regex;
+use futures::future::{Future, ok, err};
 use http::{header, StatusCode, Error as HttpError};
 
 use body::Body;
 use error::Error;
-use context::{HttpContext, IoContext};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -69,19 +67,10 @@ pub struct Reply(ReplyItem);
 
 pub(crate) enum ReplyItem {
     Message(HttpResponse),
-    Actor(Box<IoContext>),
     Future(Box<Future<Item=HttpResponse, Error=Error>>),
 }
 
 impl Reply {
-
-    /// Create actor response
-    #[inline]
-    pub fn actor<A, S>(ctx: HttpContext<A, S>) -> Reply
-        where A: Actor<Context=HttpContext<A, S>>, S: 'static
-    {
-        Reply(ReplyItem::Actor(Box::new(ctx)))
-    }
 
     /// Create async response
     #[inline]
@@ -160,25 +149,6 @@ impl<E: Into<Error>> From<Result<Reply, E>> for Reply {
             Ok(val) => val,
             Err(err) => Reply(ReplyItem::Message(err.into().into())),
         }
-    }
-}
-
-impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> Responder for HttpContext<A, S>
-{
-    type Item = Reply;
-    type Error = Error;
-
-    #[inline]
-    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
-        Ok(Reply(ReplyItem::Actor(Box::new(self))))
-    }
-}
-
-impl<A: Actor<Context=HttpContext<A, S>>, S: 'static> From<HttpContext<A, S>> for Reply {
-
-    #[inline]
-    fn from(ctx: HttpContext<A, S>) -> Reply {
-        Reply(ReplyItem::Actor(Box::new(ctx)))
     }
 }
 

@@ -54,9 +54,6 @@ impl StaticResponse {
     pub fn build(&self) -> HttpResponseBuilder {
         HttpResponse::build(self.0)
     }
-    pub fn response(&self) -> HttpResponse {
-        HttpResponse::new(self.0, Body::Empty)
-    }
     pub fn with_reason(self, reason: &'static str) -> HttpResponse {
         let mut resp = HttpResponse::new(self.0, Body::Empty);
         resp.set_reason(reason);
@@ -92,7 +89,7 @@ impl Responder for StaticResponse {
 
 impl From<StaticResponse> for HttpResponse {
     fn from(st: StaticResponse) -> Self {
-        st.response()
+        HttpResponse::new(st.0, Body::Empty)
     }
 }
 
@@ -153,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_response() {
-        let resp = HTTPOk.response();
+        let resp: HttpResponse = HTTPOk.into();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -165,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_with_reason() {
-        let resp = HTTPOk.response();
+        let resp: HttpResponse = HTTPOk.into();
         assert_eq!(resp.reason(), "OK");
 
         let resp = HTTPBadRequest.with_reason("test");

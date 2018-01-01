@@ -9,7 +9,8 @@ extern crate serde_json;
 
 use actix::*;
 use actix_web::*;
-#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+#[cfg(unix)]
+use actix::actors::signal::{ProcessSignals, Subscribe};
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
@@ -96,7 +97,9 @@ fn main() {
         .shutdown_timeout(1)
         .start();
 
-    if cfg!(target_os = "linux") { // Subscribe to unix signals
+    // Subscribe to unix signals
+    #[cfg(unix)]
+    {
         let signals = Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));
     }

@@ -99,3 +99,17 @@ version_check = "0.1"
 lto = true
 opt-level = 3
 # debug = true
+
+[workspace]
+members = [
+  "./",
+  "examples/basic",
+  "examples/diesel",
+  "examples/json",
+  "examples/multipart",
+  "examples/signals",
+  "examples/state",
+  "examples/template_tera",
+  "examples/tls",
+  "examples/websocket-chat",
+]

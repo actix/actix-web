@@ -114,14 +114,6 @@ impl ResponseError for header::InvalidHeaderValue {}
 /// `InternalServerError` for `futures::Canceled`
 impl ResponseError for Canceled {}
 
-/// Internal error
-#[doc(hidden)]
-#[derive(Fail, Debug)]
-#[fail(display="Unexpected task frame")]
-pub struct UnexpectedTaskFrame;
-
-impl ResponseError for UnexpectedTaskFrame {}
-
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]
 pub enum ParseError {
