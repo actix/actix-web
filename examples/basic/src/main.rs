@@ -24,14 +24,75 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     }
 
     // session
+    let mut counter = 1;
     if let Some(count) = req.session().get::<i32>("counter")? {
         println!("SESSION value: {}", count);
-        req.session().set("counter", count+1)?;
+        counter = count+1;
+        req.session().set("counter", counter)?;
     } else {
         req.session().set("counter", 1)?;
     }
 
-    Ok("Welcome!".into())
+    let html = format!(r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>actix - basic</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
+</head>
+<body>
+    <a href="subpage.html">subpage</a>
+    <h1>Welcome</h1>
+    counter = {}
+</body>
+</html>"#, counter);
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .body(&html).unwrap())
+
+
+}
+
+/// favicon handler
+fn favicon(req: HttpRequest) -> Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("../static/favicon.ico")?)
+}
+
+/// subpage handler
+fn subpage(req: HttpRequest) -> Result<HttpResponse> {
+    let html = format!(r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>actix - basic</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
+</head>
+<body>
+    <a href="index.html">index</a>
+    sub page with image<br/>
+    <img src="assets/font-awesome_4-7-0_rocket_256_0_007dff_none.png" />
+</body>
+</html>"#);
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .body(&html).unwrap())
+}
+
+/// 404 handler
+fn p404(req: HttpRequest) -> Result<HttpResponse> {
+    let html = format!(r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>actix - basic</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
+</head>
+<body>
+    <a href="index.html">index</a>
+    <h1>404</h1>
+</body>
+</html>"#);
+    Ok(HttpResponse::build(StatusCode::NOT_FOUND)
+        .content_type("text/html; charset=utf-8")
+        .body(&html).unwrap())
 }
 
 /// async handler
@@ -70,8 +131,13 @@ fn main() {
                     .secure(false)
                     .finish()
             ))
+            // register favicon
+            .resource("/favicon.ico", |r| r.f(favicon))
+            // register assets
+            .resource("/assets/{tail:.*}", |r| r.h(fs::StaticFiles::new("tail", "../static/", false)))
             // register simple route, handle all methods
             .resource("/index.html", |r| r.f(index))
+            .resource("/subpage.html", |r| r.f(subpage))
             // with path parameters
             .resource("/user/{name}/", |r| r.method(Method::GET).f(with_param))
             // async handler
@@ -93,7 +159,13 @@ fn main() {
                 HttpResponse::Found()
                     .header("LOCATION", "/index.html")
                     .finish()
-            })))
+            }))
+            // default
+            .default_resource(|r| {
+                r.method(Method::GET).f(p404);
+                r.route().p(pred::Not(pred::Get())).f(|req| httpcodes::HTTPMethodNotAllowed);
+            })
+        )
         .bind("0.0.0.0:8080").unwrap()
         .start();
 
