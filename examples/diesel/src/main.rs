@@ -16,8 +16,11 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
+use actix::*;
 use actix_web::*;
 use actix::prelude::*;
+#[cfg(target_os = "linux")] use actix::actors::signal::{ProcessSignals, Subscribe};
+
 use diesel::prelude::*;
 use futures::future::Future;
 
@@ -59,13 +62,18 @@ fn main() {
     });
 
     // Start http server
-    HttpServer::new(move || {
+    let _addr = HttpServer::new(move || {
         Application::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/{name}", |r| r.method(Method::GET).a(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
+
+    if cfg!(target_os = "linux") { // Subscribe to unix signals
+        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        signals.send(Subscribe(_addr.subscriber()));
+    }
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
