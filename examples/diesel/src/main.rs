@@ -42,7 +42,7 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
         .and_then(|res| {
             match res {
                 Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
-                Err(_) => Ok(httpcodes::HTTPInternalServerError.response())
+                Err(_) => Ok(httpcodes::HTTPInternalServerError.into())
             }
         })
         .responder()

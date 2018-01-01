@@ -39,7 +39,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
             }
         })
         .finish()  // <- Stream::finish() combinator from actix
-        .map(|_| httpcodes::HTTPOk.response())
+        .map(|_| httpcodes::HTTPOk.into())
         .responder()
 }
 
