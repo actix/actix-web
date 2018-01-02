@@ -1,0 +1,28 @@
+extern crate actix;
+extern crate actix_web;
+extern crate env_logger;
+
+use actix_web::*;
+
+
+fn index(_req: HttpRequest) -> &'static str {
+    "Hello world!"
+}
+
+fn main() {
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    let _ = env_logger::init();
+    let sys = actix::System::new("ws-example");
+
+    let _addr = HttpServer::new(
+        || Application::new()
+            // enable logger
+            .middleware(middleware::Logger::default())
+            .resource("/index.html", |r| r.f(|_| "Hello world!"))
+            .resource("/", |r| r.f(index)))
+        .bind("127.0.0.1:8080").unwrap()
+        .start();
+
+    println!("Started http server: 127.0.0.1:8080");
+    let _ = sys.run();
+}

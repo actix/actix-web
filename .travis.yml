@@ -37,6 +37,8 @@ script:
 
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+      cd examples/basics && cargo check && cd ../..
+      cd examples/hello-world && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..

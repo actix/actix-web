@@ -103,9 +103,10 @@ opt-level = 3
 [workspace]
 members = [
   "./",
-  "examples/basic",
+  "examples/basics",
   "examples/diesel",
   "examples/json",
+  "examples/hello-world",
   "examples/multipart",
   "examples/signals",
   "examples/state",
