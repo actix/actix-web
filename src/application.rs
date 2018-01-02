@@ -1,3 +1,4 @@
+use std::mem;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -22,6 +23,7 @@ pub struct HttpApplication<S=()> {
 }
 
 pub(crate) struct Inner<S> {
+    prefix: usize,
     default: Resource<S>,
     router: Router,
     resources: Vec<Resource<S>>,
@@ -36,12 +38,18 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         } else {
             for &mut (ref prefix, ref mut handler) in &mut self.handlers {
                 let m = {
-                    let path = req.path();
-                    path.starts_with(prefix) && (
-                        path.len() == prefix.len() ||
-                            path.split_at(prefix.len()).1.starts_with('/'))
+                    let path = &req.path()[self.prefix..];
+                    path.starts_with(prefix) && (path.len() == prefix.len() ||
+                                                 path.split_at(prefix.len()).1.starts_with('/'))
                 };
                 if m {
+                    let path: &'static str = unsafe{
+                        mem::transmute(&req.path()[self.prefix+prefix.len()..])};
+                    if path.is_empty() {
+                        req.match_info_mut().add("tail", "");
+                    } else {
+                        req.match_info_mut().add("tail", path.trim_left_matches('/'));
+                    }
                     return handler.handle(req)
                 }
             }
@@ -335,6 +343,7 @@ impl<S> Application<S> where S: 'static {
 
         let inner = Rc::new(RefCell::new(
             Inner {
+                prefix: prefix.len(),
                 default: parts.default,
                 router: router.clone(),
                 resources: resources,
@@ -487,6 +496,39 @@ mod tests {
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_handler_prefix() {
+        let mut app = Application::new()
+            .prefix("/app")
+            .handler("/test", httpcodes::HTTPOk)
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
     }
+
 }

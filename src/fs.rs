@@ -191,8 +191,8 @@ impl Responder for FilesystemElement {
 
 /// Static files handling
 ///
-/// Can be registered with `Application::resource()`. Resource path has to contain
-/// tail named pattern and this name has to be used in `StaticFile` constructor.
+/// `StaticFile` handler must be registered with `Application::handler()` method,
+/// because `StaticFile` handler requires access sub-path information.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -200,12 +200,11 @@ impl Responder for FilesystemElement {
 ///
 /// fn main() {
 ///     let app = Application::new()
-///         .resource("/static/{tail:.*}", |r| r.h(fs::StaticFiles::new("tail", ".", true)))
+///         .handler("/static", fs::StaticFiles::new(".", true))
 ///         .finish();
 /// }
 /// ```
 pub struct StaticFiles {
-    name: String,
     directory: PathBuf,
     accessible: bool,
     show_index: bool,
@@ -219,7 +218,7 @@ impl StaticFiles {
     /// `dir` - base directory
     ///
     /// `index` - show index for directory
-    pub fn new<D: Into<PathBuf>>(name: &str, dir: D, index: bool) -> StaticFiles {
+    pub fn new<D: Into<PathBuf>>(dir: D, index: bool) -> StaticFiles {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -238,7 +237,6 @@ impl StaticFiles {
         };
 
         StaticFiles {
-            name: name.to_owned(),
             directory: dir,
             accessible: access,
             show_index: index,
@@ -256,7 +254,7 @@ impl<S> Handler<S> for StaticFiles {
         if !self.accessible {
             Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
         } else {
-            let path = if let Some(path) = req.match_info().get(&self.name) {
+            let path = if let Some(path) = req.match_info().get("tail") {
                 path
             } else {
                 return Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
@@ -300,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_static_files() {
-        let mut st = StaticFiles::new("tail", ".", true);
+        let mut st = StaticFiles::new(".", true);
         st.accessible = false;
         assert!(st.handle(HttpRequest::default()).is_err());
 

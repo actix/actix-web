@@ -677,7 +677,14 @@ impl<S, H> ProcessResponse<S, H> {
         // response is completed
         match self.iostate {
             IOState::Done => {
-                io.write_eof();
+                match io.write_eof() {
+                    Ok(_) => (),
+                    Err(err) => {
+                        debug!("Error sending data: {}", err);
+                        info.error = Some(err.into());
+                        return Ok(FinishingMiddlewares::init(info, self.resp))
+                    }
+                }
                 self.resp.set_response_size(io.written());
                 Ok(FinishingMiddlewares::init(info, self.resp))
             }
