@@ -309,16 +309,10 @@ pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
         let d1 = (n % 100) << 1;
         n /= 100;
         unsafe {ptr::copy_nonoverlapping(
-            DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(18), 2)};
+            DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(19), 2)};
 
-        // decode last 1 or 2 chars
-        if n < 10 {
-            buf[20] = (n as u8) + b'0';
-        } else {
-            let d1 = n << 1;
-            unsafe {ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(17), 2)};
-        }
+        // decode last 1
+        buf[18] = (n as u8) + b'0';
 
         bytes.extend_from_slice(&buf);
     } else {
@@ -393,5 +387,30 @@ mod tests {
         let mut buf2 = BytesMut::new();
         date(&mut buf2);
         assert_eq!(buf1, buf2);
+    }
+
+    #[test]
+    fn test_write_content_length() {
+        let mut bytes = BytesMut::new();
+        write_content_length(0, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
+        write_content_length(9, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
+        write_content_length(10, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
+        write_content_length(99, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
+        write_content_length(100, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
+        write_content_length(101, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
+        write_content_length(998, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
+        write_content_length(1000, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
+        write_content_length(1001, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
+        write_content_length(5909, &mut bytes);
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
     }
 }
