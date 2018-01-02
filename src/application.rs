@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use handler::Reply;
 use router::{Router, Pattern};
 use resource::Resource;
+use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
 use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
 use pipeline::{Pipeline, PipelineHandler};
@@ -24,6 +25,7 @@ pub(crate) struct Inner<S> {
     default: Resource<S>,
     router: Router,
     resources: Vec<Resource<S>>,
+    handlers: Vec<(String, Box<RouteHandler<S>>)>,
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
@@ -32,6 +34,17 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         if let Some(idx) = self.router.recognize(&mut req) {
             self.resources[idx].handle(req.clone(), Some(&mut self.default))
         } else {
+            for &mut (ref prefix, ref mut handler) in &mut self.handlers {
+                let m = {
+                    let path = req.path();
+                    path.starts_with(prefix) && (
+                        path.len() == prefix.len() ||
+                            path.split_at(prefix.len()).1.starts_with('/'))
+                };
+                if m {
+                    return handler.handle(req)
+                }
+            }
             self.default.handle(req, None)
         }
     }
@@ -73,6 +86,7 @@ struct ApplicationParts<S> {
     settings: ServerSettings,
     default: Resource<S>,
     resources: HashMap<Pattern, Option<Resource<S>>>,
+    handlers: Vec<(String, Box<RouteHandler<S>>)>,
     external: HashMap<String, Pattern>,
     middlewares: Vec<Box<Middleware<S>>>,
 }
@@ -94,6 +108,7 @@ impl Application<()> {
                 settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
+                handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
             })
@@ -122,6 +137,7 @@ impl<S> Application<S> where S: 'static {
                 settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
                 resources: HashMap::new(),
+                handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
             })
@@ -133,7 +149,7 @@ impl<S> Application<S> where S: 'static {
     /// Only requests that matches application's prefix get processed by this application.
     /// Application prefix always contains laading "/" slash. If supplied prefix
     /// does not contain leading slash, it get inserted. Prefix should
-    /// consists of valud path segments. i.e for application with
+    /// consists valid path segments. i.e for application with
     /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
     /// would match, but path `/application` would not match.
     ///
@@ -194,8 +210,7 @@ impl<S> Application<S> where S: 'static {
     ///         .resource("/test", |r| {
     ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
     ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
-    ///         })
-    ///         .finish();
+    ///         });
     /// }
     /// ```
     pub fn resource<F>(mut self, path: &str, f: F) -> Application<S>
@@ -267,6 +282,36 @@ impl<S> Application<S> where S: 'static {
         self
     }
 
+    /// Configure handler for specific path prefix.
+    ///
+    /// Path prefix consists valid path segments. i.e for prefix `/app`
+    /// any request with following paths `/app`, `/app/` or `/app/test`
+    /// would match, but path `/application` would not match.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .handler("/app", |req: HttpRequest| {
+    ///             match *req.method() {
+    ///                 Method::GET => httpcodes::HTTPOk,
+    ///                 Method::POST => httpcodes::HTTPMethodNotAllowed,
+    ///                 _ => httpcodes::HTTPNotFound,
+    ///         }});
+    /// }
+    /// ```
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Application<S>
+    {
+        {
+            let path = path.trim().trim_right_matches('/').to_owned();
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.handlers.push((path, Box::new(WrapHandler::new(handler))));
+        }
+        self
+    }
+
     /// Register a middleware
     pub fn middleware<T>(mut self, mw: T) -> Application<S>
         where T: Middleware<S> + 'static
@@ -292,7 +337,9 @@ impl<S> Application<S> where S: 'static {
             Inner {
                 default: parts.default,
                 router: router.clone(),
-                resources: resources }
+                resources: resources,
+                handlers: parts.handlers,
+            }
         ));
 
         HttpApplication {
@@ -345,8 +392,7 @@ impl<S: 'static> Iterator for Application<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use http::{Method, Version, Uri, HeaderMap, StatusCode};
+    use http::StatusCode;
     use super::*;
     use test::TestRequest;
     use httprequest::HttpRequest;
@@ -362,18 +408,14 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/blah").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
         let mut app = Application::new()
             .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
             .finish();
-        let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/blah").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+        let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
     }
@@ -411,8 +453,40 @@ mod tests {
         let resp = app.handle(req);
         assert!(resp.is_ok());
 
+        let req = TestRequest::with_uri("/test/blah").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
         let req = TestRequest::with_uri("/testing").finish();
         let resp = app.handle(req);
         assert!(resp.is_err());
+    }
+
+    #[test]
+    fn test_handler() {
+        let mut app = Application::new()
+            .handler("/test", httpcodes::HTTPOk)
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
     }
 }
