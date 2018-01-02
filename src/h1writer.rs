@@ -95,7 +95,6 @@ impl<T: AsyncWrite> H1Writer<T> {
             match self.stream.write(buffer.as_ref()) {
                 Ok(n) => {
                     buffer.split_to(n);
-                    self.written += n as u64;
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if buffer.len() > MAX_WRITE_BUFFER_SIZE {
@@ -115,11 +114,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
     #[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
     fn written(&self) -> u64 {
-        if self.written > self.headers_size as u64 {
-            self.written - self.headers_size as u64
-        } else {
-            0
-        }
+        self.written
     }
 
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
@@ -191,6 +186,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
 
         if let Body::Binary(bytes) = body {
+            self.written = bytes.len() as u64;
             self.encoder.write(bytes.as_ref())?;
         } else {
             msg.replace_body(body);
@@ -199,6 +195,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+        self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF

@@ -677,6 +677,7 @@ impl<S, H> ProcessResponse<S, H> {
         // response is completed
         match self.iostate {
             IOState::Done => {
+                io.write_eof();
                 self.resp.set_response_size(io.written());
                 Ok(FinishingMiddlewares::init(info, self.resp))
             }

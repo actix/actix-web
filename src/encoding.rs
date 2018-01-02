@@ -569,6 +569,7 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
+                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -578,6 +579,7 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
+                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -587,6 +589,7 @@ impl ContentEncoder {
                 match encoder.finish() {
                     Ok(mut writer) => {
                         writer.encode_eof();
+                        *self = ContentEncoder::Identity(writer);
                         Ok(())
                     },
                     Err(err) => Err(err),
@@ -594,6 +597,7 @@ impl ContentEncoder {
             },
             ContentEncoder::Identity(mut writer) => {
                 writer.encode_eof();
+                *self = ContentEncoder::Identity(writer);
                 Ok(())
             }
         }

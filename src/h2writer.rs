@@ -167,6 +167,7 @@ impl Writer for H2Writer {
 
         if let Body::Binary(bytes) = body {
             self.flags.insert(Flags::EOF);
+            self.written = bytes.len() as u64;
             self.encoder.write(bytes.as_ref())?;
             if let Some(ref mut stream) = self.stream {
                 stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
@@ -179,6 +180,8 @@ impl Writer for H2Writer {
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+        self.written = payload.len() as u64;
+
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
