@@ -68,8 +68,7 @@ fn main() {
             // websocket route
             .resource("/ws/", |r| r.method(Method::GET).f(ws_index))
             // static files
-            .resource("/{tail:.*}",
-                      |r| r.h(fs::StaticFiles::new("tail", "../static/", true))))
+            .handler("/", fs::StaticFiles::new("../static/", true)))
         // start http server on 127.0.0.1:8080
         .bind("127.0.0.1:8080").unwrap()
         .start();
