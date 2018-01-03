@@ -84,7 +84,7 @@ fn main() {
                 }
             }))
             // static files
-            .handler("/static/", fs::StaticFiles::new("tail", "../static/", true))
+            .handler("/static/", fs::StaticFiles::new("../static/", true))
             // redirect
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);

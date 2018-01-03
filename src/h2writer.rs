@@ -2,7 +2,7 @@ use std::{io, cmp};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::{Reason, SendStream};
-use http2::server::Respond;
+use http2::server::SendResponse;
 use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
@@ -26,7 +26,7 @@ bitflags! {
 }
 
 pub(crate) struct H2Writer {
-    respond: Respond<Bytes>,
+    respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
     encoder: PayloadEncoder,
     flags: Flags,
@@ -36,7 +36,7 @@ pub(crate) struct H2Writer {
 
 impl H2Writer {
 
-    pub fn new(respond: Respond<Bytes>, buf: SharedBytes) -> H2Writer {
+    pub fn new(respond: SendResponse<Bytes>, buf: SharedBytes) -> H2Writer {
         H2Writer {
             respond: respond,
             stream: None,

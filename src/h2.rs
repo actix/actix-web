@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use actix::Arbiter;
 use http::request::Parts;
 use http2::{Reason, RecvStream};
-use http2::server::{Server, Handshake, Respond};
+use http2::server::{self, Connection, Handshake, SendResponse};
 use bytes::{Buf, Bytes};
 use futures::{Async, Poll, Future, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -44,7 +44,7 @@ pub(crate) struct Http2<T, H>
 
 enum State<T: AsyncRead + AsyncWrite> {
     Handshake(Handshake<T, Bytes>),
-    Server(Server<T, Bytes>),
+    Server(Connection<T, Bytes>),
     Empty,
 }
 
@@ -59,7 +59,7 @@ impl<T, H> Http2<T, H>
                addr: addr,
                tasks: VecDeque::new(),
                state: State::Handshake(
-                   Server::handshake(IoWrapper{unread: Some(buf), inner: io})),
+                   server::handshake(IoWrapper{unread: Some(buf), inner: io})),
                keepalive_timer: None,
         }
     }
@@ -242,7 +242,7 @@ struct Entry {
 impl Entry {
     fn new<H>(parts: Parts,
               recv: RecvStream,
-              resp: Respond<Bytes>,
+              resp: SendResponse<Bytes>,
               addr: Option<SocketAddr>,
               settings: &Rc<WorkerSettings<H>>) -> Entry
         where H: HttpHandler + 'static
