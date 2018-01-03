@@ -600,7 +600,6 @@ impl<S, H> ProcessResponse<S, H> {
                             Ok(Async::Ready(Some(frame))) => {
                                 match frame {
                                     Frame::Payload(None) => {
-                                        println!("ACTOR PAYLOAD EOF");
                                         info.context = Some(ctx);
                                         self.iostate = IOState::Done;
                                         if let Err(err) = io.write_eof() {
@@ -611,7 +610,6 @@ impl<S, H> ProcessResponse<S, H> {
                                         break
                                     },
                                     Frame::Payload(Some(chunk)) => {
-                                        println!("ACTOR PAYLOAD");
                                         self.iostate = IOState::Actor(ctx);
                                         match io.write(chunk.as_ref()) {
                                             Err(err) => {
@@ -623,7 +621,6 @@ impl<S, H> ProcessResponse<S, H> {
                                         }
                                     },
                                     Frame::Drain(fut) => {
-                                        println!("ACTOR DRAIN");
                                         self.drain = Some(fut);
                                         self.iostate = IOState::Actor(ctx);
                                         break
