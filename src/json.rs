@@ -116,7 +116,7 @@ impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
     type Error = JsonPayloadError;
 
     fn poll(&mut self) -> Poll<T, JsonPayloadError> {
-        if let Some(mut req) = self.req.take() {
+        if let Some(req) = self.req.take() {
             if let Some(len) = req.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<usize>() {
@@ -134,7 +134,7 @@ impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
             }
 
             let limit = self.limit;
-            let fut = req.payload_mut().readany()
+            let fut = req.payload().readany()
                 .from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {

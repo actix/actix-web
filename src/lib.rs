@@ -172,7 +172,7 @@ pub mod dev {
     pub use router::{Router, Pattern};
     pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
-    pub use httprequest::UrlEncoded;
+    pub use httprequest::{UrlEncoded, RequestBody};
     pub use httpresponse::HttpResponseBuilder;
 
     pub use server::{ServerSettings, PauseServer, ResumeServer, StopServer};

@@ -196,6 +196,12 @@ pub enum PayloadError {
     /// Content encoding stream corruption
     #[fail(display="Can not decode content-encoding.")]
     EncodingCorrupted,
+    /// A payload reached size limit.
+    #[fail(display="A payload reached size limit.")]
+    Overflow,
+    /// A payload length is unknown.
+    #[fail(display="A payload length is unknown.")]
+    UnknownLength,
     /// Parse error
     #[fail(display="{}", _0)]
     ParseError(#[cause] IoError),
