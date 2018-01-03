@@ -137,8 +137,8 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     /// Construct new http request with state.
-    pub fn change_state<NS>(self, state: Rc<NS>) -> HttpRequest<NS> {
-        HttpRequest(self.0, Some(state), self.2.clone())
+    pub fn change_state<NS>(&self, state: Rc<NS>) -> HttpRequest<NS> {
+        HttpRequest(self.0.clone(), Some(state), self.2.clone())
     }
 
     #[inline]
@@ -726,7 +726,7 @@ mod tests {
         let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/{key}/"), Some(resource));
+        map.insert(Pattern::new("index", "/{key}/", "^/"), Some(resource));
         let (router, _) = Router::new("", ServerSettings::default(), map);
         assert!(router.recognize(&mut req).is_some());
 
@@ -828,7 +828,7 @@ mod tests {
         let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
+        map.insert(Pattern::new("index", "/user/{name}.{ext}", "^/"), Some(resource));
         let (router, _) = Router::new("/", ServerSettings::default(), map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -857,7 +857,7 @@ mod tests {
         let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
+        map.insert(Pattern::new("index", "/user/{name}.{ext}", "^/"), Some(resource));
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), map);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
@@ -876,7 +876,7 @@ mod tests {
         let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut map = HashMap::new();
-        map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None);
+        map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}", "^/"), None);
         let (router, _) = Router::new::<()>("", ServerSettings::default(), map);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 

@@ -93,6 +93,12 @@ impl From<StaticResponse> for HttpResponse {
     }
 }
 
+impl From<StaticResponse> for Reply {
+    fn from(st: StaticResponse) -> Self {
+        HttpResponse::new(st.0, Body::Empty).into()
+    }
+}
+
 macro_rules! STATIC_RESP {
     ($name:ident, $status:expr) => {
         #[allow(non_snake_case)]

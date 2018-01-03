@@ -88,8 +88,7 @@ impl Router {
         }
 
         if let Some(idx) = idx {
-            let path: &str = unsafe{ mem::transmute(&req.path()[self.0.prefix_len..]) };
-            self.0.patterns[idx].update_match_info(path, req);
+            self.0.patterns[idx].update_match_info(req, self.0.prefix_len);
             return Some(idx)
         } else {
             None
@@ -159,8 +158,8 @@ impl Pattern {
     /// Parse path pattern and create new `Pattern` instance.
     ///
     /// Panics if path pattern is wrong.
-    pub fn new(name: &str, path: &str) -> Self {
-        let (pattern, elements) = Pattern::parse(path);
+    pub fn new(name: &str, path: &str, starts: &str) -> Self {
+        let (pattern, elements) = Pattern::parse(path, starts);
 
         let re = match Regex::new(&pattern) {
             Ok(re) => re,
@@ -190,8 +189,9 @@ impl Pattern {
     }
 
     /// Extract pattern parameters from the text
-    pub fn update_match_info<S>(&self, text: &str, req: &mut HttpRequest<S>) {
+    pub fn update_match_info<S>(&self, req: &mut HttpRequest<S>, prefix: usize) {
         if !self.names.is_empty() {
+            let text: &str = unsafe{ mem::transmute(&req.path()[prefix..]) };
             if let Some(captures) = self.re.captures(text) {
                 let mut idx = 0;
                 for capture in captures.iter() {
@@ -207,6 +207,25 @@ impl Pattern {
         }
     }
 
+    /// Extract pattern parameters from the text
+    pub fn get_match_info<'a>(&self, text: &'a str) -> HashMap<&str, &'a str> {
+        let mut info = HashMap::new();
+        if !self.names.is_empty() {
+            if let Some(captures) = self.re.captures(text) {
+                let mut idx = 0;
+                for capture in captures.iter() {
+                    if let Some(ref m) = capture {
+                        if idx != 0 {
+                            info.insert(self.names[idx-1].as_str(), m.as_str());
+                        }
+                        idx += 1;
+                    }
+                }
+            };
+        }
+        info
+    }
+
     /// Build pattern path.
     pub fn path<U, I>(&self, prefix: Option<&str>, elements: U) -> Result<String, UrlGenerationError>
         where U: IntoIterator<Item=I>,
@@ -218,7 +237,6 @@ impl Pattern {
         } else {
             String::new()
         };
-        println!("TEST: {:?} {:?}", path, prefix);
         for el in &self.elements {
             match *el {
                 PatternElement::Str(ref s) => path.push_str(s),
@@ -234,10 +252,10 @@ impl Pattern {
         Ok(path)
     }
 
-    fn parse(pattern: &str) -> (String, Vec<PatternElement>) {
+    fn parse(pattern: &str, starts: &str) -> (String, Vec<PatternElement>) {
         const DEFAULT_PATTERN: &str = "[^/]+";
 
-        let mut re = String::from("^/");
+        let mut re = String::from(starts);
         let mut el = String::new();
         let mut in_param = false;
         let mut in_param_pattern = false;
@@ -312,12 +330,14 @@ mod tests {
     #[test]
     fn test_recognizer() {
         let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}/index.html"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/v{val}/{val2}/index.html"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/v/{tail:.*}"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "{test}/index.html"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name", "^/"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}", "^/"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}/index.html", "^/"),
+                      Some(Resource::default()));
+        routes.insert(Pattern::new("", "/v{val}/{val2}/index.html", "^/"),
+                      Some(Resource::default()));
+        routes.insert(Pattern::new("", "/v/{tail:.*}", "^/"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "{test}/index.html", "^/"), Some(Resource::default()));
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -350,8 +370,8 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name", "^/"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}", "^/"), Some(Resource::default()));
         let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -367,8 +387,8 @@ mod tests {
 
         // same patterns
         let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name", "^/"), Some(Resource::default()));
+        routes.insert(Pattern::new("", "/name/{val}", "^/"), Some(Resource::default()));
         let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -378,7 +398,7 @@ mod tests {
     }
 
     fn assert_parse(pattern: &str, expected_re: &str) -> Regex {
-        let (re_str, _) = Pattern::parse(pattern);
+        let (re_str, _) = Pattern::parse(pattern, "^/");
         assert_eq!(&*re_str, expected_re);
         Regex::new(&re_str).unwrap()
     }

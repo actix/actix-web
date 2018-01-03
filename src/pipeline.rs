@@ -40,6 +40,7 @@ struct PipelineInfo<S> {
     mws: Rc<Vec<Box<Middleware<S>>>>,
     context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
+    disconnected: Option<bool>,
 }
 
 impl<S> PipelineInfo<S> {
@@ -50,6 +51,7 @@ impl<S> PipelineInfo<S> {
             mws: Rc::new(Vec::new()),
             error: None,
             context: None,
+            disconnected: None,
         }
     }
 
@@ -84,6 +86,7 @@ impl<S, H: PipelineHandler<S>> Pipeline<S, H> {
             mws: mws,
             error: None,
             context: None,
+            disconnected: None,
         };
         let state = StartMiddlewares::init(&mut info, handler);
 
@@ -114,9 +117,7 @@ impl<S, H> Pipeline<S, H> {
 impl<S, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
 
     fn disconnected(&mut self) {
-        if let Some(ref mut context) = self.0.context {
-            context.disconnected();
-        }
+        self.0.disconnected = Some(true);
     }
 
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
@@ -592,10 +593,14 @@ impl<S, H> ProcessResponse<S, H> {
                         }
                     },
                     IOState::Actor(mut ctx) => {
+                        if info.disconnected.take().is_some() {
+                            ctx.disconnected();
+                        }
                         match ctx.poll() {
                             Ok(Async::Ready(Some(frame))) => {
                                 match frame {
                                     Frame::Payload(None) => {
+                                        println!("ACTOR PAYLOAD EOF");
                                         info.context = Some(ctx);
                                         self.iostate = IOState::Done;
                                         if let Err(err) = io.write_eof() {
@@ -606,6 +611,7 @@ impl<S, H> ProcessResponse<S, H> {
                                         break
                                     },
                                     Frame::Payload(Some(chunk)) => {
+                                        println!("ACTOR PAYLOAD");
                                         self.iostate = IOState::Actor(ctx);
                                         match io.write(chunk.as_ref()) {
                                             Err(err) => {
@@ -617,7 +623,9 @@ impl<S, H> ProcessResponse<S, H> {
                                         }
                                     },
                                     Frame::Drain(fut) => {
+                                        println!("ACTOR DRAIN");
                                         self.drain = Some(fut);
+                                        self.iostate = IOState::Actor(ctx);
                                         break
                                     }
                                 }

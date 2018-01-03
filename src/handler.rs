@@ -144,11 +144,29 @@ impl<T: Responder, E: Into<Error>> Responder for Result<T, E>
 }
 
 impl<E: Into<Error>> From<Result<Reply, E>> for Reply {
+    #[inline]
     fn from(res: Result<Reply, E>) -> Self {
         match res {
             Ok(val) => val,
             Err(err) => Reply(ReplyItem::Message(err.into().into())),
         }
+    }
+}
+
+impl<E: Into<Error>> From<Result<HttpResponse, E>> for Reply {
+    #[inline]
+    fn from(res: Result<HttpResponse, E>) -> Self {
+        match res {
+            Ok(val) => Reply(ReplyItem::Message(val)),
+            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+        }
+    }
+}
+
+impl From<Box<Future<Item=HttpResponse, Error=Error>>> for Reply {
+    #[inline]
+    fn from(fut: Box<Future<Item=HttpResponse, Error=Error>>) -> Reply {
+        Reply(ReplyItem::Future(fut))
     }
 }
 
