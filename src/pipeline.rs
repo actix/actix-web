@@ -658,7 +658,7 @@ impl<S, H> ProcessResponse<S, H> {
 
         // flush io but only if we need to
         if self.running == RunningState::Paused || self.drain.is_some() {
-            match io.poll_completed() {
+            match io.poll_completed(false) {
                 Ok(Async::Ready(_)) => {
                     self.running.resume();
 

@@ -674,7 +674,7 @@ impl Pool {
         POOL.with(|pool| {
             if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
                 resp.status = status;
-                resp.body = Body::Empty;
+                resp.body = body;
                 resp
             } else {
                 Box::new(InnerHttpResponse::new(status, body))

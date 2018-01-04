@@ -97,11 +97,11 @@ impl<T, H> Http1<T, H>
         (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
     }
 
-    fn poll_completed(&mut self) -> Result<bool, ()> {
+    fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
         // check stream state
-        match self.stream.poll_completed() {
-            Ok(Async::Ready(_)) => Ok(false),
-            Ok(Async::NotReady) => Ok(true),
+        match self.stream.poll_completed(shutdown) {
+            Ok(Async::Ready(_)) => Ok(true),
+            Ok(Async::NotReady) => Ok(false),
             Err(err) => {
                 debug!("Error sending data: {}", err);
                 Err(())
@@ -136,7 +136,7 @@ impl<T, H> Http1<T, H>
                 if !io && !item.flags.contains(EntryFlags::EOF) {
                     if item.flags.contains(EntryFlags::ERROR) {
                         // check stream state
-                        if let Ok(Async::NotReady) = self.stream.poll_completed() {
+                        if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
                             return Ok(Async::NotReady)
                         }
                         return Err(())
@@ -147,12 +147,10 @@ impl<T, H> Http1<T, H>
                             not_ready = false;
 
                             // overide keep-alive state
-                            if self.settings.keep_alive_enabled() {
-                                if self.stream.keepalive() {
-                                    self.flags.insert(Flags::KEEPALIVE);
-                                } else {
-                                    self.flags.remove(Flags::KEEPALIVE);
-                                }
+                            if self.stream.keepalive() {
+                                self.flags.insert(Flags::KEEPALIVE);
+                            } else {
+                                self.flags.remove(Flags::KEEPALIVE);
                             }
                             self.stream.reset();
 
@@ -172,7 +170,7 @@ impl<T, H> Http1<T, H>
                             item.flags.insert(EntryFlags::ERROR);
 
                             // check stream state, we still can have valid data in buffer
-                            if let Ok(Async::NotReady) = self.stream.poll_completed() {
+                            if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
                                 return Ok(Async::NotReady)
                             }
                             return Err(())
@@ -207,11 +205,14 @@ impl<T, H> Http1<T, H>
 
             // no keep-alive
             if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
+                let h2 = self.flags.contains(Flags::H2);
+
                 // check stream state
-                if self.poll_completed()? {
+                if !self.poll_completed(!h2)? {
                     return Ok(Async::NotReady)
                 }
-                if self.flags.contains(Flags::H2) {
+
+                if h2 {
                     return Ok(Async::Ready(Http1Result::Switch))
                 } else {
                     return Ok(Async::Ready(Http1Result::Done))
@@ -284,7 +285,7 @@ impl<T, H> Http1<T, H>
                         }
                     }
                     Ok(Async::NotReady) => {
-                        // start keep-alive timer, this is also slow request timeout
+                        // start keep-alive timer, this also is slow request timeout
                         if self.tasks.is_empty() {
                             if self.settings.keep_alive_enabled() {
                                 let keep_alive = self.settings.keep_alive();
@@ -300,17 +301,20 @@ impl<T, H> Http1<T, H>
                                     }
                                 } else {
                                     // check stream state
-                                    if self.poll_completed()? {
+                                    if !self.poll_completed(true)? {
                                         return Ok(Async::NotReady)
                                     }
                                     // keep-alive disable, drop connection
                                     return Ok(Async::Ready(Http1Result::Done))
                                 }
-                            } else {
-                                // check stream state
-                                self.poll_completed()?;
-                                // keep-alive unset, rely on operating system
+                            } else if !self.poll_completed(false)? ||
+                                self.flags.contains(Flags::KEEPALIVE)
+                            {
+                                // check stream state or
+                                // if keep-alive unset, rely on operating system
                                 return Ok(Async::NotReady)
+                            } else {
+                                return Ok(Async::Ready(Http1Result::Done))
                             }
                         }
                         break
@@ -320,12 +324,13 @@ impl<T, H> Http1<T, H>
 
             // check for parse error
             if self.tasks.is_empty() {
+                let h2 = self.flags.contains(Flags::H2);
+
                 // check stream state
-                if self.poll_completed()? {
+                if !self.poll_completed(!h2)? {
                     return Ok(Async::NotReady)
                 }
-
-                if self.flags.contains(Flags::H2) {
+                if h2 {
                     return Ok(Async::Ready(Http1Result::Switch))
                 }
                 if self.flags.contains(Flags::ERROR) || self.keepalive_timer.is_none() {
@@ -334,7 +339,7 @@ impl<T, H> Http1<T, H>
             }
 
             if not_ready {
-                self.poll_completed()?;
+                self.poll_completed(false)?;
                 return Ok(Async::NotReady)
             }
         }

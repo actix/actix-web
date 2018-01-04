@@ -33,7 +33,7 @@ pub trait Writer {
 
     fn write_eof(&mut self) -> Result<WriterState, io::Error>;
 
-    fn poll_completed(&mut self) -> Poll<(), io::Error>;
+    fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
 }
 
 bitflags! {
@@ -94,7 +94,7 @@ impl<T: AsyncWrite> H1Writer<T> {
         while !buffer.is_empty() {
             match self.stream.write(buffer.as_ref()) {
                 Ok(n) => {
-                    buffer.split_to(n);
+                    let _ = buffer.split_to(n);
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if buffer.len() > MAX_WRITE_BUFFER_SIZE {
@@ -112,7 +112,6 @@ impl<T: AsyncWrite> H1Writer<T> {
 
 impl<T: AsyncWrite> Writer for H1Writer<T> {
 
-    #[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
     fn written(&self) -> u64 {
         self.written
     }
@@ -218,7 +217,6 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         self.encoder.write_eof()?;
 
         if !self.encoder.is_eof() {
-            // debug!("last payload item, but it is not EOF ");
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
         } else if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
@@ -228,9 +226,15 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
-    fn poll_completed(&mut self) -> Poll<(), io::Error> {
+    fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         match self.write_to_stream() {
-            Ok(WriterState::Done) => Ok(Async::Ready(())),
+            Ok(WriterState::Done) => {
+                if shutdown {
+                    self.stream.shutdown()
+                } else {
+                    Ok(Async::Ready(()))
+                }
+            },
             Ok(WriterState::Pause) => Ok(Async::NotReady),
             Err(err) => Err(err)
         }

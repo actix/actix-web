@@ -213,7 +213,7 @@ impl Writer for H2Writer {
         }
     }
 
-    fn poll_completed(&mut self) -> Poll<(), io::Error> {
+    fn poll_completed(&mut self, _shutdown: bool) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => Ok(Async::Ready(())),
             Ok(WriterState::Pause) => Ok(Async::NotReady),

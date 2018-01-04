@@ -48,7 +48,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "");
                     } else {
-                        req.match_info_mut().add("tail", path.trim_left_matches('/'));
+                        req.match_info_mut().add("tail", path.split_at(1).1);
                     }
                     return handler.handle(req)
                 }

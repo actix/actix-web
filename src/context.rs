@@ -14,7 +14,6 @@ use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCel
 use body::{Body, Binary};
 use error::{Error, Result};
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 
 
 pub trait ActorHttpContext: 'static {
@@ -123,16 +122,6 @@ impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
     pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
         self.act = Some(actor);
         self
-    }
-
-    pub fn with_actor(mut self, actor: A, mut resp: HttpResponse) -> Result<HttpResponse> {
-        if self.act.is_some() {
-            panic!("Actor is set already");
-        }
-        self.act = Some(actor);
-
-        resp.replace_body(Body::Actor(Box::new(self)));
-        Ok(resp)
     }
 }
 

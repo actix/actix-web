@@ -189,6 +189,8 @@ impl Pattern {
     }
 
     /// Extract pattern parameters from the text
+    // This method unsafe internally, assumption that Pattern instance lives
+    // longer than `req`
     pub fn update_match_info<S>(&self, req: &mut HttpRequest<S>, prefix: usize) {
         if !self.names.is_empty() {
             let text: &str = unsafe{ mem::transmute(&req.path()[prefix..]) };

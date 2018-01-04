@@ -79,7 +79,9 @@ impl<T, H> HttpChannel<T, H>
     }
 }
 
-/*impl<T: 'static, A: 'static, H: 'static> Drop for HttpChannel<T, A, H> {
+/*impl<T, H> Drop for HttpChannel<T, H>
+    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
+{
     fn drop(&mut self) {
         println!("Drop http channel");
     }
