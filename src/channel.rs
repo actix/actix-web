@@ -1,8 +1,8 @@
-use std::{ptr, mem, time};
+use std::{ptr, mem, time, io};
 use std::rc::Rc;
 use std::net::{SocketAddr, Shutdown};
 
-use bytes::Bytes;
+use bytes::{Bytes, Buf, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
@@ -48,8 +48,7 @@ impl<T: HttpHandler> IntoHttpHandler for T {
     }
 }
 
-enum HttpProtocol<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
+enum HttpProtocol<T: IoStream, H: 'static>
 {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
@@ -57,22 +56,14 @@ enum HttpProtocol<T, H>
 
 #[doc(hidden)]
 pub struct HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
+    where T: IoStream, H: HttpHandler + 'static
 {
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
 }
 
-impl<T, H> Drop for HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
-{
-    fn drop(&mut self) {
-        self.shutdown()
-    }
-}
-
 impl<T, H> HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
+    where T: IoStream, H: HttpHandler + 'static
 {
     pub(crate) fn new(h: Rc<WorkerSettings<H>>,
                       io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
@@ -91,19 +82,12 @@ impl<T, H> HttpChannel<T, H>
         }
     }
 
-    fn io(&mut self) -> Option<&mut T> {
-        match self.proto {
-            Some(HttpProtocol::H1(ref mut h1)) => {
-                Some(h1.io())
-            }
-            _ => None,
-        }
-    }
-
     fn shutdown(&mut self) {
         match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
-                let _ = h1.io().shutdown();
+                let io = h1.io();
+                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
+                let _ = IoStream::shutdown(io, Shutdown::Both);
             }
             Some(HttpProtocol::H2(ref mut h2)) => {
                 h2.shutdown()
@@ -122,7 +106,7 @@ impl<T, H> HttpChannel<T, H>
 }*/
 
 impl<T, H> Future for HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
+    where T: IoStream, H: HttpHandler + 'static
 {
     type Item = ();
     type Error = ();
@@ -242,7 +226,7 @@ impl Node<()> {
         }
     }
 
-    pub(crate) fn traverse<H>(&self) where H: HttpHandler + 'static {
+    pub(crate) fn traverse<T, H>(&self) where T: IoStream, H: HttpHandler + 'static {
         let mut next = self.next.as_ref();
         loop {
             if let Some(n) = next {
@@ -251,13 +235,8 @@ impl Node<()> {
                     next = n.next.as_ref();
 
                     if !n.element.is_null() {
-                        let ch: &mut HttpChannel<TcpStream, H> = mem::transmute(
+                        let ch: &mut HttpChannel<T, H> = mem::transmute(
                             &mut *(n.element as *mut _));
-                        if let Some(io) = ch.io() {
-                            let _ = TcpStream::set_linger(io, Some(time::Duration::new(0, 0)));
-                            let _ = TcpStream::shutdown(io, Shutdown::Both);
-                            continue;
-                        }
                         ch.shutdown();
                     }
                 }
@@ -265,5 +244,148 @@ impl Node<()> {
                 return
             }
         }
+    }
+}
+
+
+pub trait IoStream: AsyncRead + AsyncWrite + 'static {
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
+
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
+
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
+}
+
+impl IoStream for TcpStream {
+    #[inline]
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+        TcpStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        TcpStream::set_nodelay(self, nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        TcpStream::set_linger(self, dur)
+    }
+}
+
+
+pub(crate) struct WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+   io: T,
+}
+
+impl<T> WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static
+{
+    pub fn new(io: T) -> Self {
+        WrapperStream{io: io}
+    }
+}
+
+impl<T> IoStream for WrapperStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
+{
+    #[inline]
+    fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, _: bool) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
+    fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<T> io::Read for WrapperStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
+{
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.io.read(buf)
+    }
+}
+
+impl<T> io::Write for WrapperStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
+{
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.io.write(buf)
+    }
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.io.flush()
+    }
+}
+
+impl<T> AsyncRead for WrapperStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
+{
+    fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        self.io.read_buf(buf)
+    }
+}
+
+impl<T> AsyncWrite for WrapperStream<T>
+    where T: AsyncRead + AsyncWrite + 'static
+{
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        self.io.shutdown()
+    }
+    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        self.io.write_buf(buf)
+    }
+}
+
+
+#[cfg(feature="alpn")]
+use tokio_openssl::SslStream;
+
+#[cfg(feature="alpn")]
+impl IoStream for SslStream<TcpStream> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
+    }
+}
+
+#[cfg(feature="tls")]
+use tokio_tls::TlsStream;
+
+#[cfg(feature="tls")]
+impl IoStream for TlsStream<TcpStream> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
     }
 }

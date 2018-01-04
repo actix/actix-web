@@ -10,12 +10,11 @@ use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
 use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Future, Poll, Async};
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use encoding::PayloadType;
-use channel::{HttpHandler, HttpHandlerTask};
+use channel::{HttpHandler, HttpHandlerTask, IoStream};
 use h1writer::{Writer, H1Writer};
 use worker::WorkerSettings;
 use httpcodes::HTTPNotFound;
@@ -57,7 +56,7 @@ enum Item {
     Http2,
 }
 
-pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
+pub(crate) struct Http1<T: IoStream, H: 'static> {
     flags: Flags,
     settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
@@ -74,8 +73,7 @@ struct Entry {
 }
 
 impl<T, H> Http1<T, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          H: HttpHandler + 'static
+    where T: IoStream, H: HttpHandler + 'static
 {
     pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>) -> Self {
         let bytes = h.get_shared_bytes();
@@ -417,7 +415,7 @@ impl Reader {
     pub fn parse<T, H>(&mut self, io: &mut T,
                        buf: &mut BytesMut,
                        settings: &WorkerSettings<H>) -> Poll<Item, ReaderError>
-        where T: AsyncRead
+        where T: IoStream
     {
         // read payload
         if self.payload.is_some() {
@@ -507,8 +505,8 @@ impl Reader {
         }
     }
 
-    fn read_from_io<T: AsyncRead>(&mut self, io: &mut T, buf: &mut BytesMut)
-                                  -> Poll<usize, io::Error>
+    fn read_from_io<T: IoStream>(&mut self, io: &mut T, buf: &mut BytesMut)
+                                 -> Poll<usize, io::Error>
     {
         unsafe {
             if buf.remaining_mut() < LW_BUFFER_SIZE {
@@ -894,14 +892,17 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
-    use std::{io, cmp};
-    use bytes::{Bytes, BytesMut};
-    use futures::{Async};
-    use tokio_io::AsyncRead;
+    use std::{io, cmp, time};
+    use std::net::Shutdown;
+    use bytes::{Bytes, BytesMut, Buf};
+    use futures::Async;
+    use tokio_io::{AsyncRead, AsyncWrite};
     use http::{Version, Method};
+
     use super::*;
     use application::HttpApplication;
     use worker::WorkerSettings;
+    use channel::IoStream;
 
     struct Buffer {
         buf: Bytes,
@@ -937,6 +938,28 @@ mod tests {
                 dst[..size].copy_from_slice(&b);
                 Ok(size)
             }
+        }
+    }
+
+    impl IoStream for Buffer {
+        fn shutdown(&self, _: Shutdown) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_nodelay(&self, _: bool) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_linger(&self, _: Option<time::Duration>) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl io::Write for Buffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {Ok(buf.len())}
+        fn flush(&mut self) -> io::Result<()> {Ok(())}
+    }
+    impl AsyncWrite for Buffer {
+        fn shutdown(&mut self) -> Poll<(), io::Error> { Ok(Async::Ready(())) }
+        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+            Ok(Async::NotReady)
         }
     }
 

@@ -135,7 +135,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
                 slf.shutdown_timeout(ctx, tx, d);
             } else {
                 info!("Force shutdown http worker, {} connections", num);
-                slf.settings.head().traverse::<H>();
+                slf.settings.head().traverse::<TcpStream, H>();
                 let _ = tx.send(false);
                 Arbiter::arbiter().send(StopArbiter(0));
             }
@@ -187,7 +187,7 @@ impl<H> Handler<StopWorker> for Worker<H>
             Self::async_reply(rx.map_err(|_| ()).actfuture())
         } else {
             info!("Force shutdown http worker, {} connections", num);
-            self.settings.head().traverse::<H>();
+            self.settings.head().traverse::<TcpStream, H>();
             Self::reply(false)
         }
     }

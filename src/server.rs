@@ -31,7 +31,7 @@ use tokio_openssl::SslStream;
 use actix::actors::signal;
 
 use helpers;
-use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
+use channel::{HttpChannel, HttpHandler, IntoHttpHandler, IoStream, WrapperStream};
 use worker::{Conn, Worker, WorkerSettings, StreamHandlerType, StopWorker};
 
 /// Various server settings
@@ -131,7 +131,7 @@ impl<T: 'static, A: 'static, H: HttpHandler + 'static, U: 'static>  HttpServer<T
 
 impl<T, A, H, U, V> HttpServer<T, A, H, U>
     where A: 'static,
-          T: AsyncRead + AsyncWrite + 'static,
+          T: IoStream,
           H: HttpHandler,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
@@ -450,7 +450,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     }
 }
 
-impl<T, A, H, U, V> HttpServer<T, A, H, U>
+impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
     where A: 'static,
           T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler,
@@ -488,7 +488,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         // start server
         HttpServer::create(move |ctx| {
             ctx.add_stream(stream.map(
-                move |(t, _)| Conn{io: t, peer: None, http2: false}));
+                move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
             self
         })
     }
@@ -499,7 +499,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
 /// message to `System` actor.
 impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
@@ -530,13 +530,13 @@ impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
 }
 
 impl<T, A, H, U> StreamHandler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static {}
 
 impl<T, A, H, U> Handler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
@@ -573,7 +573,7 @@ pub struct StopServer {
 }
 
 impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
@@ -589,7 +589,7 @@ impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
 }
 
 impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
@@ -605,7 +605,7 @@ impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
 }
 
 impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
-    where T: AsyncRead + AsyncWrite + 'static,
+    where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
