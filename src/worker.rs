@@ -25,7 +25,7 @@ use actix::*;
 use actix::msgs::StopArbiter;
 
 use helpers;
-use channel::{HttpChannel, HttpHandler};
+use channel::{HttpChannel, HttpHandler, Node};
 
 
 #[derive(Message)]
@@ -50,6 +50,7 @@ pub(crate) struct WorkerSettings<H> {
     bytes: Rc<helpers::SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
+    node: Node<()>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -61,9 +62,13 @@ impl<H> WorkerSettings<H> {
             bytes: Rc::new(helpers::SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
+            node: Node::head(),
         }
     }
 
+    pub fn head(&self) -> &Node<()> {
+        &self.node
+    }
     pub fn handlers(&self) -> RefMut<Vec<H>> {
         self.h.borrow_mut()
     }
@@ -95,19 +100,19 @@ impl<H> WorkerSettings<H> {
 /// Http worker
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests processing.
-pub(crate) struct Worker<H> {
-    h: Rc<WorkerSettings<H>>,
+pub(crate) struct Worker<H> where H: HttpHandler + 'static {
+    settings: Rc<WorkerSettings<H>>,
     hnd: Handle,
     handler: StreamHandlerType,
 }
 
-impl<H: 'static> Worker<H> {
+impl<H: HttpHandler + 'static> Worker<H> {
 
     pub(crate) fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u64>)
                       -> Worker<H>
     {
         Worker {
-            h: Rc::new(WorkerSettings::new(h, keep_alive)),
+            settings: Rc::new(WorkerSettings::new(h, keep_alive)),
             hnd: Arbiter::handle().clone(),
             handler: handler,
         }
@@ -122,7 +127,7 @@ impl<H: 'static> Worker<H> {
                         tx: oneshot::Sender<bool>, dur: time::Duration) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
-            let num = slf.h.channels.get();
+            let num = slf.settings.channels.get();
             if num == 0 {
                 let _ = tx.send(true);
                 Arbiter::arbiter().send(StopArbiter(0));
@@ -130,6 +135,7 @@ impl<H: 'static> Worker<H> {
                 slf.shutdown_timeout(ctx, tx, d);
             } else {
                 info!("Force shutdown http worker, {} connections", num);
+                slf.settings.head().traverse::<H>();
                 let _ = tx.send(false);
                 Arbiter::arbiter().send(StopArbiter(0));
             }
@@ -137,7 +143,7 @@ impl<H: 'static> Worker<H> {
     }
 }
 
-impl<H: 'static> Actor for Worker<H> {
+impl<H: 'static> Actor for Worker<H> where H: HttpHandler + 'static {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -154,12 +160,12 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
     fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>)
               -> Response<Self, Conn<net::TcpStream>>
     {
-        if !self.h.keep_alive_enabled() &&
+        if !self.settings.keep_alive_enabled() &&
             msg.io.set_keepalive(Some(time::Duration::new(75, 0))).is_err()
         {
             error!("Can not set socket keep-alive option");
         }
-        self.handler.handle(Rc::clone(&self.h), &self.hnd, msg);
+        self.handler.handle(Rc::clone(&self.settings), &self.hnd, msg);
         Self::empty()
     }
 }
@@ -170,7 +176,7 @@ impl<H> Handler<StopWorker> for Worker<H>
 {
     fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Response<Self, StopWorker>
     {
-        let num = self.h.channels.get();
+        let num = self.settings.channels.get();
         if num == 0 {
             info!("Shutting down http worker, 0 connections");
             Self::reply(true)
@@ -181,6 +187,7 @@ impl<H> Handler<StopWorker> for Worker<H>
             Self::async_reply(rx.map_err(|_| ()).actfuture())
         } else {
             info!("Force shutdown http worker, {} connections", num);
+            self.settings.head().traverse::<H>();
             Self::reply(false)
         }
     }

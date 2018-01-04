@@ -93,7 +93,7 @@ impl ServerSettings {
 ///
 /// `H` - request handler
 pub struct HttpServer<T, A, H, U>
-    where H: 'static
+    where H: HttpHandler + 'static
 {
     h: Option<Rc<WorkerSettings<H>>>,
     io: PhantomData<T>,
@@ -110,11 +110,11 @@ pub struct HttpServer<T, A, H, U>
     shutdown_timeout: u16,
 }
 
-unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: 'static {}
-unsafe impl<T, A, H, U> Send for HttpServer<T, A, H, U> where H: 'static {}
+unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
+unsafe impl<T, A, H, U> Send for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
 
 
-impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
+impl<T: 'static, A: 'static, H: HttpHandler + 'static, U: 'static> Actor for HttpServer<T, A, H, U> {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -122,7 +122,7 @@ impl<T: 'static, A: 'static, H, U: 'static> Actor for HttpServer<T, A, H, U> {
     }
 }
 
-impl<T: 'static, A: 'static, H, U: 'static>  HttpServer<T, A, H, U> {
+impl<T: 'static, A: 'static, H: HttpHandler + 'static, U: 'static>  HttpServer<T, A, H, U> {
     fn update_time(&self, ctx: &mut Context<Self>) {
         helpers::update_date();
         ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));

@@ -64,6 +64,12 @@ impl<T, H> Http2<T, H>
         }
     }
 
+    pub(crate) fn shutdown(&mut self) {
+        self.state = State::Empty;
+        self.tasks.clear();
+        self.keepalive_timer.take();
+    }
+
     pub fn settings(&self) -> &WorkerSettings<H> {
         self.settings.as_ref()
     }

@@ -97,6 +97,10 @@ impl<T, H> Http1<T, H>
         (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
     }
 
+    pub(crate) fn io(&mut self) -> &mut T {
+        self.stream.get_mut()
+    }
+
     fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
         // check stream state
         match self.stream.poll_completed(shutdown) {
