@@ -638,7 +638,7 @@ impl ContentEncoder {
                 }
             }
             ContentEncoder::Identity(ref mut encoder) => {
-                encoder.encode(data);
+                encoder.encode(data)?;
                 Ok(())
             }
         }
@@ -705,36 +705,37 @@ impl TransferEncoding {
 
     /// Encode message. Return `EOF` state of encoder
     #[inline]
-    pub fn encode(&mut self, msg: &[u8]) -> bool {
+    pub fn encode(&mut self, msg: &[u8]) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
                 self.buffer.get_mut().extend_from_slice(msg);
-                msg.is_empty()
+                Ok(msg.is_empty())
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if *eof {
-                    return true;
+                    return Ok(true);
                 }
 
                 if msg.is_empty() {
                     *eof = true;
                     self.buffer.get_mut().extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    write!(self.buffer.get_mut(), "{:X}\r\n", msg.len()).unwrap();
+                    write!(self.buffer.get_mut(), "{:X}\r\n", msg.len())
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                     self.buffer.get_mut().extend_from_slice(msg);
                     self.buffer.get_mut().extend_from_slice(b"\r\n");
                 }
-                *eof
+                Ok(*eof)
             },
             TransferEncodingKind::Length(ref mut remaining) => {
                 if msg.is_empty() {
-                    return *remaining == 0
+                    return Ok(*remaining == 0)
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
                 self.buffer.get_mut().extend_from_slice(msg[..max as usize].as_ref());
 
                 *remaining -= max as u64;
-                *remaining == 0
+                Ok(*remaining == 0)
             },
         }
     }
@@ -758,7 +759,7 @@ impl io::Write for TransferEncoding {
 
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.encode(buf);
+        self.encode(buf)?;
         Ok(buf.len())
     }
 
@@ -832,5 +833,21 @@ impl AcceptEncoding {
             }
         }
         ContentEncoding::Identity
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunked_te() {
+        let bytes = SharedBytes::default();
+        let mut enc = TransferEncoding::chunked(bytes.clone());
+        assert!(!enc.encode(b"test").ok().unwrap());
+        assert!(enc.encode(b"").ok().unwrap());
+        assert_eq!(bytes.get_mut().take().freeze(),
+                   Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n"));
     }
 }
