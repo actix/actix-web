@@ -248,6 +248,7 @@ impl Node<()> {
 }
 
 
+/// Low-level io stream operations
 pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
 
@@ -274,6 +275,7 @@ impl IoStream for TcpStream {
 }
 
 
+/// Wrapper for `AsyncRead + AsyncWrite` types
 pub(crate) struct WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
    io: T,
 }

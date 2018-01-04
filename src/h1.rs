@@ -942,13 +942,13 @@ mod tests {
     }
 
     impl IoStream for Buffer {
-        fn shutdown(&self, _: Shutdown) -> io::Result<()> {
+        fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
             Ok(())
         }
-        fn set_nodelay(&self, _: bool) -> io::Result<()> {
+        fn set_nodelay(&mut self, _: bool) -> io::Result<()> {
             Ok(())
         }
-        fn set_linger(&self, _: Option<time::Duration>) -> io::Result<()> {
+        fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
             Ok(())
         }
     }
