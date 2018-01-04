@@ -76,7 +76,7 @@ fn main() {
     // Subscribe to unix signals
     #[cfg(unix)]
     {
-        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(_addr.subscriber()));
     }
 

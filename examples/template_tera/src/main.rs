@@ -46,8 +46,8 @@ fn main() {
         .start();
 
     #[cfg(unix)]
-    { // Subscribe to unix signals
-        let signals = Arbiter::system_registry().get::<ProcessSignals>();
+    {   // Subscribe to unix signals
+        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
         signals.send(Subscribe(addr.subscriber()));
     }
 
