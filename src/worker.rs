@@ -209,6 +209,7 @@ impl StreamHandlerType {
                               hnd: &Handle, msg: Conn<net::TcpStream>) {
         match *self {
             StreamHandlerType::Normal => {
+                let _ = msg.io.set_nodelay(true);
                 let io = TcpStream::from_stream(msg.io, hnd)
                     .expect("failed to associate TCP stream");
 
@@ -217,6 +218,7 @@ impl StreamHandlerType {
             #[cfg(feature="tls")]
             StreamHandlerType::Tls(ref acceptor) => {
                 let Conn { io, peer, http2 } = msg;
+                let _ = io.set_nodelay(true);
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
@@ -235,6 +237,7 @@ impl StreamHandlerType {
             #[cfg(feature="alpn")]
             StreamHandlerType::Alpn(ref acceptor) => {
                 let Conn { io, peer, .. } = msg;
+                let _ = io.set_nodelay(true);
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
