@@ -26,16 +26,15 @@
 //! # impl StreamHandler<ws::Message> for Ws {}
 //! #
 //! impl Handler<ws::Message> for Ws {
-//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
-//!               -> Response<Self, ws::Message>
-//!     {
+//!     type Result = ();
+//!
+//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
 //!         match msg {
 //!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
 //!             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
 //!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
 //!             _ => (),
 //!         }
-//!         Self::empty()
 //!     }
 //! }
 //! #
@@ -94,7 +93,7 @@ pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Er
     let stream = WsStream::new(req.payload_mut().readany());
 
     let mut ctx = HttpContext::new(req, actor);
-    ctx.add_stream(stream);
+    ctx.add_message_stream(stream);
 
     Ok(resp.body(ctx)?)
 }

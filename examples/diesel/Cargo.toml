@@ -6,8 +6,8 @@ workspace = "../.."
 
 [dependencies]
 env_logger = "0.4"
-actix = "^0.3.5"
-actix-web = { git = "https://github.com/actix/actix-web", features=["signal"] }
+actix = "0.4"
+actix-web = { git = "https://github.com/actix/actix-web" }
 
 futures = "0.1"
 uuid = { version = "0.5", features = ["serde", "v4"] }

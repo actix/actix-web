@@ -157,8 +157,9 @@ impl<H> StreamHandler<Conn<net::TcpStream>> for Worker<H>
 impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
     where H: HttpHandler + 'static,
 {
+    type Result = ();
+
     fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>)
-              -> Response<Self, Conn<net::TcpStream>>
     {
         if !self.settings.keep_alive_enabled() &&
             msg.io.set_keepalive(Some(time::Duration::new(75, 0))).is_err()
@@ -166,7 +167,6 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
             error!("Can not set socket keep-alive option");
         }
         self.handler.handle(Rc::clone(&self.settings), &self.hnd, msg);
-        Self::empty()
     }
 }
 
@@ -174,8 +174,9 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
 impl<H> Handler<StopWorker> for Worker<H>
     where H: HttpHandler + 'static,
 {
-    fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Response<Self, StopWorker>
-    {
+    type Result = Response<Self, StopWorker>;
+
+    fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
         let num = self.settings.channels.get();
         if num == 0 {
             info!("Shutting down http worker, 0 connections");

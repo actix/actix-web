@@ -23,15 +23,15 @@ impl Actor for Ws {
 /// Define Handler for ws::Message message
 # impl StreamHandler<ws::Message> for Ws {}
 impl Handler<ws::Message> for Ws {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) -> Response<Self, ws::Message>
-    {
+    type Result=();
+    
+    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
         match msg {
             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
             _ => (),
         }
-        Self::empty()
     }
 }
 

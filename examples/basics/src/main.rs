@@ -11,7 +11,6 @@ use actix::*;
 use actix_web::*;
 use actix_web::middleware::RequestSession;
 use futures::future::{FutureResult, result};
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// simple handler
@@ -97,11 +96,8 @@ fn main() {
         .start();
 
     // Subscribe to unix signals
-    #[cfg(unix)]
-    {
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(addr.subscriber()));
-    }
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Starting http server: 127.0.0.1:8080");
     let _ = sys.run();

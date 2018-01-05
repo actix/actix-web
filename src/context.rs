@@ -6,9 +6,9 @@ use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Handler, Subscriber, ResponseType};
+            Handler, Subscriber, ResponseType, SpawnHandle};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
+use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell,
                  Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
@@ -290,13 +290,14 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
 impl<A, S> ToEnvelope<A> for HttpContext<A, S>
     where A: Actor<Context=HttpContext<A, S>>,
 {
-    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
+    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>,
+               channel_on_drop: bool) -> Envelope<A>
         where A: Handler<M>,
               M: ResponseType + Send + 'static,
               M::Item: Send,
               M::Error: Send
     {
-        RemoteEnvelope::new(msg, tx).into()
+        RemoteEnvelope::new(msg, tx, channel_on_drop).into()
     }
 }
 

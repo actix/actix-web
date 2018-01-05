@@ -5,12 +5,12 @@ use std::time::Duration;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
-use actix::dev::*;
-use actix::System;
+use actix::prelude::*;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
+use actix::actors::signal;
 use mio;
 use num_cpus;
 use net2::TcpBuilder;
@@ -26,9 +26,6 @@ use openssl::ssl::{SslMethod, SslAcceptorBuilder};
 use openssl::pkcs12::ParsedPkcs12;
 #[cfg(feature="alpn")]
 use tokio_openssl::SslStream;
-
-#[cfg(feature="signal")]
-use actix::actors::signal;
 
 use helpers;
 use channel::{HttpChannel, HttpHandler, IntoHttpHandler, IoStream, WrapperStream};
@@ -202,7 +199,6 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         self
     }
 
-    #[cfg(feature="signal")]
     /// Send `SystemExit` message to actix system
     ///
     /// `SystemExit` message stops currently running system arbiter and all
@@ -271,7 +267,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                 let apps: Vec<_> = (*factory)()
                     .into_iter()
                     .map(|h| h.into_handler(s.clone())).collect();
-                ctx.add_stream(rx);
+                ctx.add_message_stream(rx);
                 Worker::new(apps, h, ka)
             });
             workers.push(tx);
@@ -494,8 +490,7 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
     }
 }
 
-#[cfg(feature="signal")]
-/// Unix Signals support
+/// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
 /// message to `System` actor.
 impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
@@ -504,9 +499,9 @@ impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>)
-              -> Response<Self, signal::Signal>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
         match msg.0 {
             signal::SignalType::Int => {
                 info!("SIGINT received, exiting");
@@ -524,32 +519,33 @@ impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
                 Handler::<StopServer>::handle(self, StopServer{graceful: false}, ctx);
             }
             _ => (),
-        };
-        Self::empty()
+        }
     }
 }
 
-impl<T, A, H, U> StreamHandler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
+impl<T, A, H, U> StreamHandler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static {}
 
-impl<T, A, H, U> Handler<Conn<T>, io::Error> for HttpServer<T, A, H, U>
+impl<T, A, H, U> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
           U: 'static,
           A: 'static,
 {
-    fn error(&mut self, err: io::Error, _: &mut Context<Self>) {
-        debug!("Error handling request: {}", err)
-    }
+    type Result = ();
 
-    fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Response<Self, Conn<T>>
-    {
-        Arbiter::handle().spawn(
-            HttpChannel::new(Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
-        Self::empty()
+    fn handle(&mut self, msg: io::Result<Conn<T>>, _: &mut Context<Self>) -> Self::Result {
+        match msg {
+            Ok(msg) =>
+                Arbiter::handle().spawn(
+                    HttpChannel::new(
+                        Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2)),
+            Err(err) =>
+                debug!("Error handling request: {}", err),
+        }
     }
 }
 
@@ -578,13 +574,14 @@ impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) -> Response<Self, PauseServer>
+    type Result = ();
+
+    fn handle(&mut self, _: PauseServer, _: &mut Context<Self>)
     {
         for item in &self.accept {
             let _ = item.1.send(Command::Pause);
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
-        Self::empty()
     }
 }
 
@@ -594,13 +591,13 @@ impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) -> Response<Self, ResumeServer>
-    {
+    type Result = ();
+
+    fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) {
         for item in &self.accept {
             let _ = item.1.send(Command::Resume);
             let _ = item.0.set_readiness(mio::Ready::readable());
         }
-        Self::empty()
     }
 }
 
@@ -610,8 +607,9 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
           U: 'static,
           A: 'static,
 {
-    fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Response<Self, StopServer>
-    {
+    type Result = actix::Response<Self, StopServer>;
+
+    fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
         // stop accept threads
         for item in &self.accept {
             let _ = item.1.send(Command::Stop);
@@ -636,10 +634,10 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
 
                     // we need to stop system if server was spawned
                     if slf.exit {
-                        Arbiter::system().send(msgs::SystemExit(0))
+                        Arbiter::system().send(actix::msgs::SystemExit(0))
                     }
                 }
-                fut::ok(())
+                actix::fut::ok(())
             }).spawn(ctx);
         }
 
@@ -649,7 +647,7 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
         } else {
             // we need to stop system if server was spawned
             if self.exit {
-                Arbiter::system().send(msgs::SystemExit(0))
+                Arbiter::system().send(actix::msgs::SystemExit(0))
             }
             Self::empty()
         }
