@@ -10,6 +10,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 
+#[macro_use]
 extern crate actix;
 extern crate actix_web;
 
@@ -17,7 +18,6 @@ use std::time::Instant;
 
 use actix::*;
 use actix_web::*;
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 mod codec;
@@ -58,19 +58,18 @@ impl Actor for WsChatSession {
 
 /// Handle messages from chat server, we simply send it to peer websocket
 impl Handler<session::Message> for WsChatSession {
-    fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context)
-              -> Response<Self, session::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context) {
         ws::WsWriter::text(ctx, &msg.0);
-        Self::empty()
     }
 }
 
 /// WebSocket message handler
 impl Handler<ws::Message> for WsChatSession {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
-              -> Response<Self, ws::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) =>
@@ -142,7 +141,6 @@ impl Handler<ws::Message> for WsChatSession {
             }
             _ => (),
         }
-        Self::empty()
     }
 }
 
@@ -216,11 +214,8 @@ fn main() {
         .start();
 
     // Subscribe to unix signals
-    #[cfg(unix)]
-    {
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(addr.subscriber()));
-    }
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

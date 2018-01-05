@@ -11,7 +11,6 @@ use std::cell::Cell;
 
 use actix::*;
 use actix_web::*;
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// Application state
@@ -40,9 +39,9 @@ impl Actor for MyWebSocket {
 
 impl StreamHandler<ws::Message> for MyWebSocket {}
 impl Handler<ws::Message> for MyWebSocket {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
-              -> Response<Self, ws::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         self.counter += 1;
         println!("WS({}): {:?}", self.counter, msg);
         match msg {
@@ -54,7 +53,6 @@ impl Handler<ws::Message> for MyWebSocket {
             }
             _ => (),
         }
-        Self::empty()
     }
 }
 
@@ -77,11 +75,8 @@ fn main() {
         .start();
 
     // Subscribe to unix signals
-    #[cfg(unix)]
-    {
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(addr.subscriber()));
-    }
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

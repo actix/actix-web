@@ -7,9 +7,7 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate json;
 
-use actix::*;
 use actix_web::*;
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 use bytes::BytesMut;
@@ -23,7 +21,7 @@ struct MyObj {
 }
 
 /// This handler uses `HttpRequest::json()` for loading serde json object.
-fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json()
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
@@ -98,11 +96,8 @@ fn main() {
         .start();
 
     // Subscribe to unix signals
-    #[cfg(unix)]
-    {
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(addr.subscriber()));
-    }
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

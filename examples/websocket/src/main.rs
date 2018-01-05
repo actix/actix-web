@@ -10,7 +10,6 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// do websocket handshake and start `MyWebSocket` actor
@@ -38,9 +37,9 @@ impl StreamHandler<ws::Message> for MyWebSocket {
 }
 
 impl Handler<ws::Message> for MyWebSocket {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
-              -> Response<Self, ws::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
         // process websocket messages
         println!("WS: {:?}", msg);
         match msg {
@@ -52,7 +51,6 @@ impl Handler<ws::Message> for MyWebSocket {
             }
             _ => (),
         }
-        Self::empty()
     }
 }
 
@@ -74,11 +72,8 @@ fn main() {
         .start();
 
     // Subscribe to unix signals
-    #[cfg(unix)]
-    {
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(_addr.subscriber()));
-    }
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(_addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

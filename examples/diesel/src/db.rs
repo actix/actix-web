@@ -27,9 +27,9 @@ impl Actor for DbExecutor {
 }
 
 impl Handler<CreateUser> for DbExecutor {
-    fn handle(&mut self, msg: CreateUser, _: &mut Self::Context)
-              -> Response<Self, CreateUser>
-    {
+    type Result = MessageResult<CreateUser>;
+
+    fn handle(&mut self, msg: CreateUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
         let uuid = format!("{}", uuid::Uuid::new_v4());
@@ -48,6 +48,6 @@ impl Handler<CreateUser> for DbExecutor {
             .load::<models::User>(&self.0)
             .expect("Error loading person");
 
-        Self::reply(items.pop().unwrap())
+        Ok(items.pop().unwrap())
     }
 }

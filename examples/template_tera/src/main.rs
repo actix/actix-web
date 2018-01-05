@@ -4,9 +4,7 @@ extern crate env_logger;
 #[macro_use]
 extern crate tera;
 
-use actix::*;
 use actix_web::*;
-#[cfg(unix)]
 use actix::actors::signal::{ProcessSignals, Subscribe};
 
 
@@ -45,11 +43,9 @@ fn main() {
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
-    #[cfg(unix)]
-    {   // Subscribe to unix signals
-        let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-        signals.send(Subscribe(addr.subscriber()));
-    }
+    // Subscribe to unix signals
+    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
+    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
