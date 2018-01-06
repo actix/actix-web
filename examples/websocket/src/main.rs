@@ -10,7 +10,6 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// do websocket handshake and start `MyWebSocket` actor
 fn ws_index(r: HttpRequest) -> Result<HttpResponse> {
@@ -70,10 +69,6 @@ fn main() {
         // start http server on 127.0.0.1:8080
         .bind("127.0.0.1:8080").unwrap()
         .start();
-
-    // Subscribe to unix signals
-    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(_addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

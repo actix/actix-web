@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::Read;
 
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
+
 
 /// somple handle
 fn index(req: HttpRequest) -> Result<HttpResponse> {
@@ -45,10 +45,6 @@ fn main() {
             })))
         .bind("127.0.0.1:8443").unwrap()
         .start_ssl(&pkcs12).unwrap();
-
-    // Subscribe to unix signals
-    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8443");
     let _ = sys.run();

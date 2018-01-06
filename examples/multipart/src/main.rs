@@ -6,7 +6,6 @@ extern crate futures;
 
 use actix::*;
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
 
 use futures::{Future, Stream};
 use futures::future::{result, Either};
@@ -54,10 +53,6 @@ fn main() {
             .resource("/multipart", |r| r.method(Method::POST).a(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();
-
-    // Subscribe to unix signals
-    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
 
     println!("Starting http server: 127.0.0.1:8080");
     let _ = sys.run();

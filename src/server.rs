@@ -6,11 +6,11 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use actix::prelude::*;
+use actix::actors::signal;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
-use actix::actors::signal;
 use mio;
 use num_cpus;
 use net2::TcpBuilder;
@@ -105,6 +105,8 @@ pub struct HttpServer<T, A, H, U>
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
     shutdown_timeout: u16,
+    signals: Option<SyncAddress<signal::ProcessSignals>>,
+    no_signals: bool,
 }
 
 unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
@@ -150,6 +152,8 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     accept: Vec::new(),
                     exit: false,
                     shutdown_timeout: 30,
+                    signals: None,
+                    no_signals: false,
         }
     }
 
@@ -205,6 +209,18 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     /// nested arbiters.
     pub fn system_exit(mut self) -> Self {
         self.exit = true;
+        self
+    }
+
+    /// Set alternative address for `ProcessSignals` actor.
+    pub fn signals(mut self, addr: SyncAddress<signal::ProcessSignals>) -> Self {
+        self.signals = Some(addr);
+        self
+    }
+
+    /// Disable signal handling
+    pub fn disable_signals(mut self) -> Self {
+        self.no_signals = true;
         self
     }
 
@@ -276,6 +292,18 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         info!("Starting {} http workers", self.threads);
         workers
     }
+
+    // subscribe to os signals
+    fn subscribe_to_signals(&self, addr: &SyncAddress<HttpServer<T, A, H, U>>) {
+        if self.no_signals {
+            let msg = signal::Subscribe(addr.subscriber());
+            if let Some(ref signals) = self.signals {
+                signals.send(msg);
+            } else {
+                Arbiter::system_registry().get::<signal::ProcessSignals>().send(msg);
+            }
+        }
+    }
 }
 
 impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
@@ -327,18 +355,21 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             }
 
             // start http server actor
-            HttpServer::create(|_| {self})
+            HttpServer::create(|ctx| {
+                self.subscribe_to_signals(&ctx.address());
+                self
+            })
         }
     }
 
     /// Spawn new thread and start listening for incomming connections.
     ///
     /// This method spawns new thread and starts new actix system. Other than that it is
-    /// similar to `start()` method. This method does not block.
+    /// similar to `start()` method. This method blocks.
     ///
     /// This methods panics if no socket addresses get bound.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate futures;
     /// # extern crate actix;
     /// # extern crate actix_web;
@@ -346,27 +377,22 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let addr = HttpServer::new(
+    ///     HttpServer::new(
     ///         || Application::new()
     ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
-    ///         .spawn();
-    ///
-    ///     let _ = addr.call_fut(
-    ///           dev::StopServer{graceful:true}).wait();  // <- Send `StopServer` message to server.
+    ///         .run();
     /// }
     /// ```
-    pub fn spawn(mut self) -> SyncAddress<Self> {
+    pub fn run(mut self) {
         self.exit = true;
+        self.no_signals = false;
 
-        let (tx, rx) = sync_mpsc::channel();
-        thread::spawn(move || {
+        let _ = thread::spawn(move || {
             let sys = System::new("http-server");
-            let addr = self.start();
-            let _ = tx.send(addr);
-            sys.run();
-        });
-        rx.recv().unwrap()
+            self.start();
+            let _ = sys.run();
+        }).join();
     }
 }
 
@@ -401,7 +427,10 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             }
 
             // start http server actor
-            Ok(HttpServer::create(|_| {self}))
+            Ok(HttpServer::create(|ctx| {
+                self.subscribe_to_signals(&ctx.address());
+                self
+            }))
         }
     }
 }
@@ -441,7 +470,10 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             }
 
             // start http server actor
-            Ok(HttpServer::create(|_| {self}))
+            Ok(HttpServer::create(|ctx| {
+                self.subscribe_to_signals(&ctx.address());
+                self
+            }))
         }
     }
 }
@@ -485,6 +517,7 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
         HttpServer::create(move |ctx| {
             ctx.add_stream(stream.map(
                 move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
+            self.subscribe_to_signals(&ctx.address());
             self
         })
     }

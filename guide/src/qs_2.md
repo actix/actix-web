@@ -61,7 +61,7 @@ connections. Server accepts function that should return `HttpHandler` instance:
        || Application::new()
            .resource("/", |r| r.f(index)))
        .bind("127.0.0.1:8088")?
-       .start();
+       .run();
 ```
 
 That's it. Now, compile and run the program with cargo run. 
@@ -69,9 +69,8 @@ Head over to ``http://localhost:8088/`` to see the results.
 
 Here is full source of main.rs file:
 
-```rust
-extern crate actix;
-extern crate actix_web;
+```rust,ignore
+# extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
@@ -79,17 +78,11 @@ fn index(req: HttpRequest) -> &'static str {
 }
 
 fn main() {
-    let sys = actix::System::new("example");
-
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
-        .start();
-
-    println!("Started http server: 127.0.0.1:8088");
-#     actix::Arbiter::system().send(actix::msgs::SystemExit(0));
-    let _ = sys.run();
+        .run();
 }
 ```
 

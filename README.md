@@ -3,7 +3,6 @@
 Actix web is a small, fast, down-to-earth, open source rust web framework.
 
 ```rust,ignore
-extern crate actix;
 extern crate actix_web;
 use actix_web::*;
 
@@ -12,14 +11,11 @@ fn index(req: HttpRequest) -> String {
 }
 
 fn main() {
-    let sys = actix::System::new("readme");
     HttpServer::new(
         || Application::new()
             .resource("/{name}", |r| r.f(index)))
         .bind("127.0.0.1:8080").unwrap()
-        .start();
-
-    sys.run();
+        .run();
 }
 ```
 

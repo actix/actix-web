@@ -18,7 +18,6 @@ extern crate env_logger;
 
 use actix::*;
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
 
 use diesel::prelude::*;
 use futures::future::Future;
@@ -68,10 +67,6 @@ fn main() {
             .resource("/{name}", |r| r.method(Method::GET).a(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
-
-    // Subscribe to unix signals
-    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(_addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();

@@ -11,7 +11,6 @@ use std::cell::Cell;
 
 use actix::*;
 use actix_web::*;
-use actix::actors::signal::{ProcessSignals, Subscribe};
 
 /// Application state
 struct AppState {
@@ -73,10 +72,6 @@ fn main() {
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();
-
-    // Subscribe to unix signals
-    let signals = actix::Arbiter::system_registry().get::<ProcessSignals>();
-    signals.send(Subscribe(addr.subscriber()));
 
     println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
