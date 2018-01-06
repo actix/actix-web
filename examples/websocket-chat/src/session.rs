@@ -185,8 +185,6 @@ impl Actor for TcpServer {
 struct TcpConnect(TcpStream, net::SocketAddr);
 
 /// Handle stream of TcpStream's
-impl StreamHandler<TcpConnect> for TcpServer {}
-
 impl Handler<TcpConnect> for TcpServer {
     type Result = ();
 

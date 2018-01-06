@@ -151,9 +151,6 @@ impl<H: 'static> Actor for Worker<H> where H: HttpHandler + 'static {
     }
 }
 
-impl<H> StreamHandler<Conn<net::TcpStream>> for Worker<H>
-    where H: HttpHandler + 'static {}
-
 impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
     where H: HttpHandler + 'static,
 {

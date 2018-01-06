@@ -36,7 +36,6 @@ impl Actor for MyWebSocket {
     type Context = HttpContext<Self, AppState>;
 }
 
-impl StreamHandler<ws::Message> for MyWebSocket {}
 impl Handler<ws::Message> for MyWebSocket {
     type Result = ();
 

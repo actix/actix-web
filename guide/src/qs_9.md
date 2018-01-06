@@ -21,10 +21,9 @@ impl Actor for Ws {
 }
 
 /// Define Handler for ws::Message message
-# impl StreamHandler<ws::Message> for Ws {}
 impl Handler<ws::Message> for Ws {
     type Result=();
-    
+
     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
         match msg {
             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),

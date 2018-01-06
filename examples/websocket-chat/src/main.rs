@@ -53,6 +53,32 @@ struct WsChatSession {
 
 impl Actor for WsChatSession {
     type Context = HttpContext<Self, WsChatSessionState>;
+
+    /// Method is called on actor start.
+    /// We register ws session with ChatServer
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // register self in chat server. `AsyncContext::wait` register
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        // HttpContext::state() is instance of WsChatSessionState, state is shared across all
+        // routes within application
+        let subs = ctx.sync_subscriber();
+        ctx.state().addr.call(
+            self, server::Connect{addr: subs}).then(
+            |res, act, ctx| {
+                match res {
+                    Ok(Ok(res)) => act.id = res,
+                    // something is wrong with chat server
+                    _ => ctx.stop(),
+                }
+                fut::ok(())
+            }).wait(ctx);
+    }
+
+    fn stopping(&mut self, ctx: &mut Self::Context) {
+        // notify chat server
+        ctx.state().addr.send(server::Disconnect{id: self.id});
+    }
 }
 
 /// Handle messages from chat server, we simply send it to peer websocket
@@ -140,37 +166,6 @@ impl Handler<ws::Message> for WsChatSession {
             }
             _ => (),
         }
-    }
-}
-
-impl StreamHandler<ws::Message> for WsChatSession
-{
-    /// Method is called when stream get polled first time.
-    /// We register ws session with ChatServer
-    fn started(&mut self, ctx: &mut Self::Context) {
-        // register self in chat server. `AsyncContext::wait` register
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        // HttpContext::state() is instance of WsChatSessionState, state is shared across all
-        // routes within application
-        let subs = ctx.sync_subscriber();
-        ctx.state().addr.call(
-            self, server::Connect{addr: subs}).then(
-            |res, act, ctx| {
-                match res {
-                    Ok(Ok(res)) => act.id = res,
-                    // something is wrong with chat server
-                    _ => ctx.stop(),
-                }
-                fut::ok(())
-            }).wait(ctx);
-    }
-
-    /// Method is called when stream finishes, even if stream finishes with error.
-    fn finished(&mut self, ctx: &mut Self::Context) {
-        // notify chat server
-        ctx.state().addr.send(server::Disconnect{id: self.id});
-        ctx.stop()
     }
 }
 

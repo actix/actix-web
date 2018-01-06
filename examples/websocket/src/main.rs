@@ -24,17 +24,7 @@ impl Actor for MyWebSocket {
     type Context = HttpContext<Self>;
 }
 
-/// Standard actix's stream handler for a stream of `ws::Message`
-impl StreamHandler<ws::Message> for MyWebSocket {
-    fn started(&mut self, ctx: &mut Self::Context) {
-        println!("WebSocket session openned");
-    }
-
-    fn finished(&mut self, ctx: &mut Self::Context) {
-        println!("WebSocket session closed");
-    }
-}
-
+/// Handler for `ws::Message`
 impl Handler<ws::Message> for MyWebSocket {
     type Result = ();
 

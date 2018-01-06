@@ -23,8 +23,6 @@
 //! }
 //!
 //! // Define Handler for ws::Message message
-//! # impl StreamHandler<ws::Message> for Ws {}
-//! #
 //! impl Handler<ws::Message> for Ws {
 //!     type Result = ();
 //!
@@ -49,7 +47,7 @@ use http::{Method, StatusCode, header};
 use bytes::BytesMut;
 use futures::{Async, Poll, Stream};
 
-use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
+use actix::{Actor, AsyncContext, ResponseType, Handler};
 
 use payload::ReadAny;
 use error::{Error, WsHandshakeError};
@@ -86,7 +84,7 @@ impl ResponseType for Message {
 
 /// Do websocket handshake and start actor
 pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
-    where A: Actor<Context=HttpContext<A, S>> + StreamHandler<Message>,
+    where A: Actor<Context=HttpContext<A, S>> + Handler<Message>,
           S: 'static
 {
     let mut resp = handshake(&req)?;
