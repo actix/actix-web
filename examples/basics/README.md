@@ -1,11 +1,11 @@
-# basic
+# basics
 
 ## Usage
 
 ### server
 
 ```bash
-cd actix-web/examples/basic
+cd actix-web/examples/basics
 cargo run
 # Started http server: 127.0.0.1:8080
 ```

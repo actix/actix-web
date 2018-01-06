@@ -11,10 +11,16 @@ use actix_web::*;
 use actix_web::middleware::RequestSession;
 use futures::future::{FutureResult, result};
 
+/// favicon handler
+fn favicon(req: HttpRequest) -> Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("../static/favicon.ico")?)
+}
 
-/// simple handler
+/// simple index handler
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
+
+    // example of ...
     if let Ok(ch) = req.payload_mut().readany().poll() {
         if let futures::Async::Ready(Some(d)) = ch {
             println!("{}", String::from_utf8_lossy(d.as_ref()));
@@ -22,15 +28,47 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     }
 
     // session
+    let mut counter = 1;
     if let Some(count) = req.session().get::<i32>("counter")? {
         println!("SESSION value: {}", count);
-        req.session().set("counter", count+1)?;
+        counter = count + 1;
+        req.session().set("counter", counter)?;
     } else {
-        req.session().set("counter", 1)?;
+        req.session().set("counter", counter)?;
     }
 
-    Ok("Welcome!".into())
+    // html
+    let html = format!(r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
+<body>
+    <h1>Welcome <img width="30px" height="30px" src="/static/actixLogo.png" /></h1>
+    session counter = {}
+</body>
+</html>"#, counter);
+
+    // response
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .body(&html).unwrap())
+
 }
+
+/// 404 handler
+fn p404(req: HttpRequest) -> Result<HttpResponse> {
+
+    // html
+    let html = format!(r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
+<body>
+    <a href="index.html">back to home</a>
+    <h1>404</h1>
+</body>
+</html>"#);
+
+    // response
+    Ok(HttpResponse::build(StatusCode::NOT_FOUND)
+        .content_type("text/html; charset=utf-8")
+        .body(&html).unwrap())
+}
+
 
 /// async handler
 fn index_async(req: HttpRequest) -> FutureResult<HttpResponse, Error>
@@ -68,6 +106,8 @@ fn main() {
                     .secure(false)
                     .finish()
             ))
+            // register favicon
+            .resource("/favicon.ico", |r| r.f(favicon))
             // register simple route, handle all methods
             .resource("/index.html", |r| r.f(index))
             // with path parameters
@@ -90,8 +130,15 @@ fn main() {
                 HttpResponse::Found()
                     .header("LOCATION", "/index.html")
                     .finish()
-            })))
-        .bind("0.0.0.0:8080").unwrap()
+            }))
+            // default
+            .default_resource(|r| {
+                r.method(Method::GET).f(p404);
+                r.route().p(pred::Not(pred::Get())).f(|req| httpcodes::HTTPMethodNotAllowed);
+            }))
+
+        .bind("127.0.0.1:8080").expect("Can not bind to 127.0.0.1:8080")
+        .shutdown_timeout(0)    // <- Set shutdown timeout to 0 seconds (default 60s)
         .start();
 
     println!("Starting http server: 127.0.0.1:8080");
