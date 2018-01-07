@@ -177,7 +177,7 @@ impl<H> Handler<StopWorker> for Worker<H>
         let num = self.settings.channels.get();
         if num == 0 {
             info!("Shutting down http worker, 0 connections");
-            Self::reply(true)
+            Self::reply(Ok(true))
         } else if let Some(dur) = msg.graceful {
             info!("Graceful http worker shutdown, {} connections", num);
             let (tx, rx) = oneshot::channel();
@@ -186,7 +186,7 @@ impl<H> Handler<StopWorker> for Worker<H>
         } else {
             info!("Force shutdown http worker, {} connections", num);
             self.settings.head().traverse::<TcpStream, H>();
-            Self::reply(false)
+            Self::reply(Ok(false))
         }
     }
 }

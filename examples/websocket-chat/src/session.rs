@@ -52,10 +52,10 @@ impl Actor for ChatSession {
             }).wait(ctx);
     }
 
-    fn stopping(&mut self, ctx: &mut Self::Context) {
+    fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
         // notify chat server
         self.addr.send(server::Disconnect{id: self.id});
-        ctx.stop()
+        true
     }
 }
 
