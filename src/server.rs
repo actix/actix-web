@@ -556,12 +556,6 @@ impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U> StreamHandler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
-    where T: IoStream,
-          H: HttpHandler + 'static,
-          U: 'static,
-          A: 'static {}
-
 impl<T, A, H, U> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
@@ -682,7 +676,7 @@ impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
             if self.exit {
                 Arbiter::system().send(actix::msgs::SystemExit(0))
             }
-            Self::empty()
+            Self::reply(Ok(()))
         }
     }
 }
