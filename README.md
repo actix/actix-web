@@ -1,6 +1,6 @@
 # Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](http://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
 
-Asynchronous web framework for [Actix](https://github.com/actix/actix).
+Actix web is a fast, down-to-earth, open source rust web framework.
 
 * [User Guide](http://actix.github.io/actix-web/guide/)
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
