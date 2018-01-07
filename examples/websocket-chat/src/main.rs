@@ -75,9 +75,10 @@ impl Actor for WsChatSession {
             }).wait(ctx);
     }
 
-    fn stopping(&mut self, ctx: &mut Self::Context) {
+    fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
         // notify chat server
         ctx.state().addr.send(server::Disconnect{id: self.id});
+        true
     }
 }
 
