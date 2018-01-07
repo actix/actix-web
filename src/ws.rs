@@ -6,73 +6,62 @@
 //! ## Example
 //!
 //! ```rust
-//! extern crate actix;
-//! extern crate actix_web;
-//!
+//! # extern crate actix;
+//! # extern crate actix_web;
 //! use actix::*;
 //! use actix_web::*;
 //!
 //! // do websocket handshake and start actor
-//! fn ws_index(req: HttpRequest) -> Result<Reply> {
-//!     ws::start(req, WsRoute)
+//! fn ws_index(req: HttpRequest) -> Result<HttpResponse> {
+//!     ws::start(req, Ws)
 //! }
 //!
-//! // WebSocket Route
-//! struct WsRoute;
+//! struct Ws;
 //!
-//! impl Actor for WsRoute {
+//! impl Actor for Ws {
 //!     type Context = HttpContext<Self>;
 //! }
 //!
 //! // Define Handler for ws::Message message
-//! impl StreamHandler<ws::Message> for WsRoute {}
+//! impl Handler<ws::Message> for Ws {
+//!     type Result = ();
 //!
-//! impl Handler<ws::Message> for WsRoute {
-//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>)
-//!               -> Response<Self, ws::Message>
-//!     {
+//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
 //!         match msg {
 //!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
 //!             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
 //!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
 //!             _ => (),
 //!         }
-//!         Self::empty()
 //!     }
 //! }
-//!
-//! fn main() {
-//!     Application::default("/")
-//!       .resource("/ws/", |r| r.get(ws_index))  // <- register websocket route
-//!       .finish();
-//! }
+//! #
+//! # fn main() {
+//! #    Application::new()
+//! #      .resource("/ws/", |r| r.f(ws_index))  // <- register websocket route
+//! #      .finish();
+//! # }
 //! ```
 use std::vec::Vec;
 use http::{Method, StatusCode, header};
 use bytes::BytesMut;
 use futures::{Async, Poll, Stream};
 
-use actix::{Actor, AsyncContext, ResponseType, StreamHandler};
+use actix::{Actor, AsyncContext, ResponseType, Handler};
 
-use body::Body;
-use context::HttpContext;
-use route::Reply;
-use payload::Payload;
+use payload::ReadAny;
 use error::{Error, WsHandshakeError};
+use context::HttpContext;
 use httprequest::HttpRequest;
-use httpresponse::{ConnectionType, HttpResponse};
+use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 
 use wsframe;
 use wsproto::*;
 pub use wsproto::CloseCode;
 
-#[doc(hidden)]
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
-#[doc(hidden)]
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
-#[doc(hidden)]
 const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
-// #[doc(hidden)]
 // const SEC_WEBSOCKET_PROTOCOL: &'static str = "SEC-WEBSOCKET-PROTOCOL";
 
 
@@ -94,17 +83,17 @@ impl ResponseType for Message {
 }
 
 /// Do websocket handshake and start actor
-pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
-    where A: Actor<Context=HttpContext<A, S>> + StreamHandler<Message>,
+pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
+    where A: Actor<Context=HttpContext<A, S>> + Handler<Message>,
           S: 'static
 {
-    let resp = handshake(&req)?;
+    let mut resp = handshake(&req)?;
+    let stream = WsStream::new(req.payload_mut().readany());
 
-    let stream = WsStream::new(&mut req);
     let mut ctx = HttpContext::new(req, actor);
-    ctx.start(resp);
-    ctx.add_stream(stream);
-    Ok(ctx.into())
+    ctx.add_message_stream(stream);
+
+    Ok(resp.body(ctx)?)
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -115,7 +104,7 @@ pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<Reply, Error>
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeError> {
+pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(WsHandshakeError::GetMethodRequired)
@@ -169,21 +158,23 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponse, WsHandshakeErr
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")
        .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
-       .body(Body::UpgradeContext).unwrap()
-    )
+       .take())
 }
 
 /// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream {
-    rx: Payload,
+    rx: ReadAny,
     buf: BytesMut,
     closed: bool,
     error_sent: bool,
 }
 
 impl WsStream {
-    pub fn new<S>(req: &mut HttpRequest<S>) -> WsStream {
-        WsStream { rx: req.take_payload(), buf: BytesMut::new(), closed: false, error_sent: false }
+    pub fn new(payload: ReadAny) -> WsStream {
+        WsStream { rx: payload,
+                   buf: BytesMut::new(),
+                   closed: false,
+                   error_sent: false }
     }
 }
 
@@ -196,9 +187,9 @@ impl Stream for WsStream {
 
         if !self.closed {
             loop {
-                match self.rx.readany() {
+                match self.rx.poll() {
                     Ok(Async::Ready(Some(chunk))) => {
-                        self.buf.extend(chunk.0)
+                        self.buf.extend_from_slice(&chunk)
                     }
                     Ok(Async::Ready(None)) => {
                         done = true;
@@ -217,7 +208,7 @@ impl Stream for WsStream {
         loop {
             match wsframe::Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
-                    trace!("WsFrame {}", frame);
+                    // trace!("WsFrame {}", frame);
                     let (_finished, opcode, payload) = frame.unpack();
 
                     match opcode {
@@ -336,31 +327,30 @@ impl WsWriter {
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use payload::Payload;
     use http::{Method, HeaderMap, Version, Uri, header};
 
     #[test]
     fn test_handshake() {
         let req = HttpRequest::new(Method::POST, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, HeaderMap::new(), Payload::empty());
+                                   Version::HTTP_11, HeaderMap::new(), None);
         assert_eq!(WsHandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, HeaderMap::new(), Payload::empty());
+                                   Version::HTTP_11, HeaderMap::new(), None);
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("test"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
+                                   Version::HTTP_11, headers, None);
         assert_eq!(WsHandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
         headers.insert(header::UPGRADE,
                        header::HeaderValue::from_static("websocket"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
+                                   Version::HTTP_11, headers, None);
         assert_eq!(WsHandshakeError::NoConnectionUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -369,7 +359,7 @@ mod tests {
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
+                                   Version::HTTP_11, headers, None);
         assert_eq!(WsHandshakeError::NoVersionHeader, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -380,7 +370,7 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("5"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
+                                   Version::HTTP_11, headers, None);
         assert_eq!(WsHandshakeError::UnsupportedVersion, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -391,7 +381,7 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
+                                   Version::HTTP_11, headers, None);
         assert_eq!(WsHandshakeError::BadWebsocketKey, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
@@ -404,7 +394,8 @@ mod tests {
         headers.insert(SEC_WEBSOCKET_KEY,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
-                                   Version::HTTP_11, headers, Payload::empty());
-        assert_eq!(StatusCode::SWITCHING_PROTOCOLS, handshake(&req).unwrap().status());
+                                   Version::HTTP_11, headers, None);
+        assert_eq!(StatusCode::SWITCHING_PROTOCOLS,
+                   handshake(&req).unwrap().finish().unwrap().status());
     }
 }

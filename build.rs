@@ -12,8 +12,19 @@ fn main() {
         // generates doc tests for `README.md`.
         skeptic::generate_doc_tests(
             &["README.md",
+              "guide/src/qs_1.md",
               "guide/src/qs_2.md",
               "guide/src/qs_3.md",
+              "guide/src/qs_3_5.md",
+              "guide/src/qs_4.md",
+              "guide/src/qs_4_5.md",
+              "guide/src/qs_5.md",
+              "guide/src/qs_7.md",
+              "guide/src/qs_8.md",
+              "guide/src/qs_9.md",
+              "guide/src/qs_10.md",
+              "guide/src/qs_12.md",
+              "guide/src/qs_13.md",
             ]);
     } else {
         let _ = fs::File::create(f);

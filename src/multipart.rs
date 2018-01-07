@@ -9,11 +9,12 @@ use httparse;
 use bytes::Bytes;
 use http::HttpTryFrom;
 use http::header::{self, HeaderMap, HeaderName, HeaderValue};
-use futures::{Async, Stream, Poll};
+use futures::{Async, Future, Stream, Poll};
 use futures::task::{Task, current as current_task};
 
 use error::{ParseError, PayloadError, MultipartError};
 use payload::Payload;
+use httprequest::HttpRequest;
 
 const MAX_HEADERS: usize = 32;
 
@@ -26,7 +27,8 @@ const MAX_HEADERS: usize = 32;
 #[derive(Debug)]
 pub struct Multipart {
     safety: Safety,
-    inner: Rc<RefCell<InnerMultipart>>,
+    error: Option<MultipartError>,
+    inner: Option<Rc<RefCell<InnerMultipart>>>,
 }
 
 ///
@@ -66,17 +68,32 @@ struct InnerMultipart {
 }
 
 impl Multipart {
+
     /// Create multipart instance for boundary.
     pub fn new(boundary: String, payload: Payload) -> Multipart {
         Multipart {
+            error: None,
             safety: Safety::new(),
-            inner: Rc::new(RefCell::new(
+            inner: Some(Rc::new(RefCell::new(
                 InnerMultipart {
                     payload: PayloadRef::new(payload),
                     boundary: boundary,
                     state: InnerState::FirstBoundary,
                     item: InnerMultipartItem::None,
-                }))
+                })))
+        }
+    }
+
+    /// Create multipart instance for request.
+    pub fn from_request<S>(req: &mut HttpRequest<S>) -> Multipart {
+        match Multipart::boundary(req.headers()) {
+            Ok(boundary) => Multipart::new(boundary, req.payload().clone()),
+            Err(err) =>
+                Multipart {
+                    error: Some(err),
+                    safety: Safety::new(),
+                    inner: None,
+                }
         }
     }
 
@@ -107,8 +124,10 @@ impl Stream for Multipart {
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if self.safety.current() {
-            self.inner.borrow_mut().poll(&self.safety)
+        if let Some(err) = self.error.take() {
+            Err(err)
+        } else if self.safety.current() {
+            self.inner.as_mut().unwrap().borrow_mut().poll(&self.safety)
         } else {
             Ok(Async::NotReady)
         }
@@ -119,7 +138,7 @@ impl InnerMultipart {
 
     fn read_headers(payload: &mut Payload) -> Poll<HeaderMap, MultipartError>
     {
-        match payload.readuntil(b"\r\n\r\n")? {
+        match payload.readuntil(b"\r\n\r\n").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(bytes) => {
                 let mut hdrs = [httparse::EMPTY_HEADER; MAX_HEADERS];
@@ -150,7 +169,7 @@ impl InnerMultipart {
     fn read_boundary(payload: &mut Payload, boundary: &str) -> Poll<bool, MultipartError>
     {
         // TODO: need to read epilogue
-        match payload.readline()? {
+        match payload.readline().poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(chunk) => {
                 if chunk.len() == boundary.len() + 4 &&
@@ -175,7 +194,7 @@ impl InnerMultipart {
     {
         let mut eof = false;
         loop {
-            if let Async::Ready(chunk) = payload.readline()? {
+            if let Async::Ready(chunk) = payload.readline().poll()? {
                 if chunk.is_empty() {
                     //ValueError("Could not find starting boundary %r"
                     //% (self._boundary))
@@ -327,7 +346,9 @@ impl InnerMultipart {
 
                 Ok(Async::Ready(Some(
                     MultipartItem::Nested(
-                        Multipart{safety: safety.clone(), inner: inner}))))
+                        Multipart{safety: safety.clone(),
+                                  error: None,
+                                  inner: Some(inner)}))))
             } else {
                 let field = Rc::new(RefCell::new(InnerField::new(
                     self.payload.clone(), self.boundary.clone(), &headers)?));
@@ -356,10 +377,6 @@ pub struct Field {
     safety: Safety,
 }
 
-/// A field's chunk
-#[derive(PartialEq, Debug)]
-pub struct FieldChunk(pub Bytes);
-
 impl Field {
 
     fn new(safety: Safety, headers: HeaderMap,
@@ -382,7 +399,7 @@ impl Field {
 }
 
 impl Stream for Field {
-    type Item = FieldChunk;
+    type Item = Bytes;
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -452,15 +469,15 @@ impl InnerField {
         if *size == 0 {
             Ok(Async::Ready(None))
         } else {
-            match payload.readany() {
+            match payload.readany().poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
                 Ok(Async::Ready(Some(mut chunk))) => {
-                    let len = cmp::min(chunk.0.len() as u64, *size);
+                    let len = cmp::min(chunk.len() as u64, *size);
                     *size -= len;
-                    let ch = chunk.0.split_to(len as usize);
-                    if !chunk.0.is_empty() {
-                        payload.unread_data(chunk.0);
+                    let ch = chunk.split_to(len as usize);
+                    if !chunk.is_empty() {
+                        payload.unread_data(chunk);
                     }
                     Ok(Async::Ready(Some(ch)))
                 },
@@ -473,12 +490,12 @@ impl InnerField {
     /// The `Content-Length` header for body part is not necessary.
     fn read_stream(payload: &mut Payload, boundary: &str) -> Poll<Option<Bytes>, MultipartError>
     {
-        match payload.readuntil(b"\r")? {
+        match payload.readuntil(b"\r").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(mut chunk) => {
                 if chunk.len() == 1 {
                     payload.unread_data(chunk);
-                    match payload.readexactly(boundary.len() + 4)? {
+                    match payload.readexactly(boundary.len() + 4).poll()? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(chunk) => {
                             if &chunk[..2] == b"\r\n" && &chunk[2..4] == b"--" &&
@@ -501,13 +518,13 @@ impl InnerField {
         }
     }
 
-    fn poll(&mut self, s: &Safety) -> Poll<Option<FieldChunk>, MultipartError> {
+    fn poll(&mut self, s: &Safety) -> Poll<Option<Bytes>, MultipartError> {
         if self.payload.is_none() {
             return Ok(Async::Ready(None))
         }
         if self.eof {
             if let Some(payload) = self.payload.as_ref().unwrap().get_mut(s) {
-                match payload.readline()? {
+                match payload.readline().poll()? {
                     Async::NotReady =>
                         return Ok(Async::NotReady),
                     Async::Ready(chunk) => {
@@ -533,10 +550,10 @@ impl InnerField {
 
             match res {
                 Async::NotReady => Async::NotReady,
-                Async::Ready(Some(bytes)) => Async::Ready(Some(FieldChunk(bytes))),
+                Async::Ready(Some(bytes)) => Async::Ready(Some(bytes)),
                 Async::Ready(None) => {
                     self.eof = true;
-                    match payload.readline()? {
+                    match payload.readline().poll()? {
                         Async::NotReady => Async::NotReady,
                         Async::Ready(chunk) => {
                             assert_eq!(
@@ -713,7 +730,7 @@ mod tests {
 
                             match field.poll() {
                                 Ok(Async::Ready(Some(chunk))) =>
-                                    assert_eq!(chunk.0, "test"),
+                                    assert_eq!(chunk, "test"),
                                 _ => unreachable!()
                             }
                             match field.poll() {
@@ -736,7 +753,7 @@ mod tests {
 
                             match field.poll() {
                                 Ok(Async::Ready(Some(chunk))) =>
-                                    assert_eq!(chunk.0, "data"),
+                                    assert_eq!(chunk, "data"),
                                 _ => unreachable!()
                             }
                             match field.poll() {

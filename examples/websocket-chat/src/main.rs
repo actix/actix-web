@@ -10,6 +10,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 
+#[macro_use]
 extern crate actix;
 extern crate actix_web;
 
@@ -29,7 +30,7 @@ struct WsChatSessionState {
 }
 
 /// Entry point for our route
-fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<Reply> {
+fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
     ws::start(
         req,
         WsChatSession {
@@ -52,23 +53,49 @@ struct WsChatSession {
 
 impl Actor for WsChatSession {
     type Context = HttpContext<Self, WsChatSessionState>;
+
+    /// Method is called on actor start.
+    /// We register ws session with ChatServer
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // register self in chat server. `AsyncContext::wait` register
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        // HttpContext::state() is instance of WsChatSessionState, state is shared across all
+        // routes within application
+        let subs = ctx.sync_subscriber();
+        ctx.state().addr.call(
+            self, server::Connect{addr: subs}).then(
+            |res, act, ctx| {
+                match res {
+                    Ok(Ok(res)) => act.id = res,
+                    // something is wrong with chat server
+                    _ => ctx.stop(),
+                }
+                fut::ok(())
+            }).wait(ctx);
+    }
+
+    fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
+        // notify chat server
+        ctx.state().addr.send(server::Disconnect{id: self.id});
+        true
+    }
 }
 
 /// Handle messages from chat server, we simply send it to peer websocket
 impl Handler<session::Message> for WsChatSession {
-    fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context)
-              -> Response<Self, session::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context) {
         ws::WsWriter::text(ctx, &msg.0);
-        Self::empty()
     }
 }
 
 /// WebSocket message handler
 impl Handler<ws::Message> for WsChatSession {
-    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context)
-              -> Response<Self, ws::Message>
-    {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) =>
@@ -140,41 +167,8 @@ impl Handler<ws::Message> for WsChatSession {
             }
             _ => (),
         }
-        Self::empty()
     }
 }
-
-impl StreamHandler<ws::Message> for WsChatSession
-{
-    /// Method is called when stream get polled first time.
-    /// We register ws session with ChatServer
-    fn started(&mut self, ctx: &mut Self::Context) {
-        // register self in chat server. `AsyncContext::wait` register
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        // HttpContext::state() is instance of WsChatSessionState, state is shared across all
-        // routes within application
-        let subs = ctx.sync_subscriber();
-        ctx.state().addr.call(
-            self, server::Connect{addr: subs}).then(
-            |res, act, ctx| {
-                match res {
-                    Ok(Ok(res)) => act.id = res,
-                    // something is wrong with chat server
-                    _ => ctx.stop(),
-                }
-                fut::ok(())
-            }).wait(ctx);
-    }
-
-    /// Method is called when stream finishes, even if stream finishes with error.
-    fn finished(&mut self, ctx: &mut Self::Context) {
-        // notify chat server
-        ctx.state().addr.send(server::Disconnect{id: self.id});
-        ctx.stop()
-    }
-}
-
 
 fn main() {
     let _ = env_logger::init();
@@ -192,24 +186,28 @@ fn main() {
             Ok(())
         }));
 
-    // Websocket sessions state
-    let state = WsChatSessionState { addr: server };
-
     // Create Http server with websocket support
-    HttpServer::new(
-        Application::build("/", state)
-            // redirect to websocket.html
-            .resource("/", |r| r.handler(Method::GET, |req| {
-                httpcodes::HTTPFound
-                    .build()
-                    .header("LOCATION", "/static/websocket.html")
-                    .body(Body::Empty)
-            }))
-            // websocket
-            .resource("/ws/", |r| r.get(chat_route))
-            // static resources
-            .route("/static", StaticFiles::new("static/", true)))
-        .serve::<_, ()>("127.0.0.1:8080").unwrap();
+    let addr = HttpServer::new(
+        move || {
+            // Websocket sessions state
+            let state = WsChatSessionState { addr: server.clone() };
 
+            Application::with_state(state)
+                // redirect to websocket.html
+                .resource("/", |r| r.method(Method::GET).f(|_| {
+                    httpcodes::HTTPFound
+                        .build()
+                        .header("LOCATION", "/static/websocket.html")
+                        .finish()
+                }))
+                // websocket
+                .resource("/ws/", |r| r.route().f(chat_route))
+                // static resources
+                .handler("/static/", fs::StaticFiles::new("static/", true))
+        })
+        .bind("127.0.0.1:8080").unwrap()
+        .start();
+
+    println!("Started http server: 127.0.0.1:8080");
     let _ = sys.run();
 }

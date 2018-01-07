@@ -29,29 +29,39 @@ In order to implement a web server, first we need to create a request handler.
 A request handler is a function that accepts a `HttpRequest` instance as its only parameter 
 and returns a type that can be converted into `HttpResponse`:
 
-```rust,ignore
-extern crate actix_web;
-use actix_web::*;
-
-fn index(req: HttpRequest) -> &'static str {
-    "Hello world!"
-}
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+  fn index(req: HttpRequest) -> &'static str {
+      "Hello world!"
+  }
+# fn main() {}
 ```
 
 Next, create an `Application` instance and register the
 request handler with the application's `resource` on a particular *HTTP method* and *path*::
 
-```rust,ignore
-   let app = Application::default("/")
-       .resource("/", |r| r.get(index))
-       .finish()
+```rust
+# extern crate actix_web;
+# use actix_web::*;
+# fn index(req: HttpRequest) -> &'static str {
+#    "Hello world!"
+# }
+# fn main() {
+   Application::new()
+       .resource("/", |r| r.f(index));
+# }
 ```
 
 After that, application instance can be used with `HttpServer` to listen for incoming
-connections:
+connections. Server accepts function that should return `HttpHandler` instance:
 
 ```rust,ignore
-   HttpServer::new(app).serve::<_, ()>("127.0.0.1:8088");
+   HttpServer::new(
+       || Application::new()
+           .resource("/", |r| r.f(index)))
+       .bind("127.0.0.1:8088")?
+       .run();
 ```
 
 That's it. Now, compile and run the program with cargo run. 
@@ -59,9 +69,8 @@ Head over to ``http://localhost:8088/`` to see the results.
 
 Here is full source of main.rs file:
 
-```rust
-extern crate actix;
-extern crate actix_web;
+```rust,ignore
+# extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
@@ -69,22 +78,15 @@ fn index(req: HttpRequest) -> &'static str {
 }
 
 fn main() {
-    let sys = actix::System::new("example");
-
     HttpServer::new(
-        Application::default("/")
-            .resource("/", |r| r.get(index)))
-        .serve::<_, ()>("127.0.0.1:8088").unwrap();
-
-    println!("Started http server: 127.0.0.1:8088");
-    // do not copy this line
-    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
-
-    let _ = sys.run();
+        || Application::new()
+            .resource("/", |r| r.f(index)))
+        .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
+        .run();
 }
 ```
 
 Note on `actix` crate. Actix web framework is built on top of actix actor library. 
 `actix::System` initializes actor system, `HttpServer` is an actor and must run within
-proper configured actix system. For more information please check
+properly configured actix system. For more information please check
 [actix documentation](https://actix.github.io/actix/actix/)

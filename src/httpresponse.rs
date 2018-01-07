@@ -1,6 +1,8 @@
 //! Pieces pertaining to the HTTP response.
-use std::{io, mem, str, fmt};
+use std::{mem, str, fmt};
+use std::cell::RefCell;
 use std::convert::Into;
+use std::collections::VecDeque;
 
 use cookie::CookieJar;
 use bytes::{Bytes, BytesMut};
@@ -8,11 +10,13 @@ use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
+use cookie::Cookie;
 
-use Cookie;
 use body::Body;
 use error::Error;
+use handler::Responder;
 use encoding::ContentEncoding;
+use httprequest::HttpRequest;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -26,122 +30,122 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct HttpResponse {
-    pub version: Option<Version>,
-    pub headers: HeaderMap,
-    pub status: StatusCode,
-    reason: Option<&'static str>,
-    body: Body,
-    chunked: bool,
-    encoding: ContentEncoding,
-    connection_type: Option<ConnectionType>,
-    response_size: u64,
-    error: Option<Error>,
+pub struct HttpResponse(Option<Box<InnerHttpResponse>>);
+
+impl Drop for HttpResponse {
+    fn drop(&mut self) {
+        if let Some(inner) = self.0.take() {
+            Pool::release(inner)
+        }
+    }
 }
 
 impl HttpResponse {
+
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    fn get_ref(&self) -> &InnerHttpResponse {
+        self.0.as_ref().unwrap()
+    }
+
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    fn get_mut(&mut self) -> &mut InnerHttpResponse {
+        self.0.as_mut().unwrap()
+    }
 
     /// Create http response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
         HttpResponseBuilder {
-            parts: Some(Parts::new(status)),
+            response: Some(Pool::get(status)),
             err: None,
+            cookies: None,
         }
     }
 
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
-        HttpResponse {
-            version: None,
-            headers: Default::default(),
-            status: status,
-            reason: None,
-            body: body,
-            chunked: false,
-            encoding: ContentEncoding::Auto,
-            connection_type: None,
-            response_size: 0,
-            error: None,
-        }
+        HttpResponse(Some(Pool::with_body(status, body)))
     }
 
     /// Constructs a error response
     #[inline]
     pub fn from_error(error: Error) -> HttpResponse {
         let mut resp = error.cause().error_response();
-        resp.error = Some(error);
+        resp.get_mut().error = Some(error);
         resp
     }
 
     /// The source `error` for this response
     #[inline]
     pub fn error(&self) -> Option<&Error> {
-        self.error.as_ref()
+        self.get_ref().error.as_ref()
     }
 
     /// Get the HTTP version of this response.
     #[inline]
     pub fn version(&self) -> Option<Version> {
-        self.version
+        self.get_ref().version
     }
 
     /// Get the headers from the response.
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.get_ref().headers
     }
 
     /// Get a mutable reference to the headers.
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.headers
+        &mut self.get_mut().headers
     }
 
     /// Get the status from the server.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        self.status
+        self.get_ref().status
     }
 
     /// Set the `StatusCode` for this response.
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
-        &mut self.status
+        &mut self.get_mut().status
     }
 
     /// Get custom reason for the response.
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
+        if let Some(reason) = self.get_ref().reason {
             reason
         } else {
-            ""
+            self.get_ref().status.canonical_reason().unwrap_or("<unknown status code>")
         }
     }
 
     /// Set the custom reason for the response.
     #[inline]
     pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
-        self.reason = Some(reason);
+        self.get_mut().reason = Some(reason);
         self
     }
 
     /// Set connection type
     pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self {
-        self.connection_type = Some(conn);
+        self.get_mut().connection_type = Some(conn);
         self
     }
 
     /// Connection upgrade status
+    #[inline]
     pub fn upgrade(&self) -> bool {
-        self.connection_type == Some(ConnectionType::Upgrade)
+        self.get_ref().connection_type == Some(ConnectionType::Upgrade)
     }
 
     /// Keep-alive status for this connection
     pub fn keep_alive(&self) -> Option<bool> {
-        if let Some(ct) = self.connection_type {
+        if let Some(ct) = self.get_ref().connection_type {
             match ct {
                 ConnectionType::KeepAlive => Some(true),
                 ConnectionType::Close | ConnectionType::Upgrade => Some(false),
@@ -152,66 +156,59 @@ impl HttpResponse {
     }
 
     /// is chunked encoding enabled
+    #[inline]
     pub fn chunked(&self) -> bool {
-        self.chunked
-    }
-
-    /// Enables automatic chunked transfer encoding
-    pub fn enable_chunked_encoding(&mut self) -> Result<(), io::Error> {
-        if self.headers.contains_key(header::CONTENT_LENGTH) {
-            Err(io::Error::new(io::ErrorKind::Other,
-                "You can't enable chunked encoding when a content length is set"))
-        } else {
-            self.chunked = true;
-            Ok(())
-        }
+        self.get_ref().chunked
     }
 
     /// Content encoding
+    #[inline]
     pub fn content_encoding(&self) -> &ContentEncoding {
-        &self.encoding
+        &self.get_ref().encoding
     }
 
     /// Set content encoding
     pub fn set_content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        self.encoding = enc;
+        self.get_mut().encoding = enc;
         self
     }
 
     /// Get body os this response
+    #[inline]
     pub fn body(&self) -> &Body {
-        &self.body
+        &self.get_ref().body
     }
 
     /// Set a body
     pub fn set_body<B: Into<Body>>(&mut self, body: B) {
-        self.body = body.into();
+        self.get_mut().body = body.into();
     }
 
     /// Set a body and return previous body value
     pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
-        mem::replace(&mut self.body, body.into())
+        mem::replace(&mut self.get_mut().body, body.into())
     }
 
     /// Size of response in bytes, excluding HTTP headers
     pub fn response_size(&self) -> u64 {
-        self.response_size
+        self.get_ref().response_size
     }
 
     /// Set content encoding
     pub(crate) fn set_response_size(&mut self, size: u64) {
-        self.response_size = size;
+        self.get_mut().response_size = size;
     }
 }
 
 impl fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpResponse {:?} {}{}\n",
-                         self.version, self.status, self.reason.unwrap_or(""));
-        let _ = write!(f, "  encoding: {:?}\n", self.encoding);
+                         self.get_ref().version, self.get_ref().status,
+                         self.get_ref().reason.unwrap_or(""));
+        let _ = write!(f, "  encoding: {:?}\n", self.get_ref().encoding);
         let _ = write!(f, "  headers:\n");
-        for key in self.headers.keys() {
-            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
+        for key in self.get_ref().headers.keys() {
+            let vals: Vec<_> = self.get_ref().headers.get_all(key).iter().collect();
             if vals.len() > 1 {
                 let _ = write!(f, "    {:?}: {:?}\n", key, vals);
             } else {
@@ -222,70 +219,53 @@ impl fmt::Debug for HttpResponse {
     }
 }
 
-#[derive(Debug)]
-struct Parts {
-    version: Option<Version>,
-    headers: HeaderMap,
-    status: StatusCode,
-    reason: Option<&'static str>,
-    chunked: bool,
-    encoding: ContentEncoding,
-    connection_type: Option<ConnectionType>,
-    cookies: CookieJar,
-}
-
-impl Parts {
-    fn new(status: StatusCode) -> Self {
-        Parts {
-            version: None,
-            headers: HeaderMap::new(),
-            status: status,
-            reason: None,
-            chunked: false,
-            encoding: ContentEncoding::Auto,
-            connection_type: None,
-            cookies: CookieJar::new(),
-        }
-    }
-}
-
-
 /// An HTTP response builder
 ///
 /// This type can be used to construct an instance of `HttpResponse` through a
 /// builder-like pattern.
 #[derive(Debug)]
 pub struct HttpResponseBuilder {
-    parts: Option<Parts>,
+    response: Option<Box<InnerHttpResponse>>,
     err: Option<HttpError>,
+    cookies: Option<CookieJar>,
 }
 
 impl HttpResponseBuilder {
-    /// Set the HTTP version of this response.
+    /// Set HTTP version of this response.
+    ///
+    /// By default response's http version depends on request's version.
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.version = Some(version);
         }
         self
     }
 
-    /// Set the `StatusCode` for this response.
-    #[inline]
-    pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
-            parts.status = status;
-        }
-        self
-    }
-
     /// Set a header.
+    ///
+    /// ```rust
+    /// # extern crate http;
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use http::header;
+    ///
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     Ok(HTTPOk.build()
+    ///         .header("X-TEST", "value")
+    ///         .header(header::CONTENT_TYPE, "application/json")
+    ///         .finish()?)
+    /// }
+    /// fn main() {}
+    /// ```
     #[inline]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
         where HeaderName: HttpTryFrom<K>,
               HeaderValue: HttpTryFrom<V>
     {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => {
                     match HeaderValue::try_from(value) {
@@ -302,7 +282,7 @@ impl HttpResponseBuilder {
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.reason = Some(reason);
         }
         self
@@ -313,44 +293,52 @@ impl HttpResponseBuilder {
     /// By default `ContentEncoding::Auto` is used, which automatically
     /// negotiates content encoding based on request's `Accept-Encoding` headers.
     /// To enforce specific encoding, use specific ContentEncoding` value.
+    #[inline]
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.encoding = enc;
         }
         self
     }
 
     /// Set connection type
+    #[inline]
+    #[doc(hidden)]
     pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.connection_type = Some(conn);
         }
         self
     }
 
     /// Set connection type to Upgrade
+    #[inline]
+    #[doc(hidden)]
     pub fn upgrade(&mut self) -> &mut Self {
         self.connection_type(ConnectionType::Upgrade)
     }
 
     /// Force close connection, even if it is marked as keep-alive
+    #[inline]
     pub fn force_close(&mut self) -> &mut Self {
         self.connection_type(ConnectionType::Close)
     }
 
     /// Enables automatic chunked transfer encoding
-    pub fn enable_chunked(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+    #[inline]
+    pub fn chunked(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.chunked = true;
         }
         self
     }
 
     /// Set response content type
+    #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
         where HeaderValue: HttpTryFrom<V>
     {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderValue::try_from(value) {
                 Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
                 Err(e) => self.err = Some(e.into()),
@@ -360,23 +348,53 @@ impl HttpResponseBuilder {
     }
 
     /// Set a cookie
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use actix_web::headers::Cookie;
+    ///
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     Ok(HTTPOk.build()
+    ///         .cookie(
+    ///             Cookie::build("name", "value")
+    ///                 .domain("www.rust-lang.org")
+    ///                 .path("/")
+    ///                 .secure(true)
+    ///                 .http_only(true)
+    ///                 .finish())
+    ///         .finish()?)
+    /// }
+    /// fn main() {}
+    /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
-            parts.cookies.add(cookie.into_owned());
+        if self.cookies.is_none() {
+            let mut jar = CookieJar::new();
+            jar.add(cookie.into_owned());
+            self.cookies = Some(jar)
+        } else {
+            self.cookies.as_mut().unwrap().add(cookie.into_owned());
         }
         self
     }
 
-    /// Remote cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
+    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        if let Some(parts) = parts(&mut self.parts, &self.err) {
+        {
+            if self.cookies.is_none() {
+                self.cookies = Some(CookieJar::new())
+            }
+            let jar = self.cookies.as_mut().unwrap();
             let cookie = cookie.clone().into_owned();
-            parts.cookies.add_original(cookie.clone());
-            parts.cookies.remove(cookie);
+            jar.add_original(cookie.clone());
+            jar.remove(cookie);
         }
         self
     }
 
+    /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: Fn(&mut HttpResponseBuilder) + 'static
     {
@@ -387,36 +405,31 @@ impl HttpResponseBuilder {
     }
 
     /// Set a body and generate `HttpResponse`.
+    ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
-        let mut parts = self.parts.take().expect("cannot reuse response builder");
         if let Some(e) = self.err.take() {
             return Err(e)
         }
-        for cookie in parts.cookies.delta() {
-            parts.headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&cookie.to_string())?);
+        let mut response = self.response.take().expect("cannot reuse response builder");
+        if let Some(ref jar) = self.cookies {
+            for cookie in jar.delta() {
+                response.headers.append(
+                    header::SET_COOKIE,
+                    HeaderValue::from_str(&cookie.to_string())?);
+            }
         }
-        Ok(HttpResponse {
-            version: parts.version,
-            headers: parts.headers,
-            status: parts.status,
-            reason: parts.reason,
-            body: body.into(),
-            chunked: parts.chunked,
-            encoding: parts.encoding,
-            connection_type: parts.connection_type,
-            response_size: 0,
-            error: None,
-        })
+        response.body = body.into();
+        Ok(HttpResponse(Some(response)))
     }
 
     /// Set a json body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&value)?;
 
-        let contains = if let Some(parts) = parts(&mut self.parts, &self.err) {
+        let contains = if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.headers.contains_key(header::CONTENT_TYPE)
         } else {
             true
@@ -429,12 +442,26 @@ impl HttpResponseBuilder {
     }
 
     /// Set an empty body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
         self.body(Body::Empty)
     }
+
+    /// This method construct new `HttpResponseBuilder`
+    pub fn take(&mut self) -> HttpResponseBuilder {
+        HttpResponseBuilder {
+            response: self.response.take(),
+            err: self.err.take(),
+            cookies: self.cookies.take(),
+        }
+    }
 }
 
-fn parts<'a>(parts: &'a mut Option<Parts>, err: &Option<HttpError>) -> Option<&'a mut Parts>
+#[inline]
+#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+fn parts<'a>(parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>)
+             -> Option<&'a mut Box<InnerHttpResponse>>
 {
     if err.is_some() {
         return None
@@ -458,12 +485,33 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
+impl Responder for HttpResponseBuilder {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    #[inline]
+    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        self.finish()
+    }
+}
+
 impl From<&'static str> for HttpResponse {
     fn from(val: &'static str) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
             .into()
+    }
+}
+
+impl Responder for &'static str {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
     }
 }
 
@@ -476,12 +524,34 @@ impl From<&'static [u8]> for HttpResponse {
     }
 }
 
+impl Responder for &'static [u8] {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
+    }
+}
+
 impl From<String> for HttpResponse {
     fn from(val: String) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
             .into()
+    }
+}
+
+impl Responder for String {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
     }
 }
 
@@ -494,12 +564,34 @@ impl<'a> From<&'a String> for HttpResponse {
     }
 }
 
+impl<'a> Responder for &'a String {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/plain; charset=utf-8")
+            .body(self)
+    }
+}
+
 impl From<Bytes> for HttpResponse {
     fn from(val: Bytes) -> Self {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(val)
             .into()
+    }
+}
+
+impl Responder for Bytes {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
     }
 }
 
@@ -512,19 +604,160 @@ impl From<BytesMut> for HttpResponse {
     }
 }
 
+impl Responder for BytesMut {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("application/octet-stream")
+            .body(self)
+    }
+}
+
+#[derive(Debug)]
+struct InnerHttpResponse {
+    version: Option<Version>,
+    headers: HeaderMap,
+    status: StatusCode,
+    reason: Option<&'static str>,
+    body: Body,
+    chunked: bool,
+    encoding: ContentEncoding,
+    connection_type: Option<ConnectionType>,
+    response_size: u64,
+    error: Option<Error>,
+}
+
+impl InnerHttpResponse {
+
+    #[inline]
+    fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
+        InnerHttpResponse {
+            version: None,
+            headers: HeaderMap::with_capacity(16),
+            status: status,
+            reason: None,
+            body: body,
+            chunked: false,
+            encoding: ContentEncoding::Auto,
+            connection_type: None,
+            response_size: 0,
+            error: None,
+        }
+    }
+}
+
+/// Internal use only! unsafe
+struct Pool(VecDeque<Box<InnerHttpResponse>>);
+
+thread_local!(static POOL: RefCell<Pool> =
+              RefCell::new(Pool(VecDeque::with_capacity(128))));
+
+impl Pool {
+
+    #[inline]
+    fn get(status: StatusCode) -> Box<InnerHttpResponse> {
+        POOL.with(|pool| {
+            if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
+                resp.body = Body::Empty;
+                resp.status = status;
+                resp
+            } else {
+                Box::new(InnerHttpResponse::new(status, Body::Empty))
+            }
+        })
+    }
+
+    #[inline]
+    fn with_body(status: StatusCode, body: Body) -> Box<InnerHttpResponse> {
+        POOL.with(|pool| {
+            if let Some(mut resp) = pool.borrow_mut().0.pop_front() {
+                resp.status = status;
+                resp.body = body;
+                resp
+            } else {
+                Box::new(InnerHttpResponse::new(status, body))
+            }
+        })
+    }
+
+    #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
+    fn release(mut inner: Box<InnerHttpResponse>) {
+        POOL.with(|pool| {
+            let v = &mut pool.borrow_mut().0;
+            if v.len() < 128 {
+                inner.headers.clear();
+                inner.version = None;
+                inner.chunked = false;
+                inner.reason = None;
+                inner.encoding = ContentEncoding::Auto;
+                inner.connection_type = None;
+                inner.response_size = 0;
+                inner.error = None;
+                v.push_front(inner);
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
+    use time::Duration;
+    use http::{Method, Uri};
     use body::Binary;
+    use {headers, httpcodes};
+
+    #[test]
+    fn test_debug() {
+        let resp = HttpResponse::Ok().finish().unwrap();
+        let dbg = format!("{:?}", resp);
+        assert!(dbg.contains("HttpResponse"));
+    }
+
+    #[test]
+    fn test_response_cookies() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::COOKIE,
+                       header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
+
+        let req = HttpRequest::new(
+            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+        let cookies = req.cookies().unwrap();
+
+        let resp = httpcodes::HTTPOk
+            .build()
+            .cookie(headers::Cookie::build("name", "value")
+                    .domain("www.rust-lang.org")
+                    .path("/test")
+                    .http_only(true)
+                    .max_age(Duration::days(1))
+                    .finish())
+            .del_cookie(&cookies[0])
+            .body(Body::Empty);
+
+        assert!(resp.is_ok());
+        let resp = resp.unwrap();
+
+        let mut val: Vec<_> = resp.headers().get_all("Set-Cookie")
+            .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
+        val.sort();
+        assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
+        assert_eq!(
+            val[1],"name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400");
+    }
 
     #[test]
     fn test_basic_builder() {
         let resp = HttpResponse::Ok()
-            .status(StatusCode::NO_CONTENT)
+            .header("X-TEST", "value")
             .version(Version::HTTP_10)
             .finish().unwrap();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
-        assert_eq!(resp.status(), StatusCode::NO_CONTENT)
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
@@ -588,7 +821,16 @@ mod tests {
 
     #[test]
     fn test_into_response() {
+        let req = HttpRequest::default();
+
         let resp: HttpResponse = "test".into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
+
+        let resp: HttpResponse = "test".respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
@@ -602,6 +844,13 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
 
+        let resp: HttpResponse = b"test".as_ref().respond_to(req.clone()).ok().unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
+
         let resp: HttpResponse = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -609,7 +858,21 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
 
+        let resp: HttpResponse = "test".to_owned().respond_to(req.clone()).ok().unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
+
         let resp: HttpResponse = (&"test".to_owned()).into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from((&"test".to_owned())));
+
+        let resp: HttpResponse = (&"test".to_owned()).respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
@@ -624,8 +887,24 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
 
+        let b = Bytes::from_static(b"test");
+        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
+
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.into();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                   header::HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
+
+        let b = BytesMut::from("test");
+        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));

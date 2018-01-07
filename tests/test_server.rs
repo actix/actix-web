@@ -2,54 +2,57 @@ extern crate actix;
 extern crate actix_web;
 extern crate tokio_core;
 extern crate reqwest;
+extern crate futures;
 
-use std::{net, thread};
-use std::sync::Arc;
+use std::{net, thread, time};
+use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio_core::net::TcpListener;
+use futures::Future;
 
-use actix::*;
 use actix_web::*;
-
-
-fn create_server<T, A>() -> HttpServer<T, A, Application<()>> {
-    HttpServer::new(
-        vec![Application::default("/")
-             .resource("/", |r|
-                       r.handler(Method::GET, |_| httpcodes::HTTPOk))
-             .finish()])
-}
+use actix::System;
 
 #[test]
-fn test_serve() {
-    thread::spawn(|| {
-        let sys = System::new("test");
-        let srv = create_server();
-        srv.serve::<_, ()>("127.0.0.1:58902").unwrap();
-        sys.run();
-    });
-    assert!(reqwest::get("http://localhost:58902/").unwrap().status().is_success());
-}
-
-#[test]
-fn test_serve_incoming() {
-    let loopback = net::Ipv4Addr::new(127, 0, 0, 1);
-    let socket = net::SocketAddrV4::new(loopback, 0);
-    let tcp = net::TcpListener::bind(socket).unwrap();
-    let addr1 = tcp.local_addr().unwrap();
-    let addr2 = tcp.local_addr().unwrap();
+fn test_start() {
+    let _ = test::TestServer::unused_addr();
+    let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
         let sys = System::new("test");
+        let srv = HttpServer::new(
+            || vec![Application::new()
+                    .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
 
-        let srv = create_server();
-        let tcp = TcpListener::from_listener(tcp, &addr2, Arbiter::handle()).unwrap();
-        srv.serve_incoming::<_, ()>(tcp.incoming()).unwrap();
+        let srv = srv.bind("127.0.0.1:0").unwrap();
+        let addr = srv.addrs()[0];
+        let srv_addr = srv.start();
+        let _ = tx.send((addr, srv_addr));
         sys.run();
     });
+    let (addr, srv_addr) = rx.recv().unwrap();
+    assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
 
-    assert!(reqwest::get(&format!("http://{}/", addr1))
-            .unwrap().status().is_success());
+    // pause
+    let _ = srv_addr.call_fut(dev::PauseServer).wait();
+    thread::sleep(time::Duration::from_millis(100));
+    assert!(net::TcpStream::connect(addr).is_err());
+
+    // resume
+    let _ = srv_addr.call_fut(dev::ResumeServer).wait();
+    assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
+}
+
+#[test]
+fn test_simple() {
+    let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
+}
+
+#[test]
+fn test_application() {
+    let srv = test::TestServer::with_factory(
+        || Application::new().resource("/", |r| r.h(httpcodes::HTTPOk)));
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
 }
 
 struct MiddlewareTest {
@@ -58,20 +61,20 @@ struct MiddlewareTest {
     finish: Arc<AtomicUsize>,
 }
 
-impl middlewares::Middleware for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest) -> middlewares::Started {
+impl<S> middleware::Middleware<S> for MiddlewareTest {
+    fn start(&self, _: &mut HttpRequest<S>) -> middleware::Started {
         self.start.store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Started::Done
+        middleware::Started::Done
     }
 
-    fn response(&self, _: &mut HttpRequest, resp: HttpResponse) -> middlewares::Response {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middleware::Response {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Response::Done(resp)
+        middleware::Response::Done(resp)
     }
 
-    fn finish(&self, _: &mut HttpRequest, _: &HttpResponse) -> middlewares::Finished {
+    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         self.finish.store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middlewares::Finished::Done
+        middleware::Finished::Done
     }
 }
 
@@ -85,23 +88,14 @@ fn test_middlewares() {
     let act_num2 = Arc::clone(&num2);
     let act_num3 = Arc::clone(&num3);
 
-    thread::spawn(move || {
-        let sys = System::new("test");
-
-        HttpServer::new(
-            vec![Application::default("/")
-                 .middleware(MiddlewareTest{start: act_num1,
-                                            response: act_num2,
-                                            finish: act_num3})
-                 .resource("/", |r|
-                           r.handler(Method::GET, |_| httpcodes::HTTPOk))
-                 .finish()])
-            .serve::<_, ()>("127.0.0.1:58904").unwrap();
-        sys.run();
-    });
-
-    assert!(reqwest::get("http://localhost:58904/").unwrap().status().is_success());
-
+    let srv = test::TestServer::new(
+        move |app| app.middleware(MiddlewareTest{start: Arc::clone(&act_num1),
+                                                 response: Arc::clone(&act_num2),
+                                                 finish: Arc::clone(&act_num3)})
+            .handler(httpcodes::HTTPOk)
+    );
+    
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     assert_eq!(num3.load(Ordering::Relaxed), 1);

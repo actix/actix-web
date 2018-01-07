@@ -1,43 +1,49 @@
 use std::{io, cmp};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::{Reason, SendStream};
-use http2::server::Respond;
+use http2::server::SendResponse;
 use http::{Version, HttpTryFrom, Response};
-use http::header::{HeaderValue, CONNECTION, CONTENT_TYPE, TRANSFER_ENCODING, DATE};
+use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
-use date;
+use helpers;
 use body::Body;
+use helpers::SharedBytes;
 use encoding::PayloadEncoder;
-use httprequest::HttpRequest;
+use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use h1writer::{Writer, WriterState};
 
 const CHUNK_SIZE: usize = 16_384;
 const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
+bitflags! {
+    struct Flags: u8 {
+        const STARTED = 0b0000_0001;
+        const DISCONNECTED = 0b0000_0010;
+        const EOF = 0b0000_0100;
+    }
+}
 
 pub(crate) struct H2Writer {
-    respond: Respond<Bytes>,
+    respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
-    started: bool,
     encoder: PayloadEncoder,
-    disconnected: bool,
-    eof: bool,
+    flags: Flags,
     written: u64,
+    buffer: SharedBytes,
 }
 
 impl H2Writer {
 
-    pub fn new(respond: Respond<Bytes>) -> H2Writer {
+    pub fn new(respond: SendResponse<Bytes>, buf: SharedBytes) -> H2Writer {
         H2Writer {
             respond: respond,
             stream: None,
-            started: false,
-            encoder: PayloadEncoder::default(),
-            disconnected: false,
-            eof: true,
+            encoder: PayloadEncoder::empty(buf.clone()),
+            flags: Flags::empty(),
             written: 0,
+            buffer: buf,
         }
     }
 
@@ -48,7 +54,7 @@ impl H2Writer {
     }
 
     fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
-        if !self.started {
+        if !self.flags.contains(Flags::STARTED) {
             return Ok(WriterState::Done)
         }
 
@@ -56,7 +62,7 @@ impl H2Writer {
             let buffer = self.encoder.get_mut();
 
             if buffer.is_empty() {
-                if self.eof {
+                if self.flags.contains(Flags::EOF) {
                     let _ = stream.send_data(Bytes::new(), true);
                 }
                 return Ok(WriterState::Done)
@@ -77,7 +83,7 @@ impl H2Writer {
                     Ok(Async::Ready(Some(cap))) => {
                         let len = buffer.len();
                         let bytes = buffer.split_to(cmp::min(cap, len));
-                        let eof = buffer.is_empty() && self.eof;
+                        let eof = buffer.is_empty() && self.flags.contains(Flags::EOF);
                         self.written += bytes.len() as u64;
 
                         if let Err(err) = stream.send_data(bytes.freeze(), eof) {
@@ -86,7 +92,7 @@ impl H2Writer {
                             let cap = cmp::min(buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
-                            return Ok(WriterState::Done)
+                            return Ok(WriterState::Pause)
                         }
                     }
                     Err(_) => {
@@ -105,42 +111,52 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpRequest, msg: &mut HttpResponse)
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {
-        trace!("Prepare response with status: {:?}", msg.status);
+        // trace!("Prepare response with status: {:?}", msg.status());
 
         // prepare response
-        self.started = true;
-        self.encoder = PayloadEncoder::new(req, msg);
-        self.eof = if let Body::Empty = *msg.body() { true } else { false };
-
-        // http2 specific
-        msg.headers.remove(CONNECTION);
-        msg.headers.remove(TRANSFER_ENCODING);
-
-        // using http::h1::date is quite a lot faster than generating
-        // a unique Date header each time like req/s goes up about 10%
-        if !msg.headers.contains_key(DATE) {
-            let mut bytes = [0u8; 29];
-            date::extend(&mut bytes[..]);
-            msg.headers.insert(DATE, HeaderValue::try_from(&bytes[..]).unwrap());
+        self.flags.insert(Flags::STARTED);
+        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
+        if let Body::Empty = *msg.body() {
+            self.flags.insert(Flags::EOF);
         }
 
-        // default content-type
-        if !msg.headers.contains_key(CONTENT_TYPE) {
-            msg.headers.insert(
-                CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+        // http2 specific
+        msg.headers_mut().remove(CONNECTION);
+        msg.headers_mut().remove(TRANSFER_ENCODING);
+
+        // using helpers::date is quite a lot faster
+        if !msg.headers().contains_key(DATE) {
+            let mut bytes = BytesMut::with_capacity(29);
+            helpers::date_value(&mut bytes);
+            msg.headers_mut().insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+        }
+
+        let body = msg.replace_body(Body::Empty);
+        match body {
+            Body::Binary(ref bytes) => {
+                let mut val = BytesMut::new();
+                helpers::convert_usize(bytes.len(), &mut val);
+                let l = val.len();
+                msg.headers_mut().insert(
+                    CONTENT_LENGTH, HeaderValue::try_from(val.split_to(l-2).freeze()).unwrap());
+            }
+            Body::Empty => {
+                msg.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+            },
+            _ => (),
         }
 
         let mut resp = Response::new(());
-        *resp.status_mut() = msg.status;
+        *resp.status_mut() = msg.status();
         *resp.version_mut() = Version::HTTP_2;
         for (key, value) in msg.headers().iter() {
             resp.headers_mut().insert(key, value.clone());
         }
 
-        match self.respond.send_response(resp, self.eof) {
+        match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
             Ok(stream) =>
                 self.stream = Some(stream),
             Err(_) =>
@@ -149,23 +165,25 @@ impl Writer for H2Writer {
 
         trace!("Response: {:?}", msg);
 
-        if msg.body().is_binary() {
-            if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
-                self.eof = true;
-                self.encoder.write(bytes.as_ref())?;
-                if let Some(ref mut stream) = self.stream {
-                    stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
-                }
-                return Ok(WriterState::Done)
+        if let Body::Binary(bytes) = body {
+            self.flags.insert(Flags::EOF);
+            self.written = bytes.len() as u64;
+            self.encoder.write(bytes.as_ref())?;
+            if let Some(ref mut stream) = self.stream {
+                stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
             }
+            Ok(WriterState::Pause)
+        } else {
+            msg.replace_body(body);
+            Ok(WriterState::Done)
         }
-
-        Ok(WriterState::Done)
     }
 
     fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
-        if !self.disconnected {
-            if self.started {
+        self.written = payload.len() as u64;
+
+        if !self.flags.contains(Flags::DISCONNECTED) {
+            if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
                 self.encoder.write(payload)?;
             } else {
@@ -184,7 +202,7 @@ impl Writer for H2Writer {
     fn write_eof(&mut self) -> Result<WriterState, io::Error> {
         self.encoder.write_eof()?;
 
-        self.eof = true;
+        self.flags.insert(Flags::EOF);
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
@@ -195,7 +213,7 @@ impl Writer for H2Writer {
         }
     }
 
-    fn poll_complete(&mut self) -> Poll<(), io::Error> {
+    fn poll_completed(&mut self, _shutdown: bool) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => Ok(Async::Ready(())),
             Ok(WriterState::Pause) => Ok(Async::NotReady),

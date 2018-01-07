@@ -1,113 +1,195 @@
+use std::mem;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
-use futures::Future;
 
-use error::Error;
-use route::{RouteHandler, Reply, Handler, WrapHandler, AsyncHandler};
+use handler::Reply;
+use router::{Router, Pattern};
 use resource::Resource;
-use recognizer::{RouteRecognizer, check_pattern};
+use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
-use channel::HttpHandler;
-use pipeline::Pipeline;
-use middlewares::Middleware;
-
+use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
+use pipeline::{Pipeline, PipelineHandler};
+use middleware::Middleware;
+use server::ServerSettings;
 
 /// Application
-pub struct Application<S> {
+pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
-    default: Resource<S>,
-    handlers: HashMap<String, Box<RouteHandler<S>>>,
-    router: RouteRecognizer<Resource<S>>,
-    middlewares: Rc<Vec<Box<Middleware>>>,
+    router: Router,
+    inner: Rc<RefCell<Inner<S>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S: 'static> Application<S> {
+pub(crate) struct Inner<S> {
+    prefix: usize,
+    default: Resource<S>,
+    router: Router,
+    resources: Vec<Resource<S>>,
+    handlers: Vec<(String, Box<RouteHandler<S>>)>,
+}
 
-    fn run(&self, req: HttpRequest) -> Reply {
-        let mut req = req.with_state(Rc::clone(&self.state));
+impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
-        if let Some((params, h)) = self.router.recognize(req.path()) {
-            if let Some(params) = params {
-                req.set_match_info(params);
-            }
-            h.handle(req)
+    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
+        if let Some(idx) = self.router.recognize(&mut req) {
+            self.resources[idx].handle(req.clone(), Some(&mut self.default))
         } else {
-            for (prefix, handler) in &self.handlers {
-                if req.path().starts_with(prefix) {
-                    req.set_prefix(prefix.len());
+            for &mut (ref prefix, ref mut handler) in &mut self.handlers {
+                let m = {
+                    let path = &req.path()[self.prefix..];
+                    path.starts_with(prefix) && (path.len() == prefix.len() ||
+                                                 path.split_at(prefix.len()).1.starts_with('/'))
+                };
+                if m {
+                    let path: &'static str = unsafe{
+                        mem::transmute(&req.path()[self.prefix+prefix.len()..])};
+                    if path.is_empty() {
+                        req.match_info_mut().add("tail", "");
+                    } else {
+                        req.match_info_mut().add("tail", path.split_at(1).1);
+                    }
                     return handler.handle(req)
                 }
             }
-            self.default.handle(req)
+            self.default.handle(req, None)
         }
     }
 }
 
-impl<S: 'static> HttpHandler for Application<S> {
+#[cfg(test)]
+impl<S: 'static> HttpApplication<S> {
+    pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
+        self.inner.borrow_mut().handle(req)
+    }
+    pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
+        req.with_state(Rc::clone(&self.state), self.router.clone())
+    }
+}
 
-    fn handle(&self, req: HttpRequest) -> Result<Pipeline, HttpRequest> {
-        if req.path().starts_with(&self.prefix) {
-            Ok(Pipeline::new(req, Rc::clone(&self.middlewares),
-                             &|req: HttpRequest| self.run(req)))
+impl<S: 'static> HttpHandler for HttpApplication<S> {
+
+    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+        let m = {
+            let path = req.path();
+            path.starts_with(&self.prefix) && (
+                path.len() == self.prefix.len() ||
+                    path.split_at(self.prefix.len()).1.starts_with('/'))
+        };
+        if m {
+            let inner = Rc::clone(&self.inner);
+            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
+
+            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner)))
         } else {
             Err(req)
         }
     }
 }
 
+struct ApplicationParts<S> {
+    state: S,
+    prefix: String,
+    settings: ServerSettings,
+    default: Resource<S>,
+    resources: HashMap<Pattern, Option<Resource<S>>>,
+    handlers: Vec<(String, Box<RouteHandler<S>>)>,
+    external: HashMap<String, Pattern>,
+    middlewares: Vec<Box<Middleware<S>>>,
+}
+
+/// Structure that follows the builder pattern for building `Application` structs.
+pub struct Application<S=()> {
+    parts: Option<ApplicationParts<S>>,
+}
+
 impl Application<()> {
 
-    /// Create default `ApplicationBuilder` with no state
-    pub fn default<T: Into<String>>(prefix: T) -> ApplicationBuilder<()> {
-        ApplicationBuilder {
-            parts: Some(ApplicationBuilderParts {
+    /// Create application with empty state. Application can
+    /// be configured with builder-like pattern.
+    pub fn new() -> Application<()> {
+        Application {
+            parts: Some(ApplicationParts {
                 state: (),
-                prefix: prefix.into(),
+                prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
-                handlers: HashMap::new(),
                 resources: HashMap::new(),
+                handlers: Vec::new(),
+                external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
+    }
+}
+
+impl Default for Application<()> {
+    fn default() -> Self {
+        Application::new()
     }
 }
 
 impl<S> Application<S> where S: 'static {
 
-    /// Create application builder with specific state. State is shared with all
-    /// routes within same application and could be
-    /// accessed with `HttpContext::state()` method.
-    pub fn build<T: Into<String>>(prefix: T, state: S) -> ApplicationBuilder<S> {
-        ApplicationBuilder {
-            parts: Some(ApplicationBuilderParts {
+    /// Create application with specific state. Application can be
+    /// configured with builder-like pattern.
+    ///
+    /// State is shared with all reousrces within same application and could be
+    /// accessed with `HttpRequest::state()` method.
+    pub fn with_state(state: S) -> Application<S> {
+        Application {
+            parts: Some(ApplicationParts {
                 state: state,
-                prefix: prefix.into(),
+                prefix: "/".to_owned(),
+                settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
-                handlers: HashMap::new(),
                 resources: HashMap::new(),
+                handlers: Vec::new(),
+                external: HashMap::new(),
                 middlewares: Vec::new(),
             })
         }
     }
-}
 
-struct ApplicationBuilderParts<S> {
-    state: S,
-    prefix: String,
-    default: Resource<S>,
-    handlers: HashMap<String, Box<RouteHandler<S>>>,
-    resources: HashMap<String, Resource<S>>,
-    middlewares: Vec<Box<Middleware>>,
-}
-
-/// Structure that follows the builder pattern for building `Application` structs.
-pub struct ApplicationBuilder<S=()> {
-    parts: Option<ApplicationBuilderParts<S>>,
-}
-
-impl<S> ApplicationBuilder<S> where S: 'static {
+    /// Set application prefix
+    ///
+    /// Only requests that matches application's prefix get processed by this application.
+    /// Application prefix always contains laading "/" slash. If supplied prefix
+    /// does not contain leading slash, it get inserted. Prefix should
+    /// consists valid path segments. i.e for application with
+    /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
+    /// would match, but path `/application` would not match.
+    ///
+    /// In the following example only requests with "/app/" path prefix
+    /// get handled. Request with path "/app/test/" would be handled,
+    /// but request with path "/application" or "/other/..." would return *NOT FOUND*
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .prefix("/app")
+    ///         .resource("/test", |r| {
+    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+    ///         })
+    ///         .finish();
+    /// }
+    /// ```
+    pub fn prefix<P: Into<String>>(mut self, prefix: P) -> Application<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            let mut prefix = prefix.into();
+            if !prefix.starts_with('/') {
+                prefix.insert(0, '/')
+            }
+            parts.prefix = prefix;
+        }
+        self
+    }
 
     /// Configure resource for specific path.
     ///
@@ -118,7 +200,7 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// A variable part is specified in the form `{identifier}`, where
     /// the identifier can be used later in a request handler to access the matched
     /// value for that part. This is done by looking up the identifier
-    /// in the `Params` object returned by `Request.match_info()` method.
+    /// in the `Params` object returned by `HttpRequest.match_info()` method.
     ///
     /// By default, each part matches the regular expression `[^{}/]+`.
     ///
@@ -128,37 +210,39 @@ impl<S> ApplicationBuilder<S> where S: 'static {
     /// store userid and friend in the exposed Params object:
     ///
     /// ```rust
-    /// extern crate actix_web;
+    /// # extern crate actix_web;
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::default("/")
+    ///     let app = Application::new()
     ///         .resource("/test", |r| {
-    ///              r.get(|req| httpcodes::HTTPOk);
-    ///              r.handler(Method::HEAD, |req| httpcodes::HTTPMethodNotAllowed);
-    ///         })
-    ///         .finish();
+    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+    ///         });
     /// }
     /// ```
-    pub fn resource<F, P: Into<String>>(&mut self, path: P, f: F) -> &mut Self
+    pub fn resource<F>(mut self, path: &str, f: F) -> Application<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
             // add resource
-            let path = path.into();
-            if !parts.resources.contains_key(&path) {
-                check_pattern(&path);
-                parts.resources.insert(path.clone(), Resource::default());
+            let mut resource = Resource::default();
+            f(&mut resource);
+
+            let pattern = Pattern::new(resource.get_name(), path, "^/");
+            if parts.resources.contains_key(&pattern) {
+                panic!("Resource {:?} is registered.", path);
             }
-            f(parts.resources.get_mut(&path).unwrap());
+
+            parts.resources.insert(pattern, Some(resource));
         }
         self
     }
 
-    /// Default resource is used if no match route could be found.
-    pub fn default_resource<F>(&mut self, f: F) -> &mut Self
+    /// Default resource is used if no matched route could be found.
+    pub fn default_resource<F>(mut self, f: F) -> Application<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
@@ -168,105 +252,142 @@ impl<S> ApplicationBuilder<S> where S: 'static {
         self
     }
 
-    /// This method register handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
+    /// Register external resource.
+    ///
+    /// External resources are useful for URL generation purposes only and
+    /// are never considered for matching at request time.
+    /// Call to `HttpRequest::url_for()` will work as expected.
     ///
     /// ```rust
-    /// extern crate actix_web;
+    /// # extern crate actix_web;
     /// use actix_web::*;
     ///
+    /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
+    ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
+    ///    assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+    ///    Ok(httpcodes::HTTPOk.into())
+    /// }
+    ///
     /// fn main() {
-    ///     let app = Application::default("/")
-    ///         .handler("/test", |req| {
-    ///              match *req.method() {
-    ///                  Method::GET => httpcodes::HTTPOk,
-    ///                  Method::POST => httpcodes::HTTPMethodNotAllowed,
-    ///                  _ => httpcodes::HTTPNotFound,
-    ///              }
-    ///         })
+    ///     let app = Application::new()
+    ///         .resource("/index.html", |r| r.f(index))
+    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
     ///         .finish();
     /// }
     /// ```
-    pub fn handler<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where P: Into<String>,
-              F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static
+    pub fn external_resource<T, U>(mut self, name: T, url: U) -> Application<S>
+        where T: AsRef<str>, U: AsRef<str>
     {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+
+            if parts.external.contains_key(name.as_ref()) {
+                panic!("External resource {:?} is registered.", name.as_ref());
+            }
+            parts.external.insert(
+                String::from(name.as_ref()), Pattern::new(name.as_ref(), url.as_ref(), "^/"));
+        }
         self
     }
 
-    /// This method register handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
-    pub fn route<P, H>(&mut self, path: P, handler: H) -> &mut Self
-        where P: Into<String>, H: Handler<S>
+    /// Configure handler for specific path prefix.
+    ///
+    /// Path prefix consists valid path segments. i.e for prefix `/app`
+    /// any request with following paths `/app`, `/app/` or `/app/test`
+    /// would match, but path `/application` would not match.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .handler("/app", |req: HttpRequest| {
+    ///             match *req.method() {
+    ///                 Method::GET => httpcodes::HTTPOk,
+    ///                 Method::POST => httpcodes::HTTPMethodNotAllowed,
+    ///                 _ => httpcodes::HTTPNotFound,
+    ///         }});
+    /// }
+    /// ```
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Application<S>
     {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(WrapHandler::new(handler)));
+        {
+            let path = path.trim().trim_right_matches('/').to_owned();
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.handlers.push((path, Box::new(WrapHandler::new(handler))));
+        }
         self
     }
 
-    /// This method register async handler for specified path prefix.
-    /// Any path that starts with this prefix matches handler.
-    pub fn async<P, F, R>(&mut self, path: P, handler: F) -> &mut Self
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Future<Item=HttpResponse, Error=Error> + 'static,
-              P: Into<String>,
-    {
-        self.parts.as_mut().expect("Use after finish")
-            .handlers.insert(path.into(), Box::new(AsyncHandler::new(handler)));
-        self
-    }
-
-    /// Construct application
-    pub fn middleware<T>(&mut self, mw: T) -> &mut Self
-        where T: Middleware + 'static
+    /// Register a middleware
+    pub fn middleware<T>(mut self, mw: T) -> Application<S>
+        where T: Middleware<S> + 'static
     {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
         self
     }
 
-    /// Construct application
-    pub fn finish(&mut self) -> Application<S> {
+    /// Finish application configuration and create HttpHandler object
+    pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
+        let prefix = parts.prefix.trim().trim_right_matches('/');
 
-        let mut handlers = HashMap::new();
-        let prefix = if parts.prefix.ends_with('/') {
-            parts.prefix
-        } else {
-            parts.prefix + "/"
-        };
-
-        let mut routes = Vec::new();
-        for (path, handler) in parts.resources {
-            routes.push((path, handler))
+        let mut resources = parts.resources;
+        for (_, pattern) in parts.external {
+            resources.insert(pattern, None);
         }
 
-        for (path, mut handler) in parts.handlers {
-            let path = prefix.clone() + path.trim_left_matches('/');
-            handlers.insert(path, handler);
-        }
-        Application {
+        let (router, resources) = Router::new(prefix, parts.settings, resources);
+
+        let inner = Rc::new(RefCell::new(
+            Inner {
+                prefix: prefix.len(),
+                default: parts.default,
+                router: router.clone(),
+                resources: resources,
+                handlers: parts.handlers,
+            }
+        ));
+
+        HttpApplication {
             state: Rc::new(parts.state),
-            prefix: prefix.clone(),
-            default: parts.default,
-            handlers: handlers,
-            router: RouteRecognizer::new(prefix, routes),
+            prefix: prefix.to_owned(),
+            inner: inner,
+            router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
         }
     }
 }
 
-impl<S: 'static> From<ApplicationBuilder<S>> for Application<S> {
-    fn from(mut builder: ApplicationBuilder<S>) -> Application<S> {
-        builder.finish()
+impl<S: 'static> IntoHttpHandler for Application<S> {
+    type Handler = HttpApplication<S>;
+
+    fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
+        self.finish()
     }
 }
 
-impl<S: 'static> Iterator for ApplicationBuilder<S> {
-    type Item = Application<S>;
+impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
+    type Handler = HttpApplication<S>;
+
+    fn into_handler(self, settings: ServerSettings) -> HttpApplication<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.settings = settings;
+        }
+        self.finish()
+    }
+}
+
+#[doc(hidden)]
+impl<S: 'static> Iterator for Application<S> {
+    type Item = HttpApplication<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.parts.is_some() {
@@ -275,4 +396,139 @@ impl<S: 'static> Iterator for ApplicationBuilder<S> {
             None
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+    use super::*;
+    use test::TestRequest;
+    use httprequest::HttpRequest;
+    use httpcodes;
+
+    #[test]
+    fn test_default_resource() {
+        let mut app = Application::new()
+            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let mut app = Application::new()
+            .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
+            .finish();
+        let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_unhandled_prefix() {
+        let mut app = Application::new()
+            .prefix("/test")
+            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        assert!(app.handle(HttpRequest::default()).is_err());
+    }
+
+    #[test]
+    fn test_state() {
+        let mut app = Application::with_state(10)
+            .resource("/", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_prefix() {
+        let mut app = Application::new()
+            .prefix("/test")
+            .resource("/blah", |r| r.h(httpcodes::HTTPOk))
+            .finish();
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/test/blah").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_ok());
+
+        let req = TestRequest::with_uri("/testing").finish();
+        let resp = app.handle(req);
+        assert!(resp.is_err());
+    }
+
+    #[test]
+    fn test_handler() {
+        let mut app = Application::new()
+            .handler("/test", httpcodes::HTTPOk)
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_handler_prefix() {
+        let mut app = Application::new()
+            .prefix("/app")
+            .handler("/test", httpcodes::HTTPOk)
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+    }
+
 }

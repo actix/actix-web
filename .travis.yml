@@ -4,7 +4,7 @@ rust:
   - 1.20.0
   - stable
   - beta
-  - nightly
+  - nightly-2018-01-03
 
 sudo: required
 dist: trusty
@@ -28,7 +28,28 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - USE_SKEPTIC=1 cargo test --features=alpn
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+       USE_SKEPTIC=1 cargo test --features=alpn
+    else
+       cargo test --features=alpn
+    fi
+
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+      cd examples/basics && cargo check && cd ../..
+      cd examples/hello-world && cargo check && cd ../..
+      cd examples/multipart && cargo check && cd ../..
+      cd examples/json && cargo check && cd ../..
+      cd examples/template_tera && cargo check && cd ../..
+    fi
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
+       cd examples/diesel && cargo check && cd ../..
+       cd examples/tls && cargo check && cd ../..
+       cd examples/websocket-chat && cargo check && cd ../..
+       cd examples/websocket && cargo check && cd ../..
+    fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
         cargo clippy
@@ -37,7 +58,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly-2018-01-03" ]]; then
       cargo doc --features alpn --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
@@ -49,18 +70,8 @@ after_success:
 
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
-      wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-      tar xzf master.tar.gz &&
-      cd kcov-master &&
-      mkdir build &&
-      cd build &&
-      cmake .. &&
-      make &&
-      make install DESTDIR=../../kcov-build &&
-      cd ../.. &&
-      rm -rf kcov-master &&
-      for file in target/debug/actix_web-*[^\.d]; do mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
-      for file in target/debug/test_*[^\.d]; do mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
-      bash <(curl -s https://codecov.io/bash) &&
+      bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+      USE_SKEPTIC=1 cargo tarpaulin --out Xml
+      bash <(curl -s https://codecov.io/bash)
       echo "Uploaded code coverage"
     fi

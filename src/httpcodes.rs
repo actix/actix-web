@@ -1,10 +1,9 @@
 //! Basic http responses
 #![allow(non_upper_case_globals)]
-use http::StatusCode;
+use http::{StatusCode, Error as HttpError};
 
 use body::Body;
-use route::Reply;
-use route::RouteHandler;
+use handler::{Reply, Handler, RouteHandler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 
@@ -55,9 +54,6 @@ impl StaticResponse {
     pub fn build(&self) -> HttpResponseBuilder {
         HttpResponse::build(self.0)
     }
-    pub fn response(&self) -> HttpResponse {
-        HttpResponse::new(self.0, Body::Empty)
-    }
     pub fn with_reason(self, reason: &'static str) -> HttpResponse {
         let mut resp = HttpResponse::new(self.0, Body::Empty);
         resp.set_reason(reason);
@@ -68,15 +64,38 @@ impl StaticResponse {
     }
 }
 
+impl<S> Handler<S> for StaticResponse {
+    type Result = HttpResponse;
+
+    fn handle(&mut self, _: HttpRequest<S>) -> HttpResponse {
+        HttpResponse::new(self.0, Body::Empty)
+    }
+}
+
 impl<S> RouteHandler<S> for StaticResponse {
-    fn handle(&self, _: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, _: HttpRequest<S>) -> Reply {
         Reply::response(HttpResponse::new(self.0, Body::Empty))
+    }
+}
+
+impl Responder for StaticResponse {
+    type Item = HttpResponse;
+    type Error = HttpError;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+        self.build().body(Body::Empty)
     }
 }
 
 impl From<StaticResponse> for HttpResponse {
     fn from(st: StaticResponse) -> Self {
-        st.response()
+        HttpResponse::new(st.0, Body::Empty)
+    }
+}
+
+impl From<StaticResponse> for Reply {
+    fn from(st: StaticResponse) -> Self {
+        HttpResponse::new(st.0, Body::Empty).into()
     }
 }
 
@@ -137,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_response() {
-        let resp = HTTPOk.response();
+        let resp: HttpResponse = HTTPOk.into();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -149,8 +168,8 @@ mod tests {
 
     #[test]
     fn test_with_reason() {
-        let resp = HTTPOk.response();
-        assert_eq!(resp.reason(), "");
+        let resp: HttpResponse = HTTPOk.into();
+        assert_eq!(resp.reason(), "OK");
 
         let resp = HTTPBadRequest.with_reason("test");
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);

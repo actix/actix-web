@@ -1,5 +1,5 @@
 //! Error and Result module
-use std::{fmt, result};
+use std::{io, fmt, result};
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::io::Error as IoError;
@@ -10,11 +10,13 @@ use std::error::Error as StdError;
 use cookie;
 use httparse;
 use failure::Fail;
+use futures::Canceled;
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
+use url::ParseError as UrlParseError;
 
 // re-exports
 pub use cookie::{ParseError as CookieParseError};
@@ -28,25 +30,25 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 ///
 /// This typedef is generally used to avoid writing out `actix_web::error::Error` directly and
 /// is otherwise a direct mapping to `Result`.
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T, E=Error> = result::Result<T, E>;
 
 /// General purpose actix web error
-#[derive(Debug)]
+#[derive(Fail, Debug)]
 pub struct Error {
-    cause: Box<ErrorResponse>,
+    cause: Box<ResponseError>,
 }
 
 impl Error {
 
     /// Returns a reference to the underlying cause of this Error.
     // this should return &Fail but needs this https://github.com/rust-lang/rust/issues/5665
-    pub fn cause(&self) -> &ErrorResponse {
+    pub fn cause(&self) -> &ResponseError {
         self.cause.as_ref()
     }
 }
 
 /// Error that can be converted to `HttpResponse`
-pub trait ErrorResponse: Fail {
+pub trait ResponseError: Fail {
 
     /// Create response for error
     ///
@@ -69,8 +71,8 @@ impl From<Error> for HttpResponse {
     }
 }
 
-/// `Error` for any error that implements `ErrorResponse`
-impl<T: ErrorResponse> From<T> for Error {
+/// `Error` for any error that implements `ResponseError`
+impl<T: ResponseError> From<T> for Error {
     fn from(err: T) -> Error {
         Error { cause: Box::new(err) }
     }
@@ -78,31 +80,39 @@ impl<T: ErrorResponse> From<T> for Error {
 
 /// Default error is `InternalServerError`
 #[cfg(actix_nightly)]
-default impl<T: StdError + Sync + Send + 'static> ErrorResponse for T {
+default impl<T: StdError + Sync + Send + 'static> ResponseError for T {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
     }
 }
 
 /// `InternalServerError` for `JsonError`
-impl ErrorResponse for JsonError {}
+impl ResponseError for JsonError {}
 
 /// Return `InternalServerError` for `HttpError`,
 /// Response generation can return `HttpError`, so it is internal error
-impl ErrorResponse for HttpError {}
+impl ResponseError for HttpError {}
 
 /// Return `InternalServerError` for `io::Error`
-impl ErrorResponse for IoError {}
+impl ResponseError for io::Error {
+
+    fn error_response(&self) -> HttpResponse {
+        match self.kind() {
+            io::ErrorKind::NotFound =>
+                HttpResponse::new(StatusCode::NOT_FOUND, Body::Empty),
+            io::ErrorKind::PermissionDenied =>
+                HttpResponse::new(StatusCode::FORBIDDEN, Body::Empty),
+            _ =>
+                HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
+        }
+    }
+}
 
 /// `InternalServerError` for `InvalidHeaderValue`
-impl ErrorResponse for header::InvalidHeaderValue {}
+impl ResponseError for header::InvalidHeaderValue {}
 
-/// Internal error
-#[derive(Fail, Debug)]
-#[fail(display="Unexpected task frame")]
-pub struct UnexpectedTaskFrame;
-
-impl ErrorResponse for UnexpectedTaskFrame {}
+/// `InternalServerError` for `futures::Canceled`
+impl ResponseError for Canceled {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]
@@ -141,7 +151,7 @@ pub enum ParseError {
 }
 
 /// Return `BadRequest` for `ParseError`
-impl ErrorResponse for ParseError {
+impl ResponseError for ParseError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
     }
@@ -168,10 +178,8 @@ impl From<FromUtf8Error> for ParseError {
 impl From<httparse::Error> for ParseError {
     fn from(err: httparse::Error) -> ParseError {
         match err {
-            httparse::Error::HeaderName |
-            httparse::Error::HeaderValue |
-            httparse::Error::NewLine |
-            httparse::Error::Token => ParseError::Header,
+            httparse::Error::HeaderName | httparse::Error::HeaderValue |
+                httparse::Error::NewLine | httparse::Error::Token => ParseError::Header,
             httparse::Error::Status => ParseError::Status,
             httparse::Error::TooManyHeaders => ParseError::TooLarge,
             httparse::Error::Version => ParseError::Version,
@@ -188,6 +196,12 @@ pub enum PayloadError {
     /// Content encoding stream corruption
     #[fail(display="Can not decode content-encoding.")]
     EncodingCorrupted,
+    /// A payload reached size limit.
+    #[fail(display="A payload reached size limit.")]
+    Overflow,
+    /// A payload length is unknown.
+    #[fail(display="A payload length is unknown.")]
+    UnknownLength,
     /// Parse error
     #[fail(display="{}", _0)]
     ParseError(#[cause] IoError),
@@ -202,8 +216,11 @@ impl From<IoError> for PayloadError {
     }
 }
 
+/// `InternalServerError` for `PayloadError`
+impl ResponseError for PayloadError {}
+
 /// Return `BadRequest` for `cookie::ParseError`
-impl ErrorResponse for cookie::ParseError {
+impl ResponseError for cookie::ParseError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
     }
@@ -217,13 +234,13 @@ pub enum HttpRangeError {
     InvalidRange,
     /// Returned if first-byte-pos of all of the byte-range-spec
     /// values is greater than the content size.
-    /// See https://github.com/golang/go/commit/aa9b3d7
+    /// See `https://github.com/golang/go/commit/aa9b3d7`
     #[fail(display="First-byte-pos of all of the byte-range-spec values is greater than the content size")]
     NoOverlap,
 }
 
 /// Return `BadRequest` for `HttpRangeError`
-impl ErrorResponse for HttpRangeError {
+impl ResponseError for HttpRangeError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(
             StatusCode::BAD_REQUEST, Body::from("Invalid Range header provided"))
@@ -272,7 +289,7 @@ impl From<PayloadError> for MultipartError {
 }
 
 /// Return `BadRequest` for `MultipartError`
-impl ErrorResponse for MultipartError {
+impl ResponseError for MultipartError {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
@@ -290,7 +307,7 @@ pub enum ExpectError {
     UnknownExpect,
 }
 
-impl ErrorResponse for ExpectError {
+impl ResponseError for ExpectError {
 
     fn error_response(&self) -> HttpResponse {
         HTTPExpectationFailed.with_body("Unknown Expect")
@@ -320,7 +337,7 @@ pub enum WsHandshakeError {
     BadWebsocketKey,
 }
 
-impl ErrorResponse for WsHandshakeError {
+impl ResponseError for WsHandshakeError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
@@ -340,13 +357,13 @@ impl ErrorResponse for WsHandshakeError {
             WsHandshakeError::UnsupportedVersion =>
                 HTTPBadRequest.with_reason("Unsupported version"),
             WsHandshakeError::BadWebsocketKey =>
-                HTTPBadRequest.with_reason("Handshake error")
+                HTTPBadRequest.with_reason("Handshake error"),
         }
     }
 }
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Fail, Debug, PartialEq)]
+#[derive(Fail, Debug)]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding
     #[fail(display="Can not decode chunked transfer encoding")]
@@ -360,15 +377,205 @@ pub enum UrlencodedError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Payload error
+    #[fail(display="Error that occur during reading payload")]
+    Payload(PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
-impl ErrorResponse for UrlencodedError {
+impl ResponseError for UrlencodedError {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
     }
 }
+
+impl From<PayloadError> for UrlencodedError {
+    fn from(err: PayloadError) -> UrlencodedError {
+        UrlencodedError::Payload(err)
+    }
+}
+
+/// A set of errors that can occur during parsing json payloads
+#[derive(Fail, Debug)]
+pub enum JsonPayloadError {
+    /// Payload size is bigger than 256k
+    #[fail(display="Payload size is bigger than 256k")]
+    Overflow,
+    /// Content type error
+    #[fail(display="Content type error")]
+    ContentType,
+    /// Deserialize error
+    #[fail(display="Json deserialize error")]
+    Deserialize(JsonError),
+    /// Payload error
+    #[fail(display="Error that occur during reading payload")]
+    Payload(PayloadError),
+}
+
+/// Return `BadRequest` for `UrlencodedError`
+impl ResponseError for JsonPayloadError {
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
+impl From<PayloadError> for JsonPayloadError {
+    fn from(err: PayloadError) -> JsonPayloadError {
+        JsonPayloadError::Payload(err)
+    }
+}
+
+impl From<JsonError> for JsonPayloadError {
+    fn from(err: JsonError) -> JsonPayloadError {
+        JsonPayloadError::Deserialize(err)
+    }
+}
+
+/// Errors which can occur when attempting to interpret a segment string as a
+/// valid path segment.
+#[derive(Fail, Debug, PartialEq)]
+pub enum UriSegmentError {
+    /// The segment started with the wrapped invalid character.
+    #[fail(display="The segment started with the wrapped invalid character")]
+    BadStart(char),
+    /// The segment contained the wrapped invalid character.
+    #[fail(display="The segment contained the wrapped invalid character")]
+    BadChar(char),
+    /// The segment ended with the wrapped invalid character.
+    #[fail(display="The segment ended with the wrapped invalid character")]
+    BadEnd(char),
+}
+
+/// Return `BadRequest` for `UriSegmentError`
+impl ResponseError for UriSegmentError {
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
+
+/// Errors which can occur when attempting to generate resource uri.
+#[derive(Fail, Debug, PartialEq)]
+pub enum UrlGenerationError {
+    #[fail(display="Resource not found")]
+    ResourceNotFound,
+    #[fail(display="Not all path pattern covered")]
+    NotEnoughElements,
+    #[fail(display="Router is not available")]
+    RouterNotAvailable,
+    #[fail(display="{}", _0)]
+    ParseError(#[cause] UrlParseError),
+}
+
+/// `InternalServerError` for `UrlGeneratorError`
+impl ResponseError for UrlGenerationError {}
+
+impl From<UrlParseError> for UrlGenerationError {
+    fn from(err: UrlParseError) -> Self {
+        UrlGenerationError::ParseError(err)
+    }
+}
+
+macro_rules! ERROR_WRAP {
+    ($type:ty, $status:expr) => {
+        unsafe impl<T> Sync for $type {}
+        unsafe impl<T> Send for $type {}
+
+        impl<T> $type {
+            pub fn cause(&self) -> &T {
+                &self.0
+            }
+        }
+
+        impl<T: fmt::Debug + 'static> Fail for $type {}
+        impl<T: fmt::Debug + 'static> fmt::Display for $type {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{:?}", self.0)
+            }
+        }
+
+        impl<T> ResponseError for $type
+            where T: Send + Sync + fmt::Debug + 'static,
+        {
+            fn error_response(&self) -> HttpResponse {
+                HttpResponse::new($status, Body::Empty)
+            }
+        }
+
+    }
+}
+
+/// Helper type that can wrap any error and generate *BAD REQUEST* response.
+///
+/// In following example any `io::Error` will be converted into "BAD REQUEST" response
+/// as oposite to *INNTERNAL SERVER ERROR* which is defined by default.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # use actix_web::*;
+/// use actix_web::fs::NamedFile;
+///
+/// fn index(req: HttpRequest) -> Result<fs::NamedFile> {
+///    let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
+///    Ok(f)
+/// }
+/// # fn main() {}
+/// ```
+#[derive(Debug)]
+pub struct ErrorBadRequest<T>(pub T);
+ERROR_WRAP!(ErrorBadRequest<T>, StatusCode::BAD_REQUEST);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *UNAUTHORIZED* response.
+pub struct ErrorUnauthorized<T>(pub T);
+ERROR_WRAP!(ErrorUnauthorized<T>, StatusCode::UNAUTHORIZED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *FORBIDDEN* response.
+pub struct ErrorForbidden<T>(pub T);
+ERROR_WRAP!(ErrorForbidden<T>, StatusCode::FORBIDDEN);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *NOT FOUND* response.
+pub struct ErrorNotFound<T>(pub T);
+ERROR_WRAP!(ErrorNotFound<T>, StatusCode::NOT_FOUND);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *METHOD NOT ALLOWED* response.
+pub struct ErrorMethodNotAllowed<T>(pub T);
+ERROR_WRAP!(ErrorMethodNotAllowed<T>, StatusCode::METHOD_NOT_ALLOWED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *REQUEST TIMEOUT* response.
+pub struct ErrorRequestTimeout<T>(pub T);
+ERROR_WRAP!(ErrorRequestTimeout<T>, StatusCode::REQUEST_TIMEOUT);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *CONFLICT* response.
+pub struct ErrorConflict<T>(pub T);
+ERROR_WRAP!(ErrorConflict<T>, StatusCode::CONFLICT);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *GONE* response.
+pub struct ErrorGone<T>(pub T);
+ERROR_WRAP!(ErrorGone<T>, StatusCode::GONE);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *PRECONDITION FAILED* response.
+pub struct ErrorPreconditionFailed<T>(pub T);
+ERROR_WRAP!(ErrorPreconditionFailed<T>, StatusCode::PRECONDITION_FAILED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *EXPECTATION FAILED* response.
+pub struct ErrorExpectationFailed<T>(pub T);
+ERROR_WRAP!(ErrorExpectationFailed<T>, StatusCode::EXPECTATION_FAILED);
+
+#[derive(Debug)]
+/// Helper type that can wrap any error and generate *INTERNAL SERVER ERROR* response.
+pub struct ErrorInternalServerError<T>(pub T);
+ERROR_WRAP!(ErrorInternalServerError<T>, StatusCode::INTERNAL_SERVER_ERROR);
 
 #[cfg(test)]
 mod tests {

@@ -1,47 +1,38 @@
 use std;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::collections::VecDeque;
 use futures::{Async, Future, Poll};
 use futures::sync::oneshot::Sender;
+use futures::unsync::oneshot;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Handler, Subscriber, ResponseType};
+            Handler, Subscriber, ResponseType, SpawnHandle};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell, ActorItemsCell, ActorWaitCell, SpawnHandle,
-                 Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{AsyncContextApi, ActorAddressCell,
+                 ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
-use error::Error;
+use error::{Error, Result, ErrorInternalServerError};
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
-use pipeline::DrainFut;
 
-pub(crate) trait IoContext: 'static {
+
+pub trait ActorHttpContext: 'static {
     fn disconnected(&mut self);
     fn poll(&mut self) -> Poll<Option<Frame>, Error>;
 }
 
 #[derive(Debug)]
-pub(crate) enum Frame {
-    Message(HttpResponse),
+pub enum Frame {
     Payload(Option<Binary>),
-    Drain(Rc<RefCell<DrainFut>>),
+    Drain(oneshot::Sender<()>),
 }
 
 /// Http actor execution context
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
-    act: A,
-    state: ActorState,
-    modified: bool,
-    items: ActorItemsCell<A>,
-    address: ActorAddressCell<A>,
+    inner: ContextImpl<A>,
     stream: VecDeque<Frame>,
-    wait: ActorWaitCell<A>,
     request: HttpRequest<S>,
-    streaming: bool,
     disconnected: bool,
 }
 
@@ -50,23 +41,17 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
     /// Stop actor execution
     fn stop(&mut self) {
         self.stream.push_back(Frame::Payload(None));
-        self.items.stop();
-        self.address.close();
-        if self.state == ActorState::Running {
-            self.state = ActorState::Stopping;
-        }
+        self.inner.stop();
     }
 
     /// Terminate actor execution
     fn terminate(&mut self) {
-        self.address.close();
-        self.items.close();
-        self.state = ActorState::Stopped;
+        self.inner.terminate()
     }
 
     /// Actor execution state
     fn state(&self) -> ActorState {
-        self.state
+        self.inner.state()
     }
 }
 
@@ -75,50 +60,45 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
-        self.modified = true;
-        self.items.spawn(fut)
+        self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
-        self.modified = true;
-        self.wait.add(fut);
+        self.inner.wait(fut)
     }
 
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
-        self.modified = true;
-        self.items.cancel_future(handle)
-    }
-
-    fn cancel_future_on_stop(&mut self, handle: SpawnHandle) {
-        self.items.cancel_future_on_stop(handle)
+        self.inner.cancel_future(handle)
     }
 }
 
 #[doc(hidden)]
 impl<A, S> AsyncContextApi<A> for HttpContext<A, S> where A: Actor<Context=Self> {
     fn address_cell(&mut self) -> &mut ActorAddressCell<A> {
-        &mut self.address
+        self.inner.address_cell()
     }
 }
 
-impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
+impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
 
-    pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S>
-    {
+    pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
+        HttpContext::from_request(req).actor(actor)
+    }
+
+    pub fn from_request(req: HttpRequest<S>) -> HttpContext<A, S> {
         HttpContext {
-            act: actor,
-            state: ActorState::Started,
-            modified: false,
-            items: ActorItemsCell::default(),
-            address: ActorAddressCell::default(),
-            wait: ActorWaitCell::default(),
+            inner: ContextImpl::new(None),
             stream: VecDeque::new(),
             request: req,
-            streaming: false,
             disconnected: false,
         }
+    }
+
+    pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
+        self.inner.set_actor(actor);
+        self
     }
 }
 
@@ -134,24 +114,12 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         &mut self.request
     }
 
-    /// Send response to peer
-    pub fn start<R: Into<HttpResponse>>(&mut self, response: R) {
-        let resp = response.into();
-        match *resp.body() {
-            Body::StreamingContext | Body::UpgradeContext => self.streaming = true,
-            _ => (),
-        }
-        self.stream.push_back(Frame::Message(resp))
-    }
-
     /// Write payload
     pub fn write<B: Into<Binary>>(&mut self, data: B) {
-        if self.streaming {
-            if !self.disconnected {
-                self.stream.push_back(Frame::Payload(Some(data.into())))
-            }
+        if !self.disconnected {
+            self.stream.push_back(Frame::Payload(Some(data.into())));
         } else {
-            warn!("Trying to write response body for non-streaming response");
+            warn!("Trying to write to disconnected response");
         }
     }
 
@@ -162,10 +130,10 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
-        let fut = Rc::new(RefCell::new(DrainFut::default()));
-        self.stream.push_back(Frame::Drain(Rc::clone(&fut)));
-        self.modified = true;
-        Drain{ a: PhantomData, inner: fut }
+        let (tx, rx) = oneshot::channel();
+        self.inner.modify();
+        self.stream.push_back(Frame::Drain(tx));
+        Drain::new(rx)
     }
 
     /// Check if connection still open
@@ -178,117 +146,43 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
     #[doc(hidden)]
     pub fn subscriber<M>(&mut self) -> Box<Subscriber<M>>
-        where A: Handler<M>,
-              M: ResponseType + 'static,
+        where A: Handler<M>, M: ResponseType + 'static
     {
-        Box::new(self.address.unsync_address())
+        self.inner.subscriber()
     }
 
     #[doc(hidden)]
     pub fn sync_subscriber<M>(&mut self) -> Box<Subscriber<M> + Send>
         where A: Handler<M>,
-              M: ResponseType + Send + 'static,
-              M::Item: Send,
-              M::Error: Send,
+              M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send,
     {
-        Box::new(self.address.sync_address())
+        self.inner.sync_subscriber()
     }
 }
 
-impl<A, S> IoContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
+impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
 
     fn disconnected(&mut self) {
-        self.items.stop();
         self.disconnected = true;
-        if self.state == ActorState::Running {
-            self.state = ActorState::Stopping;
-        }
+        self.stop();
     }
 
     fn poll(&mut self) -> Poll<Option<Frame>, Error> {
-        let act: &mut A = unsafe {
-            std::mem::transmute(&mut self.act as &mut A)
-        };
         let ctx: &mut HttpContext<A, S> = unsafe {
             std::mem::transmute(self as &mut HttpContext<A, S>)
         };
 
-        // update state
-        match self.state {
-            ActorState::Started => {
-                Actor::started(act, ctx);
-                self.state = ActorState::Running;
-            },
-            ActorState::Stopping => {
-                Actor::stopping(act, ctx);
-            }
-            _ => ()
-        }
-
-        let mut prep_stop = false;
-        loop {
-            self.modified = false;
-
-            // check wait futures
-            if self.wait.poll(act, ctx) {
+        match self.inner.poll(ctx) {
+            Ok(Async::NotReady) => {
                 // get frame
                 if let Some(frame) = self.stream.pop_front() {
-                    return Ok(Async::Ready(Some(frame)))
+                    Ok(Async::Ready(Some(frame)))
+                } else {
+                    Ok(Async::NotReady)
                 }
-                return Ok(Async::NotReady)
             }
-
-            // incoming messages
-            self.address.poll(act, ctx);
-
-            // spawned futures and streams
-            self.items.poll(act, ctx);
-
-            // are we done
-            if self.modified {
-                continue
-            }
-
-            // get frame
-            if let Some(frame) = self.stream.pop_front() {
-                return Ok(Async::Ready(Some(frame)))
-            }
-
-            // check state
-            match self.state {
-                ActorState::Stopped => {
-                    self.state = ActorState::Stopped;
-                    Actor::stopped(act, ctx);
-                    return Ok(Async::Ready(None))
-                },
-                ActorState::Stopping => {
-                    if prep_stop {
-                        if self.address.connected() || !self.items.is_empty() {
-                            self.state = ActorState::Running;
-                            continue
-                        } else {
-                            self.state = ActorState::Stopped;
-                            Actor::stopped(act, ctx);
-                            return Ok(Async::Ready(None))
-                        }
-                    } else {
-                        Actor::stopping(act, ctx);
-                        prep_stop = true;
-                        continue
-                    }
-                },
-                ActorState::Running => {
-                    if !self.address.connected() && self.items.is_empty() {
-                        self.state = ActorState::Stopping;
-                        Actor::stopping(act, ctx);
-                        prep_stop = true;
-                        continue
-                    }
-                },
-                _ => (),
-            }
-
-            return Ok(Async::NotReady)
+            Ok(Async::Ready(())) => Ok(Async::Ready(None)),
+            Err(_) => Err(ErrorInternalServerError("error").into()),
         }
     }
 }
@@ -296,30 +190,49 @@ impl<A, S> IoContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'sta
 impl<A, S> ToEnvelope<A> for HttpContext<A, S>
     where A: Actor<Context=HttpContext<A, S>>,
 {
-    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>) -> Envelope<A>
+    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>,
+               channel_on_drop: bool) -> Envelope<A>
         where A: Handler<M>,
               M: ResponseType + Send + 'static,
               M::Item: Send,
               M::Error: Send
     {
-        RemoteEnvelope::new(msg, tx).into()
+        RemoteEnvelope::new(msg, tx, channel_on_drop).into()
     }
 }
 
-
-pub struct Drain<A> {
-    a: PhantomData<A>,
-    inner: Rc<RefCell<DrainFut>>
+impl<A, S> From<HttpContext<A, S>> for Body
+    where A: Actor<Context=HttpContext<A, S>>,
+          S: 'static
+{
+    fn from(ctx: HttpContext<A, S>) -> Body {
+        Body::Actor(Box::new(ctx))
+    }
 }
 
-impl<A> ActorFuture for Drain<A>
-    where A: Actor
-{
+pub struct Drain<A> {
+    fut: oneshot::Receiver<()>,
+    _a: PhantomData<A>,
+}
+
+impl<A> Drain<A> {
+    fn new(fut: oneshot::Receiver<()>) -> Self {
+        Drain {
+            fut: fut,
+            _a: PhantomData
+        }
+    }
+}
+
+impl<A: Actor> ActorFuture for Drain<A> {
     type Item = ();
     type Error = ();
     type Actor = A;
 
-    fn poll(&mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context) -> Poll<(), ()> {
-        self.inner.borrow_mut().poll()
+    fn poll(&mut self,
+            _: &mut A,
+            _: &mut <Self::Actor as Actor>::Context) -> Poll<Self::Item, Self::Error>
+    {
+        self.fut.poll().map_err(|_| ())
     }
 }

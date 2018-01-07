@@ -15,6 +15,10 @@
 
 * Content compression/decompression (br, gzip, deflate)
 
+* Server multi-threading
+
+* Gracefull shutdown support
+
 
 ## 0.2.1 (2017-11-03)
 

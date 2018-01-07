@@ -1,35 +1,38 @@
 use std::marker::PhantomData;
-use std::collections::HashMap;
 
-use http::Method;
-use futures::Future;
+use http::{Method, StatusCode};
 
-use error::Error;
-use route::{Reply, Handler, RouteHandler, AsyncHandler, WrapHandler};
+use pred;
+use body::Body;
+use route::Route;
+use handler::{Reply, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPNotFound, HTTPMethodNotAllowed};
 
-/// Http resource
-///
-/// `Resource` is an entry in route table which corresponds to requested URL.
+/// *Resource* is an entry in route table which corresponds to requested URL.
 ///
 /// Resource in turn has at least one route.
-/// Route corresponds to handling HTTP method by calling route handler.
+/// Route consists of an object that implements `Handler` trait (handler)
+/// and list of predicates (objects that implement `Predicate` trait).
+/// Route uses builder-like pattern for configuration.
+/// During request handling, resource object iterate through all routes
+/// and check all predicates for specific route, if request matches all predicates route
+/// route considired matched and route handler get called.
 ///
 /// ```rust
-/// extern crate actix_web;
+/// # extern crate actix_web;
+/// use actix_web::*;
 ///
 /// fn main() {
-///     let app = actix_web::Application::default("/")
-///         .resource("/", |r| r.get(|_| actix_web::HttpResponse::Ok()))
+///     let app = Application::new()
+///         .resource(
+///             "/", |r| r.method(Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
 pub struct Resource<S=()> {
     name: String,
     state: PhantomData<S>,
-    routes: HashMap<Method, Box<RouteHandler<S>>>,
-    default: Box<RouteHandler<S>>,
+    routes: Vec<Route<S>>,
 }
 
 impl<S> Default for Resource<S> {
@@ -37,85 +40,104 @@ impl<S> Default for Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: HashMap::new(),
-            default: Box::new(HTTPMethodNotAllowed)}
+            routes: Vec::new() }
     }
 }
 
-impl<S> Resource<S> where S: 'static {
+impl<S> Resource<S> {
 
     pub(crate) fn default_not_found() -> Self {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: HashMap::new(),
-            default: Box::new(HTTPNotFound)}
+            routes: Vec::new() }
     }
 
     /// Set resource name
-    pub fn set_name<T: Into<String>>(&mut self, name: T) {
+    pub fn name<T: Into<String>>(&mut self, name: T) {
         self.name = name.into();
     }
 
-    /// Register handler for specified method.
-    pub fn handler<F, R>(&mut self, method: Method, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static,
-    {
-        self.routes.insert(method, Box::new(WrapHandler::new(handler)));
-    }
-
-    /// Register async handler for specified method.
-    pub fn async<F, R>(&mut self, method: Method, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Future<Item=HttpResponse, Error=Error> + 'static,
-    {
-        self.routes.insert(method, Box::new(AsyncHandler::new(handler)));
-    }
-
-    /// Default handler is used if no matched route found.
-    /// By default `HTTPMethodNotAllowed` is used.
-    pub fn default_handler<H>(&mut self, handler: H) where H: Handler<S>
-    {
-        self.default = Box::new(WrapHandler::new(handler));
-    }
-
-    /// Register handler for `GET` method.
-    pub fn get<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
-        self.routes.insert(Method::GET, Box::new(WrapHandler::new(handler)));
-    }
-
-    /// Register handler for `POST` method.
-    pub fn post<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
-        self.routes.insert(Method::POST, Box::new(WrapHandler::new(handler)));
-    }
-
-    /// Register handler for `PUT` method.
-    pub fn put<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
-        self.routes.insert(Method::PUT, Box::new(WrapHandler::new(handler)));
-    }
-
-    /// Register handler for `DELETE` method.
-    pub fn delete<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Into<Reply> + 'static, {
-        self.routes.insert(Method::DELETE, Box::new(WrapHandler::new(handler)));
+    pub(crate) fn get_name(&self) -> &str {
+        &self.name
     }
 }
 
-impl<S: 'static> RouteHandler<S> for Resource<S> {
+impl<S: 'static> Resource<S> {
 
-    fn handle(&self, req: HttpRequest<S>) -> Reply {
-        if let Some(handler) = self.routes.get(req.method()) {
-            handler.handle(req)
+    /// Register a new route and return mutable reference to *Route* object.
+    /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .resource(
+    ///             "/", |r| r.route()
+    ///                  .p(pred::Any(pred::Get()).or(pred::Put()))
+    ///                  .p(pred::Header("Content-Type", "text/plain"))
+    ///                  .f(|r| HttpResponse::Ok()))
+    ///         .finish();
+    /// }
+    /// ```
+    pub fn route(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap()
+    }
+
+    /// Register a new route and add method check to route.
+    ///
+    /// This is shortcut for:
+    ///
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().p(pred::Get()).f(index)
+    /// ```
+    pub fn method(&mut self, method: Method) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().p(pred::Method(method))
+    }
+
+    /// Register a new route and add handler object.
+    ///
+    /// This is shortcut for:
+    ///
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().h(handler)
+    /// ```
+    pub fn h<H: Handler<S>>(&mut self, handler: H) {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().h(handler)
+    }
+
+    /// Register a new route and add handler function.
+    ///
+    /// This is shortcut for:
+    ///
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().f(index)
+    /// ```
+    pub fn f<F, R>(&mut self, handler: F)
+        where F: Fn(HttpRequest<S>) -> R + 'static,
+              R: Responder + 'static,
+    {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().f(handler)
+    }
+
+    pub(crate) fn handle(&mut self, mut req: HttpRequest<S>, default: Option<&mut Resource<S>>)
+                         -> Reply
+    {
+        for route in &mut self.routes {
+            if route.check(&mut req) {
+                return route.handle(req)
+            }
+        }
+        if let Some(resource) = default {
+            resource.handle(req, None)
         } else {
-            self.default.handle(req)
+            Reply::response(HttpResponse::new(StatusCode::NOT_FOUND, Body::Empty))
         }
     }
 }

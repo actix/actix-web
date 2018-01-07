@@ -8,6 +8,7 @@ use std::io::Read;
 
 use actix_web::*;
 
+
 /// somple handle
 fn index(req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
@@ -29,21 +30,22 @@ fn main() {
     file.read_to_end(&mut pkcs12).unwrap();
     let pkcs12 = Pkcs12::from_der(&pkcs12).unwrap().parse("12345").unwrap();
 
-    HttpServer::new(
-        Application::default("/")
+    let addr = HttpServer::new(
+        || Application::new()
             // enable logger
-            .middleware(middlewares::Logger::default())
+            .middleware(middleware::Logger::default())
             // register simple handler, handle all methods
-            .handler("/index.html", index)
+            .resource("/index.html", |r| r.f(index))
             // with path parameters
-            .resource("/", |r| r.handler(Method::GET, |req| {
+            .resource("/", |r| r.method(Method::GET).f(|req| {
                 httpcodes::HTTPFound
                     .build()
                     .header("LOCATION", "/index.html")
                     .body(Body::Empty)
             })))
-        .serve_tls::<_, ()>("127.0.0.1:8080", pkcs12).unwrap();
+        .bind("127.0.0.1:8443").unwrap()
+        .start_ssl(&pkcs12).unwrap();
 
-    println!("Started http server: 127.0.0.1:8080");
+    println!("Started http server: 127.0.0.1:8443");
     let _ = sys.run();
 }

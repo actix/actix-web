@@ -1,4 +1,4 @@
-use std::{self, io, ptr};
+use std::{self, io};
 use std::rc::Rc;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -10,24 +10,40 @@ use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
 use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Future, Poll, Async};
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use encoding::PayloadType;
-use channel::HttpHandler;
-use h1writer::H1Writer;
+use channel::{HttpHandler, HttpHandlerTask, IoStream};
+use h1writer::{Writer, H1Writer};
+use worker::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
-use error::{ParseError, PayloadError, ErrorResponse};
+use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
-const KEEPALIVE_PERIOD: u64 = 15; // seconds
-const INIT_BUFFER_SIZE: usize = 8192;
+const LW_BUFFER_SIZE: usize = 4096;
+const HW_BUFFER_SIZE: usize = 16_384;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 100;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
+
+bitflags! {
+    struct Flags: u8 {
+        const ERROR = 0b0000_0010;
+        const KEEPALIVE = 0b0000_0100;
+        const H2 = 0b0000_1000;
+    }
+}
+
+bitflags! {
+    struct EntryFlags: u8 {
+        const EOF = 0b0000_0001;
+        const ERROR = 0b0000_0010;
+        const FINISHED = 0b0000_0100;
+    }
+}
 
 pub(crate) enum Http1Result {
     Done,
@@ -40,51 +56,67 @@ enum Item {
     Http2,
 }
 
-pub(crate) struct Http1<T: AsyncWrite + 'static, H: 'static> {
-    router: Rc<Vec<H>>,
+pub(crate) struct Http1<T: IoStream, H: 'static> {
+    flags: Flags,
+    settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
     stream: H1Writer<T>,
     reader: Reader,
     read_buf: BytesMut,
-    error: bool,
     tasks: VecDeque<Entry>,
-    keepalive: bool,
     keepalive_timer: Option<Timeout>,
-    h2: bool,
 }
 
 struct Entry {
-    pipe: Pipeline,
-    eof: bool,
-    error: bool,
-    finished: bool,
+    pipe: Box<HttpHandlerTask>,
+    flags: EntryFlags,
 }
 
 impl<T, H> Http1<T, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          H: HttpHandler + 'static
+    where T: IoStream, H: HttpHandler + 'static
 {
-    pub fn new(stream: T, addr: Option<SocketAddr>, router: Rc<Vec<H>>) -> Self {
-        Http1{ router: router,
+    pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>) -> Self {
+        let bytes = h.get_shared_bytes();
+        Http1{ flags: Flags::KEEPALIVE,
+               settings: h,
                addr: addr,
-               stream: H1Writer::new(stream),
+               stream: H1Writer::new(stream, bytes),
                reader: Reader::new(),
                read_buf: BytesMut::new(),
-               error: false,
                tasks: VecDeque::new(),
-               keepalive: true,
-               keepalive_timer: None,
-               h2: false }
+               keepalive_timer: None }
     }
 
-    pub fn into_inner(mut self) -> (T, Option<SocketAddr>, Rc<Vec<H>>, Bytes) {
-        (self.stream.unwrap(), self.addr, self.router, self.read_buf.freeze())
+    pub fn settings(&self) -> &WorkerSettings<H> {
+        self.settings.as_ref()
     }
 
+    pub fn into_inner(self) -> (Rc<WorkerSettings<H>>, T, Option<SocketAddr>, Bytes) {
+        (self.settings, self.stream.into_inner(), self.addr, self.read_buf.freeze())
+    }
+
+    pub(crate) fn io(&mut self) -> &mut T {
+        self.stream.get_mut()
+    }
+
+    fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
+        // check stream state
+        match self.stream.poll_completed(shutdown) {
+            Ok(Async::Ready(_)) => Ok(true),
+            Ok(Async::NotReady) => Ok(false),
+            Err(err) => {
+                debug!("Error sending data: {}", err);
+                Err(())
+            }
+        }
+    }
+
+    // TODO: refacrtor
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<Http1Result, ()> {
         // keep-alive timer
-        if let Some(ref mut timeout) = self.keepalive_timer {
-            match timeout.poll() {
+        if self.keepalive_timer.is_some() {
+            match self.keepalive_timer.as_mut().unwrap().poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Keep-alive timeout, close connection");
                     return Ok(Async::Ready(Http1Result::Done))
@@ -103,8 +135,12 @@ impl<T, H> Http1<T, H>
             while idx < self.tasks.len() {
                 let item = &mut self.tasks[idx];
 
-                if !io && !item.eof {
-                    if item.error {
+                if !io && !item.flags.contains(EntryFlags::EOF) {
+                    if item.flags.contains(EntryFlags::ERROR) {
+                        // check stream state
+                        if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
+                            return Ok(Async::NotReady)
+                        }
                         return Err(())
                     }
 
@@ -113,14 +149,16 @@ impl<T, H> Http1<T, H>
                             not_ready = false;
 
                             // overide keep-alive state
-                            if self.keepalive {
-                                self.keepalive = self.stream.keepalive();
+                            if self.stream.keepalive() {
+                                self.flags.insert(Flags::KEEPALIVE);
+                            } else {
+                                self.flags.remove(Flags::KEEPALIVE);
                             }
-                            self.stream = H1Writer::new(self.stream.unwrap());
+                            self.stream.reset();
 
-                            item.eof = true;
+                            item.flags.insert(EntryFlags::EOF);
                             if ready {
-                                item.finished = true;
+                                item.flags.insert(EntryFlags::FINISHED);
                             }
                         },
                         Ok(Async::NotReady) => {
@@ -131,18 +169,24 @@ impl<T, H> Http1<T, H>
                             // it is not possible to recover from error
                             // during pipe handling, so just drop connection
                             error!("Unhandled error: {}", err);
+                            item.flags.insert(EntryFlags::ERROR);
+
+                            // check stream state, we still can have valid data in buffer
+                            if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
+                                return Ok(Async::NotReady)
+                            }
                             return Err(())
                         }
                     }
-                } else if !item.finished {
+                } else if !item.flags.contains(EntryFlags::FINISHED) {
                     match item.pipe.poll() {
                         Ok(Async::NotReady) => (),
                         Ok(Async::Ready(_)) => {
                             not_ready = false;
-                            item.finished = true;
+                            item.flags.insert(EntryFlags::FINISHED);
                         },
                         Err(err) => {
-                            item.error = true;
+                            item.flags.insert(EntryFlags::ERROR);
                             error!("Unhandled error: {}", err);
                         }
                     }
@@ -152,7 +196,9 @@ impl<T, H> Http1<T, H>
 
             // cleanup finished tasks
             while !self.tasks.is_empty() {
-                if self.tasks[0].eof && self.tasks[0].finished {
+                if self.tasks[0].flags.contains(EntryFlags::EOF) &&
+                    self.tasks[0].flags.contains(EntryFlags::FINISHED)
+                {
                     self.tasks.pop_front();
                 } else {
                     break
@@ -160,8 +206,15 @@ impl<T, H> Http1<T, H>
             }
 
             // no keep-alive
-            if !self.keepalive && self.tasks.is_empty() {
-                if self.h2 {
+            if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
+                let h2 = self.flags.contains(Flags::H2);
+
+                // check stream state
+                if !self.poll_completed(!h2)? {
+                    return Ok(Async::NotReady)
+                }
+
+                if h2 {
                     return Ok(Async::Ready(Http1Result::Switch))
                 } else {
                     return Ok(Async::Ready(Http1Result::Done))
@@ -169,20 +222,23 @@ impl<T, H> Http1<T, H>
             }
 
             // read incoming data
-            while !self.error && !self.h2 && self.tasks.len() < MAX_PIPELINED_MESSAGES {
-                match self.reader.parse(self.stream.get_mut(), &mut self.read_buf) {
+            while !self.flags.contains(Flags::ERROR) && !self.flags.contains(Flags::H2) &&
+                self.tasks.len() < MAX_PIPELINED_MESSAGES
+            {
+                match self.reader.parse(self.stream.get_mut(),
+                                        &mut self.read_buf, &self.settings) {
                     Ok(Async::Ready(Item::Http1(mut req))) => {
                         not_ready = false;
 
                         // set remote addr
-                        req.set_remove_addr(self.addr);
+                        req.set_peer_addr(self.addr);
 
                         // stop keepalive timer
                         self.keepalive_timer.take();
 
                         // start request processing
                         let mut pipe = None;
-                        for h in self.router.iter() {
+                        for h in self.settings.handlers().iter_mut() {
                             req = match h.handle(req) {
                                 Ok(t) => {
                                     pipe = Some(t);
@@ -194,16 +250,14 @@ impl<T, H> Http1<T, H>
 
                         self.tasks.push_back(
                             Entry {pipe: pipe.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
-                                   eof: false,
-                                   error: false,
-                                   finished: false});
+                                   flags: EntryFlags::empty()});
                     }
                     Ok(Async::Ready(Item::Http2)) => {
-                        self.h2 = true;
+                        self.flags.insert(Flags::H2);
                     }
                     Err(ReaderError::Disconnect) => {
                         not_ready = false;
-                        self.error = true;
+                        self.flags.insert(Flags::ERROR);
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
                             entry.pipe.disconnected()
@@ -218,37 +272,50 @@ impl<T, H> Http1<T, H>
                         }
 
                         // kill keepalive
-                        self.keepalive = false;
+                        self.flags.remove(Flags::KEEPALIVE);
                         self.keepalive_timer.take();
 
                         // on parse error, stop reading stream but tasks need to be completed
-                        self.error = true;
+                        self.flags.insert(Flags::ERROR);
 
                         if self.tasks.is_empty() {
                             if let ReaderError::Error(err) = err {
                                 self.tasks.push_back(
                                     Entry {pipe: Pipeline::error(err.error_response()),
-                                           eof: false,
-                                           error: false,
-                                           finished: false});
+                                           flags: EntryFlags::empty()});
                             }
                         }
                     }
                     Ok(Async::NotReady) => {
-                        // start keep-alive timer, this is also slow request timeout
+                        // start keep-alive timer, this also is slow request timeout
                         if self.tasks.is_empty() {
-                            if self.keepalive {
-                                if self.keepalive_timer.is_none() {
-                                    trace!("Start keep-alive timer");
-                                    let mut timeout = Timeout::new(
-                                        Duration::new(KEEPALIVE_PERIOD, 0),
-                                        Arbiter::handle()).unwrap();
-                                    // register timeout
-                                    let _ = timeout.poll();
-                                    self.keepalive_timer = Some(timeout);
+                            if self.settings.keep_alive_enabled() {
+                                let keep_alive = self.settings.keep_alive();
+                                if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
+                                    if self.keepalive_timer.is_none() {
+                                        trace!("Start keep-alive timer");
+                                        let mut to = Timeout::new(
+                                            Duration::new(keep_alive, 0),
+                                            Arbiter::handle()).unwrap();
+                                        // register timeout
+                                        let _ = to.poll();
+                                        self.keepalive_timer = Some(to);
+                                    }
+                                } else {
+                                    // check stream state
+                                    if !self.poll_completed(true)? {
+                                        return Ok(Async::NotReady)
+                                    }
+                                    // keep-alive disable, drop connection
+                                    return Ok(Async::Ready(Http1Result::Done))
                                 }
+                            } else if !self.poll_completed(false)? ||
+                                self.flags.contains(Flags::KEEPALIVE)
+                            {
+                                // check stream state or
+                                // if keep-alive unset, rely on operating system
+                                return Ok(Async::NotReady)
                             } else {
-                                // keep-alive disable, drop connection
                                 return Ok(Async::Ready(Http1Result::Done))
                             }
                         }
@@ -259,15 +326,22 @@ impl<T, H> Http1<T, H>
 
             // check for parse error
             if self.tasks.is_empty() {
-                if self.h2 {
+                let h2 = self.flags.contains(Flags::H2);
+
+                // check stream state
+                if !self.poll_completed(!h2)? {
+                    return Ok(Async::NotReady)
+                }
+                if h2 {
                     return Ok(Async::Ready(Http1Result::Switch))
                 }
-                if self.error || self.keepalive_timer.is_none() {
+                if self.flags.contains(Flags::ERROR) || self.keepalive_timer.is_none() {
                     return Ok(Async::Ready(Http1Result::Done))
                 }
             }
 
             if not_ready {
+                self.poll_completed(false)?;
                 return Ok(Async::NotReady)
             }
         }
@@ -338,80 +412,63 @@ impl Reader {
         }
     }
     
-    pub fn parse<T>(&mut self, io: &mut T, buf: &mut BytesMut) -> Poll<Item, ReaderError>
-        where T: AsyncRead
+    pub fn parse<T, H>(&mut self, io: &mut T,
+                       buf: &mut BytesMut,
+                       settings: &WorkerSettings<H>) -> Poll<Item, ReaderError>
+        where T: IoStream
     {
-        loop {
-            match self.decode(buf)? {
-                Decoding::Paused => return Ok(Async::NotReady),
-                Decoding::Ready => {
-                    self.payload = None;
-                    break
-                },
-                Decoding::NotReady => {
-                    match self.read_from_io(io, buf) {
-                        Ok(Async::Ready(0)) => {
-                            if let Some(ref mut payload) = self.payload {
-                                payload.tx.set_error(PayloadError::Incomplete);
-                            }
-                            // http channel should not deal with payload errors
-                            return Err(ReaderError::Payload)
-                        }
-                        Ok(Async::Ready(_)) => {
-                            continue
-                        }
-                        Ok(Async::NotReady) => break,
-                        Err(err) => {
-                            if let Some(ref mut payload) = self.payload {
-                                payload.tx.set_error(err.into());
-                            }
-                            // http channel should not deal with payload errors
-                            return Err(ReaderError::Payload)
-                        }
+        // read payload
+        if self.payload.is_some() {
+            match self.read_from_io(io, buf) {
+                Ok(Async::Ready(0)) => {
+                    if let Some(ref mut payload) = self.payload {
+                        payload.tx.set_error(PayloadError::Incomplete);
                     }
+                    // http channel should not deal with payload errors
+                    return Err(ReaderError::Payload)
+                },
+                Err(err) => {
+                    if let Some(ref mut payload) = self.payload {
+                        payload.tx.set_error(err.into());
+                    }
+                    // http channel should not deal with payload errors
+                    return Err(ReaderError::Payload)
                 }
+                _ => (),
+            }
+            match self.decode(buf)? {
+                Decoding::Ready => self.payload = None,
+                Decoding::Paused | Decoding::NotReady => return Ok(Async::NotReady),
             }
         }
 
+        // if buf is empty parse_message will always return NotReady, let's avoid that
+        let read = if buf.is_empty() {
+            match self.read_from_io(io, buf) {
+                Ok(Async::Ready(0)) => {
+                    // debug!("Ignored premature client disconnection");
+                    return Err(ReaderError::Disconnect);
+                },
+                Ok(Async::Ready(_)) => (),
+                Ok(Async::NotReady) =>
+                    return Ok(Async::NotReady),
+                Err(err) =>
+                    return Err(ReaderError::Error(err.into()))
+            }
+            false
+        } else {
+            true
+        };
+
         loop {
-            match Reader::parse_message(buf).map_err(ReaderError::Error)? {
+            match Reader::parse_message(buf, settings).map_err(ReaderError::Error)? {
                 Message::Http1(msg, decoder) => {
+                    // process payload
                     if let Some(payload) = decoder {
                         self.payload = Some(payload);
-
-                        loop {
-                            match self.decode(buf)? {
-                                Decoding::Paused =>
-                                    break,
-                                Decoding::Ready => {
-                                    self.payload = None;
-                                    break
-                                },
-                                Decoding::NotReady => {
-                                    match self.read_from_io(io, buf) {
-                                        Ok(Async::Ready(0)) => {
-                                            trace!("parse eof");
-                                            if let Some(ref mut payload) = self.payload {
-                                                payload.tx.set_error(
-                                                    PayloadError::Incomplete);
-                                            }
-                                            // http channel should deal with payload errors
-                                            return Err(ReaderError::Payload)
-                                        }
-                                        Ok(Async::Ready(_)) => {
-                                            continue
-                                        }
-                                        Ok(Async::NotReady) => break,
-                                        Err(err) => {
-                                            if let Some(ref mut payload) = self.payload {
-                                                payload.tx.set_error(err.into());
-                                            }
-                                            // http channel should deal with payload errors
-                                            return Err(ReaderError::Payload)
-                                        }
-                                    }
-                                }
-                            }
+                        match self.decode(buf)? {
+                            Decoding::Paused | Decoding::NotReady => (),
+                            Decoding::Ready => self.payload = None,
                         }
                     }
                     self.h1 = true;
@@ -425,52 +482,54 @@ impl Reader {
                 },
                 Message::NotReady => {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
-                        debug!("MAX_BUFFER_SIZE reached, closing");
+                        error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         return Err(ReaderError::Error(ParseError::TooLarge));
                     }
+                    if read {
+                        match self.read_from_io(io, buf) {
+                            Ok(Async::Ready(0)) => {
+                                debug!("Ignored premature client disconnection");
+                                return Err(ReaderError::Disconnect);
+                            },
+                            Ok(Async::Ready(_)) => (),
+                            Ok(Async::NotReady) =>
+                                return Ok(Async::NotReady),
+                            Err(err) =>
+                                return Err(ReaderError::Error(err.into()))
+                        }
+                    } else {
+                        return Ok(Async::NotReady)
+                    }
                 },
-            }
-            match self.read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    debug!("Ignored premature client disconnection");
-                    return Err(ReaderError::Disconnect);
-                },
-                Ok(Async::Ready(_)) => (),
-                Ok(Async::NotReady) =>
-                    return Ok(Async::NotReady),
-                Err(err) =>
-                    return Err(ReaderError::Error(err.into()))
             }
         }
     }
 
-    fn read_from_io<T: AsyncRead>(&mut self, io: &mut T, buf: &mut BytesMut)
-                                  -> Poll<usize, io::Error>
+    fn read_from_io<T: IoStream>(&mut self, io: &mut T, buf: &mut BytesMut)
+                                 -> Poll<usize, io::Error>
     {
-        if buf.remaining_mut() < INIT_BUFFER_SIZE {
-            buf.reserve(INIT_BUFFER_SIZE);
-            unsafe { // Zero out unused memory
-                let b = buf.bytes_mut();
-                let len = b.len();
-                ptr::write_bytes(b.as_mut_ptr(), 0, len);
-            }
-        }
         unsafe {
-            let n = match io.read(buf.bytes_mut()) {
-                Ok(n) => n,
+            if buf.remaining_mut() < LW_BUFFER_SIZE {
+                buf.reserve(HW_BUFFER_SIZE);
+            }
+            match io.read(buf.bytes_mut()) {
+                Ok(n) => {
+                    buf.advance_mut(n);
+                    Ok(Async::Ready(n))
+                },
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
-                        return Ok(Async::NotReady);
+                        Ok(Async::NotReady)
+                    } else {
+                        Err(e)
                     }
-                    return Err(e)
                 }
-            };
-            buf.advance_mut(n);
-            Ok(Async::Ready(n))
+            }
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Result<Message, ParseError>
+    fn parse_message<H>(buf: &mut BytesMut, settings: &WorkerSettings<H>)
+                        -> Result<Message, ParseError>
     {
         if buf.is_empty() {
             return Ok(Message::NotReady);
@@ -480,121 +539,107 @@ impl Reader {
         }
 
         // Parse http message
-        let mut headers_indices = [HeaderIndices {
-            name: (0, 0),
-            value: (0, 0)
-        }; MAX_HEADERS];
+        let msg = {
+            let bytes_ptr = buf.as_ref().as_ptr() as usize;
+            let mut headers: [httparse::Header; MAX_HEADERS] =
+                unsafe{std::mem::uninitialized()};
 
-        let (len, method, path, version, headers_len) = {
-            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-            let mut req = httparse::Request::new(&mut headers);
-            match try!(req.parse(buf)) {
-                httparse::Status::Complete(len) => {
-                    let method = Method::try_from(req.method.unwrap())
-                        .map_err(|_| ParseError::Method)?;
-                    let path = req.path.unwrap();
-                    let bytes_ptr = buf.as_ref().as_ptr() as usize;
-                    let path_start = path.as_ptr() as usize - bytes_ptr;
-                    let path_end = path_start + path.len();
-                    let path = (path_start, path_end);
+            let (len, method, path, version, headers_len) = {
+                let b = unsafe{ let b: &[u8] = buf; std::mem::transmute(b) };
+                let mut req = httparse::Request::new(&mut headers);
+                match req.parse(b)? {
+                    httparse::Status::Complete(len) => {
+                        let method = Method::try_from(req.method.unwrap())
+                            .map_err(|_| ParseError::Method)?;
+                        let path = req.path.unwrap();
+                        let path_start = path.as_ptr() as usize - bytes_ptr;
+                        let path_end = path_start + path.len();
+                        let path = (path_start, path_end);
 
-                    let version = if req.version.unwrap() == 1 {
-                        Version::HTTP_11
-                    } else {
-                        Version::HTTP_10
-                    };
-
-                    record_header_indices(buf.as_ref(), req.headers, &mut headers_indices);
-                    let headers_len = req.headers.len();
-                    (len, method, path, version, headers_len)
+                        let version = if req.version.unwrap() == 1 {
+                            Version::HTTP_11
+                        } else {
+                            Version::HTTP_10
+                        };
+                        (len, method, path, version, req.headers.len())
+                    }
+                    httparse::Status::Partial => return Ok(Message::NotReady),
                 }
-                httparse::Status::Partial => return Ok(Message::NotReady),
-            }
-        };
+            };
 
-        let slice = buf.split_to(len).freeze();
-        let path = slice.slice(path.0, path.1);
-        // path was found to be utf8 by httparse
-        let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
+            let slice = buf.split_to(len).freeze();
 
-        // convert headers
-        let mut headers = HeaderMap::with_capacity(headers_len);
-        for header in headers_indices[..headers_len].iter() {
-            if let Ok(name) = HeaderName::try_from(slice.slice(header.name.0, header.name.1)) {
-                if let Ok(value) = HeaderValue::try_from(
-                    slice.slice(header.value.0, header.value.1))
-                {
-                    headers.append(name, value);
+            // convert headers
+            let msg = settings.get_http_message();
+            for header in headers[..headers_len].iter() {
+                if let Ok(name) = HeaderName::try_from(header.name) {
+                    let v_start = header.value.as_ptr() as usize - bytes_ptr;
+                    let v_end = v_start + header.value.len();
+                    let value = unsafe {
+                        HeaderValue::from_shared_unchecked(slice.slice(v_start, v_end)) };
+                    msg.get_mut().headers.append(name, value);
                 } else {
                     return Err(ParseError::Header)
                 }
-            } else {
-                return Err(ParseError::Header)
             }
-        }
 
-        let (mut psender, payload) = Payload::new(false);
-        let msg = HttpRequest::new(method, uri, version, headers, payload);
+            let path = slice.slice(path.0, path.1);
+            let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
 
-        let decoder = if msg.upgrade() {
-            Decoder::eof()
-        } else {
-            let has_len = msg.headers().contains_key(header::CONTENT_LENGTH);
+            msg.get_mut().uri = uri;
+            msg.get_mut().method = method;
+            msg.get_mut().version = version;
+            msg
+        };
 
-            // Chunked encoding
-            if msg.chunked()? {
-                if has_len {
-                    return Err(ParseError::Header)
-                }
-                Decoder::chunked()
-            } else {
-                if !has_len {
-                    psender.feed_eof();
-                    return Ok(Message::Http1(msg, None))
-                }
-
-                // Content-Length
-                let len = msg.headers().get(header::CONTENT_LENGTH).unwrap();
-                if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<u64>() {
-                        Decoder::length(len)
-                    } else {
-                        debug!("illegal Content-Length: {:?}", len);
-                        return Err(ParseError::Header)
-                    }
+        let decoder = if let Some(len) = msg.get_ref().headers.get(header::CONTENT_LENGTH) {
+            // Content-Length
+            if let Ok(s) = len.to_str() {
+                if let Ok(len) = s.parse::<u64>() {
+                    Some(Decoder::length(len))
                 } else {
                     debug!("illegal Content-Length: {:?}", len);
                     return Err(ParseError::Header)
                 }
+            } else {
+                debug!("illegal Content-Length: {:?}", len);
+                return Err(ParseError::Header)
             }
+        } else if chunked(&msg.get_mut().headers)? {
+            // Chunked encoding
+            Some(Decoder::chunked())
+        } else if msg.get_ref().headers.contains_key(header::UPGRADE) ||
+            msg.get_ref().method == Method::CONNECT
+        {
+            Some(Decoder::eof())
+        } else {
+            None
         };
 
-        let payload = PayloadInfo {
-            tx: PayloadType::new(msg.headers(), psender),
-            decoder: decoder,
-        };
-        Ok(Message::Http1(msg, Some(payload)))
+        if let Some(decoder) = decoder {
+            let (psender, payload) = Payload::new(false);
+            let info = PayloadInfo {
+                tx: PayloadType::new(&msg.get_mut().headers, psender),
+                decoder: decoder,
+            };
+            msg.get_mut().payload = Some(payload);
+            Ok(Message::Http1(HttpRequest::from_message(msg), Some(info)))
+        } else {
+            Ok(Message::Http1(HttpRequest::from_message(msg), None))
+        }
     }
 }
 
-#[derive(Clone, Copy)]
-struct HeaderIndices {
-    name: (usize, usize),
-    value: (usize, usize),
-}
-
-fn record_header_indices(bytes: &[u8],
-                         headers: &[httparse::Header],
-                         indices: &mut [HeaderIndices])
-{
-    let bytes_ptr = bytes.as_ptr() as usize;
-    for (header, indices) in headers.iter().zip(indices.iter_mut()) {
-        let name_start = header.name.as_ptr() as usize - bytes_ptr;
-        let name_end = name_start + header.name.len();
-        indices.name = (name_start, name_end);
-        let value_start = header.value.as_ptr() as usize - bytes_ptr;
-        let value_end = value_start + header.value.len();
-        indices.value = (value_start, value_end);
+/// Check if request has chunked transfer encoding
+fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
+    if let Some(encodings) = headers.get(header::TRANSFER_ENCODING) {
+        if let Ok(s) = encodings.to_str() {
+            Ok(s.to_lowercase().contains("chunked"))
+        } else {
+            Err(ParseError::Header)
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -659,22 +704,9 @@ enum ChunkedState {
 }
 
 impl Decoder {
-    /*pub fn is_eof(&self) -> bool {
-        trace!("is_eof? {:?}", self);
-        match self.kind {
-            Kind::Length(0) |
-            Kind::Chunked(ChunkedState::End, _) |
-            Kind::Eof(true) => true,
-            _ => false,
-        }
-    }*/
-}
-
-impl Decoder {
     pub fn decode(&mut self, body: &mut BytesMut) -> Poll<Option<Bytes>, io::Error> {
         match self.kind {
             Kind::Length(ref mut remaining) => {
-                trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
                     Ok(Async::Ready(None))
                 } else {
@@ -755,7 +787,6 @@ impl ChunkedState {
         }
     }
     fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
-        trace!("Read chunk hex size");
         let radix = 16;
         match byte!(rdr) {
             b @ b'0'...b'9' => {
@@ -794,14 +825,12 @@ impl ChunkedState {
         }
     }
     fn read_extension(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
-        trace!("read_extension");
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
             _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
         }
     }
     fn read_size_lf(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
-        trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
             b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),
@@ -863,12 +892,17 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
-    use std::{io, cmp};
-    use bytes::{Bytes, BytesMut};
-    use futures::{Async};
-    use tokio_io::AsyncRead;
+    use std::{io, cmp, time};
+    use std::net::Shutdown;
+    use bytes::{Bytes, BytesMut, Buf};
+    use futures::Async;
+    use tokio_io::{AsyncRead, AsyncWrite};
     use http::{Version, Method};
+
     use super::*;
+    use application::HttpApplication;
+    use worker::WorkerSettings;
+    use channel::IoStream;
 
     struct Buffer {
         buf: Bytes,
@@ -907,6 +941,28 @@ mod tests {
         }
     }
 
+    impl IoStream for Buffer {
+        fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_nodelay(&mut self, _: bool) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl io::Write for Buffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {Ok(buf.len())}
+        fn flush(&mut self) -> io::Result<()> {Ok(())}
+    }
+    impl AsyncWrite for Buffer {
+        fn shutdown(&mut self) -> Poll<(), io::Error> { Ok(Async::Ready(())) }
+        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+            Ok(Async::NotReady)
+        }
+    }
+
     macro_rules! not_ready {
         ($e:expr) => (match $e {
             Ok(Async::NotReady) => (),
@@ -916,13 +972,14 @@ mod tests {
     }
 
     macro_rules! parse_ready {
-        ($e:expr) => (
-            match Reader::new().parse($e, &mut BytesMut::new()) {
+        ($e:expr) => ({
+            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+            match Reader::new().parse($e, &mut BytesMut::new(), &settings) {
                 Ok(Async::Ready(Item::Http1(req))) => req,
                 Ok(_) => panic!("Eof during parsing http request"),
                 Err(err) => panic!("Error during parsing http request: {:?}", err),
             }
-        )
+        })
     }
 
     macro_rules! reader_parse_ready {
@@ -938,7 +995,9 @@ mod tests {
     macro_rules! expect_parse_err {
         ($e:expr) => ({
             let mut buf = BytesMut::new();
-            match Reader::new().parse($e, &mut buf) {
+            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+
+            match Reader::new().parse($e, &mut buf, &settings) {
                 Err(err) => match err {
                     ReaderError::Error(_) => (),
                     _ => panic!("Parse error expected"),
@@ -954,14 +1013,14 @@ mod tests {
     fn test_parse() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -971,20 +1030,20 @@ mod tests {
     fn test_parse_partial() {
         let mut buf = Buffer::new("PUT /test HTTP/1");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::NotReady) => (),
             _ => panic!("Error"),
         }
 
         buf.feed_data(".1\r\n\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::PUT);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -994,14 +1053,14 @@ mod tests {
     fn test_parse_post() {
         let mut buf = Buffer::new("POST /test2 HTTP/1.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_10);
                 assert_eq!(*req.method(), Method::POST);
                 assert_eq!(req.path(), "/test2");
-                assert!(req.payload().eof());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1011,9 +1070,10 @@ mod tests {
     fn test_parse_body() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(mut req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1029,9 +1089,10 @@ mod tests {
         let mut buf = Buffer::new(
             "\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(mut req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
@@ -1046,17 +1107,17 @@ mod tests {
     fn test_parse_partial_eof() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert!(req.payload().eof());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1066,24 +1127,24 @@ mod tests {
     fn test_headers_split_field() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("t");
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("es");
-        not_ready!{ reader.parse(&mut buf, &mut readbuf) }
+        not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
 
         buf.feed_data("t: value\r\n\r\n");
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
                 assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
-                assert!(req.payload().eof());
             }
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
@@ -1096,9 +1157,10 @@ mod tests {
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http1(req))) => {
                 let val: Vec<_> = req.headers().get_all("Set-Cookie")
                     .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
@@ -1189,6 +1251,7 @@ mod tests {
     fn test_conn_upgrade() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
+             upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
@@ -1200,7 +1263,7 @@ mod tests {
     fn test_conn_upgrade_connect_method() {
         let mut buf = Buffer::new(
             "CONNECT /test HTTP/1.1\r\n\
-             content-length: 0\r\n\r\n");
+             content-type: text/plain\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
@@ -1214,7 +1277,6 @@ mod tests {
              transfer-encoding: chunked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.payload().eof());
         if let Ok(val) = req.chunked() {
             assert!(val);
         } else {
@@ -1226,7 +1288,6 @@ mod tests {
              transfer-encoding: chnked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(req.payload().eof());
         if let Ok(val) = req.chunked() {
             assert!(!val);
         } else {
@@ -1330,14 +1391,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
         buf.feed_data("4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
         assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
         assert!(req.payload().eof());
@@ -1349,10 +1411,11 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
 
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
@@ -1361,7 +1424,7 @@ mod tests {
              POST /test2 HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
 
-        let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert_eq!(*req2.method(), Method::POST);
         assert!(req2.chunked().unwrap());
         assert!(!req2.payload().eof());
@@ -1376,28 +1439,29 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
         buf.feed_data("4\r\ndata\r");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("\n4");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("\r");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         buf.feed_data("\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("li");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         buf.feed_data("ne\r\n0\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
         //buf.feed_data("test: test\r\n");
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
@@ -1406,7 +1470,7 @@ mod tests {
         assert!(!req.payload().eof());
 
         buf.feed_data("\r\n");
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.payload().eof());
     }
 
@@ -1416,14 +1480,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf));
+        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
         buf.feed_data("4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        not_ready!(reader.parse(&mut buf, &mut readbuf));
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
         assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
         assert!(req.payload().eof());
@@ -1450,9 +1515,10 @@ mod tests {
     fn test_http2_prefix() {
         let mut buf = Buffer::new("PRI * HTTP/2.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
 
         let mut reader = Reader::new();
-        match reader.parse(&mut buf, &mut readbuf) {
+        match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(Item::Http2)) => (),
             Ok(_) | Err(_) => panic!("Error during parsing http request"),
         }
