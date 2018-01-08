@@ -6,10 +6,10 @@ use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Handler, Subscriber, ResponseType, SpawnHandle};
+            Address, SyncAddress, Handler, Subscriber, ResponseType, SpawnHandle};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ActorAddressCell,
-                 ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{queue, AsyncContextApi,
+                 ContextImpl, ContextProtocol, Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
 use error::{Error, Result, ErrorInternalServerError};
@@ -76,13 +76,25 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
 
 #[doc(hidden)]
 impl<A, S> AsyncContextApi<A> for HttpContext<A, S> where A: Actor<Context=Self> {
-    fn address_cell(&mut self) -> &mut ActorAddressCell<A> {
-        self.inner.address_cell()
+    #[inline]
+    fn unsync_sender(&mut self) -> queue::unsync::UnboundedSender<ContextProtocol<A>> {
+        self.inner.unsync_sender()
+    }
+
+    #[inline]
+    fn unsync_address(&mut self) -> Address<A> {
+        self.inner.unsync_address()
+    }
+
+    #[inline]
+    fn sync_address(&mut self) -> SyncAddress<A> {
+        self.inner.sync_address()
     }
 }
 
 impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
 
+    #[inline]
     pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
         HttpContext::from_request(req).actor(actor)
     }
@@ -96,6 +108,7 @@ impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
         }
     }
 
+    #[inline]
     pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
         self.inner.set_actor(actor);
         self
@@ -105,16 +118,19 @@ impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
 impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
     /// Shared application state
+    #[inline]
     pub fn state(&self) -> &S {
         self.request.state()
     }
 
     /// Incoming request
+    #[inline]
     pub fn request(&mut self) -> &mut HttpRequest<S> {
         &mut self.request
     }
 
     /// Write payload
+    #[inline]
     pub fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
             self.stream.push_back(Frame::Payload(Some(data.into())));
@@ -124,6 +140,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 
     /// Indicate end of streamimng payload. Also this method calls `Self::close`.
+    #[inline]
     pub fn write_eof(&mut self) {
         self.stop();
     }
@@ -137,6 +154,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 
     /// Check if connection still open
+    #[inline]
     pub fn connected(&self) -> bool {
         !self.disconnected
     }
@@ -144,6 +162,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
 impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
+    #[inline]
     #[doc(hidden)]
     pub fn subscriber<M>(&mut self) -> Box<Subscriber<M>>
         where A: Handler<M>, M: ResponseType + 'static
@@ -151,6 +170,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         self.inner.subscriber()
     }
 
+    #[inline]
     #[doc(hidden)]
     pub fn sync_subscriber<M>(&mut self) -> Box<Subscriber<M> + Send>
         where A: Handler<M>,
@@ -162,6 +182,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
 
 impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
 
+    #[inline]
     fn disconnected(&mut self) {
         self.disconnected = true;
         self.stop();
@@ -172,17 +193,20 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
             std::mem::transmute(self as &mut HttpContext<A, S>)
         };
 
-        match self.inner.poll(ctx) {
-            Ok(Async::NotReady) => {
-                // get frame
-                if let Some(frame) = self.stream.pop_front() {
-                    Ok(Async::Ready(Some(frame)))
-                } else {
-                    Ok(Async::NotReady)
-                }
+        if self.inner.alive() {
+            match self.inner.poll(ctx) {
+                Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
+                Err(_) => return Err(ErrorInternalServerError("error").into()),
             }
-            Ok(Async::Ready(())) => Ok(Async::Ready(None)),
-            Err(_) => Err(ErrorInternalServerError("error").into()),
+        }
+
+        // frames
+        if let Some(frame) = self.stream.pop_front() {
+            Ok(Async::Ready(Some(frame)))
+        } else if self.inner.alive() {
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(None))
         }
     }
 }
@@ -190,6 +214,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
 impl<A, S> ToEnvelope<A> for HttpContext<A, S>
     where A: Actor<Context=HttpContext<A, S>>,
 {
+    #[inline]
     fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>,
                channel_on_drop: bool) -> Envelope<A>
         where A: Handler<M>,
@@ -229,6 +254,7 @@ impl<A: Actor> ActorFuture for Drain<A> {
     type Error = ();
     type Actor = A;
 
+    #[inline]
     fn poll(&mut self,
             _: &mut A,
             _: &mut <Self::Actor as Actor>::Context) -> Poll<Self::Item, Self::Error>
