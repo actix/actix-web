@@ -24,6 +24,7 @@ fn main() {
 * [User Guide](http://actix.github.io/actix-web/guide/)
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
+* [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
@@ -48,7 +49,7 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 
 ## Examples
 
-* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic/)
+* [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
