@@ -40,7 +40,6 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
 {
     /// Stop actor execution
     fn stop(&mut self) {
-        self.stream.push_back(Frame::Payload(None));
         self.inner.stop();
     }
 
@@ -142,7 +141,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     /// Indicate end of streamimng payload. Also this method calls `Self::close`.
     #[inline]
     pub fn write_eof(&mut self) {
-        self.stop();
+        self.stream.push_back(Frame::Payload(None));
     }
 
     /// Returns drain future
