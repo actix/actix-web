@@ -10,5 +10,5 @@ path = "src/main.rs"
 
 [dependencies]
 env_logger = "0.4"
-actix = "0.4"
+actix = "^0.4.2"
 actix-web = { git = "https://github.com/actix/actix-web", features=["alpn"] }
