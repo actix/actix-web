@@ -3,11 +3,17 @@ extern crate actix_web;
 extern crate tokio_core;
 extern crate reqwest;
 extern crate futures;
+extern crate h2;
+extern crate http;
 
 use std::{net, thread, time};
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use futures::Future;
+use h2::client;
+use http::Request;
+use tokio_core::net::TcpStream;
+use tokio_core::reactor::Core;
 
 use actix_web::*;
 use actix::System;
@@ -46,6 +52,35 @@ fn test_start() {
 fn test_simple() {
     let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
     assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
+}
+
+#[test]
+fn test_h2() {
+    let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
+    let addr = srv.addr();
+
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
+    let tcp = TcpStream::connect(&addr, &handle);
+
+    let tcp = tcp.then(|res| {
+        client::handshake(res.unwrap())
+    }).then(move |res| {
+        let (mut client, h2) = res.unwrap();
+
+        let request = Request::builder()
+            .uri(format!("https://{}/", addr).as_str())
+            .body(())
+            .unwrap();
+        let (response, _) = client.send_request(request, false).unwrap();
+
+        // Spawn a task to run the conn...
+        handle.spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
+
+        response
+    });
+    let resp = core.run(tcp).unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[test]

@@ -147,6 +147,11 @@ impl TestServer {
     }
 
     /// Construct test server url
+    pub fn addr(&self) -> net::SocketAddr {
+        self.addr
+    }
+
+    /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
             format!("http://{}{}", self.addr, uri)
