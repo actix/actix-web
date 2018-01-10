@@ -17,6 +17,7 @@
 //! ```rust
 //! # extern crate http;
 //! # extern crate actix_web;
+//! # use actix_web::*;
 //! use http::header;
 //! use actix_web::middleware::cors;
 //!
