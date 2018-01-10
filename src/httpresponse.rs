@@ -404,6 +404,16 @@ impl HttpResponseBuilder {
         self
     }
 
+    /// This method calls provided closure with builder reference if value is Some.
+    pub fn if_some<T, F>(&mut self, value: Option<&T>, f: F) -> &mut Self
+        where F: Fn(&T, &mut HttpResponseBuilder) + 'static
+    {
+        if let Some(val) = value {
+            f(val, self);
+        }
+        self
+    }
+
     /// Set a body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.

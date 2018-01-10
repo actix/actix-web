@@ -1,5 +1,48 @@
 //! Cross-origin resource sharing (CORS) for Actix applications
-
+//!
+//! CORS middleware could be used with application and with resource.
+//! First you need to construct CORS middleware instance.
+//!
+//! To construct a cors:
+//!
+//!   1. Call [`Cors::build`](struct.Cors.html#method.build) to start building.
+//!   2. Use any of the builder methods to set fields in the backend.
+//!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
+//!
+//! This constructed middleware could be used as parameter for `Application::middleware()` or
+//! `Resource::middleware()` methods.
+//!
+//! # Example
+//!
+//! ```rust
+//! # extern crate http;
+//! # extern crate actix_web;
+//! use http::header;
+//! use actix_web::middleware::cors;
+//!
+//! fn index(mut req: HttpRequest) -> &'static str {
+//!    "Hello world"
+//! }
+//!
+//! fn main() {
+//!     let app = Application::new()
+//!         .resource("/index.html", |r| {
+//!              r.middleware(cors::Cors::build()                   // <- Register CORS middleware
+//!                  .allowed_origin("https://www.rust-lang.org/")
+//!                  .allowed_methods(vec!["GET", "POST"])
+//!                  .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+//!                  .allowed_header(header::CONTENT_TYPE)
+//!                  .max_age(3600)
+//!                  .finish().expect("Can not create CORS middleware"))
+//!              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+//!              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+//!         })
+//!         .finish();
+//! }
+//! ```
+//! In this example custom *CORS* middleware get registered for "/index.html" endpoint.
+//!
+//! Cors middleware automatically handle *OPTIONS* preflight request.
 use std::collections::HashSet;
 
 use http::{self, Method, HttpTryFrom, Uri};
@@ -9,7 +52,7 @@ use error::{Result, ResponseError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
-use httpcodes::HTTPBadRequest;
+use httpcodes::{HTTPOk, HTTPBadRequest};
 
 /// A set of errors that can occur during processing CORS
 #[derive(Debug, Fail)]
@@ -26,6 +69,9 @@ pub enum Error {
     /// The request header `Access-Control-Request-Method` has an invalid value
     #[fail(display="The request header `Access-Control-Request-Method` has an invalid value")]
     BadRequestMethod,
+    /// The request header `Access-Control-Request-Headers`  has an invalid value
+    #[fail(display="The request header `Access-Control-Request-Headers`  has an invalid value")]
+    BadRequestHeaders,
     /// The request header `Access-Control-Request-Headers`  is required but is missing.
     #[fail(display="The request header `Access-Control-Request-Headers`  is required but is
                      missing")]
@@ -86,6 +132,14 @@ impl<T> AllOrSome<T> {
     pub fn is_some(&self) -> bool {
         !self.is_all()
     }
+
+    /// Returns &T
+    pub fn as_ref(&self) -> Option<&T> {
+        match *self {
+            AllOrSome::All => None,
+            AllOrSome::Some(ref t) => Some(t),
+        }
+    }
 }
 
 /// `Middleware` for Cross-origin resource sharing support
@@ -97,6 +151,7 @@ pub struct Cors {
     origins: AllOrSome<HashSet<Uri>>,
     headers: AllOrSome<HashSet<HeaderName>>,
     max_age: Option<usize>,
+    send_wildcards: bool,
 }
 
 impl Cors {
@@ -107,6 +162,7 @@ impl Cors {
                 methods: HashSet::new(),
                 headers: AllOrSome::All,
                 max_age: None,
+                send_wildcards: false,
             }),
             methods: false,
             error: None,
@@ -148,6 +204,33 @@ impl Cors {
             Err(Error::MissingRequestMethod)
         }
     }
+
+    fn validate_allowed_headers<S>(&self, req: &mut HttpRequest<S>) -> Result<(), Error> {
+        if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS) {
+            if let Ok(headers) = hdr.to_str() {
+                match self.headers {
+                    AllOrSome::All => return Ok(()),
+                    AllOrSome::Some(ref allowed_headers) => {
+                        let mut hdrs = HashSet::new();
+                        for hdr in headers.split(',') {
+                            match HeaderName::try_from(hdr.trim()) {
+                                Ok(hdr) => hdrs.insert(hdr),
+                                Err(_) => return Err(Error::BadRequestHeaders)
+                            };
+                        }
+
+                        if !hdrs.is_empty() && !hdrs.is_subset(allowed_headers) {
+                            return Err(Error::HeadersNotAllowed)
+                        }
+                        return Ok(())
+                    }
+                }
+            }
+            Err(Error::BadRequestHeaders)
+        } else {
+            Err(Error::MissingRequestHeaders)
+        }
+    }
 }
 
 impl<S> Middleware<S> for Cors {
@@ -156,11 +239,28 @@ impl<S> Middleware<S> for Cors {
         if Method::OPTIONS == *req.method() {
             self.validate_origin(req)?;
             self.validate_allowed_method(req)?;
+            self.validate_allowed_headers(req)?;
+
+            Ok(Started::Response(
+                HTTPOk.build()
+                    .if_some(self.max_age.as_ref(), |max_age, res| {
+                        let _ = res.header(
+                            header::ACCESS_CONTROL_MAX_AGE, format!("{}", max_age).as_str());})
+                    .if_some(self.headers.as_ref(), |headers, res| {
+                        let _ = res.header(
+                            header::ACCESS_CONTROL_ALLOW_HEADERS,
+                            headers.iter().fold(String::new(), |s, v| s + v.as_str()).as_str());})
+                    .header(
+                        header::ACCESS_CONTROL_ALLOW_METHODS,
+                        self.methods.iter().fold(String::new(), |s, v| s + v.as_str()).as_str())
+                    .finish()
+                    .unwrap()))
+        } else {
+            Ok(Started::Done)
         }
-        Ok(Started::Done)
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 }
@@ -171,7 +271,7 @@ impl<S> Middleware<S> for Cors {
 ///
 ///   1. Call [`Cors::build`](struct.Cors.html#method.build) to start building.
 ///   2. Use any of the builder methods to set fields in the backend.
-///   3. Call [finish](#method.finish) to retrieve the constructed backend.
+///   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
 ///
 /// # Example
 ///
@@ -334,6 +434,28 @@ impl CorsBuilder {
         self
     }
 
+    /// Set a wildcard origins
+    ///
+    /// If send widlcard is set and the `allowed_origins` parameter is `All`, a wildcard
+    /// `Access-Control-Allow-Origin` response header is sent, rather than the request’s
+    /// `Origin` header.
+    ///
+    /// This is the `supports credentials flag` in the
+    /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
+    ///
+    /// This **CANNOT** be used in conjunction with `allowed_origins` set to `All` and
+    /// `allow_credentials` set to `true`. Depending on the mode of usage, this will either result
+    /// in an `Error::CredentialsWithWildcardOrigin` error during actix launch or runtime.
+    ///
+    /// Defaults to `false`.
+    #[cfg_attr(feature = "serialization", serde(default))]
+    pub fn send_wildcard(&mut self) -> &mut CorsBuilder {
+        if let Some(cors) = cors(&mut self.cors, &self.error) {
+            cors.send_wildcards = true
+        }
+        self
+    }
+    
     /// Finishes building and returns the built `Cors` instance.
     pub fn finish(&mut self) -> Result<Cors, http::Error> {
         if !self.methods {
