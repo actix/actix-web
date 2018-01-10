@@ -13,18 +13,17 @@ use actix::dev::{queue, AsyncContextApi,
 use body::{Body, Binary};
 use error::{Error, Result, ErrorInternalServerError};
 use httprequest::HttpRequest;
-use context::{Frame, ActorHttpContext, Drain};
+use context::{Frame as ContextFrame, ActorHttpContext, Drain};
 
-use wsframe;
-use wsproto::*;
-pub use wsproto::CloseCode;
+use ws::frame::Frame;
+use ws::proto::{OpCode, CloseCode};
 
 
 /// Http actor execution context
 pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
-    stream: VecDeque<Frame>,
+    stream: VecDeque<ContextFrame>,
     request: HttpRequest<S>,
     disconnected: bool,
 }
@@ -108,7 +107,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
-            self.stream.push_back(Frame::Payload(Some(data.into())));
+            self.stream.push_back(ContextFrame::Payload(Some(data.into())));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -128,7 +127,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send text frame
     pub fn text(&mut self, text: &str) {
-        let mut frame = wsframe::Frame::message(Vec::from(text), OpCode::Text, true);
+        let mut frame = Frame::message(Vec::from(text), OpCode::Text, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -137,7 +136,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send binary frame
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        let mut frame = wsframe::Frame::message(data, OpCode::Binary, true);
+        let mut frame = Frame::message(data, OpCode::Binary, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -146,7 +145,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send ping frame
     pub fn ping(&mut self, message: &str) {
-        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Ping, true);
+        let mut frame = Frame::message(Vec::from(message), OpCode::Ping, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -155,7 +154,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send pong frame
     pub fn pong(&mut self, message: &str) {
-        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Pong, true);
+        let mut frame = Frame::message(Vec::from(message), OpCode::Pong, true);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
 
@@ -164,7 +163,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send close frame
     pub fn close(&mut self, code: CloseCode, reason: &str) {
-        let mut frame = wsframe::Frame::close(code, reason);
+        let mut frame = Frame::close(code, reason);
         let mut buf = Vec::new();
         frame.format(&mut buf).unwrap();
         self.write(buf);
@@ -174,7 +173,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
         self.inner.modify();
-        self.stream.push_back(Frame::Drain(tx));
+        self.stream.push_back(ContextFrame::Drain(tx));
         Drain::new(rx)
     }
 
@@ -213,7 +212,7 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
         self.stop();
     }
 
-    fn poll(&mut self) -> Poll<Option<Frame>, Error> {
+    fn poll(&mut self) -> Poll<Option<ContextFrame>, Error> {
         let ctx: &mut WebsocketContext<A, S> = unsafe {
             mem::transmute(self as &mut WebsocketContext<A, S>)
         };

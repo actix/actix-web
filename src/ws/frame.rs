@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 use bytes::BytesMut;
 
 use body::Binary;
-use wsproto::{OpCode, CloseCode};
+use ws::proto::{OpCode, CloseCode};
 
 
 fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {

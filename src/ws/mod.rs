@@ -55,10 +55,14 @@ use error::{Error, WsHandshakeError};
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 
-use wsframe;
-use wsproto::*;
-pub use wsproto::CloseCode;
-pub use wscontext::WebsocketContext;
+mod frame;
+mod proto;
+mod context;
+
+use ws::frame::Frame;
+use ws::proto::{hash_key, OpCode};
+pub use ws::proto::CloseCode;
+pub use ws::context::WebsocketContext;
 
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
@@ -207,7 +211,7 @@ impl Stream for WsStream {
         }
 
         loop {
-            match wsframe::Frame::parse(&mut self.buf) {
+            match Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
                     // trace!("WsFrame {}", frame);
                     let (_finished, opcode, payload) = frame.unpack();
