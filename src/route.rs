@@ -103,7 +103,7 @@ impl<S: 'static> Route<S> {
     }
 }
 
-/// RouteHandler wrapper. This struct is required because it needs to be shared
+/// `RouteHandler` wrapper. This struct is required because it needs to be shared
 /// for resource level middlewares.
 struct InnerHandler<S>(Rc<Box<RouteHandler<S>>>);
 

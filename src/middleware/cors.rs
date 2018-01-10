@@ -34,7 +34,7 @@
 //!                  .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
 //!                  .allowed_header(header::CONTENT_TYPE)
 //!                  .max_age(3600)
-//!                  .finish().expect("Can not create CORS middleware"))
+//!                  .finish().expect("Can not create CORS middleware"));
 //!              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
 //!              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
 //!         })
@@ -96,10 +96,7 @@ pub enum Error {
 impl ResponseError for Error {
 
     fn error_response(&self) -> HttpResponse {
-        match *self {
-            Error::BadOrigin => HTTPBadRequest.into(),
-            _ => HTTPBadRequest.into()
-        }
+        HTTPBadRequest.into()
     }
 }
 
@@ -355,7 +352,7 @@ impl CorsBuilder {
     {
         self.methods = true;
         if let Some(cors) = cors(&mut self.cors, &self.error) {
-            for m in methods.into_iter() {
+            for m in methods {
                 match Method::try_from(m) {
                     Ok(method) => {
                         cors.methods.insert(method);
@@ -404,7 +401,7 @@ impl CorsBuilder {
         where U: IntoIterator<Item=H>, HeaderName: HttpTryFrom<H>
     {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
-            for h in headers.into_iter() {
+            for h in headers {
                 match HeaderName::try_from(h) {
                     Ok(method) => {
                         if cors.headers.is_all() {

@@ -1,7 +1,6 @@
-use std;
-use std::marker::PhantomData;
+use std::mem;
 use std::collections::VecDeque;
-use futures::{Async, Future, Poll};
+use futures::{Async, Poll};
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
 
@@ -14,21 +13,15 @@ use actix::dev::{queue, AsyncContextApi,
 use body::{Body, Binary};
 use error::{Error, Result, ErrorInternalServerError};
 use httprequest::HttpRequest;
+use context::{Frame, ActorHttpContext, Drain};
 
+use wsframe;
+use wsproto::*;
+pub use wsproto::CloseCode;
 
-pub trait ActorHttpContext: 'static {
-    fn disconnected(&mut self);
-    fn poll(&mut self) -> Poll<Option<Frame>, Error>;
-}
-
-#[derive(Debug)]
-pub enum Frame {
-    Payload(Option<Binary>),
-    Drain(oneshot::Sender<()>),
-}
 
 /// Http actor execution context
-pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
+pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
     stream: VecDeque<Frame>,
@@ -36,7 +29,7 @@ pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
     disconnected: bool,
 }
 
-impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
+impl<A, S> ActorContext for WebsocketContext<A, S> where A: Actor<Context=Self>
 {
     fn stop(&mut self) {
         self.inner.stop();
@@ -49,61 +42,77 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
     }
 }
 
-impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
+impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Self>
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
         self.inner.spawn(fut)
     }
+
     fn wait<F>(&mut self, fut: F)
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
         self.inner.wait(fut)
     }
+
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.inner.cancel_future(handle)
     }
 }
 
 #[doc(hidden)]
-impl<A, S> AsyncContextApi<A> for HttpContext<A, S> where A: Actor<Context=Self> {
+impl<A, S> AsyncContextApi<A> for WebsocketContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     fn unsync_sender(&mut self) -> queue::unsync::UnboundedSender<ContextProtocol<A>> {
         self.inner.unsync_sender()
     }
+
     #[inline]
     fn unsync_address(&mut self) -> Address<A> {
         self.inner.unsync_address()
     }
+
     #[inline]
     fn sync_address(&mut self) -> SyncAddress<A> {
         self.inner.sync_address()
     }
 }
 
-impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
+impl<A, S: 'static> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     #[inline]
-    pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
-        HttpContext::from_request(req).actor(actor)
+    pub fn new(req: HttpRequest<S>, actor: A) -> WebsocketContext<A, S> {
+        WebsocketContext::from_request(req).actor(actor)
     }
-    pub fn from_request(req: HttpRequest<S>) -> HttpContext<A, S> {
-        HttpContext {
+
+    pub fn from_request(req: HttpRequest<S>) -> WebsocketContext<A, S> {
+        WebsocketContext {
             inner: ContextImpl::new(None),
             stream: VecDeque::new(),
             request: req,
             disconnected: false,
         }
     }
+
     #[inline]
-    pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
+    pub fn actor(mut self, actor: A) -> WebsocketContext<A, S> {
         self.inner.set_actor(actor);
         self
     }
 }
 
-impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
+impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
+
+    /// Write payload
+    #[inline]
+    fn write<B: Into<Binary>>(&mut self, data: B) {
+        if !self.disconnected {
+            self.stream.push_back(Frame::Payload(Some(data.into())));
+        } else {
+            warn!("Trying to write to disconnected response");
+        }
+    }
 
     /// Shared application state
     #[inline]
@@ -117,20 +126,48 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         &mut self.request
     }
 
-    /// Write payload
-    #[inline]
-    pub fn write<B: Into<Binary>>(&mut self, data: B) {
-        if !self.disconnected {
-            self.stream.push_back(Frame::Payload(Some(data.into())));
-        } else {
-            warn!("Trying to write to disconnected response");
-        }
+    /// Send text frame
+    pub fn text(&mut self, text: &str) {
+        let mut frame = wsframe::Frame::message(Vec::from(text), OpCode::Text, true);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
+
+        self.write(buf);
     }
 
-    /// Indicate end of streamimng payload. Also this method calls `Self::close`.
-    #[inline]
-    pub fn write_eof(&mut self) {
-        self.stream.push_back(Frame::Payload(None));
+    /// Send binary frame
+    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
+        let mut frame = wsframe::Frame::message(data, OpCode::Binary, true);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
+
+        self.write(buf);
+    }
+
+    /// Send ping frame
+    pub fn ping(&mut self, message: &str) {
+        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Ping, true);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
+
+        self.write(buf);
+    }
+
+    /// Send pong frame
+    pub fn pong(&mut self, message: &str) {
+        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Pong, true);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
+
+        self.write(buf);
+    }
+
+    /// Send close frame
+    pub fn close(&mut self, code: CloseCode, reason: &str) {
+        let mut frame = wsframe::Frame::close(code, reason);
+        let mut buf = Vec::new();
+        frame.format(&mut buf).unwrap();
+        self.write(buf);
     }
 
     /// Returns drain future
@@ -148,7 +185,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
+impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     #[inline]
     #[doc(hidden)]
@@ -168,7 +205,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
+impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Self>, S: 'static {
 
     #[inline]
     fn disconnected(&mut self) {
@@ -177,8 +214,8 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
     }
 
     fn poll(&mut self) -> Poll<Option<Frame>, Error> {
-        let ctx: &mut HttpContext<A, S> = unsafe {
-            std::mem::transmute(self as &mut HttpContext<A, S>)
+        let ctx: &mut WebsocketContext<A, S> = unsafe {
+            mem::transmute(self as &mut WebsocketContext<A, S>)
         };
 
         if self.inner.alive() {
@@ -199,52 +236,22 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
     }
 }
 
-impl<A, S> ToEnvelope<A> for HttpContext<A, S>
-    where A: Actor<Context=HttpContext<A, S>>,
+impl<A, S> ToEnvelope<A> for WebsocketContext<A, S>
+    where A: Actor<Context=WebsocketContext<A, S>>,
 {
     #[inline]
     fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>,
                channel_on_drop: bool) -> Envelope<A>
         where A: Handler<M>,
-              M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send
-    {
+              M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send {
         RemoteEnvelope::new(msg, tx, channel_on_drop).into()
     }
 }
 
-impl<A, S> From<HttpContext<A, S>> for Body
-    where A: Actor<Context=HttpContext<A, S>>,
-          S: 'static
+impl<A, S> From<WebsocketContext<A, S>> for Body
+    where A: Actor<Context=WebsocketContext<A, S>>, S: 'static
 {
-    fn from(ctx: HttpContext<A, S>) -> Body {
+    fn from(ctx: WebsocketContext<A, S>) -> Body {
         Body::Actor(Box::new(ctx))
-    }
-}
-
-pub struct Drain<A> {
-    fut: oneshot::Receiver<()>,
-    _a: PhantomData<A>,
-}
-
-impl<A> Drain<A> {
-    pub fn new(fut: oneshot::Receiver<()>) -> Self {
-        Drain {
-            fut: fut,
-            _a: PhantomData
-        }
-    }
-}
-
-impl<A: Actor> ActorFuture for Drain<A> {
-    type Item = ();
-    type Error = ();
-    type Actor = A;
-
-    #[inline]
-    fn poll(&mut self,
-            _: &mut A,
-            _: &mut <Self::Actor as Actor>::Context) -> Poll<Self::Item, Self::Error>
-    {
-        self.fut.poll().map_err(|_| ())
     }
 }

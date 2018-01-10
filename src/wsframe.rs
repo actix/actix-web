@@ -3,6 +3,7 @@ use std::io::{Write, Error, ErrorKind};
 use std::iter::FromIterator;
 use bytes::BytesMut;
 
+use body::Binary;
 use wsproto::{OpCode, CloseCode};
 
 
@@ -14,7 +15,7 @@ fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
 }
 
 /// A struct representing a `WebSocket` frame.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Frame {
     finished: bool,
     rsv1: bool,
@@ -22,13 +23,13 @@ pub(crate) struct Frame {
     rsv3: bool,
     opcode: OpCode,
     mask: Option<[u8; 4]>,
-    payload: Vec<u8>,
+    payload: Binary,
 }
 
 impl Frame {
 
     /// Desctructe frame
-    pub fn unpack(self) -> (bool, OpCode, Vec<u8>) {
+    pub fn unpack(self) -> (bool, OpCode, Binary) {
         (self.finished, self.opcode, self.payload)
     }
 
@@ -55,11 +56,11 @@ impl Frame {
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: Vec<u8>, code: OpCode, finished: bool) -> Frame {
+    pub fn message<B: Into<Binary>>(data: B, code: OpCode, finished: bool) -> Frame {
         Frame {
             finished: finished,
             opcode: code,
-            payload: data,
+            payload: data.into(),
             .. Frame::default()
         }
     }
@@ -82,7 +83,7 @@ impl Frame {
         };
 
         Frame {
-            payload: payload,
+            payload: payload.into(),
             .. Frame::default()
         }
     }
@@ -212,7 +213,7 @@ impl Frame {
                 rsv3: rsv3,
                 opcode: opcode,
                 mask: mask,
-                payload: data,
+                payload: data.into(),
             };
 
             (frame, header_length + length)
@@ -251,7 +252,7 @@ impl Frame {
         if self.payload.len() < 126 {
             two |= self.payload.len() as u8;
             let headers = [one, two];
-            try!(w.write_all(&headers));
+            w.write_all(&headers)?;
         } else if self.payload.len() <= 65_535 {
             two |= 126;
             let length_bytes: [u8; 2] = unsafe {
@@ -259,7 +260,7 @@ impl Frame {
                 mem::transmute(short.to_be())
             };
             let headers = [one, two, length_bytes[0], length_bytes[1]];
-            try!(w.write_all(&headers));
+            w.write_all(&headers)?;
         } else {
             two |= 127;
             let length_bytes: [u8; 8] = unsafe {
@@ -278,16 +279,18 @@ impl Frame {
                 length_bytes[6],
                 length_bytes[7],
             ];
-            try!(w.write_all(&headers));
+            w.write_all(&headers)?;
         }
 
         if self.mask.is_some() {
             let mask = self.mask.take().unwrap();
-            apply_mask(&mut self.payload, &mask);
-            try!(w.write_all(&mask));
+            let mut payload = Vec::from(self.payload.as_ref());
+            apply_mask(&mut payload, &mask);
+            w.write_all(&mask)?;
+            w.write_all(payload.as_ref())?;
+        } else {
+            w.write_all(self.payload.as_ref())?;
         }
-
-        try!(w.write_all(&self.payload));
         Ok(())
     }
 }
@@ -301,7 +304,7 @@ impl Default for Frame {
             rsv3: false,
             opcode: OpCode::Close,
             mask: None,
-            payload: Vec::new(),
+            payload: Binary::from(&b""[..]),
         }
     }
 }
@@ -318,15 +321,16 @@ impl fmt::Display for Frame {
     payload length: {}
     payload: 0x{}
 </FRAME>",
-            self.finished,
-            self.rsv1,
-            self.rsv2,
-            self.rsv3,
-            self.opcode,
-            // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
-            self.len(),
-            self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:x}", byte)).collect::<String>())
+               self.finished,
+               self.rsv1,
+               self.rsv2,
+               self.rsv3,
+               self.opcode,
+               // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
+               self.len(),
+               self.payload.len(),
+               self.payload.as_ref().iter().map(
+                   |byte| format!("{:x}", byte)).collect::<String>())
     }
 }
 
@@ -343,7 +347,7 @@ mod tests {
         println!("FRAME: {}", frame);
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, &b"1"[..]);
+        assert_eq!(frame.payload.as_ref(), &b"1"[..]);
     }
 
     #[test]
@@ -365,7 +369,7 @@ mod tests {
         let frame = Frame::parse(&mut buf).unwrap().unwrap();
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, &b"1234"[..]);
+        assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
     }
 
     #[test]
@@ -378,7 +382,7 @@ mod tests {
         let frame = Frame::parse(&mut buf).unwrap().unwrap();
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, &b"1234"[..]);
+        assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
     }
 
     #[test]
@@ -390,7 +394,7 @@ mod tests {
         let frame = Frame::parse(&mut buf).unwrap().unwrap();
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, vec![1u8]);
+        assert_eq!(frame.payload, vec![1u8].into());
     }
 
     #[test]

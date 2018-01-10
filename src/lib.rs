@@ -109,6 +109,7 @@ mod worker;
 mod channel;
 mod wsframe;
 mod wsproto;
+mod wscontext;
 mod h1;
 mod h2;
 mod h1writer;
