@@ -74,7 +74,7 @@ impl<S> PipelineInfo<S> {
     }
 }
 
-impl<S, H: PipelineHandler<S>> Pipeline<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
 
     pub fn new(req: HttpRequest<S>,
                mws: Rc<Vec<Box<Middleware<S>>>>,
@@ -101,7 +101,7 @@ impl Pipeline<(), Inner<()>> {
     }
 }
 
-impl<S, H> Pipeline<S, H> {
+impl<S: 'static, H> Pipeline<S, H> {
 
     fn is_done(&self) -> bool {
         match self.1 {
@@ -114,7 +114,7 @@ impl<S, H> Pipeline<S, H> {
     }
 }
 
-impl<S, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
 
     fn disconnected(&mut self) {
         self.0.disconnected = Some(true);
@@ -277,7 +277,7 @@ struct StartMiddlewares<S, H> {
     _s: PhantomData<S>,
 }
 
-impl<S, H: PipelineHandler<S>> StartMiddlewares<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
     fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H>
     {
@@ -364,7 +364,7 @@ struct WaitingResponse<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> WaitingResponse<S, H> {
+impl<S: 'static, H> WaitingResponse<S, H> {
 
     #[inline]
     fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H>
@@ -399,7 +399,7 @@ struct RunMiddlewares<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> RunMiddlewares<S, H> {
+impl<S: 'static, H> RunMiddlewares<S, H> {
 
     fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H>
     {
@@ -510,7 +510,7 @@ enum IOState {
     Done,
 }
 
-impl<S, H> ProcessResponse<S, H> {
+impl<S: 'static, H> ProcessResponse<S, H> {
 
     #[inline]
     fn init(resp: HttpResponse) -> PipelineState<S, H>
@@ -550,19 +550,6 @@ impl<S, H> ProcessResponse<S, H> {
                         result
                     },
                     IOState::Payload(mut body) => {
-                        // always poll context
-                        if self.running == RunningState::Running {
-                            match info.poll_context() {
-                                Ok(Async::NotReady) => (),
-                                Ok(Async::Ready(_)) =>
-                                    self.running = RunningState::Done,
-                                Err(err) => {
-                                    info.error = Some(err);
-                                    return Ok(FinishingMiddlewares::init(info, self.resp))
-                                }
-                            }
-                        }
-
                         match body.poll() {
                             Ok(Async::Ready(None)) => {
                                 self.iostate = IOState::Done;
@@ -706,7 +693,7 @@ struct FinishingMiddlewares<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> FinishingMiddlewares<S, H> {
+impl<S: 'static, H> FinishingMiddlewares<S, H> {
 
     fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {

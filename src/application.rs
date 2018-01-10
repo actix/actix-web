@@ -43,8 +43,8 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                                                  path.split_at(prefix.len()).1.starts_with('/'))
                 };
                 if m {
-                    let path: &'static str = unsafe{
-                        mem::transmute(&req.path()[self.prefix+prefix.len()..])};
+                    let path: &'static str = unsafe {
+                        mem::transmute(&req.path()[self.prefix+prefix.len()..]) };
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "");
                     } else {
@@ -321,9 +321,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Register a middleware
-    pub fn middleware<T>(mut self, mw: T) -> Application<S>
-        where T: Middleware<S> + 'static
-    {
+    pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Application<S> {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
         self

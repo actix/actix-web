@@ -192,6 +192,16 @@ impl<S: 'static> TestApp<S> {
         self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
     }
 
+    /// Register handler for "/" with resource middleware
+    pub fn handler2<H, M>(&mut self, handler: H, mw: M)
+        where H: Handler<S>, M: Middleware<S>
+    {
+        self.app = Some(self.app.take().unwrap()
+                        .resource("/", |r| {
+                            r.middleware(mw);
+                            r.h(handler)}));
+    }
+
     /// Register middleware
     pub fn middleware<T>(&mut self, mw: T) -> &mut TestApp<S>
         where T: Middleware<S> + 'static

@@ -135,3 +135,28 @@ fn test_middlewares() {
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
+
+
+#[test]
+fn test_resource_middlewares() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let srv = test::TestServer::new(
+        move |app| app.handler2(
+            httpcodes::HTTPOk,
+            MiddlewareTest{start: Arc::clone(&act_num1),
+                           response: Arc::clone(&act_num2),
+                           finish: Arc::clone(&act_num3)})
+    );
+
+    assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+    // assert_eq!(num3.load(Ordering::Relaxed), 1);
+}

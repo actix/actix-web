@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::marker::PhantomData;
 
 use http::{Method, StatusCode};
@@ -6,6 +7,7 @@ use pred;
 use body::Body;
 use route::Route;
 use handler::{Reply, Handler, Responder};
+use middleware::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -33,6 +35,7 @@ pub struct Resource<S=()> {
     name: String,
     state: PhantomData<S>,
     routes: Vec<Route<S>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 impl<S> Default for Resource<S> {
@@ -40,7 +43,8 @@ impl<S> Default for Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new() }
+            routes: Vec::new(),
+            middlewares: Rc::new(Vec::new()) }
     }
 }
 
@@ -50,7 +54,8 @@ impl<S> Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new() }
+            routes: Vec::new(),
+            middlewares: Rc::new(Vec::new()) }
     }
 
     /// Set resource name
@@ -126,12 +131,25 @@ impl<S: 'static> Resource<S> {
         self.routes.last_mut().unwrap().f(handler)
     }
 
-    pub(crate) fn handle(&mut self, mut req: HttpRequest<S>, default: Option<&mut Resource<S>>)
-                         -> Reply
+    /// Register a middleware
+    ///
+    /// This is similar to `Application's` middlewares, but
+    /// middlewares get invoked on resource level.
+    pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
+        Rc::get_mut(&mut self.middlewares).unwrap().push(Box::new(mw));
+    }
+
+    pub(crate) fn handle(&mut self,
+                         mut req: HttpRequest<S>,
+                         default: Option<&mut Resource<S>>) -> Reply
     {
         for route in &mut self.routes {
             if route.check(&mut req) {
-                return route.handle(req)
+                return if self.middlewares.is_empty() {
+                    route.handle(req)
+                } else {
+                    route.compose(req, Rc::clone(&self.middlewares))
+                };
             }
         }
         if let Some(resource) = default {

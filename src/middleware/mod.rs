@@ -46,7 +46,7 @@ pub enum Finished {
 
 /// Middleware definition
 #[allow(unused_variables)]
-pub trait Middleware<S> {
+pub trait Middleware<S>: 'static {
 
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
