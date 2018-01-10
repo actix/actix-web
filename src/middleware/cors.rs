@@ -748,13 +748,18 @@ mod tests {
     #[test]
     fn test_validate_origin() {
         let cors = Cors::build()
-            .allowed_origin("http://www.example.com").finish().unwrap();
+            .allowed_origin("https://www.example.com").finish().unwrap();
 
-        let mut req = TestRequest::with_header(
-            "Origin", "https://www.unknown.com")
+        let mut req = TestRequest::with_header("Origin", "https://www.unknown.com")
             .method(Method::GET)
             .finish();
 
         assert!(cors.start(&mut req).is_err());
+
+        let mut req = TestRequest::with_header("Origin", "https://www.example.com")
+            .method(Method::GET)
+            .finish();
+
+        assert!(cors.start(&mut req).unwrap().is_done());
     }
 }
