@@ -395,7 +395,6 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
 ///
 /// ```rust
 /// # extern crate actix_web;
-///
 /// use actix_web::middleware::CookieSessionBackend;
 ///
 /// # fn main() {
