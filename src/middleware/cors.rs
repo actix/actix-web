@@ -794,6 +794,7 @@ mod tests {
     fn test_response() {
         let cors = Cors::build()
             .send_wildcard()
+            .disable_preflight()
             .max_age(3600)
             .allowed_methods(vec![Method::GET, Method::OPTIONS, Method::POST])
             .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
@@ -823,6 +824,7 @@ mod tests {
             resp.headers().get(header::VARY).unwrap().as_bytes());
 
         let cors = Cors::build()
+            .disable_vary_header()
             .allowed_origin("https://www.example.com")
             .finish().unwrap();
         let resp: HttpResponse = HTTPOk.into();
