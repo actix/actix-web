@@ -52,7 +52,7 @@ struct WsChatSession {
 }
 
 impl Actor for WsChatSession {
-    type Context = HttpContext<Self, WsChatSessionState>;
+    type Context = ws::WebsocketContext<Self, WsChatSessionState>;
 
     /// Method is called on actor start.
     /// We register ws session with ChatServer
@@ -87,7 +87,7 @@ impl Handler<session::Message> for WsChatSession {
     type Result = ();
 
     fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context) {
-        ws::WsWriter::text(ctx, &msg.0);
+        ctx.text(&msg.0);
     }
 }
 
@@ -98,10 +98,8 @@ impl Handler<ws::Message> for WsChatSession {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
-            ws::Message::Ping(msg) =>
-                ws::WsWriter::pong(ctx, &msg),
-            ws::Message::Pong(msg) =>
-                self.hb = Instant::now(),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Pong(msg) => self.hb = Instant::now(),
             ws::Message::Text(text) => {
                 let m = text.trim();
                 // we check for /sss type of messages
@@ -115,7 +113,7 @@ impl Handler<ws::Message> for WsChatSession {
                                 match res {
                                     Ok(Ok(rooms)) => {
                                         for room in rooms {
-                                            ws::WsWriter::text(ctx, &room);
+                                            ctx.text(&room);
                                         }
                                     },
                                     _ => println!("Something is wrong"),
@@ -132,20 +130,19 @@ impl Handler<ws::Message> for WsChatSession {
                                 ctx.state().addr.send(
                                     server::Join{id: self.id, name: self.room.clone()});
 
-                                ws::WsWriter::text(ctx, "joined");
+                                ctx.text("joined");
                             } else {
-                                ws::WsWriter::text(ctx, "!!! room name is required");
+                                ctx.text("!!! room name is required");
                             }
                         },
                         "/name" => {
                             if v.len() == 2 {
                                 self.name = Some(v[1].to_owned());
                             } else {
-                                ws::WsWriter::text(ctx, "!!! name is required");
+                                ctx.text("!!! name is required");
                             }
                         },
-                        _ => ws::WsWriter::text(
-                            ctx, &format!("!!! unknown command: {:?}", m)),
+                        _ => ctx.text(&format!("!!! unknown command: {:?}", m)),
                     }
                 } else {
                     let msg = if let Some(ref name) = self.name {
