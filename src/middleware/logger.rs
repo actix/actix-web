@@ -7,6 +7,7 @@ use libc;
 use time;
 use regex::Regex;
 
+use error::Result;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Started, Finished};
@@ -101,9 +102,9 @@ impl Logger {
 
 impl<S> Middleware<S> for Logger {
 
-    fn start(&self, req: &mut HttpRequest<S>) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         req.extensions().insert(StartTime(time::now()));
-        Started::Done
+        Ok(Started::Done)
     }
 
     fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
@@ -305,7 +306,7 @@ mod tests {
             .force_close().body(Body::Empty).unwrap();
 
         match logger.start(&mut req) {
-            Started::Done => (),
+            Ok(Started::Done) => (),
             _ => panic!(),
         };
         match logger.finish(&mut req, &resp) {

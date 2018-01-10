@@ -97,14 +97,14 @@ struct MiddlewareTest {
 }
 
 impl<S> middleware::Middleware<S> for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> middleware::Started {
+    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
         self.start.store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middleware::Started::Done
+        Ok(middleware::Started::Done)
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> middleware::Response {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<middleware::Response> {
         self.response.store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
-        middleware::Response::Done(resp)
+        Ok(middleware::Response::Done(resp))
     }
 
     fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {

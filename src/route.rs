@@ -227,11 +227,11 @@ impl<S: 'static> StartMiddlewares<S> {
                 return WaitingResponse::init(info, reply)
             } else {
                 match info.mws[info.count].start(&mut info.req) {
-                    MiddlewareStarted::Done =>
+                    Ok(MiddlewareStarted::Done) =>
                         info.count += 1,
-                    MiddlewareStarted::Response(resp) =>
+                    Ok(MiddlewareStarted::Response(resp)) =>
                         return RunMiddlewares::init(info, resp),
-                    MiddlewareStarted::Future(mut fut) =>
+                    Ok(MiddlewareStarted::Future(mut fut)) =>
                         match fut.poll() {
                             Ok(Async::NotReady) =>
                                 return ComposeState::Starting(StartMiddlewares {
@@ -246,7 +246,7 @@ impl<S: 'static> StartMiddlewares<S> {
                             Err(err) =>
                                 return Response::init(err.into()),
                         },
-                    MiddlewareStarted::Err(err) =>
+                    Err(err) =>
                         return Response::init(err.into()),
                 }
             }
@@ -271,16 +271,16 @@ impl<S: 'static> StartMiddlewares<S> {
                     } else {
                         loop {
                             match info.mws[info.count].start(&mut info.req) {
-                                MiddlewareStarted::Done =>
+                                Ok(MiddlewareStarted::Done) =>
                                     info.count += 1,
-                                MiddlewareStarted::Response(resp) => {
+                                Ok(MiddlewareStarted::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
                                 },
-                                MiddlewareStarted::Future(fut) => {
+                                Ok(MiddlewareStarted::Future(fut)) => {
                                     self.fut = Some(fut);
                                     continue 'outer
                                 },
-                                MiddlewareStarted::Err(err) =>
+                                Err(err) =>
                                     return Some(Response::init(err.into()))
                             }
                         }
@@ -339,11 +339,11 @@ impl<S: 'static> RunMiddlewares<S> {
 
         loop {
             resp = match info.mws[curr].response(&mut info.req, resp) {
-                MiddlewareResponse::Err(err) => {
+                Err(err) => {
                     info.count = curr + 1;
                     return Response::init(err.into())
                 },
-                MiddlewareResponse::Done(r) => {
+                Ok(MiddlewareResponse::Done(r)) => {
                     curr += 1;
                     if curr == len {
                         return Response::init(r)
@@ -351,7 +351,7 @@ impl<S: 'static> RunMiddlewares<S> {
                         r
                     }
                 },
-                MiddlewareResponse::Future(fut) => {
+                Ok(MiddlewareResponse::Future(fut)) => {
                     return ComposeState::RunMiddlewares(
                         RunMiddlewares { curr: curr, fut: Some(fut), _s: PhantomData })
                 },
@@ -382,13 +382,13 @@ impl<S: 'static> RunMiddlewares<S> {
                     return Some(Response::init(resp));
                 } else {
                     match info.mws[self.curr].response(&mut info.req, resp) {
-                        MiddlewareResponse::Err(err) =>
+                        Err(err) =>
                             return Some(Response::init(err.into())),
-                        MiddlewareResponse::Done(r) => {
+                        Ok(MiddlewareResponse::Done(r)) => {
                             self.curr += 1;
                             resp = r
                         },
-                        MiddlewareResponse::Future(fut) => {
+                        Ok(MiddlewareResponse::Future(fut)) => {
                             self.fut = Some(fut);
                             break
                         },

@@ -141,7 +141,7 @@ impl<S, T: SessionBackend<S>> SessionStorage<T, S> {
 
 impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
 
-    fn start(&self, req: &mut HttpRequest<S>) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
         let fut = self.0.from_request(&mut req)
@@ -154,14 +154,14 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
                     Err(err) => FutErr(err)
                 }
             });
-        Started::Future(Box::new(fut))
+        Ok(Started::Future(Box::new(fut)))
     }
 
-    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         if let Some(s_box) = req.extensions().remove::<Arc<SessionImplBox>>() {
             s_box.0.write(resp)
         } else {
-            Response::Done(resp)
+            Ok(Response::Done(resp))
         }
     }
 }
@@ -179,7 +179,7 @@ pub trait SessionImpl: 'static {
     fn clear(&mut self);
 
     /// Write session to storage backend.
-    fn write(&self, resp: HttpResponse) -> Response;
+    fn write(&self, resp: HttpResponse) -> Result<Response>;
 }
 
 /// Session's storage backend trait definition.
@@ -205,8 +205,8 @@ impl SessionImpl for DummySessionImpl {
     fn set(&mut self, key: &str, value: String) {}
     fn remove(&mut self, key: &str) {}
     fn clear(&mut self) {}
-    fn write(&self, resp: HttpResponse) -> Response {
-        Response::Done(resp)
+    fn write(&self, resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
     }
 }
 
@@ -255,11 +255,11 @@ impl SessionImpl for CookieSession {
         self.state.clear()
     }
 
-    fn write(&self, mut resp: HttpResponse) -> Response {
+    fn write(&self, mut resp: HttpResponse) -> Result<Response> {
         if self.changed {
             let _ = self.inner.set_cookie(&mut resp, &self.state);
         }
-        Response::Done(resp)
+        Ok(Response::Done(resp))
     }
 }
 

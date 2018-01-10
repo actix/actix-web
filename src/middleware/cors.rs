@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use http::{self, Method, HttpTryFrom, Uri};
 use http::header::{self, HeaderName};
 
-use error::ResponseError;
+use error::{Result, ResponseError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
@@ -152,17 +152,16 @@ impl Cors {
 
 impl<S> Middleware<S> for Cors {
 
-    fn start(&self, req: &mut HttpRequest<S>) -> Started {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         if Method::OPTIONS == *req.method() {
-            if let Err(err) = self.validate_origin(req) {
-                return Started::Err(err.into())
-            }
+            self.validate_origin(req)?;
+            self.validate_allowed_method(req)?;
         }
-        Started::Done
+        Ok(Started::Done)
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Response {
-        Response::Done(resp)
+    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
     }
 }
 

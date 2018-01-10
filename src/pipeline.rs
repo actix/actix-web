@@ -290,11 +290,11 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                 return WaitingResponse::init(info, reply)
             } else {
                 match info.mws[info.count].start(&mut info.req) {
-                    Started::Done =>
+                    Ok(Started::Done) =>
                         info.count += 1,
-                    Started::Response(resp) =>
+                    Ok(Started::Response(resp)) =>
                         return RunMiddlewares::init(info, resp),
-                    Started::Future(mut fut) =>
+                    Ok(Started::Future(mut fut)) =>
                         match fut.poll() {
                             Ok(Async::NotReady) =>
                                 return PipelineState::Starting(StartMiddlewares {
@@ -310,7 +310,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                             Err(err) =>
                                 return ProcessResponse::init(err.into()),
                         },
-                    Started::Err(err) =>
+                    Err(err) =>
                         return ProcessResponse::init(err.into()),
                 }
             }
@@ -335,16 +335,16 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     } else {
                         loop {
                             match info.mws[info.count].start(info.req_mut()) {
-                                Started::Done =>
+                                Ok(Started::Done) =>
                                     info.count += 1,
-                                Started::Response(resp) => {
+                                Ok(Started::Response(resp)) => {
                                     return Ok(RunMiddlewares::init(info, resp));
                                 },
-                                Started::Future(fut) => {
+                                Ok(Started::Future(fut)) => {
                                     self.fut = Some(fut);
                                     continue 'outer
                                 },
-                                Started::Err(err) =>
+                                Err(err) =>
                                     return Ok(ProcessResponse::init(err.into()))
                             }
                         }
@@ -411,11 +411,11 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
 
         loop {
             resp = match info.mws[curr].response(info.req_mut(), resp) {
-                Response::Err(err) => {
+                Err(err) => {
                     info.count = curr + 1;
                     return ProcessResponse::init(err.into())
                 }
-                Response::Done(r) => {
+                Ok(Response::Done(r)) => {
                     curr += 1;
                     if curr == len {
                         return ProcessResponse::init(r)
@@ -423,7 +423,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                         r
                     }
                 },
-                Response::Future(fut) => {
+                Ok(Response::Future(fut)) => {
                     return PipelineState::RunMiddlewares(
                         RunMiddlewares { curr: curr, fut: Some(fut),
                                          _s: PhantomData, _h: PhantomData })
@@ -455,13 +455,13 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                     return Ok(ProcessResponse::init(resp));
                 } else {
                     match info.mws[self.curr].response(info.req_mut(), resp) {
-                        Response::Err(err) =>
+                        Err(err) =>
                             return Ok(ProcessResponse::init(err.into())),
-                        Response::Done(r) => {
+                        Ok(Response::Done(r)) => {
                             self.curr += 1;
                             resp = r
                         },
-                        Response::Future(fut) => {
+                        Ok(Response::Future(fut)) => {
                             self.fut = Some(fut);
                             break
                         },

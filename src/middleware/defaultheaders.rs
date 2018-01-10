@@ -2,6 +2,7 @@
 use http::{HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
+use error::Result;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Response, Middleware};
@@ -40,7 +41,7 @@ impl DefaultHeaders {
 
 impl<S> Middleware<S> for DefaultHeaders {
 
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Response {
+    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
         for (key, value) in self.headers.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());
@@ -51,7 +52,7 @@ impl<S> Middleware<S> for DefaultHeaders {
             resp.headers_mut().insert(
                 CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
         }
-        Response::Done(resp)
+        Ok(Response::Done(resp))
     }
 }
 
@@ -113,14 +114,14 @@ mod tests {
 
         let resp = HttpResponse::Ok().finish().unwrap();
         let resp = match mw.response(&mut req, resp) {
-            Response::Done(resp) => resp,
+            Ok(Response::Done(resp)) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish().unwrap();
         let resp = match mw.response(&mut req, resp) {
-            Response::Done(resp) => resp,
+            Ok(Response::Done(resp)) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
