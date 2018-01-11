@@ -9,8 +9,10 @@
 //!   2. Use any of the builder methods to set fields in the backend.
 //!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
 //!
-//! This constructed middleware could be used as parameter for `Application::middleware()` or
-//! `Resource::middleware()` methods.
+//! Cors middleware could be used as parameter for `Application::middleware()` or
+//! `Resource::middleware()` methods. But you have to use `Cors::register()` method to
+//! support *preflight* OPTIONS request.
+//!
 //!
 //! # Example
 //!
@@ -28,13 +30,14 @@
 //! fn main() {
 //!     let app = Application::new()
 //!         .resource("/index.html", |r| {
-//!              r.middleware(cors::Cors::build()                   // <- Register CORS middleware
+//!              cors::Cors::build()                   // <- Construct CORS middleware
 //!                  .allowed_origin("https://www.rust-lang.org/")
 //!                  .allowed_methods(vec!["GET", "POST"])
 //!                  .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
 //!                  .allowed_header(header::CONTENT_TYPE)
 //!                  .max_age(3600)
-//!                  .finish().expect("Can not create CORS middleware"));
+//!                  .finish().expect("Can not create CORS middleware")
+//!                  .register(r);                     // <- Register CORS middleware
 //!              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
 //!              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
 //!         })
@@ -51,6 +54,7 @@ use http::{self, Method, HttpTryFrom, Uri};
 use http::header::{self, HeaderName, HeaderValue};
 
 use error::{Result, ResponseError};
+use resource::Resource;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPOk, HTTPBadRequest};
@@ -205,6 +209,17 @@ impl Cors {
             error: None,
             expose_hdrs: HashSet::new(),
         }
+    }
+
+    /// This method register cors middleware with resource and
+    /// adds route for *OPTIONS* preflight requests.
+    ///
+    /// It is possible to register *Cors* middlware with `Resource::middleware()`
+    /// method, but in that case *Cors* middleware wont be able to handle *OPTIONS*
+    /// requests.
+    pub fn register<S: 'static>(self, resource: &mut Resource<S>) {
+        resource.method(Method::OPTIONS).h(HTTPOk);
+        resource.middleware(self);
     }
 
     fn validate_origin<S>(&self, req: &mut HttpRequest<S>) -> Result<(), CorsError> {
