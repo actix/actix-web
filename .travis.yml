@@ -11,7 +11,7 @@ matrix:
     - rust: 1.20.0
     - rust: stable
     - rust: beta
-    - rust: nightly
+    - rust: nightly-2018-01-03
   allow_failures:
     - rust: nightly
     - rust: beta
@@ -68,7 +68,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly-2018-01-03" ]]; then
       cargo doc --features alpn --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
