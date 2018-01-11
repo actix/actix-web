@@ -14,8 +14,8 @@ use std::io::Write;
 use std::sync::{Arc, mpsc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use flate2::Compression;
-use flate2::write::{GzEncoder, DeflateEncoder};
-use brotli2::write::BrotliEncoder;
+use flate2::write::{GzEncoder, DeflateEncoder, DeflateDecoder};
+use brotli2::write::{BrotliEncoder, BrotliDecoder};
 use futures::Future;
 use h2::client;
 use bytes::{Bytes, BytesMut, BufMut};
@@ -29,6 +29,22 @@ use actix::System;
 
 const STR: &str =
     "Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
+     Hello World Hello World Hello World Hello World Hello World \
      Hello World Hello World Hello World Hello World Hello World \
      Hello World Hello World Hello World Hello World Hello World \
      Hello World Hello World Hello World Hello World Hello World \
@@ -76,7 +92,22 @@ fn test_body() {
         |app| app.handler(|_| httpcodes::HTTPOk.build().body(STR)));
     let mut res = reqwest::get(&srv.url("/")).unwrap();
     assert!(res.status().is_success());
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_gzip() {
+    let srv = test::TestServer::new(
+        |app| app.handler(
+            |_| httpcodes::HTTPOk.build()
+                .content_encoding(headers::ContentEncoding::Gzip)
+                .body(STR)));
+    let mut res = reqwest::get(&srv.url("/")).unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
@@ -92,10 +123,14 @@ fn test_body_deflate() {
                 .body(STR)));
     let mut res = reqwest::get(&srv.url("/")).unwrap();
     assert!(res.status().is_success());
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    let mut e = DeflateDecoder::new(Vec::new());
+    e.write_all(bytes.as_ref()).unwrap();
+    let dec = e.finish().unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
 #[test]
@@ -108,10 +143,14 @@ fn test_body_brotli() {
                 .body(STR)));
     let mut res = reqwest::get(&srv.url("/")).unwrap();
     assert!(res.status().is_success());
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    e.write_all(bytes.as_ref()).unwrap();
+    let dec = e.finish().unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
 #[test]
@@ -163,7 +202,7 @@ fn test_gzip_encoding() {
     let mut res = client.post(&srv.url("/"))
         .header(ContentEncoding(vec![Encoding::Gzip]))
         .body(enc.clone()).send().unwrap();
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
@@ -189,7 +228,7 @@ fn test_deflate_encoding() {
     let mut res = client.post(&srv.url("/"))
         .header(ContentEncoding(vec![Encoding::Deflate]))
         .body(enc.clone()).send().unwrap();
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
@@ -215,7 +254,7 @@ fn test_brotli_encoding() {
     let mut res = client.post(&srv.url("/"))
         .header(ContentEncoding(vec![Encoding::Brotli]))
         .body(enc.clone()).send().unwrap();
-    let mut bytes = BytesMut::with_capacity(1024).writer();
+    let mut bytes = BytesMut::with_capacity(2048).writer();
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));

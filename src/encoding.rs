@@ -289,19 +289,17 @@ impl PayloadEncoder {
         PayloadEncoder(ContentEncoder::Identity(TransferEncoding::eof(bytes)))
     }
 
-    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse)
-               -> PayloadEncoder
-    {
+    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
         let has_body = match body {
             Body::Empty => false,
-            Body::Binary(ref bin) => bin.len() >= 1024,
+            Body::Binary(ref bin) => bin.len() >= 512,
             _ => true,
         };
 
         // Enable content encoding only if response does not contain Content-Encoding header
-        let mut encoding = if has_body && !resp.headers().contains_key(CONTENT_ENCODING) {
+        let mut encoding = if has_body {
             let encoding = match *resp.content_encoding() {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
@@ -326,10 +324,6 @@ impl PayloadEncoder {
             ContentEncoding::Identity
         };
 
-        // in general case it is very expensive to get compressed payload length,
-        // just switch to chunked encoding
-        let compression = encoding != ContentEncoding::Identity;
-
         let transfer = match body {
             Body::Empty => {
                 if resp.chunked() {
@@ -339,9 +333,9 @@ impl PayloadEncoder {
                 TransferEncoding::eof(buf)
             },
             Body::Binary(ref mut bytes) => {
-                if compression {
-                    let buf = SharedBytes::default();
-                    let transfer = TransferEncoding::eof(buf.clone());
+                if encoding.is_compression() {
+                    let tmp = SharedBytes::default();
+                    let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
                             DeflateEncoder::new(transfer, Compression::default())),
@@ -356,7 +350,7 @@ impl PayloadEncoder {
                     let _ = enc.write(bytes.as_ref());
                     let _ = enc.write_eof();
 
-                    *bytes = Binary::from(buf.get_mut().take());
+                    *bytes = Binary::from(tmp.get_mut().take());
                     encoding = ContentEncoding::Identity;
                 }
                 resp.headers_mut().remove(CONTENT_LENGTH);
