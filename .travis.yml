@@ -43,6 +43,7 @@ before_script:
 script:
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+       cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
        cargo test --features=alpn
