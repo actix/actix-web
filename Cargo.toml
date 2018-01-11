@@ -48,12 +48,14 @@ url = "1.5"
 libc = "0.2"
 serde = "1.0"
 serde_json = "1.0"
-flate2 = "0.2"
 brotli2 = "^0.3.2"
 percent-encoding = "1.0"
 smallvec = "0.6"
 bitflags = "1.0"
 num_cpus = "1.0"
+
+#flate2 = "1.0"
+flate2 = { git="https://github.com/fafhrd91/flate2-rs.git" }
 
 # temp solution
 # cookie = { version="0.10", features=["percent-encode", "secure"] }
