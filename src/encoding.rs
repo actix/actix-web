@@ -36,6 +36,7 @@ pub enum ContentEncoding {
 
 impl ContentEncoding {
 
+    #[inline]
     fn is_compression(&self) -> bool {
         match *self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
@@ -51,7 +52,7 @@ impl ContentEncoding {
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
     }
-    // default quality
+    /// default quality value
     fn quality(&self) -> f64 {
         match *self {
             ContentEncoding::Br => 1.1,
@@ -62,6 +63,7 @@ impl ContentEncoding {
     }
 }
 
+// TODO: remove memory allocation
 impl<'a> From<&'a str> for ContentEncoding {
     fn from(s: &'a str) -> ContentEncoding {
         match s.trim().to_lowercase().as_ref() {
@@ -157,11 +159,7 @@ impl EncodedPayload {
                 Box::new(GzDecoder::new(BytesMut::with_capacity(8192).writer()))),
             _ => Decoder::Identity,
         };
-        EncodedPayload {
-            inner: inner,
-            decoder: dec,
-            error: false,
-        }
+        EncodedPayload{ inner: inner, decoder: dec, error: false }
     }
 }
 
@@ -254,6 +252,7 @@ impl PayloadWriter for EncodedPayload {
                     }
                     return
                 }
+                trace!("Error decoding gzip encoding");
             }
 
             Decoder::Deflate(ref mut decoder) => {
@@ -417,8 +416,7 @@ impl PayloadEncoder {
                 ContentEncoding::Br => ContentEncoder::Br(
                     BrotliEncoder::new(transfer, 5)),
                 ContentEncoding::Identity => ContentEncoder::Identity(transfer),
-                ContentEncoding::Auto =>
-                    unreachable!()
+                ContentEncoding::Auto => unreachable!()
             }
         )
     }
@@ -643,10 +641,8 @@ impl TransferEncoding {
     pub fn is_eof(&self) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => true,
-            TransferEncodingKind::Chunked(ref eof) =>
-                *eof,
-            TransferEncodingKind::Length(ref remaining) =>
-                *remaining == 0,
+            TransferEncodingKind::Chunked(ref eof) => *eof,
+            TransferEncodingKind::Length(ref remaining) => *remaining == 0,
         }
     }
 
