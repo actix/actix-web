@@ -224,9 +224,7 @@ impl Frame {
     }
 
     /// Write a frame out to a buffer
-    pub fn format<W>(&mut self, w: &mut W) -> Result<(), Error>
-        where W: Write
-    {
+    pub fn format<W: Write>(&mut self, w: &mut W) -> Result<(), Error> {
         let mut one = 0u8;
         let code: u8 = self.opcode.into();
         if self.finished {

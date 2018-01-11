@@ -23,7 +23,7 @@ pub trait ActorHttpContext: 'static {
 
 #[derive(Debug)]
 pub enum Frame {
-    Payload(Option<Binary>),
+    Chunk(Option<Binary>),
     Drain(oneshot::Sender<()>),
 }
 
@@ -121,7 +121,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     pub fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
-            self.stream.push_back(Frame::Payload(Some(data.into())));
+            self.stream.push_back(Frame::Chunk(Some(data.into())));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -130,7 +130,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     /// Indicate end of streamimng payload. Also this method calls `Self::close`.
     #[inline]
     pub fn write_eof(&mut self) {
-        self.stream.push_back(Frame::Payload(None));
+        self.stream.push_back(Frame::Chunk(None));
     }
 
     /// Returns drain future

@@ -107,7 +107,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
-            self.stream.push_back(ContextFrame::Payload(Some(data.into())));
+            self.stream.push_back(ContextFrame::Chunk(Some(data.into())));
         } else {
             warn!("Trying to write to disconnected response");
         }

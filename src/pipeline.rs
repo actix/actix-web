@@ -209,8 +209,7 @@ struct StartMiddlewares<S, H> {
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
-    fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be non-async
         // and we can move to next state immidietly
         let len = info.mws.len();
@@ -247,8 +246,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
         }
     }
 
-    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>>
-    {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         let len = info.mws.len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
@@ -296,8 +294,7 @@ struct WaitingResponse<S, H> {
 impl<S: 'static, H> WaitingResponse<S, H> {
 
     #[inline]
-    fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H> {
         match reply.into() {
             ReplyItem::Message(resp) =>
                 RunMiddlewares::init(info, resp),
@@ -307,8 +304,7 @@ impl<S: 'static, H> WaitingResponse<S, H> {
         }
     }
 
-    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>>
-    {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
             Ok(Async::Ready(response)) =>
@@ -329,8 +325,7 @@ struct RunMiddlewares<S, H> {
 
 impl<S: 'static, H> RunMiddlewares<S, H> {
 
-    fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {
             return ProcessResponse::init(resp);
         }
@@ -440,8 +435,7 @@ enum IOState {
 impl<S: 'static, H> ProcessResponse<S, H> {
 
     #[inline]
-    fn init(resp: HttpResponse) -> PipelineState<S, H>
-    {
+    fn init(resp: HttpResponse) -> PipelineState<S, H> {
         PipelineState::Response(
             ProcessResponse{ resp: resp,
                              iostate: IOState::Response,
@@ -513,7 +507,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                         match ctx.poll() {
                             Ok(Async::Ready(Some(frame))) => {
                                 match frame {
-                                    Frame::Payload(None) => {
+                                    Frame::Chunk(None) => {
                                         info.context = Some(ctx);
                                         self.iostate = IOState::Done;
                                         if let Err(err) = io.write_eof() {
@@ -523,7 +517,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                         }
                                         break
                                     },
-                                    Frame::Payload(Some(chunk)) => {
+                                    Frame::Chunk(Some(chunk)) => {
                                         self.iostate = IOState::Actor(ctx);
                                         match io.write(chunk.as_ref()) {
                                             Err(err) => {
