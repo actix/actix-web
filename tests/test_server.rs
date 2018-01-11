@@ -16,7 +16,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use flate2::Compression;
 use flate2::write::{GzEncoder, DeflateEncoder, DeflateDecoder};
 use brotli2::write::{BrotliEncoder, BrotliDecoder};
-use futures::Future;
+use futures::{Future, Stream};
+use futures::stream::once;
 use h2::client;
 use bytes::{Bytes, BytesMut, BufMut};
 use http::Request;
@@ -114,6 +115,41 @@ fn test_body_gzip() {
 }
 
 #[test]
+fn test_body_streaming_implicit() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            let body = once(Ok(Bytes::from_static(STR.as_ref())));
+            httpcodes::HTTPOk.build()
+                .content_encoding(headers::ContentEncoding::Gzip)
+                .body(Body::Streaming(Box::new(body)))}));
+
+    let mut res = reqwest::get(&srv.url("/")).unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_streaming_explicit() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            let body = once(Ok(Bytes::from_static(STR.as_ref())));
+            httpcodes::HTTPOk.build()
+                .chunked()
+                .content_encoding(headers::ContentEncoding::Gzip)
+                .body(Body::Streaming(Box::new(body)))}));
+
+    let mut res = reqwest::get(&srv.url("/")).unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_body_deflate() {
     let srv = test::TestServer::new(
         |app| app.handler(
@@ -151,35 +187,6 @@ fn test_body_brotli() {
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-}
-
-#[test]
-fn test_h2() {
-    let srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
-    let addr = srv.addr();
-
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-    let tcp = TcpStream::connect(&addr, &handle);
-
-    let tcp = tcp.then(|res| {
-        client::handshake(res.unwrap())
-    }).then(move |res| {
-        let (mut client, h2) = res.unwrap();
-
-        let request = Request::builder()
-            .uri(format!("https://{}/", addr).as_str())
-            .body(())
-            .unwrap();
-        let (response, _) = client.send_request(request, false).unwrap();
-
-        // Spawn a task to run the conn...
-        handle.spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
-
-        response
-    });
-    let resp = core.run(tcp).unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[test]
@@ -258,6 +265,47 @@ fn test_brotli_encoding() {
     let _ = res.copy_to(&mut bytes);
     let bytes = bytes.into_inner();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_h2() {
+    let srv = test::TestServer::new(|app| app.handler(|_|{
+        httpcodes::HTTPOk.build().body(STR)
+    }));
+    let addr = srv.addr();
+
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
+    let tcp = TcpStream::connect(&addr, &handle);
+
+    let tcp = tcp.then(|res| {
+        client::handshake(res.unwrap())
+    }).then(move |res| {
+        let (mut client, h2) = res.unwrap();
+
+        let request = Request::builder()
+            .uri(format!("https://{}/", addr).as_str())
+            .body(())
+            .unwrap();
+        let (response, _) = client.send_request(request, false).unwrap();
+
+        // Spawn a task to run the conn...
+        handle.spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
+
+        response.and_then(|response| {
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let (_, body) = response.into_parts();
+
+            body.fold(BytesMut::new(), |mut b, c| -> Result<_, h2::Error> {
+                b.extend(c);
+                Ok(b)
+            })
+        })
+    });
+    let res = core.run(tcp).unwrap();
+
+    assert_eq!(res, Bytes::from_static(STR.as_ref()));
 }
 
 #[test]

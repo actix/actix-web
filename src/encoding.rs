@@ -369,33 +369,8 @@ impl PayloadEncoder {
                         resp.headers_mut().remove(CONTENT_ENCODING);
                     }
                     TransferEncoding::eof(buf)
-                } else if resp.chunked() {
-                    resp.headers_mut().remove(CONTENT_LENGTH);
-                    if version != Version::HTTP_11 {
-                        error!("Chunked transfer encoding is forbidden for {:?}", version);
-                    }
-                    if version == Version::HTTP_2 {
-                        resp.headers_mut().remove(TRANSFER_ENCODING);
-                        TransferEncoding::eof(buf)
-                    } else {
-                        resp.headers_mut().insert(
-                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                        TransferEncoding::chunked(buf)
-                    }
-                } else if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
-                    // Content-Length
-                    if let Ok(s) = len.to_str() {
-                        if let Ok(len) = s.parse::<u64>() {
-                            TransferEncoding::length(len, buf)
-                        } else {
-                            debug!("illegal Content-Length: {:?}", len);
-                            TransferEncoding::eof(buf)
-                        }
-                    } else {
-                        TransferEncoding::eof(buf)
-                    }
                 } else {
-                    TransferEncoding::eof(buf)
+                    PayloadEncoder::streaming_encoding(buf, version, resp)
                 }
             }
         };
@@ -413,6 +388,60 @@ impl PayloadEncoder {
                 ContentEncoding::Auto => unreachable!()
             }
         )
+    }
+
+    fn streaming_encoding(buf: SharedBytes, version: Version,
+                          resp: &mut HttpResponse) -> TransferEncoding {
+        if resp.chunked() {
+            // Enable transfer encoding
+            resp.headers_mut().remove(CONTENT_LENGTH);
+            if version == Version::HTTP_2 {
+                resp.headers_mut().remove(TRANSFER_ENCODING);
+                TransferEncoding::eof(buf)
+            } else {
+                resp.headers_mut().insert(
+                    TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                TransferEncoding::chunked(buf)
+            }
+        } else {
+            // if Content-Length is specified, then use it as length hint
+            let (len, chunked) =
+                if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
+                    // Content-Length
+                    if let Ok(s) = len.to_str() {
+                        if let Ok(len) = s.parse::<u64>() {
+                            (Some(len), false)
+                        } else {
+                            error!("illegal Content-Length: {:?}", len);
+                            (None, false)
+                        }
+                    } else {
+                        error!("illegal Content-Length: {:?}", len);
+                        (None, false)
+                    }
+                } else {
+                    (None, true)
+                };
+
+            if !chunked {
+                if let Some(len) = len {
+                    TransferEncoding::length(len, buf)
+                } else {
+                    TransferEncoding::eof(buf)
+                }
+            } else {
+                // Enable transfer encoding
+                resp.headers_mut().remove(CONTENT_LENGTH);
+                if version == Version::HTTP_2 {
+                    resp.headers_mut().remove(TRANSFER_ENCODING);
+                    TransferEncoding::eof(buf)
+                } else {
+                    resp.headers_mut().insert(
+                        TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                    TransferEncoding::chunked(buf)
+                }
+            }
+        }
     }
 }
 
