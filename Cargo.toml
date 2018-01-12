@@ -33,18 +33,18 @@ tls = ["native-tls", "tokio-tls"]
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
 [dependencies]
-log = "0.3"
+log = "0.4"
 failure = "0.1"
 failure_derive = "0.1"
 time = "0.1"
 http = "^0.1.2"
-httparse = "0.1"
+httparse = "1.2"
 http-range = "0.1"
 mime = "0.3"
 mime_guess = "1.8"
 regex = "0.2"
-sha1 = "0.2"
-url = "1.5"
+sha1 = "0.4"
+url = "1.6"
 libc = "0.2"
 serde = "1.0"
 serde_json = "1.0"
