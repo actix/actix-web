@@ -26,20 +26,19 @@ pub struct HttpChannel<T, H>
 impl<T, H> HttpChannel<T, H>
     where T: IoStream, H: HttpHandler + 'static
 {
-    pub(crate) fn new(h: Rc<WorkerSettings<H>>,
+    pub(crate) fn new(settings: Rc<WorkerSettings<H>>,
                       io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
-        h.add_channel();
+        settings.add_channel();
         if http2 {
             HttpChannel {
                 node: None,
                 proto: Some(HttpProtocol::H2(
-                    h2::Http2::new(h, io, peer, Bytes::new()))) }
+                    h2::Http2::new(settings, io, peer, Bytes::new()))) }
         } else {
             HttpChannel {
                 node: None,
-                proto: Some(HttpProtocol::H1(
-                    h1::Http1::new(h, io, peer))) }
+                proto: Some(HttpProtocol::H1(h1::Http1::new(settings, io, peer))) }
         }
     }
 
@@ -57,14 +56,6 @@ impl<T, H> HttpChannel<T, H>
         }
     }
 }
-
-/*impl<T, H> Drop for HttpChannel<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: HttpHandler + 'static
-{
-    fn drop(&mut self) {
-        println!("Drop http channel");
-    }
-}*/
 
 impl<T, H> Future for HttpChannel<T, H>
     where T: IoStream, H: HttpHandler + 'static
