@@ -54,12 +54,11 @@ percent-encoding = "1.0"
 smallvec = "0.6"
 bitflags = "1.0"
 num_cpus = "1.0"
-
 flate2 = "1.0"
+cookie = { version="0.10", features=["percent-encode", "secure"] }
 
-# temp solution
-# cookie = { version="0.10", features=["percent-encode", "secure"] }
-cookie = { git="https://github.com/alexcrichton/cookie-rs.git", features=["percent-encode", "secure"] }
+# ring nightly compilation bug
+# cookie = { git="https://github.com/alexcrichton/cookie-rs.git", features=["percent-encode", "secure"] }
 
 # io
 mio = "0.6"
