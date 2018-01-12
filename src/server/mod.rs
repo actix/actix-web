@@ -4,6 +4,7 @@ use std::net::Shutdown;
 
 use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_core::net::TcpStream;
 
 mod srv;
 mod worker;
@@ -55,9 +56,9 @@ pub trait HttpHandler: 'static {
 
 pub trait HttpHandlerTask {
 
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
-
     fn poll(&mut self) -> Poll<(), Error>;
+
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
 
     fn disconnected(&mut self);
 }
@@ -77,15 +78,6 @@ impl<T: HttpHandler> IntoHttpHandler for T {
     fn into_handler(self, _: ServerSettings) -> Self::Handler {
         self
     }
-}
-
-/// Low-level io stream operations
-pub trait IoStream: AsyncRead + AsyncWrite + 'static {
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
-
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
-
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 }
 
 #[derive(Debug)]
@@ -108,4 +100,74 @@ pub trait Writer {
     fn flush(&mut self) -> Poll<(), io::Error>;
 
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
+}
+
+/// Low-level io stream operations
+pub trait IoStream: AsyncRead + AsyncWrite + 'static {
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
+
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
+
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
+}
+
+impl IoStream for TcpStream {
+    #[inline]
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+        TcpStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        TcpStream::set_nodelay(self, nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        TcpStream::set_linger(self, dur)
+    }
+}
+
+#[cfg(feature="alpn")]
+use tokio_openssl::SslStream;
+
+#[cfg(feature="alpn")]
+impl IoStream for SslStream<TcpStream> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
+    }
+}
+
+#[cfg(feature="tls")]
+use tokio_tls::TlsStream;
+
+#[cfg(feature="tls")]
+impl IoStream for TlsStream<TcpStream> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
+    }
 }

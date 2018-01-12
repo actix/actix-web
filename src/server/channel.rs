@@ -5,7 +5,6 @@ use std::net::{SocketAddr, Shutdown};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_core::net::TcpStream;
 
 use super::{h1, h2, utils, HttpHandler, IoStream};
 use super::settings::WorkerSettings;
@@ -18,6 +17,7 @@ enum HttpProtocol<T: IoStream, H: 'static> {
     H2(h2::Http2<T, H>),
     Unknown(Rc<WorkerSettings<H>>, Option<SocketAddr>, T, BytesMut),
 }
+
 impl<T: IoStream, H: 'static> HttpProtocol<T, H> {
     fn is_unknown(&self) -> bool {
         match *self {
@@ -72,8 +72,7 @@ impl<T, H> HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
     }
 }
 
-impl<T, H> Future for HttpChannel<T, H>
-    where T: IoStream, H: HttpHandler + 'static
+impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
 {
     type Item = ();
     type Error = ();
@@ -92,20 +91,15 @@ impl<T, H> Future for HttpChannel<T, H>
 
         let kind = match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
-                match h1.poll() {
-                    Ok(Async::Ready(())) => {
+                let result = h1.poll();
+                match result {
+                    Ok(Async::Ready(())) | Err(_) => {
                         h1.settings().remove_channel();
                         self.node.as_ref().unwrap().remove();
-                        return Ok(Async::Ready(()))
-                    }
-                    Ok(Async::NotReady) =>
-                        return Ok(Async::NotReady),
-                    Err(_) => {
-                        h1.settings().remove_channel();
-                        self.node.as_ref().unwrap().remove();
-                        return Err(())
-                    }
+                    },
+                    _ => (),
                 }
+                return result
             },
             Some(HttpProtocol::H2(ref mut h2)) => {
                 let result = h2.poll();
@@ -113,7 +107,7 @@ impl<T, H> Future for HttpChannel<T, H>
                     Ok(Async::Ready(())) | Err(_) => {
                         h2.settings().remove_channel();
                         self.node.as_ref().unwrap().remove();
-                    }
+                    },
                     _ => (),
                 }
                 return result
@@ -144,25 +138,22 @@ impl<T, H> Future for HttpChannel<T, H>
             None => unreachable!(),
         };
 
-        // upgrade to h2
-        let proto = self.proto.take().unwrap();
-        match proto {
-            HttpProtocol::Unknown(settings, addr, io, buf) => {
-                match kind {
-                    ProtocolKind::Http1 => {
-                        self.proto = Some(
-                            HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
-                        self.poll()
-                    },
-                    ProtocolKind::Http2 => {
-                        self.proto = Some(
-                            HttpProtocol::H2(h2::Http2::new(settings, io, addr, buf.freeze())));
-                        self.poll()
-                    },
-                }
+        // upgrade to specific http protocol
+        if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
+            match kind {
+                ProtocolKind::Http1 => {
+                    self.proto = Some(
+                        HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
+                    return self.poll()
+                },
+                ProtocolKind::Http2 => {
+                    self.proto = Some(
+                        HttpProtocol::H2(h2::Http2::new(settings, io, addr, buf.freeze())));
+                    return self.poll()
+                },
             }
-            _ => unreachable!()
         }
+        unreachable!()
     }
 }
 
@@ -242,67 +233,40 @@ impl Node<()> {
     }
 }
 
-impl IoStream for TcpStream {
-    #[inline]
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
-        TcpStream::shutdown(self, how)
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        TcpStream::set_nodelay(self, nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        TcpStream::set_linger(self, dur)
-    }
-}
-
-
 /// Wrapper for `AsyncRead + AsyncWrite` types
 pub(crate) struct WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
    io: T,
 }
 
-impl<T> WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
     pub fn new(io: T) -> Self {
         WrapperStream{io: io}
     }
 }
 
-impl<T> IoStream for WrapperStream<T>
-    where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> IoStream for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
     #[inline]
     fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
         Ok(())
     }
-
     #[inline]
     fn set_nodelay(&mut self, _: bool) -> io::Result<()> {
         Ok(())
     }
-
     #[inline]
     fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
         Ok(())
     }
 }
 
-impl<T> io::Read for WrapperStream<T>
-    where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> io::Read for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.io.read(buf)
     }
 }
 
-impl<T> io::Write for WrapperStream<T>
-    where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> io::Write for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.io.write(buf)
@@ -313,66 +277,20 @@ impl<T> io::Write for WrapperStream<T>
     }
 }
 
-impl<T> AsyncRead for WrapperStream<T>
-    where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> AsyncRead for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+    #[inline]
     fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         self.io.read_buf(buf)
     }
 }
 
-impl<T> AsyncWrite for WrapperStream<T>
-    where T: AsyncRead + AsyncWrite + 'static
-{
+impl<T> AsyncWrite for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+    #[inline]
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.io.shutdown()
     }
+    #[inline]
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         self.io.write_buf(buf)
-    }
-}
-
-
-#[cfg(feature="alpn")]
-use tokio_openssl::SslStream;
-
-#[cfg(feature="alpn")]
-impl IoStream for SslStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
-    }
-}
-
-#[cfg(feature="tls")]
-use tokio_tls::TlsStream;
-
-#[cfg(feature="tls")]
-impl IoStream for TlsStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
     }
 }
