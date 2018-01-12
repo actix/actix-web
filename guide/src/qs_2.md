@@ -20,8 +20,8 @@ contains the following:
 
 ```toml
 [dependencies]
-actix = "0.3"
-actix-web = { git = "https://github.com/actix/actix-web" }
+actix = "0.4"
+actix-web = "0.3"
 ```
 
 In order to implement a web server, first we need to create a request handler.
