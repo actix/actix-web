@@ -841,7 +841,7 @@ mod tests {
         let resp: HttpResponse = HTTPOk.into();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
-            &b"https://www.example.com/"[..],
+            &b"https://www.example.com"[..],
             resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes());
     }
 }
