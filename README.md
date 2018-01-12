@@ -40,7 +40,8 @@ fn main() {
 * Multipart streams
 * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
   [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
-  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers))
+  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
+  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
 * Built on top of [Actix](https://github.com/actix/actix).
 
 ## Benchmarks
