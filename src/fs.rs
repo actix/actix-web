@@ -83,6 +83,8 @@ impl Responder for NamedFile {
 
     fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
         let mut resp = HTTPOk.build();
+        use headers::ContentEncoding;
+        resp.content_encoding(ContentEncoding::Identity);
         if let Some(ext) = self.path().extension() {
             let mime = get_mime_type(&ext.to_string_lossy());
             resp.content_type(format!("{}", mime).as_str());

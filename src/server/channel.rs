@@ -112,16 +112,13 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
                 }
                 return result
             },
-            Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
+            Some(HttpProtocol::Unknown(ref mut settings, _, ref mut io, ref mut buf)) => {
                 match utils::read_from_io(io, buf) {
-                    Ok(Async::Ready(0)) => {
+                    Ok(Async::Ready(0)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
+                        settings.remove_channel();
                         return Err(())
                     },
-                    Err(err) => {
-                        debug!("Ignored premature client disconnection {}", err);
-                        return Err(())
-                    }
                     _ => (),
                 }
 
