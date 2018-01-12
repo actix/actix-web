@@ -9,10 +9,10 @@ use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LEN
 use helpers;
 use body::Body;
 use helpers::SharedBytes;
-use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
-use server::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use super::encoding::PayloadEncoder;
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const CHUNK_SIZE: usize = 16_384;
 

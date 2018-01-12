@@ -16,7 +16,7 @@ use cookie::Cookie;
 use body::Body;
 use error::Error;
 use handler::Responder;
-use encoding::ContentEncoding;
+use headers::ContentEncoding;
 use httprequest::HttpRequest;
 
 /// Represents various types of connection

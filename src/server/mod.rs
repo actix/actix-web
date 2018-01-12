@@ -8,6 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 mod srv;
 mod worker;
 mod channel;
+mod encoding;
 mod h1;
 mod h2;
 mod h1writer;

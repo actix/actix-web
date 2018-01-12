@@ -93,7 +93,6 @@ mod application;
 mod body;
 mod context;
 mod helpers;
-mod encoding;
 mod httprequest;
 mod httpresponse;
 mod info;
@@ -141,12 +140,25 @@ pub use openssl::pkcs12::Pkcs12;
 pub mod headers {
 //! Headers implementation
 
-    pub use encoding::ContentEncoding;
     pub use httpresponse::ConnectionType;
 
-    pub use cookie::Cookie;
-    pub use cookie::CookieBuilder;
+    pub use cookie::{Cookie, CookieBuilder};
     pub use http_range::HttpRange;
+
+    /// Represents supported types of content encodings
+    #[derive(Copy, Clone, PartialEq, Debug)]
+    pub enum ContentEncoding {
+        /// Automatically select encoding based on encoding negotiation
+        Auto,
+        /// A format using the Brotli algorithm
+        Br,
+        /// A format using the zlib structure with deflate algorithm
+        Deflate,
+        /// Gzip algorithm
+        Gzip,
+        /// Indicates the identity function (i.e. no compression, nor modification)
+        Identity,
+    }
 }
 
 pub mod dev {

@@ -16,12 +16,12 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use error::PayloadError;
-use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
 
 use super::h2writer::H2Writer;
+use super::encoding::PayloadType;
 use super::settings::WorkerSettings;
 use super::{HttpHandler, HttpHandlerTask};
 

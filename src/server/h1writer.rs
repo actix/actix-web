@@ -8,10 +8,10 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 use helpers;
 use body::Body;
 use helpers::SharedBytes;
-use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
-use server::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use super::encoding::PayloadEncoder;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 

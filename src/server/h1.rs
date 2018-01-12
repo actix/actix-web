@@ -13,7 +13,6 @@ use futures::{Future, Poll, Async};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
-use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
@@ -21,6 +20,7 @@ use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 use super::Writer;
 use super::h1writer::H1Writer;
+use super::encoding::PayloadType;
 use super::settings::WorkerSettings;
 use super::{HttpHandler, HttpHandlerTask, IoStream};
 

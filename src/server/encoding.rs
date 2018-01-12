@@ -12,27 +12,13 @@ use flate2::write::{GzDecoder, GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
+use headers::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
 use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
-
-/// Represents supported types of content encodings
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum ContentEncoding {
-    /// Automatically select encoding based on encoding negotiation
-    Auto,
-    /// A format using the Brotli algorithm
-    Br,
-    /// A format using the zlib structure with deflate algorithm
-    Deflate,
-    /// Gzip algorithm
-    Gzip,
-    /// Indicates the identity function (i.e. no compression, nor modification)
-    Identity,
-}
 
 impl ContentEncoding {
 
