@@ -12,10 +12,9 @@ use helpers::SharedBytes;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
-use h1writer::{Writer, WriterState};
+use server::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const CHUNK_SIZE: usize = 16_384;
-const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 bitflags! {
     struct Flags: u8 {

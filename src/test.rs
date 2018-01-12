@@ -16,9 +16,7 @@ use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
 use error::Error;
-use server::{HttpServer, ServerSettings};
 use handler::{Handler, Responder, ReplyItem};
-use channel::{HttpHandler, IntoHttpHandler};
 use middleware::Middleware;
 use application::{Application, HttpApplication};
 use param::Params;
@@ -26,6 +24,7 @@ use router::Router;
 use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use server::{HttpServer, HttpHandler, IntoHttpHandler, ServerSettings};
 
 /// The `TestServer` type.
 ///

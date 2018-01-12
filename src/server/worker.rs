@@ -1,6 +1,5 @@
 use std::{net, time};
 use std::rc::Rc;
-use std::cell::{Cell, RefCell, RefMut};
 use futures::Future;
 use futures::unsync::oneshot;
 use tokio_core::net::TcpStream;
@@ -25,7 +24,9 @@ use actix::*;
 use actix::msgs::StopArbiter;
 
 use helpers;
-use channel::{HttpChannel, HttpHandler, Node};
+use server::HttpHandler;
+use server::channel::HttpChannel;
+use server::settings::WorkerSettings;
 
 
 #[derive(Message)]
@@ -41,60 +42,6 @@ pub(crate) struct Conn<T> {
 #[rtype(bool)]
 pub(crate) struct StopWorker {
     pub graceful: Option<time::Duration>,
-}
-
-pub(crate) struct WorkerSettings<H> {
-    h: RefCell<Vec<H>>,
-    enabled: bool,
-    keep_alive: u64,
-    bytes: Rc<helpers::SharedBytesPool>,
-    messages: Rc<helpers::SharedMessagePool>,
-    channels: Cell<usize>,
-    node: Node<()>,
-}
-
-impl<H> WorkerSettings<H> {
-    pub(crate) fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
-        WorkerSettings {
-            h: RefCell::new(h),
-            enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
-            keep_alive: keep_alive.unwrap_or(0),
-            bytes: Rc::new(helpers::SharedBytesPool::new()),
-            messages: Rc::new(helpers::SharedMessagePool::new()),
-            channels: Cell::new(0),
-            node: Node::head(),
-        }
-    }
-
-    pub fn head(&self) -> &Node<()> {
-        &self.node
-    }
-    pub fn handlers(&self) -> RefMut<Vec<H>> {
-        self.h.borrow_mut()
-    }
-    pub fn keep_alive(&self) -> u64 {
-        self.keep_alive
-    }
-    pub fn keep_alive_enabled(&self) -> bool {
-        self.enabled
-    }
-    pub fn get_shared_bytes(&self) -> helpers::SharedBytes {
-        helpers::SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
-    }
-    pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
-        helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
-    }
-    pub fn add_channel(&self) {
-        self.channels.set(self.channels.get()+1);
-    }
-    pub fn remove_channel(&self) {
-        let num = self.channels.get();
-        if num > 0 {
-            self.channels.set(num-1);
-        } else {
-            error!("Number of removed channels is bigger than added channel. Bug in actix-web");
-        }
-    }
 }
 
 /// Http worker
@@ -127,7 +74,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
                         tx: oneshot::Sender<bool>, dur: time::Duration) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
-            let num = slf.settings.channels.get();
+            let num = slf.settings.num_channels();
             if num == 0 {
                 let _ = tx.send(true);
                 Arbiter::arbiter().send(StopArbiter(0));
@@ -174,7 +121,7 @@ impl<H> Handler<StopWorker> for Worker<H>
     type Result = Response<Self, StopWorker>;
 
     fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
-        let num = self.settings.channels.get();
+        let num = self.settings.num_channels();
         if num == 0 {
             info!("Shutting down http worker, 0 connections");
             Self::reply(Ok(true))

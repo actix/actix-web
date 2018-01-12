@@ -28,59 +28,12 @@ use openssl::pkcs12::ParsedPkcs12;
 use tokio_openssl::SslStream;
 
 use helpers;
-use channel::{HttpChannel, HttpHandler, IntoHttpHandler, IoStream, WrapperStream};
-use worker::{Conn, Worker, WorkerSettings, StreamHandlerType, StopWorker};
+use super::{HttpHandler, IntoHttpHandler, IoStream};
+use super::{PauseServer, ResumeServer, StopServer};
+use super::channel::{HttpChannel, WrapperStream};
+use super::worker::{Conn, Worker, StreamHandlerType, StopWorker};
+use super::settings::{ServerSettings, WorkerSettings};
 
-/// Various server settings
-#[derive(Debug, Clone)]
-pub struct ServerSettings {
-    addr: Option<net::SocketAddr>,
-    secure: bool,
-    host: String,
-}
-
-impl Default for ServerSettings {
-    fn default() -> Self {
-        ServerSettings {
-            addr: None,
-            secure: false,
-            host: "localhost:8080".to_owned(),
-        }
-    }
-}
-
-impl ServerSettings {
-    /// Crate server settings instance
-    fn new(addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool) -> Self {
-        let host = if let Some(ref host) = *host {
-            host.clone()
-        } else if let Some(ref addr) = addr {
-            format!("{}", addr)
-        } else {
-            "localhost".to_owned()
-        };
-        ServerSettings {
-            addr: addr,
-            secure: secure,
-            host: host,
-        }
-    }
-
-    /// Returns the socket address of the local half of this TCP connection
-    pub fn local_addr(&self) -> Option<net::SocketAddr> {
-        self.addr
-    }
-
-    /// Returns true if connection is secure(https)
-    pub fn secure(&self) -> bool {
-        self.secure
-    }
-
-    /// Returns host header value
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-}
 
 /// An HTTP Server
 ///
@@ -583,25 +536,6 @@ impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
                 debug!("Error handling request: {}", err),
         }
     }
-}
-
-/// Pause accepting incoming connections
-///
-/// If socket contains some pending connection, they might be dropped.
-/// All opened connection remains active.
-#[derive(Message)]
-pub struct PauseServer;
-
-/// Resume accepting incoming connections
-#[derive(Message)]
-pub struct ResumeServer;
-
-/// Stop incoming connection processing, stop all workers and exit.
-///
-/// If server starts with `spawn()` method, then spawned thread get terminated.
-#[derive(Message)]
-pub struct StopServer {
-    pub graceful: bool
 }
 
 impl<T, A, H, U, V> Handler<PauseServer> for HttpServer<T, A, H, U>

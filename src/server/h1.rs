@@ -14,13 +14,15 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use encoding::PayloadType;
-use channel::{HttpHandler, HttpHandlerTask, IoStream};
-use h1writer::{Writer, H1Writer};
-use worker::WorkerSettings;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
+
+use super::Writer;
+use super::h1writer::H1Writer;
+use super::settings::WorkerSettings;
+use super::{HttpHandler, HttpHandlerTask, IoStream};
 
 const LW_BUFFER_SIZE: usize = 4096;
 const HW_BUFFER_SIZE: usize = 16_384;
@@ -901,8 +903,8 @@ mod tests {
 
     use super::*;
     use application::HttpApplication;
-    use worker::WorkerSettings;
-    use channel::IoStream;
+    use server::settings::WorkerSettings;
+    use server::IoStream;
 
     struct Buffer {
         buf: Bytes,

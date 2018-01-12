@@ -6,16 +6,15 @@ use std::marker::PhantomData;
 use futures::{Async, Poll, Future, Stream};
 use futures::unsync::oneshot;
 
-use channel::HttpHandlerTask;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
 use error::Error;
 use handler::{Reply, ReplyItem};
-use h1writer::{Writer, WriterState};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Finished, Started, Response};
 use application::Inner;
+use server::{Writer, WriterState, HttpHandlerTask};
 
 pub(crate) trait PipelineHandler<S> {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply;

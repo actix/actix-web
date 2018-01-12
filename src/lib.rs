@@ -104,13 +104,6 @@ mod param;
 mod resource;
 mod handler;
 mod pipeline;
-mod server;
-mod worker;
-mod channel;
-mod h1;
-mod h2;
-mod h1writer;
-mod h2writer;
 
 pub mod fs;
 pub mod ws;
@@ -121,17 +114,18 @@ pub mod middleware;
 pub mod pred;
 pub mod test;
 pub mod payload;
+pub mod server;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
-pub use json::{Json};
+pub use json::Json;
 pub use application::Application;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
 pub use route::Route;
 pub use resource::Resource;
-pub use server::HttpServer;
 pub use context::HttpContext;
+pub use server::HttpServer;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
@@ -171,10 +165,7 @@ pub mod dev {
     pub use handler::Handler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
-    pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
     pub use httprequest::{UrlEncoded, RequestBody};
     pub use httpresponse::HttpResponseBuilder;
-
-    pub use server::{ServerSettings, PauseServer, ResumeServer, StopServer};
 }

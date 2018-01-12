@@ -15,14 +15,15 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
-use h2writer::H2Writer;
-use worker::WorkerSettings;
-use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
 use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
+
+use super::h2writer::H2Writer;
+use super::settings::WorkerSettings;
+use super::{HttpHandler, HttpHandlerTask};
 
 bitflags! {
     struct Flags: u8 {

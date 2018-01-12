@@ -7,49 +7,10 @@ use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
 
-use {h1, h2};
-use error::Error;
-use h1writer::Writer;
-use httprequest::HttpRequest;
-use server::ServerSettings;
-use worker::WorkerSettings;
+use super::{h1, h2, HttpHandler, IoStream};
+use super::settings::WorkerSettings;
 
-/// Low level http request handler
-#[allow(unused_variables)]
-pub trait HttpHandler: 'static {
-
-    /// Handle request
-    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
-}
-
-pub trait HttpHandlerTask {
-
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
-
-    fn poll(&mut self) -> Poll<(), Error>;
-
-    fn disconnected(&mut self);
-}
-
-/// Conversion helper trait
-pub trait IntoHttpHandler {
-    /// The associated type which is result of conversion.
-    type Handler: HttpHandler;
-
-    /// Convert into `HttpHandler` object.
-    fn into_handler(self, settings: ServerSettings) -> Self::Handler;
-}
-
-impl<T: HttpHandler> IntoHttpHandler for T {
-    type Handler = T;
-
-    fn into_handler(self, _: ServerSettings) -> Self::Handler {
-        self
-    }
-}
-
-enum HttpProtocol<T: IoStream, H: 'static>
-{
+enum HttpProtocol<T: IoStream, H: 'static> {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
 }
@@ -245,16 +206,6 @@ impl Node<()> {
             }
         }
     }
-}
-
-
-/// Low-level io stream operations
-pub trait IoStream: AsyncRead + AsyncWrite + 'static {
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
-
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
-
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 }
 
 impl IoStream for TcpStream {

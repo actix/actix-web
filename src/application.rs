@@ -8,10 +8,9 @@ use router::{Router, Pattern};
 use resource::Resource;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
-use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
 use pipeline::{Pipeline, PipelineHandler};
 use middleware::Middleware;
-use server::ServerSettings;
+use server::{HttpHandler, IntoHttpHandler, HttpHandlerTask, ServerSettings};
 
 /// Application
 pub struct HttpApplication<S=()> {

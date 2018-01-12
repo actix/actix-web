@@ -11,32 +11,9 @@ use helpers::SharedBytes;
 use encoding::PayloadEncoder;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
+use server::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
-const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
-
-
-#[derive(Debug)]
-pub enum WriterState {
-    Done,
-    Pause,
-}
-
-/// Send stream
-pub trait Writer {
-    fn written(&self) -> u64;
-
-    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse)
-             -> Result<WriterState, io::Error>;
-
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error>;
-
-    fn write_eof(&mut self) -> Result<WriterState, io::Error>;
-
-    fn flush(&mut self) -> Poll<(), io::Error>;
-
-    fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
-}
 
 bitflags! {
     struct Flags: u8 {
