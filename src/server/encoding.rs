@@ -1,5 +1,5 @@
 use std::{io, cmp, mem};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
@@ -8,7 +8,8 @@ use http::header::{HeaderMap, HeaderValue,
                    ACCEPT_ENCODING, CONNECTION,
                    CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
 use flate2::Compression;
-use flate2::write::{GzDecoder, GzEncoder, DeflateDecoder, DeflateEncoder};
+use flate2::read::GzDecoder;
+use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
@@ -122,15 +123,50 @@ impl PayloadWriter for PayloadType {
 
 enum Decoder {
     Deflate(Box<DeflateDecoder<Writer<BytesMut>>>),
-    Gzip(Box<GzDecoder<Writer<BytesMut>>>),
+    Gzip(Option<Box<GzDecoder<Wrapper>>>),
     Br(Box<BrotliDecoder<Writer<BytesMut>>>),
     Identity,
+}
+
+// should go after write::GzDecoder get implemented
+#[derive(Debug)]
+struct Wrapper {
+    buf: BytesMut,
+    eof: bool,
+}
+
+impl io::Read for Wrapper {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let len = cmp::min(buf.len(), self.buf.len());
+        buf[..len].copy_from_slice(&self.buf[..len]);
+        self.buf.split_to(len);
+        if len == 0 {
+            if self.eof {
+                Ok(0)
+            } else {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+            }
+        } else {
+            Ok(len)
+        }
+    }
+}
+
+impl io::Write for Wrapper {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Payload wrapper with content decompression support
 pub(crate) struct EncodedPayload {
     inner: PayloadSender,
     decoder: Decoder,
+    dst: BytesMut,
     error: bool,
 }
 
@@ -141,11 +177,10 @@ impl EncodedPayload {
                 Box::new(BrotliDecoder::new(BytesMut::with_capacity(8192).writer()))),
             ContentEncoding::Deflate => Decoder::Deflate(
                 Box::new(DeflateDecoder::new(BytesMut::with_capacity(8192).writer()))),
-            ContentEncoding::Gzip => Decoder::Gzip(
-                Box::new(GzDecoder::new(BytesMut::with_capacity(8192).writer()))),
+            ContentEncoding::Gzip => Decoder::Gzip(None),
             _ => Decoder::Identity,
         };
-        EncodedPayload{ inner: inner, decoder: dec, error: false }
+        EncodedPayload{ inner: inner, decoder: dec, error: false, dst: BytesMut::new() }
     }
 }
 
@@ -174,16 +209,28 @@ impl PayloadWriter for EncodedPayload {
                 }
             },
             Decoder::Gzip(ref mut decoder) => {
-                match decoder.try_finish() {
-                    Ok(_) => {
-                        let b = decoder.get_mut().get_mut().take().freeze();
-                        if !b.is_empty() {
-                            self.inner.feed_data(b);
+                if let Some(ref mut decoder) = *decoder {
+                    decoder.as_mut().get_mut().eof = true;
+
+                    loop {
+                        self.dst.reserve(8192);
+                        match decoder.read(unsafe{self.dst.bytes_mut()}) {
+                            Ok(n) =>  {
+                                if n == 0 {
+                                    self.inner.feed_eof();
+                                    return
+                                } else {
+                                    unsafe{self.dst.set_len(n)};
+                                    self.inner.feed_data(self.dst.split_to(n).freeze());
+                                }
+                            }
+                            Err(err) => {
+                                break Some(err);
+                            }
                         }
-                        self.inner.feed_eof();
-                        return
-                    },
-                    Err(err) => Some(err),
+                    }
+                } else {
+                    return
                 }
             },
             Decoder::Deflate(ref mut decoder) => {
@@ -231,14 +278,33 @@ impl PayloadWriter for EncodedPayload {
             }
 
             Decoder::Gzip(ref mut decoder) => {
-                if decoder.write(&data).is_ok() && decoder.flush().is_ok() {
-                    let b = decoder.get_mut().get_mut().take().freeze();
-                    if !b.is_empty() {
-                        self.inner.feed_data(b);
-                    }
-                    return
+                if decoder.is_none() {
+                    *decoder = Some(
+                        Box::new(GzDecoder::new(
+                            Wrapper{buf: BytesMut::from(data), eof: false})));
+                } else {
+                    let _ = decoder.as_mut().unwrap().write(&data);
                 }
-                trace!("Error decoding gzip encoding");
+
+                loop {
+                    self.dst.reserve(8192);
+                    match decoder.as_mut().as_mut().unwrap().read(unsafe{self.dst.bytes_mut()}) {
+                        Ok(n) =>  {
+                            if n == 0 {
+                                return
+                            } else {
+                                unsafe{self.dst.set_len(n)};
+                                self.inner.feed_data(self.dst.split_to(n).freeze());
+                            }
+                        }
+                        Err(e) => {
+                            if e.kind() == io::ErrorKind::WouldBlock {
+                                return
+                            }
+                            break
+                        }
+                    }
+                }
             }
 
             Decoder::Deflate(ref mut decoder) => {

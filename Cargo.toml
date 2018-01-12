@@ -36,10 +36,11 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 log = "0.4"
 failure = "0.1"
 failure_derive = "0.1"
-time = "0.1"
+h2 = "0.1"
 http = "^0.1.2"
 httparse = "1.2"
 http-range = "0.1"
+time = "0.1"
 mime = "0.3"
 mime_guess = "1.8"
 regex = "0.2"
@@ -54,8 +55,7 @@ smallvec = "0.6"
 bitflags = "1.0"
 num_cpus = "1.0"
 
-#flate2 = "1.0"
-flate2 = { git="https://github.com/fafhrd91/flate2-rs.git" }
+flate2 = "1.0"
 
 # temp solution
 # cookie = { version="0.10", features=["percent-encode", "secure"] }
@@ -68,8 +68,6 @@ bytes = "0.4"
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
-
-h2 = { git = 'https://github.com/carllerche/h2' }
 
 # native-tls
 native-tls = { version="0.1", optional = true }
