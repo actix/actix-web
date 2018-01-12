@@ -1,11 +1,12 @@
 //! Pieces pertaining to the HTTP response.
 use std::{mem, str, fmt};
+use std::io::Write;
 use std::cell::RefCell;
 use std::convert::Into;
 use std::collections::VecDeque;
 
 use cookie::CookieJar;
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
@@ -345,6 +346,14 @@ impl HttpResponseBuilder {
             };
         }
         self
+    }
+
+    /// Set content length
+    #[inline]
+    pub fn content_length(&mut self, len: u64) -> &mut Self {
+        let mut wrt = BytesMut::new().writer();
+        let _ = write!(wrt, "{}", len);
+        self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
     /// Set a cookie

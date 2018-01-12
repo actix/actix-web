@@ -111,6 +111,11 @@ impl Writer for H2Writer {
         self.written
     }
 
+    #[inline]
+    fn flush(&mut self) -> Poll<(), io::Error> {
+        Ok(Async::Ready(()))
+    }
+
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
              -> Result<WriterState, io::Error>
     {

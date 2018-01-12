@@ -33,6 +33,8 @@ pub trait Writer {
 
     fn write_eof(&mut self) -> Result<WriterState, io::Error>;
 
+    fn flush(&mut self) -> Poll<(), io::Error>;
+
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
 }
 
@@ -112,8 +114,23 @@ impl<T: AsyncWrite> H1Writer<T> {
 
 impl<T: AsyncWrite> Writer for H1Writer<T> {
 
+    #[inline]
     fn written(&self) -> u64 {
         self.written
+    }
+
+    #[inline]
+    fn flush(&mut self) -> Poll<(), io::Error> {
+        match self.stream.flush() {
+            Ok(_) => Ok(Async::Ready(())),
+            Err(e) => {
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    Ok(Async::NotReady)
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
@@ -226,6 +243,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
+    #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => {

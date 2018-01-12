@@ -568,6 +568,16 @@ impl<S: 'static, H> ProcessResponse<S, H> {
         if self.running == RunningState::Paused || self.drain.is_some() {
             match io.poll_completed(false) {
                 Ok(Async::Ready(_)) => {
+                    match io.flush() {
+                        Ok(Async::Ready(_)) => (),
+                        Ok(Async::NotReady) => return Err(PipelineState::Response(self)),
+                        Err(err) => {
+                            debug!("Error sending data: {}", err);
+                            info.error = Some(err.into());
+                            return Ok(FinishingMiddlewares::init(info, self.resp))
+                        }
+                    }
+
                     self.running.resume();
 
                     // resolve drain futures

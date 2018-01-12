@@ -132,6 +132,44 @@ fn test_body_streaming_implicit() {
 }
 
 #[test]
+fn test_body_br_streaming() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            let body = once(Ok(Bytes::from_static(STR.as_ref())));
+            httpcodes::HTTPOk.build()
+                .content_encoding(headers::ContentEncoding::Br)
+                .body(Body::Streaming(Box::new(body)))}));
+
+    let mut res = reqwest::get(&srv.url("/")).unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+
+    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    e.write_all(bytes.as_ref()).unwrap();
+    let dec = e.finish().unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_length() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            let body = once(Ok(Bytes::from_static(STR.as_ref())));
+            httpcodes::HTTPOk.build()
+                .content_length(STR.len() as u64)
+                .body(Body::Streaming(Box::new(body)))}));
+
+    let mut res = reqwest::get(&srv.url("/")).unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_body_streaming_explicit() {
     let srv = test::TestServer::new(
         |app| app.handler(|_| {
@@ -304,7 +342,7 @@ fn test_h2() {
         })
     });
     let _res = core.run(tcp);
-    // assert_eq!(res, Bytes::from_static(STR.as_ref()));
+    // assert_eq!(_res.unwrap(), Bytes::from_static(STR.as_ref()));
 }
 
 #[test]
