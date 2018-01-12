@@ -2,29 +2,43 @@ use std::{ptr, mem, time, io};
 use std::rc::Rc;
 use std::net::{SocketAddr, Shutdown};
 
-use bytes::{Bytes, Buf, BufMut};
+use bytes::{Bytes, BytesMut, Buf, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
 
-use super::{h1, h2, HttpHandler, IoStream};
+use super::{h1, h2, utils, HttpHandler, IoStream};
 use super::settings::WorkerSettings;
+
+const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
+
 
 enum HttpProtocol<T: IoStream, H: 'static> {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
+    Unknown(Rc<WorkerSettings<H>>, Option<SocketAddr>, T, BytesMut),
+}
+impl<T: IoStream, H: 'static> HttpProtocol<T, H> {
+    fn is_unknown(&self) -> bool {
+        match *self {
+            HttpProtocol::Unknown(_, _, _, _) => true,
+            _ => false
+        }
+    }
+}
+
+enum ProtocolKind {
+    Http1,
+    Http2,
 }
 
 #[doc(hidden)]
-pub struct HttpChannel<T, H>
-    where T: IoStream, H: HttpHandler + 'static
-{
+pub struct HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static {
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
 }
 
-impl<T, H> HttpChannel<T, H>
-    where T: IoStream, H: HttpHandler + 'static
+impl<T, H> HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
 {
     pub(crate) fn new(settings: Rc<WorkerSettings<H>>,
                       io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
@@ -38,7 +52,8 @@ impl<T, H> HttpChannel<T, H>
         } else {
             HttpChannel {
                 node: None,
-                proto: Some(HttpProtocol::H1(h1::Http1::new(settings, io, peer))) }
+                proto: Some(HttpProtocol::Unknown(
+                    settings, peer, io, BytesMut::with_capacity(4096))) }
         }
     }
 
@@ -52,7 +67,7 @@ impl<T, H> HttpChannel<T, H>
             Some(HttpProtocol::H2(ref mut h2)) => {
                 h2.shutdown()
             }
-            _ => unreachable!(),
+            _ => (),
         }
     }
 }
@@ -64,28 +79,25 @@ impl<T, H> Future for HttpChannel<T, H>
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.node.is_none() {
+        if !self.proto.as_ref().map(|p| p.is_unknown()).unwrap_or(false) && self.node.is_none() {
             self.node = Some(Node::new(self));
             match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) => {
-                    h1.settings().head().insert(self.node.as_ref().unwrap());
-                }
-                Some(HttpProtocol::H2(ref mut h2)) => {
-                    h2.settings().head().insert(self.node.as_ref().unwrap());
-                }
-                _ => unreachable!(),
+                Some(HttpProtocol::H1(ref mut h1)) =>
+                    h1.settings().head().insert(self.node.as_ref().unwrap()),
+                Some(HttpProtocol::H2(ref mut h2)) =>
+                    h2.settings().head().insert(self.node.as_ref().unwrap()),
+                _ => (),
             }
         }
 
-        match self.proto {
+        let kind = match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
                 match h1.poll() {
-                    Ok(Async::Ready(h1::Http1Result::Done)) => {
+                    Ok(Async::Ready(())) => {
                         h1.settings().remove_channel();
                         self.node.as_ref().unwrap().remove();
                         return Ok(Async::Ready(()))
                     }
-                    Ok(Async::Ready(h1::Http1Result::Switch)) => (),
                     Ok(Async::NotReady) =>
                         return Ok(Async::NotReady),
                     Err(_) => {
@@ -94,7 +106,7 @@ impl<T, H> Future for HttpChannel<T, H>
                         return Err(())
                     }
                 }
-            }
+            },
             Some(HttpProtocol::H2(ref mut h2)) => {
                 let result = h2.poll();
                 match result {
@@ -105,18 +117,49 @@ impl<T, H> Future for HttpChannel<T, H>
                     _ => (),
                 }
                 return result
-            }
+            },
+            Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
+                match utils::read_from_io(io, buf) {
+                    Ok(Async::Ready(0)) => {
+                        debug!("Ignored premature client disconnection");
+                        return Err(())
+                    },
+                    Err(err) => {
+                        debug!("Ignored premature client disconnection {}", err);
+                        return Err(())
+                    }
+                    _ => (),
+                }
+
+                if buf.len() >= 14 {
+                    if buf[..14] == HTTP2_PREFACE[..] {
+                        ProtocolKind::Http2
+                    } else {
+                        ProtocolKind::Http1
+                    }
+                } else {
+                    return Ok(Async::NotReady);
+                }
+            },
             None => unreachable!(),
-        }
+        };
 
         // upgrade to h2
         let proto = self.proto.take().unwrap();
         match proto {
-            HttpProtocol::H1(h1) => {
-                let (h, io, addr, buf) = h1.into_inner();
-                self.proto = Some(
-                    HttpProtocol::H2(h2::Http2::new(h, io, addr, buf)));
-                self.poll()
+            HttpProtocol::Unknown(settings, addr, io, buf) => {
+                match kind {
+                    ProtocolKind::Http1 => {
+                        self.proto = Some(
+                            HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
+                        self.poll()
+                    },
+                    ProtocolKind::Http2 => {
+                        self.proto = Some(
+                            HttpProtocol::H2(h2::Http2::new(settings, io, addr, buf.freeze())));
+                        self.poll()
+                    },
+                }
             }
             _ => unreachable!()
         }

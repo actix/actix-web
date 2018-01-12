@@ -55,10 +55,6 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.flags = Flags::empty();
     }
 
-    pub fn into_inner(self) -> T {
-        self.stream
-    }
-
     pub fn disconnected(&mut self) {
         self.encoder.get_mut().take();
     }
