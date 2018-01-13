@@ -483,14 +483,16 @@ impl PayloadEncoder {
                 }
             } else {
                 // Enable transfer encoding
-                resp.headers_mut().remove(CONTENT_LENGTH);
-                if version == Version::HTTP_2 {
-                    resp.headers_mut().remove(TRANSFER_ENCODING);
-                    TransferEncoding::eof(buf)
-                } else {
-                    resp.headers_mut().insert(
-                        TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                    TransferEncoding::chunked(buf)
+                match version {
+                    Version::HTTP_11 => {
+                        resp.headers_mut().insert(
+                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                        TransferEncoding::chunked(buf)
+                    },
+                    _ => {
+                        resp.headers_mut().remove(TRANSFER_ENCODING);
+                        TransferEncoding::eof(buf)
+                    }
                 }
             }
         }
