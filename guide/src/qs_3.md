@@ -2,7 +2,7 @@
 
 Actix web provides some primitives to build web servers and applications with Rust.
 It provides routing, middlewares, pre-processing of requests, and post-processing of responses,
-websocket protcol handling, multipart streams, etc.
+websocket protocol handling, multipart streams, etc.
 
 All actix web server is built around `Application` instance.
 It is used for registering routes for resources, middlewares.
@@ -10,9 +10,9 @@ Also it stores application specific state that is shared across all handlers
 within same application.
 
 Application acts as namespace for all routes, i.e all routes for specific application
-has same url path prefix. Application prefix always contains laading "/" slash. 
+has same url path prefix. Application prefix always contains leading "/" slash. 
 If supplied prefix does not contain leading slash, it get inserted. 
-Prefix should consists of valud path segments. i.e for application with prefix `/app` 
+Prefix should consists of value path segments. i.e for application with prefix `/app` 
 any request with following paths `/app`, `/app/` or `/app/test` would match,
 but path `/application` would not match.
 

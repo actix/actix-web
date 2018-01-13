@@ -2,15 +2,15 @@
 
 URL dispatch provides a simple way to map URLs to `Handler` code using a simple pattern matching
 language. *Regex* crate and it's
-[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is beeing used for
+[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is being used for
 pattern matching. If one of the patterns matches the path information associated with a request,
 a particular handler object is invoked. A handler is a specific object that implements
 `Handler` trait, defined in your application, that receives the request and returns
-a response object. More informatin is available in [handler section](../qs_4.html).
+a response object. More information is available in [handler section](../qs_4.html).
 
 ## Resource configuration
 
-Resource configuraiton is the act of adding a new resource to an application.
+Resource configuration is the act of adding a new resource to an application.
 A resource has a name, which acts as an identifier to be used for URL generation.
 The name also allows developers to add routes to existing resources.
 A resource also has a pattern, meant to match against the *PATH* portion of a *URL*,
@@ -19,7 +19,7 @@ port, e.g., */foo/bar* in the *URL* *http://localhost:8080/foo/bar?q=value*).
 
 The [Application::resource](../actix_web/struct.Application.html#method.resource) methods
 add a single resource to application routing table. This method accepts *path pattern*
-and resource configuration funnction.
+and resource configuration function.
 
 ```rust
 # extern crate actix_web;
@@ -39,20 +39,20 @@ fn main() {
 }
 ```
 
-*Configuraiton function* has following type:
+*Configuration function* has following type:
 
 ```rust,ignore
    FnOnce(&mut Resource<_>) -> ()
 ```
 
-*Configration function* can set name and register specific routes.
+*Configuration function* can set name and register specific routes.
 If resource does not contain any route or does not have any matching routes it
 returns *NOT FOUND* http resources.
 
 ## Configuring a Route
 
 Resource contains set of routes. Each route in turn has set of predicates and handler.
-New route could be crearted with `Resource::route()` method which returns reference
+New route could be created with `Resource::route()` method which returns reference
 to new *Route* instance. By default *route* does not contain any predicates, so matches
 all requests and default handler is `HTTPNotFound`.
 
@@ -91,17 +91,17 @@ builder-like pattern. Following configuration methods are available:
   any number of predicates could be registered for each route.
 
 * [*Route::f()*](../actix_web/struct.Route.html#method.f) method registers handler function
-  for this route. Only one handler could be registered. Usually handler registeration
-  is the last config operation. Handler fanction could be function or closure and has type
+  for this route. Only one handler could be registered. Usually handler registration
+  is the last config operation. Handler function could be function or closure and has type
   `Fn(HttpRequest<S>) -> R + 'static`
 
 * [*Route::h()*](../actix_web/struct.Route.html#method.h) method registers handler object
   that implements `Handler` trait. This is similar to `f()` method, only one handler could
-  be registered. Handler registeration is the last config operation.
+  be registered. Handler registration is the last config operation.
 
-* [*Route::a()*](../actix_web/struct.Route.html#method.a) method registers asynchandler
-  function for this route. Only one handler could be registered. Handler registeration
-  is the last config operation. Handler fanction could be function or closure and has type
+* [*Route::a()*](../actix_web/struct.Route.html#method.a) method registers async handler
+  function for this route. Only one handler could be registered. Handler registration
+  is the last config operation. Handler function could be function or closure and has type
   `Fn(HttpRequest<S>) -> Future<Item = HttpResponse, Error = Error> + 'static`
 
 ## Route matching
@@ -112,7 +112,7 @@ against a URL path pattern. `path` represents the path portion of the URL that w
 The way that *actix* does this is very simple. When a request enters the system,
 for each resource configuration registration present in the system, actix checks
 the request's path against the pattern declared. *Regex* crate and it's
-[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is beeing used for
+[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is being used for
 pattern matching. If resource could not be found, *default resource* get used as matched
 resource.
 
@@ -516,7 +516,7 @@ Predicates can have access to application's state via `HttpRequest::state()` met
 Also predicates can store extra information in
 [requests`s extensions](../actix_web/struct.HttpRequest.html#method.extensions).
 
-### Modifing predicate values
+### Modifying predicate values
 
 You can invert the meaning of any predicate value by wrapping it in a `Not` predicate.
 For example if you want to return "METHOD NOT ALLOWED" response for all methods

@@ -100,7 +100,7 @@ pub enum CorsBuilderError {
     ParseError(http::Error),
     /// Credentials are allowed, but the Origin is set to "*". This is not allowed by W3C
     ///
-    /// This is a misconfiguration. Check the docuemntation for `Cors`.
+    /// This is a misconfiguration. Check the documentation for `Cors`.
     #[fail(display="Credentials are allowed, but the Origin is set to \"*\"")]
     CredentialsWithWildcardOrigin,
 }
@@ -536,7 +536,7 @@ impl CorsBuilder {
     }
 
     /// Set a list of headers which are safe to expose to the API of a CORS API specification.
-    /// This corresponds to the `Access-Control-Expose-Headers` responde header.
+    /// This corresponds to the `Access-Control-Expose-Headers` response header.
     ///
     /// This is the `list of exposed headers` in the
     /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
@@ -584,7 +584,6 @@ impl CorsBuilder {
     /// in an `Error::CredentialsWithWildcardOrigin` error during actix launch or runtime.
     ///
     /// Defaults to `false`.
-    #[cfg_attr(feature = "serialization", serde(default))]
     pub fn send_wildcard(&mut self) -> &mut CorsBuilder {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.send_wildcard = true

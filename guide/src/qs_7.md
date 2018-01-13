@@ -4,7 +4,7 @@
 
 Builder-like patter is used to construct an instance of `HttpResponse`.
 `HttpResponse` provides several method that returns `HttpResponseBuilder` instance,
-which is implements various convinience methods that helps build response.
+which is implements various convenience methods that helps build response.
 Check [documentation](../actix_web/dev/struct.HttpResponseBuilder.html)
 for type description. Methods `.body`, `.finish`, `.json` finalizes response creation and
 returns constructed *HttpResponse* instance. if this methods get called for the same
@@ -91,7 +91,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 # fn main() {}
 ```
 
-Or you can manually load payload into memory and ther deserialize it.
+Or you can manually load payload into memory and then deserialize it.
 Here is simple example. We will deserialize *MyObj* struct. We need to load request
 body first and then deserialize json into object.
 
@@ -200,7 +200,7 @@ fn index(req: HttpRequest) -> Box<Future<...>> {
            match item {
                            // Handle multipart Field
               multipart::MultipartItem::Field(field) => {
-                 println!("==== FIELD ==== {:?} {:?}", field.heders(), field.content_type());
+                 println!("==== FIELD ==== {:?} {:?}", field.headers(), field.content_type());
                  
                  Either::A(
                            // Field in turn is a stream of *Bytes* objects
@@ -259,7 +259,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 Actix uses [*Payload*](../actix_web/payload/struct.Payload.html) object as request payload stream.
 *HttpRequest* provides several methods, which can be used for payload access.
 At the same time *Payload* implements *Stream* trait, so it could be used with various
-stream combinators. Also *Payload* provides serveral convinience methods that return
+stream combinators. Also *Payload* provides several convenience methods that return
 future object that resolve to Bytes object.
 
 * *readany()* method returns *Stream* of *Bytes* objects.
@@ -283,7 +283,7 @@ use futures::{Future, Stream};
 
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.payload_mut()
+    req.payload()
        .readany()
        .from_err()
        .fold((), |_, chunk| {
