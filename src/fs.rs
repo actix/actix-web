@@ -138,7 +138,7 @@ impl Responder for Directory {
         for entry in self.path.read_dir()? {
             if self.can_list(&entry) {
                 let entry = entry.unwrap();
-                let p = match entry.path().strip_prefix(&self.base) {
+                let p = match entry.path().strip_prefix(&self.path) {
                     Ok(p) => base.join(p),
                     Err(_) => continue
                 };
