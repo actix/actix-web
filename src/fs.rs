@@ -9,8 +9,10 @@ use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 
 use mime_guess::get_mime_type;
+
 use param::FromParam;
 use handler::{Handler, Responder};
+use headers::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::HTTPOk;
@@ -83,7 +85,6 @@ impl Responder for NamedFile {
 
     fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
         let mut resp = HTTPOk.build();
-        use headers::ContentEncoding;
         resp.content_encoding(ContentEncoding::Identity);
         if let Some(ext) = self.path().extension() {
             let mime = get_mime_type(&ext.to_string_lossy());

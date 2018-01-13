@@ -12,7 +12,7 @@ categories = ["network-programming", "asynchronous",
               "web-programming::http-server", "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config",
-           "appveyor.yml", "examples/static"]
+           "appveyor.yml", "./examples/static/*"]
 build = "build.rs"
 
 [badges]
@@ -56,10 +56,7 @@ smallvec = "0.6"
 bitflags = "1.0"
 num_cpus = "1.0"
 flate2 = "1.0"
-
-# ring nightly compilation bug
-# cookie = { version="0.10", features=["percent-encode", "secure"] }
-cookie = { git="https://github.com/alexcrichton/cookie-rs.git", features=["percent-encode", "secure"] }
+cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # io
 mio = "0.6"
