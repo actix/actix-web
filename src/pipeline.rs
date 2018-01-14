@@ -480,7 +480,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             },
                             Ok(Async::Ready(Some(chunk))) => {
                                 self.iostate = IOState::Payload(body);
-                                match io.write(chunk.as_ref()) {
+                                match io.write(chunk.into()) {
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(info, self.resp))
@@ -522,7 +522,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                             break 'outter
                                         },
                                         Frame::Chunk(Some(chunk)) => {
-                                            match io.write(chunk.as_ref()) {
+                                            match io.write(chunk) {
                                                 Err(err) => {
                                                     info.error = Some(err.into());
                                                     return Ok(

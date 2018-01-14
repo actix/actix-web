@@ -20,6 +20,7 @@ mod utils;
 pub use self::srv::HttpServer;
 pub use self::settings::ServerSettings;
 
+use body::Binary;
 use error::Error;
 use httprequest::{HttpMessage, HttpRequest};
 use httpresponse::HttpResponse;
@@ -96,12 +97,11 @@ pub enum WriterState {
 pub trait Writer {
     fn written(&self) -> u64;
 
-    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse)
-             -> Result<WriterState, io::Error>;
+    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse) -> io::Result<WriterState>;
 
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error>;
+    fn write(&mut self, payload: Binary) -> io::Result<WriterState>;
 
-    fn write_eof(&mut self) -> Result<WriterState, io::Error>;
+    fn write_eof(&mut self) -> io::Result<WriterState>;
 
     fn flush(&mut self) -> Poll<(), io::Error>;
 

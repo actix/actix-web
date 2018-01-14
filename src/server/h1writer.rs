@@ -6,7 +6,7 @@ use http::Version;
 use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
-use body::Body;
+use body::{Body, Binary};
 use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
@@ -63,7 +63,7 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
+    fn write_to_stream(&mut self) -> io::Result<WriterState> {
         let buffer = self.encoder.get_mut();
 
         while !buffer.is_empty() {
@@ -106,9 +106,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
-             -> Result<WriterState, io::Error>
-    {
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
         // prepare task
         self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
@@ -183,16 +181,16 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         Ok(WriterState::Done)
     }
 
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
-                self.encoder.write(payload)?;
+                self.encoder.write(payload.as_ref())?;
                 return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT
-                self.encoder.get_mut().extend_from_slice(payload)
+                self.encoder.get_mut().extend_from_slice(payload.as_ref())
             }
         }
 
@@ -203,7 +201,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         }
     }
 
-    fn write_eof(&mut self) -> Result<WriterState, io::Error> {
+    fn write_eof(&mut self) -> io::Result<WriterState> {
         self.encoder.write_eof()?;
 
         if !self.encoder.is_eof() {

@@ -7,7 +7,7 @@ use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
 use helpers;
-use body::Body;
+use body::{Body, Binary};
 use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
@@ -52,7 +52,7 @@ impl H2Writer {
         }
     }
 
-    fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
+    fn write_to_stream(&mut self) -> io::Result<WriterState> {
         if !self.flags.contains(Flags::STARTED) {
             return Ok(WriterState::Done)
         }
@@ -115,11 +115,7 @@ impl Writer for H2Writer {
         Ok(Async::Ready(()))
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
-             -> Result<WriterState, io::Error>
-    {
-        // trace!("Prepare response with status: {:?}", msg.status());
-
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
@@ -183,16 +179,16 @@ impl Writer for H2Writer {
         }
     }
 
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
         self.written = payload.len() as u64;
 
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
-                self.encoder.write(payload)?;
+                self.encoder.write(payload.as_ref())?;
             } else {
                 // might be response for EXCEPT
-                self.encoder.get_mut().extend_from_slice(payload)
+                self.encoder.get_mut().extend_from_slice(payload.as_ref())
             }
         }
 
@@ -203,7 +199,7 @@ impl Writer for H2Writer {
         }
     }
 
-    fn write_eof(&mut self) -> Result<WriterState, io::Error> {
+    fn write_eof(&mut self) -> io::Result<WriterState> {
         self.encoder.write_eof()?;
 
         self.flags.insert(Flags::EOF);
