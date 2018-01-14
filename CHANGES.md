@@ -1,12 +1,12 @@
 # Changes
 
-## 0.3.1 (2018-01-xx)
+## 0.3.1 (2018-01-13)
 
 * Fix directory entry path #47
 
 * Do not enable chunked encoding for HTTP/1.0
 
-* Allow to explicitly disable chunked encoding
+* Allow explicitly disable chunked encoding
 
 
 ## 0.3.0 (2018-01-12)
