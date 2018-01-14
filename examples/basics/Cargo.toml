@@ -8,4 +8,4 @@ workspace = "../.."
 futures = "*"
 env_logger = "0.4"
 actix = "0.4"
-actix-web = { path = "../../" }
+actix-web = { path="../.." }
