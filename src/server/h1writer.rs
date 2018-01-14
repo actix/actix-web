@@ -174,7 +174,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         if let Body::Binary(bytes) = body {
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes.as_ref())?;
+            self.encoder.write(bytes)?;
         } else {
             msg.replace_body(body);
         }
@@ -186,7 +186,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
-                self.encoder.write(payload.as_ref())?;
+                self.encoder.write(payload)?;
                 return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT

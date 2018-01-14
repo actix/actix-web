@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem};
 use std::rc::Rc;
 use std::sync::Arc;
 use bytes::{Bytes, BytesMut};
@@ -121,6 +121,22 @@ impl Binary {
     /// Create binary body from slice
     pub fn from_slice(s: &[u8]) -> Binary {
         Binary::Bytes(Bytes::from(s))
+    }
+
+    /// Convert Binary to a Bytes instance
+    pub fn take(&mut self) -> Bytes {
+        mem::replace(self, Binary::Slice(b"")).into()
+    }
+}
+
+impl Clone for Binary {
+    fn clone(&self) -> Binary {
+        match *self {
+            Binary::Bytes(ref bytes) => Binary::Bytes(bytes.clone()),
+            Binary::Slice(slice) => Binary::Bytes(Bytes::from(slice)),
+            Binary::SharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
+            Binary::ArcSharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
+        }
     }
 }
 

@@ -396,7 +396,7 @@ impl PayloadEncoder {
                         ContentEncoding::Auto => unreachable!()
                     };
                     // TODO return error!
-                    let _ = enc.write(bytes.as_ref());
+                    let _ = enc.write(bytes.clone());
                     let _ = enc.write_eof();
 
                     *bytes = Binary::from(tmp.get_mut().take());
@@ -520,7 +520,7 @@ impl PayloadEncoder {
 
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
-    pub fn write(&mut self, payload: &[u8]) -> Result<(), io::Error> {
+    pub fn write(&mut self, payload: Binary) -> Result<(), io::Error> {
         self.0.write(payload)
     }
 
@@ -629,10 +629,10 @@ impl ContentEncoder {
 
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
-    pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
+    pub fn write(&mut self, data: Binary) -> Result<(), io::Error> {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -642,7 +642,7 @@ impl ContentEncoder {
                 }
             },
             ContentEncoder::Gzip(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -652,7 +652,7 @@ impl ContentEncoder {
                 }
             }
             ContentEncoder::Deflate(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -727,10 +727,10 @@ impl TransferEncoding {
 
     /// Encode message. Return `EOF` state of encoder
     #[inline]
-    pub fn encode(&mut self, msg: &[u8]) -> io::Result<bool> {
+    pub fn encode(&mut self, msg: Binary) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
-                self.buffer.get_mut().extend_from_slice(msg);
+                self.buffer.get_mut().extend_from_slice(msg.as_ref());
                 Ok(msg.is_empty())
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
@@ -744,7 +744,7 @@ impl TransferEncoding {
                 } else {
                     write!(self.buffer.get_mut(), "{:X}\r\n", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                    self.buffer.get_mut().extend_from_slice(msg);
+                    self.buffer.get_mut().extend_from_slice(msg.as_ref());
                     self.buffer.get_mut().extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
@@ -754,7 +754,7 @@ impl TransferEncoding {
                     return Ok(*remaining == 0)
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
-                self.buffer.get_mut().extend_from_slice(msg[..max as usize].as_ref());
+                self.buffer.get_mut().extend_from_slice(msg.as_ref()[..max as usize].as_ref());
 
                 *remaining -= max as u64;
                 Ok(*remaining == 0)
@@ -781,7 +781,7 @@ impl io::Write for TransferEncoding {
 
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.encode(buf)?;
+        self.encode(Binary::from_slice(buf))?;
         Ok(buf.len())
     }
 
