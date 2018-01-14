@@ -439,8 +439,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
             ProcessResponse{ resp: resp,
                              iostate: IOState::Response,
                              running: RunningState::Running,
-                             drain: None,
-                             _s: PhantomData, _h: PhantomData})
+                             drain: None, _s: PhantomData, _h: PhantomData})
     }
 
     fn poll_io(mut self, io: &mut Writer, info: &mut PipelineInfo<S>)
@@ -448,7 +447,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     {
         if self.drain.is_none() && self.running != RunningState::Paused {
             // if task is paused, write buffer is probably full
-            loop {
+            'outter: loop {
                 let result = match mem::replace(&mut self.iostate, IOState::Done) {
                     IOState::Response => {
                         let result = match io.start(info.req_mut().get_inner(), &mut self.resp) {
@@ -504,35 +503,44 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             ctx.disconnected();
                         }
                         match ctx.poll() {
-                            Ok(Async::Ready(Some(frame))) => {
-                                match frame {
-                                    Frame::Chunk(None) => {
-                                        info.context = Some(ctx);
-                                        self.iostate = IOState::Done;
-                                        if let Err(err) = io.write_eof() {
-                                            info.error = Some(err.into());
-                                            return Ok(
-                                                FinishingMiddlewares::init(info, self.resp))
-                                        }
-                                        break
-                                    },
-                                    Frame::Chunk(Some(chunk)) => {
-                                        self.iostate = IOState::Actor(ctx);
-                                        match io.write(chunk.as_ref()) {
-                                            Err(err) => {
+                            Ok(Async::Ready(Some(vec))) => {
+                                if vec.is_empty() {
+                                    self.iostate = IOState::Actor(ctx);
+                                    break
+                                }
+                                let mut res = None;
+                                for frame in vec {
+                                    match frame {
+                                        Frame::Chunk(None) => {
+                                            info.context = Some(ctx);
+                                            self.iostate = IOState::Done;
+                                            if let Err(err) = io.write_eof() {
                                                 info.error = Some(err.into());
                                                 return Ok(
                                                     FinishingMiddlewares::init(info, self.resp))
-                                            },
-                                            Ok(result) => result
-                                        }
-                                    },
-                                    Frame::Drain(fut) => {
-                                        self.drain = Some(fut);
-                                        self.iostate = IOState::Actor(ctx);
-                                        break
+                                            }
+                                            break 'outter
+                                        },
+                                        Frame::Chunk(Some(chunk)) => {
+                                            match io.write(chunk.as_ref()) {
+                                                Err(err) => {
+                                                    info.error = Some(err.into());
+                                                    return Ok(
+                                                        FinishingMiddlewares::init(info, self.resp))
+                                                },
+                                                Ok(result) => res = Some(result),
+                                            }
+                                        },
+                                        Frame::Drain(fut) =>
+                                            self.drain = Some(fut),
                                     }
                                 }
+                                self.iostate = IOState::Actor(ctx);
+                                if self.drain.is_some() {
+                                    self.running.resume();
+                                    break 'outter
+                                }
+                                res.unwrap()
                             },
                             Ok(Async::Ready(None)) => {
                                 self.iostate = IOState::Done;
@@ -677,6 +685,7 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
     }
 }
 
+#[derive(Debug)]
 struct Completed<S, H>(PhantomData<S>, PhantomData<H>);
 
 impl<S, H> Completed<S, H> {

@@ -1,9 +1,9 @@
 use std;
 use std::marker::PhantomData;
-use std::collections::VecDeque;
 use futures::{Async, Future, Poll};
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
+use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Address, SyncAddress, Handler, Subscriber, ResponseType, SpawnHandle};
@@ -18,7 +18,7 @@ use httprequest::HttpRequest;
 
 pub trait ActorHttpContext: 'static {
     fn disconnected(&mut self);
-    fn poll(&mut self) -> Poll<Option<Frame>, Error>;
+    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 2]>>, Error>;
 }
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ pub enum Frame {
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
     inner: ContextImpl<A>,
-    stream: VecDeque<Frame>,
+    stream: Option<SmallVec<[Frame; 2]>>,
     request: HttpRequest<S>,
     disconnected: bool,
 }
@@ -91,7 +91,7 @@ impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
     pub fn from_request(req: HttpRequest<S>) -> HttpContext<A, S> {
         HttpContext {
             inner: ContextImpl::new(None),
-            stream: VecDeque::new(),
+            stream: None,
             request: req,
             disconnected: false,
         }
@@ -121,7 +121,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     pub fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
-            self.stream.push_back(Frame::Chunk(Some(data.into())));
+            self.add_frame(Frame::Chunk(Some(data.into())));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -130,14 +130,14 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     /// Indicate end of streamimng payload. Also this method calls `Self::close`.
     #[inline]
     pub fn write_eof(&mut self) {
-        self.stream.push_back(Frame::Chunk(None));
+        self.add_frame(Frame::Chunk(None));
     }
 
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
         self.inner.modify();
-        self.stream.push_back(Frame::Drain(tx));
+        self.add_frame(Frame::Drain(tx));
         Drain::new(rx)
     }
 
@@ -145,6 +145,14 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     pub fn connected(&self) -> bool {
         !self.disconnected
+    }
+
+    #[inline]
+    fn add_frame(&mut self, frame: Frame) {
+        if self.stream.is_none() {
+            self.stream = Some(SmallVec::new());
+        }
+        self.stream.as_mut().map(|s| s.push(frame));
     }
 }
 
@@ -176,7 +184,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
         self.stop();
     }
 
-    fn poll(&mut self) -> Poll<Option<Frame>, Error> {
+    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 2]>>, Error> {
         let ctx: &mut HttpContext<A, S> = unsafe {
             std::mem::transmute(self as &mut HttpContext<A, S>)
         };
@@ -189,8 +197,8 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
         }
 
         // frames
-        if let Some(frame) = self.stream.pop_front() {
-            Ok(Async::Ready(Some(frame)))
+        if let Some(data) = self.stream.take() {
+            Ok(Async::Ready(Some(data)))
         } else if self.inner.alive() {
             Ok(Async::NotReady)
         } else {

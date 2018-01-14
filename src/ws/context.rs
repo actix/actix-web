@@ -1,8 +1,8 @@
 use std::mem;
-use std::collections::VecDeque;
 use futures::{Async, Poll};
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
+use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Address, SyncAddress, Handler, Subscriber, ResponseType, SpawnHandle};
@@ -23,7 +23,7 @@ use ws::proto::{OpCode, CloseCode};
 pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
-    stream: VecDeque<ContextFrame>,
+    stream: Option<SmallVec<[ContextFrame; 2]>>,
     request: HttpRequest<S>,
     disconnected: bool,
 }
@@ -88,7 +88,7 @@ impl<A, S: 'static> WebsocketContext<A, S> where A: Actor<Context=Self> {
     pub fn from_request(req: HttpRequest<S>) -> WebsocketContext<A, S> {
         WebsocketContext {
             inner: ContextImpl::new(None),
-            stream: VecDeque::new(),
+            stream: None,
             request: req,
             disconnected: false,
         }
@@ -107,7 +107,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     fn write<B: Into<Binary>>(&mut self, data: B) {
         if !self.disconnected {
-            self.stream.push_back(ContextFrame::Chunk(Some(data.into())));
+            self.add_frame(ContextFrame::Chunk(Some(data.into())));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -173,7 +173,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
         self.inner.modify();
-        self.stream.push_back(ContextFrame::Drain(tx));
+        self.add_frame(ContextFrame::Drain(tx));
         Drain::new(rx)
     }
 
@@ -181,6 +181,13 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     #[inline]
     pub fn connected(&self) -> bool {
         !self.disconnected
+    }
+
+    fn add_frame(&mut self, frame: ContextFrame) {
+        if self.stream.is_none() {
+            self.stream = Some(SmallVec::new());
+        }
+        self.stream.as_mut().map(|s| s.push(frame));
     }
 }
 
@@ -212,7 +219,7 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
         self.stop();
     }
 
-    fn poll(&mut self) -> Poll<Option<ContextFrame>, Error> {
+    fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame;2]>>, Error> {
         let ctx: &mut WebsocketContext<A, S> = unsafe {
             mem::transmute(self as &mut WebsocketContext<A, S>)
         };
@@ -225,8 +232,8 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
         }
 
         // frames
-        if let Some(frame) = self.stream.pop_front() {
-            Ok(Async::Ready(Some(frame)))
+        if let Some(data) = self.stream.take() {
+            Ok(Async::Ready(Some(data)))
         } else if self.inner.alive() {
             Ok(Async::NotReady)
         } else {

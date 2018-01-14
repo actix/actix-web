@@ -6,6 +6,8 @@
 
 * Do not enable chunked encoding for HTTP/1.0
 
+* Allow to explicitly disable chunked encoding
+
 
 ## 0.3.0 (2018-01-12)
 

@@ -158,7 +158,7 @@ impl HttpResponse {
 
     /// is chunked encoding enabled
     #[inline]
-    pub fn chunked(&self) -> bool {
+    pub fn chunked(&self) -> Option<bool> {
         self.get_ref().chunked
     }
 
@@ -329,7 +329,16 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn chunked(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.chunked = true;
+            parts.chunked = Some(true);
+        }
+        self
+    }
+
+    /// Force disable chunked encoding
+    #[inline]
+    pub fn no_chunking(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.chunked = Some(false);
         }
         self
     }
@@ -641,7 +650,7 @@ struct InnerHttpResponse {
     status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
-    chunked: bool,
+    chunked: Option<bool>,
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     response_size: u64,
@@ -658,7 +667,7 @@ impl InnerHttpResponse {
             status: status,
             reason: None,
             body: body,
-            chunked: false,
+            chunked: None,
             encoding: ContentEncoding::Auto,
             connection_type: None,
             response_size: 0,
@@ -709,7 +718,7 @@ impl Pool {
             if v.len() < 128 {
                 inner.headers.clear();
                 inner.version = None;
-                inner.chunked = false;
+                inner.chunked = None;
                 inner.reason = None;
                 inner.encoding = ContentEncoding::Auto;
                 inner.connection_type = None;

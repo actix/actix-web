@@ -378,9 +378,6 @@ impl PayloadEncoder {
 
         let transfer = match body {
             Body::Empty => {
-                if resp.chunked() {
-                    error!("Chunked transfer is enabled but body is set to Empty");
-                }
                 resp.headers_mut().remove(CONTENT_LENGTH);
                 TransferEncoding::eof(buf)
             },
@@ -444,54 +441,59 @@ impl PayloadEncoder {
 
     fn streaming_encoding(buf: SharedBytes, version: Version,
                           resp: &mut HttpResponse) -> TransferEncoding {
-        if resp.chunked() {
-            // Enable transfer encoding
-            resp.headers_mut().remove(CONTENT_LENGTH);
-            if version == Version::HTTP_2 {
-                resp.headers_mut().remove(TRANSFER_ENCODING);
-                TransferEncoding::eof(buf)
-            } else {
-                resp.headers_mut().insert(
-                    TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                TransferEncoding::chunked(buf)
-            }
-        } else {
-            // if Content-Length is specified, then use it as length hint
-            let (len, chunked) =
-                if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
-                    // Content-Length
-                    if let Ok(s) = len.to_str() {
-                        if let Ok(len) = s.parse::<u64>() {
-                            (Some(len), false)
+        match resp.chunked() {
+            Some(true) => {
+                // Enable transfer encoding
+                resp.headers_mut().remove(CONTENT_LENGTH);
+                if version == Version::HTTP_2 {
+                    resp.headers_mut().remove(TRANSFER_ENCODING);
+                    TransferEncoding::eof(buf)
+                } else {
+                    resp.headers_mut().insert(
+                        TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                    TransferEncoding::chunked(buf)
+                }
+            },
+            Some(false) =>
+                TransferEncoding::eof(buf),
+            None => {
+                // if Content-Length is specified, then use it as length hint
+                let (len, chunked) =
+                    if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
+                        // Content-Length
+                        if let Ok(s) = len.to_str() {
+                            if let Ok(len) = s.parse::<u64>() {
+                                (Some(len), false)
+                            } else {
+                                error!("illegal Content-Length: {:?}", len);
+                                (None, false)
+                            }
                         } else {
                             error!("illegal Content-Length: {:?}", len);
                             (None, false)
                         }
                     } else {
-                        error!("illegal Content-Length: {:?}", len);
-                        (None, false)
+                        (None, true)
+                    };
+
+                if !chunked {
+                    if let Some(len) = len {
+                        TransferEncoding::length(len, buf)
+                    } else {
+                        TransferEncoding::eof(buf)
                     }
                 } else {
-                    (None, true)
-                };
-
-            if !chunked {
-                if let Some(len) = len {
-                    TransferEncoding::length(len, buf)
-                } else {
-                    TransferEncoding::eof(buf)
-                }
-            } else {
-                // Enable transfer encoding
-                match version {
-                    Version::HTTP_11 => {
-                        resp.headers_mut().insert(
-                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                        TransferEncoding::chunked(buf)
-                    },
-                    _ => {
-                        resp.headers_mut().remove(TRANSFER_ENCODING);
-                        TransferEncoding::eof(buf)
+                    // Enable transfer encoding
+                    match version {
+                        Version::HTTP_11 => {
+                            resp.headers_mut().insert(
+                                TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                            TransferEncoding::chunked(buf)
+                        },
+                        _ => {
+                            resp.headers_mut().remove(TRANSFER_ENCODING);
+                            TransferEncoding::eof(buf)
+                        }
                     }
                 }
             }
