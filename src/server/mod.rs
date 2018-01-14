@@ -54,6 +54,12 @@ pub trait HttpHandler: 'static {
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
 }
 
+impl HttpHandler for Box<HttpHandler> {
+    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+        self.as_mut().handle(req)
+    }
+}
+
 pub trait HttpHandlerTask {
 
     fn poll(&mut self) -> Poll<(), Error>;

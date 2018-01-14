@@ -1,5 +1,10 @@
 # Changes
 
+## 0.3.2 (2018-01-xx)
+
+* Can't have multiple Applications on a single server with different state #49
+
+
 ## 0.3.1 (2018-01-13)
 
 * Fix directory entry path #47

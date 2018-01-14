@@ -59,9 +59,11 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
 #[cfg(test)]
 impl<S: 'static> HttpApplication<S> {
+ #[cfg(test)]
     pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
         self.inner.borrow_mut().handle(req)
     }
+    #[cfg(test)]
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
     }
@@ -355,6 +357,40 @@ impl<S> Application<S> where S: 'static {
             router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
         }
+    }
+
+    /// Convenience method for creating `Box<HttpHandler>` instance.
+    ///
+    /// This method is useful if you need to register several application instances
+    /// with different state.
+    ///
+    /// ```rust
+    /// # use std::thread;
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// struct State1;
+    ///
+    /// struct State2;
+    ///
+    /// fn main() {
+    /// # thread::spawn(|| {
+    ///     HttpServer::new(|| { vec![
+    ///         Application::with_state(State1)
+    ///              .prefix("/app1")
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .boxed(),
+    ///         Application::with_state(State2)
+    ///              .prefix("/app2")
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .boxed() ]})
+    ///         .bind("127.0.0.1:8080").unwrap()
+    ///         .run()
+    /// # });
+    /// }
+    /// ```
+    pub fn boxed(mut self) -> Box<HttpHandler> {
+        Box::new(self.finish())
     }
 }
 
