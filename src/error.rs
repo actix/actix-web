@@ -320,7 +320,7 @@ pub enum WsHandshakeError {
     /// Only get method is allowed
     #[fail(display="Method not allowed")]
     GetMethodRequired,
-    /// Ugrade header if not set to websocket
+    /// Upgrade header if not set to websocket
     #[fail(display="Websocket upgrade is expected")]
     NoWebsocketUpgrade,
     /// Connection header is not set to upgrade
@@ -329,7 +329,7 @@ pub enum WsHandshakeError {
     /// Websocket version header is not set
     #[fail(display="Websocket version header is required")]
     NoVersionHeader,
-    /// Unsupported websockt version
+    /// Unsupported websocket version
     #[fail(display="Unsupported version")]
     UnsupportedVersion,
     /// Websocket key is not set or wrong
@@ -510,7 +510,7 @@ macro_rules! ERROR_WRAP {
 /// Helper type that can wrap any error and generate *BAD REQUEST* response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST" response
-/// as oposite to *INNTERNAL SERVER ERROR* which is defined by default.
+/// as opposite to *INNTERNAL SERVER ERROR* which is defined by default.
 ///
 /// ```rust
 /// # extern crate actix_web;

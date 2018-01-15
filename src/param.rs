@@ -77,7 +77,7 @@ impl<'a> Params<'a> {
         }
     }
 
-    /// Return iterator to items in paramter container
+    /// Return iterator to items in parameter container
     pub fn iter(&self) -> Iter<(Cow<'a, str>, Cow<'a, str>)> {
         self.0.iter()
     }

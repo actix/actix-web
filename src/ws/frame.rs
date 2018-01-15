@@ -28,7 +28,7 @@ pub(crate) struct Frame {
 
 impl Frame {
 
-    /// Desctructe frame
+    /// Destruct frame
     pub fn unpack(self) -> (bool, OpCode, Binary) {
         (self.finished, self.opcode, self.payload)
     }

@@ -19,7 +19,7 @@ use httpresponse::HttpResponse;
 /// Route uses builder-like pattern for configuration.
 /// During request handling, resource object iterate through all routes
 /// and check all predicates for specific route, if request matches all predicates route
-/// route considired matched and route handler get called.
+/// route considered matched and route handler get called.
 ///
 /// ```rust
 /// # extern crate actix_web;
