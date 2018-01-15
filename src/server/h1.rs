@@ -96,7 +96,7 @@ impl<T, H> Http1<T, H>
         }
     }
 
-    // TODO: refacrtor
+    // TODO: refactor
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
@@ -133,7 +133,7 @@ impl<T, H> Http1<T, H>
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
 
-                            // overide keep-alive state
+                            // override keep-alive state
                             if self.stream.keepalive() {
                                 self.flags.insert(Flags::KEEPALIVE);
                             } else {

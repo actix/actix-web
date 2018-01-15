@@ -222,7 +222,7 @@ impl<S> HttpRequest<S> {
         self.uri().path()
     }
 
-    /// Get *ConnectionInfo* for currect request.
+    /// Get *ConnectionInfo* for correct request.
     pub fn connection_info(&self) -> &ConnectionInfo {
         if self.as_ref().info.is_none() {
             let info: ConnectionInfo<'static> = unsafe{
@@ -278,7 +278,7 @@ impl<S> HttpRequest<S> {
 
     /// Peer socket address
     ///
-    /// Peer address is actuall socket address, if proxy is used in front of
+    /// Peer address is actual socket address, if proxy is used in front of
     /// actix http server, then peer address would be address of this proxy.
     ///
     /// To get client connection information `connection_info()` method should be used.

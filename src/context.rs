@@ -127,7 +127,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
         }
     }
 
-    /// Indicate end of streamimng payload. Also this method calls `Self::close`.
+    /// Indicate end of streaming payload. Also this method calls `Self::close`.
     #[inline]
     pub fn write_eof(&mut self) {
         self.add_frame(Frame::Chunk(None));

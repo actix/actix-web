@@ -136,7 +136,7 @@ impl<S> Application<S> where S: 'static {
     /// Create application with specific state. Application can be
     /// configured with builder-like pattern.
     ///
-    /// State is shared with all reousrces within same application and could be
+    /// State is shared with all resources within same application and could be
     /// accessed with `HttpRequest::state()` method.
     pub fn with_state(state: S) -> Application<S> {
         Application {
