@@ -535,14 +535,10 @@ impl ContentEncoder {
     #[inline]
     pub fn is_eof(&self) -> bool {
         match *self {
-            ContentEncoder::Br(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Deflate(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Gzip(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Identity(ref encoder) =>
-                encoder.is_eof(),
+            ContentEncoder::Br(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Identity(ref encoder) => encoder.is_eof(),
         }
     }
 
@@ -710,6 +706,7 @@ impl TransferEncoding {
                     let mut buf = BytesMut::new();
                     write!(&mut buf, "{:X}\r\n", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                    self.buffer.reserve(buf.len() + msg.len() + 2);
                     self.buffer.extend(buf.into());
                     self.buffer.extend(msg);
                     self.buffer.extend_from_slice(b"\r\n");

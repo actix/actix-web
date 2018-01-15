@@ -91,6 +91,11 @@ impl SharedBytes {
     }
 
     #[inline]
+    pub fn reserve(&self, cnt: usize) {
+        self.get_mut().reserve(cnt)
+    }
+
+    #[inline]
     #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
     pub fn extend(&self, data: Binary) {
         self.get_mut().extend_from_slice(data.as_ref());

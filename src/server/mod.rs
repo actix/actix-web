@@ -104,8 +104,6 @@ pub trait Writer {
 
     fn write_eof(&mut self) -> io::Result<WriterState>;
 
-    fn flush(&mut self) -> Poll<(), io::Error>;
-
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
 }
 

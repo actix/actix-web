@@ -66,6 +66,10 @@ impl<T: AsyncWrite> H1Writer<T> {
     fn write_to_stream(&mut self) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
             match self.stream.write(self.buffer.as_ref()) {
+                Ok(0) => {
+                    self.disconnected();
+                    return Ok(WriterState::Done);
+                },
                 Ok(n) => {
                     let _ = self.buffer.split_to(n);
                 },
@@ -88,20 +92,6 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     #[inline]
     fn written(&self) -> u64 {
         self.written
-    }
-
-    #[inline]
-    fn flush(&mut self) -> Poll<(), io::Error> {
-        match self.stream.flush() {
-            Ok(_) => Ok(Async::Ready(())),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::WouldBlock {
-                    Ok(Async::NotReady)
-                } else {
-                    Err(e)
-                }
-            }
-        }
     }
 
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
