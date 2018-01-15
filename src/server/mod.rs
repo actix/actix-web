@@ -15,6 +15,7 @@ mod h2;
 mod h1writer;
 mod h2writer;
 mod settings;
+mod shared;
 mod utils;
 
 pub use self::srv::HttpServer;

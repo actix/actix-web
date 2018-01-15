@@ -4,6 +4,7 @@ use std::cell::{Cell, RefCell, RefMut};
 
 use helpers;
 use super::channel::Node;
+use super::shared::{SharedBytes, SharedBytesPool};
 
 /// Various server settings
 #[derive(Debug, Clone)]
@@ -63,7 +64,7 @@ pub(crate) struct WorkerSettings<H> {
     h: RefCell<Vec<H>>,
     enabled: bool,
     keep_alive: u64,
-    bytes: Rc<helpers::SharedBytesPool>,
+    bytes: Rc<SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
     node: Node<()>,
@@ -75,7 +76,7 @@ impl<H> WorkerSettings<H> {
             h: RefCell::new(h),
             enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
             keep_alive: keep_alive.unwrap_or(0),
-            bytes: Rc::new(helpers::SharedBytesPool::new()),
+            bytes: Rc::new(SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
             node: Node::head(),
@@ -102,8 +103,8 @@ impl<H> WorkerSettings<H> {
         self.enabled
     }
 
-    pub fn get_shared_bytes(&self) -> helpers::SharedBytes {
-        helpers::SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
+    pub fn get_shared_bytes(&self) -> SharedBytes {
+        SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
     }
 
     pub fn get_http_message(&self) -> helpers::SharedHttpMessage {

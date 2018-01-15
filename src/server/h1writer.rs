@@ -7,10 +7,10 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
 use body::{Body, Binary};
-use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use super::shared::SharedBytes;
 use super::encoding::PayloadEncoder;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -56,7 +56,7 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 
     pub fn disconnected(&mut self) {
-        self.encoder.get_mut().take();
+        self.buffer.take();
     }
 
     pub fn keepalive(&self) -> bool {
@@ -64,15 +64,13 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 
     fn write_to_stream(&mut self) -> io::Result<WriterState> {
-        let buffer = self.encoder.get_mut();
-
-        while !buffer.is_empty() {
-            match self.stream.write(buffer.as_ref()) {
+        while !self.buffer.is_empty() {
+            match self.stream.write(self.buffer.as_ref()) {
                 Ok(n) => {
-                    let _ = buffer.split_to(n);
+                    let _ = self.buffer.split_to(n);
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                    if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
                         return Ok(WriterState::Pause)
                     } else {
                         return Ok(WriterState::Done)
@@ -131,7 +129,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         // render message
         {
-            let mut buffer = self.encoder.get_mut();
+            let mut buffer = self.buffer.get_mut();
             if let Body::Binary(ref bytes) = body {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
@@ -190,11 +188,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT
-                self.encoder.get_mut().extend_from_slice(payload.as_ref())
+                self.buffer.extend_from_slice(payload.as_ref())
             }
         }
 
-        if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
@@ -207,7 +205,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
-        } else if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)

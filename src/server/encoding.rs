@@ -16,10 +16,12 @@ use bytes::{Bytes, BytesMut, BufMut, Writer};
 use headers::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
-use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
+
+use super::shared::SharedBytes;
+
 
 impl ContentEncoding {
 
@@ -399,7 +401,7 @@ impl PayloadEncoder {
                     let _ = enc.write(bytes.clone());
                     let _ = enc.write_eof();
 
-                    *bytes = Binary::from(tmp.get_mut().take());
+                    *bytes = Binary::from(tmp.take());
                     encoding = ContentEncoding::Identity;
                 }
                 resp.headers_mut().remove(CONTENT_LENGTH);
@@ -504,16 +506,6 @@ impl PayloadEncoder {
 impl PayloadEncoder {
 
     #[inline]
-    pub fn len(&self) -> usize {
-        self.0.get_ref().len()
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut BytesMut {
-        self.0.get_mut()
-    }
-
-    #[inline]
     pub fn is_eof(&self) -> bool {
         self.0.is_eof()
     }
@@ -551,34 +543,6 @@ impl ContentEncoder {
                 encoder.get_ref().is_eof(),
             ContentEncoder::Identity(ref encoder) =>
                 encoder.is_eof(),
-        }
-    }
-
-    #[inline]
-    pub fn get_ref(&self) -> &BytesMut {
-        match *self {
-            ContentEncoder::Br(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Deflate(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Gzip(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Identity(ref encoder) =>
-                encoder.buffer.get_ref(),
-        }
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut BytesMut {
-        match *self {
-            ContentEncoder::Br(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Deflate(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Gzip(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Identity(ref mut encoder) =>
-                encoder.buffer.get_mut(),
         }
     }
 
@@ -727,11 +691,12 @@ impl TransferEncoding {
 
     /// Encode message. Return `EOF` state of encoder
     #[inline]
-    pub fn encode(&mut self, msg: Binary) -> io::Result<bool> {
+    pub fn encode(&mut self, mut msg: Binary) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
-                self.buffer.get_mut().extend_from_slice(msg.as_ref());
-                Ok(msg.is_empty())
+                let eof = msg.is_empty();
+                self.buffer.extend(msg);
+                Ok(eof)
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if *eof {
@@ -740,12 +705,14 @@ impl TransferEncoding {
 
                 if msg.is_empty() {
                     *eof = true;
-                    self.buffer.get_mut().extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    write!(self.buffer.get_mut(), "{:X}\r\n", msg.len())
+                    let mut buf = BytesMut::new();
+                    write!(&mut buf, "{:X}\r\n", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                    self.buffer.get_mut().extend_from_slice(msg.as_ref());
-                    self.buffer.get_mut().extend_from_slice(b"\r\n");
+                    self.buffer.extend(buf.into());
+                    self.buffer.extend(msg);
+                    self.buffer.extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
             },
@@ -754,7 +721,7 @@ impl TransferEncoding {
                     return Ok(*remaining == 0)
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
-                self.buffer.get_mut().extend_from_slice(msg.as_ref()[..max as usize].as_ref());
+                self.buffer.extend(msg.take().split_to(max as usize).into());
 
                 *remaining -= max as u64;
                 Ok(*remaining == 0)
@@ -770,7 +737,7 @@ impl TransferEncoding {
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
-                    self.buffer.get_mut().extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 }
             },
         }
