@@ -1,8 +1,9 @@
-use std::mem;
+use std::{cmp, mem};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::VecDeque;
-use bytes::BytesMut;
+use iovec::IoVec;
+use bytes::{Buf, Bytes, BytesMut};
 
 use body::Binary;
 
@@ -111,5 +112,117 @@ impl Default for SharedBytes {
 impl Clone for SharedBytes {
     fn clone(&self) -> SharedBytes {
         SharedBytes(self.0.clone(), self.1.clone())
+    }
+}
+
+
+#[derive(Debug)]
+pub(crate) struct SharedIo(
+    Rc<VecDeque<Binary>>
+);
+
+impl SharedIo {
+    #[inline(always)]
+    #[allow(mutable_transmutes)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
+    fn get_mut(&self) -> &mut VecDeque<Binary> {
+        let r: &VecDeque<_> = self.0.as_ref();
+        unsafe{mem::transmute(r)}
+    }
+
+    pub fn clear(&self) {
+        self.get_mut().clear();
+    }
+
+    pub fn push(&self, data: Binary) {
+        self.get_mut().push_back(data);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn split_to(&self, n: usize) -> Bytes {
+        let b = Bytes::from(&self.bytes()[..n]);
+
+        let slf: &mut SharedIo = unsafe{mem::transmute(self as *const _ as *mut SharedIo)};
+        slf.advance(n);
+        b
+    }
+
+    pub fn take(&self) -> Bytes {
+        match self.0.len() {
+            0 => Bytes::from_static(b""),
+            1 => self.get_mut().pop_front().unwrap().into(),
+            _ => {
+                self.squash();
+                self.take()
+            }
+        }
+    }
+
+    fn squash(&self) {
+        let len = self.remaining();
+        let buf = self.0.iter().fold(
+            BytesMut::with_capacity(len),
+            |mut buf, item| {buf.extend_from_slice(item.as_ref()); buf});
+        let vec = self.get_mut();
+        vec.clear();
+        vec.push_back(buf.into());
+    }
+}
+
+impl Default for SharedIo {
+    fn default() -> SharedIo {
+        SharedIo(Rc::new(VecDeque::new()))
+    }
+}
+
+impl Clone for SharedIo {
+    fn clone(&self) -> SharedIo {
+        SharedIo(Rc::clone(&self.0))
+    }
+}
+
+impl Buf for SharedIo {
+    fn remaining(&self) -> usize {
+        self.0.iter().fold(0, |cnt, item| cnt + item.len())
+    }
+
+    fn bytes(&self) -> &[u8] {
+        match self.0.len() {
+            0 => b"",
+            1 => self.0[0].as_ref(),
+            _ => {
+                self.squash();
+                self.bytes()
+            }
+        }
+    }
+
+    fn bytes_vec<'a>(&'a self, dst: &mut [&'a IoVec]) -> usize {
+        let num = cmp::min(dst.len(), self.0.len());
+        for idx in 0..num {
+            dst[idx] = self.0[idx].as_ref().into();
+        }
+        num
+    }
+
+    fn advance(&mut self, mut cnt: usize) {
+        let vec = self.get_mut();
+        while cnt > 0 {
+            if let Some(mut item) = vec.pop_front() {
+                if item.len() <= cnt {
+                    cnt -= item.len();
+                } else {
+                    let mut item = item.take();
+                    item.split_to(cnt);
+                    vec.push_front(item.into());
+                    break
+                }
+            } else {
+                break
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 use std::io;
-use bytes::BufMut;
+use bytes::{Buf, BufMut, BytesMut};
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
 use http::Version;
@@ -10,7 +10,7 @@ use body::{Body, Binary};
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
-use super::shared::SharedBytes;
+use super::shared::{SharedBytes, SharedIo};
 use super::encoding::PayloadEncoder;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -30,12 +30,12 @@ pub(crate) struct H1Writer<T: AsyncWrite> {
     encoder: PayloadEncoder,
     written: u64,
     headers_size: u32,
-    buffer: SharedBytes,
+    buffer: SharedIo,
 }
 
 impl<T: AsyncWrite> H1Writer<T> {
 
-    pub fn new(stream: T, buf: SharedBytes) -> H1Writer<T> {
+    pub fn new(stream: T, buf: SharedIo) -> H1Writer<T> {
         H1Writer {
             flags: Flags::empty(),
             stream: stream,
@@ -56,7 +56,7 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 
     pub fn disconnected(&mut self) {
-        self.buffer.take();
+        self.buffer.clear();
     }
 
     pub fn keepalive(&self) -> bool {
@@ -65,17 +65,19 @@ impl<T: AsyncWrite> H1Writer<T> {
 
     fn write_to_stream(&mut self) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
-            match self.stream.write(self.buffer.as_ref()) {
-                Ok(n) => {
-                    let _ = self.buffer.split_to(n);
+            match self.stream.write_buf(&mut self.buffer) {
+                Ok(Async::Ready(n)) => {
+                    // println!("advance 2 {:?} {:?}", n, self.buffer.remaining());
+                    // let _ = self.buffer.advance(n);
                 },
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                Ok(Async::NotReady) => {
+                    println!("not ready");
+                    if self.buffer.remaining() > MAX_WRITE_BUFFER_SIZE {
                         return Ok(WriterState::Pause)
                     } else {
                         return Ok(WriterState::Done)
                     }
-                }
+                },
                 Err(err) => return Err(err),
             }
         }
@@ -129,12 +131,13 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         // render message
         {
-            let mut buffer = self.buffer.get_mut();
-            if let Body::Binary(ref bytes) = body {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
-            } else {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
-            }
+            let mut buffer = BytesMut::with_capacity(
+                256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+            //if let Body::Binary(ref bytes) = body {
+            //    buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+            //} else {
+            //    buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+            //}
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
@@ -168,6 +171,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 buffer.extend_from_slice(b"\r\n");
             }
             self.headers_size = buffer.len() as u32;
+
+            // push to write buffer
+            self.buffer.push(buffer.into());
         }
 
         if let Body::Binary(bytes) = body {
@@ -188,11 +194,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT
-                self.buffer.extend_from_slice(payload.as_ref())
+                self.buffer.push(payload)
             }
         }
 
-        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.remaining() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
@@ -205,7 +211,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
-        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+        } else if self.buffer.remaining() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)

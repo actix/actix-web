@@ -20,6 +20,7 @@ use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
 
+use super::shared::SharedIo;
 use super::h2writer::H2Writer;
 use super::encoding::PayloadType;
 use super::settings::WorkerSettings;
@@ -287,7 +288,7 @@ impl Entry {
         Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                payload: psender,
                recv: recv,
-               stream: H2Writer::new(resp, settings.get_shared_bytes()),
+               stream: H2Writer::new(resp, SharedIo::default()), //settings.get_shared_bytes()),
                flags: EntryFlags::empty(),
                capacity: 0,
         }

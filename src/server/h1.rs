@@ -19,6 +19,7 @@ use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 use super::{utils, Writer};
+use super::shared::SharedIo;
 use super::h1writer::H1Writer;
 use super::encoding::PayloadType;
 use super::settings::WorkerSettings;
@@ -65,11 +66,11 @@ impl<T, H> Http1<T, H>
     pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>, buf: BytesMut)
                -> Self
     {
-        let bytes = h.get_shared_bytes();
+        // let bytes = h.get_shared_bytes();
         Http1{ flags: Flags::KEEPALIVE,
                settings: h,
                addr: addr,
-               stream: H1Writer::new(stream, bytes),
+               stream: H1Writer::new(stream, SharedIo::default()),
                reader: Reader::new(),
                read_buf: buf,
                tasks: VecDeque::new(),

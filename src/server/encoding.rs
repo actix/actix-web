@@ -20,7 +20,7 @@ use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
 
-use super::shared::SharedBytes;
+use super::shared::{SharedIo, SharedBytes};
 
 
 impl ContentEncoding {
@@ -339,11 +339,11 @@ pub(crate) struct PayloadEncoder(ContentEncoder);
 
 impl PayloadEncoder {
 
-    pub fn empty(bytes: SharedBytes) -> PayloadEncoder {
+    pub fn empty(bytes: SharedIo) -> PayloadEncoder {
         PayloadEncoder(ContentEncoder::Identity(TransferEncoding::eof(bytes)))
     }
 
-    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
+    pub fn new(buf: SharedIo, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
         let has_body = match body {
@@ -385,7 +385,7 @@ impl PayloadEncoder {
             },
             Body::Binary(ref mut bytes) => {
                 if encoding.is_compression() {
-                    let tmp = SharedBytes::default();
+                    let tmp = SharedIo::default();
                     let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
@@ -441,7 +441,7 @@ impl PayloadEncoder {
         )
     }
 
-    fn streaming_encoding(buf: SharedBytes, version: Version,
+    fn streaming_encoding(buf: SharedIo, version: Version,
                           resp: &mut HttpResponse) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
@@ -550,7 +550,7 @@ impl ContentEncoder {
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<(), io::Error> {
         let encoder = mem::replace(
-            self, ContentEncoder::Identity(TransferEncoding::eof(SharedBytes::empty())));
+            self, ContentEncoder::Identity(TransferEncoding::eof(SharedIo::default())));
 
         match encoder {
             ContentEncoder::Br(encoder) => {
@@ -637,7 +637,7 @@ impl ContentEncoder {
 #[derive(Debug, Clone)]
 pub(crate) struct TransferEncoding {
     kind: TransferEncodingKind,
-    buffer: SharedBytes,
+    buffer: SharedIo,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -657,7 +657,7 @@ enum TransferEncodingKind {
 impl TransferEncoding {
 
     #[inline]
-    pub fn eof(bytes: SharedBytes) -> TransferEncoding {
+    pub fn eof(bytes: SharedIo) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Eof,
             buffer: bytes,
@@ -665,7 +665,7 @@ impl TransferEncoding {
     }
 
     #[inline]
-    pub fn chunked(bytes: SharedBytes) -> TransferEncoding {
+    pub fn chunked(bytes: SharedIo) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Chunked(false),
             buffer: bytes,
@@ -673,7 +673,7 @@ impl TransferEncoding {
     }
 
     #[inline]
-    pub fn length(len: u64, bytes: SharedBytes) -> TransferEncoding {
+    pub fn length(len: u64, bytes: SharedIo) -> TransferEncoding {
         TransferEncoding {
             kind: TransferEncodingKind::Length(len),
             buffer: bytes,
@@ -695,7 +695,7 @@ impl TransferEncoding {
         match self.kind {
             TransferEncodingKind::Eof => {
                 let eof = msg.is_empty();
-                self.buffer.extend(msg);
+                self.buffer.push(msg);
                 Ok(eof)
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
@@ -705,14 +705,14 @@ impl TransferEncoding {
 
                 if msg.is_empty() {
                     *eof = true;
-                    self.buffer.extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.push((&b"0\r\n\r\n"[..]).into());
                 } else {
                     let mut buf = BytesMut::new();
                     write!(&mut buf, "{:X}\r\n", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                    self.buffer.extend(buf.into());
-                    self.buffer.extend(msg);
-                    self.buffer.extend_from_slice(b"\r\n");
+                    self.buffer.push(buf.into());
+                    self.buffer.push(msg);
+                    self.buffer.push((&b"\r\n"[..]).into());
                 }
                 Ok(*eof)
             },
@@ -721,7 +721,7 @@ impl TransferEncoding {
                     return Ok(*remaining == 0)
                 }
                 let max = cmp::min(*remaining, msg.len() as u64);
-                self.buffer.extend(msg.take().split_to(max as usize).into());
+                self.buffer.push(msg.take().split_to(max as usize).into());
 
                 *remaining -= max as u64;
                 Ok(*remaining == 0)
@@ -737,7 +737,7 @@ impl TransferEncoding {
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
-                    self.buffer.extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.push(Binary::from(&b"0\r\n\r\n"[..]));
                 }
             },
         }

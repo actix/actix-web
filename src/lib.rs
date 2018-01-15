@@ -48,6 +48,7 @@
 extern crate log;
 extern crate time;
 extern crate bytes;
+extern crate iovec;
 extern crate sha1;
 extern crate regex;
 #[macro_use]
