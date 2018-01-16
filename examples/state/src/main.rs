@@ -1,5 +1,5 @@
 #![cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
-//! There are two level of statfulness in actix-web. Application has state
+//! There are two level of statefulness in actix-web. Application has state
 //! that is shared across all handlers within same Application.
 //! And individual handler can have state.
 

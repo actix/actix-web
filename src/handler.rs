@@ -341,7 +341,7 @@ impl Default for NormalizePath {
 }
 
 impl NormalizePath {
-    /// Create new `NoramlizePath` instance
+    /// Create new `NormalizePath` instance
     pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
         NormalizePath {
             append: append,
