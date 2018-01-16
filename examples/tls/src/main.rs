@@ -9,7 +9,7 @@ use std::io::Read;
 use actix_web::*;
 
 
-/// somple handle
+/// simple handle
 fn index(req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
     Ok(httpcodes::HTTPOk

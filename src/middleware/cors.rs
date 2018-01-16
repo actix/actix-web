@@ -214,7 +214,7 @@ impl Cors {
     /// This method register cors middleware with resource and
     /// adds route for *OPTIONS* preflight requests.
     ///
-    /// It is possible to register *Cors* middlware with `Resource::middleware()`
+    /// It is possible to register *Cors* middleware with `Resource::middleware()`
     /// method, but in that case *Cors* middleware wont be able to handle *OPTIONS*
     /// requests.
     pub fn register<S: 'static>(self, resource: &mut Resource<S>) {

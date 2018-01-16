@@ -156,7 +156,7 @@ impl<S> Application<S> where S: 'static {
     /// Set application prefix
     ///
     /// Only requests that matches application's prefix get processed by this application.
-    /// Application prefix always contains laading "/" slash. If supplied prefix
+    /// Application prefix always contains leading "/" slash. If supplied prefix
     /// does not contain leading slash, it get inserted. Prefix should
     /// consists valid path segments. i.e for application with
     /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
