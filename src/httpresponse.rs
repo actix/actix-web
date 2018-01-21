@@ -164,8 +164,8 @@ impl HttpResponse {
 
     /// Content encoding
     #[inline]
-    pub fn content_encoding(&self) -> &ContentEncoding {
-        &self.get_ref().encoding
+    pub fn content_encoding(&self) -> ContentEncoding {
+        self.get_ref().encoding
     }
 
     /// Set content encoding
@@ -812,11 +812,11 @@ mod tests {
     #[test]
     fn test_content_encoding() {
         let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
-        assert_eq!(*resp.content_encoding(), ContentEncoding::Auto);
+        assert_eq!(resp.content_encoding(), ContentEncoding::Auto);
 
         let resp = HttpResponse::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
-        assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
+        assert_eq!(resp.content_encoding(), ContentEncoding::Br);
     }
 
     #[test]

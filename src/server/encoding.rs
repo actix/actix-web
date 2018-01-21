@@ -346,15 +346,17 @@ impl PayloadEncoder {
     pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
+        let response_encoding = resp.content_encoding();
         let has_body = match body {
             Body::Empty => false,
-            Body::Binary(ref bin) => bin.len() >= 96,
+            Body::Binary(ref bin) =>
+                !(response_encoding == ContentEncoding::Auto && bin.len() < 96),
             _ => true,
         };
 
         // Enable content encoding only if response does not contain Content-Encoding header
         let mut encoding = if has_body {
-            let encoding = match *resp.content_encoding() {
+            let encoding = match response_encoding {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
                     if let Some(val) = req.headers.get(ACCEPT_ENCODING) {

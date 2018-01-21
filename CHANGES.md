@@ -6,6 +6,8 @@
 
 * Log request processing errors
 
+* Always enable content encoding if encoding explicitly selected
+
 * Allow multiple Applications on a single server with different state #49
 
 * CORS middleware: allowed_headers is defaulting to None #50
