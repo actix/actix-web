@@ -5,6 +5,6 @@ authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 workspace = "../.."
 
 [dependencies]
-env_logger = "0.4"
+env_logger = "0.5"
 actix = "0.4"
 actix-web = { path = "../../" }

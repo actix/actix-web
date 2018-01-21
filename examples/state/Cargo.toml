@@ -6,6 +6,6 @@ workspace = "../.."
 
 [dependencies]
 futures = "*"
-env_logger = "0.4"
+env_logger = "0.5"
 actix = "0.4"
 actix-web = { path = "../../" }

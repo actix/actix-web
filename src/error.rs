@@ -68,8 +68,8 @@ impl fmt::Display for Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.backtrace.is_none() {
-            fmt::Debug::fmt(&self.cause, f)
+        if let Some(bt) = self.cause.backtrace() {
+            write!(f, "{:?}\n\n{:?}", &self.cause, bt)
         } else {
             write!(f, "{:?}\n\n{:?}", &self.cause, self.backtrace.as_ref().unwrap())
         }
@@ -495,52 +495,7 @@ impl From<UrlParseError> for UrlGenerationError {
     }
 }
 
-macro_rules! ERROR_WRAP {
-    ($type:ty, $status:expr) => {
-        unsafe impl<T> Sync for $type {}
-        unsafe impl<T> Send for $type {}
-
-        impl<T> $type {
-            pub fn cause(&self) -> &T {
-                &self.0
-            }
-        }
-
-        impl<T: fmt::Display + fmt::Debug + 'static> Fail for $type {}
-        impl<T: Fail> Fail for $type {
-            fn backtrace(&self) -> Option<&Backtrace> {
-                self.cause().backtrace()
-            }
-        }
-
-        impl<T: fmt::Display + 'static> fmt::Display for $type {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                fmt::Display::fmt(&self.0, f)
-            }
-        }
-
-        impl<T> ResponseError for $type
-            where T: Send + Sync + fmt::Debug + fmt::Display + 'static
-        {
-            fn error_response(&self) -> HttpResponse {
-                HttpResponse::new($status, Body::Empty)
-            }
-        }
-
-        impl<T> Responder for $type
-            where T: Send + Sync + fmt::Debug + fmt::Display + 'static
-        {
-            type Item = HttpResponse;
-            type Error = Error;
-
-            fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-                Err(self.into())
-            }
-        }
-    }
-}
-
-/// Helper type that can wrap any error and generate *BAD REQUEST* response.
+/// Helper type that can wrap any error and generate custom response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST" response
 /// as opposite to *INNTERNAL SERVER ERROR* which is defined by default.
@@ -556,59 +511,133 @@ macro_rules! ERROR_WRAP {
 /// }
 /// # fn main() {}
 /// ```
-#[derive(Debug)]
-pub struct ErrorBadRequest<T>(pub T);
-ERROR_WRAP!(ErrorBadRequest<T>, StatusCode::BAD_REQUEST);
+pub struct InternalError<T> {
+    cause: T,
+    status: StatusCode,
+    backtrace: Backtrace,
+}
 
-#[derive(Debug)]
+unsafe impl<T> Sync for InternalError<T> {}
+unsafe impl<T> Send for InternalError<T> {}
+
+impl<T> InternalError<T> {
+    pub fn new(err: T, status: StatusCode) -> Self {
+        InternalError {
+            cause: err,
+            status: status,
+            backtrace: Backtrace::new(),
+        }
+    }
+}
+
+impl<T> Fail for InternalError<T>
+    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+{
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
+    }
+}
+
+impl<T> fmt::Debug for InternalError<T>
+    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.cause, f)
+    }
+}
+
+impl<T> fmt::Display for InternalError<T>
+    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.cause, f)
+    }
+}
+
+impl<T> ResponseError for InternalError<T>
+    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+{
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(self.status, Body::Empty)
+    }
+}
+
+impl<T> Responder for InternalError<T>
+    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+{
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+        Err(self.into())
+    }
+}
+
+/// Helper type that can wrap any error and generate *BAD REQUEST* response.
+#[allow(non_snake_case)]
+pub fn ErrorBadRequest<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::BAD_REQUEST)
+}
+
 /// Helper type that can wrap any error and generate *UNAUTHORIZED* response.
-pub struct ErrorUnauthorized<T>(pub T);
-ERROR_WRAP!(ErrorUnauthorized<T>, StatusCode::UNAUTHORIZED);
+#[allow(non_snake_case)]
+pub fn ErrorUnauthorized<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::UNAUTHORIZED)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *FORBIDDEN* response.
-pub struct ErrorForbidden<T>(pub T);
-ERROR_WRAP!(ErrorForbidden<T>, StatusCode::FORBIDDEN);
+#[allow(non_snake_case)]
+pub fn ErrorForbidden<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::FORBIDDEN)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *NOT FOUND* response.
-pub struct ErrorNotFound<T>(pub T);
-ERROR_WRAP!(ErrorNotFound<T>, StatusCode::NOT_FOUND);
+#[allow(non_snake_case)]
+pub fn ErrorNotFound<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::NOT_FOUND)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *METHOD NOT ALLOWED* response.
-pub struct ErrorMethodNotAllowed<T>(pub T);
-ERROR_WRAP!(ErrorMethodNotAllowed<T>, StatusCode::METHOD_NOT_ALLOWED);
+#[allow(non_snake_case)]
+pub fn ErrorMethodNotAllowed<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *REQUEST TIMEOUT* response.
-pub struct ErrorRequestTimeout<T>(pub T);
-ERROR_WRAP!(ErrorRequestTimeout<T>, StatusCode::REQUEST_TIMEOUT);
+#[allow(non_snake_case)]
+pub fn ErrorRequestTimeout<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::REQUEST_TIMEOUT)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *CONFLICT* response.
-pub struct ErrorConflict<T>(pub T);
-ERROR_WRAP!(ErrorConflict<T>, StatusCode::CONFLICT);
+#[allow(non_snake_case)]
+pub fn ErrorConflict<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::CONFLICT)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *GONE* response.
-pub struct ErrorGone<T>(pub T);
-ERROR_WRAP!(ErrorGone<T>, StatusCode::GONE);
+#[allow(non_snake_case)]
+pub fn ErrorGone<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::GONE)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *PRECONDITION FAILED* response.
-pub struct ErrorPreconditionFailed<T>(pub T);
-ERROR_WRAP!(ErrorPreconditionFailed<T>, StatusCode::PRECONDITION_FAILED);
+#[allow(non_snake_case)]
+pub fn ErrorPreconditionFailed<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::PRECONDITION_FAILED)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *EXPECTATION FAILED* response.
-pub struct ErrorExpectationFailed<T>(pub T);
-ERROR_WRAP!(ErrorExpectationFailed<T>, StatusCode::EXPECTATION_FAILED);
+#[allow(non_snake_case)]
+pub fn ErrorExpectationFailed<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::EXPECTATION_FAILED)
+}
 
-#[derive(Debug)]
 /// Helper type that can wrap any error and generate *INTERNAL SERVER ERROR* response.
-pub struct ErrorInternalServerError<T>(pub T);
-ERROR_WRAP!(ErrorInternalServerError<T>, StatusCode::INTERNAL_SERVER_ERROR);
+#[allow(non_snake_case)]
+pub fn ErrorInternalServerError<T>(err: T) -> InternalError<T> {
+    InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR)
+}
 
 #[cfg(test)]
 mod tests {
