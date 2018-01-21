@@ -58,6 +58,7 @@ use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 mod frame;
 mod proto;
 mod context;
+mod mask;
 
 use ws::frame::Frame;
 use ws::proto::{hash_key, OpCode};

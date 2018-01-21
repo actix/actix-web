@@ -5,14 +5,7 @@ use bytes::BytesMut;
 
 use body::Binary;
 use ws::proto::{OpCode, CloseCode};
-
-
-fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
-    let iter = buf.iter_mut().zip(mask.iter().cycle());
-    for (byte, &key) in iter {
-        *byte ^= key
-    }
-}
+use ws::mask::apply_mask;
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]
