@@ -531,7 +531,7 @@ impl<T> InternalError<T> {
 }
 
 impl<T> Fail for InternalError<T>
-    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+    where T: Send + Sync + fmt::Debug + 'static
 {
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
@@ -539,7 +539,7 @@ impl<T> Fail for InternalError<T>
 }
 
 impl<T> fmt::Debug for InternalError<T>
-    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+    where T: Send + Sync + fmt::Debug + 'static
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.cause, f)
@@ -547,15 +547,15 @@ impl<T> fmt::Debug for InternalError<T>
 }
 
 impl<T> fmt::Display for InternalError<T>
-    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+    where T: Send + Sync + fmt::Debug + 'static
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.cause, f)
+        fmt::Debug::fmt(&self.cause, f)
     }
 }
 
 impl<T> ResponseError for InternalError<T>
-    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+    where T: Send + Sync + fmt::Debug + 'static
 {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(self.status, Body::Empty)
@@ -563,7 +563,7 @@ impl<T> ResponseError for InternalError<T>
 }
 
 impl<T> Responder for InternalError<T>
-    where T: Send + Sync + fmt::Display + fmt::Debug + 'static
+    where T: Send + Sync + fmt::Debug + 'static
 {
     type Item = HttpResponse;
     type Error = Error;
