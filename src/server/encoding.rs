@@ -348,7 +348,7 @@ impl PayloadEncoder {
         let mut body = resp.replace_body(Body::Empty);
         let has_body = match body {
             Body::Empty => false,
-            Body::Binary(ref bin) => bin.len() >= 512,
+            Body::Binary(ref bin) => bin.len() >= 96,
             _ => true,
         };
 

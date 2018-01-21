@@ -1,6 +1,6 @@
 # Changes
 
-## 0.3.2 (2018-01-xx)
+## 0.3.2 (2018-01-21)
 
 * Fix HEAD requests handling
 
