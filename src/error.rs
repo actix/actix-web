@@ -573,67 +573,67 @@ impl<T> Responder for InternalError<T>
     }
 }
 
-/// Helper type that can wrap any error and generate *BAD REQUEST* response.
+/// Helper function that creates wrapper of any error and generate *BAD REQUEST* response.
 #[allow(non_snake_case)]
 pub fn ErrorBadRequest<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::BAD_REQUEST)
 }
 
-/// Helper type that can wrap any error and generate *UNAUTHORIZED* response.
+///  Helper function that creates wrapper of any error and generate *UNAUTHORIZED* response.
 #[allow(non_snake_case)]
 pub fn ErrorUnauthorized<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::UNAUTHORIZED)
 }
 
-/// Helper type that can wrap any error and generate *FORBIDDEN* response.
+///  Helper function that creates wrapper of any error and generate *FORBIDDEN* response.
 #[allow(non_snake_case)]
 pub fn ErrorForbidden<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::FORBIDDEN)
 }
 
-/// Helper type that can wrap any error and generate *NOT FOUND* response.
+///  Helper function that creates wrapper of any error and generate *NOT FOUND* response.
 #[allow(non_snake_case)]
 pub fn ErrorNotFound<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::NOT_FOUND)
 }
 
-/// Helper type that can wrap any error and generate *METHOD NOT ALLOWED* response.
+///  Helper function that creates wrapper of any error and generate *METHOD NOT ALLOWED* response.
 #[allow(non_snake_case)]
 pub fn ErrorMethodNotAllowed<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED)
 }
 
-/// Helper type that can wrap any error and generate *REQUEST TIMEOUT* response.
+///  Helper function that creates wrapper of any error and generate *REQUEST TIMEOUT* response.
 #[allow(non_snake_case)]
 pub fn ErrorRequestTimeout<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::REQUEST_TIMEOUT)
 }
 
-/// Helper type that can wrap any error and generate *CONFLICT* response.
+///  Helper function that creates wrapper of any error and generate *CONFLICT* response.
 #[allow(non_snake_case)]
 pub fn ErrorConflict<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::CONFLICT)
 }
 
-/// Helper type that can wrap any error and generate *GONE* response.
+///  Helper function that creates wrapper of any error and generate *GONE* response.
 #[allow(non_snake_case)]
 pub fn ErrorGone<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::GONE)
 }
 
-/// Helper type that can wrap any error and generate *PRECONDITION FAILED* response.
+///  Helper function that creates wrapper of any error and generate *PRECONDITION FAILED* response.
 #[allow(non_snake_case)]
 pub fn ErrorPreconditionFailed<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::PRECONDITION_FAILED)
 }
 
-/// Helper type that can wrap any error and generate *EXPECTATION FAILED* response.
+///  Helper function that creates wrapper of any error and generate *EXPECTATION FAILED* response.
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::EXPECTATION_FAILED)
 }
 
-/// Helper type that can wrap any error and generate *INTERNAL SERVER ERROR* response.
+///  Helper function that creates wrapper of any error and generate *INTERNAL SERVER ERROR* response.
 #[allow(non_snake_case)]
 pub fn ErrorInternalServerError<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR)
