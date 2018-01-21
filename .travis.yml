@@ -46,6 +46,7 @@ script:
        cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
+       cargo clean
        cargo test
        # --features=alpn
     fi
