@@ -153,6 +153,66 @@ fn test_body_br_streaming() {
 }
 
 #[test]
+fn test_head_empty() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            httpcodes::HTTPOk.build()
+                .content_length(STR.len() as u64).finish()}));
+
+    let client = reqwest::Client::new();
+    let mut res = client.head(&srv.url("/")).send().unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let len = res.headers()
+        .get::<reqwest::header::ContentLength>().map(|ct_len| **ct_len).unwrap();
+    assert_eq!(len, STR.len() as u64);
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_head_binary() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            httpcodes::HTTPOk.build()
+                .content_encoding(headers::ContentEncoding::Identity)
+                .content_length(100).body(STR)}));
+
+    let client = reqwest::Client::new();
+    let mut res = client.head(&srv.url("/")).send().unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let len = res.headers()
+        .get::<reqwest::header::ContentLength>().map(|ct_len| **ct_len).unwrap();
+    assert_eq!(len, STR.len() as u64);
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_head_binary2() {
+    let srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            httpcodes::HTTPOk.build()
+                .content_encoding(headers::ContentEncoding::Identity)
+                .body(STR)
+        }));
+
+    let client = reqwest::Client::new();
+    let mut res = client.head(&srv.url("/")).send().unwrap();
+    assert!(res.status().is_success());
+    let mut bytes = BytesMut::with_capacity(2048).writer();
+    let len = res.headers()
+        .get::<reqwest::header::ContentLength>().map(|ct_len| **ct_len).unwrap();
+    assert_eq!(len, STR.len() as u64);
+    let _ = res.copy_to(&mut bytes);
+    let bytes = bytes.into_inner();
+    assert!(bytes.is_empty());
+}
+
+#[test]
 fn test_body_length() {
     let srv = test::TestServer::new(
         |app| app.handler(|_| {

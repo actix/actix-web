@@ -2,6 +2,8 @@
 
 ## 0.3.2 (2018-01-xx)
 
+* Fix HEAD requests handling
+
 * Can't have multiple Applications on a single server with different state #49
 
 

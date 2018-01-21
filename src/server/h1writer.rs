@@ -2,7 +2,7 @@ use std::io;
 use bytes::BufMut;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
-use http::Version;
+use http::{Method, Version};
 use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
@@ -132,7 +132,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             match body {
                 Body::Empty =>
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n"),
+                    if req.method != Method::HEAD {
+                        buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                    } else {
+                        buffer.extend_from_slice(b"\r\n");
+                    },
                 Body::Binary(ref bytes) =>
                     helpers::write_content_length(bytes.len(), &mut buffer),
                 _ =>

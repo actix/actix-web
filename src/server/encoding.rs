@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
-use http::Version;
+use http::{Version, Method, HttpTryFrom};
 use http::header::{HeaderMap, HeaderValue,
                    ACCEPT_ENCODING, CONNECTION,
                    CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
@@ -378,10 +378,12 @@ impl PayloadEncoder {
             ContentEncoding::Identity
         };
 
-        let transfer = match body {
+        let mut transfer = match body {
             Body::Empty => {
-                resp.headers_mut().remove(CONTENT_LENGTH);
-                TransferEncoding::eof(buf)
+                if req.method != Method::HEAD {
+                    resp.headers_mut().remove(CONTENT_LENGTH);
+                }
+                TransferEncoding::length(0, buf)
             },
             Body::Binary(ref mut bytes) => {
                 if encoding.is_compression() {
@@ -404,7 +406,14 @@ impl PayloadEncoder {
                     *bytes = Binary::from(tmp.take());
                     encoding = ContentEncoding::Identity;
                 }
-                resp.headers_mut().remove(CONTENT_LENGTH);
+                if req.method == Method::HEAD {
+                    let mut b = BytesMut::new();
+                    let _ = write!(b, "{}", bytes.len());
+                    resp.headers_mut().insert(
+                        CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
+                } else {
+                    resp.headers_mut().remove(CONTENT_LENGTH);
+                }
                 TransferEncoding::eof(buf)
             }
             Body::Streaming(_) | Body::Actor(_) => {
@@ -425,7 +434,12 @@ impl PayloadEncoder {
                 }
             }
         };
-        resp.replace_body(body);
+        //
+        if req.method == Method::HEAD {
+            transfer.kind = TransferEncodingKind::Length(0);
+        } else {
+            resp.replace_body(body);
+        }
 
         PayloadEncoder(
             match encoding {
@@ -714,14 +728,18 @@ impl TransferEncoding {
                 Ok(*eof)
             },
             TransferEncodingKind::Length(ref mut remaining) => {
-                if msg.is_empty() {
-                    return Ok(*remaining == 0)
-                }
-                let max = cmp::min(*remaining, msg.len() as u64);
-                self.buffer.extend(msg.take().split_to(max as usize).into());
+                if *remaining > 0 {
+                    if msg.is_empty() {
+                        return Ok(*remaining == 0)
+                    }
+                    let len = cmp::min(*remaining, msg.len() as u64);
+                    self.buffer.extend(msg.take().split_to(len as usize).into());
 
-                *remaining -= max as u64;
-                Ok(*remaining == 0)
+                    *remaining -= len as u64;
+                    Ok(*remaining == 0)
+                } else {
+                    Ok(true)
+                }
             },
         }
     }

@@ -100,8 +100,8 @@ impl<T, H> Http1<T, H>
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
-        if self.keepalive_timer.is_some() {
-            match self.keepalive_timer.as_mut().unwrap().poll() {
+        if let Some(ref mut timer) = self.keepalive_timer {
+            match timer.poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Keep-alive timeout, close connection");
                     return Ok(Async::Ready(()))
@@ -146,10 +146,8 @@ impl<T, H> Http1<T, H>
                                 item.flags.insert(EntryFlags::FINISHED);
                             }
                         },
-                        Ok(Async::NotReady) => {
-                            // no more IO for this iteration
-                            io = true;
-                        },
+                        // no more IO for this iteration
+                        Ok(Async::NotReady) => io = true,
                         Err(err) => {
                             // it is not possible to recover from error
                             // during pipe handling, so just drop connection
@@ -227,38 +225,7 @@ impl<T, H> Http1<T, H>
                         self.tasks.push_back(
                             Entry {pipe: pipe.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                                    flags: EntryFlags::empty()});
-                    }
-                    Err(ReaderError::Disconnect) => {
-                        not_ready = false;
-                        self.flags.insert(Flags::ERROR);
-                        self.stream.disconnected();
-                        for entry in &mut self.tasks {
-                            entry.pipe.disconnected()
-                        }
                     },
-                    Err(err) => {
-                        // notify all tasks
-                        not_ready = false;
-                        self.stream.disconnected();
-                        for entry in &mut self.tasks {
-                            entry.pipe.disconnected()
-                        }
-
-                        // kill keepalive
-                        self.flags.remove(Flags::KEEPALIVE);
-                        self.keepalive_timer.take();
-
-                        // on parse error, stop reading stream but tasks need to be completed
-                        self.flags.insert(Flags::ERROR);
-
-                        if self.tasks.is_empty() {
-                            if let ReaderError::Error(err) = err {
-                                self.tasks.push_back(
-                                    Entry {pipe: Pipeline::error(err.error_response()),
-                                           flags: EntryFlags::empty()});
-                            }
-                        }
-                    }
                     Ok(Async::NotReady) => {
                         // start keep-alive timer, this also is slow request timeout
                         if self.tasks.is_empty() {
@@ -293,7 +260,38 @@ impl<T, H> Http1<T, H>
                             }
                         }
                         break
-                    }
+                    },
+                    Err(ReaderError::Disconnect) => {
+                        not_ready = false;
+                        self.flags.insert(Flags::ERROR);
+                        self.stream.disconnected();
+                        for entry in &mut self.tasks {
+                            entry.pipe.disconnected()
+                        }
+                    },
+                    Err(err) => {
+                        // notify all tasks
+                        not_ready = false;
+                        self.stream.disconnected();
+                        for entry in &mut self.tasks {
+                            entry.pipe.disconnected()
+                        }
+
+                        // kill keepalive
+                        self.flags.remove(Flags::KEEPALIVE);
+                        self.keepalive_timer.take();
+
+                        // on parse error, stop reading stream but tasks need to be completed
+                        self.flags.insert(Flags::ERROR);
+
+                        if self.tasks.is_empty() {
+                            if let ReaderError::Error(err) = err {
+                                self.tasks.push_back(
+                                    Entry {pipe: Pipeline::error(err.error_response()),
+                                           flags: EntryFlags::empty()});
+                            }
+                        }
+                    },
                 }
             }
 
