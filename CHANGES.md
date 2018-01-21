@@ -6,6 +6,7 @@
 
 * Can't have multiple Applications on a single server with different state #49
 
+* CORS middleware: allowed_headers is defaulting to None #50
 
 ## 0.3.1 (2018-01-13)
 

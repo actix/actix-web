@@ -295,16 +295,23 @@ impl<S> Middleware<S> for Cors {
             self.validate_allowed_method(req)?;
             self.validate_allowed_headers(req)?;
 
+            // allowed headers
+            let headers = if let Some(headers) = self.headers.as_ref() {
+                Some(HeaderValue::try_from(&headers.iter().fold(
+                    String::new(), |s, v| s + "," + v.as_str()).as_str()[1..]).unwrap())
+            } else if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS) {
+                Some(hdr.clone())
+            } else {
+                None
+            };
+
             Ok(Started::Response(
                 HTTPOk.build()
                     .if_some(self.max_age.as_ref(), |max_age, resp| {
                         let _ = resp.header(
                             header::ACCESS_CONTROL_MAX_AGE, format!("{}", max_age).as_str());})
-                    .if_some(self.headers.as_ref(), |headers, resp| {
-                        let _ = resp.header(
-                            header::ACCESS_CONTROL_ALLOW_HEADERS,
-                            &headers.iter().fold(
-                                String::new(), |s, v| s + "," + v.as_str()).as_str()[1..]);})
+                    .if_some(headers, |headers, resp| {
+                        let _ = resp.header(header::ACCESS_CONTROL_ALLOW_HEADERS, headers); })
                     .if_true(self.origins.is_all(), |resp| {
                         if self.send_wildcard {
                             resp.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");

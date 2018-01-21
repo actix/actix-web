@@ -423,8 +423,8 @@ impl HttpResponseBuilder {
     }
 
     /// This method calls provided closure with builder reference if value is Some.
-    pub fn if_some<T, F>(&mut self, value: Option<&T>, f: F) -> &mut Self
-        where F: FnOnce(&T, &mut HttpResponseBuilder)
+    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
+        where F: FnOnce(T, &mut HttpResponseBuilder)
     {
         if let Some(val) = value {
             f(val, self);
