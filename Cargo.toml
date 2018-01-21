@@ -12,7 +12,7 @@ categories = ["network-programming", "asynchronous",
               "web-programming::http-server", "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config",
-           "appveyor.yml", "./examples/static/*"]
+           "appveyor.yml", "/examples/**"]
 build = "build.rs"
 
 [badges]
