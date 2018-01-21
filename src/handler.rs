@@ -9,7 +9,7 @@ use error::Error;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-/// Trait defines object that could be regestered as route handler
+/// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
 pub trait Handler<S>: 'static {
 
@@ -35,7 +35,7 @@ pub trait Responder {
 }
 
 #[doc(hidden)]
-/// Convinience trait that convert `Future` object into `Boxed` future
+/// Convenience trait that convert `Future` object into `Boxed` future
 pub trait AsyncResponder<I, E>: Sized {
     fn responder(self) -> Box<Future<Item=I, Error=E>>;
 }
@@ -193,7 +193,7 @@ impl<I, E> Responder for Box<Future<Item=I, Error=E>>
     }
 }
 
-/// Trait defines object that could be regestered as resource route
+/// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply;
 }
@@ -341,7 +341,7 @@ impl Default for NormalizePath {
 }
 
 impl NormalizePath {
-    /// Create new `NoramlizePath` instance
+    /// Create new `NormalizePath` instance
     pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
         NormalizePath {
             append: append,

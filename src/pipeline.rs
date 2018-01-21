@@ -210,7 +210,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
     fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be non-async
-        // and we can move to next state immidietly
+        // and we can move to next state immediately
         let len = info.mws.len();
         loop {
             if info.count == len {

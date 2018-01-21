@@ -268,9 +268,9 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming connections.
+    /// Start listening for incoming connections.
     ///
-    /// This method starts number of http handler workers in seperate threads.
+    /// This method starts number of http handler workers in separate threads.
     /// For each address this method starts separate thread which does `accept()` in a loop.
     ///
     /// This methods panics if no socket addresses get bound.
@@ -298,7 +298,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     pub fn start(mut self) -> SyncAddress<Self>
     {
         if self.sockets.is_empty() {
-            panic!("HttpServer::bind() has to be called befor start()");
+            panic!("HttpServer::bind() has to be called before start()");
         } else {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
                 self.sockets.drain().collect();
@@ -320,7 +320,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
         }
     }
 
-    /// Spawn new thread and start listening for incomming connections.
+    /// Spawn new thread and start listening for incoming connections.
     ///
     /// This method spawns new thread and starts new actix system. Other than that it is
     /// similar to `start()` method. This method blocks.
@@ -359,7 +359,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming tls connections.
+    /// Start listening for incoming tls connections.
     pub fn start_tls(mut self, pkcs12: ::Pkcs12) -> io::Result<SyncAddress<Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
@@ -398,7 +398,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming tls connections.
+    /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn start_ssl(mut self, identity: &ParsedPkcs12) -> io::Result<SyncAddress<Self>> {
@@ -443,7 +443,7 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming connections from a stream.
+    /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
     pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
@@ -663,7 +663,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
             }
         }
 
-        // Start listening for incommin commands
+        // Start listening for incoming commands
         if let Err(err) = poll.register(&reg, CMD,
                                         mio::Ready::readable(), mio::PollOpt::edge()) {
             panic!("Can not register Registration: {}", err);

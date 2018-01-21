@@ -31,7 +31,7 @@ pub enum Binary {
     Bytes(Bytes),
     /// Static slice
     Slice(&'static [u8]),
-    /// Shared stirng body
+    /// Shared string body
     SharedString(Rc<String>),
     /// Shared string body
     #[doc(hidden)]

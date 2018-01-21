@@ -96,7 +96,7 @@ impl<T, H> Http1<T, H>
         }
     }
 
-    // TODO: refacrtor
+    // TODO: refactor
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
@@ -133,7 +133,7 @@ impl<T, H> Http1<T, H>
                         Ok(Async::Ready(ready)) => {
                             not_ready = false;
 
-                            // overide keep-alive state
+                            // override keep-alive state
                             if self.stream.keepalive() {
                                 self.flags.insert(Flags::KEEPALIVE);
                             } else {
@@ -1204,7 +1204,7 @@ mod tests {
 
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chnked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
         if let Ok(val) = req.chunked() {

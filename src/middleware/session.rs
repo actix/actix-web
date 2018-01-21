@@ -217,7 +217,7 @@ pub struct CookieSession {
     inner: Rc<CookieSessionInner>,
 }
 
-/// Errors that can occure during handling cookie session
+/// Errors that can occur during handling cookie session
 #[derive(Fail, Debug)]
 pub enum CookieSessionError {
     /// Size of the serialized session is greater than 4000 bytes.

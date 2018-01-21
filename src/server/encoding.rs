@@ -660,7 +660,7 @@ enum TransferEncodingKind {
     Length(u64),
     /// An Encoder for when Content-Length is not known.
     ///
-    /// Appliction decides when to stop writing.
+    /// Application decides when to stop writing.
     Eof,
 }
 
