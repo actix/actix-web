@@ -9,8 +9,8 @@ use std::error::Error as StdError;
 
 use cookie;
 use httparse;
-use failure::Fail;
 use futures::Canceled;
+use failure::{Fail, Backtrace};
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
@@ -22,6 +22,8 @@ use url::ParseError as UrlParseError;
 pub use cookie::{ParseError as CookieParseError};
 
 use body::Body;
+use handler::Responder;
+use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 
@@ -33,9 +35,9 @@ use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 pub type Result<T, E=Error> = result::Result<T, E>;
 
 /// General purpose actix web error
-#[derive(Fail, Debug)]
 pub struct Error {
     cause: Box<ResponseError>,
+    backtrace: Option<Backtrace>,
 }
 
 impl Error {
@@ -64,6 +66,16 @@ impl fmt::Display for Error {
     }
 }
 
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.backtrace.is_none() {
+            fmt::Debug::fmt(&self.cause, f)
+        } else {
+            write!(f, "{:?}\n\n{:?}", &self.cause, self.backtrace.as_ref().unwrap())
+        }
+    }
+}
+
 /// `HttpResponse` for `Error`
 impl From<Error> for HttpResponse {
     fn from(err: Error) -> Self {
@@ -74,7 +86,12 @@ impl From<Error> for HttpResponse {
 /// `Error` for any error that implements `ResponseError`
 impl<T: ResponseError> From<T> for Error {
     fn from(err: T) -> Error {
-        Error { cause: Box::new(err) }
+        let backtrace = if err.backtrace().is_none() {
+            Some(Backtrace::new())
+        } else {
+            None
+        };
+        Error { cause: Box::new(err), backtrace: backtrace }
     }
 }
 
@@ -489,21 +506,37 @@ macro_rules! ERROR_WRAP {
             }
         }
 
-        impl<T: fmt::Debug + 'static> Fail for $type {}
-        impl<T: fmt::Debug + 'static> fmt::Display for $type {
+        impl<T: fmt::Display + fmt::Debug + 'static> Fail for $type {}
+        impl<T: Fail> Fail for $type {
+            fn backtrace(&self) -> Option<&Backtrace> {
+                self.cause().backtrace()
+            }
+        }
+
+        impl<T: fmt::Display + 'static> fmt::Display for $type {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{:?}", self.0)
+                fmt::Display::fmt(&self.0, f)
             }
         }
 
         impl<T> ResponseError for $type
-            where T: Send + Sync + fmt::Debug + 'static,
+            where T: Send + Sync + fmt::Debug + fmt::Display + 'static
         {
             fn error_response(&self) -> HttpResponse {
                 HttpResponse::new($status, Body::Empty)
             }
         }
 
+        impl<T> Responder for $type
+            where T: Send + Sync + fmt::Debug + fmt::Display + 'static
+        {
+            type Item = HttpResponse;
+            type Error = Error;
+
+            fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+                Err(self.into())
+            }
+        }
     }
 }
 

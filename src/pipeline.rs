@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 
+use log::Level::Debug;
 use futures::{Async, Poll, Future, Stream};
 use futures::unsync::oneshot;
 
@@ -56,7 +57,7 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
 
 struct PipelineInfo<S> {
     req: HttpRequest<S>,
-    count: usize,
+    count: u16,
     mws: Rc<Vec<Box<Middleware<S>>>>,
     context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
@@ -211,13 +212,13 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be non-async
         // and we can move to next state immediately
-        let len = info.mws.len();
+        let len = info.mws.len() as u16;
         loop {
             if info.count == len {
                 let reply = handler.borrow_mut().handle(info.req.clone());
                 return WaitingResponse::init(info, reply)
             } else {
-                match info.mws[info.count].start(&mut info.req) {
+                match info.mws[info.count as usize].start(&mut info.req) {
                     Ok(Started::Done) =>
                         info.count += 1,
                     Ok(Started::Response(resp)) =>
@@ -246,7 +247,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     }
 
     fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
-        let len = info.mws.len();
+        let len = info.mws.len() as u16;
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return None,
@@ -260,7 +261,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                         return Some(WaitingResponse::init(info, reply));
                     } else {
                         loop {
-                            match info.mws[info.count].start(info.req_mut()) {
+                            match info.mws[info.count as usize].start(info.req_mut()) {
                                 Ok(Started::Done) =>
                                     info.count += 1,
                                 Ok(Started::Response(resp)) => {
@@ -334,7 +335,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
         loop {
             resp = match info.mws[curr].response(info.req_mut(), resp) {
                 Err(err) => {
-                    info.count = curr + 1;
+                    info.count = (curr + 1) as u16;
                     return ProcessResponse::init(err.into())
                 }
                 Ok(Response::Done(r)) => {
@@ -457,6 +458,13 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 return Ok(FinishingMiddlewares::init(info, self.resp))
                             }
                         };
+
+                        if let Some(err) = self.resp.error() {
+                            warn!("Error occured during request handling: {}", err);
+                            if log_enabled!(Debug) {
+                                debug!("{:?}", err);
+                            }
+                        }
 
                         match self.resp.replace_body(Body::Empty) {
                             Body::Streaming(stream) =>
@@ -586,7 +594,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                 },
                 Ok(Async::NotReady) => return Err(PipelineState::Response(self)),
                 Err(err) => {
-                    debug!("Error sending data: {}", err);
                     info.error = Some(err.into());
                     return Ok(FinishingMiddlewares::init(info, self.resp))
                 }
@@ -599,7 +606,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                 match io.write_eof() {
                     Ok(_) => (),
                     Err(err) => {
-                        debug!("Error sending data: {}", err);
                         info.error = Some(err.into());
                         return Ok(FinishingMiddlewares::init(info, self.resp))
                     }
@@ -661,7 +667,7 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             self.fut = None;
             info.count -= 1;
 
-            match info.mws[info.count].finish(info.req_mut(), &self.resp) {
+            match info.mws[info.count as usize].finish(info.req_mut(), &self.resp) {
                 Finished::Done => {
                     if info.count == 0 {
                         return Some(Completed::init(info))
@@ -682,6 +688,10 @@ impl<S, H> Completed<S, H> {
 
     #[inline]
     fn init(info: &mut PipelineInfo<S>) -> PipelineState<S, H> {
+        if let Some(ref err) = info.error {
+            error!("Error occured during request handling: {}", err);
+        }
+
         if info.context.is_none() {
             PipelineState::None
         } else {

@@ -7,6 +7,7 @@ extern crate env_logger;
 extern crate futures;
 use futures::Stream;
 
+use std::{io, env};
 use actix_web::*;
 use actix_web::middleware::RequestSession;
 use futures::future::{FutureResult, result};
@@ -56,17 +57,17 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
 fn p404(req: HttpRequest) -> Result<HttpResponse> {
 
     // html
-    let html = format!(r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
+    let html = r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
 <body>
     <a href="index.html">back to home</a>
     <h1>404</h1>
 </body>
-</html>"#);
+</html>"#;
 
     // response
     Ok(HttpResponse::build(StatusCode::NOT_FOUND)
         .content_type("text/html; charset=utf-8")
-        .body(&html).unwrap())
+        .body(html).unwrap())
 }
 
 
@@ -92,8 +93,9 @@ fn with_param(req: HttpRequest) -> Result<HttpResponse>
 }
 
 fn main() {
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env::set_var("RUST_LOG", "actix_web=debug");
+    env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
     let sys = actix::System::new("basic-example");
 
     let addr = HttpServer::new(
@@ -120,6 +122,9 @@ fn main() {
                     Method::POST => httpcodes::HTTPMethodNotAllowed,
                     _ => httpcodes::HTTPNotFound,
                 }
+            }))
+            .resource("/error.html", |r| r.f(|req| {
+                error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "test"))
             }))
             // static files
             .handler("/static/", fs::StaticFiles::new("../static/", true))
