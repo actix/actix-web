@@ -16,19 +16,19 @@ Prefix should consists of value path segments. i.e for application with prefix `
 any request with following paths `/app`, `/app/` or `/app/test` would match,
 but path `/application` would not match.
 
-```rust,ignore
-# extern crate actix_web;
-# extern crate tokio_core;
-# use actix_web::*;
-# fn index(req: HttpRequest) -> &'static str {
-#    "Hello world!"
-# }
-# fn main() {
+```rust
+extern crate actix_web;
+extern crate tokio_core;
+use actix_web::*;
+fn index(req: HttpRequest) -> &'static str {
+    "Hello world!"
+}
+fn main() {
    let app = Application::new()
        .prefix("/app")
        .resource("/index.html", |r| r.method(Method::GET).f(index))
        .finish()
-# }
+}
 ```
 
 In this example application with `/app` prefix and `index.html` resource
@@ -39,10 +39,10 @@ For more information check
 Multiple applications could be served with one server:
 
 ```rust
-# extern crate actix_web;
-# extern crate tokio_core;
-# use tokio_core::net::TcpStream;
-# use std::net::SocketAddr;
+extern crate actix_web;
+extern crate tokio_core;
+use tokio_core::net::TcpStream;
+use std::net::SocketAddr;
 use actix_web::*;
 
 fn main() {
@@ -77,9 +77,9 @@ Let's write simple application that uses shared state. We are going to store req
 in the state:
 
 ```rust
-# extern crate actix;
-# extern crate actix_web;
-#
+extern crate actix;
+extern crate actix_web;
+
 use actix_web::*;
 use std::cell::Cell;
 
