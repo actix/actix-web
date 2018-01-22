@@ -5,7 +5,7 @@ that depends on actix web and then run the application.
 
 In previous section we already installed required rust version. Now let's create new cargo projects.
 
-## Hello, world! 
+## Hello, world!
 
 Let’s write our first actix web application! Start by creating a new binary-based
 Cargo project and changing into the new directory:
@@ -15,7 +15,7 @@ cargo new hello-world --bin
 cd hello-world
 ```
 
-Now, add actix and actix web as dependencies of your project by ensuring your Cargo.toml 
+Now, add actix and actix web as dependencies of your project by ensuring your Cargo.toml
 contains the following:
 
 ```toml
@@ -26,37 +26,37 @@ actix-web = "0.3"
 
 In order to implement a web server, first we need to create a request handler.
 
-A request handler is a function that accepts a `HttpRequest` instance as its only parameter 
+A request handler is a function that accepts a `HttpRequest` instance as its only parameter
 and returns a type that can be converted into `HttpResponse`:
 
 ```rust
-# extern crate actix_web;
-# use actix_web::*;
+  extern crate actix_web;
+  use actix_web::*;
   fn index(req: HttpRequest) -> &'static str {
       "Hello world!"
   }
-# fn main() {}
+  fn main() {}
 ```
 
 Next, create an `Application` instance and register the
 request handler with the application's `resource` on a particular *HTTP method* and *path*::
 
 ```rust
-# extern crate actix_web;
-# use actix_web::*;
-# fn index(req: HttpRequest) -> &'static str {
-#    "Hello world!"
-# }
-# fn main() {
+  extern crate actix_web;
+  use actix_web::*;
+  fn index(req: HttpRequest) -> &'static str {
+     "Hello world!"
+  }
+  fn main() {
    Application::new()
        .resource("/", |r| r.f(index));
-# }
+  }
 ```
 
 After that, application instance can be used with `HttpServer` to listen for incoming
 connections. Server accepts function that should return `HttpHandler` instance:
 
-```rust,ignore
+```rust
    HttpServer::new(
        || Application::new()
            .resource("/", |r| r.f(index)))
@@ -70,8 +70,8 @@ Head over to ``http://localhost:8088/`` to see the results.
 Here is full source of main.rs file:
 
 ```rust
-# use std::thread;
-# extern crate actix_web;
+use std::thread;
+extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
@@ -79,13 +79,13 @@ fn index(req: HttpRequest) -> &'static str {
 }
 
 fn main() {
-# thread::spawn(|| {
+  thread::spawn(|| {
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
         .run();
-# });
+  });
 }
 ```
 
