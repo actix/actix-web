@@ -235,3 +235,12 @@ fn main() {
 ```
 
 Both methods could be combined. (i.e Async response with streaming body)
+
+## Tokio core handle
+
+Any actix web handler runs within properly configured
+[actix system](https://actix.github.io/actix/actix/struct.System.html)
+and [arbiter](https://actix.github.io/actix/actix/struct.Arbiter.html).
+You can always get access to tokio handle via
+[Arbiter::handle()](https://actix.github.io/actix/actix/struct.Arbiter.html#method.handle)
+method.
