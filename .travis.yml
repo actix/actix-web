@@ -42,7 +42,7 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
        cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
@@ -52,7 +52,7 @@ script:
     fi
 
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cd examples/basics && cargo check && cd ../..
       cd examples/hello-world && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
