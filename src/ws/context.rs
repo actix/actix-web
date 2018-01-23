@@ -58,7 +58,8 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.wating()
+        self.inner.wating() || self.inner.start() == ActorState::Stopping ||
+            self.inner.start() == ActorState::Stopped
     }
 
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {

@@ -27,6 +27,15 @@ pub enum Frame {
     Drain(oneshot::Sender<()>),
 }
 
+impl Frame {
+    pub fn len(&self) -> usize {
+        match *self {
+            Frame::Chunk(Some(ref bin)) => bin.len(),
+            _ => 0,
+        }
+    }
+}
+
 /// Http actor execution context
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
