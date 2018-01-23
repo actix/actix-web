@@ -51,16 +51,24 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
 
 impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
 {
+    #[inline]
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
         self.inner.spawn(fut)
     }
+    #[inline]
     fn wait<F>(&mut self, fut: F)
         where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
     {
         self.inner.wait(fut)
     }
+    #[doc(hidden)]
+    #[inline]
+    fn waiting(&self) -> bool {
+        self.inner.wating()
+    }
+    #[inline]
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.inner.cancel_future(handle)
     }
