@@ -55,6 +55,12 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
         self.inner.wait(fut)
     }
 
+    #[doc(hidden)]
+    #[inline]
+    fn waiting(&self) -> bool {
+        self.inner.wating()
+    }
+
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.inner.cancel_future(handle)
     }
