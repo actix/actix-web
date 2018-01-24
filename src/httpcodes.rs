@@ -10,6 +10,7 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+pub const HTTPPartialContent: StaticResponse = StaticResponse(StatusCode::PARTIAL_CONTENT);
 
 pub const HTTPMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
 pub const HTTPMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
@@ -113,6 +114,7 @@ impl HttpResponse {
     STATIC_RESP!(Ok, StatusCode::OK);
     STATIC_RESP!(Created, StatusCode::CREATED);
     STATIC_RESP!(NoContent, StatusCode::NO_CONTENT);
+    STATIC_RESP!(PartialContent, StatusCode::PARTIAL_CONTENT);
 
     STATIC_RESP!(MultipleChoices, StatusCode::MULTIPLE_CHOICES);
     STATIC_RESP!(MovedPermanenty, StatusCode::MOVED_PERMANENTLY);
