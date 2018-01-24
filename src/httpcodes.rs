@@ -10,6 +10,7 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+pub const HTTPPartialContent: StaticResponse = StaticResponse(StatusCode::PARTIAL_CONTENT);
 
 pub const HTTPMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
 pub const HTTPMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
@@ -41,6 +42,8 @@ pub const HTTPPreconditionFailed: StaticResponse =
     StaticResponse(StatusCode::PRECONDITION_FAILED);
 pub const HTTPPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
 pub const HTTPUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+pub const HTTPRangeNotSatisfiable: StaticResponse =
+    StaticResponse(StatusCode::RANGE_NOT_SATISFIABLE);
 pub const HTTPExpectationFailed: StaticResponse =
     StaticResponse(StatusCode::EXPECTATION_FAILED);
 
@@ -113,6 +116,7 @@ impl HttpResponse {
     STATIC_RESP!(Ok, StatusCode::OK);
     STATIC_RESP!(Created, StatusCode::CREATED);
     STATIC_RESP!(NoContent, StatusCode::NO_CONTENT);
+    STATIC_RESP!(PartialContent, StatusCode::PARTIAL_CONTENT);
 
     STATIC_RESP!(MultipleChoices, StatusCode::MULTIPLE_CHOICES);
     STATIC_RESP!(MovedPermanenty, StatusCode::MOVED_PERMANENTLY);
@@ -139,6 +143,7 @@ impl HttpResponse {
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
+    STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
 
     STATIC_RESP!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
