@@ -420,7 +420,7 @@ impl Inner {
     }
 
     pub fn readall(&mut self) -> Option<Bytes> {
-        let len = self.items.iter().fold(0, |cur, item| cur + item.len());
+        let len = self.items.iter().map(|b| b.len()).sum();
         if len > 0 {
             let mut buf = BytesMut::with_capacity(len);
             for item in &self.items {

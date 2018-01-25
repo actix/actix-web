@@ -75,7 +75,8 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.wating()
+        self.inner.waiting() || self.inner.state() == ActorState::Stopping ||
+            self.inner.state() == ActorState::Stopped
     }
     #[inline]
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
