@@ -21,9 +21,7 @@ use native_tls::TlsAcceptor;
 use tokio_tls::TlsStream;
 
 #[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslAcceptorBuilder};
-#[cfg(feature="alpn")]
-use openssl::pkcs12::ParsedPkcs12;
+use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 #[cfg(feature="alpn")]
 use tokio_openssl::SslStream;
 
@@ -401,23 +399,25 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn start_ssl(mut self, identity: &ParsedPkcs12) -> io::Result<SyncAddress<Self>> {
+    pub fn start_ssl(mut self, mut builder: SslAcceptorBuilder) -> io::Result<SyncAddress<Self>>
+    {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
+            // alpn support
+            builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
+            builder.set_alpn_select_callback(|_, protos| {
+                const H2: &[u8] = b"\x02h2";
+                if protos.windows(3).any(|window| window == H2) {
+                    Ok(b"h2")
+                } else {
+                    Err(AlpnError::NOACK)
+                }
+            });
+
+            let acceptor = builder.build();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
-            let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
-                SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
-            {
-                Ok(mut builder) => {
-                    match builder.set_alpn_protocols(&[b"h2", b"http/1.1"]) {
-                        Ok(_) => builder.build(),
-                        Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err)),
-                    }
-                },
-                Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-            };
             let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
 
             // start acceptors threads

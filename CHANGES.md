@@ -1,10 +1,15 @@
 # Changes
 
-## 0.3.3 (2018-01-xx)
+## 0.3.3 (2018-01-25)
 
 * Stop processing any events after context stop
 
-* Re-enable write back pressure for h1 connections
+* Re-enable write back-pressure for h1 connections
+
+* Refactor HttpServer::start_ssl() method
+
+* Upgrade openssl to 0.10
+
 
 ## 0.3.2 (2018-01-21)
 

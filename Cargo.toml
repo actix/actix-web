@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
@@ -71,14 +71,11 @@ native-tls = { version="0.1", optional = true }
 tokio-tls = { version="0.1", optional = true }
 
 # openssl
-tokio-openssl = { version="0.1", optional = true }
+openssl = { version="0.10", optional = true }
+tokio-openssl = { version="0.2", optional = true }
 
 [dependencies.actix]
 version = "^0.4.5"
-
-[dependencies.openssl]
-version = "0.9"
-optional = true
 
 [dev-dependencies]
 env_logger = "0.5"
@@ -93,7 +90,6 @@ version_check = "0.1"
 [profile.release]
 lto = true
 opt-level = 3
-# debug = true
 
 [workspace]
 members = [

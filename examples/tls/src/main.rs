@@ -2,11 +2,10 @@
 extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
-
-use std::fs::File;
-use std::io::Read;
+extern crate openssl;
 
 use actix_web::*;
+use openssl::ssl::{SslMethod, SslAcceptor, SslFiletype};
 
 
 /// simple handle
@@ -20,15 +19,15 @@ fn index(req: HttpRequest) -> Result<HttpResponse> {
 
 fn main() {
     if ::std::env::var("RUST_LOG").is_err() {
-        ::std::env::set_var("RUST_LOG", "actix_web=trace");
+        ::std::env::set_var("RUST_LOG", "actix_web=info");
     }
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    let mut file = File::open("identity.pfx").unwrap();
-    let mut pkcs12 = vec![];
-    file.read_to_end(&mut pkcs12).unwrap();
-    let pkcs12 = Pkcs12::from_der(&pkcs12).unwrap().parse("12345").unwrap();
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
+    builder.set_certificate_chain_file("cert.pem").unwrap();
 
     let addr = HttpServer::new(
         || Application::new()
@@ -44,7 +43,7 @@ fn main() {
                     .body(Body::Empty)
             })))
         .bind("127.0.0.1:8443").unwrap()
-        .start_ssl(&pkcs12).unwrap();
+        .start_ssl(builder).unwrap();
 
     println!("Started http server: 127.0.0.1:8443");
     let _ = sys.run();
