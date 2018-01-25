@@ -179,7 +179,6 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
                 self.encoder.write(payload)?;
-                return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT
                 self.buffer.extend_from_slice(payload.as_ref())

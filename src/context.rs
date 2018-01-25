@@ -18,7 +18,7 @@ use httprequest::HttpRequest;
 
 pub trait ActorHttpContext: 'static {
     fn disconnected(&mut self);
-    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 2]>>, Error>;
+    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error>;
 }
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ impl Frame {
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
     inner: ContextImpl<A>,
-    stream: Option<SmallVec<[Frame; 2]>>,
+    stream: Option<SmallVec<[Frame; 4]>>,
     request: HttpRequest<S>,
     disconnected: bool,
 }
@@ -201,7 +201,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
         self.stop();
     }
 
-    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 2]>>, Error> {
+    fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error> {
         let ctx: &mut HttpContext<A, S> = unsafe {
             std::mem::transmute(self as &mut HttpContext<A, S>)
         };

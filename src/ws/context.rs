@@ -23,7 +23,7 @@ use ws::proto::{OpCode, CloseCode};
 pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
-    stream: Option<SmallVec<[ContextFrame; 2]>>,
+    stream: Option<SmallVec<[ContextFrame; 4]>>,
     request: HttpRequest<S>,
     disconnected: bool,
 }
@@ -226,7 +226,7 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
         self.stop();
     }
 
-    fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame;2]>>, Error> {
+    fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame; 4]>>, Error> {
         let ctx: &mut WebsocketContext<A, S> = unsafe {
             mem::transmute(self as &mut WebsocketContext<A, S>)
         };

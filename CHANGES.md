@@ -1,5 +1,11 @@
 # Changes
 
+## 0.3.3 (2018-01-xx)
+
+* Stop processing any events after context stop
+
+* Re-enable write back pressure for h1 connections
+
 ## 0.3.2 (2018-01-21)
 
 * Fix HEAD requests handling
