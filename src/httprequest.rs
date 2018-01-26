@@ -8,6 +8,7 @@ use cookie::Cookie;
 use futures::{Async, Future, Stream, Poll};
 use http_range::HttpRange;
 use serde::de::DeserializeOwned;
+use mime::Mime;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 
@@ -371,10 +372,23 @@ impl<S> HttpRequest<S> {
     pub fn content_type(&self) -> &str {
         if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
-                return content_type
+                return content_type.split(';').next().unwrap().trim()
             }
         }
         ""
+    }
+
+    /// Convert the request content type to a known mime type.
+    pub fn mime_type(&self) -> Option<Mime> {
+        if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
+            if let Ok(content_type) = content_type.to_str() {
+                return match content_type.parse() {
+                    Ok(mt) => Some(mt),
+                    Err(_) => None
+                };
+            }
+        }
+        None
     }
 
     /// Check if request requires connection upgrade
@@ -754,6 +768,7 @@ impl Future for RequestBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mime;
     use http::Uri;
     use std::str::FromStr;
     use router::Pattern;
@@ -766,6 +781,31 @@ mod tests {
         let req = TestRequest::with_header("content-type", "text/plain").finish();
         let dbg = format!("{:?}", req);
         assert!(dbg.contains("HttpRequest"));
+    }
+
+    #[test]
+    fn test_content_type() {
+        let req = TestRequest::with_header("content-type", "text/plain").finish();
+        assert_eq!(req.content_type(), "text/plain");
+        let req = TestRequest::with_header(
+            "content-type", "application/json; charset=utf=8").finish();
+        assert_eq!(req.content_type(), "application/json");
+        let req = HttpRequest::default();
+        assert_eq!(req.content_type(), "");
+    }
+
+    #[test]
+    fn test_mime_type() {
+        let req = TestRequest::with_header("content-type", "application/json").finish();
+        assert_eq!(req.mime_type(), Some(mime::APPLICATION_JSON));
+        let req = HttpRequest::default();
+        assert_eq!(req.mime_type(), None);
+        let req = TestRequest::with_header(
+            "content-type", "application/json; charset=utf-8").finish();
+        let mt = req.mime_type().unwrap();
+        assert_eq!(mt.get_param(mime::CHARSET), Some(mime::UTF_8));
+        assert_eq!(mt.type_(), mime::APPLICATION);
+        assert_eq!(mt.subtype(), mime::JSON);
     }
 
     #[test]

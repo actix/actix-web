@@ -1,5 +1,12 @@
 # Changes
 
+## 0.3.4 (2018-..-..)
+
+* Fix request json loader
+
+* Added HttpRequest::mime_type() method
+
+
 ## 0.3.3 (2018-01-25)
 
 * Stop processing any events after context stop
