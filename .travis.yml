@@ -8,7 +8,7 @@ cache:
 
 matrix:
   include:
-    - rust: 1.20.0
+    - rust: 1.21.0
     - rust: stable
     - rust: beta
     - rust: nightly
@@ -17,7 +17,7 @@ matrix:
     - rust: beta
 
 #rust:
-#  - 1.20.0
+#  - 1.21.0
 #  - stable
 #  - beta
 #  - nightly-2018-01-03
@@ -42,7 +42,7 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
        cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
@@ -71,7 +71,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
       cargo doc --features alpn --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
