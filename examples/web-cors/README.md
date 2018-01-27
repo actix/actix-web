@@ -6,10 +6,10 @@
 $ cd web-cors/backend
 $ cargo run
 ```
-2 - fontend server
+2 - frontend server
 ```bash
-$ cd web-cors/fontend
+$ cd web-cors/frontend
 $ npm install
 $ npm run dev
 ```
-then open broswer 'http://localhost:1234/'
+then open browser 'http://localhost:1234/'
