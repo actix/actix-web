@@ -104,4 +104,5 @@ members = [
   "examples/tls",
   "examples/websocket",
   "examples/websocket-chat",
+  "examples/actix_web_cors/backend",
 ]
