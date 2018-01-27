@@ -313,7 +313,8 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             // start http server actor
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
-            signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+            signals.map(|signals| signals.send(
+                signal::Subscribe(addr.clone().into_subscriber())));
             addr
         }
     }
@@ -478,7 +479,8 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
                 move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
             self
         });
-        signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+        signals.map(|signals| signals.send(
+            signal::Subscribe(addr.clone().into_subscriber())));
         addr
     }
 }

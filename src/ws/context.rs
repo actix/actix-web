@@ -5,13 +5,12 @@ use futures::unsync::oneshot;
 use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Address, SyncAddress, Handler, Subscriber, ResponseType, SpawnHandle};
+            Address, SyncAddress, Handler, ResponseType, SpawnHandle, MessageResult};
 use actix::fut::ActorFuture;
-use actix::dev::{queue, AsyncContextApi,
-                 ContextImpl, ContextProtocol, Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{AsyncContextApi, ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
-use error::{Error, Result, ErrorInternalServerError};
+use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 use context::{Frame as ContextFrame, ActorHttpContext, Drain};
 
@@ -69,10 +68,6 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
 
 #[doc(hidden)]
 impl<A, S> AsyncContextApi<A> for WebsocketContext<A, S> where A: Actor<Context=Self> {
-    #[inline]
-    fn unsync_sender(&mut self) -> queue::unsync::UnboundedSender<ContextProtocol<A>> {
-        self.inner.unsync_sender()
-    }
 
     #[inline]
     fn unsync_address(&mut self) -> Address<A> {
@@ -198,26 +193,6 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
-
-    #[inline]
-    #[doc(hidden)]
-    pub fn subscriber<M>(&mut self) -> Box<Subscriber<M>>
-        where A: Handler<M>, M: ResponseType + 'static
-    {
-        self.inner.subscriber()
-    }
-
-    #[inline]
-    #[doc(hidden)]
-    pub fn sync_subscriber<M>(&mut self) -> Box<Subscriber<M> + Send>
-        where A: Handler<M>,
-              M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send,
-    {
-        self.inner.sync_subscriber()
-    }
-}
-
 impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Self>, S: 'static {
 
     #[inline]
@@ -253,11 +228,10 @@ impl<A, S> ToEnvelope<A> for WebsocketContext<A, S>
     where A: Actor<Context=WebsocketContext<A, S>>,
 {
     #[inline]
-    fn pack<M>(msg: M, tx: Option<Sender<Result<M::Item, M::Error>>>,
-               channel_on_drop: bool) -> Envelope<A>
+    fn pack_msg<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
         where A: Handler<M>,
               M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send {
-        RemoteEnvelope::new(msg, tx, channel_on_drop).into()
+        RemoteEnvelope::envelope(msg, tx).into()
     }
 }
 
