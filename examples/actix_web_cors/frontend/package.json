@@ -1,0 +1,22 @@
+{
+  "name": "actix-web-cors",
+  "version": "0.1.0",
+  "description": "webapp",
+  "main": "main.js",
+  "scripts": {
+    "dev": "rm -rf dist/ && NODE_ENV=development parcel index.html",
+    "build": "NODE_ENV=production parcel build index.html",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "vue": "^2.5.13",
+    "vue-router": "^3.0.1",
+    "axios": "^0.17.1"
+  },
+  "devDependencies": {
+    "babel-preset-env": "^1.6.1",
+    "parcel-bundler": "^1.4.1",
+    "parcel-plugin-vue": "^1.5.0"
+  }
+}
