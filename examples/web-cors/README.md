@@ -1,14 +1,14 @@
-# Actix-web-CORS
+# Actix Web CORS example
 
 ## start
 1 - backend server
 ```bash
-$ cd actix_web_cors/backend
+$ cd web-cors/backend
 $ cargo run
 ```
 2 - fontend server
 ```bash
-$ cd actix_web_cors/fontend
+$ cd web-cors/fontend
 $ npm install
 $ npm run dev
 ```
