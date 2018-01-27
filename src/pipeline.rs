@@ -3,19 +3,19 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 
+use log::Level::Debug;
 use futures::{Async, Poll, Future, Stream};
 use futures::unsync::oneshot;
 
-use channel::HttpHandlerTask;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
 use error::Error;
 use handler::{Reply, ReplyItem};
-use h1writer::{Writer, WriterState};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Finished, Started, Response};
 use application::Inner;
+use server::{Writer, WriterState, HttpHandlerTask};
 
 pub(crate) trait PipelineHandler<S> {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply;
@@ -34,9 +34,30 @@ enum PipelineState<S, H> {
     Completed(Completed<S, H>),
 }
 
+impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
+
+    fn is_response(&self) -> bool {
+        match *self {
+            PipelineState::Response(_) => true,
+            _ => false,
+        }
+    }
+
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
+        match *self {
+            PipelineState::Starting(ref mut state) => state.poll(info),
+            PipelineState::Handler(ref mut state) => state.poll(info),
+            PipelineState::RunMiddlewares(ref mut state) => state.poll(info),
+            PipelineState::Finishing(ref mut state) => state.poll(info),
+            PipelineState::Completed(ref mut state) => state.poll(info),
+            PipelineState::Response(_) | PipelineState::None | PipelineState::Error => None,
+        }
+    }
+} 
+
 struct PipelineInfo<S> {
     req: HttpRequest<S>,
-    count: usize,
+    count: u16,
     mws: Rc<Vec<Box<Middleware<S>>>>,
     context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
@@ -74,7 +95,7 @@ impl<S> PipelineInfo<S> {
     }
 }
 
-impl<S, H: PipelineHandler<S>> Pipeline<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
 
     pub fn new(req: HttpRequest<S>,
                mws: Rc<Vec<Box<Middleware<S>>>>,
@@ -101,65 +122,32 @@ impl Pipeline<(), Inner<()>> {
     }
 }
 
-impl<S, H> Pipeline<S, H> {
+impl<S: 'static, H> Pipeline<S, H> {
 
     fn is_done(&self) -> bool {
         match self.1 {
             PipelineState::None | PipelineState::Error
                 | PipelineState::Starting(_) | PipelineState::Handler(_)
                 | PipelineState::RunMiddlewares(_) | PipelineState::Response(_) => true,
-            PipelineState::Finishing(_) => self.0.context.is_none(),
-            PipelineState::Completed(_) => false,
+            PipelineState::Finishing(_) | PipelineState::Completed(_) => false,
         }
     }
 }
 
-impl<S, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
 
     fn disconnected(&mut self) {
         self.0.disconnected = Some(true);
     }
 
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
+        let info: &mut PipelineInfo<_> = unsafe{ mem::transmute(&mut self.0) };
+
         loop {
-            let state = mem::replace(&mut self.1, PipelineState::None);
-            match state {
-                PipelineState::None =>
-                    return Ok(Async::Ready(true)),
-                PipelineState::Error =>
-                    return Err(io::Error::new(io::ErrorKind::Other, "Internal error").into()),
-                PipelineState::Starting(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Handler(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::RunMiddlewares(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Response(st) => {
-                    match st.poll_io(io, &mut self.0) {
+            if self.1.is_response() {
+                let state = mem::replace(&mut self.1, PipelineState::None);
+                if let PipelineState::Response(st) = state {
+                    match st.poll_io(io, info) {
                         Ok(state) => {
                             self.1 = state;
                             if let Some(error) = self.0.error.take() {
@@ -170,99 +158,41 @@ impl<S, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
                         }
                         Err(state) => {
                             self.1 = state;
-                            return Ok(Async::NotReady)
+                            return Ok(Async::NotReady);
                         }
                     }
                 }
-                PipelineState::Finishing(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Completed(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) => {
-                            self.1 = state;
-                            return Ok(Async::Ready(true));
-                        }
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
+            }
+            match self.1 {
+                PipelineState::None =>
+                    return Ok(Async::Ready(true)),
+                PipelineState::Error =>
+                    return Err(io::Error::new(io::ErrorKind::Other, "Internal error").into()),
+                _ => (),
+            }
+
+            match self.1.poll(info) {
+                Some(state) => self.1 = state,
+                None => return Ok(Async::NotReady),
             }
         }
     }
 
     fn poll(&mut self) -> Poll<(), Error> {
+        let info: &mut PipelineInfo<_> = unsafe{ mem::transmute(&mut self.0) };
+
         loop {
-            let state = mem::replace(&mut self.1, PipelineState::None);
-            match state {
+            match self.1 {
                 PipelineState::None | PipelineState::Error => {
                     return Ok(Async::Ready(()))
                 }
-                PipelineState::Starting(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Handler(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::RunMiddlewares(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Response(_) => {
-                    self.1 = state;
-                    return Ok(Async::NotReady);
-                }
-                PipelineState::Finishing(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) =>
-                            self.1 = state,
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
-                PipelineState::Completed(st) => {
-                    match st.poll(&mut self.0) {
-                        Ok(state) => {
-                            self.1 = state;
-                            return Ok(Async::Ready(()));
-                        }
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady)
-                        }
-                    }
-                }
+                _ => (),
+            }
+
+            if let Some(state) = self.1.poll(info) {
+                self.1 = state;
+            } else {
+                return Ok(Async::NotReady);
             }
         }
     }
@@ -277,24 +207,23 @@ struct StartMiddlewares<S, H> {
     _s: PhantomData<S>,
 }
 
-impl<S, H: PipelineHandler<S>> StartMiddlewares<S, H> {
+impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
-    fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be non-async
-        // and we can move to next state immidietly
-        let len = info.mws.len();
+        // and we can move to next state immediately
+        let len = info.mws.len() as u16;
         loop {
             if info.count == len {
                 let reply = handler.borrow_mut().handle(info.req.clone());
                 return WaitingResponse::init(info, reply)
             } else {
-                match info.mws[info.count].start(&mut info.req) {
-                    Started::Done =>
+                match info.mws[info.count as usize].start(&mut info.req) {
+                    Ok(Started::Done) =>
                         info.count += 1,
-                    Started::Response(resp) =>
+                    Ok(Started::Response(resp)) =>
                         return RunMiddlewares::init(info, resp),
-                    Started::Future(mut fut) =>
+                    Ok(Started::Future(mut fut)) =>
                         match fut.poll() {
                             Ok(Async::NotReady) =>
                                 return PipelineState::Starting(StartMiddlewares {
@@ -310,48 +239,46 @@ impl<S, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                             Err(err) =>
                                 return ProcessResponse::init(err.into()),
                         },
-                    Started::Err(err) =>
+                    Err(err) =>
                         return ProcessResponse::init(err.into()),
                 }
             }
         }
     }
 
-    fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S, H>, PipelineState<S, H>>
-    {
-        let len = info.mws.len();
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
+        let len = info.mws.len() as u16;
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) =>
-                    return Err(PipelineState::Starting(self)),
+                Ok(Async::NotReady) => return None,
                 Ok(Async::Ready(resp)) => {
                     info.count += 1;
                     if let Some(resp) = resp {
-                        return Ok(RunMiddlewares::init(info, resp));
+                        return Some(RunMiddlewares::init(info, resp));
                     }
                     if info.count == len {
                         let reply = (*self.hnd.borrow_mut()).handle(info.req.clone());
-                        return Ok(WaitingResponse::init(info, reply));
+                        return Some(WaitingResponse::init(info, reply));
                     } else {
                         loop {
-                            match info.mws[info.count].start(info.req_mut()) {
-                                Started::Done =>
+                            match info.mws[info.count as usize].start(info.req_mut()) {
+                                Ok(Started::Done) =>
                                     info.count += 1,
-                                Started::Response(resp) => {
-                                    return Ok(RunMiddlewares::init(info, resp));
+                                Ok(Started::Response(resp)) => {
+                                    return Some(RunMiddlewares::init(info, resp));
                                 },
-                                Started::Future(fut) => {
+                                Ok(Started::Future(fut)) => {
                                     self.fut = Some(fut);
                                     continue 'outer
                                 },
-                                Started::Err(err) =>
-                                    return Ok(ProcessResponse::init(err.into()))
+                                Err(err) =>
+                                    return Some(ProcessResponse::init(err.into()))
                             }
                         }
                     }
                 }
                 Err(err) =>
-                    return Ok(ProcessResponse::init(err.into()))
+                    return Some(ProcessResponse::init(err.into()))
             }
         }
     }
@@ -364,11 +291,10 @@ struct WaitingResponse<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> WaitingResponse<S, H> {
+impl<S: 'static, H> WaitingResponse<S, H> {
 
     #[inline]
-    fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H> {
         match reply.into() {
             ReplyItem::Message(resp) =>
                 RunMiddlewares::init(info, resp),
@@ -378,15 +304,13 @@ impl<S, H> WaitingResponse<S, H> {
         }
     }
 
-    fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S, H>, PipelineState<S, H>>
-    {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         match self.fut.poll() {
-            Ok(Async::NotReady) =>
-                Err(PipelineState::Handler(self)),
+            Ok(Async::NotReady) => None,
             Ok(Async::Ready(response)) =>
-                Ok(RunMiddlewares::init(info, response)),
+                Some(RunMiddlewares::init(info, response)),
             Err(err) =>
-                Ok(ProcessResponse::init(err.into())),
+                Some(ProcessResponse::init(err.into())),
         }
     }
 }
@@ -399,10 +323,9 @@ struct RunMiddlewares<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> RunMiddlewares<S, H> {
+impl<S: 'static, H> RunMiddlewares<S, H> {
 
-    fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H>
-    {
+    fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {
             return ProcessResponse::init(resp);
         }
@@ -411,11 +334,11 @@ impl<S, H> RunMiddlewares<S, H> {
 
         loop {
             resp = match info.mws[curr].response(info.req_mut(), resp) {
-                Response::Err(err) => {
-                    info.count = curr + 1;
+                Err(err) => {
+                    info.count = (curr + 1) as u16;
                     return ProcessResponse::init(err.into())
                 }
-                Response::Done(r) => {
+                Ok(Response::Done(r)) => {
                     curr += 1;
                     if curr == len {
                         return ProcessResponse::init(r)
@@ -423,7 +346,7 @@ impl<S, H> RunMiddlewares<S, H> {
                         r
                     }
                 },
-                Response::Future(fut) => {
+                Ok(Response::Future(fut)) => {
                     return PipelineState::RunMiddlewares(
                         RunMiddlewares { curr: curr, fut: Some(fut),
                                          _s: PhantomData, _h: PhantomData })
@@ -432,36 +355,35 @@ impl<S, H> RunMiddlewares<S, H> {
         }
     }
 
-    fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S,H>, PipelineState<S, H>>
-    {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         let len = info.mws.len();
 
         loop {
             // poll latest fut
             let mut resp = match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => {
-                    return Err(PipelineState::RunMiddlewares(self))
+                    return None
                 }
                 Ok(Async::Ready(resp)) => {
                     self.curr += 1;
                     resp
                 }
                 Err(err) =>
-                    return Ok(ProcessResponse::init(err.into())),
+                    return Some(ProcessResponse::init(err.into())),
             };
 
             loop {
                 if self.curr == len {
-                    return Ok(ProcessResponse::init(resp));
+                    return Some(ProcessResponse::init(resp));
                 } else {
                     match info.mws[self.curr].response(info.req_mut(), resp) {
-                        Response::Err(err) =>
-                            return Ok(ProcessResponse::init(err.into())),
-                        Response::Done(r) => {
+                        Err(err) =>
+                            return Some(ProcessResponse::init(err.into())),
+                        Ok(Response::Done(r)) => {
                             self.curr += 1;
                             resp = r
                         },
-                        Response::Future(fut) => {
+                        Ok(Response::Future(fut)) => {
                             self.fut = Some(fut);
                             break
                         },
@@ -510,17 +432,15 @@ enum IOState {
     Done,
 }
 
-impl<S, H> ProcessResponse<S, H> {
+impl<S: 'static, H> ProcessResponse<S, H> {
 
     #[inline]
-    fn init(resp: HttpResponse) -> PipelineState<S, H>
-    {
+    fn init(resp: HttpResponse) -> PipelineState<S, H> {
         PipelineState::Response(
             ProcessResponse{ resp: resp,
                              iostate: IOState::Response,
                              running: RunningState::Running,
-                             drain: None,
-                             _s: PhantomData, _h: PhantomData})
+                             drain: None, _s: PhantomData, _h: PhantomData})
     }
 
     fn poll_io(mut self, io: &mut Writer, info: &mut PipelineInfo<S>)
@@ -528,7 +448,7 @@ impl<S, H> ProcessResponse<S, H> {
     {
         if self.drain.is_none() && self.running != RunningState::Paused {
             // if task is paused, write buffer is probably full
-            loop {
+            'outter: loop {
                 let result = match mem::replace(&mut self.iostate, IOState::Done) {
                     IOState::Response => {
                         let result = match io.start(info.req_mut().get_inner(), &mut self.resp) {
@@ -538,6 +458,13 @@ impl<S, H> ProcessResponse<S, H> {
                                 return Ok(FinishingMiddlewares::init(info, self.resp))
                             }
                         };
+
+                        if let Some(err) = self.resp.error() {
+                            warn!("Error occured during request handling: {}", err);
+                            if log_enabled!(Debug) {
+                                debug!("{:?}", err);
+                            }
+                        }
 
                         match self.resp.replace_body(Body::Empty) {
                             Body::Streaming(stream) =>
@@ -550,19 +477,6 @@ impl<S, H> ProcessResponse<S, H> {
                         result
                     },
                     IOState::Payload(mut body) => {
-                        // always poll context
-                        if self.running == RunningState::Running {
-                            match info.poll_context() {
-                                Ok(Async::NotReady) => (),
-                                Ok(Async::Ready(_)) =>
-                                    self.running = RunningState::Done,
-                                Err(err) => {
-                                    info.error = Some(err);
-                                    return Ok(FinishingMiddlewares::init(info, self.resp))
-                                }
-                            }
-                        }
-
                         match body.poll() {
                             Ok(Async::Ready(None)) => {
                                 self.iostate = IOState::Done;
@@ -574,7 +488,7 @@ impl<S, H> ProcessResponse<S, H> {
                             },
                             Ok(Async::Ready(Some(chunk))) => {
                                 self.iostate = IOState::Payload(body);
-                                match io.write(chunk.as_ref()) {
+                                match io.write(chunk.into()) {
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(info, self.resp))
@@ -597,35 +511,44 @@ impl<S, H> ProcessResponse<S, H> {
                             ctx.disconnected();
                         }
                         match ctx.poll() {
-                            Ok(Async::Ready(Some(frame))) => {
-                                match frame {
-                                    Frame::Payload(None) => {
-                                        info.context = Some(ctx);
-                                        self.iostate = IOState::Done;
-                                        if let Err(err) = io.write_eof() {
-                                            info.error = Some(err.into());
-                                            return Ok(
-                                                FinishingMiddlewares::init(info, self.resp))
-                                        }
-                                        break
-                                    },
-                                    Frame::Payload(Some(chunk)) => {
-                                        self.iostate = IOState::Actor(ctx);
-                                        match io.write(chunk.as_ref()) {
-                                            Err(err) => {
+                            Ok(Async::Ready(Some(vec))) => {
+                                if vec.is_empty() {
+                                    self.iostate = IOState::Actor(ctx);
+                                    break
+                                }
+                                let mut res = None;
+                                for frame in vec {
+                                    match frame {
+                                        Frame::Chunk(None) => {
+                                            info.context = Some(ctx);
+                                            self.iostate = IOState::Done;
+                                            if let Err(err) = io.write_eof() {
                                                 info.error = Some(err.into());
-                                                return Ok(FinishingMiddlewares::init(
-                                                    info, self.resp))
-                                            },
-                                            Ok(result) => result
-                                        }
-                                    },
-                                    Frame::Drain(fut) => {
-                                        self.drain = Some(fut);
-                                        self.iostate = IOState::Actor(ctx);
-                                        break
+                                                return Ok(
+                                                    FinishingMiddlewares::init(info, self.resp))
+                                            }
+                                            break 'outter
+                                        },
+                                        Frame::Chunk(Some(chunk)) => {
+                                            match io.write(chunk) {
+                                                Err(err) => {
+                                                    info.error = Some(err.into());
+                                                    return Ok(
+                                                        FinishingMiddlewares::init(info, self.resp))
+                                                },
+                                                Ok(result) => res = Some(result),
+                                            }
+                                        },
+                                        Frame::Drain(fut) =>
+                                            self.drain = Some(fut),
                                     }
                                 }
+                                self.iostate = IOState::Actor(ctx);
+                                if self.drain.is_some() {
+                                    self.running.resume();
+                                    break 'outter
+                                }
+                                res.unwrap()
                             },
                             Ok(Async::Ready(None)) => {
                                 self.iostate = IOState::Done;
@@ -669,10 +592,8 @@ impl<S, H> ProcessResponse<S, H> {
                     // restart io processing
                     return self.poll_io(io, info);
                 },
-                Ok(Async::NotReady) =>
-                    return Err(PipelineState::Response(self)),
+                Ok(Async::NotReady) => return Err(PipelineState::Response(self)),
                 Err(err) => {
-                    debug!("Error sending data: {}", err);
                     info.error = Some(err.into());
                     return Ok(FinishingMiddlewares::init(info, self.resp))
                 }
@@ -685,7 +606,6 @@ impl<S, H> ProcessResponse<S, H> {
                 match io.write_eof() {
                     Ok(_) => (),
                     Err(err) => {
-                        debug!("Error sending data: {}", err);
                         info.error = Some(err.into());
                         return Ok(FinishingMiddlewares::init(info, self.resp))
                     }
@@ -693,7 +613,7 @@ impl<S, H> ProcessResponse<S, H> {
                 self.resp.set_response_size(io.written());
                 Ok(FinishingMiddlewares::init(info, self.resp))
             }
-            _ => Err(PipelineState::Response(self))
+            _ => Err(PipelineState::Response(self)),
         }
     }
 }
@@ -706,21 +626,23 @@ struct FinishingMiddlewares<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S, H> FinishingMiddlewares<S, H> {
+impl<S: 'static, H> FinishingMiddlewares<S, H> {
 
     fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {
             Completed::init(info)
         } else {
-            match (FinishingMiddlewares{resp: resp, fut: None,
-                                        _s: PhantomData, _h: PhantomData}).poll(info) {
-                Ok(st) | Err(st) => st,
+            let mut state = FinishingMiddlewares{resp: resp, fut: None,
+                                                 _s: PhantomData, _h: PhantomData};
+            if let Some(st) = state.poll(info) {
+                st
+            } else {
+                PipelineState::Finishing(state)
             }
         }
     }
 
-    fn poll(mut self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S, H>, PipelineState<S, H>>
-    {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         loop {
             // poll latest fut
             let not_ready = if let Some(ref mut fut) = self.fut {
@@ -740,15 +662,15 @@ impl<S, H> FinishingMiddlewares<S, H> {
                 false
             };
             if not_ready {
-                return Ok(PipelineState::Finishing(self))
+                return None;
             }
             self.fut = None;
             info.count -= 1;
 
-            match info.mws[info.count].finish(info.req_mut(), &self.resp) {
+            match info.mws[info.count as usize].finish(info.req_mut(), &self.resp) {
                 Finished::Done => {
                     if info.count == 0 {
-                        return Ok(Completed::init(info))
+                        return Some(Completed::init(info))
                     }
                 }
                 Finished::Future(fut) => {
@@ -759,12 +681,17 @@ impl<S, H> FinishingMiddlewares<S, H> {
     }
 }
 
+#[derive(Debug)]
 struct Completed<S, H>(PhantomData<S>, PhantomData<H>);
 
 impl<S, H> Completed<S, H> {
 
     #[inline]
     fn init(info: &mut PipelineInfo<S>) -> PipelineState<S, H> {
+        if let Some(ref err) = info.error {
+            error!("Error occured during request handling: {}", err);
+        }
+
         if info.context.is_none() {
             PipelineState::None
         } else {
@@ -773,13 +700,11 @@ impl<S, H> Completed<S, H> {
     }
 
     #[inline]
-    fn poll(self, info: &mut PipelineInfo<S>) -> Result<PipelineState<S, H>, PipelineState<S, H>> {
+    fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         match info.poll_context() {
-            Ok(Async::NotReady) =>
-                Ok(PipelineState::Completed(Completed(PhantomData, PhantomData))),
-            Ok(Async::Ready(())) =>
-                Ok(PipelineState::None),
-            Err(_) => Ok(PipelineState::Error),
+            Ok(Async::NotReady) => None,
+            Ok(Async::Ready(())) => Some(PipelineState::None),
+            Err(_) => Some(PipelineState::Error),
         }
     }
 }
@@ -819,17 +744,17 @@ mod tests {
             info.context = Some(Box::new(ctx));
             let mut state = Completed::<(), Inner<()>>::init(&mut info).completed().unwrap();
 
-            let st = state.poll(&mut info).ok().unwrap();
-            let pp = Pipeline(info, st);
+            assert!(state.poll(&mut info).is_none());
+            let pp = Pipeline(info, PipelineState::Completed(state));
             assert!(!pp.is_done());
 
             let Pipeline(mut info, st) = pp;
-            state = st.completed().unwrap();
+            let mut st = st.completed().unwrap();
             drop(addr);
 
-            state.poll(&mut info).ok().unwrap().is_none().unwrap();
+            assert!(st.poll(&mut info).unwrap().is_none().unwrap());
 
             result(Ok::<_, ()>(()))
-        })).unwrap()
+        })).unwrap();
     }
 }

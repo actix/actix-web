@@ -25,6 +25,5 @@ serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
 
-#actix = "0.4"
-actix = { git = "https://github.com/actix/actix" }
-actix-web = { git = "https://github.com/actix/actix-web" }
+actix = "^0.4.2"
+actix-web = { path="../../" }

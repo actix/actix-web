@@ -15,14 +15,15 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
-use h2writer::H2Writer;
-use worker::WorkerSettings;
-use channel::{HttpHandler, HttpHandlerTask};
 use error::PayloadError;
-use encoding::PayloadType;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
+
+use super::h2writer::H2Writer;
+use super::encoding::PayloadType;
+use super::settings::WorkerSettings;
+use super::{HttpHandler, HttpHandlerTask};
 
 bitflags! {
     struct Flags: u8 {
@@ -44,7 +45,7 @@ pub(crate) struct Http2<T, H>
 
 enum State<T: AsyncRead + AsyncWrite> {
     Handshake(Handshake<T, Bytes>),
-    Server(Connection<T, Bytes>),
+    Connection(Connection<T, Bytes>),
     Empty,
 }
 
@@ -76,7 +77,7 @@ impl<T, H> Http2<T, H>
 
     pub fn poll(&mut self) -> Poll<(), ()> {
         // server
-        if let State::Server(ref mut server) = self.state {
+        if let State::Connection(ref mut conn) = self.state {
             // keep-alive timer
             if let Some(ref mut timeout) = self.keepalive_timer {
                 match timeout.poll() {
@@ -144,7 +145,7 @@ impl<T, H> Http2<T, H>
 
                 // get request
                 if !self.flags.contains(Flags::DISCONNECTED) {
-                    match server.poll() {
+                    match conn.poll() {
                         Ok(Async::Ready(None)) => {
                             not_ready = false;
                             self.flags.insert(Flags::DISCONNECTED);
@@ -178,7 +179,8 @@ impl<T, H> Http2<T, H>
                                     }
                                 } else {
                                     // keep-alive disable, drop connection
-                                    return Ok(Async::Ready(()))
+                                    return conn.poll_close().map_err(
+                                        |e| error!("Error during connection close: {}", e))
                                 }
                             } else {
                                 // keep-alive unset, rely on operating system
@@ -198,7 +200,8 @@ impl<T, H> Http2<T, H>
 
                 if not_ready {
                     if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED) {
-                        return Ok(Async::Ready(()))
+                        return conn.poll_close().map_err(
+                            |e| error!("Error during connection close: {}", e))
                     } else {
                         return Ok(Async::NotReady)
                     }
@@ -209,8 +212,8 @@ impl<T, H> Http2<T, H>
         // handshake
         self.state = if let State::Handshake(ref mut handshake) = self.state {
             match handshake.poll() {
-                Ok(Async::Ready(srv)) => {
-                    State::Server(srv)
+                Ok(Async::Ready(conn)) => {
+                    State::Connection(conn)
                 },
                 Ok(Async::NotReady) =>
                     return Ok(Async::NotReady),

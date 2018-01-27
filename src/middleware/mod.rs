@@ -1,13 +1,14 @@
 //! Middlewares
 use futures::Future;
 
-use error::Error;
+use error::{Error, Result};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 mod logger;
 mod session;
 mod defaultheaders;
+pub mod cors;
 pub use self::logger::Logger;
 pub use self::defaultheaders::{DefaultHeaders, DefaultHeadersBuilder};
 pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
@@ -17,8 +18,6 @@ pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, Se
 pub enum Started {
     /// Execution completed
     Done,
-    /// Moddleware error
-    Err(Error),
     /// New http response got generated. If middleware generates response
     /// handler execution halts.
     Response(HttpResponse),
@@ -28,8 +27,6 @@ pub enum Started {
 
 /// Middleware execution result
 pub enum Response {
-    /// Moddleware error
-    Err(Error),
     /// New http response got generated
     Done(HttpResponse),
     /// Result is a future that resolves to a new http response
@@ -46,18 +43,18 @@ pub enum Finished {
 
 /// Middleware definition
 #[allow(unused_variables)]
-pub trait Middleware<S> {
+pub trait Middleware<S>: 'static {
 
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&self, req: &mut HttpRequest<S>) -> Started {
-        Started::Done
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+        Ok(Started::Done)
     }
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
-    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Response {
-        Response::Done(resp)
+    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
     }
 
     /// Method is called after body stream get sent to peer.

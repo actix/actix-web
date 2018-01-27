@@ -7,15 +7,14 @@ use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
 use helpers;
-use body::Body;
-use helpers::SharedBytes;
-use encoding::PayloadEncoder;
+use body::{Body, Binary};
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
-use h1writer::{Writer, WriterState};
+use super::encoding::PayloadEncoder;
+use super::shared::SharedBytes;
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const CHUNK_SIZE: usize = 16_384;
-const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 bitflags! {
     struct Flags: u8 {
@@ -53,15 +52,13 @@ impl H2Writer {
         }
     }
 
-    fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
+    fn write_to_stream(&mut self) -> io::Result<WriterState> {
         if !self.flags.contains(Flags::STARTED) {
             return Ok(WriterState::Done)
         }
 
         if let Some(ref mut stream) = self.stream {
-            let buffer = self.encoder.get_mut();
-
-            if buffer.is_empty() {
+            if self.buffer.is_empty() {
                 if self.flags.contains(Flags::EOF) {
                     let _ = stream.send_data(Bytes::new(), true);
                 }
@@ -71,7 +68,7 @@ impl H2Writer {
             loop {
                 match stream.poll_capacity() {
                     Ok(Async::NotReady) => {
-                        if buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
                             return Ok(WriterState::Pause)
                         } else {
                             return Ok(WriterState::Done)
@@ -81,15 +78,15 @@ impl H2Writer {
                         return Ok(WriterState::Done)
                     }
                     Ok(Async::Ready(Some(cap))) => {
-                        let len = buffer.len();
-                        let bytes = buffer.split_to(cmp::min(cap, len));
-                        let eof = buffer.is_empty() && self.flags.contains(Flags::EOF);
+                        let len = self.buffer.len();
+                        let bytes = self.buffer.split_to(cmp::min(cap, len));
+                        let eof = self.buffer.is_empty() && self.flags.contains(Flags::EOF);
                         self.written += bytes.len() as u64;
 
                         if let Err(err) = stream.send_data(bytes.freeze(), eof) {
                             return Err(io::Error::new(io::ErrorKind::Other, err))
-                        } else if !buffer.is_empty() {
-                            let cap = cmp::min(buffer.len(), CHUNK_SIZE);
+                        } else if !self.buffer.is_empty() {
+                            let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
                             return Ok(WriterState::Pause)
@@ -111,11 +108,7 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
-             -> Result<WriterState, io::Error>
-    {
-        // trace!("Prepare response with status: {:?}", msg.status());
-
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
@@ -168,9 +161,9 @@ impl Writer for H2Writer {
         if let Body::Binary(bytes) = body {
             self.flags.insert(Flags::EOF);
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes.as_ref())?;
+            self.encoder.write(bytes)?;
             if let Some(ref mut stream) = self.stream {
-                stream.reserve_capacity(cmp::min(self.encoder.len(), CHUNK_SIZE));
+                stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
             }
             Ok(WriterState::Pause)
         } else {
@@ -179,7 +172,7 @@ impl Writer for H2Writer {
         }
     }
 
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
         self.written = payload.len() as u64;
 
         if !self.flags.contains(Flags::DISCONNECTED) {
@@ -188,25 +181,25 @@ impl Writer for H2Writer {
                 self.encoder.write(payload)?;
             } else {
                 // might be response for EXCEPT
-                self.encoder.get_mut().extend_from_slice(payload)
+                self.buffer.extend_from_slice(payload.as_ref())
             }
         }
 
-        if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
         }
     }
 
-    fn write_eof(&mut self) -> Result<WriterState, io::Error> {
+    fn write_eof(&mut self) -> io::Result<WriterState> {
         self.encoder.write_eof()?;
 
         self.flags.insert(Flags::EOF);
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
-        } else if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)

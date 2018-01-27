@@ -16,9 +16,7 @@ use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
 use error::Error;
-use server::{HttpServer, ServerSettings};
 use handler::{Handler, Responder, ReplyItem};
-use channel::{HttpHandler, IntoHttpHandler};
 use middleware::Middleware;
 use application::{Application, HttpApplication};
 use param::Params;
@@ -26,11 +24,12 @@ use router::Router;
 use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use server::{HttpServer, HttpHandler, IntoHttpHandler, ServerSettings};
 
 /// The `TestServer` type.
 ///
 /// `TestServer` is very simple test server that simplify process of writing
-/// integrational tests cases for actix web applications.
+/// integration tests cases for actix web applications.
 ///
 /// # Examples
 ///
@@ -62,7 +61,7 @@ impl TestServer {
 
     /// Start new test server
     ///
-    /// This methos accepts configuration method. You can add
+    /// This method accepts configuration method. You can add
     /// middlewares or set handlers for test application.
     pub fn new<F>(config: F) -> Self
         where F: Sync + Send + 'static + Fn(&mut TestApp<()>),
@@ -102,7 +101,7 @@ impl TestServer {
 
     /// Start new test server with custom application state
     ///
-    /// This methos accepts state factory and configuration method.
+    /// This method accepts state factory and configuration method.
     pub fn with_state<S, FS, F>(state: FS, config: F) -> Self
         where S: 'static,
               FS: Sync + Send + 'static + Fn() -> S,
@@ -147,6 +146,11 @@ impl TestServer {
     }
 
     /// Construct test server url
+    pub fn addr(&self) -> net::SocketAddr {
+        self.addr
+    }
+
+    /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
             format!("http://{}{}", self.addr, uri)
@@ -185,6 +189,16 @@ impl<S: 'static> TestApp<S> {
     /// Register handler for "/"
     pub fn handler<H: Handler<S>>(&mut self, handler: H) {
         self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
+    }
+
+    /// Register handler for "/" with resource middleware
+    pub fn handler2<H, M>(&mut self, handler: H, mw: M)
+        where H: Handler<S>, M: Middleware<S>
+    {
+        self.app = Some(self.app.take().unwrap()
+                        .resource("/", |r| {
+                            r.middleware(mw);
+                            r.h(handler)}));
     }
 
     /// Register middleware
@@ -273,12 +287,12 @@ impl Default for TestRequest<()> {
 
 impl TestRequest<()> {
 
-    /// Create TestReqeust and set request uri
+    /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest<()> {
         TestRequest::default().uri(path)
     }
 
-    /// Create TestReqeust and set header
+    /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest<()>
         where HeaderName: HttpTryFrom<K>,
               HeaderValue: HttpTryFrom<V>

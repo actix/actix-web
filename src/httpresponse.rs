@@ -1,11 +1,12 @@
 //! Pieces pertaining to the HTTP response.
 use std::{mem, str, fmt};
+use std::io::Write;
 use std::cell::RefCell;
 use std::convert::Into;
 use std::collections::VecDeque;
 
 use cookie::CookieJar;
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
@@ -15,7 +16,7 @@ use cookie::Cookie;
 use body::Body;
 use error::Error;
 use handler::Responder;
-use encoding::ContentEncoding;
+use headers::ContentEncoding;
 use httprequest::HttpRequest;
 
 /// Represents various types of connection
@@ -157,14 +158,14 @@ impl HttpResponse {
 
     /// is chunked encoding enabled
     #[inline]
-    pub fn chunked(&self) -> bool {
+    pub fn chunked(&self) -> Option<bool> {
         self.get_ref().chunked
     }
 
     /// Content encoding
     #[inline]
-    pub fn content_encoding(&self) -> &ContentEncoding {
-        &self.get_ref().encoding
+    pub fn content_encoding(&self) -> ContentEncoding {
+        self.get_ref().encoding
     }
 
     /// Set content encoding
@@ -328,7 +329,16 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn chunked(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.chunked = true;
+            parts.chunked = Some(true);
+        }
+        self
+    }
+
+    /// Force disable chunked encoding
+    #[inline]
+    pub fn no_chunking(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.chunked = Some(false);
         }
         self
     }
@@ -345,6 +355,14 @@ impl HttpResponseBuilder {
             };
         }
         self
+    }
+
+    /// Set content length
+    #[inline]
+    pub fn content_length(&mut self, len: u64) -> &mut Self {
+        let mut wrt = BytesMut::new().writer();
+        let _ = write!(wrt, "{}", len);
+        self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
     /// Set a cookie
@@ -396,10 +414,20 @@ impl HttpResponseBuilder {
 
     /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
-        where F: Fn(&mut HttpResponseBuilder) + 'static
+        where F: FnOnce(&mut HttpResponseBuilder)
     {
         if value {
             f(self);
+        }
+        self
+    }
+
+    /// This method calls provided closure with builder reference if value is Some.
+    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
+        where F: FnOnce(T, &mut HttpResponseBuilder)
+    {
+        if let Some(val) = value {
+            f(val, self);
         }
         self
     }
@@ -622,7 +650,7 @@ struct InnerHttpResponse {
     status: StatusCode,
     reason: Option<&'static str>,
     body: Body,
-    chunked: bool,
+    chunked: Option<bool>,
     encoding: ContentEncoding,
     connection_type: Option<ConnectionType>,
     response_size: u64,
@@ -639,7 +667,7 @@ impl InnerHttpResponse {
             status: status,
             reason: None,
             body: body,
-            chunked: false,
+            chunked: None,
             encoding: ContentEncoding::Auto,
             connection_type: None,
             response_size: 0,
@@ -690,7 +718,7 @@ impl Pool {
             if v.len() < 128 {
                 inner.headers.clear();
                 inner.version = None;
-                inner.chunked = false;
+                inner.chunked = None;
                 inner.reason = None;
                 inner.encoding = ContentEncoding::Auto;
                 inner.connection_type = None;
@@ -784,11 +812,11 @@ mod tests {
     #[test]
     fn test_content_encoding() {
         let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
-        assert_eq!(*resp.content_encoding(), ContentEncoding::Auto);
+        assert_eq!(resp.content_encoding(), ContentEncoding::Auto);
 
         let resp = HttpResponse::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
-        assert_eq!(*resp.content_encoding(), ContentEncoding::Br);
+        assert_eq!(resp.content_encoding(), ContentEncoding::Br);
     }
 
     #[test]
@@ -870,14 +898,14 @@ mod tests {
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from((&"test".to_owned())));
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
 
         let resp: HttpResponse = (&"test".to_owned()).respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from((&"test".to_owned())));
+        assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
 
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.into();

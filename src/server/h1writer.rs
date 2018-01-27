@@ -2,39 +2,18 @@ use std::io;
 use bytes::BufMut;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
-use http::Version;
+use http::{Method, Version};
 use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
-use body::Body;
-use helpers::SharedBytes;
-use encoding::PayloadEncoder;
+use body::{Body, Binary};
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use super::shared::SharedBytes;
+use super::encoding::PayloadEncoder;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
-const MAX_WRITE_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
-
-
-#[derive(Debug)]
-pub enum WriterState {
-    Done,
-    Pause,
-}
-
-/// Send stream
-pub trait Writer {
-    fn written(&self) -> u64;
-
-    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse)
-             -> Result<WriterState, io::Error>;
-
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error>;
-
-    fn write_eof(&mut self) -> Result<WriterState, io::Error>;
-
-    fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
-}
 
 bitflags! {
     struct Flags: u8 {
@@ -76,28 +55,26 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.flags = Flags::empty();
     }
 
-    pub fn into_inner(self) -> T {
-        self.stream
-    }
-
     pub fn disconnected(&mut self) {
-        self.encoder.get_mut().take();
+        self.buffer.take();
     }
 
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_to_stream(&mut self) -> Result<WriterState, io::Error> {
-        let buffer = self.encoder.get_mut();
-
-        while !buffer.is_empty() {
-            match self.stream.write(buffer.as_ref()) {
+    fn write_to_stream(&mut self) -> io::Result<WriterState> {
+        while !self.buffer.is_empty() {
+            match self.stream.write(self.buffer.as_ref()) {
+                Ok(0) => {
+                    self.disconnected();
+                    return Ok(WriterState::Done);
+                },
                 Ok(n) => {
-                    let _ = buffer.split_to(n);
+                    let _ = self.buffer.split_to(n);
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                    if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
                         return Ok(WriterState::Pause)
                     } else {
                         return Ok(WriterState::Done)
@@ -112,13 +89,12 @@ impl<T: AsyncWrite> H1Writer<T> {
 
 impl<T: AsyncWrite> Writer for H1Writer<T> {
 
+    #[inline]
     fn written(&self) -> u64 {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse)
-             -> Result<WriterState, io::Error>
-    {
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
         // prepare task
         self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
@@ -143,7 +119,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         // render message
         {
-            let mut buffer = self.encoder.get_mut();
+            let mut buffer = self.buffer.get_mut();
             if let Body::Binary(ref bytes) = body {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
@@ -156,7 +132,11 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             match body {
                 Body::Empty =>
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n"),
+                    if req.method != Method::HEAD {
+                        buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                    } else {
+                        buffer.extend_from_slice(b"\r\n");
+                    },
                 Body::Binary(ref bytes) =>
                     helpers::write_content_length(bytes.len(), &mut buffer),
                 _ =>
@@ -186,46 +166,46 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
         if let Body::Binary(bytes) = body {
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes.as_ref())?;
+            self.encoder.write(bytes)?;
         } else {
             msg.replace_body(body);
         }
         Ok(WriterState::Done)
     }
 
-    fn write(&mut self, payload: &[u8]) -> Result<WriterState, io::Error> {
+    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
                 self.encoder.write(payload)?;
-                return Ok(WriterState::Done)
             } else {
                 // might be response to EXCEPT
-                self.encoder.get_mut().extend_from_slice(payload)
+                self.buffer.extend_from_slice(payload.as_ref())
             }
         }
 
-        if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
         }
     }
 
-    fn write_eof(&mut self) -> Result<WriterState, io::Error> {
+    fn write_eof(&mut self) -> io::Result<WriterState> {
         self.encoder.write_eof()?;
 
         if !self.encoder.is_eof() {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
-        } else if self.encoder.len() > MAX_WRITE_BUFFER_SIZE {
+        } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
         }
     }
 
+    #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         match self.write_to_stream() {
             Ok(WriterState::Done) => {

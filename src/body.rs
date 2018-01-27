@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem};
 use std::rc::Rc;
 use std::sync::Arc;
 use bytes::{Bytes, BytesMut};
@@ -31,13 +31,8 @@ pub enum Binary {
     Bytes(Bytes),
     /// Static slice
     Slice(&'static [u8]),
-    /// Shared bytes body
-    SharedBytes(Rc<Bytes>),
-    /// Shared stirng body
+    /// Shared string body
     SharedString(Rc<String>),
-    /// Shared bytes body
-    #[doc(hidden)]
-    ArcSharedBytes(Arc<Bytes>),
     /// Shared string body
     #[doc(hidden)]
     ArcSharedString(Arc<String>),
@@ -118,8 +113,6 @@ impl Binary {
         match *self {
             Binary::Bytes(ref bytes) => bytes.len(),
             Binary::Slice(slice) => slice.len(),
-            Binary::SharedBytes(ref bytes) => bytes.len(),
-            Binary::ArcSharedBytes(ref bytes) => bytes.len(),
             Binary::SharedString(ref s) => s.len(),
             Binary::ArcSharedString(ref s) => s.len(),
         }
@@ -128,6 +121,33 @@ impl Binary {
     /// Create binary body from slice
     pub fn from_slice(s: &[u8]) -> Binary {
         Binary::Bytes(Bytes::from(s))
+    }
+
+    /// Convert Binary to a Bytes instance
+    pub fn take(&mut self) -> Bytes {
+        mem::replace(self, Binary::Slice(b"")).into()
+    }
+}
+
+impl Clone for Binary {
+    fn clone(&self) -> Binary {
+        match *self {
+            Binary::Bytes(ref bytes) => Binary::Bytes(bytes.clone()),
+            Binary::Slice(slice) => Binary::Bytes(Bytes::from(slice)),
+            Binary::SharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
+            Binary::ArcSharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
+        }
+    }
+}
+
+impl Into<Bytes> for Binary {
+    fn into(self) -> Bytes {
+        match self {
+            Binary::Bytes(bytes) => bytes,
+            Binary::Slice(slice) => Bytes::from(slice),
+            Binary::SharedString(s) => Bytes::from(s.as_str()),
+            Binary::ArcSharedString(s) => Bytes::from(s.as_str()),
+        }
     }
 }
 
@@ -173,30 +193,6 @@ impl From<BytesMut> for Binary {
     }
 }
 
-impl From<Rc<Bytes>> for Binary {
-    fn from(body: Rc<Bytes>) -> Binary {
-        Binary::SharedBytes(body)
-    }
-}
-
-impl<'a> From<&'a Rc<Bytes>> for Binary {
-    fn from(body: &'a Rc<Bytes>) -> Binary {
-        Binary::SharedBytes(Rc::clone(body))
-    }
-}
-
-impl From<Arc<Bytes>> for Binary {
-    fn from(body: Arc<Bytes>) -> Binary {
-        Binary::ArcSharedBytes(body)
-    }
-}
-
-impl<'a> From<&'a Arc<Bytes>> for Binary {
-    fn from(body: &'a Arc<Bytes>) -> Binary {
-        Binary::ArcSharedBytes(Arc::clone(body))
-    }
-}
-
 impl From<Rc<String>> for Binary {
     fn from(body: Rc<String>) -> Binary {
         Binary::SharedString(body)
@@ -226,8 +222,6 @@ impl AsRef<[u8]> for Binary {
         match *self {
             Binary::Bytes(ref bytes) => bytes.as_ref(),
             Binary::Slice(slice) => slice,
-            Binary::SharedBytes(ref bytes) => bytes.as_ref(),
-            Binary::ArcSharedBytes(ref bytes) => bytes.as_ref(),
             Binary::SharedString(ref s) => s.as_bytes(),
             Binary::ArcSharedString(ref s) => s.as_bytes(),
         }
@@ -242,7 +236,6 @@ mod tests {
     fn test_body_is_streaming() {
         assert_eq!(Body::Empty.is_streaming(), false);
         assert_eq!(Body::Binary(Binary::from("")).is_streaming(), false);
-        // assert_eq!(Body::Streaming.is_streaming(), true);
     }
 
     #[test]
@@ -278,15 +271,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rc_bytes() {
-        let b = Rc::new(Bytes::from("test"));
-        assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
-        assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
-    }
-
-    #[test]
     fn test_ref_string() {
         let b = Rc::new("test".to_owned());
         assert_eq!(Binary::from(&b).len(), 4);
@@ -296,15 +280,6 @@ mod tests {
     #[test]
     fn test_rc_string() {
         let b = Rc::new("test".to_owned());
-        assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
-        assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
-    }
-
-    #[test]
-    fn test_arc_bytes() {
-        let b = Arc::new(Bytes::from("test"));
         assert_eq!(Binary::from(b.clone()).len(), 4);
         assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
         assert_eq!(Binary::from(&b).len(), 4);
@@ -334,5 +309,14 @@ mod tests {
         let b =  BytesMut::from("test");
         assert_eq!(Binary::from(b.clone()).len(), 4);
         assert_eq!(Binary::from(b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_binary_into() {
+        let bytes = Bytes::from_static(b"test");
+        let b: Bytes = Binary::from("test").into();
+        assert_eq!(b, bytes);
+        let b: Bytes = Binary::from(bytes.clone()).into();
+        assert_eq!(b, bytes);
     }
 }

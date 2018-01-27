@@ -17,3 +17,4 @@ cargo run
 - [http://localhost:8080/user/bob/](http://localhost:8080/user/bob/) plain/text download
 - [http://localhost:8080/test](http://localhost:8080/test) (return status switch GET or POST or other)
 - [http://localhost:8080/static/index.html](http://localhost:8080/static/index.html)
+- [http://localhost:8080/static/notexit](http://localhost:8080/static/notexit) display 404 page

@@ -1,26 +1,31 @@
-//! Actix web is a small, fast, down-to-earth, open source rust web framework.
+//! Actix web is a small, fast, pragmatic, open source rust web framework.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use actix_web::*;
+//! # use std::thread;
 //!
 //! fn index(req: HttpRequest) -> String {
 //!     format!("Hello {}!", &req.match_info()["name"])
 //! }
 //!
 //! fn main() {
+//! # thread::spawn(|| {
 //!     HttpServer::new(
 //!         || Application::new()
 //!             .resource("/{name}", |r| r.f(index)))
-//!         .bind("127.0.0.1:8080")?
-//!         .start()
+//!         .bind("127.0.0.1:8080").unwrap()
+//!         .run();
+//! # });
 //! }
 //! ```
 //!
 //! ## Documentation
 //!
 //! * [User Guide](http://actix.github.io/actix-web/guide/)
+//! * [Chat on gitter](https://gitter.im/actix/actix)
+//! * [GitHub repository](https://github.com/actix/actix-web)
 //! * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-//! * Minimum supported Rust version: 1.20 or later
+//! * Supported Rust version: 1.20 or later
 //!
 //! ## Features
 //!
@@ -90,7 +95,6 @@ mod application;
 mod body;
 mod context;
 mod helpers;
-mod encoding;
 mod httprequest;
 mod httpresponse;
 mod info;
@@ -101,15 +105,6 @@ mod param;
 mod resource;
 mod handler;
 mod pipeline;
-mod server;
-mod worker;
-mod channel;
-mod wsframe;
-mod wsproto;
-mod h1;
-mod h2;
-mod h1writer;
-mod h2writer;
 
 pub mod fs;
 pub mod ws;
@@ -120,17 +115,18 @@ pub mod middleware;
 pub mod pred;
 pub mod test;
 pub mod payload;
+pub mod server;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
-pub use json::{Json};
+pub use json::Json;
 pub use application::Application;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
 pub use route::Route;
 pub use resource::Resource;
-pub use server::HttpServer;
 pub use context::HttpContext;
+pub use server::HttpServer;
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
@@ -146,12 +142,25 @@ pub use openssl::pkcs12::Pkcs12;
 pub mod headers {
 //! Headers implementation
 
-    pub use encoding::ContentEncoding;
     pub use httpresponse::ConnectionType;
 
-    pub use cookie::Cookie;
-    pub use cookie::CookieBuilder;
+    pub use cookie::{Cookie, CookieBuilder};
     pub use http_range::HttpRange;
+
+    /// Represents supported types of content encodings
+    #[derive(Copy, Clone, PartialEq, Debug)]
+    pub enum ContentEncoding {
+        /// Automatically select encoding based on encoding negotiation
+        Auto,
+        /// A format using the Brotli algorithm
+        Br,
+        /// A format using the zlib structure with deflate algorithm
+        Deflate,
+        /// Gzip algorithm
+        Gzip,
+        /// Indicates the identity function (i.e. no compression, nor modification)
+        Identity,
+    }
 }
 
 pub mod dev {
@@ -170,10 +179,7 @@ pub mod dev {
     pub use handler::Handler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
-    pub use channel::{HttpChannel, HttpHandler, IntoHttpHandler};
     pub use param::{FromParam, Params};
     pub use httprequest::{UrlEncoded, RequestBody};
     pub use httpresponse::HttpResponseBuilder;
-
-    pub use server::{ServerSettings, PauseServer, ResumeServer, StopServer};
 }

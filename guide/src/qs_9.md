@@ -3,13 +3,14 @@
 Actix supports WebSockets out-of-the-box. It is possible to convert request's `Payload`
 to a stream of [*ws::Message*](../actix_web/ws/enum.Message.html) with 
 a [*ws::WsStream*](../actix_web/ws/struct.WsStream.html) and then use stream
-combinators to handle actual messages. But it is simplier to handle websocket communications
+combinators to handle actual messages. But it is simpler to handle websocket communications
 with http actor.
 
-```rust
-extern crate actix;
-extern crate actix_web;
+This is example of simple websocket echo server:
 
+```rust
+# extern crate actix;
+# extern crate actix_web;
 use actix::*;
 use actix_web::*;
 
@@ -17,18 +18,18 @@ use actix_web::*;
 struct Ws;
 
 impl Actor for Ws {
-    type Context = HttpContext<Self>;
+    type Context = ws::WebsocketContext<Self>;
 }
 
 /// Define Handler for ws::Message message
 impl Handler<ws::Message> for Ws {
     type Result=();
 
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
-            ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
-            ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(&text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
             _ => (),
         }
     }

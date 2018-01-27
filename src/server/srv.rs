@@ -21,66 +21,17 @@ use native_tls::TlsAcceptor;
 use tokio_tls::TlsStream;
 
 #[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslAcceptorBuilder};
-#[cfg(feature="alpn")]
-use openssl::pkcs12::ParsedPkcs12;
+use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 #[cfg(feature="alpn")]
 use tokio_openssl::SslStream;
 
 use helpers;
-use channel::{HttpChannel, HttpHandler, IntoHttpHandler, IoStream, WrapperStream};
-use worker::{Conn, Worker, WorkerSettings, StreamHandlerType, StopWorker};
+use super::{HttpHandler, IntoHttpHandler, IoStream};
+use super::{PauseServer, ResumeServer, StopServer};
+use super::channel::{HttpChannel, WrapperStream};
+use super::worker::{Conn, Worker, StreamHandlerType, StopWorker};
+use super::settings::{ServerSettings, WorkerSettings};
 
-/// Various server settings
-#[derive(Debug, Clone)]
-pub struct ServerSettings {
-    addr: Option<net::SocketAddr>,
-    secure: bool,
-    host: String,
-}
-
-impl Default for ServerSettings {
-    fn default() -> Self {
-        ServerSettings {
-            addr: None,
-            secure: false,
-            host: "localhost:8080".to_owned(),
-        }
-    }
-}
-
-impl ServerSettings {
-    /// Crate server settings instance
-    fn new(addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool) -> Self {
-        let host = if let Some(ref host) = *host {
-            host.clone()
-        } else if let Some(ref addr) = addr {
-            format!("{}", addr)
-        } else {
-            "localhost".to_owned()
-        };
-        ServerSettings {
-            addr: addr,
-            secure: secure,
-            host: host,
-        }
-    }
-
-    /// Returns the socket address of the local half of this TCP connection
-    pub fn local_addr(&self) -> Option<net::SocketAddr> {
-        self.addr
-    }
-
-    /// Returns true if connection is secure(https)
-    pub fn secure(&self) -> bool {
-        self.secure
-    }
-
-    /// Returns host header value
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-}
 
 /// An HTTP Server
 ///
@@ -113,18 +64,17 @@ unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: HttpHandler + '
 unsafe impl<T, A, H, U> Send for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
 
 
-impl<T: 'static, A: 'static, H: HttpHandler + 'static, U: 'static> Actor for HttpServer<T, A, H, U> {
+impl<T, A, H, U, V> Actor for HttpServer<T, A, H, U>
+    where A: 'static,
+          T: IoStream,
+          H: HttpHandler,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
+{
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.update_time(ctx);
-    }
-}
-
-impl<T: 'static, A: 'static, H: HttpHandler + 'static, U: 'static>  HttpServer<T, A, H, U> {
-    fn update_time(&self, ctx: &mut Context<Self>) {
-        helpers::update_date();
-        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 }
 
@@ -155,6 +105,11 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
                     signals: None,
                     no_signals: false,
         }
+    }
+
+    fn update_time(&self, ctx: &mut Context<Self>) {
+        helpers::update_date();
+        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 
     /// Set number of workers to start.
@@ -294,14 +249,15 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 
     // subscribe to os signals
-    fn subscribe_to_signals(&self, addr: &SyncAddress<HttpServer<T, A, H, U>>) {
-        if self.no_signals {
-            let msg = signal::Subscribe(addr.subscriber());
+    fn subscribe_to_signals(&self) -> Option<SyncAddress<signal::ProcessSignals>> {
+        if !self.no_signals {
             if let Some(ref signals) = self.signals {
-                signals.send(msg);
+                Some(signals.clone())
             } else {
-                Arbiter::system_registry().get::<signal::ProcessSignals>().send(msg);
+                Some(Arbiter::system_registry().get::<signal::ProcessSignals>())
             }
+        } else {
+            None
         }
     }
 }
@@ -310,9 +266,9 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming connections.
+    /// Start listening for incoming connections.
     ///
-    /// This method starts number of http handler workers in seperate threads.
+    /// This method starts number of http handler workers in separate threads.
     /// For each address this method starts separate thread which does `accept()` in a loop.
     ///
     /// This methods panics if no socket addresses get bound.
@@ -340,7 +296,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
     pub fn start(mut self) -> SyncAddress<Self>
     {
         if self.sockets.is_empty() {
-            panic!("HttpServer::bind() has to be called befor start()");
+            panic!("HttpServer::bind() has to be called before start()");
         } else {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
                 self.sockets.drain().collect();
@@ -355,14 +311,14 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             }
 
             // start http server actor
-            HttpServer::create(|ctx| {
-                self.subscribe_to_signals(&ctx.address());
-                self
-            })
+            let signals = self.subscribe_to_signals();
+            let addr: SyncAddress<_> = Actor::start(self);
+            signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+            addr
         }
     }
 
-    /// Spawn new thread and start listening for incomming connections.
+    /// Spawn new thread and start listening for incoming connections.
     ///
     /// This method spawns new thread and starts new actix system. Other than that it is
     /// similar to `start()` method. This method blocks.
@@ -401,7 +357,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming tls connections.
+    /// Start listening for incoming tls connections.
     pub fn start_tls(mut self, pkcs12: ::Pkcs12) -> io::Result<SyncAddress<Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
@@ -427,10 +383,10 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             }
 
             // start http server actor
-            Ok(HttpServer::create(|ctx| {
-                self.subscribe_to_signals(&ctx.address());
-                self
-            }))
+            let signals = self.subscribe_to_signals();
+            let addr: SyncAddress<_> = Actor::start(self);
+            signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+            Ok(addr)
         }
     }
 }
@@ -440,26 +396,28 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming tls connections.
+    /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn start_ssl(mut self, identity: &ParsedPkcs12) -> io::Result<SyncAddress<Self>> {
+    pub fn start_ssl(mut self, mut builder: SslAcceptorBuilder) -> io::Result<SyncAddress<Self>>
+    {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
+            // alpn support
+            builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
+            builder.set_alpn_select_callback(|_, protos| {
+                const H2: &[u8] = b"\x02h2";
+                if protos.windows(3).any(|window| window == H2) {
+                    Ok(b"h2")
+                } else {
+                    Err(AlpnError::NOACK)
+                }
+            });
+
+            let acceptor = builder.build();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
-            let acceptor = match SslAcceptorBuilder::mozilla_intermediate(
-                SslMethod::tls(), &identity.pkey, &identity.cert, &identity.chain)
-            {
-                Ok(mut builder) => {
-                    match builder.set_alpn_protocols(&[b"h2", b"http/1.1"]) {
-                        Ok(_) => builder.build(),
-                        Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err)),
-                    }
-                },
-                Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-            };
             let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
 
             // start acceptors threads
@@ -470,10 +428,10 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             }
 
             // start http server actor
-            Ok(HttpServer::create(|ctx| {
-                self.subscribe_to_signals(&ctx.address());
-                self
-            }))
+            let signals = self.subscribe_to_signals();
+            let addr: SyncAddress<_> = Actor::start(self);
+            signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+            Ok(addr)
         }
     }
 }
@@ -485,7 +443,7 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
-    /// Start listening for incomming connections from a stream.
+    /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
     pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
@@ -514,22 +472,25 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
         self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server
-        HttpServer::create(move |ctx| {
+        let signals = self.subscribe_to_signals();
+        let addr: SyncAddress<_> = HttpServer::create(move |ctx| {
             ctx.add_stream(stream.map(
                 move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
-            self.subscribe_to_signals(&ctx.address());
             self
-        })
+        });
+        signals.map(|signals| signals.send(signal::Subscribe(addr.subscriber())));
+        addr
     }
 }
 
 /// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
 /// message to `System` actor.
-impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<signal::Signal> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
-          U: 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
           A: 'static,
 {
     type Result = ();
@@ -556,10 +517,11 @@ impl<T, A, H, U> Handler<signal::Signal> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
-          U: 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
           A: 'static,
 {
     type Result = ();
@@ -576,29 +538,11 @@ impl<T, A, H, U> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     }
 }
 
-/// Pause accepting incoming connections
-///
-/// If socket contains some pending connection, they might be dropped.
-/// All opened connection remains active.
-#[derive(Message)]
-pub struct PauseServer;
-
-/// Resume accepting incoming connections
-#[derive(Message)]
-pub struct ResumeServer;
-
-/// Stop incoming connection processing, stop all workers and exit.
-///
-/// If server starts with `spawn()` method, then spawned thread get terminated.
-#[derive(Message)]
-pub struct StopServer {
-    pub graceful: bool
-}
-
-impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<PauseServer> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
-          U: 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
           A: 'static,
 {
     type Result = ();
@@ -612,10 +556,11 @@ impl<T, A, H, U> Handler<PauseServer> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<ResumeServer> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
-          U: 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
           A: 'static,
 {
     type Result = ();
@@ -628,10 +573,11 @@ impl<T, A, H, U> Handler<ResumeServer> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U> Handler<StopServer> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<StopServer> for HttpServer<T, A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
-          U: 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
           A: 'static,
 {
     type Result = actix::Response<Self, StopServer>;
@@ -717,7 +663,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
             }
         }
 
-        // Start listening for incommin commands
+        // Start listening for incoming commands
         if let Err(err) = poll.register(&reg, CMD,
                                         mio::Ready::readable(), mio::PollOpt::edge()) {
             panic!("Can not register Registration: {}", err);

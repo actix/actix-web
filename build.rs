@@ -25,6 +25,7 @@ fn main() {
               "guide/src/qs_10.md",
               "guide/src/qs_12.md",
               "guide/src/qs_13.md",
+              "guide/src/qs_14.md",
             ]);
     } else {
         let _ = fs::File::create(f);

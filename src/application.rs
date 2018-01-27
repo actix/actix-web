@@ -8,10 +8,9 @@ use router::{Router, Pattern};
 use resource::Resource;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
-use channel::{HttpHandler, IntoHttpHandler, HttpHandlerTask};
 use pipeline::{Pipeline, PipelineHandler};
 use middleware::Middleware;
-use server::ServerSettings;
+use server::{HttpHandler, IntoHttpHandler, HttpHandlerTask, ServerSettings};
 
 /// Application
 pub struct HttpApplication<S=()> {
@@ -43,8 +42,8 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                                                  path.split_at(prefix.len()).1.starts_with('/'))
                 };
                 if m {
-                    let path: &'static str = unsafe{
-                        mem::transmute(&req.path()[self.prefix+prefix.len()..])};
+                    let path: &'static str = unsafe {
+                        mem::transmute(&req.path()[self.prefix+prefix.len()..]) };
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "");
                     } else {
@@ -60,9 +59,11 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
 #[cfg(test)]
 impl<S: 'static> HttpApplication<S> {
+ #[cfg(test)]
     pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
         self.inner.borrow_mut().handle(req)
     }
+    #[cfg(test)]
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
     }
@@ -135,7 +136,7 @@ impl<S> Application<S> where S: 'static {
     /// Create application with specific state. Application can be
     /// configured with builder-like pattern.
     ///
-    /// State is shared with all reousrces within same application and could be
+    /// State is shared with all resources within same application and could be
     /// accessed with `HttpRequest::state()` method.
     pub fn with_state(state: S) -> Application<S> {
         Application {
@@ -155,7 +156,7 @@ impl<S> Application<S> where S: 'static {
     /// Set application prefix
     ///
     /// Only requests that matches application's prefix get processed by this application.
-    /// Application prefix always contains laading "/" slash. If supplied prefix
+    /// Application prefix always contains leading "/" slash. If supplied prefix
     /// does not contain leading slash, it get inserted. Prefix should
     /// consists valid path segments. i.e for application with
     /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
@@ -321,9 +322,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Register a middleware
-    pub fn middleware<T>(mut self, mw: T) -> Application<S>
-        where T: Middleware<S> + 'static
-    {
+    pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Application<S> {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
         self
@@ -358,6 +357,40 @@ impl<S> Application<S> where S: 'static {
             router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
         }
+    }
+
+    /// Convenience method for creating `Box<HttpHandler>` instance.
+    ///
+    /// This method is useful if you need to register several application instances
+    /// with different state.
+    ///
+    /// ```rust
+    /// # use std::thread;
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// struct State1;
+    ///
+    /// struct State2;
+    ///
+    /// fn main() {
+    /// # thread::spawn(|| {
+    ///     HttpServer::new(|| { vec![
+    ///         Application::with_state(State1)
+    ///              .prefix("/app1")
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .boxed(),
+    ///         Application::with_state(State2)
+    ///              .prefix("/app2")
+    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .boxed() ]})
+    ///         .bind("127.0.0.1:8080").unwrap()
+    ///         .run()
+    /// # });
+    /// }
+    /// ```
+    pub fn boxed(mut self) -> Box<HttpHandler> {
+        Box::new(self.finish())
     }
 }
 

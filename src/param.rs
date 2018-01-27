@@ -6,7 +6,7 @@ use std::slice::Iter;
 use std::borrow::Cow;
 use smallvec::SmallVec;
 
-use error::{ResponseError, UriSegmentError, ErrorBadRequest};
+use error::{ResponseError, UriSegmentError, InternalError, ErrorBadRequest};
 
 
 /// A trait to abstract the idea of creating a new instance of a type from a path parameter.
@@ -77,7 +77,7 @@ impl<'a> Params<'a> {
         }
     }
 
-    /// Return iterator to items in paramter container
+    /// Return iterator to items in parameter container
     pub fn iter(&self) -> Iter<(Cow<'a, str>, Cow<'a, str>)> {
         self.0.iter()
     }
@@ -141,7 +141,7 @@ impl FromParam for PathBuf {
 macro_rules! FROM_STR {
     ($type:ty) => {
         impl FromParam for $type {
-            type Err = ErrorBadRequest<<$type as FromStr>::Err>;
+            type Err = InternalError<<$type as FromStr>::Err>;
 
             fn from_param(val: &str) -> Result<Self, Self::Err> {
                 <$type as FromStr>::from_str(val).map_err(ErrorBadRequest)

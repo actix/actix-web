@@ -3,40 +3,29 @@ use std::io::{Read, Write};
 use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
-use http::Version;
+use http::{Version, Method, HttpTryFrom};
 use http::header::{HeaderMap, HeaderValue,
                    ACCEPT_ENCODING, CONNECTION,
                    CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
 use flate2::Compression;
-use flate2::read::{GzDecoder};
+use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut, Writer};
 
+use headers::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
-use helpers::SharedBytes;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
 
-/// Represents supported types of content encodings
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum ContentEncoding {
-    /// Automatically select encoding based on encoding negotiation
-    Auto,
-    /// A format using the Brotli algorithm
-    Br,
-    /// A format using the zlib structure with deflate algorithm
-    Deflate,
-    /// Gzip algorithm
-    Gzip,
-    /// Indicates the identity function (i.e. no compression, nor modification)
-    Identity,
-}
+use super::shared::SharedBytes;
+
 
 impl ContentEncoding {
 
+    #[inline]
     fn is_compression(&self) -> bool {
         match *self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
@@ -52,7 +41,7 @@ impl ContentEncoding {
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
     }
-    // default quality
+    /// default quality value
     fn quality(&self) -> f64 {
         match *self {
             ContentEncoding::Br => 1.1,
@@ -63,6 +52,7 @@ impl ContentEncoding {
     }
 }
 
+// TODO: remove memory allocation
 impl<'a> From<&'a str> for ContentEncoding {
     fn from(s: &'a str) -> ContentEncoding {
         match s.trim().to_lowercase().as_ref() {
@@ -135,7 +125,7 @@ impl PayloadWriter for PayloadType {
 
 enum Decoder {
     Deflate(Box<DeflateDecoder<Writer<BytesMut>>>),
-    Gzip(Box<Option<GzDecoder<Wrapper>>>),
+    Gzip(Option<Box<GzDecoder<Wrapper>>>),
     Br(Box<BrotliDecoder<Writer<BytesMut>>>),
     Identity,
 }
@@ -143,7 +133,8 @@ enum Decoder {
 // should go after write::GzDecoder get implemented
 #[derive(Debug)]
 struct Wrapper {
-    buf: BytesMut
+    buf: BytesMut,
+    eof: bool,
 }
 
 impl io::Read for Wrapper {
@@ -151,7 +142,25 @@ impl io::Read for Wrapper {
         let len = cmp::min(buf.len(), self.buf.len());
         buf[..len].copy_from_slice(&self.buf[..len]);
         self.buf.split_to(len);
-        Ok(len)
+        if len == 0 {
+            if self.eof {
+                Ok(0)
+            } else {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+            }
+        } else {
+            Ok(len)
+        }
+    }
+}
+
+impl io::Write for Wrapper {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -159,7 +168,7 @@ impl io::Read for Wrapper {
 pub(crate) struct EncodedPayload {
     inner: PayloadSender,
     decoder: Decoder,
-    dst: Writer<BytesMut>,
+    dst: BytesMut,
     error: bool,
 }
 
@@ -170,15 +179,10 @@ impl EncodedPayload {
                 Box::new(BrotliDecoder::new(BytesMut::with_capacity(8192).writer()))),
             ContentEncoding::Deflate => Decoder::Deflate(
                 Box::new(DeflateDecoder::new(BytesMut::with_capacity(8192).writer()))),
-            ContentEncoding::Gzip => Decoder::Gzip(Box::new(None)),
+            ContentEncoding::Gzip => Decoder::Gzip(None),
             _ => Decoder::Identity,
         };
-        EncodedPayload {
-            inner: inner,
-            decoder: dec,
-            error: false,
-            dst: BytesMut::new().writer(),
-        }
+        EncodedPayload{ inner: inner, decoder: dec, error: false, dst: BytesMut::new() }
     }
 }
 
@@ -207,29 +211,28 @@ impl PayloadWriter for EncodedPayload {
                 }
             },
             Decoder::Gzip(ref mut decoder) => {
-                if decoder.is_none() {
-                    self.inner.feed_eof();
-                    return
-                }
-                loop {
-                    let len = self.dst.get_ref().len();
-                    let len_buf = decoder.as_mut().as_mut().unwrap().get_mut().buf.len();
+                if let Some(ref mut decoder) = *decoder {
+                    decoder.as_mut().get_mut().eof = true;
 
-                    if len < len_buf * 2 {
-                        self.dst.get_mut().reserve(len_buf * 2 - len);
-                        unsafe{self.dst.get_mut().set_len(len_buf * 2)};
-                    }
-                    match decoder.as_mut().as_mut().unwrap().read(&mut self.dst.get_mut()) {
-                        Ok(n) =>  {
-                            if n == 0 {
-                                self.inner.feed_eof();
-                                return
-                            } else {
-                                self.inner.feed_data(self.dst.get_mut().split_to(n).freeze());
+                    loop {
+                        self.dst.reserve(8192);
+                        match decoder.read(unsafe{self.dst.bytes_mut()}) {
+                            Ok(n) =>  {
+                                if n == 0 {
+                                    self.inner.feed_eof();
+                                    return
+                                } else {
+                                    unsafe{self.dst.set_len(n)};
+                                    self.inner.feed_data(self.dst.split_to(n).freeze());
+                                }
+                            }
+                            Err(err) => {
+                                break Some(err);
                             }
                         }
-                        Err(err) => break Some(err)
                     }
+                } else {
+                    return
                 }
             },
             Decoder::Deflate(ref mut decoder) => {
@@ -278,33 +281,30 @@ impl PayloadWriter for EncodedPayload {
 
             Decoder::Gzip(ref mut decoder) => {
                 if decoder.is_none() {
-                    let mut buf = BytesMut::new();
-                    buf.extend_from_slice(&data);
-                    *(decoder.as_mut()) = Some(GzDecoder::new(Wrapper{buf: buf}).unwrap());
+                    *decoder = Some(
+                        Box::new(GzDecoder::new(
+                            Wrapper{buf: BytesMut::from(data), eof: false})));
                 } else {
-                    decoder.as_mut().as_mut().unwrap().get_mut().buf.extend_from_slice(&data);
+                    let _ = decoder.as_mut().unwrap().write(&data);
                 }
 
                 loop {
-                    let len_buf = decoder.as_mut().as_mut().unwrap().get_mut().buf.len();
-                    if len_buf == 0 {
-                        return
-                    }
-
-                    let len = self.dst.get_ref().len();
-                    if len < len_buf * 2 {
-                        self.dst.get_mut().reserve(len_buf * 2 - len);
-                        unsafe{self.dst.get_mut().set_len(len_buf * 2)};
-                    }
-                    match decoder.as_mut().as_mut().unwrap().read(&mut self.dst.get_mut()) {
+                    self.dst.reserve(8192);
+                    match decoder.as_mut().as_mut().unwrap().read(unsafe{self.dst.bytes_mut()}) {
                         Ok(n) =>  {
                             if n == 0 {
                                 return
                             } else {
-                                self.inner.feed_data(self.dst.get_mut().split_to(n).freeze());
+                                unsafe{self.dst.set_len(n)};
+                                self.inner.feed_data(self.dst.split_to(n).freeze());
                             }
                         }
-                        Err(_) => break
+                        Err(e) => {
+                            if e.kind() == io::ErrorKind::WouldBlock {
+                                return
+                            }
+                            break
+                        }
                     }
                 }
             }
@@ -343,20 +343,20 @@ impl PayloadEncoder {
         PayloadEncoder(ContentEncoder::Identity(TransferEncoding::eof(bytes)))
     }
 
-    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse)
-               -> PayloadEncoder
-    {
+    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
+        let response_encoding = resp.content_encoding();
         let has_body = match body {
             Body::Empty => false,
-            Body::Binary(ref bin) => bin.len() >= 1024,
+            Body::Binary(ref bin) =>
+                !(response_encoding == ContentEncoding::Auto && bin.len() < 96),
             _ => true,
         };
 
         // Enable content encoding only if response does not contain Content-Encoding header
-        let mut encoding = if has_body && !resp.headers().contains_key(CONTENT_ENCODING) {
-            let encoding = match *resp.content_encoding() {
+        let mut encoding = if has_body {
+            let encoding = match response_encoding {
                 ContentEncoding::Auto => {
                     // negotiate content-encoding
                     if let Some(val) = req.headers.get(ACCEPT_ENCODING) {
@@ -380,40 +380,42 @@ impl PayloadEncoder {
             ContentEncoding::Identity
         };
 
-        // in general case it is very expensive to get compressed payload length,
-        // just switch to chunked encoding
-        let compression = encoding != ContentEncoding::Identity;
-
-        let transfer = match body {
+        let mut transfer = match body {
             Body::Empty => {
-                if resp.chunked() {
-                    error!("Chunked transfer is enabled but body is set to Empty");
+                if req.method != Method::HEAD {
+                    resp.headers_mut().remove(CONTENT_LENGTH);
                 }
-                resp.headers_mut().remove(CONTENT_LENGTH);
-                TransferEncoding::eof(buf)
+                TransferEncoding::length(0, buf)
             },
             Body::Binary(ref mut bytes) => {
-                if compression {
-                    let buf = SharedBytes::default();
-                    let transfer = TransferEncoding::eof(buf.clone());
+                if encoding.is_compression() {
+                    let tmp = SharedBytes::default();
+                    let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
-                            DeflateEncoder::new(transfer, Compression::Default)),
+                            DeflateEncoder::new(transfer, Compression::default())),
                         ContentEncoding::Gzip => ContentEncoder::Gzip(
-                            GzEncoder::new(transfer, Compression::Default)),
+                            GzEncoder::new(transfer, Compression::default())),
                         ContentEncoding::Br => ContentEncoder::Br(
                             BrotliEncoder::new(transfer, 5)),
                         ContentEncoding::Identity => ContentEncoder::Identity(transfer),
                         ContentEncoding::Auto => unreachable!()
                     };
                     // TODO return error!
-                    let _ = enc.write(bytes.as_ref());
+                    let _ = enc.write(bytes.clone());
                     let _ = enc.write_eof();
 
-                    *bytes = Binary::from(buf.get_mut().take());
+                    *bytes = Binary::from(tmp.take());
                     encoding = ContentEncoding::Identity;
                 }
-                resp.headers_mut().remove(CONTENT_LENGTH);
+                if req.method == Method::HEAD {
+                    let mut b = BytesMut::new();
+                    let _ = write!(b, "{}", bytes.len());
+                    resp.headers_mut().insert(
+                        CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
+                } else {
+                    resp.headers_mut().remove(CONTENT_LENGTH);
+                }
                 TransferEncoding::eof(buf)
             }
             Body::Streaming(_) | Body::Actor(_) => {
@@ -429,65 +431,95 @@ impl PayloadEncoder {
                         resp.headers_mut().remove(CONTENT_ENCODING);
                     }
                     TransferEncoding::eof(buf)
-                } else if resp.chunked() {
-                    resp.headers_mut().remove(CONTENT_LENGTH);
-                    if version != Version::HTTP_11 {
-                        error!("Chunked transfer encoding is forbidden for {:?}", version);
-                    }
-                    if version == Version::HTTP_2 {
-                        resp.headers_mut().remove(TRANSFER_ENCODING);
-                        TransferEncoding::eof(buf)
-                    } else {
-                        resp.headers_mut().insert(
-                            TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                        TransferEncoding::chunked(buf)
-                    }
-                } else if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
-                    // Content-Length
-                    if let Ok(s) = len.to_str() {
-                        if let Ok(len) = s.parse::<u64>() {
-                            TransferEncoding::length(len, buf)
-                        } else {
-                            debug!("illegal Content-Length: {:?}", len);
-                            TransferEncoding::eof(buf)
-                        }
-                    } else {
-                        TransferEncoding::eof(buf)
-                    }
                 } else {
-                    TransferEncoding::eof(buf)
+                    PayloadEncoder::streaming_encoding(buf, version, resp)
                 }
             }
         };
-        resp.replace_body(body);
+        //
+        if req.method == Method::HEAD {
+            transfer.kind = TransferEncodingKind::Length(0);
+        } else {
+            resp.replace_body(body);
+        }
 
         PayloadEncoder(
             match encoding {
                 ContentEncoding::Deflate => ContentEncoder::Deflate(
-                    DeflateEncoder::new(transfer, Compression::Default)),
+                    DeflateEncoder::new(transfer, Compression::default())),
                 ContentEncoding::Gzip => ContentEncoder::Gzip(
-                    GzEncoder::new(transfer, Compression::Default)),
+                    GzEncoder::new(transfer, Compression::default())),
                 ContentEncoding::Br => ContentEncoder::Br(
                     BrotliEncoder::new(transfer, 5)),
                 ContentEncoding::Identity => ContentEncoder::Identity(transfer),
-                ContentEncoding::Auto =>
-                    unreachable!()
+                ContentEncoding::Auto => unreachable!()
             }
         )
+    }
+
+    fn streaming_encoding(buf: SharedBytes, version: Version,
+                          resp: &mut HttpResponse) -> TransferEncoding {
+        match resp.chunked() {
+            Some(true) => {
+                // Enable transfer encoding
+                resp.headers_mut().remove(CONTENT_LENGTH);
+                if version == Version::HTTP_2 {
+                    resp.headers_mut().remove(TRANSFER_ENCODING);
+                    TransferEncoding::eof(buf)
+                } else {
+                    resp.headers_mut().insert(
+                        TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                    TransferEncoding::chunked(buf)
+                }
+            },
+            Some(false) =>
+                TransferEncoding::eof(buf),
+            None => {
+                // if Content-Length is specified, then use it as length hint
+                let (len, chunked) =
+                    if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
+                        // Content-Length
+                        if let Ok(s) = len.to_str() {
+                            if let Ok(len) = s.parse::<u64>() {
+                                (Some(len), false)
+                            } else {
+                                error!("illegal Content-Length: {:?}", len);
+                                (None, false)
+                            }
+                        } else {
+                            error!("illegal Content-Length: {:?}", len);
+                            (None, false)
+                        }
+                    } else {
+                        (None, true)
+                    };
+
+                if !chunked {
+                    if let Some(len) = len {
+                        TransferEncoding::length(len, buf)
+                    } else {
+                        TransferEncoding::eof(buf)
+                    }
+                } else {
+                    // Enable transfer encoding
+                    match version {
+                        Version::HTTP_11 => {
+                            resp.headers_mut().insert(
+                                TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                            TransferEncoding::chunked(buf)
+                        },
+                        _ => {
+                            resp.headers_mut().remove(TRANSFER_ENCODING);
+                            TransferEncoding::eof(buf)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 impl PayloadEncoder {
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.get_ref().len()
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut BytesMut {
-        self.0.get_mut()
-    }
 
     #[inline]
     pub fn is_eof(&self) -> bool {
@@ -496,7 +528,7 @@ impl PayloadEncoder {
 
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
-    pub fn write(&mut self, payload: &[u8]) -> Result<(), io::Error> {
+    pub fn write(&mut self, payload: Binary) -> Result<(), io::Error> {
         self.0.write(payload)
     }
 
@@ -519,42 +551,10 @@ impl ContentEncoder {
     #[inline]
     pub fn is_eof(&self) -> bool {
         match *self {
-            ContentEncoder::Br(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Deflate(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Gzip(ref encoder) =>
-                encoder.get_ref().is_eof(),
-            ContentEncoder::Identity(ref encoder) =>
-                encoder.is_eof(),
-        }
-    }
-
-    #[inline]
-    pub fn get_ref(&self) -> &BytesMut {
-        match *self {
-            ContentEncoder::Br(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Deflate(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Gzip(ref encoder) =>
-                encoder.get_ref().buffer.get_ref(),
-            ContentEncoder::Identity(ref encoder) =>
-                encoder.buffer.get_ref(),
-        }
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut BytesMut {
-        match *self {
-            ContentEncoder::Br(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Deflate(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Gzip(ref mut encoder) =>
-                encoder.get_mut().buffer.get_mut(),
-            ContentEncoder::Identity(ref mut encoder) =>
-                encoder.buffer.get_mut(),
+            ContentEncoder::Br(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Identity(ref encoder) => encoder.is_eof(),
         }
     }
 
@@ -605,10 +605,10 @@ impl ContentEncoder {
 
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
-    pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
+    pub fn write(&mut self, data: Binary) -> Result<(), io::Error> {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -618,7 +618,7 @@ impl ContentEncoder {
                 }
             },
             ContentEncoder::Gzip(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -628,7 +628,7 @@ impl ContentEncoder {
                 }
             }
             ContentEncoder::Deflate(ref mut encoder) => {
-                match encoder.write(data) {
+                match encoder.write(data.as_ref()) {
                     Ok(_) =>
                         encoder.flush(),
                     Err(err) => {
@@ -662,7 +662,7 @@ enum TransferEncodingKind {
     Length(u64),
     /// An Encoder for when Content-Length is not known.
     ///
-    /// Appliction decides when to stop writing.
+    /// Application decides when to stop writing.
     Eof,
 }
 
@@ -696,20 +696,19 @@ impl TransferEncoding {
     pub fn is_eof(&self) -> bool {
         match self.kind {
             TransferEncodingKind::Eof => true,
-            TransferEncodingKind::Chunked(ref eof) =>
-                *eof,
-            TransferEncodingKind::Length(ref remaining) =>
-                *remaining == 0,
+            TransferEncodingKind::Chunked(ref eof) => *eof,
+            TransferEncodingKind::Length(ref remaining) => *remaining == 0,
         }
     }
 
     /// Encode message. Return `EOF` state of encoder
     #[inline]
-    pub fn encode(&mut self, msg: &[u8]) -> io::Result<bool> {
+    pub fn encode(&mut self, mut msg: Binary) -> io::Result<bool> {
         match self.kind {
             TransferEncodingKind::Eof => {
-                self.buffer.get_mut().extend_from_slice(msg);
-                Ok(msg.is_empty())
+                let eof = msg.is_empty();
+                self.buffer.extend(msg);
+                Ok(eof)
             },
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if *eof {
@@ -718,24 +717,31 @@ impl TransferEncoding {
 
                 if msg.is_empty() {
                     *eof = true;
-                    self.buffer.get_mut().extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    write!(self.buffer.get_mut(), "{:X}\r\n", msg.len())
+                    let mut buf = BytesMut::new();
+                    write!(&mut buf, "{:X}\r\n", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                    self.buffer.get_mut().extend_from_slice(msg);
-                    self.buffer.get_mut().extend_from_slice(b"\r\n");
+                    self.buffer.reserve(buf.len() + msg.len() + 2);
+                    self.buffer.extend(buf.into());
+                    self.buffer.extend(msg);
+                    self.buffer.extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
             },
             TransferEncodingKind::Length(ref mut remaining) => {
-                if msg.is_empty() {
-                    return Ok(*remaining == 0)
-                }
-                let max = cmp::min(*remaining, msg.len() as u64);
-                self.buffer.get_mut().extend_from_slice(msg[..max as usize].as_ref());
+                if *remaining > 0 {
+                    if msg.is_empty() {
+                        return Ok(*remaining == 0)
+                    }
+                    let len = cmp::min(*remaining, msg.len() as u64);
+                    self.buffer.extend(msg.take().split_to(len as usize).into());
 
-                *remaining -= max as u64;
-                Ok(*remaining == 0)
+                    *remaining -= len as u64;
+                    Ok(*remaining == 0)
+                } else {
+                    Ok(true)
+                }
             },
         }
     }
@@ -748,7 +754,7 @@ impl TransferEncoding {
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
-                    self.buffer.get_mut().extend_from_slice(b"0\r\n\r\n");
+                    self.buffer.extend_from_slice(b"0\r\n\r\n");
                 }
             },
         }
@@ -759,7 +765,7 @@ impl io::Write for TransferEncoding {
 
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.encode(buf)?;
+        self.encode(Binary::from_slice(buf))?;
         Ok(buf.len())
     }
 
@@ -845,8 +851,8 @@ mod tests {
     fn test_chunked_te() {
         let bytes = SharedBytes::default();
         let mut enc = TransferEncoding::chunked(bytes.clone());
-        assert!(!enc.encode(b"test").ok().unwrap());
-        assert!(enc.encode(b"").ok().unwrap());
+        assert!(!enc.encode(Binary::from(b"test".as_ref())).ok().unwrap());
+        assert!(enc.encode(Binary::from(b"".as_ref())).ok().unwrap());
         assert_eq!(bytes.get_mut().take().freeze(),
                    Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n"));
     }

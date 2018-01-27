@@ -8,8 +8,9 @@
 //! ```rust
 //! # extern crate actix;
 //! # extern crate actix_web;
-//! use actix::*;
-//! use actix_web::*;
+//! # use actix::*;
+//! # use actix_web::*;
+//! use actix_web::ws;
 //!
 //! // do websocket handshake and start actor
 //! fn ws_index(req: HttpRequest) -> Result<HttpResponse> {
@@ -19,18 +20,18 @@
 //! struct Ws;
 //!
 //! impl Actor for Ws {
-//!     type Context = HttpContext<Self>;
+//!     type Context = ws::WebsocketContext<Self>;
 //! }
 //!
 //! // Define Handler for ws::Message message
 //! impl Handler<ws::Message> for Ws {
 //!     type Result = ();
 //!
-//!     fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
+//!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
 //!         match msg {
-//!             ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
-//!             ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
-//!             ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+//!             ws::Message::Ping(msg) => ctx.pong(&msg),
+//!             ws::Message::Text(text) => ctx.text(&text),
+//!             ws::Message::Binary(bin) => ctx.binary(bin),
 //!             _ => (),
 //!         }
 //!     }
@@ -42,22 +43,27 @@
 //! #      .finish();
 //! # }
 //! ```
-use std::vec::Vec;
-use http::{Method, StatusCode, header};
 use bytes::BytesMut;
+use http::{Method, StatusCode, header};
 use futures::{Async, Poll, Stream};
 
 use actix::{Actor, AsyncContext, ResponseType, Handler};
 
+use body::Binary;
 use payload::ReadAny;
 use error::{Error, WsHandshakeError};
-use context::HttpContext;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 
-use wsframe;
-use wsproto::*;
-pub use wsproto::CloseCode;
+mod frame;
+mod proto;
+mod context;
+mod mask;
+
+use ws::frame::Frame;
+use ws::proto::{hash_key, OpCode};
+pub use ws::proto::CloseCode;
+pub use ws::context::WebsocketContext;
 
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
@@ -69,7 +75,7 @@ const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
 #[derive(Debug)]
 pub enum Message {
     Text(String),
-    Binary(Vec<u8>),
+    Binary(Binary),
     Ping(String),
     Pong(String),
     Close,
@@ -84,13 +90,13 @@ impl ResponseType for Message {
 
 /// Do websocket handshake and start actor
 pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
-    where A: Actor<Context=HttpContext<A, S>> + Handler<Message>,
+    where A: Actor<Context=WebsocketContext<A, S>> + Handler<Message>,
           S: 'static
 {
     let mut resp = handshake(&req)?;
     let stream = WsStream::new(req.payload_mut().readany());
 
-    let mut ctx = HttpContext::new(req, actor);
+    let mut ctx = WebsocketContext::new(req, actor);
     ctx.add_message_stream(stream);
 
     Ok(resp.body(ctx)?)
@@ -206,7 +212,7 @@ impl Stream for WsStream {
         }
 
         loop {
-            match wsframe::Frame::parse(&mut self.buf) {
+            match Frame::parse(&mut self.buf) {
                 Ok(Some(frame)) => {
                     // trace!("WsFrame {}", frame);
                     let (_finished, opcode, payload) = frame.unpack();
@@ -222,14 +228,17 @@ impl Stream for WsStream {
                         },
                         OpCode::Ping =>
                             return Ok(Async::Ready(Some(
-                                Message::Ping(String::from_utf8_lossy(&payload).into())))),
+                                Message::Ping(
+                                    String::from_utf8_lossy(payload.as_ref()).into())))),
                         OpCode::Pong =>
                             return Ok(Async::Ready(Some(
-                                Message::Pong(String::from_utf8_lossy(&payload).into())))),
+                                Message::Pong(
+                                    String::from_utf8_lossy(payload.as_ref()).into())))),
                         OpCode::Binary =>
                             return Ok(Async::Ready(Some(Message::Binary(payload)))),
                         OpCode::Text => {
-                            match String::from_utf8(payload) {
+                            let tmp = Vec::from(payload.as_ref());
+                            match String::from_utf8(tmp) {
                                 Ok(s) =>
                                     return Ok(Async::Ready(Some(Message::Text(s)))),
                                 Err(_) =>
@@ -259,67 +268,6 @@ impl Stream for WsStream {
                 }
             }
         }
-    }
-}
-
-
-/// `WebSocket` writer
-pub struct WsWriter;
-
-impl WsWriter {
-
-    /// Send text frame
-    pub fn text<A, S>(ctx: &mut HttpContext<A, S>, text: &str)
-        where A: Actor<Context=HttpContext<A, S>>
-    {
-        let mut frame = wsframe::Frame::message(Vec::from(text), OpCode::Text, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        ctx.write(buf);
-    }
-
-    /// Send binary frame
-    pub fn binary<A, S>(ctx: &mut HttpContext<A, S>, data: Vec<u8>)
-        where A: Actor<Context=HttpContext<A, S>>
-    {
-        let mut frame = wsframe::Frame::message(data, OpCode::Binary, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        ctx.write(buf);
-    }
-
-    /// Send ping frame
-    pub fn ping<A, S>(ctx: &mut HttpContext<A, S>, message: &str)
-        where A: Actor<Context=HttpContext<A, S>>
-    {
-        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Ping, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        ctx.write(buf);
-    }
-
-    /// Send pong frame
-    pub fn pong<A, S>(ctx: &mut HttpContext<A, S>, message: &str)
-        where A: Actor<Context=HttpContext<A, S>>
-    {
-        let mut frame = wsframe::Frame::message(Vec::from(message), OpCode::Pong, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        ctx.write(buf);
-    }
-
-    /// Send close frame
-    pub fn close<A, S>(ctx: &mut HttpContext<A, S>, code: CloseCode, reason: &str)
-        where A: Actor<Context=HttpContext<A, S>>
-    {
-        let mut frame = wsframe::Frame::close(code, reason);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-        ctx.write(buf);
     }
 }
 

@@ -21,20 +21,20 @@ fn ws_index(r: HttpRequest) -> Result<HttpResponse> {
 struct MyWebSocket;
 
 impl Actor for MyWebSocket {
-    type Context = HttpContext<Self>;
+    type Context = ws::WebsocketContext<Self>;
 }
 
 /// Handler for `ws::Message`
 impl Handler<ws::Message> for MyWebSocket {
     type Result = ();
 
-    fn handle(&mut self, msg: ws::Message, ctx: &mut HttpContext<Self>) {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         // process websocket messages
         println!("WS: {:?}", msg);
         match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
-            ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
-            ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(&text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
             ws::Message::Closed | ws::Message::Error => {
                 ctx.stop();
             }

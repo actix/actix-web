@@ -48,6 +48,7 @@ pub const HTTPInternalServerError: StaticResponse =
     StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct StaticResponse(StatusCode);
 
 impl StaticResponse {

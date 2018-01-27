@@ -1,13 +1,26 @@
 language: rust
-
-rust:
-  - 1.20.0
-  - stable
-  - beta
-  - nightly-2018-01-03
-
-sudo: required
+sudo: false
 dist: trusty
+
+cache:
+  cargo: true
+  apt: true
+
+matrix:
+  include:
+    - rust: 1.20.0
+    - rust: stable
+    - rust: beta
+    - rust: nightly
+  allow_failures:
+    - rust: nightly
+    - rust: beta
+
+#rust:
+#  - 1.20.0
+#  - stable
+#  - beta
+#  - nightly-2018-01-03
 
 env:
   global:
@@ -29,26 +42,26 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+       cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
-       cargo test --features=alpn
+       cargo clean
+       cargo test
+       # --features=alpn
     fi
 
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cd examples/basics && cargo check && cd ../..
       cd examples/hello-world && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..
-    fi
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
-       cd examples/diesel && cargo check && cd ../..
-       cd examples/tls && cargo check && cd ../..
-       cd examples/websocket-chat && cargo check && cd ../..
-       cd examples/websocket && cargo check && cd ../..
+      cd examples/diesel && cargo check && cd ../..
+      cd examples/tls && cargo check && cd ../..
+      cd examples/websocket-chat && cargo check && cd ../..
+      cd examples/websocket && cargo check && cd ../..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
@@ -58,7 +71,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly-2018-01-03" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "1.20.0" ]]; then
       cargo doc --features alpn --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&

@@ -1,6 +1,6 @@
 # Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](http://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Actix web is a small, fast, down-to-earth, open source rust web framework.
+Actix web is a small, fast, pragmatic, open source rust web framework.
 
 ```rust,ignore
 extern crate actix_web;
@@ -24,6 +24,7 @@ fn main() {
 * [User Guide](http://actix.github.io/actix-web/guide/)
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
+* [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.20 or later
 
@@ -39,7 +40,8 @@ fn main() {
 * Multipart streams
 * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
   [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
-  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers))
+  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
+  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
 * Built on top of [Actix](https://github.com/actix/actix).
 
 ## Benchmarks
@@ -48,7 +50,7 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 
 ## Examples
 
-* [Basic](https://github.com/actix/actix-web/tree/master/examples/basic/)
+* [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
 * [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
@@ -68,4 +70,8 @@ This project is licensed under either of
 
 at your option.
 
-[![Analytics](https://ga-beacon.appspot.com/UA-110322332-2/actix-web/readme?flat&useReferer)](https://github.com/igrigorik/ga-beacon)
+## Code of Conduct
+
+Contribution to the actix-web crate is organized under the terms of the
+Contributor Covenant, the maintainer of actix-web, @fafhrd91, promises to
+intervene to uphold that code of conduct.

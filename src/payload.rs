@@ -70,61 +70,73 @@ impl Payload {
     }
 
     /// Indicates EOF of payload
+    #[inline]
     pub fn eof(&self) -> bool {
         self.inner.borrow().eof()
     }
 
     /// Length of the data in this payload
+    #[inline]
     pub fn len(&self) -> usize {
         self.inner.borrow().len()
     }
 
     /// Is payload empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.inner.borrow().len() == 0
     }
 
     /// Get first available chunk of data.
+    #[inline]
     pub fn readany(&self) -> ReadAny {
         ReadAny(Rc::clone(&self.inner))
     }
 
     /// Get exact number of bytes
+    #[inline]
     pub fn readexactly(&self, size: usize) -> ReadExactly {
         ReadExactly(Rc::clone(&self.inner), size)
     }
 
     /// Read until `\n`
+    #[inline]
     pub fn readline(&self) -> ReadLine {
         ReadLine(Rc::clone(&self.inner))
     }
 
     /// Read until match line
+    #[inline]
     pub fn readuntil(&self, line: &[u8]) -> ReadUntil {
         ReadUntil(Rc::clone(&self.inner), line.to_vec())
     }
 
     #[doc(hidden)]
+    #[inline]
     pub fn readall(&self) -> Option<Bytes> {
         self.inner.borrow_mut().readall()
     }
 
     /// Put unused data back to payload
+    #[inline]
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
 
     /// Get size of payload buffer
+    #[inline]
     pub fn buffer_size(&self) -> usize {
         self.inner.borrow().buffer_size()
     }
 
     /// Set size of payload buffer
+    #[inline]
     pub fn set_buffer_size(&self, size: usize) {
         self.inner.borrow_mut().set_buffer_size(size)
     }
 
     /// Convert payload into compatible `HttpResponse` body stream
+    #[inline]
     pub fn stream(self) -> BodyStream {
         Box::new(self.map(|i| i.0).map_err(|e| e.into()))
     }
@@ -134,6 +146,7 @@ impl Stream for Payload {
     type Item = PayloadItem;
     type Error = PayloadError;
 
+    #[inline]
     fn poll(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
         self.inner.borrow_mut().readany()
     }
@@ -407,7 +420,7 @@ impl Inner {
     }
 
     pub fn readall(&mut self) -> Option<Bytes> {
-        let len = self.items.iter().fold(0, |cur, item| cur + item.len());
+        let len = self.items.iter().map(|b| b.len()).sum();
         if len > 0 {
             let mut buf = BytesMut::with_capacity(len);
             for item in &self.items {

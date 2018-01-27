@@ -8,7 +8,7 @@ use diesel::prelude::*;
 use models;
 use schema;
 
-/// This is db executor actor. We are going to run 3 of them in parallele.
+/// This is db executor actor. We are going to run 3 of them in parallel.
 pub struct DbExecutor(pub SqliteConnection);
 
 /// This is only message that this actor can handle, but it is easy to extend number of

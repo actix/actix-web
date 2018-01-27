@@ -1,5 +1,5 @@
 #![cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
-//! There are two level of statfulness in actix-web. Application has state
+//! There are two level of statefulness in actix-web. Application has state
 //! that is shared across all handlers within same Application.
 //! And individual handler can have state.
 
@@ -33,7 +33,7 @@ struct MyWebSocket {
 }
 
 impl Actor for MyWebSocket {
-    type Context = HttpContext<Self, AppState>;
+    type Context = ws::WebsocketContext<Self, AppState>;
 }
 
 impl Handler<ws::Message> for MyWebSocket {
@@ -43,9 +43,9 @@ impl Handler<ws::Message> for MyWebSocket {
         self.counter += 1;
         println!("WS({}): {:?}", self.counter, msg);
         match msg {
-            ws::Message::Ping(msg) => ws::WsWriter::pong(ctx, &msg),
-            ws::Message::Text(text) => ws::WsWriter::text(ctx, &text),
-            ws::Message::Binary(bin) => ws::WsWriter::binary(ctx, bin),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(&text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
             ws::Message::Closed | ws::Message::Error => {
                 ctx.stop();
             }
