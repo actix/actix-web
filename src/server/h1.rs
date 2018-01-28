@@ -550,7 +550,7 @@ impl Reader {
 }
 
 /// Check if request has chunked transfer encoding
-fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
+pub fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
     if let Some(encodings) = headers.get(header::TRANSFER_ENCODING) {
         if let Ok(s) = encodings.to_str() {
             Ok(s.to_lowercase().contains("chunked"))
@@ -567,7 +567,7 @@ fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
 /// If a message body does not include a Transfer-Encoding, it *should*
 /// include a Content-Length header.
 #[derive(Debug, Clone, PartialEq)]
-struct Decoder {
+pub struct Decoder {
     kind: Kind,
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web framework"
 readme = "README.md"
@@ -34,28 +34,29 @@ tls = ["native-tls", "tokio-tls"]
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
 [dependencies]
-log = "0.4"
-failure = "0.1"
-failure_derive = "0.1"
+base64 = "0.9"
+bitflags = "1.0"
+brotli2 = "^0.3.2"
+failure = "0.1.1"
+flate2 = "1.0"
 h2 = "0.1"
 http = "^0.1.2"
 httparse = "1.2"
 http-range = "0.1"
-time = "0.1"
+libc = "0.2"
+log = "0.4"
 mime = "0.3"
 mime_guess = "1.8"
+num_cpus = "1.0"
+percent-encoding = "1.0"
+rand = "0.4"
 regex = "0.2"
-sha1 = "0.4"
-url = "1.6"
-libc = "0.2"
 serde = "1.0"
 serde_json = "1.0"
-brotli2 = "^0.3.2"
-percent-encoding = "1.0"
+sha1 = "0.4"
 smallvec = "0.6"
-bitflags = "1.0"
-num_cpus = "1.0"
-flate2 = "1.0"
+time = "0.1"
+url = "1.6"
 cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # io
@@ -65,6 +66,7 @@ bytes = "0.4"
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
+trust-dns-resolver = "0.7"
 
 # native-tls
 native-tls = { version="0.1", optional = true }

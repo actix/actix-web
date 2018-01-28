@@ -7,8 +7,14 @@ authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 name = "server"
 path = "src/main.rs"
 
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
 [dependencies]
 env_logger = "*"
 futures = "0.1"
-actix = "^0.4.2"
-actix-web = { git = "https://github.com/actix/actix-web.git" }
+tokio-core = "0.1"
+#actix = "^0.4.2"
+actix = { git = "https://github.com/actix/actix.git" }
+actix-web = { path="../../" }

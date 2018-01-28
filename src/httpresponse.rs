@@ -1,17 +1,15 @@
-//! Pieces pertaining to the HTTP response.
+//! Http response
 use std::{mem, str, fmt};
 use std::io::Write;
 use std::cell::RefCell;
-use std::convert::Into;
 use std::collections::VecDeque;
 
-use cookie::CookieJar;
+use cookie::{Cookie, CookieJar};
 use bytes::{Bytes, BytesMut, BufMut};
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
-use cookie::Cookie;
 
 use body::Body;
 use error::Error;
@@ -261,7 +259,6 @@ impl HttpResponseBuilder {
     /// }
     /// fn main() {}
     /// ```
-    #[inline]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
         where HeaderName: HttpTryFrom<K>,
               HeaderValue: HttpTryFrom<V>

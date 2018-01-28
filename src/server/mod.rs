@@ -9,14 +9,14 @@ use tokio_core::net::TcpStream;
 mod srv;
 mod worker;
 mod channel;
-mod encoding;
-mod h1;
+pub(crate) mod encoding;
+pub(crate) mod h1;
 mod h2;
 mod h1writer;
 mod h2writer;
 mod settings;
-mod shared;
-mod utils;
+pub(crate) mod shared;
+pub(crate) mod utils;
 
 pub use self::srv::HttpServer;
 pub use self::settings::ServerSettings;

@@ -44,7 +44,7 @@ impl Handler<ws::Message> for MyWebSocket {
 }
 
 fn main() {
-    ::std::env::set_var("RUST_LOG", "actix_web=trace");
+    ::std::env::set_var("RUST_LOG", "actix_web=info");
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 

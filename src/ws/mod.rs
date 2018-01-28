@@ -60,10 +60,17 @@ mod proto;
 mod context;
 mod mask;
 
+mod connect;
+mod writer;
+
+pub mod client;
+
 use ws::frame::Frame;
 use ws::proto::{hash_key, OpCode};
 pub use ws::proto::CloseCode;
 pub use ws::context::WebsocketContext;
+
+pub use self::client::{WsClient, WsClientError, WsReader, WsWriter};
 
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";

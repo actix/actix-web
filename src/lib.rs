@@ -47,6 +47,7 @@
 #[macro_use]
 extern crate log;
 extern crate time;
+extern crate base64;
 extern crate bytes;
 extern crate sha1;
 extern crate regex;
@@ -66,6 +67,7 @@ extern crate httparse;
 extern crate http_range;
 extern crate mime;
 extern crate mime_guess;
+extern crate rand;
 extern crate url;
 extern crate libc;
 extern crate serde;
@@ -76,6 +78,7 @@ extern crate percent_encoding;
 extern crate smallvec;
 extern crate num_cpus;
 extern crate h2 as http2;
+extern crate trust_dns_resolver;
 #[macro_use] extern crate actix;
 
 #[cfg(test)]
@@ -105,6 +108,8 @@ mod param;
 mod resource;
 mod handler;
 mod pipeline;
+
+mod client;
 
 pub mod fs;
 pub mod ws;

@@ -16,7 +16,7 @@ use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
-use url::ParseError as UrlParseError;
+pub use url::ParseError as UrlParseError;
 
 // re-exports
 pub use cookie::{ParseError as CookieParseError};
@@ -105,6 +105,9 @@ default impl<T: StdError + Sync + Send + 'static> ResponseError for T {
 
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
+
+/// `InternalServerError` for `UrlParseError`
+impl ResponseError for UrlParseError {}
 
 /// Return `InternalServerError` for `HttpError`,
 /// Response generation can return `HttpError`, so it is internal error
