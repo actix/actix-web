@@ -191,6 +191,13 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
         }
         self.stream.as_mut().map(|s| s.push(frame));
     }
+
+    /// Handle of the running future
+    ///
+    /// SpawnHandle is the handle returned by `AsyncContext::spawn()` method.
+    pub fn handle(&self) -> SpawnHandle {
+        self.inner.curr_handle()
+    }
 }
 
 impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Self>, S: 'static {
