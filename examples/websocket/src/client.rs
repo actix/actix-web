@@ -30,7 +30,7 @@ fn main() {
             })
             .map(|(reader, writer)| {
                 let addr: SyncAddress<_> = ChatClient::create(|ctx| {
-                    ctx.add_stream(reader);
+                    ChatClient::add_stream(reader, ctx);
                     ChatClient(writer)
                 });
 
@@ -68,7 +68,7 @@ impl Actor for ChatClient {
     }
 
     fn stopping(&mut self, _: &mut Context<Self>) -> bool {
-        println!("Disconnected");
+        println!("Stopping");
 
         // Stop application on disconnect
         Arbiter::system().send(actix::msgs::SystemExit(0));
@@ -96,13 +96,21 @@ impl Handler<ClientCommand> for ChatClient {
 }
 
 /// Handle server websocket messages
-impl Handler<Result<Message, WsClientError>> for ChatClient {
-    type Result = ();
+impl StreamHandler<Message, WsClientError> for ChatClient {
 
-    fn handle(&mut self, msg: Result<Message, WsClientError>, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: Message, ctx: &mut Context<Self>) {
         match msg {
-            Ok(Message::Text(txt)) => println!("Server: {:?}", txt),
+            Message::Text(txt) => println!("Server: {:?}", txt),
             _ => ()
         }
+    }
+
+    fn started(&mut self, ctx: &mut Context<Self>, _: SpawnHandle) {
+        println!("Connected");
+    }
+
+    fn finished(&mut self, err: Option<WsClientError>, ctx: &mut Context<Self>, _: SpawnHandle) {
+        println!("Server disconnected");
+        ctx.stop()
     }
 }
