@@ -125,7 +125,7 @@ impl Handler<ClientCommand> for ChatClient {
 
 /// Server communication
 
-impl FramedActor<TcpStream, codec::ClientChatCodec> for ChatClient {
+impl FramedHandler<TcpStream, codec::ClientChatCodec> for ChatClient {
 
     fn handle(&mut self, msg: io::Result<codec::ChatResponse>, ctx: &mut Context<Self>) {
         match msg {

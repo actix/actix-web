@@ -63,7 +63,7 @@ impl Actor for ChatSession {
 }
 
 /// To use `Framed` we have to define Io type and Codec
-impl FramedActor<TcpStream, ChatCodec> for ChatSession {
+impl FramedHandler<TcpStream, ChatCodec> for ChatSession {
 
     /// This is main event loop for client requests
     fn handle(&mut self, msg: io::Result<ChatRequest>, ctx: &mut Context<Self>) {
