@@ -105,11 +105,11 @@ impl StreamHandler<Message, WsClientError> for ChatClient {
         }
     }
 
-    fn started(&mut self, ctx: &mut Context<Self>, _: SpawnHandle) {
+    fn started(&mut self, ctx: &mut Context<Self>) {
         println!("Connected");
     }
 
-    fn finished(&mut self, err: Option<WsClientError>, ctx: &mut Context<Self>, _: SpawnHandle) {
+    fn finished(&mut self, err: Option<WsClientError>, ctx: &mut Context<Self>) {
         println!("Server disconnected");
         ctx.stop()
     }
