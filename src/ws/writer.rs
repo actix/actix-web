@@ -87,8 +87,9 @@ impl Writer {
             // status line
             // helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
             // buffer.extend_from_slice(msg.reason().as_bytes());
-            buffer.extend_from_slice(b"GET /ws/ HTTP/1.1");
-            buffer.extend_from_slice(b"\r\n");
+            buffer.extend_from_slice(b"GET ");
+            buffer.extend_from_slice(msg.url.path().as_ref());
+            buffer.extend_from_slice(b" HTTP/1.1\r\n");
 
             // write headers
             for (key, value) in &msg.headers {

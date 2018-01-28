@@ -43,8 +43,6 @@ pub struct TcpConnector {
 impl TcpConnector {
 
     pub fn new<S: AsRef<str>>(addr: S, port: u16, timeout: Duration) -> TcpConnector {
-        println!("TES: {:?} {:?}", addr.as_ref(), port);
-
         // try to parse as a regular SocketAddr first
         if let Ok(addr) = addr.as_ref().parse() {
             let mut ips = VecDeque::new();
