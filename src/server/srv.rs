@@ -477,8 +477,10 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
         // start server
         let signals = self.subscribe_to_signals();
         let addr: SyncAddress<_> = HttpServer::create(move |ctx| {
-            ctx.add_stream(stream.map(
-                move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
+            ctx.add_message_stream(
+                stream
+                    .map_err(|_| ())
+                    .map(move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
             self
         });
         signals.map(|signals| signals.send(
@@ -539,6 +541,22 @@ impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
             Err(err) =>
                 debug!("Error handling request: {}", err),
         }
+    }
+}
+
+impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<T, A, H, U>
+    where T: IoStream,
+          H: HttpHandler + 'static,
+          U: IntoIterator<Item=V> + 'static,
+          V: IntoHttpHandler<Handler=H>,
+          A: 'static,
+{
+    type Result = ();
+
+    fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
+        Arbiter::handle().spawn(
+            HttpChannel::new(
+                Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2));
     }
 }
 

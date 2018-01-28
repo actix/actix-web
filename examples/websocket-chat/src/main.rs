@@ -62,9 +62,9 @@ impl Actor for WsChatSession {
         // before processing any other events.
         // HttpContext::state() is instance of WsChatSessionState, state is shared across all
         // routes within application
-        let subs = ctx.sync_subscriber();
+        let addr: SyncAddress<_> = ctx.address();
         ctx.state().addr.call(
-            self, server::Connect{addr: subs}).then(
+            self, server::Connect{addr: addr.into_subscriber()}).then(
             |res, act, ctx| {
                 match res {
                     Ok(Ok(res)) => act.id = res,

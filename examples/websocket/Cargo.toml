@@ -15,6 +15,6 @@ path = "src/client.rs"
 env_logger = "*"
 futures = "0.1"
 tokio-core = "0.1"
-#actix = "^0.4.2"
+#actix = "^0.4.6"
 actix = { git = "https://github.com/actix/actix.git" }
 actix-web = { path="../../" }
