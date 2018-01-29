@@ -109,7 +109,8 @@ mod resource;
 mod handler;
 mod pipeline;
 
-mod client;
+#[doc(hidden)]
+pub mod client;
 
 pub mod fs;
 pub mod ws;

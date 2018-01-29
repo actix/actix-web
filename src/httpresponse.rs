@@ -83,37 +83,37 @@ impl HttpResponse {
         self.get_ref().error.as_ref()
     }
 
-    /// Get the HTTP version of this response.
+    /// Get the HTTP version of this response
     #[inline]
     pub fn version(&self) -> Option<Version> {
         self.get_ref().version
     }
 
-    /// Get the headers from the response.
+    /// Get the headers from the response
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
         &self.get_ref().headers
     }
 
-    /// Get a mutable reference to the headers.
+    /// Get a mutable reference to the headers
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.get_mut().headers
     }
 
-    /// Get the status from the server.
+    /// Get the response status code
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.get_ref().status
     }
 
-    /// Set the `StatusCode` for this response.
+    /// Set the `StatusCode` for this response
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
         &mut self.get_mut().status
     }
 
-    /// Get custom reason for the response.
+    /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
         if let Some(reason) = self.get_ref().reason {
@@ -123,7 +123,7 @@ impl HttpResponse {
         }
     }
 
-    /// Set the custom reason for the response.
+    /// Set the custom reason for the response
     #[inline]
     pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
         self.get_mut().reason = Some(reason);

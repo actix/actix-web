@@ -17,7 +17,7 @@ use super::ClientResponse;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
-
+#[derive(Default)]
 pub struct HttpResponseParser {
     payload: Option<PayloadInfo>,
 }
@@ -41,11 +41,6 @@ pub enum HttpResponseParserError {
 }
 
 impl HttpResponseParser {
-    pub fn new() -> HttpResponseParser {
-        HttpResponseParser {
-            payload: None,
-        }
-    }
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Decoding, HttpResponseParserError> {
         if let Some(ref mut payload) = self.payload {

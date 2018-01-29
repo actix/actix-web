@@ -1,28 +1,27 @@
 //! Http client request
-use std::{fmt, io, str};
+use std::{io, str};
 use std::rc::Rc;
 use std::time::Duration;
 use std::cell::UnsafeCell;
 
 use base64;
 use rand;
-use cookie::{Cookie, CookieJar};
+use cookie::Cookie;
 use bytes::BytesMut;
-use http::{Method, Version, HeaderMap, HttpTryFrom, StatusCode, Error as HttpError};
+use http::{HttpTryFrom, StatusCode, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
-use url::Url;
 use sha1::Sha1;
 use futures::{Async, Future, Poll, Stream};
 // use futures::unsync::oneshot;
 use tokio_core::net::TcpStream;
 
-use body::{Body, Binary};
+use body::Binary;
 use error::UrlParseError;
-use headers::ContentEncoding;
 use server::shared::SharedBytes;
 
 use server::{utils, IoStream};
-use client::{HttpResponseParser, HttpResponseParserError};
+use client::{ClientRequest, ClientRequestBuilder,
+             HttpResponseParser, HttpResponseParserError};
 
 use super::Message;
 use super::proto::{CloseCode, OpCode};
@@ -91,36 +90,23 @@ type WsFuture<T> = Future<Item=(WsReader<T>, WsWriter<T>), Error=WsClientError>;
 
 /// Websockt client
 pub struct WsClient {
-    request: Option<ClientRequest>,
+    request: ClientRequestBuilder,
     err: Option<WsClientError>,
     http_err: Option<HttpError>,
-    cookies: Option<CookieJar>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
 }
 
 impl WsClient {
 
-    pub fn new<S: AsRef<str>>(url: S) -> WsClient {
+    pub fn new<S: AsRef<str>>(uri: S) -> WsClient {
         let mut cl = WsClient {
-            request: None,
+            request: ClientRequest::build(),
             err: None,
             http_err: None,
-            cookies: None,
             origin: None,
             protocols: None };
-
-        match Url::parse(url.as_ref()) {
-            Ok(url) => {
-                if url.scheme() != "http" && url.scheme() != "https" &&
-                    url.scheme() != "ws" && url.scheme() != "wss" || !url.has_host() {
-                        cl.err = Some(WsClientError::InvalidUrl);
-                } else {
-                    cl.request = Some(ClientRequest::new(Method::GET, url));
-                }
-            },
-            Err(err) => cl.err = Some(err.into()),
-        }
+        cl.request.uri(uri.as_ref());
         cl
     }
 
@@ -136,13 +122,7 @@ impl WsClient {
     }
 
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.request.cookie(cookie);
         self
     }
 
@@ -158,20 +138,9 @@ impl WsClient {
     }
 
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-        where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
     {
-        if let Some(parts) = parts(&mut self.request, &self.err, &self.http_err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => {
-                    match HeaderValue::try_from(value) {
-                        Ok(value) => { parts.headers.append(key, value); }
-                        Err(e) => self.http_err = Some(e.into()),
-                    }
-                },
-                Err(e) => self.http_err = Some(e.into()),
-            };
-        }
+        self.request.header(key, value);
         self
     }
 
@@ -182,96 +151,40 @@ impl WsClient {
         if let Some(e) = self.http_err.take() {
             return Err(e.into())
         }
-        let mut request = self.request.take().expect("cannot reuse request builder");
-
-        // headers
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                request.headers.append(
-                    header::SET_COOKIE,
-                    HeaderValue::from_str(&cookie.to_string()).map_err(HttpError::from)?);
-            }
-        }
 
         // origin
         if let Some(origin) = self.origin.take() {
-            request.headers.insert(header::ORIGIN, origin);
+            self.request.set_header(header::ORIGIN, origin);
         }
 
-        request.headers.insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-        request.headers.insert(header::CONNECTION, HeaderValue::from_static("upgrade"));
-        request.headers.insert(
-            HeaderName::try_from("SEC-WEBSOCKET-VERSION").unwrap(),
-            HeaderValue::from_static("13"));
+        self.request.set_header(header::UPGRADE, "websocket");
+        self.request.set_header(header::CONNECTION, "upgrade");
+        self.request.set_header("SEC-WEBSOCKET-VERSION", "13");
 
         if let Some(protocols) = self.protocols.take() {
-            request.headers.insert(
-                HeaderName::try_from("SEC-WEBSOCKET-PROTOCOL").unwrap(),
-                HeaderValue::try_from(protocols.as_str()).unwrap());
+            self.request.set_header("SEC-WEBSOCKET-PROTOCOL", protocols.as_str());
+        }
+        let request = self.request.finish()?;
+
+        if request.uri().host().is_none() {
+            return Err(WsClientError::InvalidUrl)
+        }
+        if let Some(scheme) = request.uri().scheme_part() {
+            if scheme != "http" && scheme != "https" && scheme != "ws" && scheme != "wss" {
+                return Err(WsClientError::InvalidUrl);
+            }
+        } else {
+            return Err(WsClientError::InvalidUrl);
         }
 
         let connect = TcpConnector::new(
-            request.url.host_str().unwrap(),
-            request.url.port().unwrap_or(80), Duration::from_secs(5));
+            request.uri().host().unwrap(),
+            request.uri().port().unwrap_or(80), Duration::from_secs(5));
 
         Ok(Box::new(
             connect
                 .from_err()
                 .and_then(move |stream| WsHandshake::new(stream, request))))
-    }
-}
-
-#[inline]
-fn parts<'a>(parts: &'a mut Option<ClientRequest>,
-             err: &Option<WsClientError>,
-             http_err: &Option<HttpError>) -> Option<&'a mut ClientRequest>
-{
-    if err.is_some() || http_err.is_some() {
-        return None
-    }
-    parts.as_mut()
-}
-
-pub(crate) struct ClientRequest {
-    pub url: Url,
-    pub method: Method,
-    pub version: Version,
-    pub headers: HeaderMap,
-    pub body: Body,
-    pub chunked: Option<bool>,
-    pub encoding: ContentEncoding,
-}
-
-impl ClientRequest {
-
-    #[inline]
-    fn new(method: Method, url: Url) -> ClientRequest {
-        ClientRequest {
-            url: url,
-            method: method,
-            version: Version::HTTP_11,
-            headers: HeaderMap::with_capacity(16),
-            body: Body::Empty,
-            chunked: None,
-            encoding: ContentEncoding::Auto,
-        }
-    }
-}
-
-impl fmt::Debug for ClientRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "\nClientRequest {:?} {}:{}\n",
-                         self.version, self.method, self.url);
-        let _ = write!(f, "  headers:\n");
-        for key in self.headers.keys() {
-            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
-        }
-        res
     }
 }
 
@@ -299,14 +212,14 @@ impl<T: IoStream> WsHandshake<T> {
         let sec_key: [u8; 16] = rand::random();
         let key = base64::encode(&sec_key);
 
-        request.headers.insert(
+        request.headers_mut().insert(
             HeaderName::try_from("SEC-WEBSOCKET-KEY").unwrap(),
             HeaderValue::try_from(key.as_str()).unwrap());
 
         let inner = WsInner {
             stream: stream,
             writer: Writer::new(SharedBytes::default()),
-            parser: HttpResponseParser::new(),
+            parser: HttpResponseParser::default(),
             parser_buf: BytesMut::new(),
             closed: false,
             error_sent: false,
@@ -370,7 +283,7 @@ impl<T: IoStream> Future for WsHandshake<T> {
                 {
                     // ... field is constructed by concatenating /key/ ...
                     // ... with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
-                    const WS_GUID: &'static [u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+                    const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
                     let mut sha1 = Sha1::new();
                     sha1.update(self.key.as_ref());
                     sha1.update(WS_GUID);

@@ -9,7 +9,7 @@ use body::Binary;
 use server::{WriterState, MAX_WRITE_BUFFER_SIZE};
 use server::shared::SharedBytes;
 
-use super::client::ClientRequest;
+use client::ClientRequest;
 
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -82,17 +82,17 @@ impl Writer {
         // render message
         {
             let buffer = self.buffer.get_mut();
-            buffer.reserve(256 + msg.headers.len() * AVERAGE_HEADER_SIZE);
+            buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
 
             // status line
             // helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
             // buffer.extend_from_slice(msg.reason().as_bytes());
             buffer.extend_from_slice(b"GET ");
-            buffer.extend_from_slice(msg.url.path().as_ref());
+            buffer.extend_from_slice(msg.uri().path().as_ref());
             buffer.extend_from_slice(b" HTTP/1.1\r\n");
 
             // write headers
-            for (key, value) in &msg.headers {
+            for (key, value) in msg.headers() {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
                 buffer.reserve(k.len() + v.len() + 4);
