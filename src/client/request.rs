@@ -12,7 +12,7 @@ use body::Body;
 use error::Error;
 use headers::ContentEncoding;
 
-
+/// An HTTP Client Request
 pub struct ClientRequest {
     uri: Uri,
     method: Method,
@@ -35,6 +35,44 @@ impl Default for ClientRequest {
             chunked: None,
             encoding: ContentEncoding::Auto,
         }
+    }
+}
+
+impl ClientRequest {
+
+    /// Create request builder for `GET` request
+    pub fn get<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+        let mut builder = ClientRequest::build();
+        builder.method(Method::GET).uri(uri);
+        builder
+    }
+
+    /// Create request builder for `HEAD` request
+    pub fn head<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+        let mut builder = ClientRequest::build();
+        builder.method(Method::HEAD).uri(uri);
+        builder
+    }
+
+    /// Create request builder for `POST` request
+    pub fn post<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+        let mut builder = ClientRequest::build();
+        builder.method(Method::POST).uri(uri);
+        builder
+    }
+
+    /// Create request builder for `PUT` request
+    pub fn put<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+        let mut builder = ClientRequest::build();
+        builder.method(Method::PUT).uri(uri);
+        builder
+    }
+
+    /// Create request builder for `DELETE` request
+    pub fn delete<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+        let mut builder = ClientRequest::build();
+        builder.method(Method::DELETE).uri(uri);
+        builder
     }
 }
 
@@ -71,6 +109,18 @@ impl ClientRequest {
     #[inline]
     pub fn set_method(&mut self, method: Method) {
         self.method = method
+    }
+
+    /// Get http version for the request
+    #[inline]
+    pub fn version(&self) -> Version {
+        self.version
+    }
+
+    /// Set http `Version` for the request
+    #[inline]
+    pub fn set_version(&mut self, version: Version) {
+        self.version = version
     }
 
     /// Get the headers from the request
@@ -120,6 +170,10 @@ impl fmt::Debug for ClientRequest {
 }
 
 
+/// An HTTP client request builder
+///
+/// This type can be used to construct an instance of `ClientRequest` through a
+/// builder-like pattern.
 pub struct ClientRequestBuilder {
     request: Option<ClientRequest>,
     err: Option<HttpError>,
@@ -165,7 +219,10 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// Set a header.
+    /// Add a header.
+    ///
+    /// Header get appended to existing header.
+    /// To override header use `set_header()` method.
     ///
     /// ```rust
     /// # extern crate http;
@@ -266,9 +323,10 @@ impl ClientRequestBuilder {
     /// # use actix_web::httpcodes::*;
     /// #
     /// use actix_web::headers::Cookie;
+    /// use actix_web::client::ClientRequest;
     ///
-    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HTTPOk.build()
+    /// fn main() {
+    ///     let req = ClientRequest::build()
     ///         .cookie(
     ///             Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
@@ -276,9 +334,8 @@ impl ClientRequestBuilder {
     ///                 .secure(true)
     ///                 .http_only(true)
     ///                 .finish())
-    ///         .finish()?)
+    ///         .finish().unwrap();
     /// }
-    /// fn main() {}
     /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if self.cookies.is_none() {

@@ -13,6 +13,7 @@ use server::h1::{Decoder, chunked};
 use server::encoding::PayloadType;
 
 use super::ClientResponse;
+use super::response::ClientMessage;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
@@ -225,10 +226,16 @@ impl HttpResponseParser {
                 decoder: decoder,
             };
             Ok(Async::Ready(
-                (ClientResponse::new(status, version, hdrs, Some(payload)), Some(info))))
+                (ClientResponse::new(
+                    ClientMessage{
+                        status: status, version: version,
+                        headers: hdrs, cookies: None, payload: Some(payload)}), Some(info))))
         } else {
             Ok(Async::Ready(
-                (ClientResponse::new(status, version, hdrs, None), None)))
+                (ClientResponse::new(
+                    ClientMessage{
+                        status: status, version: version,
+                        headers: hdrs, cookies: None, payload: None}), None)))
         }
     }
 }

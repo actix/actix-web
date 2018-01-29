@@ -21,12 +21,11 @@ use server::shared::SharedBytes;
 
 use server::{utils, IoStream};
 use client::{ClientRequest, ClientRequestBuilder,
-             HttpResponseParser, HttpResponseParserError};
+             HttpResponseParser, HttpResponseParserError, HttpClientWriter};
 
 use super::Message;
 use super::proto::{CloseCode, OpCode};
 use super::frame::Frame;
-use super::writer::Writer;
 use super::connect::{TcpConnector, TcpConnectorError};
 
 /// Websockt client error
@@ -86,7 +85,7 @@ impl From<HttpResponseParserError> for WsClientError {
     }
 }
 
-type WsFuture<T> = Future<Item=(WsReader<T>, WsWriter<T>), Error=WsClientError>;
+pub type WsFuture<T> = Future<Item=(WsReader<T>, WsWriter<T>), Error=WsClientError>;
 
 /// Websockt client
 pub struct WsClient {
@@ -190,7 +189,7 @@ impl WsClient {
 
 struct WsInner<T> {
     stream: T,
-    writer: Writer,
+    writer: HttpClientWriter,
     parser: HttpResponseParser,
     parser_buf: BytesMut,
     closed: bool,
@@ -218,7 +217,7 @@ impl<T: IoStream> WsHandshake<T> {
 
         let inner = WsInner {
             stream: stream,
-            writer: Writer::new(SharedBytes::default()),
+            writer: HttpClientWriter::new(SharedBytes::default()),
             parser: HttpResponseParser::default(),
             parser_buf: BytesMut::new(),
             closed: false,

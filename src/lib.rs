@@ -43,6 +43,8 @@
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
+#![cfg_attr(feature = "cargo-clippy", allow(
+    decimal_literal_representation,))]
 
 #[macro_use]
 extern crate log;

@@ -59,18 +59,15 @@ mod frame;
 mod proto;
 mod context;
 mod mask;
+mod client;
 
 mod connect;
-mod writer;
 
-pub mod client;
-
-use ws::frame::Frame;
-use ws::proto::{hash_key, OpCode};
-pub use ws::proto::CloseCode;
-pub use ws::context::WebsocketContext;
-
-pub use self::client::{WsClient, WsClientError, WsReader, WsWriter};
+use self::frame::Frame;
+use self::proto::{hash_key, OpCode};
+pub use self::proto::CloseCode;
+pub use self::context::WebsocketContext;
+pub use self::client::{WsClient, WsClientError, WsReader, WsWriter, WsFuture};
 
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";

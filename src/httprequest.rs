@@ -541,7 +541,9 @@ impl<S> HttpRequest<S> {
     /// # fn main() {}
     /// ```
     pub fn urlencoded(&self) -> UrlEncoded {
-        UrlEncoded::from_request(self)
+        UrlEncoded::from(self.payload().clone(),
+                         self.headers(),
+                         self.chunked().unwrap_or(false))
     }
 
     /// Parse `application/json` encoded body.
@@ -624,16 +626,16 @@ pub struct UrlEncoded {
 }
 
 impl UrlEncoded {
-    pub fn from_request<S>(req: &HttpRequest<S>) -> UrlEncoded {
+    pub fn from(pl: Payload, headers: &HeaderMap, chunked: bool) -> UrlEncoded {
         let mut encoded = UrlEncoded {
-            pl: req.payload().clone(),
+            pl: pl,
             body: BytesMut::new(),
             error: None
         };
 
-        if let Ok(true) = req.chunked() {
+        if chunked {
             encoded.error = Some(UrlencodedError::Chunked);
-        } else if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
+        } else if let Some(len) = headers.get(header::CONTENT_LENGTH) {
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
                     if len > 262_144 {
@@ -649,7 +651,7 @@ impl UrlEncoded {
 
         // check content type
         if encoded.error.is_none() {
-            if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+            if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
                 if let Ok(content_type) = content_type.to_str() {
                     if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
                         return encoded

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::io;
+use std::fmt::Write;
 use bytes::BufMut;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
@@ -23,17 +24,17 @@ bitflags! {
     }
 }
 
-pub(crate) struct Writer {
+pub(crate) struct HttpClientWriter {
     flags: Flags,
     written: u64,
     headers_size: u32,
     buffer: SharedBytes,
 }
 
-impl Writer {
+impl HttpClientWriter {
 
-    pub fn new(buf: SharedBytes) -> Writer {
-        Writer {
+    pub fn new(buf: SharedBytes) -> HttpClientWriter {
+        HttpClientWriter {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
@@ -73,7 +74,7 @@ impl Writer {
     }
 }
 
-impl Writer {
+impl HttpClientWriter {
 
     pub fn start(&mut self, msg: &mut ClientRequest) {
         // prepare task
@@ -85,11 +86,8 @@ impl Writer {
             buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
 
             // status line
-            // helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
-            // buffer.extend_from_slice(msg.reason().as_bytes());
-            buffer.extend_from_slice(b"GET ");
-            buffer.extend_from_slice(msg.uri().path().as_ref());
-            buffer.extend_from_slice(b" HTTP/1.1\r\n");
+            let _ = write!(buffer, "{} {} {:?}\r\n",
+                   msg.method(), msg.uri().path(), msg.version());
 
             // write headers
             for (key, value) in msg.headers() {
