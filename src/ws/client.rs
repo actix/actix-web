@@ -28,6 +28,10 @@ use super::proto::{CloseCode, OpCode};
 use super::frame::Frame;
 use super::connect::{TcpConnector, TcpConnectorError};
 
+pub type WsClientFuture<T> =
+    Future<Item=(WsClientReader<T>, WsClientWriter<T>), Error=WsClientError>;
+
+
 /// Websockt client error
 #[derive(Fail, Debug)]
 pub enum WsClientError {
@@ -85,8 +89,6 @@ impl From<HttpResponseParserError> for WsClientError {
     }
 }
 
-pub type WsFuture<T> = Future<Item=(WsReader<T>, WsWriter<T>), Error=WsClientError>;
-
 /// Websockt client
 pub struct WsClient {
     request: ClientRequestBuilder,
@@ -143,7 +145,7 @@ impl WsClient {
         self
     }
 
-    pub fn connect(&mut self) -> Result<Box<WsFuture<TcpStream>>, WsClientError> {
+    pub fn connect(&mut self) -> Result<Box<WsClientFuture<TcpStream>>, WsClientError> {
         if let Some(e) = self.err.take() {
             return Err(e)
         }
@@ -234,7 +236,7 @@ impl<T: IoStream> WsHandshake<T> {
 }
 
 impl<T: IoStream> Future for WsHandshake<T> {
-    type Item = (WsReader<T>, WsWriter<T>);
+    type Item = (WsClientReader<T>, WsClientWriter<T>);
     type Error = WsClientError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -296,8 +298,8 @@ impl<T: IoStream> Future for WsHandshake<T> {
 
                 let inner = Rc::new(UnsafeCell::new(Inner{inner: inner}));
                 Ok(Async::Ready(
-                    (WsReader{inner: Rc::clone(&inner)},
-                     WsWriter{inner: inner})))
+                    (WsClientReader{inner: Rc::clone(&inner)},
+                     WsClientWriter{inner: inner})))
             },
             Ok(Async::NotReady) => {
                 self.inner = Some(inner);
@@ -313,18 +315,18 @@ struct Inner<T> {
     inner: WsInner<T>,
 }
 
-pub struct WsReader<T> {
+pub struct WsClientReader<T> {
     inner: Rc<UnsafeCell<Inner<T>>>
 }
 
-impl<T> WsReader<T> {
+impl<T> WsClientReader<T> {
     #[inline]
     fn as_mut(&mut self) -> &mut Inner<T> {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl<T: IoStream> Stream for WsReader<T> {
+impl<T: IoStream> Stream for WsClientReader<T> {
     type Item = Message;
     type Error = WsClientError;
 
@@ -404,18 +406,18 @@ impl<T: IoStream> Stream for WsReader<T> {
     }
 }
 
-pub struct WsWriter<T> {
+pub struct WsClientWriter<T> {
     inner: Rc<UnsafeCell<Inner<T>>>
 }
 
-impl<T: IoStream> WsWriter<T> {
+impl<T: IoStream> WsClientWriter<T> {
     #[inline]
     fn as_mut(&mut self) -> &mut Inner<T> {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl<T: IoStream> WsWriter<T> {
+impl<T: IoStream> WsClientWriter<T> {
 
     /// Write payload
     #[inline]

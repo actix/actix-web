@@ -13,7 +13,7 @@ use std::time::Duration;
 use actix::*;
 use futures::Future;
 use tokio_core::net::TcpStream;
-use actix_web::ws::{client, Message, WsClientError};
+use actix_web::ws::{Message, WsClientError, WsClient, WsClientWriter};
 
 
 fn main() {
@@ -22,7 +22,7 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     Arbiter::handle().spawn(
-        client::WsClient::new("http://127.0.0.1:8080/ws/")
+        WsClient::new("http://127.0.0.1:8080/ws/")
             .connect().unwrap()
             .map_err(|e| {
                 println!("Error: {}", e);
@@ -54,7 +54,7 @@ fn main() {
 }
 
 
-struct ChatClient(client::WsWriter<TcpStream>);
+struct ChatClient(WsClientWriter<TcpStream>);
 
 #[derive(Message)]
 struct ClientCommand(String);

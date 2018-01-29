@@ -43,32 +43,6 @@ pub enum HttpResponseParserError {
 
 impl HttpResponseParser {
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Decoding, HttpResponseParserError> {
-        if let Some(ref mut payload) = self.payload {
-            if payload.tx.capacity() > DEFAULT_BUFFER_SIZE {
-                return Ok(Decoding::Paused)
-            }
-            loop {
-                match payload.decoder.decode(buf) {
-                    Ok(Async::Ready(Some(bytes))) => {
-                        payload.tx.feed_data(bytes)
-                    },
-                    Ok(Async::Ready(None)) => {
-                        payload.tx.feed_eof();
-                        return Ok(Decoding::Ready)
-                    },
-                    Ok(Async::NotReady) => return Ok(Decoding::NotReady),
-                    Err(err) => {
-                        payload.tx.set_error(err.into());
-                        return Err(HttpResponseParserError::Payload)
-                    }
-                }
-            }
-        } else {
-            return Ok(Decoding::Ready)
-        }
-    }
-
     pub fn parse<T>(&mut self, io: &mut T, buf: &mut BytesMut)
                     -> Poll<ClientResponse, HttpResponseParserError>
         where T: IoStream
@@ -154,7 +128,34 @@ impl HttpResponseParser {
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<PayloadInfo>), ParseError>
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Decoding, HttpResponseParserError> {
+        if let Some(ref mut payload) = self.payload {
+            if payload.tx.capacity() > DEFAULT_BUFFER_SIZE {
+                return Ok(Decoding::Paused)
+            }
+            loop {
+                match payload.decoder.decode(buf) {
+                    Ok(Async::Ready(Some(bytes))) => {
+                        payload.tx.feed_data(bytes)
+                    },
+                    Ok(Async::Ready(None)) => {
+                        payload.tx.feed_eof();
+                        return Ok(Decoding::Ready)
+                    },
+                    Ok(Async::NotReady) => return Ok(Decoding::NotReady),
+                    Err(err) => {
+                        payload.tx.set_error(err.into());
+                        return Err(HttpResponseParserError::Payload)
+                    }
+                }
+            }
+        } else {
+            return Ok(Decoding::Ready)
+        }
+    }
+
+    fn parse_message(buf: &mut BytesMut)
+                     -> Poll<(ClientResponse, Option<PayloadInfo>), ParseError>
     {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;
