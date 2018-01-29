@@ -6,6 +6,10 @@
 
 * Added HttpRequest::mime_type() method
 
+* Added StaticFiles::index_file()
+
+* Added basic websocket client
+
 
 ## 0.3.3 (2018-01-25)
 

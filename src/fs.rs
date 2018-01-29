@@ -15,7 +15,7 @@ use handler::{Handler, Responder};
 use headers::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::HTTPOk;
+use httpcodes::{HTTPOk, HTTPFound};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -177,6 +177,7 @@ impl Responder for Directory {
 pub enum FilesystemElement {
     File(NamedFile),
     Directory(Directory),
+    Redirect(HttpResponse),
 }
 
 impl Responder for FilesystemElement {
@@ -187,6 +188,7 @@ impl Responder for FilesystemElement {
         match self {
             FilesystemElement::File(file) => file.respond_to(req),
             FilesystemElement::Directory(dir) => dir.respond_to(req),
+            FilesystemElement::Redirect(resp) => Ok(resp),
         }
     }
 }
@@ -210,6 +212,7 @@ impl Responder for FilesystemElement {
 pub struct StaticFiles {
     directory: PathBuf,
     accessible: bool,
+    index: Option<String>,
     show_index: bool,
     _chunk_size: usize,
     _follow_symlinks: bool,
@@ -221,7 +224,7 @@ impl StaticFiles {
     /// `dir` - base directory
     ///
     /// `index` - show index for directory
-    pub fn new<D: Into<PathBuf>>(dir: D, index: bool) -> StaticFiles {
+    pub fn new<T: Into<PathBuf>>(dir: T, index: bool) -> StaticFiles {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -242,12 +245,21 @@ impl StaticFiles {
         StaticFiles {
             directory: dir,
             accessible: access,
+            index: None,
             show_index: index,
             _chunk_size: 0,
             _follow_symlinks: false,
         }
     }
 
+    /// Set index file
+    ///
+    /// Redirects to specific index file for directory "/" instead of
+    /// showing files listing.
+    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles {
+        self.index = Some(index.into());
+        self
+    }
 }
 
 impl<S> Handler<S> for StaticFiles {
@@ -270,7 +282,15 @@ impl<S> Handler<S> for StaticFiles {
             let path = self.directory.join(&relpath).canonicalize()?;
 
             if path.is_dir() {
-                if self.show_index {
+                if let Some(ref redir_index) = self.index {
+                    let mut base = Path::new(req.path()).join(relpath);
+                    base.push(redir_index);
+                    Ok(FilesystemElement::Redirect(
+                        HTTPFound
+                            .build()
+                            .header("LOCATION", base.to_string_lossy().as_ref())
+                            .finish().unwrap()))
+                } else if self.show_index {
                     Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
                 } else {
                     Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
@@ -285,7 +305,7 @@ impl<S> Handler<S> for StaticFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::header;
+    use http::{header, StatusCode};
 
     #[test]
     fn test_named_file() {
@@ -317,5 +337,16 @@ mod tests {
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
         assert!(resp.body().is_binary());
         assert!(format!("{:?}", resp.body()).contains("README.md"));
+    }
+
+    #[test]
+    fn test_redirec_to_index() {
+        let mut st = StaticFiles::new(".", false).index_file("index.html");
+        let mut req = HttpRequest::default();
+        req.match_info_mut().add("tail", "guide");
+
+        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/guide/index.html");
     }
 }
