@@ -39,6 +39,7 @@ impl Default for ClientMessage {
     }
 }
 
+/// An HTTP Client response
 pub struct ClientResponse(Rc<UnsafeCell<ClientMessage>>);
 
 impl ClientResponse {
@@ -288,8 +289,8 @@ impl Future for ResponseBody {
         if let Some(resp) = self.resp.take() {
             if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<u64>() {
-                        if len > 262_144 {
+                    if let Ok(len) = s.parse::<usize>() {
+                        if len > self.limit {
                             return Err(PayloadError::Overflow);
                         }
                     } else {
@@ -321,7 +322,7 @@ impl Future for ResponseBody {
     }
 }
 
-/// Client response payload json parser that resolves to a deserialized `T` value.
+/// Client response json parser that resolves to a deserialized `T` value.
 ///
 /// Returns error:
 ///

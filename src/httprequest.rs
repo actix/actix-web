@@ -700,36 +700,21 @@ pub struct RequestBody {
     pl: ReadAny,
     body: BytesMut,
     limit: usize,
-    error: Option<PayloadError>,
+    req: Option<HttpRequest<()>>,
 }
 
 impl RequestBody {
 
     /// Create `RequestBody` for request.
     pub fn from_request<S>(req: &HttpRequest<S>) -> RequestBody {
-        let mut body = RequestBody {
-            pl: req.payload().readany(),
+        let pl = req.payload().readany();
+        RequestBody {
+            pl: pl,
             body: BytesMut::new(),
             limit: 262_144,
-            error: None
-        };
-
-        if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    if len > 262_144 {
-                        body.error = Some(PayloadError::Overflow);
-                    }
-                } else {
-                    body.error = Some(PayloadError::UnknownLength);
-                }
-            } else {
-                body.error = Some(PayloadError::UnknownLength);
-            }
+            req: Some(req.clone_without_state())
         }
-
-        body
-    }
+ }
 
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(mut self, limit: usize) -> Self {
@@ -743,8 +728,20 @@ impl Future for RequestBody {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(err) = self.error.take() {
-            return Err(err)
+        if let Some(req) = self.req.take() {
+            if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = len.to_str() {
+                    if let Ok(len) = s.parse::<usize>() {
+                        if len > self.limit {
+                            return Err(PayloadError::Overflow);
+                        }
+                    } else {
+                        return Err(PayloadError::UnknownLength);
+                    }
+                } else {
+                    return Err(PayloadError::UnknownLength);
+                }
+            }
         }
 
         loop {

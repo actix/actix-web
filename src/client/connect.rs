@@ -25,9 +25,12 @@ use server::IoStream;
 
 
 #[derive(Debug)]
+/// `Connect` type represents message that can be send to `ClientConnector`
+/// with connection request.
 pub struct Connect(pub Uri);
 
 impl Connect {
+    /// Create `Connect` message for specified `Uri`
     pub fn new<U>(uri: U) -> Result<Connect, HttpError> where Uri: HttpTryFrom<U> {
         Ok(Connect(Uri::try_from(uri).map_err(|e| e.into())?))
     }
@@ -38,6 +41,7 @@ impl ResponseType for Connect {
     type Error = ClientConnectorError;
 }
 
+/// A set of errors that can occur during connecting to a http host
 #[derive(Fail, Debug)]
 pub enum ClientConnectorError {
     /// Invalid url
