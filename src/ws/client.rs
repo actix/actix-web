@@ -1,4 +1,5 @@
 //! Http client request
+#![allow(unused_imports, dead_code)]
 use std::{io, str};
 use std::rc::Rc;
 use std::time::Duration;
@@ -12,8 +13,10 @@ use http::{HttpTryFrom, StatusCode, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use sha1::Sha1;
 use futures::{Async, Future, Poll, Stream};
-// use futures::unsync::oneshot;
+use futures::future::{Either, err as FutErr};
 use tokio_core::net::TcpStream;
+
+use actix::prelude::*;
 
 use body::Binary;
 use error::UrlParseError;
@@ -22,14 +25,14 @@ use server::shared::SharedBytes;
 use server::{utils, IoStream};
 use client::{ClientRequest, ClientRequestBuilder,
              HttpResponseParser, HttpResponseParserError, HttpClientWriter};
+use client::connect::{Connect, Connection, ClientConnector, ClientConnectorError};
 
 use super::Message;
 use super::proto::{CloseCode, OpCode};
 use super::frame::Frame;
-use super::connect::{TcpConnector, TcpConnectorError};
 
-pub type WsClientFuture<T> =
-    Future<Item=(WsClientReader<T>, WsClientWriter<T>), Error=WsClientError>;
+pub type WsClientFuture =
+    Future<Item=(WsClientReader, WsClientWriter), Error=WsClientError>;
 
 
 /// Websockt client error
@@ -52,7 +55,7 @@ pub enum WsClientError {
     #[fail(display="Response parsing error")]
     ResponseParseError(HttpResponseParserError),
     #[fail(display="{}", _0)]
-    Connection(TcpConnectorError),
+    Connector(ClientConnectorError),
     #[fail(display="{}", _0)]
     Io(io::Error),
     #[fail(display="Disconnected")]
@@ -71,9 +74,9 @@ impl From<UrlParseError> for WsClientError {
     }
 }
 
-impl From<TcpConnectorError> for WsClientError {
-    fn from(err: TcpConnectorError) -> WsClientError {
-        WsClientError::Connection(err)
+impl From<ClientConnectorError> for WsClientError {
+    fn from(err: ClientConnectorError) -> WsClientError {
+        WsClientError::Connector(err)
     }
 }
 
@@ -145,7 +148,7 @@ impl WsClient {
         self
     }
 
-    pub fn connect(&mut self) -> Result<Box<WsClientFuture<TcpStream>>, WsClientError> {
+    pub fn connect(&mut self) -> Result<Box<WsClientFuture>, WsClientError> {
         if let Some(e) = self.err.take() {
             return Err(e)
         }
@@ -178,19 +181,20 @@ impl WsClient {
             return Err(WsClientError::InvalidUrl);
         }
 
-        let connect = TcpConnector::new(
-            request.uri().host().unwrap(),
-            request.uri().port().unwrap_or(80), Duration::from_secs(5));
-
+        // get connection and start handshake
         Ok(Box::new(
-            connect
-                .from_err()
-                .and_then(move |stream| WsHandshake::new(stream, request))))
+            ClientConnector::from_registry().call_fut(Connect(request.uri().clone()))
+                .map_err(|_| WsClientError::Disconnected)
+                .and_then(|res| match res {
+                    Ok(stream) => Either::A(WsHandshake::new(stream, request)),
+                    Err(err) => Either::B(FutErr(err.into())),
+                })
+        ))
     }
 }
 
-struct WsInner<T> {
-    stream: T,
+struct WsInner {
+    conn: Connection,
     writer: HttpClientWriter,
     parser: HttpResponseParser,
     parser_buf: BytesMut,
@@ -198,15 +202,15 @@ struct WsInner<T> {
     error_sent: bool,
 }
 
-struct WsHandshake<T> {
-    inner: Option<WsInner<T>>,
+struct WsHandshake {
+    inner: Option<WsInner>,
     request: ClientRequest,
     sent: bool,
     key: String,
 }
 
-impl<T: IoStream> WsHandshake<T> {
-    fn new(stream: T, mut request: ClientRequest) -> WsHandshake<T> {
+impl WsHandshake {
+    fn new(conn: Connection, mut request: ClientRequest) -> WsHandshake {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
         // when decoded, is 16 bytes in length (RFC 6455)
@@ -218,7 +222,7 @@ impl<T: IoStream> WsHandshake<T> {
             HeaderValue::try_from(key.as_str()).unwrap());
 
         let inner = WsInner {
-            stream: stream,
+            conn: conn,
             writer: HttpClientWriter::new(SharedBytes::default()),
             parser: HttpResponseParser::default(),
             parser_buf: BytesMut::new(),
@@ -235,8 +239,8 @@ impl<T: IoStream> WsHandshake<T> {
     }
 }
 
-impl<T: IoStream> Future for WsHandshake<T> {
-    type Item = (WsClientReader<T>, WsClientWriter<T>);
+impl Future for WsHandshake {
+    type Item = (WsClientReader, WsClientWriter);
     type Error = WsClientError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -246,11 +250,11 @@ impl<T: IoStream> Future for WsHandshake<T> {
             self.sent = true;
             inner.writer.start(&mut self.request);
         }
-        if let Err(err) = inner.writer.poll_completed(&mut inner.stream, false) {
+        if let Err(err) = inner.writer.poll_completed(&mut inner.conn, false) {
             return Err(err.into())
         }
 
-        match inner.parser.parse(&mut inner.stream, &mut inner.parser_buf) {
+        match inner.parser.parse(&mut inner.conn, &mut inner.parser_buf) {
             Ok(Async::Ready(resp)) => {
                 // verify response
                 if resp.status() != StatusCode::SWITCHING_PROTOCOLS {
@@ -311,22 +315,22 @@ impl<T: IoStream> Future for WsHandshake<T> {
 }
 
 
-struct Inner<T> {
-    inner: WsInner<T>,
+struct Inner {
+    inner: WsInner,
 }
 
-pub struct WsClientReader<T> {
-    inner: Rc<UnsafeCell<Inner<T>>>
+pub struct WsClientReader {
+    inner: Rc<UnsafeCell<Inner>>
 }
 
-impl<T> WsClientReader<T> {
+impl WsClientReader {
     #[inline]
-    fn as_mut(&mut self) -> &mut Inner<T> {
+    fn as_mut(&mut self) -> &mut Inner {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl<T: IoStream> Stream for WsClientReader<T> {
+impl Stream for WsClientReader {
     type Item = Message;
     type Error = WsClientError;
 
@@ -334,7 +338,7 @@ impl<T: IoStream> Stream for WsClientReader<T> {
         let inner = self.as_mut();
         let mut done = false;
 
-        match utils::read_from_io(&mut inner.inner.stream, &mut inner.inner.parser_buf) {
+        match utils::read_from_io(&mut inner.inner.conn, &mut inner.inner.parser_buf) {
             Ok(Async::Ready(0)) => {
                 done = true;
                 inner.inner.closed = true;
@@ -345,7 +349,7 @@ impl<T: IoStream> Stream for WsClientReader<T> {
         }
 
         // write
-        let _ = inner.inner.writer.poll_completed(&mut inner.inner.stream, false);
+        let _ = inner.inner.writer.poll_completed(&mut inner.inner.conn, false);
 
         // read
         match Frame::parse(&mut inner.inner.parser_buf) {
@@ -406,18 +410,18 @@ impl<T: IoStream> Stream for WsClientReader<T> {
     }
 }
 
-pub struct WsClientWriter<T> {
-    inner: Rc<UnsafeCell<Inner<T>>>
+pub struct WsClientWriter {
+    inner: Rc<UnsafeCell<Inner>>
 }
 
-impl<T: IoStream> WsClientWriter<T> {
+impl WsClientWriter {
     #[inline]
-    fn as_mut(&mut self) -> &mut Inner<T> {
+    fn as_mut(&mut self) -> &mut Inner {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl<T: IoStream> WsClientWriter<T> {
+impl WsClientWriter {
 
     /// Write payload
     #[inline]

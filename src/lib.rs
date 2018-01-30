@@ -147,6 +147,17 @@ pub use native_tls::Pkcs12;
 #[cfg(feature="openssl")]
 pub use openssl::pkcs12::Pkcs12;
 
+#[cfg(feature="openssl")]
+pub(crate) const HAS_OPENSSL: bool = true;
+#[cfg(not(feature="openssl"))]
+pub(crate) const HAS_OPENSSL: bool = false;
+
+#[cfg(feature="tls")]
+pub(crate) const HAS_TLS: bool = true;
+#[cfg(not(feature="tls"))]
+pub(crate) const HAS_TLS: bool = false;
+
+
 pub mod headers {
 //! Headers implementation
 

@@ -61,8 +61,6 @@ mod context;
 mod mask;
 mod client;
 
-mod connect;
-
 use self::frame::Frame;
 use self::proto::{hash_key, OpCode};
 pub use self::proto::CloseCode;

@@ -12,7 +12,6 @@ use std::time::Duration;
 
 use actix::*;
 use futures::Future;
-use tokio_core::net::TcpStream;
 use actix_web::ws::{Message, WsClientError, WsClient, WsClientWriter};
 
 
@@ -54,7 +53,7 @@ fn main() {
 }
 
 
-struct ChatClient(WsClientWriter<TcpStream>);
+struct ChatClient(WsClientWriter);
 
 #[derive(Message)]
 struct ClientCommand(String);

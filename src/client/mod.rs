@@ -1,3 +1,4 @@
+pub(crate) mod connect;
 mod parser;
 mod request;
 mod response;
