@@ -92,7 +92,11 @@ impl From<HttpResponseParserError> for WsClientError {
     }
 }
 
-/// Websockt client
+/// WebSocket client
+///
+/// Example of WebSocket client usage is available in
+/// [websocket example](
+/// https://github.com/actix/actix-web/blob/master/examples/websocket/src/client.rs#L24)
 pub struct WsClient {
     request: ClientRequestBuilder,
     err: Option<WsClientError>,
