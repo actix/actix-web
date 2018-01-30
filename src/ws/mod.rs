@@ -74,7 +74,7 @@ const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
 
 
 /// `WebSocket` Message
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
     Text(String),
     Binary(Binary),

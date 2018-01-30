@@ -95,3 +95,54 @@ fn main() {
     assert!(reqwest::get(&url).unwrap().status().is_success()); // <- make request
 }
 ```
+
+## WebSocket server tests
+
+It is possible to register *handler* with `TestApp::handler()` method that
+initiate web socket connection. *TestServer* provides `ws()` which connects to
+websocket server and returns ws reader and writer objects. *TestServer* also 
+provides `execute()` method which runs future object to completion and returns
+result of the future computation.
+
+Here is simple example, that shows how to test server websocket handler.
+
+```rust
+# extern crate actix;
+# extern crate actix_web;
+# extern crate futures;
+# extern crate http;
+# extern crate bytes;
+
+use actix_web::*;
+use futures::Stream;
+# use actix::prelude::*;
+
+struct Ws;   // <- WebSocket actor
+
+impl Actor for Ws {
+    type Context = ws::WebsocketContext<Self>;
+}
+
+impl Handler<ws::Message> for Ws {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
+        match msg {
+            ws::Message::Text(text) => ctx.text(&text),
+            _ => (),
+        }
+    }
+}
+
+fn main() {
+    let mut srv = test::TestServer::new(             // <- start our server with ws handler
+        |app| app.handler(|req| ws::start(req, Ws)));
+
+    let (reader, mut writer) = srv.ws().unwrap();    // <- connect to ws server
+
+    writer.text("text");                             // <- send message to server
+    
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();  // <- wait for one message
+    assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
+}
+```

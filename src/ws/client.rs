@@ -1,6 +1,6 @@
 //! Http client request
 #![allow(unused_imports, dead_code)]
-use std::{io, str};
+use std::{fmt, io, str};
 use std::rc::Rc;
 use std::time::Duration;
 use std::cell::UnsafeCell;
@@ -299,8 +299,8 @@ impl Future for WsHandshake {
                 let match_key = if let Some(key) = resp.headers().get(
                     HeaderName::try_from("SEC-WEBSOCKET-ACCEPT").unwrap())
                 {
-                    // ... field is constructed by concatenating /key/ ...
-                    // ... with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
+                    // field is constructed by concatenating /key/
+                    // with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
                     const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
                     let mut sha1 = Sha1::new();
                     sha1.update(self.key.as_ref());
@@ -334,6 +334,12 @@ struct Inner {
 
 pub struct WsClientReader {
     inner: Rc<UnsafeCell<Inner>>
+}
+
+impl fmt::Debug for WsClientReader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "WsClientReader()")
+    }
 }
 
 impl WsClientReader {

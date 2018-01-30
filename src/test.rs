@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::str::FromStr;
 use std::collections::HashMap;
 
-use actix::{Arbiter, SyncAddress, System, msgs};
+use actix::{Arbiter, SyncAddress, System, SystemRunner, msgs};
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue};
@@ -25,6 +25,7 @@ use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, HttpHandler, IntoHttpHandler, ServerSettings};
+use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 
 /// The `TestServer` type.
 ///
@@ -54,7 +55,8 @@ use server::{HttpServer, HttpHandler, IntoHttpHandler, ServerSettings};
 pub struct TestServer {
     addr: net::SocketAddr,
     thread: Option<thread::JoinHandle<()>>,
-    sys: SyncAddress<System>,
+    system: SystemRunner,
+    server_sys: SyncAddress<System>,
 }
 
 impl TestServer {
@@ -95,7 +97,8 @@ impl TestServer {
         TestServer {
             addr: addr,
             thread: Some(join),
-            sys: sys,
+            system: System::new("actix-test"),
+            server_sys: sys,
         }
     }
 
@@ -131,7 +134,8 @@ impl TestServer {
         TestServer {
             addr: addr,
             thread: Some(join),
-            sys: sys,
+            system: System::new("actix-test"),
+            server_sys: sys,
         }
     }
 
@@ -162,9 +166,22 @@ impl TestServer {
     /// Stop http server
     fn stop(&mut self) {
         if let Some(handle) = self.thread.take() {
-            self.sys.send(msgs::SystemExit(0));
+            self.server_sys.send(msgs::SystemExit(0));
             let _ = handle.join();
         }
+    }
+
+    /// Execute future on current core
+    pub fn execute<F, I, E>(&mut self, fut: F) -> Result<I, E>
+        where F: Future<Item=I, Error=E>
+    {
+        self.system.run_until_complete(fut)
+    }
+
+    /// Connect to websocket server
+    pub fn ws(&mut self) -> Result<(WsClientReader, WsClientWriter), WsClientError> {
+        let url = self.url("/");
+        self.system.run_until_complete(WsClient::new(url).connect().unwrap())
     }
 }
 
