@@ -25,7 +25,7 @@ use server::shared::SharedBytes;
 use server::{utils, IoStream};
 use client::{ClientRequest, ClientRequestBuilder,
              HttpResponseParser, HttpResponseParserError, HttpClientWriter};
-use client::connect::{Connect, Connection, ClientConnector, ClientConnectorError};
+use client::{Connect, Connection, ClientConnector, ClientConnectorError};
 
 use super::Message;
 use super::proto::{CloseCode, OpCode};
