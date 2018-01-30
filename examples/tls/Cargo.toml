@@ -12,4 +12,4 @@ path = "src/main.rs"
 env_logger = "0.5"
 actix = "^0.4.2"
 actix-web = { path = "../../", features=["alpn"] }
-openssl = { version="0.10", features = ["v110"] }
+openssl = { version="0.10" }

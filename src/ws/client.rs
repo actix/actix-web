@@ -99,21 +99,31 @@ pub struct WsClient {
     http_err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
+    conn: Address<ClientConnector>,
 }
 
 impl WsClient {
 
+    /// Create new websocket connection
     pub fn new<S: AsRef<str>>(uri: S) -> WsClient {
+        WsClient::with_connector(uri, ClientConnector::from_registry())
+    }
+
+    /// Create new websocket connection with custom `ClientConnector`
+    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Address<ClientConnector>) -> WsClient {
         let mut cl = WsClient {
             request: ClientRequest::build(),
             err: None,
             http_err: None,
             origin: None,
-            protocols: None };
+            protocols: None,
+            conn: conn,
+        };
         cl.request.uri(uri.as_ref());
         cl
     }
 
+    /// Set supported websocket protocols
     pub fn protocols<U, V>(&mut self, protos: U) -> &mut Self
         where U: IntoIterator<Item=V> + 'static,
               V: AsRef<str>
@@ -125,6 +135,7 @@ impl WsClient {
         self
     }
 
+    /// Set cookie for handshake request
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         self.request.cookie(cookie);
         self
@@ -141,6 +152,7 @@ impl WsClient {
         self
     }
 
+    /// Set request header
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
         where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
     {
@@ -148,6 +160,7 @@ impl WsClient {
         self
     }
 
+    /// Connect to websocket server and do ws handshake
     pub fn connect(&mut self) -> Result<Box<WsClientFuture>, WsClientError> {
         if let Some(e) = self.err.take() {
             return Err(e)
@@ -183,7 +196,7 @@ impl WsClient {
 
         // get connection and start handshake
         Ok(Box::new(
-            ClientConnector::from_registry().call_fut(Connect(request.uri().clone()))
+            self.conn.call_fut(Connect(request.uri().clone()))
                 .map_err(|_| WsClientError::Disconnected)
                 .and_then(|res| match res {
                     Ok(stream) => Either::A(WsHandshake::new(stream, request)),
