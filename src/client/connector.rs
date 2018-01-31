@@ -140,7 +140,7 @@ impl ClientConnector {
     ///
     ///     Arbiter::handle().spawn({
     ///         conn.call_fut(
-    ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connecto to host
+    ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
     ///                 .map_err(|_| ())
     ///                 .and_then(|res| {
     ///                     if let Ok(mut stream) = res {

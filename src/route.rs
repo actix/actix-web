@@ -127,7 +127,7 @@ impl<S: 'static> InnerHandler<S> {
     #[inline]
     pub fn handle(&self, req: HttpRequest<S>) -> Reply {
         // reason: handler is unique per thread,
-        // handler get called from async code, and handler doesnt have side effects
+        // handler get called from async code, and handler doesn't have side effects
         #[allow(mutable_transmutes)]
         #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
         let h: &mut Box<RouteHandler<S>> = unsafe { mem::transmute(self.0.as_ref()) };

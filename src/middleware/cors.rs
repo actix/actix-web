@@ -579,7 +579,7 @@ impl CorsBuilder {
 
     /// Set a wildcard origins
     ///
-    /// If send widlcard is set and the `allowed_origins` parameter is `All`, a wildcard
+    /// If send wildcard is set and the `allowed_origins` parameter is `All`, a wildcard
     /// `Access-Control-Allow-Origin` response header is sent, rather than the request’s
     /// `Origin` header.
     ///
@@ -603,7 +603,7 @@ impl CorsBuilder {
     /// If true, injects the `Access-Control-Allow-Credentials` header in responses.
     /// This allows cookies and credentials to be submitted across domains.
     ///
-    /// This option cannot be used in conjuction with an `allowed_origin` set to `All`
+    /// This option cannot be used in conjunction with an `allowed_origin` set to `All`
     /// and `send_wildcards` set to `true`.
     ///
     /// Defaults to `false`.

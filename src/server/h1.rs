@@ -1205,7 +1205,7 @@ mod tests {
         // type in chunked
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chnked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
         if let Ok(val) = req.chunked() {

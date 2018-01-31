@@ -689,7 +689,7 @@ impl<S, H> Completed<S, H> {
     #[inline]
     fn init(info: &mut PipelineInfo<S>) -> PipelineState<S, H> {
         if let Some(ref err) = info.error {
-            error!("Error occured during request handling: {}", err);
+            error!("Error occurred during request handling: {}", err);
         }
 
         if info.context.is_none() {
