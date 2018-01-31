@@ -35,7 +35,7 @@ pub type WsClientFuture =
     Future<Item=(WsClientReader, WsClientWriter), Error=WsClientError>;
 
 
-/// Websockt client error
+/// Websocket client error
 #[derive(Fail, Debug)]
 pub enum WsClientError {
     #[fail(display="Invalid url")]
