@@ -5,7 +5,7 @@ Actix web is a small, fast, pragmatic, open source rust web framework.
 * Supported *HTTP/1.x* and *HTTP/2.0* protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
-* [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
+* Client/server WebSockets support
 * Transparent content compression/decompression (br, gzip, deflate)
 * Configurable request routing
 * Graceful server shutdown
