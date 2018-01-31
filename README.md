@@ -2,6 +2,33 @@
 
 Actix web is a small, fast, pragmatic, open source rust web framework.
 
+## Features
+
+* Supported *HTTP/1.x* and *HTTP/2.0* protocols
+* Streaming and pipelining
+* Keep-alive and slow requests handling
+* [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
+* Transparent content compression/decompression (br, gzip, deflate)
+* Configurable request routing
+* Graceful server shutdown
+* Multipart streams
+* Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
+  [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
+  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
+  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
+* Built on top of [Actix](https://github.com/actix/actix).
+
+## Documentation
+
+* [User Guide](http://actix.github.io/actix-web/guide/)
+* [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
+* [API Documentation (Releases)](https://docs.rs/actix-web/)
+* [Chat on gitter](https://gitter.im/actix/actix)
+* Cargo package: [actix-web](https://crates.io/crates/actix-web)
+* Minimum supported Rust version: 1.21 or later
+
+## Example
+
 ```rust,ignore
 extern crate actix_web;
 use actix_web::*;
@@ -19,36 +46,7 @@ fn main() {
 }
 ```
 
-## Documentation
-
-* [User Guide](http://actix.github.io/actix-web/guide/)
-* [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
-* [API Documentation (Releases)](https://docs.rs/actix-web/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.21 or later
-
-## Features
-
-* Supported *HTTP/1.x* and *HTTP/2.0* protocols
-* Streaming and pipelining
-* Keep-alive and slow requests handling
-* [WebSockets](https://actix.github.io/actix-web/actix_web/ws/index.html)
-* Transparent content compression/decompression (br, gzip, deflate)
-* Configurable request routing
-* Graceful server shutdown
-* Multipart streams
-* Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
-  [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
-  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
-  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
-* Built on top of [Actix](https://github.com/actix/actix).
-
-## Benchmarks
-
-Some basic benchmarks could be found in this [respository](https://github.com/fafhrd91/benchmarks).
-
-## Examples
+### More examples
 
 * [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
@@ -60,6 +58,10 @@ Some basic benchmarks could be found in this [respository](https://github.com/fa
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
 * [SockJS Server](https://github.com/actix/actix-sockjs)
 * [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
+
+## Benchmarks
+
+Some basic benchmarks could be found in this [respository](https://github.com/fafhrd91/benchmarks).
 
 ## License
 
