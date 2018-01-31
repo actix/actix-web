@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Address, SyncAddress, Handler, ResponseType, SpawnHandle, MessageResult};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
 use error::{Error, ErrorInternalServerError};
@@ -64,16 +64,14 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.inner.cancel_future(handle)
     }
-}
 
-#[doc(hidden)]
-impl<A, S> AsyncContextApi<A> for WebsocketContext<A, S> where A: Actor<Context=Self> {
-
+    #[doc(hidden)]
     #[inline]
-    fn unsync_address(&mut self) -> Address<A> {
+    fn local_address(&mut self) -> Address<A> {
         self.inner.unsync_address()
     }
 
+    #[doc(hidden)]
     #[inline]
     fn sync_address(&mut self) -> SyncAddress<A> {
         self.inner.sync_address()
@@ -235,7 +233,7 @@ impl<A, S> ToEnvelope<A> for WebsocketContext<A, S>
     where A: Actor<Context=WebsocketContext<A, S>>,
 {
     #[inline]
-    fn pack_msg<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
+    fn pack<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
         where A: Handler<M>,
               M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send {
         RemoteEnvelope::envelope(msg, tx).into()

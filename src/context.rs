@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Address, SyncAddress, Handler, ResponseType, MessageResult, SpawnHandle};
 use actix::fut::ActorFuture;
-use actix::dev::{AsyncContextApi, ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
 use error::{Error, ErrorInternalServerError};
@@ -81,14 +81,12 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
         self.inner.cancel_future(handle)
     }
-}
-
-#[doc(hidden)]
-impl<A, S> AsyncContextApi<A> for HttpContext<A, S> where A: Actor<Context=Self> {
+    #[doc(hidden)]
     #[inline]
-    fn unsync_address(&mut self) -> Address<A> {
+    fn local_address(&mut self) -> Address<A> {
         self.inner.unsync_address()
     }
+    #[doc(hidden)]
     #[inline]
     fn sync_address(&mut self) -> SyncAddress<A> {
         self.inner.sync_address()
@@ -211,7 +209,7 @@ impl<A, S> ToEnvelope<A> for HttpContext<A, S>
     where A: Actor<Context=HttpContext<A, S>>,
 {
     #[inline]
-    fn pack_msg<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
+    fn pack<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
         where A: Handler<M>,
               M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send
     {
