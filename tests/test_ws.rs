@@ -44,6 +44,10 @@ fn test_simple() {
     assert_eq!(item, Some(ws::Message::Binary(Bytes::from_static(b"text").into())));
 
     writer.ping("ping");
-    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
     assert_eq!(item, Some(ws::Message::Pong("ping".to_owned())));
+
+    writer.close(ws::CloseCode::Normal, "");
+    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    assert!(item.is_none())
 }
