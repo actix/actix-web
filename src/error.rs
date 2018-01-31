@@ -25,7 +25,7 @@ use body::Body;
 use handler::Responder;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
+use httpcodes::{self, HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -406,7 +406,11 @@ pub enum UrlencodedError {
 impl ResponseError for UrlencodedError {
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+        match *self {
+            UrlencodedError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
+            UrlencodedError::UnknownLength => httpcodes::HTTPLengthRequired.into(),
+            _ => httpcodes::HTTPBadRequest.into(),
+        }
     }
 }
 
@@ -437,7 +441,10 @@ pub enum JsonPayloadError {
 impl ResponseError for JsonPayloadError {
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+        match *self {
+            JsonPayloadError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
+            _ => httpcodes::HTTPBadRequest.into(),
+        }
     }
 }
 

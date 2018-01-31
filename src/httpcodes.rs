@@ -9,7 +9,14 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
+pub const HTTPAccepted: StaticResponse = StaticResponse(StatusCode::ACCEPTED);
+pub const HTTPNonAuthoritativeInformation: StaticResponse =
+    StaticResponse(StatusCode::NON_AUTHORITATIVE_INFORMATION);
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+pub const HTTPResetContent: StaticResponse = StaticResponse(StatusCode::RESET_CONTENT);
+pub const HTTPPartialContent: StaticResponse = StaticResponse(StatusCode::PARTIAL_CONTENT);
+pub const HTTPMultiStatus: StaticResponse = StaticResponse(StatusCode::MULTI_STATUS);
+pub const HTTPAlreadyReported: StaticResponse = StaticResponse(StatusCode::ALREADY_REPORTED);
 
 pub const HTTPMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
 pub const HTTPMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
@@ -23,11 +30,10 @@ pub const HTTPPermanentRedirect: StaticResponse =
     StaticResponse(StatusCode::PERMANENT_REDIRECT);
 
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
-pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
 pub const HTTPUnauthorized: StaticResponse = StaticResponse(StatusCode::UNAUTHORIZED);
 pub const HTTPPaymentRequired: StaticResponse = StaticResponse(StatusCode::PAYMENT_REQUIRED);
 pub const HTTPForbidden: StaticResponse = StaticResponse(StatusCode::FORBIDDEN);
-
+pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
 pub const HTTPMethodNotAllowed: StaticResponse =
     StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
 pub const HTTPNotAcceptable: StaticResponse = StaticResponse(StatusCode::NOT_ACCEPTABLE);
@@ -41,11 +47,28 @@ pub const HTTPPreconditionFailed: StaticResponse =
     StaticResponse(StatusCode::PRECONDITION_FAILED);
 pub const HTTPPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
 pub const HTTPUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+pub const HTTPUnsupportedMediaType: StaticResponse =
+    StaticResponse(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+pub const HTTPRangeNotSatisfiable: StaticResponse =
+    StaticResponse(StatusCode::RANGE_NOT_SATISFIABLE);
 pub const HTTPExpectationFailed: StaticResponse =
     StaticResponse(StatusCode::EXPECTATION_FAILED);
 
 pub const HTTPInternalServerError: StaticResponse =
     StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
+pub const HTTPNotImplemented: StaticResponse = StaticResponse(StatusCode::NOT_IMPLEMENTED);
+pub const HTTPBadGateway: StaticResponse = StaticResponse(StatusCode::BAD_GATEWAY);
+pub const HTTPServiceUnavailable: StaticResponse =
+    StaticResponse(StatusCode::SERVICE_UNAVAILABLE);
+pub const HTTPGatewayTimeout: StaticResponse =
+    StaticResponse(StatusCode::GATEWAY_TIMEOUT);
+pub const HTTPVersionNotSupported: StaticResponse =
+    StaticResponse(StatusCode::HTTP_VERSION_NOT_SUPPORTED);
+pub const HTTPVariantAlsoNegotiates: StaticResponse =
+    StaticResponse(StatusCode::VARIANT_ALSO_NEGOTIATES);
+pub const HTTPInsufficientStorage: StaticResponse =
+    StaticResponse(StatusCode::INSUFFICIENT_STORAGE);
+pub const HTTPLoopDetected: StaticResponse = StaticResponse(StatusCode::LOOP_DETECTED);
 
 
 #[derive(Copy, Clone, Debug)]
