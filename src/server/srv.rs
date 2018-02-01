@@ -637,14 +637,14 @@ impl<T, A, H, U, V> Handler<StopServer> for HttpServer<T, A, H, U>
         }
 
         if !self.workers.is_empty() {
-            Self::async_reply(
+            Response::async_reply(
                 rx.into_future().map(|_| ()).map_err(|_| ()).actfuture())
         } else {
             // we need to stop system if server was spawned
             if self.exit {
                 Arbiter::system().send(actix::msgs::SystemExit(0))
             }
-            Self::reply(Ok(()))
+            Response::reply(Ok(()))
         }
     }
 }

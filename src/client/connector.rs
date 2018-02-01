@@ -169,27 +169,27 @@ impl Handler<Connect> for ClientConnector {
 
         // host name is required
         if uri.host().is_none() {
-            return Self::reply(Err(ClientConnectorError::InvalidUrl))
+            return Response::reply(Err(ClientConnectorError::InvalidUrl))
         }
 
         // supported protocols
         let proto = match uri.scheme_part() {
             Some(scheme) => match Protocol::from(scheme.as_str()) {
                 Some(proto) => proto,
-                None => return Self::reply(Err(ClientConnectorError::InvalidUrl)),
+                None => return Response::reply(Err(ClientConnectorError::InvalidUrl)),
             },
-            None => return Self::reply(Err(ClientConnectorError::InvalidUrl)),
+            None => return Response::reply(Err(ClientConnectorError::InvalidUrl)),
         };
 
         // check ssl availability
         if proto.is_secure() && !HAS_OPENSSL { //&& !HAS_TLS {
-            return Self::reply(Err(ClientConnectorError::SslIsNotSupported))
+            return Response::reply(Err(ClientConnectorError::SslIsNotSupported))
         }
 
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
 
-        Self::async_reply(
+        Response::async_reply(
             Connector::from_registry()
                 .call(self, ResolveConnect::host_and_port(&host, port))
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
