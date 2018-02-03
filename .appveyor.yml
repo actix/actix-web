@@ -4,15 +4,6 @@ environment:
   matrix:
     # Stable channel
     - TARGET: i686-pc-windows-gnu
-      CHANNEL: 1.20.0
-    - TARGET: i686-pc-windows-msvc
-      CHANNEL: 1.20.0
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: 1.20.0
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: 1.20.0
-    # Stable channel
-    - TARGET: i686-pc-windows-gnu
       CHANNEL: stable
     - TARGET: i686-pc-windows-msvc
       CHANNEL: stable
