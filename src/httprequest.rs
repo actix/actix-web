@@ -195,6 +195,15 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn uri(&self) -> &Uri { &self.as_ref().uri }
 
+    #[doc(hidden)]
+    #[inline]
+    /// Modify the Request Uri.
+    ///
+    /// This might be useful for middlewares, i.e. path normalization
+    pub fn uri_mut(&mut self) -> &mut Uri {
+        &mut self.as_mut().uri
+    }
+
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method { &self.as_ref().method }
@@ -768,7 +777,7 @@ impl Future for RequestBody {
 mod tests {
     use super::*;
     use mime;
-    use http::Uri;
+    use http::{Uri, HttpTryFrom};
     use std::str::FromStr;
     use router::Pattern;
     use resource::Resource;
@@ -805,6 +814,14 @@ mod tests {
         assert_eq!(mt.get_param(mime::CHARSET), Some(mime::UTF_8));
         assert_eq!(mt.type_(), mime::APPLICATION);
         assert_eq!(mt.subtype(), mime::JSON);
+    }
+
+    #[test]
+    fn test_uri_mut() {
+        let mut req = HttpRequest::default();
+        assert_eq!(req.path(), "/");
+        *req.uri_mut() = Uri::try_from("/test").unwrap();
+        assert_eq!(req.path(), "/test");
     }
 
     #[test]
