@@ -59,4 +59,4 @@ build: false
 
 # Equivalent to Travis' `script` phase
 test_script:
-  - RUST_BACKTRACE=1 cargo test --no-default-features
+  - cargo test --no-default-features
