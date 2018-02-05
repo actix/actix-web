@@ -10,6 +10,7 @@ use std::error::Error as StdError;
 use cookie;
 use httparse;
 use futures::Canceled;
+use failure;
 use failure::{Fail, Backtrace};
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
@@ -92,6 +93,16 @@ impl<T: ResponseError> From<T> for Error {
             None
         };
         Error { cause: Box::new(err), backtrace: backtrace }
+    }
+}
+
+impl<T> ResponseError for failure::Compat<T>
+    where T: fmt::Display + fmt::Debug + Sync + Send + 'static
+{ }
+
+impl From<failure::Error> for Error {
+    fn from(err: failure::Error) -> Error {
+        Error { cause: Box::new(err.compat()), backtrace: None }
     }
 }
 
