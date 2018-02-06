@@ -10,6 +10,7 @@ use std::error::Error as StdError;
 use cookie;
 use httparse;
 use futures::Canceled;
+use failure;
 use failure::{Fail, Backtrace};
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
@@ -92,6 +93,16 @@ impl<T: ResponseError> From<T> for Error {
             None
         };
         Error { cause: Box::new(err), backtrace: backtrace }
+    }
+}
+
+impl<T> ResponseError for failure::Compat<T>
+    where T: fmt::Display + fmt::Debug + Sync + Send + 'static
+{ }
+
+impl From<failure::Error> for Error {
+    fn from(err: failure::Error) -> Error {
+        err.compat().into()
     }
 }
 
@@ -651,11 +662,13 @@ pub fn ErrorInternalServerError<T>(err: T) -> InternalError<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::error::Error as StdError;
     use std::io;
     use httparse;
     use http::{StatusCode, Error as HttpError};
     use cookie::ParseError as CookieParseError;
+    use failure;
     use super::*;
 
     #[test]
@@ -783,5 +796,19 @@ mod tests {
         from!(httparse::Error::Token => ParseError::Header);
         from!(httparse::Error::TooManyHeaders => ParseError::TooLarge);
         from!(httparse::Error::Version => ParseError::Version);
+    }
+
+    #[test]
+    fn failure_error() {
+        const NAME: &str = "RUST_BACKTRACE";
+        let old_tb = env::var(NAME);
+        env::set_var(NAME, "0");
+        let error = failure::err_msg("Hello!");
+        let resp: Error = error.into();
+        assert_eq!(format!("{:?}", resp), "Compat { error: ErrorMessage { msg: \"Hello!\" } }\n\n");
+        match old_tb {
+            Ok(x) => env::set_var(NAME, x),
+            _ => env::remove_var(NAME),
+        }
     }
 }
