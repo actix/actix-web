@@ -283,12 +283,12 @@ impl<S> Handler<S> for StaticFiles {
 
             if path.is_dir() {
                 if let Some(ref redir_index) = self.index {
-                    let mut base = Path::new(req.path()).join(relpath);
-                    base.push(redir_index);
+                    let new_path = format!("{}{}/{}",
+                        req.path(), relpath.to_string_lossy(), redir_index);
                     Ok(FilesystemElement::Redirect(
                         HTTPFound
                             .build()
-                            .header("LOCATION", base.to_string_lossy().as_ref())
+                            .header::<_, &str>("LOCATION", &new_path)
                             .finish().unwrap()))
                 } else if self.show_index {
                     Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    fn test_redirec_to_index() {
+    fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".", false).index_file("index.html");
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "guide");
