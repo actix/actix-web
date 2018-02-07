@@ -66,7 +66,7 @@ bytes = "0.4"
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
-trust-dns-resolver = "0.7"
+trust-dns-resolver = "0.8"
 
 # native-tls
 native-tls = { version="0.1", optional = true }
