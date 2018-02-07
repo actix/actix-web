@@ -6,7 +6,7 @@ workspace = "../.."
 
 [dependencies]
 env_logger = "0.5"
-actix = "0.4"
+actix = { git = "https://github.com/actix/actix.git/" }
 actix-web = { path = "../../" }
 
 futures = "0.1"
