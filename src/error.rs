@@ -4,11 +4,9 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::io::Error as IoError;
 
-#[cfg(actix_nightly)]
-use std::error::Error as StdError;
-
 use cookie;
 use httparse;
+use actix::MailboxError;
 use futures::Canceled;
 use failure;
 use failure::{Fail, Backtrace};
@@ -96,6 +94,7 @@ impl<T: ResponseError> From<T> for Error {
     }
 }
 
+/// Compatibility for `failure::Error`
 impl<T> ResponseError for failure::Compat<T>
     where T: fmt::Display + fmt::Debug + Sync + Send + 'static
 { }
@@ -103,14 +102,6 @@ impl<T> ResponseError for failure::Compat<T>
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
         err.compat().into()
-    }
-}
-
-/// Default error is `InternalServerError`
-#[cfg(actix_nightly)]
-default impl<T: StdError + Sync + Send + 'static> ResponseError for T {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
     }
 }
 
@@ -144,6 +135,9 @@ impl ResponseError for header::InvalidHeaderValue {}
 
 /// `InternalServerError` for `futures::Canceled`
 impl ResponseError for Canceled {}
+
+/// `InternalServerError` for `actix::MailboxError`
+impl ResponseError for MailboxError {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]

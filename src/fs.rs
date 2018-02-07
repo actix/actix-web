@@ -283,12 +283,18 @@ impl<S> Handler<S> for StaticFiles {
 
             if path.is_dir() {
                 if let Some(ref redir_index) = self.index {
-                    let mut base = Path::new(req.path()).join(relpath);
-                    base.push(redir_index);
+                    // TODO: Don't redirect, just return the index content.
+                    // TODO: It'd be nice if there were a good usable URL manipulation library
+                    let mut new_path: String = req.path().to_owned();
+                    for el in relpath.iter() {
+                        new_path.push_str(&el.to_string_lossy());
+                        new_path.push('/');
+                    }
+                    new_path.push_str(redir_index);
                     Ok(FilesystemElement::Redirect(
                         HTTPFound
                             .build()
-                            .header("LOCATION", base.to_string_lossy().as_ref())
+                            .header::<_, &str>("LOCATION", &new_path)
                             .finish().unwrap()))
                 } else if self.show_index {
                     Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
@@ -340,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn test_redirec_to_index() {
+    fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".", false).index_file("index.html");
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "guide");
@@ -348,5 +354,23 @@ mod tests {
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/guide/index.html");
+
+        let mut req = HttpRequest::default();
+        req.match_info_mut().add("tail", "guide/");
+
+        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/guide/index.html");
+    }
+
+    #[test]
+    fn test_redirect_to_index_nested() {
+        let mut st = StaticFiles::new(".", false).index_file("Cargo.toml");
+        let mut req = HttpRequest::default();
+        req.match_info_mut().add("tail", "examples/basics");
+
+        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/examples/basics/Cargo.toml");
     }
 }
