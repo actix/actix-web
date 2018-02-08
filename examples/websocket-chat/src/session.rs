@@ -1,10 +1,12 @@
 //! `ClientSession` is an actor, it manages peer tcp connection and
 //! proxies commands from peer to `ChatServer`.
-use std::net;
+use std::{io, net};
 use std::str::FromStr;
 use std::time::{Instant, Duration};
 use futures::Stream;
 use tokio_io::AsyncRead;
+use tokio_io::io::WriteHalf;
+use tokio_io::codec::FramedRead;
 use tokio_core::net::{TcpStream, TcpListener};
 
 use actix::prelude::*;
@@ -28,7 +30,7 @@ pub struct ChatSession {
     /// joined room
     room: String,
     /// Framed wrapper
-    framed: FramedWriter<TcpStream, ChatCodec>,
+    framed: actix::io::FramedWrite<WriteHalf<TcpStream>, ChatCodec>,
 }
 
 impl Actor for ChatSession {
@@ -62,8 +64,10 @@ impl Actor for ChatSession {
     }
 }
 
+impl actix::io::WriteHandler<io::Error> for ChatSession {}
+
 /// To use `Framed` we have to define Io type and Codec
-impl StreamHandler<ChatRequest, FramedError<ChatCodec>> for ChatSession {
+impl StreamHandler<ChatRequest, io::Error> for ChatSession {
 
     /// This is main event loop for client requests
     fn handle(&mut self, msg: ChatRequest, ctx: &mut Context<Self>) {
@@ -74,7 +78,7 @@ impl StreamHandler<ChatRequest, FramedError<ChatCodec>> for ChatSession {
                 self.addr.call(self, server::ListRooms).then(|res, act, ctx| {
                     match res {
                         Ok(Ok(rooms)) => {
-                            let _ = act.framed.send(ChatResponse::Rooms(rooms));
+                            act.framed.write(ChatResponse::Rooms(rooms));
                         },
                         _ => println!("Something is wrong"),
                     }
@@ -87,7 +91,7 @@ impl StreamHandler<ChatRequest, FramedError<ChatCodec>> for ChatSession {
                 println!("Join to room: {}", name);
                 self.room = name.clone();
                 self.addr.send(server::Join{id: self.id, name: name.clone()});
-                let _ = self.framed.send(ChatResponse::Joined(name));
+                self.framed.write(ChatResponse::Joined(name));
             },
             ChatRequest::Message(message) => {
                 // send message to chat server
@@ -110,7 +114,7 @@ impl Handler<Message> for ChatSession {
 
     fn handle(&mut self, msg: Message, ctx: &mut Context<Self>) {
         // send message to peer
-        let _ = self.framed.send(ChatResponse::Message(msg.0));
+        self.framed.write(ChatResponse::Message(msg.0));
     }
 }
 
@@ -118,7 +122,7 @@ impl Handler<Message> for ChatSession {
 impl ChatSession {
 
     pub fn new(addr: SyncAddress<ChatServer>,
-               framed: FramedWriter<TcpStream, ChatCodec>) -> ChatSession {
+               framed: actix::io::FramedWrite<WriteHalf<TcpStream>, ChatCodec>) -> ChatSession {
         ChatSession {id: 0, addr: addr, hb: Instant::now(),
                      room: "Main".to_owned(), framed: framed}
     }
@@ -140,7 +144,7 @@ impl ChatSession {
                 ctx.stop();
             }
 
-            act.framed.send(ChatResponse::Ping);
+            act.framed.write(ChatResponse::Ping);
             // if we can not send message to sink, sink is closed (disconnected)
             act.hb(ctx);
         });
@@ -191,10 +195,10 @@ impl Handler<TcpConnect> for TcpServer {
         // For each incoming connection we create `ChatSession` actor
         // with out chat server address.
         let server = self.chat.clone();
-        let _: () = ChatSession::create(|mut ctx| {
-            let (reader, writer) = FramedReader::wrap(msg.0.framed(ChatCodec));
-            ChatSession::add_stream(reader, &mut ctx);
-            ChatSession::new(server, writer)
+        let _: () = ChatSession::create(|ctx| {
+            let (r, w) = msg.0.split();
+            ChatSession::add_stream(FramedRead::new(r, ChatCodec), ctx);
+            ChatSession::new(server, actix::io::FramedWrite::new(w, ChatCodec, ctx))
         });
     }
 }
