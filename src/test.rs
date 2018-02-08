@@ -87,7 +87,7 @@ impl TestServer {
             let local_addr = tcp.local_addr().unwrap();
             let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
 
-            HttpServer::new(factory).start_incoming(tcp.incoming(), false);
+            HttpServer::new(factory).disable_signals().start_incoming(tcp.incoming(), false);
 
             tx.send((Arbiter::system(), local_addr)).unwrap();
             let _ = sys.run();
@@ -124,7 +124,7 @@ impl TestServer {
                 let mut app = TestApp::new(state());
                 config(&mut app);
                 app}
-            ).start_incoming(tcp.incoming(), false);
+            ).disable_signals().start_incoming(tcp.incoming(), false);
 
             tx.send((Arbiter::system(), local_addr)).unwrap();
             let _ = sys.run();
