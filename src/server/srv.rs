@@ -314,7 +314,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into_subscriber())));
+                signal::Subscribe(addr.clone().into())));
             addr
         }
     }
@@ -484,7 +484,7 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
             self
         });
         signals.map(|signals| signals.send(
-            signal::Subscribe(addr.clone().into_subscriber())));
+            signal::Subscribe(addr.clone().into())));
         addr
     }
 }
@@ -668,7 +668,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
         const CMD: mio::Token = mio::Token(1);
 
         let mut server = Some(
-            mio::net::TcpListener::from_listener(sock, &addr)
+            mio::net::TcpListener::from_std(sock)
                 .expect("Can not create mio::net::TcpListener"));
 
         // Create a poll instance
@@ -737,7 +737,7 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                                     .expect("Can not create net::TcpListener");
 
                                 server = Some(
-                                    mio::net::TcpListener::from_listener(lst, &addr)
+                                    mio::net::TcpListener::from_std(lst)
                                         .expect("Can not create mio::net::TcpListener"));
 
                                 if let Some(ref server) = server {
