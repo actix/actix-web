@@ -4,8 +4,9 @@ use std::net::{SocketAddr, Shutdown};
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use actix::{fut, Actor, ActorFuture, Arbiter, ArbiterService, Context,
+use actix::{fut, Actor, ActorFuture, Arbiter, Context,
             Handler, Response, ResponseType, Supervised};
+use actix::registry::ArbiterService;
 use actix::fut::WrapFuture;
 use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
 
