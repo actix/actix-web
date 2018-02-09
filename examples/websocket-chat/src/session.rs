@@ -46,7 +46,7 @@ impl Actor for ChatSession {
         // future within context, but context waits until this future resolves
         // before processing any other events.
         let addr: SyncAddress<_> = ctx.address();
-        self.addr.call(self, server::Connect{addr: addr.into_subscriber()})
+        self.addr.call(self, server::Connect{addr: addr.into()})
             .then(|res, act, ctx| {
                 match res {
                     Ok(Ok(res)) => act.id = res,

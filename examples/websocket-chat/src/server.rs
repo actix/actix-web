@@ -13,7 +13,7 @@ use session;
 
 /// New chat session is created
 pub struct Connect {
-    pub addr: Box<actix::Subscriber<session::Message> + Send>,
+    pub addr: SyncSubscriber<session::Message>,
 }
 
 /// Response type for Connect message
@@ -61,7 +61,7 @@ pub struct Join {
 /// `ChatServer` manages chat rooms and responsible for coordinating chat session.
 /// implementation is super primitive
 pub struct ChatServer {
-    sessions: HashMap<usize, Box<actix::Subscriber<session::Message> + Send>>,
+    sessions: HashMap<usize, SyncSubscriber<session::Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: RefCell<ThreadRng>,
 }

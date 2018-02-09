@@ -64,7 +64,7 @@ impl Actor for WsChatSession {
         // routes within application
         let addr: SyncAddress<_> = ctx.address();
         ctx.state().addr.call(
-            self, server::Connect{addr: addr.into_subscriber()}).then(
+            self, server::Connect{addr: addr.into()}).then(
             |res, act, ctx| {
                 match res {
                     Ok(Ok(res)) => act.id = res,
