@@ -387,7 +387,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into_subscriber())));
+                signal::Subscribe(addr.clone().into())));
             Ok(addr)
         }
     }
@@ -433,7 +433,7 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into_subscriber())));
+                signal::Subscribe(addr.clone().into())));
             Ok(addr)
         }
     }
