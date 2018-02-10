@@ -87,7 +87,7 @@ impl Handler<session::Message> for WsChatSession {
     type Result = ();
 
     fn handle(&mut self, msg: session::Message, ctx: &mut Self::Context) {
-        ctx.text(&msg.0);
+        ctx.text(msg.0);
     }
 }
 
@@ -113,7 +113,7 @@ impl Handler<ws::Message> for WsChatSession {
                                 match res {
                                     Ok(Ok(rooms)) => {
                                         for room in rooms {
-                                            ctx.text(&room);
+                                            ctx.text(room);
                                         }
                                     },
                                     _ => println!("Something is wrong"),
@@ -142,7 +142,7 @@ impl Handler<ws::Message> for WsChatSession {
                                 ctx.text("!!! name is required");
                             }
                         },
-                        _ => ctx.text(&format!("!!! unknown command: {:?}", m)),
+                        _ => ctx.text(format!("!!! unknown command: {:?}", m)),
                     }
                 } else {
                     let msg = if let Some(ref name) = self.name {
