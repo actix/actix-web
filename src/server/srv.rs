@@ -2,7 +2,6 @@ use std::{io, net, thread};
 use std::rc::Rc;
 use std::sync::{Arc, mpsc as sync_mpsc};
 use std::time::Duration;
-use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use actix::prelude::*;
@@ -21,7 +20,7 @@ use native_tls::TlsAcceptor;
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
 use helpers;
-use super::{HttpHandler, IntoHttpHandler, IoStream};
+use super::{IntoHttpHandler, IoStream};
 use super::{PauseServer, ResumeServer, StopServer};
 use super::channel::{HttpChannel, WrapperStream};
 use super::worker::{Conn, Worker, StreamHandlerType, StopWorker};
@@ -35,17 +34,15 @@ use super::settings::{ServerSettings, WorkerSettings};
 /// `A` - peer address
 ///
 /// `H` - request handler
-pub struct HttpServer<A, H, U>
-    where H: HttpHandler + 'static
+pub struct HttpServer<H> where H: IntoHttpHandler + 'static
 {
-    h: Option<Rc<WorkerSettings<H>>>,
-    addr: PhantomData<A>,
+    h: Option<Rc<WorkerSettings<H::Handler>>>,
     threads: usize,
     backlog: i32,
     host: Option<String>,
     keep_alive: Option<u64>,
-    factory: Arc<Fn() -> U + Send + Sync>,
-    workers: Vec<SyncAddress<Worker<H>>>,
+    factory: Arc<Fn() -> Vec<H> + Send + Sync>,
+    workers: Vec<SyncAddress<Worker<H::Handler>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
@@ -54,15 +51,11 @@ pub struct HttpServer<A, H, U>
     no_signals: bool,
 }
 
-unsafe impl<A, H, U> Sync for HttpServer<A, H, U> where H: HttpHandler + 'static {}
-unsafe impl<A, H, U> Send for HttpServer<A, H, U> where H: HttpHandler + 'static {}
+unsafe impl<H> Sync for HttpServer<H> where H: IntoHttpHandler {}
+unsafe impl<H> Send for HttpServer<H> where H: IntoHttpHandler {}
 
 
-impl<A, H, U, V> Actor for HttpServer<A, H, U>
-    where A: 'static,
-          H: HttpHandler,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H> Actor for HttpServer<H> where H: IntoHttpHandler
 {
     type Context = Context<Self>;
 
@@ -71,23 +64,23 @@ impl<A, H, U, V> Actor for HttpServer<A, H, U>
     }
 }
 
-impl<A, H, U, V> HttpServer<A, H, U>
-    where A: 'static,
-          H: HttpHandler,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
 {
     /// Create new http server with application factory
-    pub fn new<F>(factory: F) -> Self
-        where F: Sync + Send + 'static + Fn() -> U,
+    pub fn new<F, U>(factory: F) -> Self
+        where F: Fn() -> U + Sync + Send + 'static,
+              U: IntoIterator<Item=H> + 'static,
     {
+        let f = move || {
+            (factory)().into_iter().collect()
+        };
+        
         HttpServer{ h: None,
-                    addr: PhantomData,
                     threads: num_cpus::get(),
                     backlog: 2048,
                     host: None,
                     keep_alive: None,
-                    factory: Arc::new(factory),
+                    factory: Arc::new(f),
                     workers: Vec::new(),
                     sockets: HashMap::new(),
                     accept: Vec::new(),
@@ -253,9 +246,7 @@ impl<A, H, U, V> HttpServer<A, H, U>
     }
 }
 
-impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
-    where U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming connections.
     ///
@@ -345,9 +336,7 @@ impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
 }
 
 #[cfg(feature="tls")]
-impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
-    where U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming tls connections.
     pub fn start_tls(mut self, pkcs12: ::Pkcs12) -> io::Result<SyncAddress<Self>> {
@@ -385,9 +374,7 @@ impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
 }
 
 #[cfg(feature="alpn")]
-impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
-    where U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming tls connections.
     ///
@@ -430,18 +417,15 @@ impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
     }
 }
 
-impl<A, H, U, V> HttpServer<A, H, U>
-    where A: 'static,
-          H: HttpHandler,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
+impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
+    pub fn start_incoming<T, A, S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
         where S: Stream<Item=(T, A), Error=io::Error> + 'static,
               T: AsyncRead + AsyncWrite + 'static,
+              A: 'static
     {
         if !self.sockets.is_empty() {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
@@ -461,8 +445,7 @@ impl<A, H, U, V> HttpServer<A, H, U>
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let settings = ServerSettings::new(Some(addr), &self.host, secure);
         let apps: Vec<_> = (*self.factory)()
-            .into_iter()
-            .map(|h| h.into_handler(settings.clone())).collect();
+            .into_iter().map(|h| h.into_handler(settings.clone())).collect();
         self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
 
         // start server
@@ -483,11 +466,7 @@ impl<A, H, U, V> HttpServer<A, H, U>
 /// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
 /// message to `System` actor.
-impl<A, H, U, V> Handler<signal::Signal> for HttpServer<A, H, U>
-    where H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H>
 {
     type Result = ();
 
@@ -513,12 +492,9 @@ impl<A, H, U, V> Handler<signal::Signal> for HttpServer<A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<A, H, U>
+impl<T, H> Handler<io::Result<Conn<T>>> for HttpServer<H>
     where T: IoStream,
-          H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+          H: IntoHttpHandler,
 {
     type Result = ();
 
@@ -534,12 +510,9 @@ impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<A, H, U>
+impl<T, H> Handler<Conn<T>> for HttpServer<H>
     where T: IoStream,
-          H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+          H: IntoHttpHandler,
 {
     type Result = ();
 
@@ -550,11 +523,7 @@ impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<A, H, U>
     }
 }
 
-impl<A, H, U, V> Handler<PauseServer> for HttpServer<A, H, U>
-    where H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+impl<H: IntoHttpHandler> Handler<PauseServer> for HttpServer<H>
 {
     type Result = ();
 
@@ -567,11 +536,7 @@ impl<A, H, U, V> Handler<PauseServer> for HttpServer<A, H, U>
     }
 }
 
-impl<A, H, U, V> Handler<ResumeServer> for HttpServer<A, H, U>
-    where H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+impl<H: IntoHttpHandler> Handler<ResumeServer> for HttpServer<H>
 {
     type Result = ();
 
@@ -583,11 +548,7 @@ impl<A, H, U, V> Handler<ResumeServer> for HttpServer<A, H, U>
     }
 }
 
-impl<A, H, U, V> Handler<StopServer> for HttpServer<A, H, U>
-    where H: HttpHandler + 'static,
-          U: IntoIterator<Item=V> + 'static,
-          V: IntoHttpHandler<Handler=H>,
-          A: 'static,
+impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
 {
     type Result = actix::Response<Self, StopServer>;
 

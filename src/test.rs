@@ -24,7 +24,7 @@ use router::Router;
 use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use server::{HttpServer, HttpHandler, IntoHttpHandler, ServerSettings};
+use server::{HttpServer, IntoHttpHandler, ServerSettings};
 use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 
 /// The `TestServer` type.
@@ -72,11 +72,10 @@ impl TestServer {
     }
 
     /// Start new test server with application factory
-    pub fn with_factory<H, F, U, V>(factory: F) -> Self
-        where H: HttpHandler,
-              F: Sync + Send + 'static + Fn() -> U,
-              U: IntoIterator<Item=V> + 'static,
-              V: IntoHttpHandler<Handler=H>,
+    pub fn with_factory<F, U, H>(factory: F) -> Self
+        where F: Fn() -> U + Sync + Send + 'static,
+              U: IntoIterator<Item=H> + 'static,
+              H: IntoHttpHandler + 'static,
     {
         let (tx, rx) = mpsc::channel();
 
@@ -123,7 +122,7 @@ impl TestServer {
             HttpServer::new(move || {
                 let mut app = TestApp::new(state());
                 config(&mut app);
-                app}
+                vec![app]}
             ).disable_signals().start_incoming(tcp.incoming(), false);
 
             tx.send((Arbiter::system(), local_addr)).unwrap();
