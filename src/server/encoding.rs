@@ -94,6 +94,7 @@ impl PayloadType {
 }
 
 impl PayloadWriter for PayloadType {
+    #[inline]
     fn set_error(&mut self, err: PayloadError) {
         match *self {
             PayloadType::Sender(ref mut sender) => sender.set_error(err),
@@ -101,6 +102,7 @@ impl PayloadWriter for PayloadType {
         }
     }
 
+    #[inline]
     fn feed_eof(&mut self) {
         match *self {
             PayloadType::Sender(ref mut sender) => sender.feed_eof(),
@@ -108,6 +110,7 @@ impl PayloadWriter for PayloadType {
         }
     }
 
+    #[inline]
     fn feed_data(&mut self, data: Bytes) {
         match *self {
             PayloadType::Sender(ref mut sender) => sender.feed_data(data),
@@ -115,6 +118,7 @@ impl PayloadWriter for PayloadType {
         }
     }
 
+    #[inline]
     fn capacity(&self) -> usize {
         match *self {
             PayloadType::Sender(ref sender) => sender.capacity(),

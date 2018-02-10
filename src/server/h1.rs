@@ -16,7 +16,7 @@ use pipeline::Pipeline;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
-use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
+use payload::{Payload, PayloadWriter};
 
 use super::{utils, Writer};
 use super::h1writer::H1Writer;
@@ -319,7 +319,6 @@ struct Reader {
 }
 
 enum Decoding {
-    Paused,
     Ready,
     NotReady,
 }
@@ -343,61 +342,76 @@ impl Reader {
         }
     }
 
-    fn decode(&mut self, buf: &mut BytesMut) -> std::result::Result<Decoding, ReaderError> {
-        if let Some(ref mut payload) = self.payload {
-            if payload.tx.capacity() > DEFAULT_BUFFER_SIZE {
-                return Ok(Decoding::Paused)
-            }
-            loop {
-                match payload.decoder.decode(buf) {
-                    Ok(Async::Ready(Some(bytes))) => {
-                        payload.tx.feed_data(bytes)
-                    },
-                    Ok(Async::Ready(None)) => {
-                        payload.tx.feed_eof();
-                        return Ok(Decoding::Ready)
-                    },
-                    Ok(Async::NotReady) => return Ok(Decoding::NotReady),
-                    Err(err) => {
-                        payload.tx.set_error(err.into());
-                        return Err(ReaderError::Payload)
-                    }
+    #[inline]
+    fn decode(&mut self, buf: &mut BytesMut, payload: &mut PayloadInfo)
+              -> std::result::Result<Decoding, ReaderError>
+    {
+        loop {
+            match payload.decoder.decode(buf) {
+                Ok(Async::Ready(Some(bytes))) => {
+                    payload.tx.feed_data(bytes)
+                },
+                Ok(Async::Ready(None)) => {
+                    payload.tx.feed_eof();
+                    return Ok(Decoding::Ready)
+                },
+                Ok(Async::NotReady) => return Ok(Decoding::NotReady),
+                Err(err) => {
+                    payload.tx.set_error(err.into());
+                    return Err(ReaderError::Payload)
                 }
             }
-        } else {
-            return Ok(Decoding::Ready)
         }
     }
-    
+
     pub fn parse<T, H>(&mut self, io: &mut T,
                        buf: &mut BytesMut,
                        settings: &WorkerSettings<H>) -> Poll<HttpRequest, ReaderError>
         where T: IoStream
     {
         // read payload
-        if self.payload.is_some() {
-            match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    if let Some(ref mut payload) = self.payload {
-                        payload.tx.set_error(PayloadError::Incomplete);
-                    }
-                    // http channel should not deal with payload errors
-                    return Err(ReaderError::Payload)
-                },
-                Err(err) => {
-                    if let Some(ref mut payload) = self.payload {
-                        payload.tx.set_error(err.into());
-                    }
-                    // http channel should not deal with payload errors
-                    return Err(ReaderError::Payload)
+        let done = {
+            if let Some(ref mut payload) = self.payload {
+                if payload.tx.capacity() == 0 {
+                    return Ok(Async::NotReady)
                 }
-                _ => (),
+                match utils::read_from_io(io, buf) {
+                    Ok(Async::Ready(0)) => {
+                        payload.tx.set_error(PayloadError::Incomplete);
+
+                        // http channel should not deal with payload errors
+                        return Err(ReaderError::Payload)
+                    },
+                    Err(err) => {
+                        payload.tx.set_error(err.into());
+
+                        // http channel should not deal with payload errors
+                        return Err(ReaderError::Payload)
+                    }
+                    _ => (),
+                }
+                loop {
+                    match payload.decoder.decode(buf) {
+                        Ok(Async::Ready(Some(bytes))) => {
+                            payload.tx.feed_data(bytes)
+                        },
+                        Ok(Async::Ready(None)) => {
+                            payload.tx.feed_eof();
+                            break true
+                        },
+                        Ok(Async::NotReady) =>
+                            break false,
+                        Err(err) => {
+                            payload.tx.set_error(err.into());
+                            return Err(ReaderError::Payload)
+                        }
+                    }
+                }
+            } else {
+                false
             }
-            match self.decode(buf)? {
-                Decoding::Ready => self.payload = None,
-                Decoding::Paused | Decoding::NotReady => return Ok(Async::NotReady),
-            }
-        }
+        };
+        if done { self.payload = None }
 
         // if buf is empty parse_message will always return NotReady, let's avoid that
         let read = if buf.is_empty() {
@@ -421,11 +435,10 @@ impl Reader {
             match Reader::parse_message(buf, settings).map_err(ReaderError::Error)? {
                 Async::Ready((msg, decoder)) => {
                     // process payload
-                    if let Some(payload) = decoder {
-                        self.payload = Some(payload);
-                        match self.decode(buf)? {
-                            Decoding::Paused | Decoding::NotReady => (),
-                            Decoding::Ready => self.payload = None,
+                    if let Some(mut payload) = decoder {
+                        match self.decode(buf, &mut payload)? {
+                            Decoding::Ready => (),
+                            Decoding::NotReady => self.payload = Some(payload),
                         }
                     }
                     return Ok(Async::Ready(msg));

@@ -260,6 +260,7 @@ impl PayloadWriter for PayloadSender {
         }
     }
 
+    #[inline]
     fn capacity(&self) -> usize {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow().capacity()
@@ -327,10 +328,10 @@ impl Inner {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             Ok(Async::Ready(Some(PayloadItem(data))))
-        } else if self.eof {
-            Ok(Async::Ready(None))
         } else if let Some(err) = self.err.take() {
             Err(err)
+        } else if self.eof {
+            Ok(Async::Ready(None))
         } else {
             self.task = Some(current_task());
             Ok(Async::NotReady)
@@ -439,6 +440,7 @@ impl Inner {
         self.items.push_front(data);
     }
 
+    #[inline]
     fn capacity(&self) -> usize {
         if self.len > self.buf_size {
             0
