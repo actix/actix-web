@@ -6,15 +6,14 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use net2::TcpStreamExt;
 
-#[cfg(feature="tls")]
+#[cfg(any(feature="tls", feature="alpn"))]
 use futures::future;
+
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
 #[cfg(feature="tls")]
 use tokio_tls::TlsAcceptorExt;
 
-#[cfg(feature="alpn")]
-use futures::future;
 #[cfg(feature="alpn")]
 use openssl::ssl::SslAcceptor;
 #[cfg(feature="alpn")]
