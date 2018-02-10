@@ -214,7 +214,7 @@ impl Stream for WsStream {
         }
 
         loop {
-            match Frame::parse(&mut self.buf) {
+            match Frame::parse(&mut self.buf, true) {
                 Ok(Some(frame)) => {
                     // trace!("WsFrame {}", frame);
                     let (_finished, opcode, payload) = frame.unpack();

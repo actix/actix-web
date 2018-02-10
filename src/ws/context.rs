@@ -14,7 +14,7 @@ use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 use context::{Frame as ContextFrame, ActorHttpContext, Drain};
 
-use ws::frame::Frame;
+use ws::frame::{Frame, FrameData};
 use ws::proto::{OpCode, CloseCode};
 
 
@@ -105,9 +105,21 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Write payload
     #[inline]
-    fn write<B: Into<Binary>>(&mut self, data: B) {
+    fn write(&mut self, data: FrameData) {
         if !self.disconnected {
-            self.add_frame(ContextFrame::Chunk(Some(data.into())));
+            if self.stream.is_none() {
+                self.stream = Some(SmallVec::new());
+            }
+            let stream = self.stream.as_mut().unwrap();
+
+            match data {
+                FrameData::Complete(data) =>
+                    stream.push(ContextFrame::Chunk(Some(data))),
+                FrameData::Split(headers, payload) => {
+                    stream.push(ContextFrame::Chunk(Some(headers)));
+                    stream.push(ContextFrame::Chunk(Some(payload)));
+                }
+            }
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -126,47 +138,33 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     }
 
     /// Send text frame
+    #[inline]
     pub fn text(&mut self, text: &str) {
-        let mut frame = Frame::message(Vec::from(text), OpCode::Text, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(text), OpCode::Text, true).generate(false));
     }
 
     /// Send binary frame
+    #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        let mut frame = Frame::message(data, OpCode::Binary, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(data, OpCode::Binary, true).generate(false));
     }
 
     /// Send ping frame
+    #[inline]
     pub fn ping(&mut self, message: &str) {
-        let mut frame = Frame::message(Vec::from(message), OpCode::Ping, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true).generate(false));
     }
 
     /// Send pong frame
+    #[inline]
     pub fn pong(&mut self, message: &str) {
-        let mut frame = Frame::message(Vec::from(message), OpCode::Pong, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true).generate(false));
     }
 
     /// Send close frame
+    #[inline]
     pub fn close(&mut self, code: CloseCode, reason: &str) {
-        let mut frame = Frame::close(code, reason);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-        self.write(buf);
+        self.write(Frame::close(code, reason).generate(false));
     }
 
     /// Returns drain future
@@ -183,6 +181,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
         !self.disconnected
     }
 
+    #[inline]
     fn add_frame(&mut self, frame: ContextFrame) {
         if self.stream.is_none() {
             self.stream = Some(SmallVec::new());

@@ -29,7 +29,7 @@ use client::{Connect, Connection, ClientConnector, ClientConnectorError};
 
 use super::Message;
 use super::proto::{CloseCode, OpCode};
-use super::frame::Frame;
+use super::frame::{Frame, FrameData};
 
 pub type WsClientFuture =
     Future<Item=(WsClientReader, WsClientWriter), Error=WsClientError>;
@@ -371,7 +371,7 @@ impl Stream for WsClientReader {
         let _ = inner.writer.poll_completed(&mut inner.conn, false);
 
         // read
-        match Frame::parse(&mut inner.parser_buf) {
+        match Frame::parse(&mut inner.parser_buf, false) {
             Ok(Some(frame)) => {
                 // trace!("WsFrame {}", frame);
                 let (_finished, opcode, payload) = frame.unpack();
@@ -444,55 +444,49 @@ impl WsClientWriter {
 
     /// Write payload
     #[inline]
-    fn write<B: Into<Binary>>(&mut self, data: B) {
+    fn write(&mut self, data: FrameData) {
         if !self.as_mut().closed {
-            let _ = self.as_mut().writer.write(&data.into());
+            match data {
+                FrameData::Complete(data) => {
+                    let _ = self.as_mut().writer.write(&data);
+                },
+                FrameData::Split(headers, payload) => {
+                    let _ = self.as_mut().writer.write(&headers);
+                    let _ = self.as_mut().writer.write(&payload);
+                }
+            }
         } else {
             warn!("Trying to write to disconnected response");
         }
     }
 
     /// Send text frame
+    #[inline]
     pub fn text(&mut self, text: &str) {
-        let mut frame = Frame::message(Vec::from(text), OpCode::Text, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(text), OpCode::Text, true).generate(true));
     }
 
     /// Send binary frame
+    #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        let mut frame = Frame::message(data, OpCode::Binary, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(data, OpCode::Binary, true).generate(true));
     }
 
     /// Send ping frame
+    #[inline]
     pub fn ping(&mut self, message: &str) {
-        let mut frame = Frame::message(Vec::from(message), OpCode::Ping, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true).generate(true));
     }
 
     /// Send pong frame
+    #[inline]
     pub fn pong(&mut self, message: &str) {
-        let mut frame = Frame::message(Vec::from(message), OpCode::Pong, true);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-
-        self.write(buf);
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true).generate(true));
     }
 
     /// Send close frame
+    #[inline]
     pub fn close(&mut self, code: CloseCode, reason: &str) {
-        let mut frame = Frame::close(code, reason);
-        let mut buf = Vec::new();
-        frame.format(&mut buf).unwrap();
-        self.write(buf);
+        self.write(Frame::close(code, reason).generate(true));
     }
 }
