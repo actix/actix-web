@@ -2,6 +2,7 @@ use std::{fmt, mem};
 use std::io::{Write, Error, ErrorKind};
 use std::iter::FromIterator;
 use bytes::BytesMut;
+use byteorder::{ByteOrder, BigEndian};
 
 use body::Binary;
 use ws::proto::{OpCode, CloseCode};
@@ -39,7 +40,6 @@ impl Frame {
                 header_length += 8;
             }
         }
-
         if self.mask.is_some() {
             header_length += 4;
         }
@@ -84,136 +84,107 @@ impl Frame {
     /// Parse the input stream into a frame.
     pub fn parse(buf: &mut BytesMut) -> Result<Option<Frame>, Error> {
         let mut idx = 2;
+        let mut size = buf.len();
 
-        let (frame, length) = {
-            let mut size = buf.len();
+        if size < 2 {
+            return Ok(None)
+        }
+        size -= 2;
+        let first = buf[0];
+        let second = buf[1];
+        let finished = first & 0x80 != 0;
 
+        let rsv1 = first & 0x40 != 0;
+        let rsv2 = first & 0x20 != 0;
+        let rsv3 = first & 0x10 != 0;
+        let opcode = OpCode::from(first & 0x0F);
+        let masked = second & 0x80 != 0;
+        let len = second & 0x7F;
+
+        let length = if len == 126 {
             if size < 2 {
                 return Ok(None)
             }
-            let mut head = [0u8; 2];
+            let len = u64::from(BigEndian::read_u16(&buf[idx..]));
             size -= 2;
-            head.copy_from_slice(&buf[..2]);
-
-            trace!("Parsed headers {:?}", head);
-
-            let first = head[0];
-            let second = head[1];
-            trace!("First: {:b}", first);
-            trace!("Second: {:b}", second);
-
-            let finished = first & 0x80 != 0;
-
-            let rsv1 = first & 0x40 != 0;
-            let rsv2 = first & 0x20 != 0;
-            let rsv3 = first & 0x10 != 0;
-
-            let opcode = OpCode::from(first & 0x0F);
-            trace!("Opcode: {:?}", opcode);
-
-            let masked = second & 0x80 != 0;
-            trace!("Masked: {:?}", masked);
-
-            let mut header_length = 2;
-            let mut length = u64::from(second & 0x7F);
-
-            if length == 126 {
-                if size < 2 {
-                    return Ok(None)
-                }
-                let mut length_bytes = [0u8; 2];
-                length_bytes.copy_from_slice(&buf[idx..idx+2]);
-                size -= 2;
-                idx += 2;
-
-                length = u64::from(unsafe{
-                    let mut wide: u16 = mem::transmute(length_bytes);
-                    wide = u16::from_be(wide);
-                    wide});
-                header_length += 2;
-            } else if length == 127 {
-                if size < 8 {
-                    return Ok(None)
-                }
-                let mut length_bytes = [0u8; 8];
-                length_bytes.copy_from_slice(&buf[idx..idx+8]);
-                size -= 8;
-                idx += 8;
-
-                unsafe { length = mem::transmute(length_bytes); }
-                length = u64::from_be(length);
-                header_length += 8;
-            }
-            trace!("Payload length: {}", length);
-
-            let mask = if masked {
-                let mut mask_bytes = [0u8; 4];
-                if size < 4 {
-                    return Ok(None)
-                } else {
-                    header_length += 4;
-                    size -= 4;
-                    mask_bytes.copy_from_slice(&buf[idx..idx+4]);
-                    idx += 4;
-                    Some(mask_bytes)
-                }
-            } else {
-                None
-            };
-
-            let length = length as usize;
-            if size < length {
+            idx += 2;
+            len
+        } else if len == 127 {
+            if size < 8 {
                 return Ok(None)
             }
+            let len = BigEndian::read_u64(&buf[idx..]);
+            size -= 8;
+            idx += 8;
+            len
+        } else {
+            u64::from(len)
+        };
 
-            let mut data = Vec::with_capacity(length);
-            if length > 0 {
-                data.extend_from_slice(&buf[idx..idx+length]);
+        let mask = if masked {
+            let mut mask_bytes = [0u8; 4];
+            if size < 4 {
+                return Ok(None)
+            } else {
+                size -= 4;
+                mask_bytes.copy_from_slice(&buf[idx..idx+4]);
+                idx += 4;
+                Some(mask_bytes)
             }
+        } else {
+            None
+        };
 
-            // Disallow bad opcode
-            if let OpCode::Bad = opcode {
+        let length = length as usize;
+        if size < length {
+            return Ok(None)
+        }
+
+        // get body
+        buf.split_to(idx);
+        let mut data = if length > 0 {
+            buf.split_to(length)
+        } else {
+            BytesMut::new()
+        };
+
+        // Disallow bad opcode
+        if let OpCode::Bad = opcode {
+            return Err(
+                Error::new(
+                    ErrorKind::Other,
+                    format!("Encountered invalid opcode: {}", first & 0x0F)))
+        }
+
+        // control frames must have length <= 125
+        match opcode {
+            OpCode::Ping | OpCode::Pong if length > 125 => {
                 return Err(
                     Error::new(
                         ErrorKind::Other,
-                        format!("Encountered invalid opcode: {}", first & 0x0F)))
+                        format!("Rejected WebSocket handshake.Received control frame with length: {}.", length)))
             }
-
-            // control frames must have length <= 125
-            match opcode {
-                OpCode::Ping | OpCode::Pong if length > 125 => {
-                    return Err(
-                        Error::new(
-                            ErrorKind::Other,
-                            format!("Rejected WebSocket handshake.Received control frame with length: {}.", length)))
-                }
-                OpCode::Close if length > 125 => {
-                    debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                    return Ok(Some(Frame::close(CloseCode::Protocol, "Received close frame with payload length exceeding 125.")))
-                }
-                _ => ()
+            OpCode::Close if length > 125 => {
+                debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
+                return Ok(Some(Frame::close(CloseCode::Protocol, "Received close frame with payload length exceeding 125.")))
             }
+            _ => ()
+        }
 
-            // unmask
-            if let Some(ref mask) = mask {
-                apply_mask(&mut data, mask);
-            }
+        // unmask
+        if let Some(ref mask) = mask {
+            apply_mask(&mut data, mask);
+        }
 
-            let frame = Frame {
-                finished: finished,
-                rsv1: rsv1,
-                rsv2: rsv2,
-                rsv3: rsv3,
-                opcode: opcode,
-                mask: mask,
-                payload: data.into(),
-            };
-
-            (frame, header_length + length)
-        };
-
-        buf.split_to(length);
-        Ok(Some(frame))
+        Ok(Some(Frame {
+            finished: finished,
+            rsv1: rsv1,
+            rsv2: rsv2,
+            rsv3: rsv3,
+            opcode: opcode,
+            mask: mask,
+            payload: data.into(),
+        }))
     }
 
     /// Write a frame out to a buffer

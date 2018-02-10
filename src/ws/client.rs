@@ -92,9 +92,9 @@ impl From<HttpResponseParserError> for WsClientError {
     }
 }
 
-/// WebSocket client
+/// `WebSocket` client
 ///
-/// Example of WebSocket client usage is available in
+/// Example of `WebSocket` client usage is available in
 /// [websocket example](
 /// https://github.com/actix/actix-web/blob/master/examples/websocket/src/client.rs#L24)
 pub struct WsClient {
@@ -317,7 +317,7 @@ impl Future for WsHandshake {
                     return Err(WsClientError::InvalidChallengeResponse)
                 }
 
-                let inner = Rc::new(UnsafeCell::new(Inner{inner: inner}));
+                let inner = Rc::new(UnsafeCell::new(inner));
                 Ok(Async::Ready(
                     (WsClientReader{inner: Rc::clone(&inner)},
                      WsClientWriter{inner: inner})))
@@ -332,12 +332,8 @@ impl Future for WsHandshake {
 }
 
 
-struct Inner {
-    inner: WsInner,
-}
-
 pub struct WsClientReader {
-    inner: Rc<UnsafeCell<Inner>>
+    inner: Rc<UnsafeCell<WsInner>>
 }
 
 impl fmt::Debug for WsClientReader {
@@ -348,7 +344,7 @@ impl fmt::Debug for WsClientReader {
 
 impl WsClientReader {
     #[inline]
-    fn as_mut(&mut self) -> &mut Inner {
+    fn as_mut(&mut self) -> &mut WsInner {
         unsafe{ &mut *self.inner.get() }
     }
 }
@@ -361,10 +357,10 @@ impl Stream for WsClientReader {
         let inner = self.as_mut();
         let mut done = false;
 
-        match utils::read_from_io(&mut inner.inner.conn, &mut inner.inner.parser_buf) {
+        match utils::read_from_io(&mut inner.conn, &mut inner.parser_buf) {
             Ok(Async::Ready(0)) => {
                 done = true;
-                inner.inner.closed = true;
+                inner.closed = true;
             },
             Ok(Async::Ready(_)) | Ok(Async::NotReady) => (),
             Err(err) =>
@@ -372,10 +368,10 @@ impl Stream for WsClientReader {
         }
 
         // write
-        let _ = inner.inner.writer.poll_completed(&mut inner.inner.conn, false);
+        let _ = inner.writer.poll_completed(&mut inner.conn, false);
 
         // read
-        match Frame::parse(&mut inner.inner.parser_buf) {
+        match Frame::parse(&mut inner.parser_buf) {
             Ok(Some(frame)) => {
                 // trace!("WsFrame {}", frame);
                 let (_finished, opcode, payload) = frame.unpack();
@@ -385,8 +381,8 @@ impl Stream for WsClientReader {
                     OpCode::Bad =>
                         Ok(Async::Ready(Some(Message::Error))),
                     OpCode::Close => {
-                        inner.inner.closed = true;
-                        inner.inner.error_sent = true;
+                        inner.closed = true;
+                        inner.error_sent = true;
                         Ok(Async::Ready(Some(Message::Closed)))
                     },
                     OpCode::Ping =>
@@ -413,9 +409,9 @@ impl Stream for WsClientReader {
             Ok(None) => {
                 if done {
                     Ok(Async::Ready(None))
-                } else if inner.inner.closed {
-                    if !inner.inner.error_sent {
-                        inner.inner.error_sent = true;
+                } else if inner.closed {
+                    if !inner.error_sent {
+                        inner.error_sent = true;
                         Ok(Async::Ready(Some(Message::Closed)))
                     } else {
                         Ok(Async::Ready(None))
@@ -425,8 +421,8 @@ impl Stream for WsClientReader {
                 }
             },
             Err(err) => {
-                inner.inner.closed = true;
-                inner.inner.error_sent = true;
+                inner.closed = true;
+                inner.error_sent = true;
                 Err(err.into())
             }
         }
@@ -434,12 +430,12 @@ impl Stream for WsClientReader {
 }
 
 pub struct WsClientWriter {
-    inner: Rc<UnsafeCell<Inner>>
+    inner: Rc<UnsafeCell<WsInner>>
 }
 
 impl WsClientWriter {
     #[inline]
-    fn as_mut(&mut self) -> &mut Inner {
+    fn as_mut(&mut self) -> &mut WsInner {
         unsafe{ &mut *self.inner.get() }
     }
 }
@@ -449,8 +445,8 @@ impl WsClientWriter {
     /// Write payload
     #[inline]
     fn write<B: Into<Binary>>(&mut self, data: B) {
-        if !self.as_mut().inner.closed {
-            let _ = self.as_mut().inner.writer.write(&data.into());
+        if !self.as_mut().closed {
+            let _ = self.as_mut().writer.write(&data.into());
         } else {
             warn!("Trying to write to disconnected response");
         }

@@ -51,6 +51,7 @@ extern crate log;
 extern crate time;
 extern crate base64;
 extern crate bytes;
+extern crate byteorder;
 extern crate sha1;
 extern crate regex;
 #[macro_use]

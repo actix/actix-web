@@ -60,9 +60,10 @@ url = "1.6"
 cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # io
-mio = "0.6"
+mio = "^0.6.13"
 net2 = "0.2"
 bytes = "0.4"
+byteorder = "1"
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
@@ -108,4 +109,5 @@ members = [
   "examples/websocket",
   "examples/websocket-chat",
   "examples/web-cors/backend",
+  "tools/wsload/",
 ]

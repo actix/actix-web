@@ -1,0 +1,21 @@
+[package]
+name = "wsclient"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+workspace = "../.."
+
+[[bin]]
+name = "wsclient"
+path = "src/wsclient.rs"
+
+[dependencies]
+env_logger = "*"
+futures = "0.1"
+clap = "2"
+url = "1.6"
+rand = "0.4"
+time = "*"
+num_cpus = "1"
+tokio-core = "0.1"
+actix = { git = "https://github.com/actix/actix.git" }
+actix-web = { path="../../" }
