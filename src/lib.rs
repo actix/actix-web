@@ -138,10 +138,6 @@ pub use server::HttpServer;
 // re-exports
 pub use http::{Method, StatusCode, Version};
 
-#[doc(hidden)]
-#[cfg(feature="tls")]
-pub use native_tls::Pkcs12;
-
 #[cfg(feature="openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;
 #[cfg(not(feature="openssl"))]

@@ -333,21 +333,12 @@ impl<H: IntoHttpHandler> HttpServer<H>
 impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming tls connections.
-    pub fn start_tls(mut self, pkcs12: ::Pkcs12) -> io::Result<SyncAddress<Self>> {
+    pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<SyncAddress<Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
-            let acceptor = match TlsAcceptor::builder(pkcs12) {
-                Ok(builder) => {
-                    match builder.build() {
-                        Ok(acceptor) => acceptor,
-                        Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-                    }
-                }
-                Err(err) => return Err(io::Error::new(io::ErrorKind::Other, err))
-            };
             let workers = self.start_workers(&settings, &StreamHandlerType::Tls(acceptor));
 
             // start acceptors threads
