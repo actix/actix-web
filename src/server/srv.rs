@@ -28,12 +28,6 @@ use super::settings::{ServerSettings, WorkerSettings};
 
 
 /// An HTTP Server
-///
-/// `T` - async stream, anything that implements `AsyncRead` + `AsyncWrite`.
-///
-/// `A` - peer address
-///
-/// `H` - request handler
 pub struct HttpServer<H> where H: IntoHttpHandler + 'static
 {
     h: Option<Rc<WorkerSettings<H::Handler>>>,
