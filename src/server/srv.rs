@@ -10,20 +10,15 @@ use actix::actors::signal;
 use futures::{Future, Sink, Stream};
 use futures::sync::mpsc;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_core::net::TcpStream;
 use mio;
 use num_cpus;
 use net2::TcpBuilder;
 
 #[cfg(feature="tls")]
 use native_tls::TlsAcceptor;
-#[cfg(feature="tls")]
-use tokio_tls::TlsStream;
 
 #[cfg(feature="alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
-#[cfg(feature="alpn")]
-use tokio_openssl::SslStream;
 
 use helpers;
 use super::{HttpHandler, IntoHttpHandler, IoStream};
@@ -40,11 +35,10 @@ use super::settings::{ServerSettings, WorkerSettings};
 /// `A` - peer address
 ///
 /// `H` - request handler
-pub struct HttpServer<T, A, H, U>
+pub struct HttpServer<A, H, U>
     where H: HttpHandler + 'static
 {
     h: Option<Rc<WorkerSettings<H>>>,
-    io: PhantomData<T>,
     addr: PhantomData<A>,
     threads: usize,
     backlog: i32,
@@ -60,13 +54,12 @@ pub struct HttpServer<T, A, H, U>
     no_signals: bool,
 }
 
-unsafe impl<T, A, H, U> Sync for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
-unsafe impl<T, A, H, U> Send for HttpServer<T, A, H, U> where H: HttpHandler + 'static {}
+unsafe impl<A, H, U> Sync for HttpServer<A, H, U> where H: HttpHandler + 'static {}
+unsafe impl<A, H, U> Send for HttpServer<A, H, U> where H: HttpHandler + 'static {}
 
 
-impl<T, A, H, U, V> Actor for HttpServer<T, A, H, U>
+impl<A, H, U, V> Actor for HttpServer<A, H, U>
     where A: 'static,
-          T: IoStream,
           H: HttpHandler,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
@@ -78,9 +71,8 @@ impl<T, A, H, U, V> Actor for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> HttpServer<T, A, H, U>
+impl<A, H, U, V> HttpServer<A, H, U>
     where A: 'static,
-          T: IoStream,
           H: HttpHandler,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
@@ -90,7 +82,6 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
         where F: Sync + Send + 'static + Fn() -> U,
     {
         HttpServer{ h: None,
-                    io: PhantomData,
                     addr: PhantomData,
                     threads: num_cpus::get(),
                     backlog: 2048,
@@ -262,7 +253,7 @@ impl<T, A, H, U, V> HttpServer<T, A, H, U>
     }
 }
 
-impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
+impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
@@ -354,7 +345,7 @@ impl<H: HttpHandler, U, V> HttpServer<TcpStream, net::SocketAddr, H, U>
 }
 
 #[cfg(feature="tls")]
-impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, U>
+impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
@@ -394,7 +385,7 @@ impl<H: HttpHandler, U, V> HttpServer<TlsStream<TcpStream>, net::SocketAddr, H, 
 }
 
 #[cfg(feature="alpn")]
-impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, U>
+impl<H: HttpHandler, U, V> HttpServer<net::SocketAddr, H, U>
     where U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
 {
@@ -439,9 +430,8 @@ impl<H: HttpHandler, U, V> HttpServer<SslStream<TcpStream>, net::SocketAddr, H, 
     }
 }
 
-impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
+impl<A, H, U, V> HttpServer<A, H, U>
     where A: 'static,
-          T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
@@ -449,8 +439,9 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
     /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
-        where S: Stream<Item=(T, A), Error=io::Error> + 'static
+    pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
+        where S: Stream<Item=(T, A), Error=io::Error> + 'static,
+              T: AsyncRead + AsyncWrite + 'static,
     {
         if !self.sockets.is_empty() {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
@@ -492,9 +483,8 @@ impl<T, A, H, U, V> HttpServer<WrapperStream<T>, A, H, U>
 /// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
 /// message to `System` actor.
-impl<T, A, H, U, V> Handler<signal::Signal> for HttpServer<T, A, H, U>
-    where T: IoStream,
-          H: HttpHandler + 'static,
+impl<A, H, U, V> Handler<signal::Signal> for HttpServer<A, H, U>
+    where H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
           A: 'static,
@@ -523,7 +513,7 @@ impl<T, A, H, U, V> Handler<signal::Signal> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
@@ -544,7 +534,7 @@ impl<T, A, H, U, V> Handler<io::Result<Conn<T>>> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<T, A, H, U>
+impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<A, H, U>
     where T: IoStream,
           H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
@@ -560,9 +550,8 @@ impl<T, A, H, U, V> Handler<Conn<T>> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<PauseServer> for HttpServer<T, A, H, U>
-    where T: IoStream,
-          H: HttpHandler + 'static,
+impl<A, H, U, V> Handler<PauseServer> for HttpServer<A, H, U>
+    where H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
           A: 'static,
@@ -578,9 +567,8 @@ impl<T, A, H, U, V> Handler<PauseServer> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<ResumeServer> for HttpServer<T, A, H, U>
-    where T: IoStream,
-          H: HttpHandler + 'static,
+impl<A, H, U, V> Handler<ResumeServer> for HttpServer<A, H, U>
+    where H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
           A: 'static,
@@ -595,9 +583,8 @@ impl<T, A, H, U, V> Handler<ResumeServer> for HttpServer<T, A, H, U>
     }
 }
 
-impl<T, A, H, U, V> Handler<StopServer> for HttpServer<T, A, H, U>
-    where T: IoStream,
-          H: HttpHandler + 'static,
+impl<A, H, U, V> Handler<StopServer> for HttpServer<A, H, U>
+    where H: HttpHandler + 'static,
           U: IntoIterator<Item=V> + 'static,
           V: IntoHttpHandler<Handler=H>,
           A: 'static,
