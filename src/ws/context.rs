@@ -14,7 +14,7 @@ use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 use context::{Frame as ContextFrame, ActorHttpContext, Drain};
 
-use ws::frame::{Frame, FrameData};
+use ws::frame::Frame;
 use ws::proto::{OpCode, CloseCode};
 
 
@@ -105,21 +105,13 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Write payload
     #[inline]
-    fn write(&mut self, data: FrameData) {
+    fn write(&mut self, data: Binary) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());
             }
             let stream = self.stream.as_mut().unwrap();
-
-            match data {
-                FrameData::Complete(data) =>
-                    stream.push(ContextFrame::Chunk(Some(data))),
-                FrameData::Split(headers, payload) => {
-                    stream.push(ContextFrame::Chunk(Some(headers)));
-                    stream.push(ContextFrame::Chunk(Some(payload)));
-                }
-            }
+            stream.push(ContextFrame::Chunk(Some(data)));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -140,31 +132,31 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     /// Send text frame
     #[inline]
     pub fn text<T: Into<String>>(&mut self, text: T) {
-        self.write(Frame::message(text.into(), OpCode::Text, true).generate(false));
+        self.write(Frame::message(text.into(), OpCode::Text, true, false));
     }
 
     /// Send binary frame
     #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(Frame::message(data, OpCode::Binary, true).generate(false));
+        self.write(Frame::message(data, OpCode::Binary, true, false));
     }
 
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Ping, true).generate(false));
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, false));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Pong, true).generate(false));
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, false));
     }
 
     /// Send close frame
     #[inline]
     pub fn close(&mut self, code: CloseCode, reason: &str) {
-        self.write(Frame::close(code, reason).generate(false));
+        self.write(Frame::close(code, reason, false));
     }
 
     /// Returns drain future

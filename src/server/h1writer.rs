@@ -96,15 +96,17 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
     fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
         // prepare task
-        self.flags.insert(Flags::STARTED);
         self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
-            self.flags.insert(Flags::KEEPALIVE);
+            self.flags.insert(Flags::STARTED | Flags::KEEPALIVE);
+        } else {
+            self.flags.insert(Flags::STARTED);
         }
 
         // Connection upgrade
         let version = msg.version().unwrap_or_else(|| req.version);
         if msg.upgrade() {
+            self.flags.insert(Flags::UPGRADE);
             msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
@@ -177,8 +179,29 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
-                // TODO: add warning, write after EOF
-                self.encoder.write(payload)?;
+                // shortcut for upgraded connection
+                if self.flags.contains(Flags::UPGRADE) {
+                    if self.buffer.is_empty() {
+                        match self.stream.write(payload.as_ref()) {
+                            Ok(0) => {
+                                self.disconnected();
+                                return Ok(WriterState::Done);
+                            },
+                            Ok(n) => if payload.len() < n {
+                                self.buffer.extend_from_slice(&payload.as_ref()[n..])
+                            },
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                return Ok(WriterState::Done)
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    } else {
+                        self.buffer.extend(payload);
+                    }
+                } else {
+                    // TODO: add warning, write after EOF
+                    self.encoder.write(payload)?;
+                }
             } else {
                 // might be response to EXCEPT
                 self.buffer.extend_from_slice(payload.as_ref())
