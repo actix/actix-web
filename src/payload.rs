@@ -40,7 +40,8 @@ impl fmt::Debug for PayloadItem {
 /// Buffered stream of bytes chunks
 ///
 /// Payload stores chunks in a vector. First chunk can be received with `.readany()` method.
-/// Payload stream is not thread safe.
+/// Payload stream is not thread safe. Payload does not notify current task when
+/// new data is available.
 ///
 /// Payload stream can be used as `HttpResponse` body stream.
 #[derive(Debug)]
@@ -148,7 +149,7 @@ impl Stream for Payload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
-        self.inner.borrow_mut().readany()
+        self.inner.borrow_mut().readany(false)
     }
 }
 
@@ -166,7 +167,7 @@ impl Stream for ReadAny {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Option<Bytes>, Self::Error> {
-        match self.0.borrow_mut().readany()? {
+        match self.0.borrow_mut().readany(false)? {
             Async::Ready(Some(item)) => Ok(Async::Ready(Some(item.0))),
             Async::Ready(None) => Ok(Async::Ready(None)),
             Async::NotReady => Ok(Async::NotReady),
@@ -182,7 +183,7 @@ impl Future for ReadExactly {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.0.borrow_mut().readexactly(self.1)? {
+        match self.0.borrow_mut().readexactly(self.1, false)? {
             Async::Ready(chunk) => Ok(Async::Ready(chunk)),
             Async::NotReady => Ok(Async::NotReady),
         }
@@ -197,7 +198,7 @@ impl Future for ReadLine {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.0.borrow_mut().readline()? {
+        match self.0.borrow_mut().readline(false)? {
             Async::Ready(chunk) => Ok(Async::Ready(chunk)),
             Async::NotReady => Ok(Async::NotReady),
         }
@@ -212,7 +213,7 @@ impl Future for ReadUntil {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.0.borrow_mut().readuntil(&self.1)? {
+        match self.0.borrow_mut().readuntil(&self.1, false)? {
             Async::Ready(chunk) => Ok(Async::Ready(chunk)),
             Async::NotReady => Ok(Async::NotReady),
         }
@@ -324,7 +325,7 @@ impl Inner {
         self.len
     }
 
-    fn readany(&mut self) -> Poll<Option<PayloadItem>, PayloadError> {
+    fn readany(&mut self, notify: bool) -> Poll<Option<PayloadItem>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             Ok(Async::Ready(Some(PayloadItem(data))))
@@ -333,12 +334,14 @@ impl Inner {
         } else if self.eof {
             Ok(Async::Ready(None))
         } else {
-            self.task = Some(current_task());
+            if notify {
+                self.task = Some(current_task());
+            }
             Ok(Async::NotReady)
         }
     }
 
-    fn readexactly(&mut self, size: usize) -> Result<Async<Bytes>, PayloadError> {
+    fn readexactly(&mut self, size: usize, notify: bool) -> Result<Async<Bytes>, PayloadError> {
         if size <= self.len {
             let mut buf = BytesMut::with_capacity(size);
             while buf.len() < size {
@@ -356,12 +359,14 @@ impl Inner {
         if let Some(err) = self.err.take() {
             Err(err)
         } else {
-            self.task = Some(current_task());
+            if notify {
+                self.task = Some(current_task());
+            }
             Ok(Async::NotReady)
         }
     }
 
-    fn readuntil(&mut self, line: &[u8]) -> Result<Async<Bytes>, PayloadError> {
+    fn readuntil(&mut self, line: &[u8], notify: bool) -> Result<Async<Bytes>, PayloadError> {
         let mut idx = 0;
         let mut num = 0;
         let mut offset = 0;
@@ -411,13 +416,15 @@ impl Inner {
         if let Some(err) = self.err.take() {
             Err(err)
         } else {
-            self.task = Some(current_task());
+            if notify {
+                self.task = Some(current_task());
+            }
             Ok(Async::NotReady)
         }
     }
 
-    fn readline(&mut self) -> Result<Async<Bytes>, PayloadError> {
-        self.readuntil(b"\n")
+    fn readline(&mut self, notify: bool) -> Result<Async<Bytes>, PayloadError> {
+        self.readuntil(b"\n", notify)
     }
 
     pub fn readall(&mut self) -> Option<Bytes> {

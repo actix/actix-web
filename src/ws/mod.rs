@@ -30,7 +30,7 @@
 //!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
 //!         match msg {
 //!             ws::Message::Ping(msg) => ctx.pong(&msg),
-//!             ws::Message::Text(text) => ctx.text(&text),
+//!             ws::Message::Text(text) => ctx.text(text),
 //!             ws::Message::Binary(bin) => ctx.binary(bin),
 //!             _ => (),
 //!         }

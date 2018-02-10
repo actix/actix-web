@@ -96,8 +96,6 @@ impl<T, H> Http1<T, H>
         }
     }
 
-    // TODO: refactor
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
         if let Some(ref mut timer) = self.keepalive_timer {
@@ -111,99 +109,19 @@ impl<T, H> Http1<T, H>
             }
         }
 
-        loop {
-            let mut not_ready = true;
+        self.poll_io()
+    }
 
-            // check in-flight messages
-            let mut io = false;
-            let mut idx = 0;
-            while idx < self.tasks.len() {
-                let item = &mut self.tasks[idx];
-
-                if !io && !item.flags.contains(EntryFlags::EOF) {
-                    if item.flags.contains(EntryFlags::ERROR) {
-                        // check stream state
-                        if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                            return Ok(Async::NotReady)
-                        }
-                        return Err(())
-                    }
-
-                    match item.pipe.poll_io(&mut self.stream) {
-                        Ok(Async::Ready(ready)) => {
-                            not_ready = false;
-
-                            // override keep-alive state
-                            if self.stream.keepalive() {
-                                self.flags.insert(Flags::KEEPALIVE);
-                            } else {
-                                self.flags.remove(Flags::KEEPALIVE);
-                            }
-                            self.stream.reset();
-
-                            item.flags.insert(EntryFlags::EOF);
-                            if ready {
-                                item.flags.insert(EntryFlags::FINISHED);
-                            }
-                        },
-                        // no more IO for this iteration
-                        Ok(Async::NotReady) => io = true,
-                        Err(err) => {
-                            // it is not possible to recover from error
-                            // during pipe handling, so just drop connection
-                            error!("Unhandled error: {}", err);
-                            item.flags.insert(EntryFlags::ERROR);
-
-                            // check stream state, we still can have valid data in buffer
-                            if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                                return Ok(Async::NotReady)
-                            }
-                            return Err(())
-                        }
-                    }
-                } else if !item.flags.contains(EntryFlags::FINISHED) {
-                    match item.pipe.poll() {
-                        Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) => {
-                            not_ready = false;
-                            item.flags.insert(EntryFlags::FINISHED);
-                        },
-                        Err(err) => {
-                            item.flags.insert(EntryFlags::ERROR);
-                            error!("Unhandled error: {}", err);
-                        }
-                    }
-                }
-                idx += 1;
-            }
-
-            // cleanup finished tasks
-            while !self.tasks.is_empty() {
-                if self.tasks[0].flags.contains(EntryFlags::EOF) &&
-                    self.tasks[0].flags.contains(EntryFlags::FINISHED)
-                {
-                    self.tasks.pop_front();
-                } else {
-                    break
-                }
-            }
-
-            // no keep-alive
-            if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
-                // check stream state
-                if !self.poll_completed(true)? {
-                    return Ok(Async::NotReady)
-                }
-                return Ok(Async::Ready(()))
-            }
-
-            // read incoming data
-            while !self.flags.contains(Flags::ERROR) && self.tasks.len() < MAX_PIPELINED_MESSAGES {
+    // TODO: refactor
+    pub fn poll_io(&mut self) -> Poll<(), ()> {
+        // read incoming data
+        let need_read =
+            if !self.flags.contains(Flags::ERROR) && self.tasks.len() < MAX_PIPELINED_MESSAGES
+        {
+            'outer: loop {
                 match self.reader.parse(self.stream.get_mut(),
                                         &mut self.read_buf, &self.settings) {
                     Ok(Async::Ready(mut req)) => {
-                        not_ready = false;
-
                         // set remote addr
                         req.set_peer_addr(self.addr);
 
@@ -211,58 +129,24 @@ impl<T, H> Http1<T, H>
                         self.keepalive_timer.take();
 
                         // start request processing
-                        let mut pipe = None;
                         for h in self.settings.handlers().iter_mut() {
                             req = match h.handle(req) {
                                 Ok(t) => {
-                                    pipe = Some(t);
-                                    break
+                                    self.tasks.push_back(
+                                        Entry {pipe: t, flags: EntryFlags::empty()});
+                                    continue 'outer
                                 },
                                 Err(req) => req,
                             }
                         }
 
                         self.tasks.push_back(
-                            Entry {pipe: pipe.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
+                            Entry {pipe: Pipeline::error(HTTPNotFound),
                                    flags: EntryFlags::empty()});
+                        continue
                     },
-                    Ok(Async::NotReady) => {
-                        // start keep-alive timer, this also is slow request timeout
-                        if self.tasks.is_empty() {
-                            if self.settings.keep_alive_enabled() {
-                                let keep_alive = self.settings.keep_alive();
-                                if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
-                                    if self.keepalive_timer.is_none() {
-                                        trace!("Start keep-alive timer");
-                                        let mut to = Timeout::new(
-                                            Duration::new(keep_alive, 0),
-                                            Arbiter::handle()).unwrap();
-                                        // register timeout
-                                        let _ = to.poll();
-                                        self.keepalive_timer = Some(to);
-                                    }
-                                } else {
-                                    // check stream state
-                                    if !self.poll_completed(true)? {
-                                        return Ok(Async::NotReady)
-                                    }
-                                    // keep-alive disable, drop connection
-                                    return Ok(Async::Ready(()))
-                                }
-                            } else if !self.poll_completed(false)? ||
-                                self.flags.contains(Flags::KEEPALIVE)
-                            {
-                                // check stream state or
-                                // if keep-alive unset, rely on operating system
-                                return Ok(Async::NotReady)
-                            } else {
-                                return Ok(Async::Ready(()))
-                            }
-                        }
-                        break
-                    },
+                    Ok(Async::NotReady) => (),
                     Err(ReaderError::Disconnect) => {
-                        not_ready = false;
                         self.flags.insert(Flags::ERROR);
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
@@ -271,7 +155,6 @@ impl<T, H> Http1<T, H>
                     },
                     Err(err) => {
                         // notify all tasks
-                        not_ready = false;
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
                             entry.pipe.disconnected()
@@ -293,20 +176,132 @@ impl<T, H> Http1<T, H>
                         }
                     },
                 }
+                break
+            }
+            false
+        } else {
+            true
+        };
+
+        loop {
+            // check in-flight messages
+            let mut io = false;
+            let mut idx = 0;
+            while idx < self.tasks.len() {
+                let item = &mut self.tasks[idx];
+
+                if !io && !item.flags.contains(EntryFlags::EOF) {
+                    // io is corrupted, send buffer
+                    if item.flags.contains(EntryFlags::ERROR) {
+                        if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
+                            return Ok(Async::NotReady)
+                        }
+                        return Err(())
+                    }
+
+                    match item.pipe.poll_io(&mut self.stream) {
+                        Ok(Async::Ready(ready)) => {
+                            // override keep-alive state
+                            if self.stream.keepalive() {
+                                self.flags.insert(Flags::KEEPALIVE);
+                            } else {
+                                self.flags.remove(Flags::KEEPALIVE);
+                            }
+                            // prepare stream for next response
+                            self.stream.reset();
+
+                            if ready {
+                                item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                            } else {
+                                item.flags.insert(EntryFlags::FINISHED);
+                            }
+                        },
+                        // no more IO for this iteration
+                        Ok(Async::NotReady) => io = true,
+                        Err(err) => {
+                            // it is not possible to recover from error
+                            // during pipe handling, so just drop connection
+                            error!("Unhandled error: {}", err);
+                            item.flags.insert(EntryFlags::ERROR);
+
+                            // check stream state, we still can have valid data in buffer
+                            if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
+                                return Ok(Async::NotReady)
+                            }
+                            return Err(())
+                        }
+                    }
+                } else if !item.flags.contains(EntryFlags::FINISHED) {
+                    match item.pipe.poll() {
+                        Ok(Async::NotReady) => (),
+                        Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
+                        Err(err) => {
+                            item.flags.insert(EntryFlags::ERROR);
+                            error!("Unhandled error: {}", err);
+                        }
+                    }
+                }
+                idx += 1;
             }
 
-            // check for parse error
-            if self.tasks.is_empty() {
+            // cleanup finished tasks
+            let mut popped = false;
+            while !self.tasks.is_empty() {
+                if self.tasks[0].flags.contains(EntryFlags::EOF | EntryFlags::FINISHED) {
+                    popped = true;
+                    self.tasks.pop_front();
+                } else {
+                    break
+                }
+            }
+            if need_read && popped {
+                return self.poll_io()
+            }
+
+            // no keep-alive
+            if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
                 // check stream state
                 if !self.poll_completed(true)? {
                     return Ok(Async::NotReady)
                 }
-                if self.flags.contains(Flags::ERROR) || self.keepalive_timer.is_none() {
-                    return Ok(Async::Ready(()))
-                }
+                return Ok(Async::Ready(()))
             }
 
-            if not_ready {
+            // start keep-alive timer, this also is slow request timeout
+            if self.tasks.is_empty() {
+                // check stream state
+                if self.flags.contains(Flags::ERROR) {
+                    return Ok(Async::Ready(()))
+                }
+
+                if self.settings.keep_alive_enabled() {
+                    let keep_alive = self.settings.keep_alive();
+                    if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
+                        if self.keepalive_timer.is_none() {
+                            trace!("Start keep-alive timer");
+                            let mut to = Timeout::new(
+                                Duration::new(keep_alive, 0), Arbiter::handle()).unwrap();
+                            // register timeout
+                            let _ = to.poll();
+                            self.keepalive_timer = Some(to);
+                        }
+                    } else {
+                        // check stream state
+                        if !self.poll_completed(true)? {
+                            return Ok(Async::NotReady)
+                        }
+                        // keep-alive is disabled, drop connection
+                        return Ok(Async::Ready(()))
+                    }
+                } else if !self.poll_completed(false)? ||
+                    self.flags.contains(Flags::KEEPALIVE) {
+                        // check stream state or
+                        // if keep-alive unset, rely on operating system
+                        return Ok(Async::NotReady)
+                    } else {
+                        return Ok(Async::Ready(()))
+                    }
+            } else {
                 self.poll_completed(false)?;
                 return Ok(Async::NotReady)
             }
@@ -344,7 +339,7 @@ impl Reader {
 
     #[inline]
     fn decode(&mut self, buf: &mut BytesMut, payload: &mut PayloadInfo)
-              -> std::result::Result<Decoding, ReaderError>
+              -> Result<Decoding, ReaderError>
     {
         loop {
             match payload.decoder.decode(buf) {
@@ -416,15 +411,10 @@ impl Reader {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         let read = if buf.is_empty() {
             match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    // debug!("Ignored premature client disconnection");
-                    return Err(ReaderError::Disconnect);
-                },
+                Ok(Async::Ready(0)) => return Err(ReaderError::Disconnect),
                 Ok(Async::Ready(_)) => (),
-                Ok(Async::NotReady) =>
-                    return Ok(Async::NotReady),
-                Err(err) =>
-                    return Err(ReaderError::Error(err.into()))
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(err) => return Err(ReaderError::Error(err.into()))
             }
             false
         } else {
@@ -455,10 +445,8 @@ impl Reader {
                                 return Err(ReaderError::Disconnect);
                             },
                             Ok(Async::Ready(_)) => (),
-                            Ok(Async::NotReady) =>
-                                return Ok(Async::NotReady),
-                            Err(err) =>
-                                return Err(ReaderError::Error(err.into()))
+                            Ok(Async::NotReady) => return Ok(Async::NotReady),
+                            Err(err) => return Err(ReaderError::Error(err.into())),
                         }
                     } else {
                         return Ok(Async::NotReady)
