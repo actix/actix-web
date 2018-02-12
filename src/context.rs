@@ -1,4 +1,4 @@
-use std;
+use std::mem;
 use std::marker::PhantomData;
 use futures::{Async, Future, Poll};
 use futures::sync::oneshot::Sender;
@@ -6,7 +6,7 @@ use futures::unsync::oneshot;
 use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Addr, Handler, ResponseType, MessageResult, SpawnHandle, Syn, Unsync};
+            Addr, Handler, Message, SpawnHandle, Syn, Unsync};
 use actix::fut::ActorFuture;
 use actix::dev::{ContextImpl, ToEnvelope, RemoteEnvelope};
 
@@ -184,7 +184,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error> {
         let ctx: &mut HttpContext<A, S> = unsafe {
-            std::mem::transmute(self as &mut HttpContext<A, S>)
+            mem::transmute(self as &mut HttpContext<A, S>)
         };
 
         if self.inner.alive() {
@@ -207,9 +207,9 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
 
 impl<A, M, S> ToEnvelope<Syn<A>, M> for HttpContext<A, S>
     where A: Actor<Context=HttpContext<A, S>> + Handler<M>,
-          M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send,
+          M: Message + Send + 'static, M::Result: Send,
 {
-    fn pack(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Syn<A> {
+    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Syn<A> {
         Syn::new(Box::new(RemoteEnvelope::envelope(msg, tx)))
     }
 }

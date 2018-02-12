@@ -28,7 +28,7 @@ fn main() {
                 ()
             })
             .map(|(reader, writer)| {
-                let addr: SyncAddress<_> = ChatClient::create(|ctx| {
+                let addr: Addr<Syn<_>> = ChatClient::create(|ctx| {
                     ChatClient::add_stream(reader, ctx);
                     ChatClient(writer)
                 });

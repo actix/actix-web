@@ -352,7 +352,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into())));
+                signal::Subscribe(addr.clone().subscriber())));
             Ok(addr)
         }
     }
@@ -396,7 +396,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             let signals = self.subscribe_to_signals();
             let addr: SyncAddress<_> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into())));
+                signal::Subscribe(addr.clone().subscriber())));
             Ok(addr)
         }
     }
@@ -477,24 +477,6 @@ impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H>
     }
 }
 
-impl<T, H> Handler<io::Result<Conn<T>>> for HttpServer<H>
-    where T: IoStream,
-          H: IntoHttpHandler,
-{
-    type Result = ();
-
-    fn handle(&mut self, msg: io::Result<Conn<T>>, _: &mut Context<Self>) -> Self::Result {
-        match msg {
-            Ok(msg) =>
-                Arbiter::handle().spawn(
-                    HttpChannel::new(
-                        Rc::clone(self.h.as_ref().unwrap()), msg.io, msg.peer, msg.http2)),
-            Err(err) =>
-                debug!("Error handling request: {}", err),
-        }
-    }
-}
-
 impl<T, H> Handler<Conn<T>> for HttpServer<H>
     where T: IoStream,
           H: IntoHttpHandler,
@@ -535,7 +517,7 @@ impl<H: IntoHttpHandler> Handler<ResumeServer> for HttpServer<H>
 
 impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
 {
-    type Result = actix::Response<Self, StopServer>;
+    type Result = actix::Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
         // stop accept threads
@@ -570,8 +552,8 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         }
 
         if !self.workers.is_empty() {
-            Response::async_reply(
-                rx.into_future().map(|_| ()).map_err(|_| ()).actfuture())
+            Response::async(
+                rx.into_future().map(|_| ()).map_err(|_| ()))
         } else {
             // we need to stop system if server was spawned
             if self.exit {

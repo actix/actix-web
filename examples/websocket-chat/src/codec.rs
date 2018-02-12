@@ -4,10 +4,9 @@ use serde_json as json;
 use byteorder::{BigEndian , ByteOrder};
 use bytes::{BytesMut, BufMut};
 use tokio_io::codec::{Encoder, Decoder};
-use actix::ResponseType;
 
 /// Client request
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Message)]
 #[serde(tag="cmd", content="data")]
 pub enum ChatRequest {
     /// List rooms
@@ -20,13 +19,8 @@ pub enum ChatRequest {
     Ping
 }
 
-impl ResponseType for ChatRequest {
-    type Item = ();
-    type Error = ();
-}
-
 /// Server response
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Message)]
 #[serde(tag="cmd", content="data")]
 pub enum ChatResponse {
     Ping,
@@ -39,11 +33,6 @@ pub enum ChatResponse {
 
     /// Message
     Message(String),
-}
-
-impl ResponseType for ChatResponse {
-    type Item = ();
-    type Error = ();
 }
 
 /// Codec for Client -> Server transport

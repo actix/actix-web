@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use actix::{fut, Actor, ActorFuture, Arbiter, Context,
-            Handler, Response, ResponseType, Supervised};
+            Handler, Message, ActorResponse, Supervised};
 use actix::registry::ArbiterService;
 use actix::fut::WrapFuture;
 use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
@@ -37,9 +37,8 @@ impl Connect {
     }
 }
 
-impl ResponseType for Connect {
-    type Item = Connection;
-    type Error = ClientConnectorError;
+impl Message for Connect {
+    type Result = Result<Connection, ClientConnectorError>;
 }
 
 /// A set of errors that can occur during connecting to a http host
@@ -163,34 +162,34 @@ impl ClientConnector {
 }
 
 impl Handler<Connect> for ClientConnector {
-    type Result = Response<ClientConnector, Connect>;
+    type Result = ActorResponse<ClientConnector, Connection, ClientConnectorError>;
 
     fn handle(&mut self, msg: Connect, _: &mut Self::Context) -> Self::Result {
         let uri = &msg.0;
 
         // host name is required
         if uri.host().is_none() {
-            return Response::reply(Err(ClientConnectorError::InvalidUrl))
+            return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl))
         }
 
         // supported protocols
         let proto = match uri.scheme_part() {
             Some(scheme) => match Protocol::from(scheme.as_str()) {
                 Some(proto) => proto,
-                None => return Response::reply(Err(ClientConnectorError::InvalidUrl)),
+                None => return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl)),
             },
-            None => return Response::reply(Err(ClientConnectorError::InvalidUrl)),
+            None => return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl)),
         };
 
         // check ssl availability
         if proto.is_secure() && !HAS_OPENSSL { //&& !HAS_TLS {
-            return Response::reply(Err(ClientConnectorError::SslIsNotSupported))
+            return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported))
         }
 
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
 
-        Response::async_reply(
+        ActorResponse::async(
             Connector::from_registry()
                 .call(self, ResolveConnect::host_and_port(&host, port))
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)

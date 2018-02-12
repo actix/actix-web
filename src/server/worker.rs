@@ -37,10 +37,12 @@ pub(crate) struct Conn<T> {
 
 /// Stop worker message. Returns `true` on successful shutdown
 /// and `false` if some connections still alive.
-#[derive(Message)]
-#[rtype(bool)]
 pub(crate) struct StopWorker {
     pub graceful: Option<time::Duration>,
+}
+
+impl Message for StopWorker {
+    type Result = Result<bool, ()>;
 }
 
 /// Http worker
@@ -117,7 +119,7 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
 impl<H> Handler<StopWorker> for Worker<H>
     where H: HttpHandler + 'static,
 {
-    type Result = Response<Self, StopWorker>;
+    type Result = Response<bool, ()>;
 
     fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
         let num = self.settings.num_channels();
@@ -128,7 +130,7 @@ impl<H> Handler<StopWorker> for Worker<H>
             info!("Graceful http worker shutdown, {} connections", num);
             let (tx, rx) = oneshot::channel();
             self.shutdown_timeout(ctx, tx, dur);
-            Response::async_reply(rx.map_err(|_| ()).actfuture())
+            Response::async(rx.map_err(|_| ()))
         } else {
             info!("Force shutdown http worker, {} connections", num);
             self.settings.head().traverse::<TcpStream, H>();

@@ -5,7 +5,7 @@ use futures::unsync::oneshot;
 use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Addr, Handler, ResponseType, SpawnHandle, MessageResult, Syn, Unsync};
+            Addr, Handler, Message, Syn, Unsync, SpawnHandle};
 use actix::fut::ActorFuture;
 use actix::dev::{ContextImpl, ToEnvelope, RemoteEnvelope};
 
@@ -219,9 +219,9 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
 
 impl<A, M, S> ToEnvelope<Syn<A>, M> for WebsocketContext<A, S>
     where A: Actor<Context=WebsocketContext<A, S>> + Handler<M>,
-          M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send,
+          M: Message + Send + 'static, M::Result: Send
 {
-    fn pack(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Syn<A> {
+    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Syn<A> {
         Syn::new(Box::new(RemoteEnvelope::envelope(msg, tx)))
     }
 }

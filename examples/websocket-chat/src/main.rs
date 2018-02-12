@@ -26,7 +26,7 @@ mod session;
 /// This is our websocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
-    addr: SyncAddress<server::ChatServer>,
+    addr: Addr<Syn<server::ChatServer>>,
 }
 
 /// Entry point for our route
@@ -62,12 +62,12 @@ impl Actor for WsChatSession {
         // before processing any other events.
         // HttpContext::state() is instance of WsChatSessionState, state is shared across all
         // routes within application
-        let addr: SyncAddress<_> = ctx.address();
+        let addr: Addr<Syn<_>> = ctx.address();
         ctx.state().addr.call(
-            self, server::Connect{addr: addr.into()}).then(
+            self, server::Connect{addr: addr.subscriber()}).then(
             |res, act, ctx| {
                 match res {
-                    Ok(Ok(res)) => act.id = res,
+                    Ok(res) => act.id = res,
                     // something is wrong with chat server
                     _ => ctx.stop(),
                 }
@@ -111,7 +111,7 @@ impl Handler<ws::Message> for WsChatSession {
                             println!("List rooms");
                             ctx.state().addr.call(self, server::ListRooms).then(|res, _, ctx| {
                                 match res {
-                                    Ok(Ok(rooms)) => {
+                                    Ok(rooms) => {
                                         for room in rooms {
                                             ctx.text(room);
                                         }
@@ -172,8 +172,7 @@ fn main() {
     let sys = actix::System::new("websocket-example");
 
     // Start chat server actor in separate thread
-    let server: SyncAddress<_> =
-        Arbiter::start(|_| server::ChatServer::default());
+    let server: Addr<Syn<_>> = Arbiter::start(|_| server::ChatServer::default());
 
     // Start tcp server in separate thread
     let srv = server.clone();

@@ -47,7 +47,7 @@ use bytes::BytesMut;
 use http::{Method, StatusCode, header};
 use futures::{Async, Poll, Stream};
 
-use actix::{Actor, AsyncContext, ResponseType, Handler};
+use actix::{Actor, AsyncContext, Handler};
 
 use body::Binary;
 use payload::ReadAny;
@@ -74,7 +74,7 @@ const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
 
 
 /// `WebSocket` Message
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Message)]
 pub enum Message {
     Text(String),
     Binary(Binary),
@@ -83,11 +83,6 @@ pub enum Message {
     Close,
     Closed,
     Error
-}
-
-impl ResponseType for Message {
-    type Item = ();
-    type Error = ();
 }
 
 /// Do websocket handshake and start actor
