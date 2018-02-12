@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
             Addr, Handler, Message, Syn, Unsync, SpawnHandle};
 use actix::fut::ActorFuture;
-use actix::dev::{ContextImpl, ToEnvelope, RemoteEnvelope};
+use actix::dev::{ContextImpl, ToEnvelope, SyncEnvelope};
 
 use body::{Body, Binary};
 use error::{Error, ErrorInternalServerError};
@@ -222,7 +222,7 @@ impl<A, M, S> ToEnvelope<Syn<A>, M> for WebsocketContext<A, S>
           M: Message + Send + 'static, M::Result: Send
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Syn<A> {
-        Syn::new(Box::new(RemoteEnvelope::envelope(msg, tx)))
+        Syn::new(Box::new(SyncEnvelope::envelope(msg, tx)))
     }
 }
 
