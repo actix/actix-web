@@ -6,9 +6,9 @@ use futures::unsync::oneshot;
 use smallvec::SmallVec;
 
 use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Address, SyncAddress, Handler, ResponseType, MessageResult, SpawnHandle};
+            Addr, Handler, ResponseType, MessageResult, SpawnHandle, Syn, Unsync};
 use actix::fut::ActorFuture;
-use actix::dev::{ContextImpl, Envelope, ToEnvelope, RemoteEnvelope};
+use actix::dev::{ContextImpl, ToEnvelope, RemoteEnvelope};
 
 use body::{Body, Binary};
 use error::{Error, ErrorInternalServerError};
@@ -83,12 +83,12 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
     }
     #[doc(hidden)]
     #[inline]
-    fn local_address(&mut self) -> Address<A> {
+    fn unsync_address(&mut self) -> Addr<Unsync<A>> {
         self.inner.unsync_address()
     }
     #[doc(hidden)]
     #[inline]
-    fn sync_address(&mut self) -> SyncAddress<A> {
+    fn sync_address(&mut self) -> Addr<Syn<A>> {
         self.inner.sync_address()
     }
 }
@@ -205,15 +205,12 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
     }
 }
 
-impl<A, S> ToEnvelope<A> for HttpContext<A, S>
-    where A: Actor<Context=HttpContext<A, S>>,
+impl<A, M, S> ToEnvelope<Syn<A>, M> for HttpContext<A, S>
+    where A: Actor<Context=HttpContext<A, S>> + Handler<M>,
+          M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send,
 {
-    #[inline]
-    fn pack<M>(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Envelope<A>
-        where A: Handler<M>,
-              M: ResponseType + Send + 'static, M::Item: Send, M::Error: Send
-    {
-        RemoteEnvelope::envelope(msg, tx).into()
+    fn pack(msg: M, tx: Option<Sender<MessageResult<M>>>) -> Syn<A> {
+        Syn::new(Box::new(RemoteEnvelope::envelope(msg, tx)))
     }
 }
 

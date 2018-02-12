@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::str::FromStr;
 use std::collections::HashMap;
 
-use actix::{Arbiter, SyncAddress, System, SystemRunner, msgs};
+use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue};
@@ -56,7 +56,7 @@ pub struct TestServer {
     addr: net::SocketAddr,
     thread: Option<thread::JoinHandle<()>>,
     system: SystemRunner,
-    server_sys: SyncAddress<System>,
+    server_sys: Addr<Syn<System>>,
 }
 
 impl TestServer {

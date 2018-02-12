@@ -103,7 +103,7 @@ pub struct WsClient {
     http_err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
-    conn: Address<ClientConnector>,
+    conn: Addr<Unsync<ClientConnector>>,
 }
 
 impl WsClient {
@@ -114,7 +114,7 @@ impl WsClient {
     }
 
     /// Create new websocket connection with custom `ClientConnector`
-    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Address<ClientConnector>) -> WsClient {
+    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<Unsync<ClientConnector>>) -> WsClient {
         let mut cl = WsClient {
             request: ClientRequest::build(),
             err: None,

@@ -36,12 +36,12 @@ pub struct HttpServer<H> where H: IntoHttpHandler + 'static
     host: Option<String>,
     keep_alive: Option<u64>,
     factory: Arc<Fn() -> Vec<H> + Send + Sync>,
-    workers: Vec<SyncAddress<Worker<H::Handler>>>,
+    workers: Vec<Addr<Syn<Worker<H::Handler>>>>,
     sockets: HashMap<net::SocketAddr, net::TcpListener>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
     shutdown_timeout: u16,
-    signals: Option<SyncAddress<signal::ProcessSignals>>,
+    signals: Option<Addr<Syn<signal::ProcessSignals>>>,
     no_signals: bool,
 }
 
@@ -146,7 +146,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     }
 
     /// Set alternative address for `ProcessSignals` actor.
-    pub fn signals(mut self, addr: SyncAddress<signal::ProcessSignals>) -> Self {
+    pub fn signals(mut self, addr: Addr<Syn<signal::ProcessSignals>>) -> Self {
         self.signals = Some(addr);
         self
     }
@@ -227,7 +227,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     }
 
     // subscribe to os signals
-    fn subscribe_to_signals(&self) -> Option<SyncAddress<signal::ProcessSignals>> {
+    fn subscribe_to_signals(&self) -> Option<Addr<Syn<signal::ProcessSignals>>> {
         if !self.no_signals {
             if let Some(ref signals) = self.signals {
                 Some(signals.clone())
@@ -269,7 +269,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///    let _ = sys.run();  // <- Run actix system, this method actually starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> SyncAddress<Self>
+    pub fn start(mut self) -> Addr<Syn<Self>>
     {
         if self.sockets.is_empty() {
             panic!("HttpServer::bind() has to be called before start()");
@@ -288,9 +288,9 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start http server actor
             let signals = self.subscribe_to_signals();
-            let addr: SyncAddress<_> = Actor::start(self);
+            let addr: Addr<Syn<_>> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().into())));
+                signal::Subscribe(addr.clone().subscriber())));
             addr
         }
     }
@@ -407,7 +407,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<T, A, S>(mut self, stream: S, secure: bool) -> SyncAddress<Self>
+    pub fn start_incoming<T, A, S>(mut self, stream: S, secure: bool) -> Addr<Syn<Self>>
         where S: Stream<Item=(T, A), Error=io::Error> + 'static,
               T: AsyncRead + AsyncWrite + 'static,
               A: 'static
@@ -435,7 +435,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
         // start server
         let signals = self.subscribe_to_signals();
-        let addr: SyncAddress<_> = HttpServer::create(move |ctx| {
+        let addr: Addr<Syn<_>> = HttpServer::create(move |ctx| {
             ctx.add_message_stream(
                 stream
                     .map_err(|_| ())
@@ -443,7 +443,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             self
         });
         signals.map(|signals| signals.send(
-            signal::Subscribe(addr.clone().into())));
+            signal::Subscribe(addr.clone().subscriber())));
         addr
     }
 }
