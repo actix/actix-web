@@ -79,13 +79,14 @@ fn index(req: HttpRequest) -> &'static str {
 }
 
 fn main() {
-# thread::spawn(|| {
+# let child = thread::spawn(|| {
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
         .run();
-# });
+  });
+# child.join().expect("failed to join server thread");
 }
 ```
 
