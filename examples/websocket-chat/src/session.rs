@@ -24,7 +24,7 @@ pub struct ChatSession {
     /// unique session id
     id: usize,
     /// this is address of chat server
-    addr: Addr<Syn<ChatServer>>,
+    addr: Addr<Syn, ChatServer>,
     /// Client must send ping at least once per 10 seconds, otherwise we drop connection.
     hb: Instant,
     /// joined room
@@ -45,8 +45,9 @@ impl Actor for ChatSession {
         // register self in chat server. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        let addr: Addr<Syn<_>> = ctx.address();
-        self.addr.call(self, server::Connect{addr: addr.subscriber()})
+        let addr: Addr<Syn, _> = ctx.address();
+        self.addr.call(server::Connect{addr: addr.subscriber()})
+            .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
                     Ok(res) => act.id = res,
@@ -75,15 +76,17 @@ impl StreamHandler<ChatRequest, io::Error> for ChatSession {
             ChatRequest::List => {
                 // Send ListRooms message to chat server and wait for response
                 println!("List rooms");
-                self.addr.call(self, server::ListRooms).then(|res, act, ctx| {
-                    match res {
-                        Ok(rooms) => {
-                            act.framed.write(ChatResponse::Rooms(rooms));
-                        },
-                        _ => println!("Something is wrong"),
-                    }
-                    actix::fut::ok(())
-                }).wait(ctx)
+                self.addr.call(server::ListRooms)
+                    .into_actor(self)
+                    .then(|res, act, ctx| {
+                        match res {
+                            Ok(rooms) => {
+                                act.framed.write(ChatResponse::Rooms(rooms));
+                            },
+                            _ => println!("Something is wrong"),
+                        }
+                        actix::fut::ok(())
+                    }).wait(ctx)
                 // .wait(ctx) pauses all events in context,
                 // so actor wont receive any new messages until it get list of rooms back
             },
@@ -121,7 +124,7 @@ impl Handler<Message> for ChatSession {
 /// Helper methods
 impl ChatSession {
 
-    pub fn new(addr: Addr<Syn<ChatServer>>,
+    pub fn new(addr: Addr<Syn,ChatServer>,
                framed: actix::io::FramedWrite<WriteHalf<TcpStream>, ChatCodec>) -> ChatSession {
         ChatSession {id: 0, addr: addr, hb: Instant::now(),
                      room: "Main".to_owned(), framed: framed}
@@ -155,11 +158,11 @@ impl ChatSession {
 /// Define tcp server that will accept incoming tcp connection and create
 /// chat actors.
 pub struct TcpServer {
-    chat: Addr<Syn<ChatServer>>,
+    chat: Addr<Syn, ChatServer>,
 }
 
 impl TcpServer {
-    pub fn new(s: &str, chat: Addr<Syn<ChatServer>>) {
+    pub fn new(s: &str, chat: Addr<Syn, ChatServer>) {
         // Create server listener
         let addr = net::SocketAddr::from_str("127.0.0.1:12345").unwrap();
         let listener = TcpListener::bind(&addr, Arbiter::handle()).unwrap();

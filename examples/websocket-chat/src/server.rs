@@ -15,7 +15,7 @@ use session;
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
-    pub addr: SyncSubscriber<session::Message>,
+    pub addr: Subscriber<Syn, session::Message>,
 }
 
 /// Session is disconnected
@@ -54,7 +54,7 @@ pub struct Join {
 /// `ChatServer` manages chat rooms and responsible for coordinating chat session.
 /// implementation is super primitive
 pub struct ChatServer {
-    sessions: HashMap<usize, SyncSubscriber<session::Message>>,
+    sessions: HashMap<usize, Subscriber<Syn, session::Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: RefCell<ThreadRng>,
 }

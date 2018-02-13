@@ -26,7 +26,7 @@ mod session;
 /// This is our websocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
-    addr: Addr<Syn<server::ChatServer>>,
+    addr: Addr<Syn, server::ChatServer>,
 }
 
 /// Entry point for our route
@@ -62,10 +62,10 @@ impl Actor for WsChatSession {
         // before processing any other events.
         // HttpContext::state() is instance of WsChatSessionState, state is shared across all
         // routes within application
-        let addr: Addr<Syn<_>> = ctx.address();
-        ctx.state().addr.call(
-            self, server::Connect{addr: addr.subscriber()}).then(
-            |res, act, ctx| {
+        let addr: Addr<Syn, _> = ctx.address();
+        ctx.state().addr.call(server::Connect{addr: addr.subscriber()})
+            .into_actor(self)
+            .then(|res, act, ctx| {
                 match res {
                     Ok(res) => act.id = res,
                     // something is wrong with chat server
@@ -109,17 +109,19 @@ impl Handler<ws::Message> for WsChatSession {
                         "/list" => {
                             // Send ListRooms message to chat server and wait for response
                             println!("List rooms");
-                            ctx.state().addr.call(self, server::ListRooms).then(|res, _, ctx| {
-                                match res {
-                                    Ok(rooms) => {
-                                        for room in rooms {
-                                            ctx.text(room);
-                                        }
-                                    },
-                                    _ => println!("Something is wrong"),
-                                }
-                                fut::ok(())
-                            }).wait(ctx)
+                            ctx.state().addr.call(server::ListRooms)
+                                .into_actor(self)
+                                .then(|res, _, ctx| {
+                                    match res {
+                                        Ok(rooms) => {
+                                            for room in rooms {
+                                                ctx.text(room);
+                                            }
+                                        },
+                                        _ => println!("Something is wrong"),
+                                    }
+                                    fut::ok(())
+                                }).wait(ctx)
                             // .wait(ctx) pauses all events in context,
                             // so actor wont receive any new messages until it get list
                             // of rooms back
@@ -172,7 +174,7 @@ fn main() {
     let sys = actix::System::new("websocket-example");
 
     // Start chat server actor in separate thread
-    let server: Addr<Syn<_>> = Arbiter::start(|_| server::ChatServer::default());
+    let server: Addr<Syn, _> = Arbiter::start(|_| server::ChatServer::default());
 
     // Start tcp server in separate thread
     let srv = server.clone();
