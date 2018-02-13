@@ -103,7 +103,7 @@ pub struct WsClient {
     http_err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
-    conn: Addr<Unsync<ClientConnector>>,
+    conn: Addr<Unsync, ClientConnector>,
 }
 
 impl WsClient {
@@ -114,7 +114,7 @@ impl WsClient {
     }
 
     /// Create new websocket connection with custom `ClientConnector`
-    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<Unsync<ClientConnector>>) -> WsClient {
+    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<Unsync, ClientConnector>) -> WsClient {
         let mut cl = WsClient {
             request: ClientRequest::build(),
             err: None,
@@ -200,7 +200,7 @@ impl WsClient {
 
         // get connection and start handshake
         Ok(Box::new(
-            self.conn.call_fut(Connect(request.uri().clone()))
+            self.conn.send(Connect(request.uri().clone()))
                 .map_err(|_| WsClientError::Disconnected)
                 .and_then(|res| match res {
                     Ok(stream) => Either::A(WsHandshake::new(stream, request)),

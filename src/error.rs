@@ -403,8 +403,8 @@ pub enum UrlencodedError {
     #[fail(display="Content type error")]
     ContentType,
     /// Payload error
-    #[fail(display="Error that occur during reading payload")]
-    Payload(PayloadError),
+    #[fail(display="Error that occur during reading payload: {}", _0)]
+    Payload(#[cause] PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
@@ -435,11 +435,11 @@ pub enum JsonPayloadError {
     #[fail(display="Content type error")]
     ContentType,
     /// Deserialize error
-    #[fail(display="Json deserialize error")]
-    Deserialize(JsonError),
+    #[fail(display="Json deserialize error: {}", _0)]
+    Deserialize(#[cause] JsonError),
     /// Payload error
-    #[fail(display="Error that occur during reading payload")]
-    Payload(PayloadError),
+    #[fail(display="Error that occur during reading payload: {}", _0)]
+    Payload(#[cause] PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`

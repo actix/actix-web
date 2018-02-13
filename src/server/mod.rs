@@ -2,6 +2,7 @@
 use std::{time, io};
 use std::net::Shutdown;
 
+use actix;
 use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
@@ -43,9 +44,12 @@ pub struct ResumeServer;
 /// Stop incoming connection processing, stop all workers and exit.
 ///
 /// If server starts with `spawn()` method, then spawned thread get terminated.
-#[derive(Message)]
 pub struct StopServer {
     pub graceful: bool
+}
+
+impl actix::Message for StopServer {
+    type Result = Result<(), ()>;
 }
 
 /// Low level http request handler

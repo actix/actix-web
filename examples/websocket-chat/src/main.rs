@@ -26,7 +26,7 @@ mod session;
 /// This is our websocket route state, this state is shared with all route instances
 /// via `HttpContext::state()`
 struct WsChatSessionState {
-    addr: SyncAddress<server::ChatServer>,
+    addr: Addr<Syn, server::ChatServer>,
 }
 
 /// Entry point for our route
@@ -62,12 +62,12 @@ impl Actor for WsChatSession {
         // before processing any other events.
         // HttpContext::state() is instance of WsChatSessionState, state is shared across all
         // routes within application
-        let addr: SyncAddress<_> = ctx.address();
-        ctx.state().addr.call(
-            self, server::Connect{addr: addr.into()}).then(
-            |res, act, ctx| {
+        let addr: Addr<Syn, _> = ctx.address();
+        ctx.state().addr.send(server::Connect{addr: addr.recipient()})
+            .into_actor(self)
+            .then(|res, act, ctx| {
                 match res {
-                    Ok(Ok(res)) => act.id = res,
+                    Ok(res) => act.id = res,
                     // something is wrong with chat server
                     _ => ctx.stop(),
                 }
@@ -77,7 +77,7 @@ impl Actor for WsChatSession {
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
         // notify chat server
-        ctx.state().addr.send(server::Disconnect{id: self.id});
+        ctx.state().addr.do_send(server::Disconnect{id: self.id});
         true
     }
 }
@@ -109,17 +109,19 @@ impl Handler<ws::Message> for WsChatSession {
                         "/list" => {
                             // Send ListRooms message to chat server and wait for response
                             println!("List rooms");
-                            ctx.state().addr.call(self, server::ListRooms).then(|res, _, ctx| {
-                                match res {
-                                    Ok(Ok(rooms)) => {
-                                        for room in rooms {
-                                            ctx.text(room);
-                                        }
-                                    },
-                                    _ => println!("Something is wrong"),
-                                }
-                                fut::ok(())
-                            }).wait(ctx)
+                            ctx.state().addr.send(server::ListRooms)
+                                .into_actor(self)
+                                .then(|res, _, ctx| {
+                                    match res {
+                                        Ok(rooms) => {
+                                            for room in rooms {
+                                                ctx.text(room);
+                                            }
+                                        },
+                                        _ => println!("Something is wrong"),
+                                    }
+                                    fut::ok(())
+                                }).wait(ctx)
                             // .wait(ctx) pauses all events in context,
                             // so actor wont receive any new messages until it get list
                             // of rooms back
@@ -127,7 +129,7 @@ impl Handler<ws::Message> for WsChatSession {
                         "/join" => {
                             if v.len() == 2 {
                                 self.room = v[1].to_owned();
-                                ctx.state().addr.send(
+                                ctx.state().addr.do_send(
                                     server::Join{id: self.id, name: self.room.clone()});
 
                                 ctx.text("joined");
@@ -151,7 +153,7 @@ impl Handler<ws::Message> for WsChatSession {
                         m.to_owned()
                     };
                     // send message to chat server
-                    ctx.state().addr.send(
+                    ctx.state().addr.do_send(
                         server::Message{id: self.id,
                                         msg: msg,
                                         room: self.room.clone()})
@@ -172,12 +174,11 @@ fn main() {
     let sys = actix::System::new("websocket-example");
 
     // Start chat server actor in separate thread
-    let server: SyncAddress<_> =
-        Arbiter::start(|_| server::ChatServer::default());
+    let server: Addr<Syn, _> = Arbiter::start(|_| server::ChatServer::default());
 
     // Start tcp server in separate thread
     let srv = server.clone();
-    Arbiter::new("tcp-server").send::<msgs::Execute>(
+    Arbiter::new("tcp-server").do_send::<msgs::Execute>(
         msgs::Execute::new(move || {
             session::TcpServer::new("127.0.0.1:12345", srv);
             Ok(())

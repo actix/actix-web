@@ -31,14 +31,14 @@ use db::{CreateUser, DbExecutor};
 
 /// State with DbExecutor address
 struct State {
-    db: SyncAddress<DbExecutor>,
+    db: Addr<Syn, DbExecutor>,
 }
 
 /// Async request handler
 fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let name = &req.match_info()["name"];
 
-    req.state().db.call_fut(CreateUser{name: name.to_owned()})
+    req.state().db.send(CreateUser{name: name.to_owned()})
         .from_err()
         .and_then(|res| {
             match res {

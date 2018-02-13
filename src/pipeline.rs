@@ -739,7 +739,7 @@ mod tests {
 
             let req = HttpRequest::default();
             let mut ctx = HttpContext::new(req.clone(), MyActor);
-            let addr: Addr<Unsync<_>> = ctx.address();
+            let addr: Addr<Unsync, _> = ctx.address();
             let mut info = PipelineInfo::new(req);
             info.context = Some(Box::new(ctx));
             let mut state = Completed::<(), Inner<()>>::init(&mut info).completed().unwrap();

@@ -29,7 +29,7 @@ fn main() {
     Arbiter::handle().spawn(
         TcpStream::connect(&addr, Arbiter::handle())
             .and_then(|stream| {
-                let addr: SyncAddress<_> = ChatClient::create(|ctx| {
+                let addr: Addr<Syn, _> = ChatClient::create(|ctx| {
                     let (r, w) = stream.split();
                     ChatClient::add_stream(FramedRead::new(r, codec::ClientChatCodec), ctx);
                     ChatClient{
@@ -45,7 +45,7 @@ fn main() {
                             return
                         }
 
-                        addr.send(ClientCommand(cmd));
+                        addr.do_send(ClientCommand(cmd));
                     }
                 });
 
@@ -81,7 +81,7 @@ impl Actor for ChatClient {
         println!("Disconnected");
 
         // Stop application on disconnect
-        Arbiter::system().send(actix::msgs::SystemExit(0));
+        Arbiter::system().do_send(actix::msgs::SystemExit(0));
 
         true
     }

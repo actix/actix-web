@@ -17,9 +17,8 @@ pub struct CreateUser {
     pub name: String,
 }
 
-impl ResponseType for CreateUser {
-    type Item = models::User;
-    type Error = Error;
+impl Message for CreateUser {
+    type Result = Result<models::User, Error>;
 }
 
 impl Actor for DbExecutor {
@@ -27,7 +26,7 @@ impl Actor for DbExecutor {
 }
 
 impl Handler<CreateUser> for DbExecutor {
-    type Result = MessageResult<CreateUser>;
+    type Result = Result<models::User, Error>;
 
     fn handle(&mut self, msg: CreateUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;

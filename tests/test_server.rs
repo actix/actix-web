@@ -72,12 +72,12 @@ fn test_start() {
     assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
 
     // pause
-    let _ = srv_addr.call_fut(server::PauseServer).wait();
+    let _ = srv_addr.send(server::PauseServer).wait();
     thread::sleep(time::Duration::from_millis(100));
     assert!(net::TcpStream::connect(addr).is_err());
 
     // resume
-    let _ = srv_addr.call_fut(server::ResumeServer).wait();
+    let _ = srv_addr.send(server::ResumeServer).wait();
     assert!(reqwest::get(&format!("http://{}/", addr)).unwrap().status().is_success());
 }
 
