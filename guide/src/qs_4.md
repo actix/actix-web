@@ -89,8 +89,7 @@ impl<S> Handler<S> for MyHandler {
 
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let num = self.0.load(Ordering::Relaxed) + 1;
-        self.0.store(num, Ordering::Relaxed);
+        self.0.fetch_add(1, Ordering::Relaxed);
         httpcodes::HTTPOk.into()
     }
 }
