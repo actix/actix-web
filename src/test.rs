@@ -56,7 +56,7 @@ pub struct TestServer {
     addr: net::SocketAddr,
     thread: Option<thread::JoinHandle<()>>,
     system: SystemRunner,
-    server_sys: Addr<Syn<System>>,
+    server_sys: Addr<Syn, System>,
 }
 
 impl TestServer {

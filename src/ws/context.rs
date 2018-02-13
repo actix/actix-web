@@ -67,13 +67,13 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
 
     #[doc(hidden)]
     #[inline]
-    fn unsync_address(&mut self) -> Addr<Unsync<A>> {
+    fn unsync_address(&mut self) -> Addr<Unsync, A> {
         self.inner.unsync_address()
     }
 
     #[doc(hidden)]
     #[inline]
-    fn sync_address(&mut self) -> Addr<Syn<A>> {
+    fn sync_address(&mut self) -> Addr<Syn, A> {
         self.inner.sync_address()
     }
 }
@@ -217,12 +217,12 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
     }
 }
 
-impl<A, M, S> ToEnvelope<Syn<A>, M> for WebsocketContext<A, S>
+impl<A, M, S> ToEnvelope<Syn, A, M> for WebsocketContext<A, S>
     where A: Actor<Context=WebsocketContext<A, S>> + Handler<M>,
           M: Message + Send + 'static, M::Result: Send
 {
-    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Syn<A> {
-        Syn::new(Box::new(SyncEnvelope::envelope(msg, tx)))
+    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> SyncEnvelope<A> {
+        SyncEnvelope::new(msg, tx)
     }
 }
 

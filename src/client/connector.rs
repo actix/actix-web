@@ -191,7 +191,8 @@ impl Handler<Connect> for ClientConnector {
 
         ActorResponse::async(
             Connector::from_registry()
-                .call(self, ResolveConnect::host_and_port(&host, port))
+                .call(ResolveConnect::host_and_port(&host, port))
+                .into_actor(self)
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
                 .and_then(move |res, _act, _| {
                     #[cfg(feature="alpn")]
