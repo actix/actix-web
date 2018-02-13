@@ -333,7 +333,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 impl<H: IntoHttpHandler> HttpServer<H>
 {
     /// Start listening for incoming tls connections.
-    pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<SyncAddress<Self>> {
+    pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<Addr<Syn, Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
@@ -350,7 +350,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start http server actor
             let signals = self.subscribe_to_signals();
-            let addr: SyncAddress<_> = Actor::start(self);
+            let addr: Addr<Syn, _> = Actor::start(self);
             signals.map(|signals| signals.send(
                 signal::Subscribe(addr.clone().subscriber())));
             Ok(addr)
@@ -364,7 +364,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn start_ssl(mut self, mut builder: SslAcceptorBuilder) -> io::Result<SyncAddress<Self>>
+    pub fn start_ssl(mut self, mut builder: SslAcceptorBuilder) -> io::Result<Addr<Syn, Self>>
     {
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
@@ -394,7 +394,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start http server actor
             let signals = self.subscribe_to_signals();
-            let addr: SyncAddress<_> = Actor::start(self);
+            let addr: Addr<Syn, _> = Actor::start(self);
             signals.map(|signals| signals.send(
                 signal::Subscribe(addr.clone().subscriber())));
             Ok(addr)
