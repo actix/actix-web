@@ -290,7 +290,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().subscriber())));
+                signal::Subscribe(addr.clone().recipient())));
             addr
         }
     }
@@ -352,7 +352,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().subscriber())));
+                signal::Subscribe(addr.clone().recipient())));
             Ok(addr)
         }
     }
@@ -396,7 +396,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
             signals.map(|signals| signals.send(
-                signal::Subscribe(addr.clone().subscriber())));
+                signal::Subscribe(addr.clone().recipient())));
             Ok(addr)
         }
     }
@@ -443,7 +443,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             self
         });
         signals.map(|signals| signals.send(
-            signal::Subscribe(addr.clone().subscriber())));
+            signal::Subscribe(addr.clone().recipient())));
         addr
     }
 }
