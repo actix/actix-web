@@ -139,7 +139,7 @@ impl ClientConnector {
     ///     let conn: Address<_> = ClientConnector::with_connector(ssl_conn).start();
     ///
     ///     Arbiter::handle().spawn({
-    ///         conn.call_fut(
+    ///         conn.call(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
     ///                 .map_err(|_| ())
     ///                 .and_then(|res| {
