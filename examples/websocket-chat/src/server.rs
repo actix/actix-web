@@ -15,7 +15,7 @@ use session;
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
-    pub addr: Subscriber<Syn, session::Message>,
+    pub addr: Recipient<Syn, session::Message>,
 }
 
 /// Session is disconnected
@@ -54,7 +54,7 @@ pub struct Join {
 /// `ChatServer` manages chat rooms and responsible for coordinating chat session.
 /// implementation is super primitive
 pub struct ChatServer {
-    sessions: HashMap<usize, Subscriber<Syn, session::Message>>,
+    sessions: HashMap<usize, Recipient<Syn, session::Message>>,
     rooms: HashMap<String, HashSet<usize>>,
     rng: RefCell<ThreadRng>,
 }
@@ -80,7 +80,7 @@ impl ChatServer {
             for id in sessions {
                 if *id != skip_id {
                     if let Some(addr) = self.sessions.get(id) {
-                        let _ = addr.send(session::Message(message.to_owned()));
+                        let _ = addr.do_send(session::Message(message.to_owned()));
                     }
                 }
             }

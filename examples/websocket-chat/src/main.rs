@@ -63,7 +63,7 @@ impl Actor for WsChatSession {
         // HttpContext::state() is instance of WsChatSessionState, state is shared across all
         // routes within application
         let addr: Addr<Syn, _> = ctx.address();
-        ctx.state().addr.call(server::Connect{addr: addr.subscriber()})
+        ctx.state().addr.send(server::Connect{addr: addr.recipient()})
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
@@ -77,7 +77,7 @@ impl Actor for WsChatSession {
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
         // notify chat server
-        ctx.state().addr.send(server::Disconnect{id: self.id});
+        ctx.state().addr.do_send(server::Disconnect{id: self.id});
         true
     }
 }
@@ -109,7 +109,7 @@ impl Handler<ws::Message> for WsChatSession {
                         "/list" => {
                             // Send ListRooms message to chat server and wait for response
                             println!("List rooms");
-                            ctx.state().addr.call(server::ListRooms)
+                            ctx.state().addr.send(server::ListRooms)
                                 .into_actor(self)
                                 .then(|res, _, ctx| {
                                     match res {
@@ -129,7 +129,7 @@ impl Handler<ws::Message> for WsChatSession {
                         "/join" => {
                             if v.len() == 2 {
                                 self.room = v[1].to_owned();
-                                ctx.state().addr.send(
+                                ctx.state().addr.do_send(
                                     server::Join{id: self.id, name: self.room.clone()});
 
                                 ctx.text("joined");
@@ -153,7 +153,7 @@ impl Handler<ws::Message> for WsChatSession {
                         m.to_owned()
                     };
                     // send message to chat server
-                    ctx.state().addr.send(
+                    ctx.state().addr.do_send(
                         server::Message{id: self.id,
                                         msg: msg,
                                         room: self.room.clone()})
@@ -178,7 +178,7 @@ fn main() {
 
     // Start tcp server in separate thread
     let srv = server.clone();
-    Arbiter::new("tcp-server").send::<msgs::Execute>(
+    Arbiter::new("tcp-server").do_send::<msgs::Execute>(
         msgs::Execute::new(move || {
             session::TcpServer::new("127.0.0.1:12345", srv);
             Ok(())

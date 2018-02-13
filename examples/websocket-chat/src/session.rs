@@ -46,7 +46,7 @@ impl Actor for ChatSession {
         // future within context, but context waits until this future resolves
         // before processing any other events.
         let addr: Addr<Syn, _> = ctx.address();
-        self.addr.call(server::Connect{addr: addr.subscriber()})
+        self.addr.send(server::Connect{addr: addr.recipient()})
             .into_actor(self)
             .then(|res, act, ctx| {
                 match res {
@@ -60,7 +60,7 @@ impl Actor for ChatSession {
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> bool {
         // notify chat server
-        self.addr.send(server::Disconnect{id: self.id});
+        self.addr.do_send(server::Disconnect{id: self.id});
         true
     }
 }
@@ -76,7 +76,7 @@ impl StreamHandler<ChatRequest, io::Error> for ChatSession {
             ChatRequest::List => {
                 // Send ListRooms message to chat server and wait for response
                 println!("List rooms");
-                self.addr.call(server::ListRooms)
+                self.addr.send(server::ListRooms)
                     .into_actor(self)
                     .then(|res, act, ctx| {
                         match res {
@@ -93,13 +93,13 @@ impl StreamHandler<ChatRequest, io::Error> for ChatSession {
             ChatRequest::Join(name) => {
                 println!("Join to room: {}", name);
                 self.room = name.clone();
-                self.addr.send(server::Join{id: self.id, name: name.clone()});
+                self.addr.do_send(server::Join{id: self.id, name: name.clone()});
                 self.framed.write(ChatResponse::Joined(name));
             },
             ChatRequest::Message(message) => {
                 // send message to chat server
                 println!("Peer message: {}", message);
-                self.addr.send(
+                self.addr.do_send(
                     server::Message{id: self.id,
                                     msg: message, room:
                                     self.room.clone()})
@@ -141,7 +141,7 @@ impl ChatSession {
                 println!("Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr.send(server::Disconnect{id: act.id});
+                act.addr.do_send(server::Disconnect{id: act.id});
 
                 // stop actor
                 ctx.stop();
