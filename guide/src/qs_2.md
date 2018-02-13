@@ -71,7 +71,7 @@ Here is full source of main.rs file:
 
 ```rust
 # use std::thread;
-# extern crate actix_web;
+extern crate actix_web;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> &'static str {
@@ -79,13 +79,16 @@ fn index(req: HttpRequest) -> &'static str {
 }
 
 fn main() {
-# thread::spawn(|| {
+#  // In the doctest suite we can't run blocking code - deliberately leak a thread
+#  // If copying this example in show-all mode make sure you skip the thread spawn
+#  // call.
+#  thread::spawn(|| {
     HttpServer::new(
         || Application::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
         .run();
-# });
+#  });
 }
 ```
 
