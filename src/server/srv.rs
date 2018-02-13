@@ -264,7 +264,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .start();
-    /// #  actix::Arbiter::system().send(actix::msgs::SystemExit(0));
+    /// #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
     ///
     ///    let _ = sys.run();  // <- Run actix system, this method actually starts all async processes
     /// }
@@ -289,7 +289,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             // start http server actor
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
-            signals.map(|signals| signals.send(
+            signals.map(|signals| signals.do_send(
                 signal::Subscribe(addr.clone().recipient())));
             addr
         }
@@ -351,7 +351,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             // start http server actor
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
-            signals.map(|signals| signals.send(
+            signals.map(|signals| signals.do_send(
                 signal::Subscribe(addr.clone().recipient())));
             Ok(addr)
         }
@@ -395,7 +395,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             // start http server actor
             let signals = self.subscribe_to_signals();
             let addr: Addr<Syn, _> = Actor::start(self);
-            signals.map(|signals| signals.send(
+            signals.map(|signals| signals.do_send(
                 signal::Subscribe(addr.clone().recipient())));
             Ok(addr)
         }
@@ -442,7 +442,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
                     .map(move |(t, _)| Conn{io: WrapperStream::new(t), peer: None, http2: false}));
             self
         });
-        signals.map(|signals| signals.send(
+        signals.map(|signals| signals.do_send(
             signal::Subscribe(addr.clone().recipient())));
         addr
     }
@@ -536,7 +536,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         };
         for worker in &self.workers {
             let tx2 = tx.clone();
-            let fut = worker.call(StopWorker{graceful: dur}).into_actor(self);
+            let fut = worker.send(StopWorker{graceful: dur}).into_actor(self);
             ActorFuture::then(fut, move |_, slf, _| {
                 slf.workers.pop();
                 if slf.workers.is_empty() {
@@ -544,7 +544,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
 
                     // we need to stop system if server was spawned
                     if slf.exit {
-                        Arbiter::system().send(actix::msgs::SystemExit(0))
+                        Arbiter::system().do_send(actix::msgs::SystemExit(0))
                     }
                 }
                 actix::fut::ok(())
@@ -557,7 +557,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         } else {
             // we need to stop system if server was spawned
             if self.exit {
-                Arbiter::system().send(actix::msgs::SystemExit(0))
+                Arbiter::system().do_send(actix::msgs::SystemExit(0))
             }
             Response::reply(Ok(()))
         }

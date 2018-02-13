@@ -146,7 +146,7 @@ impl ClientConnector {
     ///                     if let Ok(mut stream) = res {
     ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
     ///                     }
-    /// #                   Arbiter::system().send(actix::msgs::SystemExit(0));
+    /// #                   Arbiter::system().do_send(actix::msgs::SystemExit(0));
     ///                     Ok(())
     ///                 })
     ///     });
@@ -191,7 +191,7 @@ impl Handler<Connect> for ClientConnector {
 
         ActorResponse::async(
             Connector::from_registry()
-                .call(ResolveConnect::host_and_port(&host, port))
+                .send(ResolveConnect::host_and_port(&host, port))
                 .into_actor(self)
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
                 .and_then(move |res, _act, _| {

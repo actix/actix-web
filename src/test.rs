@@ -165,7 +165,7 @@ impl TestServer {
     /// Stop http server
     fn stop(&mut self) {
         if let Some(handle) = self.thread.take() {
-            self.server_sys.send(msgs::SystemExit(0));
+            self.server_sys.do_send(msgs::SystemExit(0));
             let _ = handle.join();
         }
     }

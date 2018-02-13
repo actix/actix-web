@@ -200,7 +200,7 @@ impl WsClient {
 
         // get connection and start handshake
         Ok(Box::new(
-            self.conn.call(Connect(request.uri().clone()))
+            self.conn.send(Connect(request.uri().clone()))
                 .map_err(|_| WsClientError::Disconnected)
                 .and_then(|res| match res {
                     Ok(stream) => Either::A(WsHandshake::new(stream, request)),

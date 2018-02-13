@@ -109,7 +109,7 @@ fn main() {
         .start();
 
     println!("Started http server: 127.0.0.1:8088");
-#    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
+#    actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
     let _ = sys.run();
 }
 ```
@@ -167,7 +167,7 @@ fn main() {
         .start();
 
     println!("Started http server: 127.0.0.1:8088");
-#    actix::Arbiter::system().send(actix::msgs::SystemExit(0));
+#    actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
     let _ = sys.run();
 }
 ```
