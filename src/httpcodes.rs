@@ -42,6 +42,8 @@ pub const HTTPPreconditionFailed: StaticResponse =
     StaticResponse(StatusCode::PRECONDITION_FAILED);
 pub const HTTPPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
 pub const HTTPUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+pub const HTTPRangeNotSatisfiable: StaticResponse =
+    StaticResponse(StatusCode::RANGE_NOT_SATISFIABLE);
 pub const HTTPExpectationFailed: StaticResponse =
     StaticResponse(StatusCode::EXPECTATION_FAILED);
 
@@ -141,6 +143,7 @@ impl HttpResponse {
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
+    STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
 
     STATIC_RESP!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
