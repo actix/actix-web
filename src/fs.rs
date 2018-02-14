@@ -85,9 +85,9 @@ impl Responder for NamedFile {
     type Error = io::Error;
 
     fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
-        if let Ok(rangeheader) = req.headers().get("range").unwrap().to_str() {
+        if let Some(rangeheader) = req.headers().get("range") {
             let file_metadata = metadata(self.0)?;
-            if let Ok(ranges) = HttpRange::parse(rangeheader, file_metadata.len()) {
+            if let Ok(ranges) = HttpRange::parse(rangeheader.to_str().unwrap(), file_metadata.len()) {
                 let mut resp = HTTPPartialContent.build();
                 let length: usize = ranges[0].length as usize;
                 let mut data: Vec<u8> = vec![0u8; length];
