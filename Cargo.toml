@@ -94,6 +94,7 @@ version_check = "0.1"
 [profile.release]
 lto = true
 opt-level = 3
+codegen-units = 1
 
 [workspace]
 members = [

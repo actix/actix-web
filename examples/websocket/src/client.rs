@@ -66,13 +66,11 @@ impl Actor for ChatClient {
         self.hb(ctx)
     }
 
-    fn stopping(&mut self, _: &mut Context<Self>) -> bool {
-        println!("Stopping");
+    fn stopped(&mut self, _: &mut Context<Self>) {
+        println!("Disconnected");
 
         // Stop application on disconnect
         Arbiter::system().do_send(actix::msgs::SystemExit(0));
-
-        true
     }
 }
 
