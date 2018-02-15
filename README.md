@@ -59,7 +59,9 @@ fn main() {
 
 ## Benchmarks
 
-Some basic benchmarks could be found in this [respository](https://github.com/fafhrd91/benchmarks).
+* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext)
+
+* Some basic benchmarks could be found in this [respository](https://github.com/fafhrd91/benchmarks).
 
 ## License
 
