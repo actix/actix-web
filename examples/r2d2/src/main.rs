@@ -44,6 +44,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("r2d2-example");
 
+    // r2d2 pool
     let manager = SqliteConnectionManager::file("test.db");
     let pool = r2d2::Pool::new(manager).unwrap();
 

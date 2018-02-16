@@ -666,11 +666,21 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                                     }
                                 }
                             },
-                            Command::Stop => return,
+                            Command::Stop => {
+                                if let Some(server) = server.take() {
+                                    let _ = poll.deregister(&server);
+                                }
+                                return
+                            },
                         },
                         Err(err) => match err {
                             sync_mpsc::TryRecvError::Empty => (),
-                            sync_mpsc::TryRecvError::Disconnected => return,
+                            sync_mpsc::TryRecvError::Disconnected => {
+                                if let Some(server) = server.take() {
+                                    let _ = poll.deregister(&server);
+                                }
+                                return
+                            },
                         }
                     },
                     _ => unreachable!(),
