@@ -60,6 +60,7 @@ script:
       cd examples/state && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..
       cd examples/diesel && cargo check && cd ../..
+      cd examples/r2d2 && cargo check && cd ../..
       cd examples/tls && cargo check && cd ../..
       cd examples/websocket-chat && cargo check && cd ../..
       cd examples/websocket && cargo check && cd ../..

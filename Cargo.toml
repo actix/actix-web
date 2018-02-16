@@ -101,6 +101,7 @@ members = [
   "./",
   "examples/basics",
   "examples/diesel",
+  "examples/r2d2",
   "examples/json",
   "examples/hello-world",
   "examples/multipart",
