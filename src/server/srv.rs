@@ -628,11 +628,11 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                                             .expect("worker thread died");
                                         next = (next + 1) % workers.len();
                                     },
-                                    Err(err) => if err.kind() == io::ErrorKind::WouldBlock {
+                                    Err(err) => {
+                                        if err.kind() != io::ErrorKind::WouldBlock {
+                                            error!("Error accepting connection: {:?}", err);
+                                        }
                                         break
-                                    } else {
-                                        error!("Error accepting connection: {:?}", err);
-                                        return
                                     }
                                 }
                             }
