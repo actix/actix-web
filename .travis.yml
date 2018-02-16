@@ -24,7 +24,7 @@ matrix:
 
 env:
   global:
-    - RUSTFLAGS="-C link-dead-code"
+    # - RUSTFLAGS="-C link-dead-code"
     - OPENSSL_VERSION=openssl-1.0.2
 
 before_install:
