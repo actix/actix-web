@@ -6,6 +6,6 @@ workspace = "../.."
 
 [dependencies]
 env_logger = "0.5"
-actix = "0.4"
+actix = "0.5"
 actix-web = { path = "../../" }
 tera = "*"

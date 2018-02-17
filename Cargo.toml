@@ -78,8 +78,7 @@ openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
 
 [dependencies.actix]
-#version = "0.5"
-git = "https://github.com/actix/actix.git"
+version = "0.5"
 
 [dev-dependencies]
 env_logger = "0.5"
