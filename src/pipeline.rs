@@ -460,7 +460,11 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                         };
 
                         if let Some(err) = self.resp.error() {
-                            warn!("Error occured during request handling: {}", err);
+                            if self.resp.status().is_server_error() {
+                                error!("Error occured during request handling: {}", err);
+                            } else {
+                                warn!("Error occured during request handling: {}", err);
+                            }
                             if log_enabled!(Debug) {
                                 debug!("{:?}", err);
                             }
