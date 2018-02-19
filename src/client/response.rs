@@ -158,6 +158,15 @@ impl ClientResponse {
         }
     }
 
+    /// Load request body.
+    ///
+    /// By default only 256Kb payload reads to a memory, then connection get dropped
+    /// and `PayloadError` get returned. Use `ResponseBody::limit()`
+    /// method to change upper limit.
+    pub fn body(self) -> ResponseBody {
+        ResponseBody::new(self)
+    }
+
     // /// Return stream to http payload processes as multipart.
     // ///
     // /// Content-type: multipart/form-data;
@@ -221,6 +230,67 @@ impl Stream for ClientResponse {
     }
 }
 
+/// Future that resolves to a complete response body.
+#[must_use = "ResponseBody does nothing unless polled"]
+pub struct ResponseBody {
+    limit: usize,
+    resp: Option<ClientResponse>,
+    fut: Option<Box<Future<Item=Bytes, Error=PayloadError>>>,
+}
+
+impl ResponseBody {
+
+    /// Create `ResponseBody` for request.
+    pub fn new(resp: ClientResponse) -> Self {
+        ResponseBody {
+            limit: 262_144,
+            resp: Some(resp),
+            fut: None,
+        }
+    }
+
+    /// Change max size of payload. By default max size is 256Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+}
+
+impl Future for ResponseBody {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Bytes, PayloadError> {
+        if let Some(resp) = self.resp.take() {
+            if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = len.to_str() {
+                    if let Ok(len) = s.parse::<usize>() {
+                        if len > self.limit {
+                            return Err(PayloadError::Overflow);
+                        }
+                    } else {
+                        return Err(PayloadError::Overflow);
+                    }
+                }
+            }
+            let limit = self.limit;
+            let fut = resp.from_err()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    if (body.len() + chunk.len()) > limit {
+                        Err(PayloadError::Overflow)
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Ok(body)
+                    }
+                })
+                .map(|bytes| bytes.freeze());
+            self.fut = Some(Box::new(fut));
+        }
+
+        self.fut.as_mut().expect("ResponseBody could not be used second time").poll()
+    }
+}
+
 /// Client response json parser that resolves to a deserialized `T` value.
 ///
 /// Returns error:
@@ -237,7 +307,7 @@ pub struct JsonResponse<T: DeserializeOwned>{
 
 impl<T: DeserializeOwned> JsonResponse<T> {
 
-    /// Create `JsonBody` for request.
+    /// Create `JsonResponse` for request.
     pub fn from_response(resp: ClientResponse) -> Self {
         JsonResponse{
             limit: 262_144,

@@ -33,7 +33,8 @@ impl ContentEncoding {
         }
     }
 
-    fn as_str(&self) -> &'static str {
+    #[inline]
+    pub fn as_str(&self) -> &'static str {
         match *self {
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",

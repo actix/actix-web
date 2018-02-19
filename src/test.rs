@@ -26,6 +26,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
 use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
+use client::{ClientRequest, ClientRequestBuilder};
 
 /// The `TestServer` type.
 ///
@@ -38,7 +39,6 @@ use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// # use actix_web::*;
-/// # extern crate reqwest;
 /// #
 /// # fn my_handler(req: HttpRequest) -> HttpResponse {
 /// #     httpcodes::HTTPOk.into()
@@ -47,9 +47,11 @@ use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 /// # fn main() {
 /// use actix_web::test::TestServer;
 ///
-/// let srv = TestServer::new(|app| app.handler(my_handler));
+/// let mut srv = TestServer::new(|app| app.handler(my_handler));
 ///
-/// assert!(reqwest::get(&srv.url("/")).unwrap().status().is_success());
+/// let req = srv.get().finish().unwrap();
+/// let response = srv.execute(req.send()).unwrap();
+/// assert!(response.status().is_success());
 /// # }
 /// ```
 pub struct TestServer {
@@ -181,6 +183,28 @@ impl TestServer {
     pub fn ws(&mut self) -> Result<(WsClientReader, WsClientWriter), WsClientError> {
         let url = self.url("/");
         self.system.run_until_complete(WsClient::new(url).connect().unwrap())
+    }
+
+    /// Create `GET` request
+    pub fn get(&self) -> ClientRequestBuilder {
+        ClientRequest::get(self.url("/").as_str())
+    }
+
+    /// Create `POST` request
+    pub fn post(&self) -> ClientRequestBuilder {
+        ClientRequest::get(self.url("/").as_str())
+    }
+
+    /// Create `HEAD` request
+    pub fn head(&self) -> ClientRequestBuilder {
+        ClientRequest::head(self.url("/").as_str())
+    }
+
+    /// Connect to test http server
+    pub fn client(&self, meth: Method, path: &str) -> ClientRequestBuilder {
+        ClientRequest::build()
+            .method(meth)
+            .uri(self.url(path).as_str()).take()
     }
 }
 

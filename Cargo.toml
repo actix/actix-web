@@ -82,7 +82,6 @@ version = "0.5"
 
 [dev-dependencies]
 env_logger = "0.5"
-reqwest = "0.8"
 skeptic = "0.13"
 serde_derive = "1.0"
 

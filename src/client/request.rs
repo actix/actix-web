@@ -463,6 +463,15 @@ impl ClientRequestBuilder {
     pub fn finish(&mut self) -> Result<ClientRequest, HttpError> {
         self.body(Body::Empty)
     }
+
+    /// This method construct new `ClientRequestBuilder`
+    pub fn take(&mut self) -> ClientRequestBuilder {
+        ClientRequestBuilder {
+            request: self.request.take(),
+            err: self.err.take(),
+            cookies: self.cookies.take(),
+        }
+    }
 }
 
 #[inline]

@@ -21,11 +21,13 @@ pub struct HttpResponseParser {
     decoder: Option<Decoder>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum HttpResponseParserError {
+    /// Server disconnected
+    #[fail(display="Server disconnected")]
     Disconnect,
-    Payload,
-    Error(ParseError),
+    #[fail(display="{}", _0)]
+    Error(#[cause] ParseError),
 }
 
 impl HttpResponseParser {

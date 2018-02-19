@@ -11,10 +11,18 @@ use super::{Connect, Connection, ClientConnector, ClientConnectorError};
 use super::HttpClientWriter;
 use super::{HttpResponseParser, HttpResponseParserError};
 
+/// A set of errors that can occur during sending request and reading response
+#[derive(Fail, Debug)]
 pub enum SendRequestError {
-    Connector(ClientConnectorError),
-    ParseError(HttpResponseParserError),
-    Io(io::Error),
+    /// Failed to connect to host
+    #[fail(display="Failed to connect to host: {}", _0)]
+    Connector(#[cause] ClientConnectorError),
+    /// Error parsing response
+    #[fail(display="{}", _0)]
+    ParseError(#[cause] HttpResponseParserError),
+    /// Error reading response payload
+    #[fail(display="Error reading response payload: {}", _0)]
+    Io(#[cause] io::Error),
 }
 
 impl From<io::Error> for SendRequestError {
@@ -116,6 +124,7 @@ impl Pipeline {
 
     #[inline]
     pub fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        self.poll_write()?;
         self.parser.parse_payload(&mut self.conn, &mut self.parser_buf)
     }
 

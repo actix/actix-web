@@ -212,8 +212,10 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                 // TODO return error!
                 let _ = enc.write(bytes.clone());
                 let _ = enc.write_eof();
-
                 *bytes = Binary::from(tmp.take());
+
+                req.headers_mut().insert(
+                    CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
                 encoding = ContentEncoding::Identity;
             }
             let mut b = BytesMut::new();
@@ -239,6 +241,11 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             }
         }
     };
+
+    if encoding.is_compression() {
+        req.headers_mut().insert(
+            CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+    }
 
     req.replace_body(body);
     match encoding {

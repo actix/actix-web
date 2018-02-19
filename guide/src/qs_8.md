@@ -45,8 +45,8 @@ fn main() {
 There are several methods how you can test your application. Actix provides 
 [*TestServer*](../actix_web/test/struct.TestServer.html)
 server that could be used to run whole application of just specific handlers
-in real http server. At the moment it is required to use third-party libraries
-to make actual requests, libraries like [reqwest](https://crates.io/crates/reqwest).
+in real http server. *TrstServer::get()*, *TrstServer::post()* or *TrstServer::client()*
+methods could be used to send request to test server.
 
 In simple form *TestServer* could be configured to use handler. *TestServer::new* method
 accepts configuration function, only argument for this function is *test application*
@@ -55,7 +55,6 @@ for more information.
 
 ```rust
 # extern crate actix_web;
-extern crate reqwest;
 use actix_web::*;
 use actix_web::test::TestServer;
 
@@ -64,9 +63,13 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    let srv = TestServer::new(|app| app.handler(index));        // <- Start new test server
-    let url = srv.url("/");                                     // <- get handler url
-    assert!(reqwest::get(&url).unwrap().status().is_success()); // <- make request
+    let mut srv = TestServer::new(|app| app.handler(index));  // <- Start new test server
+    
+    let request = srv.get().finish().unwrap();                // <- create client request
+    let response = srv.execute(request.send()).unwrap();      // <- send request to the server
+    assert!(response.status().is_success());                  // <- check response
+    
+    let bytes = srv.execute(response.body()).unwrap();        // <- read response body
 }
 ```
 
@@ -74,8 +77,9 @@ Other option is to use application factory. In this case you need to pass factor
 same as you use for real http server configuration.
 
 ```rust
+# extern crate http;
 # extern crate actix_web;
-extern crate reqwest;
+use http::Method;
 use actix_web::*;
 use actix_web::test::TestServer;
 
@@ -90,9 +94,12 @@ fn create_app() -> Application {
 }
 
 fn main() {
-    let srv = TestServer::with_factory(create_app);             // <- Start new test server
-    let url = srv.url("/test");                                 // <- get handler url
-    assert!(reqwest::get(&url).unwrap().status().is_success()); // <- make request
+    let mut srv = TestServer::with_factory(create_app);         // <- Start new test server
+
+    let request = srv.client(Method::GET, "/test").finish().unwrap(); // <- create client request
+    let response = srv.execute(request.send()).unwrap();        // <- send request to the server
+
+    assert!(response.status().is_success());                    // <- check response
 }
 ```
 
