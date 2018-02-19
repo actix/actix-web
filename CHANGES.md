@@ -14,9 +14,13 @@
 
 * Added StaticFiles::index_file()
 
+* Added http client
+
 * Added basic websocket client
 
 * Added TestServer::ws(), test websockets client
+
+* Added TestServer test http client
 
 * Allow to override content encoding on application level
 

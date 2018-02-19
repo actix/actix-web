@@ -1,6 +1,7 @@
 use std::{fmt, mem};
 use std::io::Write;
 
+use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
 use bytes::{BytesMut, BufMut};
 use http::{HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
@@ -12,6 +13,7 @@ use body::Body;
 use error::Error;
 use headers::ContentEncoding;
 use super::pipeline::SendRequest;
+use super::connector::ClientConnector;
 
 /// An HTTP Client Request
 pub struct ClientRequest {
@@ -175,6 +177,11 @@ impl ClientRequest {
     /// Send request
     pub fn send(self) -> SendRequest {
         SendRequest::new(self)
+    }
+
+    pub fn with_connector(self, conn: Addr<Unsync, ClientConnector>) -> SendRequest {
+        SendRequest::with_connector(self, conn)
+
     }
 }
 

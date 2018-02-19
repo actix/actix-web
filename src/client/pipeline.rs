@@ -43,14 +43,21 @@ enum State {
 pub struct SendRequest {
     req: ClientRequest,
     state: State,
+    conn: Addr<Unsync, ClientConnector>,
 }
 
 impl SendRequest {
     pub(crate) fn new(req: ClientRequest) -> SendRequest {
+        SendRequest::with_connector(req, ClientConnector::from_registry())
+    }
+
+    pub(crate) fn with_connector(req: ClientRequest, conn: Addr<Unsync, ClientConnector>)
+                                 -> SendRequest
+    {
         SendRequest{
             req: req,
             state: State::New,
-        }
+            conn: conn}
     }
 }
 
@@ -64,8 +71,7 @@ impl Future for SendRequest {
 
             match state {
                 State::New =>
-                    self.state = State::Connect(
-                        ClientConnector::from_registry().send(Connect(self.req.uri().clone()))),
+                    self.state = State::Connect(self.conn.send(Connect(self.req.uri().clone()))),
                 State::Connect(mut conn) => match conn.poll() {
                     Ok(Async::NotReady) => {
                         self.state = State::Connect(conn);
