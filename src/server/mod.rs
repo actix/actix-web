@@ -24,6 +24,7 @@ pub use self::settings::ServerSettings;
 
 use body::Binary;
 use error::Error;
+use headers::ContentEncoding;
 use httprequest::{HttpMessage, HttpRequest};
 use httpresponse::HttpResponse;
 
@@ -102,7 +103,8 @@ pub enum WriterState {
 pub trait Writer {
     fn written(&self) -> u64;
 
-    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse) -> io::Result<WriterState>;
+    fn start(&mut self, req: &mut HttpMessage, resp: &mut HttpResponse, encoding: ContentEncoding)
+             -> io::Result<WriterState>;
 
     fn write(&mut self, payload: Binary) -> io::Result<WriterState>;
 

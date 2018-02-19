@@ -1,14 +1,24 @@
 # Changes
 
-## 0.3.4 (2018-..-..)
+## 0.4.0 (2018-02-..)
+
+* Actix 0.5 compatibility
 
 * Fix request json loader
 
+* Simplify HttpServer type definition
+
 * Added HttpRequest::mime_type() method
+
+* Added HttpRequest::uri_mut(), allows to modify request uri
 
 * Added StaticFiles::index_file()
 
 * Added basic websocket client
+
+* Added TestServer::ws(), test websockets client
+
+* Allow to override content encoding on application level
 
 
 ## 0.3.3 (2018-01-25)

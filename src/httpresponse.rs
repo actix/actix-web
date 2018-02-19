@@ -162,13 +162,13 @@ impl HttpResponse {
 
     /// Content encoding
     #[inline]
-    pub fn content_encoding(&self) -> ContentEncoding {
+    pub fn content_encoding(&self) -> Option<ContentEncoding> {
         self.get_ref().encoding
     }
 
     /// Set content encoding
     pub fn set_content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        self.get_mut().encoding = enc;
+        self.get_mut().encoding = Some(enc);
         self
     }
 
@@ -294,7 +294,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.encoding = enc;
+            parts.encoding = Some(enc);
         }
         self
     }
@@ -648,7 +648,7 @@ struct InnerHttpResponse {
     reason: Option<&'static str>,
     body: Body,
     chunked: Option<bool>,
-    encoding: ContentEncoding,
+    encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
     response_size: u64,
     error: Option<Error>,
@@ -665,7 +665,7 @@ impl InnerHttpResponse {
             reason: None,
             body: body,
             chunked: None,
-            encoding: ContentEncoding::Auto,
+            encoding: None,
             connection_type: None,
             response_size: 0,
             error: None,
@@ -717,7 +717,7 @@ impl Pool {
                 inner.version = None;
                 inner.chunked = None;
                 inner.reason = None;
-                inner.encoding = ContentEncoding::Auto;
+                inner.encoding = None;
                 inner.connection_type = None;
                 inner.response_size = 0;
                 inner.error = None;
@@ -809,11 +809,11 @@ mod tests {
     #[test]
     fn test_content_encoding() {
         let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
-        assert_eq!(resp.content_encoding(), ContentEncoding::Auto);
+        assert_eq!(resp.content_encoding(), None);
 
         let resp = HttpResponse::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Br).finish().unwrap();
-        assert_eq!(resp.content_encoding(), ContentEncoding::Br);
+        assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
     }
 
     #[test]

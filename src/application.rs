@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use handler::Reply;
 use router::{Router, Pattern};
 use resource::Resource;
+use headers::ContentEncoding;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
 use pipeline::{Pipeline, PipelineHandler};
@@ -24,12 +25,17 @@ pub struct HttpApplication<S=()> {
 pub(crate) struct Inner<S> {
     prefix: usize,
     default: Resource<S>,
+    encoding: ContentEncoding,
     router: Router,
     resources: Vec<Resource<S>>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
+
+    fn encoding(&self) -> ContentEncoding {
+        self.encoding
+    }
 
     fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
         if let Some(idx) = self.router.recognize(&mut req) {
@@ -97,6 +103,7 @@ struct ApplicationParts<S> {
     resources: HashMap<Pattern, Option<Resource<S>>>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
     external: HashMap<String, Pattern>,
+    encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
 }
 
@@ -119,6 +126,7 @@ impl Application<()> {
                 resources: HashMap::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
+                encoding: ContentEncoding::Auto,
                 middlewares: Vec::new(),
             })
         }
@@ -149,6 +157,7 @@ impl<S> Application<S> where S: 'static {
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
+                encoding: ContentEncoding::Auto,
             })
         }
     }
@@ -253,6 +262,16 @@ impl<S> Application<S> where S: 'static {
         self
     }
 
+    /// Set default content encoding. `ContentEncoding::Auto` is set by default.
+    pub fn default_encoding<F>(mut self, encoding: ContentEncoding) -> Application<S>
+    {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.encoding = encoding;
+        }
+        self
+    }
+
     /// Register external resource.
     ///
     /// External resources are useful for URL generation purposes only and
@@ -344,6 +363,7 @@ impl<S> Application<S> where S: 'static {
             Inner {
                 prefix: prefix.len(),
                 default: parts.default,
+                encoding: parts.encoding,
                 router: router.clone(),
                 resources: resources,
                 handlers: parts.handlers,

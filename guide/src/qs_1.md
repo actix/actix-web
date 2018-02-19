@@ -17,7 +17,7 @@ If you already have rustup installed, run this command to ensure you have the la
 rustup update
 ```
 
-Actix web framework requires rust version 1.20 and up.
+Actix web framework requires rust version 1.21 and up.
 
 ## Running Examples
 

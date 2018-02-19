@@ -10,6 +10,7 @@ use futures::unsync::oneshot;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
 use error::Error;
+use headers::ContentEncoding;
 use handler::{Reply, ReplyItem};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -18,6 +19,9 @@ use application::Inner;
 use server::{Writer, WriterState, HttpHandlerTask};
 
 pub(crate) trait PipelineHandler<S> {
+
+    fn encoding(&self) -> ContentEncoding;
+
     fn handle(&mut self, req: HttpRequest<S>) -> Reply;
 }
 
@@ -62,6 +66,7 @@ struct PipelineInfo<S> {
     context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
     disconnected: Option<bool>,
+    encoding: ContentEncoding,
 }
 
 impl<S> PipelineInfo<S> {
@@ -73,6 +78,7 @@ impl<S> PipelineInfo<S> {
             error: None,
             context: None,
             disconnected: None,
+            encoding: ContentEncoding::Auto,
         }
     }
 
@@ -108,6 +114,7 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
             error: None,
             context: None,
             disconnected: None,
+            encoding: handler.borrow().encoding(),
         };
         let state = StartMiddlewares::init(&mut info, handler);
 
@@ -451,7 +458,11 @@ impl<S: 'static, H> ProcessResponse<S, H> {
             'outter: loop {
                 let result = match mem::replace(&mut self.iostate, IOState::Done) {
                     IOState::Response => {
-                        let result = match io.start(info.req_mut().get_inner(), &mut self.resp) {
+                        let encoding = self.resp.content_encoding().unwrap_or(info.encoding);
+
+                        let result = match io.start(info.req_mut().get_inner(),
+                                                    &mut self.resp, encoding)
+                        {
                             Ok(res) => res,
                             Err(err) => {
                                 info.error = Some(err.into());

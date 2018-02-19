@@ -7,6 +7,7 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 
 use helpers;
 use body::{Body, Binary};
+use headers::ContentEncoding;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
@@ -94,9 +95,13 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
+    fn start(&mut self,
+             req: &mut HttpMessage,
+             msg: &mut HttpResponse,
+             encoding: ContentEncoding) -> io::Result<WriterState>
+    {
         // prepare task
-        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
+        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags.insert(Flags::STARTED | Flags::KEEPALIVE);
         } else {

@@ -8,6 +8,7 @@ use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LEN
 
 use helpers;
 use body::{Body, Binary};
+use headers::ContentEncoding;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
 use super::encoding::PayloadEncoder;
@@ -108,10 +109,11 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse) -> io::Result<WriterState> {
+    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
+             -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg);
+        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg, encoding);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }

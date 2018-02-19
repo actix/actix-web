@@ -24,8 +24,8 @@
 //! * [User Guide](http://actix.github.io/actix-web/guide/)
 //! * [Chat on gitter](https://gitter.im/actix/actix)
 //! * [GitHub repository](https://github.com/actix/actix-web)
-//! * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-//! * Supported Rust version: 1.20 or later
+//! * [Cargo package](https://crates.io/crates/actix-web)
+//! * Supported Rust version: 1.21 or later
 //!
 //! ## Features
 //!

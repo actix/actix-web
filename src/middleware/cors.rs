@@ -441,7 +441,6 @@ impl CorsBuilder {
     /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
     ///
     /// Defaults to `All`.
-    /// ```
     pub fn allowed_origin(&mut self, origin: &str) -> &mut CorsBuilder {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             match Uri::try_from(origin) {

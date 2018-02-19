@@ -347,10 +347,13 @@ impl PayloadEncoder {
         PayloadEncoder(ContentEncoder::Identity(TransferEncoding::eof(bytes)))
     }
 
-    pub fn new(buf: SharedBytes, req: &HttpMessage, resp: &mut HttpResponse) -> PayloadEncoder {
+    pub fn new(buf: SharedBytes,
+               req: &HttpMessage,
+               resp: &mut HttpResponse,
+               response_encoding: ContentEncoding) -> PayloadEncoder
+    {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut body = resp.replace_body(Body::Empty);
-        let response_encoding = resp.content_encoding();
         let has_body = match body {
             Body::Empty => false,
             Body::Binary(ref bin) =>
