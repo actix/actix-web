@@ -65,7 +65,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
 #[cfg(test)]
 impl<S: 'static> HttpApplication<S> {
- #[cfg(test)]
+    #[cfg(test)]
     pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
         self.inner.borrow_mut().handle(req)
     }

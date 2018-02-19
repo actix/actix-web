@@ -379,6 +379,18 @@ impl<S> Handler<S> for NormalizePath {
                                 .body(Body::Empty);
                         }
                     }
+
+                    // try to remove trailing slash
+                    if p.ends_with('/') {
+                        let p = p.as_ref().trim_right_matches('/');
+                        if router.has_route(&p) {
+                            let p = p.to_owned();
+                            let p = if !query.is_empty() { p + "?" + query } else { p };
+                            return HttpResponse::build(self.redirect)
+                                .header(header::LOCATION, p.as_str())
+                                .body(Body::Empty);
+                        }
+                    }
                 }
             }
             // append trailing slash
@@ -478,16 +490,16 @@ mod tests {
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
             ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b/", "", StatusCode::NOT_FOUND),
+            ("//resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b/", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
             ("//resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b/?p=1", "", StatusCode::NOT_FOUND),
+            ("//resource1//a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b/?p=1", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
         ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
@@ -519,9 +531,9 @@ mod tests {
             ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b/", "", StatusCode::NOT_FOUND),
+            ("///resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b/", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a///b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/resource2/a/b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("/resource2/a/b/", "", StatusCode::OK),
             ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
@@ -535,9 +547,9 @@ mod tests {
             ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b/?p=1", "", StatusCode::NOT_FOUND),
+            ("///resource1//a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b/?p=1", "", StatusCode::NOT_FOUND),
+            ("/////resource1/a///b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/resource2/a/b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
