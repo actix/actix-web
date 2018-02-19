@@ -14,7 +14,6 @@ use futures::task::{Task, current as current_task};
 
 use error::{ParseError, PayloadError, MultipartError};
 use payload::Payload;
-use client::ClientResponse;
 use httprequest::HttpRequest;
 
 const MAX_HEADERS: usize = 32;
@@ -98,18 +97,18 @@ impl Multipart {
         }
     }
 
-    /// Create multipart instance for client response.
-    pub fn from_response(resp: &mut ClientResponse) -> Multipart {
-        match Multipart::boundary(resp.headers()) {
-            Ok(boundary) => Multipart::new(boundary, resp.payload().clone()),
-            Err(err) =>
-                Multipart {
-                    error: Some(err),
-                    safety: Safety::new(),
-                    inner: None,
-                }
-        }
-    }
+    // /// Create multipart instance for client response.
+    // pub fn from_response(resp: &mut ClientResponse) -> Multipart {
+    //   match Multipart::boundary(resp.headers()) {
+    //         Ok(boundary) => Multipart::new(boundary, resp.payload().clone()),
+    //         Err(err) =>
+    //             Multipart {
+    //                 error: Some(err),
+    //                 safety: Safety::new(),
+    //                 inner: None,
+    //             }
+    //     }
+    // }
 
     /// Extract boundary info from headers.
     pub fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {

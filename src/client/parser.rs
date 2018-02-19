@@ -2,15 +2,13 @@ use std::mem;
 use httparse;
 use http::{Version, HttpTryFrom, HeaderMap, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures::{Poll, Async};
 
 use error::{ParseError, PayloadError};
-use payload::{Payload, PayloadWriter, DEFAULT_BUFFER_SIZE};
 
 use server::{utils, IoStream};
 use server::h1::{Decoder, chunked};
-use server::encoding::PayloadType;
 
 use super::ClientResponse;
 use super::response::ClientMessage;
@@ -20,18 +18,7 @@ const MAX_HEADERS: usize = 96;
 
 #[derive(Default)]
 pub struct HttpResponseParser {
-    payload: Option<PayloadInfo>,
-}
-
-enum Decoding {
-    Paused,
-    Ready,
-    NotReady,
-}
-
-struct PayloadInfo {
-    tx: PayloadType,
-    decoder: Decoder,
+    decoder: Option<Decoder>,
 }
 
 #[derive(Debug)]
@@ -47,31 +34,6 @@ impl HttpResponseParser {
                     -> Poll<ClientResponse, HttpResponseParserError>
         where T: IoStream
     {
-        // read payload
-        if self.payload.is_some() {
-            match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    if let Some(ref mut payload) = self.payload {
-                        payload.tx.set_error(PayloadError::Incomplete);
-                    }
-                    // http channel should not deal with payload errors
-                    return Err(HttpResponseParserError::Payload)
-                },
-                Err(err) => {
-                    if let Some(ref mut payload) = self.payload {
-                        payload.tx.set_error(err.into());
-                    }
-                    // http channel should not deal with payload errors
-                    return Err(HttpResponseParserError::Payload)
-                }
-                _ => (),
-            }
-            match self.decode(buf)? {
-                Decoding::Ready => self.payload = None,
-                Decoding::Paused | Decoding::NotReady => return Ok(Async::NotReady),
-            }
-        }
-
         // if buf is empty parse_message will always return NotReady, let's avoid that
         let read = if buf.is_empty() {
             match utils::read_from_io(io, buf) {
@@ -93,32 +55,19 @@ impl HttpResponseParser {
         loop {
             match HttpResponseParser::parse_message(buf).map_err(HttpResponseParserError::Error)? {
                 Async::Ready((msg, decoder)) => {
-                    // process payload
-                    if let Some(payload) = decoder {
-                        self.payload = Some(payload);
-                        match self.decode(buf)? {
-                            Decoding::Paused | Decoding::NotReady => (),
-                            Decoding::Ready => self.payload = None,
-                        }
-                    }
+                    self.decoder = decoder;
                     return Ok(Async::Ready(msg));
                 },
                 Async::NotReady => {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
-                        error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
                     if read {
                         match utils::read_from_io(io, buf) {
-                            Ok(Async::Ready(0)) => {
-                                debug!("Ignored premature client disconnection");
-                                return Err(HttpResponseParserError::Disconnect);
-                            },
+                            Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
                             Ok(Async::Ready(_)) => (),
-                            Ok(Async::NotReady) =>
-                                return Ok(Async::NotReady),
-                            Err(err) =>
-                                return Err(HttpResponseParserError::Error(err.into()))
+                            Ok(Async::NotReady) => return Ok(Async::NotReady),
+                            Err(err) => return Err(HttpResponseParserError::Error(err.into())),
                         }
                     } else {
                         return Ok(Async::NotReady)
@@ -128,35 +77,24 @@ impl HttpResponseParser {
         }
     }
 
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Decoding, HttpResponseParserError> {
-        if let Some(ref mut payload) = self.payload {
-            if payload.tx.capacity() > DEFAULT_BUFFER_SIZE {
-                return Ok(Decoding::Paused)
+    pub fn parse_payload<T>(&mut self, io: &mut T, buf: &mut BytesMut)
+                            -> Poll<Option<Bytes>, PayloadError>
+        where T: IoStream
+    {
+        if let Some(ref mut decoder) = self.decoder {
+            // read payload
+            match utils::read_from_io(io, buf) {
+                Ok(Async::Ready(0)) => return Err(PayloadError::Incomplete),
+                Err(err) => return Err(err.into()),
+                _ => (),
             }
-            loop {
-                match payload.decoder.decode(buf) {
-                    Ok(Async::Ready(Some(bytes))) => {
-                        payload.tx.feed_data(bytes)
-                    },
-                    Ok(Async::Ready(None)) => {
-                        payload.tx.feed_eof();
-                        return Ok(Decoding::Ready)
-                    },
-                    Ok(Async::NotReady) => return Ok(Decoding::NotReady),
-                    Err(err) => {
-                        payload.tx.set_error(err.into());
-                        return Err(HttpResponseParserError::Payload)
-                    }
-                }
-            }
+            decoder.decode(buf).map_err(|e| e.into())
         } else {
-            return Ok(Decoding::Ready)
+            Ok(Async::Ready(None))
         }
     }
 
-    fn parse_message(buf: &mut BytesMut)
-                     -> Poll<(ClientResponse, Option<PayloadInfo>), ParseError>
-    {
+    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<Decoder>), ParseError> {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;
         let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -180,7 +118,6 @@ impl HttpResponseParser {
                 httparse::Status::Partial => return Ok(Async::NotReady),
             }
         };
-
 
         let slice = buf.split_to(len).freeze();
 
@@ -221,22 +158,19 @@ impl HttpResponseParser {
         };
 
         if let Some(decoder) = decoder {
-            let (psender, payload) = Payload::new(false);
-            let info = PayloadInfo {
-                tx: PayloadType::new(&hdrs, psender),
-                decoder: decoder,
-            };
+            //let info = PayloadInfo {
+            //tx: PayloadType::new(&hdrs, psender),
+            //    decoder: decoder,
+            //};
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{
-                        status: status, version: version,
-                        headers: hdrs, cookies: None, payload: Some(payload)}), Some(info))))
+                    ClientMessage{status: status, version: version,
+                                  headers: hdrs, cookies: None}), Some(decoder))))
         } else {
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{
-                        status: status, version: version,
-                        headers: hdrs, cookies: None, payload: None}), None)))
+                    ClientMessage{status: status, version: version,
+                                  headers: hdrs, cookies: None}), None)))
         }
     }
 }

@@ -178,6 +178,7 @@ impl WsClient {
             self.request.set_header(header::ORIGIN, origin);
         }
 
+        self.request.upgrade();
         self.request.set_header(header::UPGRADE, "websocket");
         self.request.set_header(header::CONNECTION, "upgrade");
         self.request.set_header("SEC-WEBSOCKET-VERSION", "13");
@@ -265,7 +266,7 @@ impl Future for WsHandshake {
 
         if !self.sent {
             self.sent = true;
-            inner.writer.start(&mut self.request);
+            inner.writer.start(&mut self.request)?;
         }
         if let Err(err) = inner.writer.poll_completed(&mut inner.conn, false) {
             return Err(err.into())

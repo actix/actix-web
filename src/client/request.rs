@@ -11,6 +11,7 @@ use serde::Serialize;
 use body::Body;
 use error::Error;
 use headers::ContentEncoding;
+use super::pipeline::SendRequest;
 
 /// An HTTP Client Request
 pub struct ClientRequest {
@@ -19,7 +20,8 @@ pub struct ClientRequest {
     version: Version,
     headers: HeaderMap,
     body: Body,
-    chunked: Option<bool>,
+    chunked: bool,
+    upgrade: bool,
     encoding: ContentEncoding,
 }
 
@@ -32,7 +34,8 @@ impl Default for ClientRequest {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             body: Body::Empty,
-            chunked: None,
+            chunked: false,
+            upgrade: false,
             encoding: ContentEncoding::Auto,
         }
     }
@@ -135,6 +138,24 @@ impl ClientRequest {
         &mut self.headers
     }
 
+    /// is chunked encoding enabled
+    #[inline]
+    pub fn chunked(&self) -> bool {
+        self.chunked
+    }
+
+    /// is upgrade request
+    #[inline]
+    pub fn upgrade(&self) -> bool {
+        self.upgrade
+    }
+
+    /// Content encoding
+    #[inline]
+    pub fn content_encoding(&self) -> ContentEncoding {
+        self.encoding
+    }
+
     /// Get body os this response
     #[inline]
     pub fn body(&self) -> &Body {
@@ -146,9 +167,14 @@ impl ClientRequest {
         self.body = body.into();
     }
 
-    /// Set a body and return previous body value
-    pub fn replace_body<B: Into<Body>>(&mut self, body: B) -> Body {
-        mem::replace(&mut self.body, body.into())
+    /// Extract body, replace it with Empty
+    pub(crate) fn replace_body(&mut self, body: Body) -> Body {
+        mem::replace(&mut self.body, body)
+    }
+
+    /// Send request
+    pub fn send(self) -> SendRequest {
+        SendRequest::new(self)
     }
 }
 
@@ -288,7 +314,16 @@ impl ClientRequestBuilder {
     #[inline]
     pub fn chunked(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
-            parts.chunked = Some(true);
+            parts.chunked = true;
+        }
+        self
+    }
+
+    /// Enable connection upgrade
+    #[inline]
+    pub fn upgrade(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.upgrade = true;
         }
         self
     }

@@ -1,21 +1,22 @@
 use std::{fmt, str};
 use std::rc::Rc;
 use std::cell::UnsafeCell;
+use std::collections::HashMap;
 
 use bytes::{Bytes, BytesMut};
 use cookie::Cookie;
 use futures::{Async, Future, Poll, Stream};
-use http_range::HttpRange;
 use http::{HeaderMap, StatusCode, Version};
 use http::header::{self, HeaderValue};
 use mime::Mime;
 use serde_json;
 use serde::de::DeserializeOwned;
+use url::form_urlencoded;
 
-use payload::{Payload, ReadAny};
-use multipart::Multipart;
-use httprequest::UrlEncoded;
-use error::{CookieParseError, ParseError, PayloadError, JsonPayloadError, HttpRangeError};
+// use multipart::Multipart;
+use error::{CookieParseError, ParseError, PayloadError, JsonPayloadError, UrlencodedError};
+
+use super::pipeline::Pipeline;
 
 
 pub(crate) struct ClientMessage {
@@ -23,7 +24,6 @@ pub(crate) struct ClientMessage {
     pub version: Version,
     pub headers: HeaderMap<HeaderValue>,
     pub cookies: Option<Vec<Cookie<'static>>>,
-    pub payload: Option<Payload>,
 }
 
 impl Default for ClientMessage {
@@ -34,18 +34,21 @@ impl Default for ClientMessage {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             cookies: None,
-            payload: None,
         }
     }
 }
 
 /// An HTTP Client response
-pub struct ClientResponse(Rc<UnsafeCell<ClientMessage>>);
+pub struct ClientResponse(Rc<UnsafeCell<ClientMessage>>, Option<Box<Pipeline>>);
 
 impl ClientResponse {
 
     pub(crate) fn new(msg: ClientMessage) -> ClientResponse {
-        ClientResponse(Rc::new(UnsafeCell::new(msg)))
+        ClientResponse(Rc::new(UnsafeCell::new(msg)), None)
+    }
+
+    pub(crate) fn set_pipeline(&mut self, pl: Box<Pipeline>) {
+        self.1 = Some(pl);
     }
 
     #[inline]
@@ -155,53 +158,12 @@ impl ClientResponse {
         }
     }
 
-    /// Parses Range HTTP header string as per RFC 2616.
-    /// `size` is full size of response (file).
-    pub fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
-        if let Some(range) = self.headers().get(header::RANGE) {
-            HttpRange::parse(unsafe{str::from_utf8_unchecked(range.as_bytes())}, size)
-                .map_err(|e| e.into())
-        } else {
-            Ok(Vec::new())
-        }
-    }
-
-    /// Returns reference to the associated http payload.
-    #[inline]
-    pub fn payload(&self) -> &Payload {
-        let msg = self.as_mut();
-        if msg.payload.is_none() {
-            msg.payload = Some(Payload::empty());
-        }
-        msg.payload.as_ref().unwrap()
-    }
-
-    /// Returns mutable reference to the associated http payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        let msg = self.as_mut();
-        if msg.payload.is_none() {
-            msg.payload = Some(Payload::empty());
-        }
-        msg.payload.as_mut().unwrap()
-    }
-
-    /// Load request body.
-    ///
-    /// By default only 256Kb payload reads to a memory, then `ResponseBody`
-    /// resolves to an error. Use `RequestBody::limit()`
-    /// method to change upper limit.
-    pub fn body(&self) -> ResponseBody {
-        ResponseBody::from_response(self)
-    }
-
-
-    /// Return stream to http payload processes as multipart.
-    ///
-    /// Content-type: multipart/form-data;
-    pub fn multipart(&mut self) -> Multipart {
-        Multipart::from_response(self)
-    }
+    // /// Return stream to http payload processes as multipart.
+    // ///
+    // /// Content-type: multipart/form-data;
+    // pub fn multipart(mut self) -> Multipart {
+    //      Multipart::from_response(&mut self)
+    // }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.
     /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>` which
@@ -212,10 +174,8 @@ impl ClientResponse {
     /// * content type is not `application/x-www-form-urlencoded`
     /// * transfer encoding is `chunked`.
     /// * content-length is greater than 256k
-    pub fn urlencoded(&self) -> UrlEncoded {
-        UrlEncoded::from(self.payload().clone(),
-                         self.headers(),
-                         self.chunked().unwrap_or(false))
+    pub fn urlencoded(self) -> UrlEncoded {
+        UrlEncoded::new(self)
     }
 
     /// Parse `application/json` encoded body.
@@ -225,7 +185,7 @@ impl ClientResponse {
     ///
     /// * content type is not `application/json`
     /// * content length is greater than 256k
-    pub fn json<T: DeserializeOwned>(&self) -> JsonResponse<T> {
+    pub fn json<T: DeserializeOwned>(self) -> JsonResponse<T> {
         JsonResponse::from_response(self)
     }
 }
@@ -247,77 +207,16 @@ impl fmt::Debug for ClientResponse {
     }
 }
 
-impl Clone for ClientResponse {
-    fn clone(&self) -> ClientResponse {
-        ClientResponse(self.0.clone())
-    }
-}
-
 /// Future that resolves to a complete request body.
-pub struct ResponseBody {
-    pl: ReadAny,
-    body: BytesMut,
-    limit: usize,
-    resp: Option<ClientResponse>,
-}
-
-impl ResponseBody {
-
-    /// Create `RequestBody` for request.
-    pub fn from_response(resp: &ClientResponse) -> ResponseBody {
-        let pl = resp.payload().readany();
-        ResponseBody {
-            pl: pl,
-            body: BytesMut::new(),
-            limit: 262_144,
-            resp: Some(resp.clone()),
-        }
-    }
-
-    /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
-        self
-    }
-}
-
-impl Future for ResponseBody {
+impl Stream for ClientResponse {
     type Item = Bytes;
     type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(resp) = self.resp.take() {
-            if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
-                if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<usize>() {
-                        if len > self.limit {
-                            return Err(PayloadError::Overflow);
-                        }
-                    } else {
-                        return Err(PayloadError::UnknownLength);
-                    }
-                } else {
-                    return Err(PayloadError::UnknownLength);
-                }
-            }
-        }
-
-        loop {
-            return match self.pl.poll() {
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => {
-                    Ok(Async::Ready(self.body.take().freeze()))
-                },
-                Ok(Async::Ready(Some(chunk))) => {
-                    if (self.body.len() + chunk.len()) > self.limit {
-                        Err(PayloadError::Overflow)
-                    } else {
-                        self.body.extend_from_slice(&chunk);
-                        continue
-                    }
-                },
-                Err(err) => Err(err),
-            }
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if let Some(ref mut pl) = self.1 {
+            pl.poll()
+        } else {
+            Ok(Async::Ready(None))
         }
     }
 }
@@ -328,6 +227,7 @@ impl Future for ResponseBody {
 ///
 /// * content type is not `application/json`
 /// * content length is greater than 256k
+#[must_use = "JsonResponse does nothing unless polled"]
 pub struct JsonResponse<T: DeserializeOwned>{
     limit: usize,
     ct: &'static str,
@@ -338,12 +238,12 @@ pub struct JsonResponse<T: DeserializeOwned>{
 impl<T: DeserializeOwned> JsonResponse<T> {
 
     /// Create `JsonBody` for request.
-    pub fn from_response(resp: &ClientResponse) -> Self {
+    pub fn from_response(resp: ClientResponse) -> Self {
         JsonResponse{
             limit: 262_144,
-            resp: Some(resp.clone()),
-            fut: None,
+            resp: Some(resp),
             ct: "application/json",
+            fut: None,
         }
     }
 
@@ -386,8 +286,7 @@ impl<T: DeserializeOwned + 'static> Future for JsonResponse<T> {
             }
 
             let limit = self.limit;
-            let fut = resp.payload().readany()
-                .from_err()
+            let fut = resp.from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(JsonPayloadError::Overflow)
@@ -397,9 +296,93 @@ impl<T: DeserializeOwned + 'static> Future for JsonResponse<T> {
                     }
                 })
                 .and_then(|body| Ok(serde_json::from_slice::<T>(&body)?));
+
             self.fut = Some(Box::new(fut));
         }
 
         self.fut.as_mut().expect("JsonResponse could not be used second time").poll()
+    }
+}
+
+/// Future that resolves to a parsed urlencoded values.
+#[must_use = "UrlEncoded does nothing unless polled"]
+pub struct UrlEncoded {
+    resp: Option<ClientResponse>,
+    limit: usize,
+    fut: Option<Box<Future<Item=HashMap<String, String>, Error=UrlencodedError>>>,
+}
+
+impl UrlEncoded {
+    pub fn new(resp: ClientResponse) -> UrlEncoded {
+        UrlEncoded{resp: Some(resp),
+                   limit: 262_144,
+                   fut: None}
+    }
+
+    /// Change max size of payload. By default max size is 256Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+}
+
+impl Future for UrlEncoded {
+    type Item = HashMap<String, String>;
+    type Error = UrlencodedError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(resp) = self.resp.take() {
+            if resp.chunked().unwrap_or(false) {
+                return Err(UrlencodedError::Chunked)
+            } else if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = len.to_str() {
+                    if let Ok(len) = s.parse::<u64>() {
+                        if len > 262_144 {
+                            return Err(UrlencodedError::Overflow);
+                        }
+                    } else {
+                        return Err(UrlencodedError::UnknownLength);
+                    }
+                } else {
+                    return Err(UrlencodedError::UnknownLength);
+                }
+            }
+
+            // check content type
+            let mut encoding = false;
+            if let Some(content_type) = resp.headers().get(header::CONTENT_TYPE) {
+                if let Ok(content_type) = content_type.to_str() {
+                    if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
+                        encoding = true;
+                    }
+                }
+            }
+            if !encoding {
+                return Err(UrlencodedError::ContentType);
+            }
+
+            // urlencoded body
+            let limit = self.limit;
+            let fut = resp.from_err()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    if (body.len() + chunk.len()) > limit {
+                        Err(UrlencodedError::Overflow)
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Ok(body)
+                    }
+                })
+                .and_then(|body| {
+                    let mut m = HashMap::new();
+                    for (k, v) in form_urlencoded::parse(&body) {
+                        m.insert(k.into(), v.into());
+                    }
+                    Ok(m)
+                });
+
+            self.fut = Some(Box::new(fut));
+        }
+
+        self.fut.as_mut().expect("UrlEncoded could not be used second time").poll()
     }
 }

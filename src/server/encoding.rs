@@ -26,7 +26,7 @@ use super::shared::SharedBytes;
 impl ContentEncoding {
 
     #[inline]
-    fn is_compression(&self) -> bool {
+    pub fn is_compression(&self) -> bool {
         match *self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
             _ => true
@@ -546,7 +546,7 @@ impl PayloadEncoder {
     }
 }
 
-enum ContentEncoder {
+pub(crate) enum ContentEncoder {
     Deflate(DeflateEncoder<TransferEncoding>),
     Gzip(GzEncoder<TransferEncoding>),
     Br(BrotliEncoder<TransferEncoding>),
