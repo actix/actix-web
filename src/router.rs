@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::hash::{Hash, Hasher};
 use std::collections::HashMap;
 
-use regex::{Regex, RegexSet};
+use regex::{Regex, RegexSet, escape};
 
 use error::UrlGenerationError;
 use resource::Resource;
@@ -299,7 +299,7 @@ impl Pattern {
                 elems.push(PatternElement::Str(el.clone()));
                 el.clear();
             } else {
-                re.push(ch);
+                re.push_str(escape(&ch.to_string()).as_str());
                 el.push(ch);
             }
         }
@@ -336,6 +336,7 @@ mod tests {
         routes.insert(Pattern::new("", "/name/{val}", "^/"), Some(Resource::default()));
         routes.insert(Pattern::new("", "/name/{val}/index.html", "^/"),
                       Some(Resource::default()));
+        routes.insert(Pattern::new("", "/file/{file}.{ext}", "^/"), Some(Resource::default()));
         routes.insert(Pattern::new("", "/v{val}/{val2}/index.html", "^/"),
                       Some(Resource::default()));
         routes.insert(Pattern::new("", "/v/{tail:.*}", "^/"), Some(Resource::default()));
@@ -354,6 +355,11 @@ mod tests {
         let mut req = TestRequest::with_uri("/name/value2/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());
         assert_eq!(req.match_info().get("val").unwrap(), "value2");
+
+        let mut req = TestRequest::with_uri("/file/file.gz").finish();
+        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(req.match_info().get("file").unwrap(), "file");
+        assert_eq!(req.match_info().get("ext").unwrap(), "gz");
 
         let mut req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
         assert!(rec.recognize(&mut req).is_some());

@@ -383,12 +383,14 @@ impl<S> Handler<S> for NormalizePath {
                     // try to remove trailing slash
                     if p.ends_with('/') {
                         let p = p.as_ref().trim_right_matches('/');
-                        if router.has_route(&p) {
-                            let p = p.to_owned();
-                            let p = if !query.is_empty() { p + "?" + query } else { p };
-                            return HttpResponse::build(self.redirect)
-                                .header(header::LOCATION, p.as_str())
-                                .body(Body::Empty);
+                        if router.has_route(p) {
+                            let mut req = HttpResponse::build(self.redirect);
+                            return if !query.is_empty() {
+                                req.header(header::LOCATION, (p.to_owned() + "?" + query).as_str())
+                            } else {
+                                req.header(header::LOCATION, p)
+                            }
+                            .body(Body::Empty);
                         }
                     }
                 }
