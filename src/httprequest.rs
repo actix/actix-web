@@ -600,7 +600,7 @@ impl Default for HttpRequest<()> {
 
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
-        HttpRequest(self.0.clone(), self.1.clone(), None)
+        HttpRequest(self.0.clone(), self.1.clone(), self.2.clone())
     }
 }
 
