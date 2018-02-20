@@ -7,7 +7,6 @@ use std::str::FromStr;
 use std::collections::HashMap;
 
 use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
-use bytes::Bytes;
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue};
@@ -16,6 +15,7 @@ use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
+use body::Binary;
 use error::Error;
 use handler::{Handler, Responder, ReplyItem};
 use middleware::Middleware;
@@ -397,9 +397,10 @@ impl<S> TestRequest<S> {
     }
 
     /// Set request payload
-    pub fn set_payload(mut self, data: Bytes) -> Self {
+    pub fn set_payload<B: Into<Binary>>(mut self, data: B) -> Self {
+        let mut data = data.into();
         let mut payload = Payload::empty();
-        payload.unread_data(data);
+        payload.unread_data(data.take());
         self.payload = Some(payload);
         self
     }
