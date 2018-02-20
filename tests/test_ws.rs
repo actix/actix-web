@@ -49,5 +49,5 @@ fn test_simple() {
 
     writer.close(ws::CloseCode::Normal, "");
     let (item, _) = srv.execute(reader.into_future()).unwrap();
-    assert!(item.is_none())
+    assert!(item.is_none());
 }

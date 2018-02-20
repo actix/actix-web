@@ -494,7 +494,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                     IOState::Payload(mut body) => {
                         match body.poll() {
                             Ok(Async::Ready(None)) => {
-                                self.iostate = IOState::Done;
                                 if let Err(err) = io.write_eof() {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(info, self.resp))
@@ -536,7 +535,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     match frame {
                                         Frame::Chunk(None) => {
                                             info.context = Some(ctx);
-                                            self.iostate = IOState::Done;
                                             if let Err(err) = io.write_eof() {
                                                 info.error = Some(err.into());
                                                 return Ok(
@@ -566,7 +564,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 res.unwrap()
                             },
                             Ok(Async::Ready(None)) => {
-                                self.iostate = IOState::Done;
                                 break
                             }
                             Ok(Async::NotReady) => {

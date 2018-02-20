@@ -445,7 +445,7 @@ impl WsClientWriter {
 
     /// Write payload
     #[inline]
-    fn write(&mut self, data: &Binary) {
+    fn write(&mut self, data: Binary) {
         if !self.as_mut().closed {
             let _ = self.as_mut().writer.write(data);
         } else {
@@ -456,30 +456,30 @@ impl WsClientWriter {
     /// Send text frame
     #[inline]
     pub fn text<T: Into<String>>(&mut self, text: T) {
-        self.write(&Frame::message(text.into(), OpCode::Text, true, true));
+        self.write(Frame::message(text.into(), OpCode::Text, true, true));
     }
 
     /// Send binary frame
     #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(&Frame::message(data, OpCode::Binary, true, true));
+        self.write(Frame::message(data, OpCode::Binary, true, true));
     }
 
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(&Frame::message(Vec::from(message), OpCode::Ping, true, true));
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, true));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(&Frame::message(Vec::from(message), OpCode::Pong, true, true));
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, true));
     }
 
     /// Send close frame
     #[inline]
     pub fn close(&mut self, code: CloseCode, reason: &str) {
-        self.write(&Frame::close(code, reason, true));
+        self.write(Frame::close(code, reason, true));
     }
 }

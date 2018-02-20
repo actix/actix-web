@@ -262,7 +262,7 @@ impl PayloadWriter for EncodedPayload {
         self.error = true;
         self.decoder = Decoder::Identity;
         if let Some(err) = err {
-            self.set_error(PayloadError::ParseError(err));
+            self.set_error(PayloadError::Io(err));
         } else {
             self.set_error(PayloadError::Incomplete);
         }

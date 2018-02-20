@@ -546,6 +546,30 @@ fn test_h2() {
 }
 
 #[test]
+fn test_client_streaming_explicit() {
+    let mut srv = test::TestServer::new(
+        |app| app.handler(
+            |req: HttpRequest| req.body()
+                .map_err(Error::from)
+                .and_then(|body| {
+                    Ok(httpcodes::HTTPOk.build()
+                       .chunked()
+                       .content_encoding(headers::ContentEncoding::Identity)
+                       .body(body)?)})
+                .responder()));
+
+    let body = once(Ok(Bytes::from_static(STR.as_ref())));
+
+    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_application() {
     let mut srv = test::TestServer::with_factory(
         || Application::new().resource("/", |r| r.h(httpcodes::HTTPOk)));

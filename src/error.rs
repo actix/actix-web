@@ -227,9 +227,9 @@ pub enum PayloadError {
     /// A payload length is unknown.
     #[fail(display="A payload length is unknown.")]
     UnknownLength,
-    /// Parse error
+    /// Io error
     #[fail(display="{}", _0)]
-    ParseError(#[cause] IoError),
+    Io(#[cause] IoError),
     /// Http2 error
     #[fail(display="{}", _0)]
     Http2(#[cause] Http2Error),
@@ -237,7 +237,7 @@ pub enum PayloadError {
 
 impl From<IoError> for PayloadError {
     fn from(err: IoError) -> PayloadError {
-        PayloadError::ParseError(err)
+        PayloadError::Io(err)
     }
 }
 

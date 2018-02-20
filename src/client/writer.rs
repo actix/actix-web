@@ -111,6 +111,10 @@ impl HttpClientWriter {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
+            if msg.upgrade() {
+                self.flags.insert(Flags::UPGRADE);
+            }
+
             // status line
             let _ = write!(buffer, "{} {} {:?}\r\n",
                            msg.method(), msg.uri().path(), msg.version());
@@ -145,10 +149,14 @@ impl HttpClientWriter {
         Ok(())
     }
 
-    pub fn write(&mut self, payload: &Binary) -> io::Result<WriterState> {
+    pub fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
-            self.buffer.extend_from_slice(payload.as_ref())
+            if self.flags.contains(Flags::UPGRADE) {
+                self.buffer.extend(payload);
+            } else {
+                self.encoder.write(payload)?;
+            }
         }
 
         if self.buffer.len() > self.high {
@@ -158,11 +166,14 @@ impl HttpClientWriter {
         }
     }
 
-    pub fn write_eof(&mut self) -> io::Result<WriterState> {
-        if self.buffer.len() > self.high {
-            Ok(WriterState::Pause)
+    pub fn write_eof(&mut self) -> io::Result<()> {
+        self.encoder.write_eof()?;
+
+        if !self.encoder.is_eof() {
+            Err(io::Error::new(io::ErrorKind::Other,
+                               "Last payload item, but eof is not reached"))
         } else {
-            Ok(WriterState::Done)
+            Ok(())
         }
     }
 
