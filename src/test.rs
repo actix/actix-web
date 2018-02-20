@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::collections::HashMap;
 
 use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
+use bytes::Bytes;
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue};
@@ -395,6 +396,14 @@ impl<S> TestRequest<S> {
         self
     }
 
+    /// Set request payload
+    pub fn set_payload(mut self, data: Bytes) -> Self {
+        let mut payload = Payload::empty();
+        payload.unread_data(data);
+        self.payload = Some(payload);
+        self
+    }
+    
     /// Complete request creation and generate `HttpRequest` instance
     pub fn finish(self) -> HttpRequest<S> {
         let TestRequest { state, method, uri, version, headers, params, cookies, payload } = self;
