@@ -42,7 +42,7 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
        cargo clean
        USE_SKEPTIC=1 cargo test --features=alpn
     else
@@ -73,7 +73,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cargo doc --features "alpn, tls" --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
@@ -84,7 +84,7 @@ after_success:
     fi
 
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
       bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
       USE_SKEPTIC=1 cargo tarpaulin --out Xml
       bash <(curl -s https://codecov.io/bash)
