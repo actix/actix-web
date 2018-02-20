@@ -493,6 +493,7 @@ mod tests {
             ("/resource1/a/b", "", StatusCode::OK),
             ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("//resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            ("//resource1//a//b//", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
@@ -502,6 +503,7 @@ mod tests {
             ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a//b//?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
         ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
@@ -532,6 +534,7 @@ mod tests {
             ("/resource1/a/b/", "", StatusCode::NOT_FOUND),
             ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            ("//resource2//a//b//", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
@@ -552,6 +555,7 @@ mod tests {
             ("///resource1//a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/////resource1/a///b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            ("/////resource1/a///b//?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("/resource2/a/b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
