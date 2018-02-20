@@ -1,11 +1,15 @@
 #![allow(dead_code)]
-use std::io;
-use std::fmt::Write;
+use std::io::{self, Write};
+use std::cell::RefCell;
+use std::fmt::Write as FmtWrite;
+
+use time::{self, Duration};
 use bytes::{BytesMut, BufMut};
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
 use http::{Version, HttpTryFrom};
-use http::header::{HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
+use http::header::{HeaderValue, DATE,
+                   CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
 use flate2::Compression;
 use flate2::write::{GzEncoder, DeflateEncoder};
 use brotli2::write::BrotliEncoder;
@@ -104,7 +108,7 @@ impl HttpClientWriter {
 
         // render message
         {
-            let buffer = self.buffer.get_mut();
+            let mut buffer = self.buffer.get_mut();
             if let Body::Binary(ref bytes) = *msg.body() {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
@@ -130,13 +134,14 @@ impl HttpClientWriter {
                 buffer.put_slice(b"\r\n");
             }
 
-            // using helpers::date is quite a lot faster
-            //if !msg.headers.contains_key(DATE) {
-            //    helpers::date(&mut buffer);
-            //} else {
-                // msg eof
+            // set date header
+            if !msg.headers().contains_key(DATE) {
+                buffer.extend_from_slice(b"date: ");
+                set_date(&mut buffer);
+                buffer.extend_from_slice(b"\r\n\r\n");
+            } else {
                 buffer.extend_from_slice(b"\r\n");
-            //}
+            }
             self.headers_size = buffer.len() as u32;
 
             if msg.body().is_binary() {
@@ -169,11 +174,11 @@ impl HttpClientWriter {
     pub fn write_eof(&mut self) -> io::Result<()> {
         self.encoder.write_eof()?;
 
-        if !self.encoder.is_eof() {
+        if self.encoder.is_eof() {
+            Ok(())
+        } else {
             Err(io::Error::new(io::ErrorKind::Other,
                                "Last payload item, but eof is not reached"))
-        } else {
-            Ok(())
         }
     }
 
@@ -323,5 +328,42 @@ fn streaming_encoding(buf: SharedBytes, version: Version, req: &mut ClientReques
                 }
             }
         }
+    }
+}
+
+
+// "Sun, 06 Nov 1994 08:49:37 GMT".len()
+pub const DATE_VALUE_LENGTH: usize = 29;
+
+fn set_date(dst: &mut BytesMut) {
+    CACHED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let now = time::get_time();
+        if now > cache.next_update {
+            cache.update(now);
+        }
+        dst.extend_from_slice(cache.buffer());
+    })
+}
+
+struct CachedDate {
+    bytes: [u8; DATE_VALUE_LENGTH],
+    next_update: time::Timespec,
+}
+
+thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate {
+    bytes: [0; DATE_VALUE_LENGTH],
+    next_update: time::Timespec::new(0, 0),
+}));
+
+impl CachedDate {
+    fn buffer(&self) -> &[u8] {
+        &self.bytes[..]
+    }
+
+    fn update(&mut self, now: time::Timespec) {
+        write!(&mut self.bytes[..], "{}", time::at_utc(now).rfc822()).unwrap();
+        self.next_update = now + Duration::seconds(1);
+        self.next_update.nsec = 0;
     }
 }
