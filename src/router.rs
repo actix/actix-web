@@ -21,6 +21,7 @@ struct Inner {
     named: HashMap<String, (Pattern, bool)>,
     patterns: Vec<Pattern>,
     srv: ServerSettings,
+    hasroutes: bool,
 }
 
 impl Router {
@@ -55,6 +56,7 @@ impl Router {
                    regset: RegexSet::new(&paths).unwrap(),
                    named: named,
                    patterns: patterns,
+                   hasroutes: !paths.is_empty(),
                    srv: settings })), resources)
     }
 
@@ -72,6 +74,7 @@ impl Router {
 
     /// Query for matched resource
     pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
+        if !self.0.hasroutes { return None }
         let mut idx = None;
         {
             if self.0.prefix_len > req.path().len() {

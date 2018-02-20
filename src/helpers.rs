@@ -74,6 +74,7 @@ impl SharedMessagePool {
         SharedMessagePool(RefCell::new(VecDeque::with_capacity(128)))
     }
 
+    #[inline]
     pub fn get(&self) -> Rc<HttpMessage> {
         if let Some(msg) = self.0.borrow_mut().pop_front() {
             msg
@@ -82,6 +83,7 @@ impl SharedMessagePool {
         }
     }
 
+    #[inline]
     pub fn release(&self, mut msg: Rc<HttpMessage>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {

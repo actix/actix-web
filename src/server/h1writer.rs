@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, mem};
 use bytes::BufMut;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
@@ -135,38 +135,60 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
-            buffer.extend_from_slice(msg.reason().as_bytes());
+            SharedBytes::extend_from_slice_(buffer, msg.reason().as_bytes());
 
             match body {
                 Body::Empty =>
                     if req.method != Method::HEAD {
-                        buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                        SharedBytes::extend_from_slice_(buffer, b"\r\ncontent-length: 0\r\n");
                     } else {
-                        buffer.extend_from_slice(b"\r\n");
+                        SharedBytes::extend_from_slice_(buffer, b"\r\n");
                     },
                 Body::Binary(ref bytes) =>
                     helpers::write_content_length(bytes.len(), &mut buffer),
                 _ =>
-                    buffer.extend_from_slice(b"\r\n"),
+                    SharedBytes::extend_from_slice_(buffer, b"\r\n"),
             }
 
             // write headers
+            let mut pos = 0;
+            let mut remaining = buffer.remaining_mut();
+            let mut buf: &mut [u8] = unsafe{ mem::transmute(buffer.bytes_mut()) };
             for (key, value) in msg.headers() {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
-                buffer.reserve(k.len() + v.len() + 4);
-                buffer.put_slice(k);
-                buffer.put_slice(b": ");
-                buffer.put_slice(v);
-                buffer.put_slice(b"\r\n");
+                let len = k.len() + v.len() + 4;
+                if len > remaining {
+                    unsafe{buffer.advance_mut(pos)};
+                    pos = 0;
+                    buffer.reserve(len);
+                    remaining = buffer.remaining_mut();
+                    buf = unsafe{ mem::transmute(buffer.bytes_mut()) };
+                }
+
+                buf[pos..pos+k.len()].copy_from_slice(k);
+                pos += k.len();
+                buf[pos..pos+2].copy_from_slice(b": ");
+                pos += 2;
+                buf[pos..pos+v.len()].copy_from_slice(v);
+                pos += v.len();
+                buf[pos..pos+2].copy_from_slice(b"\r\n");
+                pos += 2;
+                remaining -= len;
+
+                //buffer.put_slice(k);
+                //buffer.put_slice(b": ");
+                //buffer.put_slice(v);
+                //buffer.put_slice(b"\r\n");
             }
+            unsafe{buffer.advance_mut(pos)};
 
             // using helpers::date is quite a lot faster
             if !msg.headers().contains_key(DATE) {
                 helpers::date(&mut buffer);
             } else {
                 // msg eof
-                buffer.extend_from_slice(b"\r\n");
+                SharedBytes::extend_from_slice_(buffer, b"\r\n");
             }
             self.headers_size = buffer.len() as u32;
         }
