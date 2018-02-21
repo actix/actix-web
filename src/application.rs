@@ -241,7 +241,7 @@ impl<S> Application<S> where S: 'static {
             let mut resource = Resource::default();
             f(&mut resource);
 
-            let pattern = Pattern::new(resource.get_name(), path, "^/");
+            let pattern = Pattern::new(resource.get_name(), path);
             if parts.resources.contains_key(&pattern) {
                 panic!("Resource {:?} is registered.", path);
             }
@@ -305,7 +305,7 @@ impl<S> Application<S> where S: 'static {
                 panic!("External resource {:?} is registered.", name.as_ref());
             }
             parts.external.insert(
-                String::from(name.as_ref()), Pattern::new(name.as_ref(), url.as_ref(), "^/"));
+                String::from(name.as_ref()), Pattern::new(name.as_ref(), url.as_ref()));
         }
         self
     }

@@ -14,8 +14,8 @@ use middleware::{Middleware, Started, Finished};
 
 /// `Middleware` for logging request and response info to the terminal.
 /// `Logger` middleware uses standard log crate to log information. You should
-/// enable logger for *actix_web* package to see access log.
-/// ([env_logger](https://docs.rs/env_logger/*/env_logger/) or similar)
+/// enable logger for `actix_web` package to see access log.
+/// ([`env_logger`](https://docs.rs/env_logger/*/env_logger/) or similar)
 ///
 /// ## Usage
 ///
