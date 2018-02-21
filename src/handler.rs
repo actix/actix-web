@@ -287,6 +287,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// By normalizing it means:
 ///
 /// - Add a trailing slash to the path.
+/// - Remove a trailing slash from the path.
 /// - Double slashes are replaced by one.
 ///
 /// The handler returns as soon as it finds a path that resolves
@@ -393,6 +394,19 @@ impl<S> Handler<S> for NormalizePath {
                             .body(Body::Empty);
                         }
                     }
+                } else if p.ends_with('/') {
+                    println!("=== {:?}", p);
+                    // try to remove trailing slash
+                    let p = p.as_ref().trim_right_matches('/');
+                    if router.has_route(p) {
+                        let mut req = HttpResponse::build(self.redirect);
+                        return if !query.is_empty() {
+                            req.header(header::LOCATION, (p.to_owned() + "?" + query).as_str())
+                        } else {
+                            req.header(header::LOCATION, p)
+                        }
+                        .body(Body::Empty);
+                    }
                 }
             }
             // append trailing slash
@@ -430,16 +444,17 @@ mod tests {
             .finish();
 
         // trailing slashes
-        let params = vec![("/resource1", "", StatusCode::OK),
-                          ("/resource1/", "", StatusCode::NOT_FOUND),
-                          ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
-                          ("/resource2/", "", StatusCode::OK),
-                          ("/resource1?p1=1&p2=2", "", StatusCode::OK),
-                          ("/resource1/?p1=1&p2=2", "", StatusCode::NOT_FOUND),
-                          ("/resource2?p1=1&p2=2", "/resource2/?p1=1&p2=2",
-                           StatusCode::MOVED_PERMANENTLY),
-                          ("/resource2/?p1=1&p2=2", "", StatusCode::OK)
-        ];
+        let params =
+            vec![("/resource1", "", StatusCode::OK),
+                 ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
+                 ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
+                 ("/resource2/", "", StatusCode::OK),
+                 ("/resource1?p1=1&p2=2", "", StatusCode::OK),
+                 ("/resource1/?p1=1&p2=2", "/resource1?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
+                 ("/resource2?p1=1&p2=2", "/resource2/?p1=1&p2=2",
+                  StatusCode::MOVED_PERMANENTLY),
+                 ("/resource2/?p1=1&p2=2", "", StatusCode::OK)
+            ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
@@ -464,11 +479,11 @@ mod tests {
 
         // trailing slashes
         let params = vec![("/resource1", StatusCode::OK),
-                          ("/resource1/", StatusCode::NOT_FOUND),
+                          ("/resource1/", StatusCode::MOVED_PERMANENTLY),
                           ("/resource2", StatusCode::NOT_FOUND),
                           ("/resource2/", StatusCode::OK),
                           ("/resource1?p1=1&p2=2", StatusCode::OK),
-                          ("/resource1/?p1=1&p2=2", StatusCode::NOT_FOUND),
+                          ("/resource1/?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
                           ("/resource2?p1=1&p2=2", StatusCode::NOT_FOUND),
                           ("/resource2/?p1=1&p2=2", StatusCode::OK)
         ];
@@ -491,6 +506,8 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
+            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
+            ("/resource1//", "/resource1", StatusCode::MOVED_PERMANENTLY),
             ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("//resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("//resource1//a//b//", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
@@ -531,7 +548,7 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/a/b/", "", StatusCode::NOT_FOUND),
+            ("/resource1/a/b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b//", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
@@ -548,7 +565,7 @@ mod tests {
             ("/////resource2/a///b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("/////resource2/a///b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
-            ("/resource1/a/b/?p=1", "", StatusCode::NOT_FOUND),
+            ("/resource1/a/b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
             ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
