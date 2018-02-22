@@ -110,11 +110,10 @@ The main purpose of route configuration is to match (or not match) the request's
 against a URL path pattern. `path` represents the path portion of the URL that was requested.
 
 The way that *actix* does this is very simple. When a request enters the system,
-for each resource configuration registration present in the system, actix checks
-the request's path against the pattern declared. *Regex* crate and it's
-[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is being used for
-pattern matching. If resource could not be found, *default resource* get used as matched
-resource.
+for each resource configuration declaration present in the system, actix checks
+the request's path against the pattern declared. This checking happens in the order that
+the routes were declared via `Application::resource()` method. If resource could not be found,
+*default resource* get used as matched resource.
 
 When a route configuration is declared, it may contain route predicate arguments. All route
 predicates associated with a route declaration must be `true` for the route configuration to
