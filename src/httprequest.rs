@@ -883,9 +883,9 @@ mod tests {
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
-        let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/{key}/"), Some(resource));
-        let (router, _) = Router::new("", ServerSettings::default(), map);
+        let mut routes = Vec::new();
+        routes.push((Pattern::new("index", "/{key}/"), Some(resource)));
+        let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
         assert_eq!(req.match_info().get("key"), Some("value"));
@@ -994,9 +994,8 @@ mod tests {
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
-        let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
-        let (router, _) = Router::new("/", ServerSettings::default(), map);
+        let routes = vec!((Pattern::new("index", "/user/{name}.{ext}"), Some(resource)));
+        let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
 
@@ -1019,9 +1018,8 @@ mod tests {
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
-        let mut map = HashMap::new();
-        map.insert(Pattern::new("index", "/user/{name}.{ext}"), Some(resource));
-        let (router, _) = Router::new("/prefix/", ServerSettings::default(), map);
+        let routes = vec![(Pattern::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
 
@@ -1036,9 +1034,9 @@ mod tests {
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
-        let mut map = HashMap::new();
-        map.insert(Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None);
-        let (router, _) = Router::new::<()>("", ServerSettings::default(), map);
+        let routes = vec![
+            (Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None)];
+        let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
         let req = req.with_state(Rc::new(()), router);

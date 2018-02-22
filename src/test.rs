@@ -4,7 +4,6 @@ use std::{net, thread};
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
 use cookie::Cookie;
@@ -411,7 +410,7 @@ impl<S> TestRequest<S> {
         let req = HttpRequest::new(method, uri, version, headers, payload);
         req.as_mut().cookies = cookies;
         req.as_mut().params = params;
-        let (router, _) = Router::new::<S>("/", ServerSettings::default(), HashMap::new());
+        let (router, _) = Router::new::<S>("/", ServerSettings::default(), Vec::new());
         req.with_state(Rc::new(state), router)
     }
 

@@ -100,7 +100,7 @@ struct ApplicationParts<S> {
     prefix: String,
     settings: ServerSettings,
     default: Resource<S>,
-    resources: HashMap<Pattern, Option<Resource<S>>>,
+    resources: Vec<(Pattern, Option<Resource<S>>)>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
     external: HashMap<String, Pattern>,
     encoding: ContentEncoding,
@@ -123,7 +123,7 @@ impl Application<()> {
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
-                resources: HashMap::new(),
+                resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 encoding: ContentEncoding::Auto,
@@ -153,7 +153,7 @@ impl<S> Application<S> where S: 'static {
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
-                resources: HashMap::new(),
+                resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
@@ -242,11 +242,7 @@ impl<S> Application<S> where S: 'static {
             f(&mut resource);
 
             let pattern = Pattern::new(resource.get_name(), path);
-            if parts.resources.contains_key(&pattern) {
-                panic!("Resource {:?} is registered.", path);
-            }
-
-            parts.resources.insert(pattern, Some(resource));
+            parts.resources.push((pattern, Some(resource)));
         }
         self
     }
@@ -354,7 +350,7 @@ impl<S> Application<S> where S: 'static {
 
         let mut resources = parts.resources;
         for (_, pattern) in parts.external {
-            resources.insert(pattern, None);
+            resources.push((pattern, None));
         }
 
         let (router, resources) = Router::new(prefix, parts.settings, resources);

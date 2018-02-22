@@ -27,7 +27,7 @@ impl Router {
     /// Create new router
     pub fn new<S>(prefix: &str,
                   settings: ServerSettings,
-                  map: HashMap<Pattern, Option<Resource<S>>>) -> (Router, Vec<Resource<S>>)
+                  map: Vec<(Pattern, Option<Resource<S>>)>) -> (Router, Vec<Resource<S>>)
     {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
@@ -133,7 +133,7 @@ enum PatternElement {
     Var(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum PatternType {
     Static(String),
     Dynamic(Regex, Vec<String>),
@@ -243,7 +243,8 @@ impl Pattern {
     fn parse(pattern: &str) -> (String, Vec<PatternElement>, bool) {
         const DEFAULT_PATTERN: &str = "[^/]+";
 
-        let mut re = String::from("/");
+        let mut re1 = String::from("^/");
+        let mut re2 = String::from("/");
         let mut el = String::new();
         let mut in_param = false;
         let mut in_param_pattern = false;
@@ -262,7 +263,7 @@ impl Pattern {
                 // In parameter segment: `{....}`
                 if ch == '}' {
                     elems.push(PatternElement::Var(param_name.clone()));
-                    re.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
+                    re1.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
 
                     param_name.clear();
                     param_pattern = String::from(DEFAULT_PATTERN);
@@ -287,15 +288,18 @@ impl Pattern {
                 elems.push(PatternElement::Str(el.clone()));
                 el.clear();
             } else {
-                re.push_str(escape(&ch.to_string()).as_str());
+                re1.push_str(escape(&ch.to_string()).as_str());
+                re2.push(ch);
                 el.push(ch);
             }
         }
 
-        if is_dynamic {
-            re.insert(0, '^');
-            re.push('$');
-        }
+        let re = if is_dynamic {
+            re1.push('$');
+            re1
+        } else {
+            re2
+        };
         (re, elems, is_dynamic)
     }
 }
@@ -321,78 +325,95 @@ mod tests {
 
     #[test]
     fn test_recognizer() {
-        let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}/index.html"),
-                      Some(Resource::default()));
-        routes.insert(Pattern::new("", "/file/{file}.{ext}"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/v{val}/{val2}/index.html"),
-                      Some(Resource::default()));
-        routes.insert(Pattern::new("", "/v/{tail:.*}"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "{test}/index.html"), Some(Resource::default()));
+        let routes = vec![
+            (Pattern::new("", "/name"), Some(Resource::default())),
+            (Pattern::new("", "/name/{val}"), Some(Resource::default())),
+            (Pattern::new("", "/name/{val}/index.html"), Some(Resource::default())),
+            (Pattern::new("", "/file/{file}.{ext}"), Some(Resource::default())),
+            (Pattern::new("", "/v{val}/{val2}/index.html"), Some(Resource::default())),
+            (Pattern::new("", "/v/{tail:.*}"), Some(Resource::default())),
+            (Pattern::new("", "{test}/index.html"), Some(Resource::default()))];
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(0));
         assert!(req.match_info().is_empty());
 
         let mut req = TestRequest::with_uri("/name/value").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(1));
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
         let mut req = TestRequest::with_uri("/name/value2/index.html").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(2));
         assert_eq!(req.match_info().get("val").unwrap(), "value2");
 
         let mut req = TestRequest::with_uri("/file/file.gz").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(3));
         assert_eq!(req.match_info().get("file").unwrap(), "file");
         assert_eq!(req.match_info().get("ext").unwrap(), "gz");
 
         let mut req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(4));
         assert_eq!(req.match_info().get("val").unwrap(), "test");
         assert_eq!(req.match_info().get("val2").unwrap(), "ttt");
 
         let mut req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(5));
         assert_eq!(req.match_info().get("tail").unwrap(), "blah-blah/index.html");
 
         let mut req = TestRequest::with_uri("/bbb/index.html").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(6));
         assert_eq!(req.match_info().get("test").unwrap(), "bbb");
     }
 
     #[test]
+    fn test_recognizer_2() {
+        let routes = vec![
+            (Pattern::new("", "/index.json"), Some(Resource::default())),
+            (Pattern::new("", "/{source}.json"), Some(Resource::default()))];
+        let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
+
+        let mut req = TestRequest::with_uri("/index.json").finish();
+        assert_eq!(rec.recognize(&mut req), Some(0));
+
+        let mut req = TestRequest::with_uri("/test.json").finish();
+        assert_eq!(rec.recognize(&mut req), Some(1));
+    }
+
+    #[test]
     fn test_recognizer_with_prefix() {
-        let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        let routes = vec![
+            (Pattern::new("", "/name"), Some(Resource::default())),
+            (Pattern::new("", "/name/{val}"), Some(Resource::default()))];
         let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
         assert!(rec.recognize(&mut req).is_none());
 
         let mut req = TestRequest::with_uri("/test/name").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(0));
 
         let mut req = TestRequest::with_uri("/test/name/value").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(1));
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
         // same patterns
-        let mut routes = HashMap::new();
-        routes.insert(Pattern::new("", "/name"), Some(Resource::default()));
-        routes.insert(Pattern::new("", "/name/{val}"), Some(Resource::default()));
+        let routes = vec![
+            (Pattern::new("", "/name"), Some(Resource::default())),
+            (Pattern::new("", "/name/{val}"), Some(Resource::default()))];
         let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
         assert!(rec.recognize(&mut req).is_none());
         let mut req = TestRequest::with_uri("/test2/name").finish();
-        assert!(rec.recognize(&mut req).is_some());
+        assert_eq!(rec.recognize(&mut req), Some(0));
+        let mut req = TestRequest::with_uri("/test2/name-test").finish();
+        assert!(rec.recognize(&mut req).is_none());
+        let mut req = TestRequest::with_uri("/test2/name/ttt").finish();
+        assert_eq!(rec.recognize(&mut req), Some(1));
+        assert_eq!(&req.match_info()["val"], "ttt");
     }
 
     #[test]
