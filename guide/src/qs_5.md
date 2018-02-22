@@ -1,9 +1,7 @@
 # URL Dispatch
 
 URL dispatch provides a simple way to map URLs to `Handler` code using a simple pattern matching
-language. *Regex* crate and it's
-[*RegexSet*](https://doc.rust-lang.org/regex/regex/struct.RegexSet.html) is being used for
-pattern matching. If one of the patterns matches the path information associated with a request,
+language. If one of the patterns matches the path information associated with a request,
 a particular handler object is invoked. A handler is a specific object that implements
 `Handler` trait, defined in your application, that receives the request and returns
 a response object. More information is available in [handler section](../qs_4.html).
