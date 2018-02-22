@@ -55,11 +55,11 @@ pub enum ClientConnectorError {
     /// SSL error
     #[cfg(feature="alpn")]
     #[fail(display="{}", _0)]
-    SslError(OpensslError),
+    SslError(#[cause] OpensslError),
 
     /// Connection error
     #[fail(display = "{}", _0)]
-    Connector(ConnectorError),
+    Connector(#[cause] ConnectorError),
 
     /// Connecting took too long
     #[fail(display = "Timeout out while establishing connection")]
@@ -71,7 +71,7 @@ pub enum ClientConnectorError {
 
     /// Connection io error
     #[fail(display = "{}", _0)]
-    IoError(io::Error),
+    IoError(#[cause] io::Error),
 }
 
 impl From<ConnectorError> for ClientConnectorError {
@@ -98,7 +98,6 @@ impl Default for ClientConnector {
         #[cfg(feature="alpn")]
         {
             let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-            builder.set_verify(SslVerifyMode::NONE);
             ClientConnector {
                 connector: builder.build()
             }
@@ -268,6 +267,10 @@ pub struct Connection {
 impl Connection {
     pub fn stream(&mut self) -> &mut IoStream {
         &mut *self.stream
+    }
+
+    pub fn from_stream<T: IoStream>(io: T) -> Connection {
+        Connection{stream: Box::new(io)}
     }
 }
 

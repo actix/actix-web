@@ -13,7 +13,7 @@ use body::Body;
 use error::Error;
 use headers::ContentEncoding;
 use super::pipeline::SendRequest;
-use super::connector::ClientConnector;
+use super::connector::{Connection, ClientConnector};
 
 /// An HTTP Client Request
 pub struct ClientRequest {
@@ -179,9 +179,14 @@ impl ClientRequest {
         SendRequest::new(self)
     }
 
+    /// Send request using custom connector
     pub fn with_connector(self, conn: Addr<Unsync, ClientConnector>) -> SendRequest {
         SendRequest::with_connector(self, conn)
+    }
 
+    /// Send request using existing Connection
+    pub fn with_connection(self, conn: Connection) -> SendRequest {
+        SendRequest::with_connection(self, conn)
     }
 }
 

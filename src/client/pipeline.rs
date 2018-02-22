@@ -39,6 +39,7 @@ impl From<io::Error> for SendRequestError {
 enum State {
     New,
     Connect(actix::dev::Request<Unsync, ClientConnector, Connect>),
+    Connection(Connection),
     Send(Box<Pipeline>),
     None,
 }
@@ -64,6 +65,14 @@ impl SendRequest {
             state: State::New,
             conn: conn}
     }
+
+    pub(crate) fn with_connection(req: ClientRequest, conn: Connection) -> SendRequest
+    {
+        SendRequest{
+            req: req,
+            state: State::Connection(conn),
+            conn: ClientConnector::from_registry()}
+    }
 }
 
 impl Future for SendRequest {
@@ -84,31 +93,34 @@ impl Future for SendRequest {
                     },
                     Ok(Async::Ready(result)) => match result {
                         Ok(stream) => {
-                            let mut writer = HttpClientWriter::new(SharedBytes::default());
-                            writer.start(&mut self.req)?;
-
-                            let body = match self.req.replace_body(Body::Empty) {
-                                Body::Streaming(stream) => IoBody::Payload(stream),
-                                Body::Actor(ctx) => IoBody::Actor(ctx),
-                                _ => IoBody::Done,
-                            };
-
-                            let mut pl = Box::new(Pipeline {
-                                body: body,
-                                conn: stream,
-                                writer: writer,
-                                parser: HttpResponseParser::default(),
-                                parser_buf: BytesMut::new(),
-                                disconnected: false,
-                                running: RunningState::Running,
-                                drain: None,
-                            });
-                            self.state = State::Send(pl);
+                            self.state = State::Connection(stream)
                         },
                         Err(err) => return Err(SendRequestError::Connector(err)),
                     },
-                    Err(_) =>
-                        return Err(SendRequestError::Connector(ClientConnectorError::Disconnected))
+                    Err(_) => return Err(SendRequestError::Connector(
+                        ClientConnectorError::Disconnected))
+                },
+                State::Connection(stream) => {
+                    let mut writer = HttpClientWriter::new(SharedBytes::default());
+                    writer.start(&mut self.req)?;
+
+                    let body = match self.req.replace_body(Body::Empty) {
+                        Body::Streaming(stream) => IoBody::Payload(stream),
+                        Body::Actor(ctx) => IoBody::Actor(ctx),
+                        _ => IoBody::Done,
+                    };
+
+                    let mut pl = Box::new(Pipeline {
+                        body: body,
+                        conn: stream,
+                        writer: writer,
+                        parser: HttpResponseParser::default(),
+                        parser_buf: BytesMut::new(),
+                        disconnected: false,
+                        running: RunningState::Running,
+                        drain: None,
+                    });
+                    self.state = State::Send(pl);
                 },
                 State::Send(mut pl) => {
                     pl.poll_write()
