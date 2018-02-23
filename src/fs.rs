@@ -86,6 +86,9 @@ impl Responder for NamedFile {
 
     fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9e9ae13... Add content-range and accept-ranges header
         if let Some(rangeheader) = req.headers().get(header::RANGE) {
             let file_metadata = metadata(self.0)?;
             if let Ok(ranges) = HttpRange::parse(try!(rangeheader.to_str()), file_metadata.len()) {
@@ -124,7 +127,9 @@ impl Responder for NamedFile {
                     .body("").unwrap())
             }
         } else {
+            //let file_metadata = metadata(self.0)?;
             let mut resp = HTTPOk.build();
+            resp.header(header::ACCEPT_RANGES, "bytes");
             resp.content_encoding(ContentEncoding::Identity);
             if let Some(ext) = self.path().extension() {
             let mime = get_mime_type(&ext.to_string_lossy());
