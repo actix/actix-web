@@ -1,0 +1,23 @@
+[package]
+name = "juniper-websocket"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+workspace = "../.."
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+env_logger = "*"
+futures = "0.1"
+tokio-core = "0.1"
+actix = "0.5"
+actix-web = { path="../../" }
+juniper = "0.9.2"
+lazy_static = "1.0"
+serde_json = "1.0"
