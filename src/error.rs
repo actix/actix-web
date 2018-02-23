@@ -627,12 +627,6 @@ pub fn ErrorPreconditionFailed<T>(err: T) -> InternalError<T> {
     InternalError::new(err, StatusCode::PRECONDITION_FAILED)
 }
 
-///  Helper function that creates wrapper of any error and generate *RANGE NOT SATISFIABLE* response.
-#[allow(non_snake_case)]
-pub fn ErrorRangeNotSatisfiable<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::RANGE_NOT_SATISFIABLE)
-}
-
 ///  Helper function that creates wrapper of any error and generate *EXPECTATION FAILED* response.
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> InternalError<T> {
