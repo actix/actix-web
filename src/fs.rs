@@ -85,23 +85,13 @@ impl Responder for NamedFile {
     type Error = io::Error;
 
     fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 9e9ae13... Add content-range and accept-ranges header
         if let Some(rangeheader) = req.headers().get(header::RANGE) {
             let file_metadata = metadata(self.0)?;
             if let Ok(ranges) = HttpRange::parse(try!(rangeheader.to_str()), file_metadata.len()) {
-=======
-        if let Ok(rangeheader) = req.headers().get("range").unwrap().to_str() {
-            let file_metadata = metadata(self.0)?;
-            if let Ok(ranges) = HttpRange::parse(rangeheader, file_metadata.len()) {
->>>>>>> de7c05c... #60: Basic Ranges header support
                 let mut resp = HTTPPartialContent.build();
                 let length: usize = ranges[0].length as usize;
                 let mut data: Vec<u8> = vec![0u8; length];
                 let _ = &self.1.seek(SeekFrom::Start(ranges[0].start))?;
-<<<<<<< HEAD
                 let _ = self.1.read_exact(&mut data)?;
                 Ok(resp
                     .header(header::CONTENT_RANGE, format!("bytes {}-{}/{}", ranges[0].start, ranges[0].start + ranges[0].length, file_metadata.len()).as_str())
@@ -118,22 +108,6 @@ impl Responder for NamedFile {
             resp.content_encoding(ContentEncoding::Identity);
             if let Some(ext) = self.path().extension() {
                 let mime = get_mime_type(&ext.to_string_lossy());
-=======
-                let _ = self.1.read_exact(&mut data);
-                Ok(resp.body(data).unwrap())
-            } else {
-                Ok(HTTPRangeNotSatisfiable.build()
-                    .header(header::CONTENT_RANGE, format!("0-{}", file_metadata.len()).as_str())
-                    .body("").unwrap())
-            }
-        } else {
-            //let file_metadata = metadata(self.0)?;
-            let mut resp = HTTPOk.build();
-            resp.header(header::ACCEPT_RANGES, "bytes");
-            resp.content_encoding(ContentEncoding::Identity);
-            if let Some(ext) = self.path().extension() {
-            let mime = get_mime_type(&ext.to_string_lossy());
->>>>>>> de7c05c... #60: Basic Ranges header support
                 resp.content_type(format!("{}", mime).as_str());
             }
             let mut data = Vec::new();
