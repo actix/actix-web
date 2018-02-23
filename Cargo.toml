@@ -99,6 +99,7 @@ members = [
   "./",
   "examples/basics",
   "examples/diesel",
+  "examples/juniper",
   "examples/r2d2",
   "examples/json",
   "examples/hello-world",
