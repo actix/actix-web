@@ -162,6 +162,7 @@ impl HttpResponse {
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
+    STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
 
     STATIC_RESP!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
