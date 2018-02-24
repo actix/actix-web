@@ -22,7 +22,7 @@ fn main() {
 
     Arbiter::handle().spawn(
         WsClient::new("http://127.0.0.1:8080/ws/")
-            .connect().unwrap()
+            .connect()
             .map_err(|e| {
                 println!("Error: {}", e);
                 ()
