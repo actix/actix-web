@@ -128,7 +128,7 @@ impl WsClient {
     }
 
     /// Set supported websocket protocols
-    pub fn protocols<U, V>(&mut self, protos: U) -> &mut Self
+    pub fn protocols<U, V>(mut self, protos: U) -> Self
         where U: IntoIterator<Item=V> + 'static,
               V: AsRef<str>
     {
@@ -140,13 +140,13 @@ impl WsClient {
     }
 
     /// Set cookie for handshake request
-    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
+    pub fn cookie<'c>(mut self, cookie: Cookie<'c>) -> Self {
         self.request.cookie(cookie);
         self
     }
 
     /// Set request Origin
-    pub fn origin<V>(&mut self, origin: V) -> &mut Self
+    pub fn origin<V>(mut self, origin: V) -> Self
         where HeaderValue: HttpTryFrom<V>
     {
         match HeaderValue::try_from(origin) {
@@ -157,7 +157,7 @@ impl WsClient {
     }
 
     /// Set request header
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn header<K, V>(mut self, key: K, value: V) -> Self
         where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
     {
         self.request.header(key, value);
