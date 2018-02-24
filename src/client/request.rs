@@ -4,7 +4,7 @@ use std::io::Write;
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
 use bytes::{BytesMut, BufMut};
-use http::{HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
+use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
@@ -25,6 +25,7 @@ pub struct ClientRequest {
     chunked: bool,
     upgrade: bool,
     encoding: ContentEncoding,
+    response_decompress: bool,
 }
 
 impl Default for ClientRequest {
@@ -39,6 +40,7 @@ impl Default for ClientRequest {
             chunked: false,
             upgrade: false,
             encoding: ContentEncoding::Auto,
+            response_decompress: true,
         }
     }
 }
@@ -89,6 +91,7 @@ impl ClientRequest {
             request: Some(ClientRequest::default()),
             err: None,
             cookies: None,
+            default_headers: true,
         }
     }
 
@@ -158,6 +161,12 @@ impl ClientRequest {
         self.encoding
     }
 
+    /// Decompress response payload
+    #[inline]
+    pub fn response_decompress(&self) -> bool {
+        self.response_decompress
+    }
+
     /// Get body os this response
     #[inline]
     pub fn body(&self) -> &Body {
@@ -216,6 +225,7 @@ pub struct ClientRequestBuilder {
     request: Option<ClientRequest>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
+    default_headers: bool,
 }
 
 impl ClientRequestBuilder {
@@ -409,6 +419,22 @@ impl ClientRequestBuilder {
         self
     }
 
+    /// Do not add default request headers.
+    /// By default `Accept-Encoding` header is set.
+    pub fn no_default_headers(&mut self) -> &mut Self {
+        self.default_headers = false;
+        self
+    }
+
+    /// Disable automatic decompress response body
+    pub fn disable_decompress(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.response_decompress = false;
+        }
+        self
+    }
+
+
     /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: FnOnce(&mut ClientRequestBuilder)
@@ -437,6 +463,23 @@ impl ClientRequestBuilder {
             return Err(e)
         }
 
+        if self.default_headers {
+            // enable br only for https
+            let https =
+                if let Some(parts) = parts(&mut self.request, &self.err) {
+                    parts.uri.scheme_part()
+                        .map(|s| s == &uri::Scheme::HTTPS).unwrap_or(true)
+                } else {
+                    true
+                };
+
+            if https {
+                self.header(header::ACCEPT_ENCODING, "br, gzip, deflate");
+            } else {
+                self.header(header::ACCEPT_ENCODING, "gzip, deflate");
+            }
+        }
+        
         let mut request = self.request.take().expect("cannot reuse request builder");
 
         // set cookies
@@ -482,6 +525,7 @@ impl ClientRequestBuilder {
             request: self.request.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
+            default_headers: self.default_headers,
         }
     }
 }

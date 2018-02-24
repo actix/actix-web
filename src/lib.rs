@@ -97,6 +97,8 @@ extern crate openssl;
 #[cfg(feature="openssl")]
 extern crate tokio_openssl;
 
+extern crate backtrace;
+
 mod application;
 mod body;
 mod context;

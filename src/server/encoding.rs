@@ -128,7 +128,7 @@ impl PayloadWriter for PayloadType {
     }
 }
 
-enum Decoder {
+pub(crate) enum Decoder {
     Deflate(Box<DeflateDecoder<Writer<BytesMut>>>),
     Gzip(Option<Box<GzDecoder<Wrapper>>>),
     Br(Box<BrotliDecoder<Writer<BytesMut>>>),
@@ -137,9 +137,9 @@ enum Decoder {
 
 // should go after write::GzDecoder get implemented
 #[derive(Debug)]
-struct Wrapper {
-    buf: BytesMut,
-    eof: bool,
+pub(crate) struct Wrapper {
+    pub buf: BytesMut,
+    pub eof: bool,
 }
 
 impl io::Read for Wrapper {

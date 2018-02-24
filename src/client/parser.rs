@@ -83,20 +83,34 @@ impl HttpResponseParser {
                             -> Poll<Option<Bytes>, PayloadError>
         where T: IoStream
     {
-        if let Some(ref mut decoder) = self.decoder {
+        if self.decoder.is_some() {
             // read payload
             match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => return Err(PayloadError::Incomplete),
+                Ok(Async::Ready(0)) => {
+                    if buf.is_empty() {
+                        return Err(PayloadError::Incomplete)
+                    }
+                }
                 Err(err) => return Err(err.into()),
                 _ => (),
             }
-            decoder.decode(buf).map_err(|e| e.into())
+
+            match self.decoder.as_mut().unwrap().decode(buf) {
+                Ok(Async::Ready(Some(b))) => Ok(Async::Ready(Some(b))),
+                Ok(Async::Ready(None)) => {
+                    self.decoder.take();
+                    Ok(Async::Ready(None))
+                }
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(err) => Err(err.into()),
+            }
         } else {
             Ok(Async::Ready(None))
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<Decoder>), ParseError> {
+    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<Decoder>), ParseError>
+    {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;
         let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -160,10 +174,6 @@ impl HttpResponseParser {
         };
 
         if let Some(decoder) = decoder {
-            //let info = PayloadInfo {
-            //tx: PayloadType::new(&hdrs, psender),
-            //    decoder: decoder,
-            //};
             Ok(Async::Ready(
                 (ClientResponse::new(
                     ClientMessage{status: status, version: version,

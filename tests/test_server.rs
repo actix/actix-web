@@ -123,7 +123,7 @@ fn test_body_gzip() {
                 .content_encoding(headers::ContentEncoding::Gzip)
                 .body(STR)));
 
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -138,7 +138,7 @@ fn test_body_gzip() {
 }
 
 #[test]
-fn test_body_streaming_implicit() {
+fn test_body_chunked_implicit() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
@@ -146,7 +146,7 @@ fn test_body_streaming_implicit() {
                 .content_encoding(headers::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -169,7 +169,7 @@ fn test_body_br_streaming() {
                 .content_encoding(headers::ContentEncoding::Br)
                 .body(Body::Streaming(Box::new(body)))}));
 
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -252,6 +252,7 @@ fn test_body_length() {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             httpcodes::HTTPOk.build()
                 .content_length(STR.len() as u64)
+                .content_encoding(headers::ContentEncoding::Identity)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().finish().unwrap();
@@ -264,7 +265,7 @@ fn test_body_length() {
 }
 
 #[test]
-fn test_body_streaming_explicit() {
+fn test_body_chunked_explicit() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
@@ -273,7 +274,7 @@ fn test_body_streaming_explicit() {
                 .content_encoding(headers::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -297,7 +298,7 @@ fn test_body_deflate() {
                 .body(STR)));
 
     // client request
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -321,7 +322,7 @@ fn test_body_brotli() {
                 .body(STR)));
 
     // client request
-    let request = srv.get().finish().unwrap();
+    let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -364,34 +365,6 @@ fn test_gzip_encoding() {
 }
 
 #[test]
-fn test_client_gzip_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
-                   .build()
-                   .content_encoding(headers::ContentEncoding::Deflate)
-                   .body(bytes))
-            }).responder()}
-    ));
-
-    // client request
-    let request = srv.post()
-        .content_encoding(headers::ContentEncoding::Gzip)
-        .body(STR).unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = srv.execute(response.body()).unwrap();
-
-    let mut e = DeflateDecoder::new(Vec::new());
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-}
-
-#[test]
 fn test_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -420,35 +393,6 @@ fn test_deflate_encoding() {
 }
 
 #[test]
-fn test_client_deflate_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
-                   .build()
-                   .content_encoding(headers::ContentEncoding::Br)
-                   .body(bytes))
-            }).responder()}
-    ));
-
-    // client request
-    let request = srv.post()
-        .content_encoding(headers::ContentEncoding::Deflate)
-        .body(STR).unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = srv.execute(response.body()).unwrap();
-
-    // decode brotli
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-}
-
-#[test]
 fn test_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -474,35 +418,6 @@ fn test_brotli_encoding() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
-}
-
-#[test]
-fn test_client_brotli_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
-                   .build()
-                   .content_encoding(headers::ContentEncoding::Deflate)
-                   .body(bytes))
-            }).responder()}
-    ));
-
-    // client request
-    let request = srv.client(Method::POST, "/")
-        .content_encoding(headers::ContentEncoding::Br)
-        .body(STR).unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = srv.execute(response.body()).unwrap();
-
-    // decode brotli
-    let mut e = DeflateDecoder::new(Vec::with_capacity(2048));
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
 #[test]
@@ -543,30 +458,6 @@ fn test_h2() {
     });
     let _res = core.run(tcp);
     // assert_eq!(_res.unwrap(), Bytes::from_static(STR.as_ref()));
-}
-
-#[test]
-fn test_client_streaming_explicit() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(
-            |req: HttpRequest| req.body()
-                .map_err(Error::from)
-                .and_then(|body| {
-                    Ok(httpcodes::HTTPOk.build()
-                       .chunked()
-                       .content_encoding(headers::ContentEncoding::Identity)
-                       .body(body)?)})
-                .responder()));
-
-    let body = once(Ok(Bytes::from_static(STR.as_ref())));
-
-    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
 #[test]

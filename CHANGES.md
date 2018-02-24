@@ -16,11 +16,11 @@
 
 * Added http client
 
-* Added basic websocket client
+* Added websocket client
 
 * Added TestServer::ws(), test websockets client
 
-* Added TestServer test http client
+* Added TestServer http client support
 
 * Allow to override content encoding on application level
 

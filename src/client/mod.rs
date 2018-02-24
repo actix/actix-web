@@ -1,5 +1,6 @@
 //! Http client
 mod connector;
+mod encoding;
 mod parser;
 mod request;
 mod response;

@@ -237,6 +237,8 @@ pub enum PayloadError {
 
 impl From<IoError> for PayloadError {
     fn from(err: IoError) -> PayloadError {
+        use backtrace;
+        println!("IO ERROR {:?}", backtrace::Backtrace::new());
         PayloadError::Io(err)
     }
 }
