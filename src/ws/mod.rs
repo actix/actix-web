@@ -65,7 +65,7 @@ use self::frame::Frame;
 use self::proto::{hash_key, OpCode};
 pub use self::proto::CloseCode;
 pub use self::context::WebsocketContext;
-pub use self::client::{WsClient, WsClientError, WsClientReader, WsClientWriter, WsClientFuture};
+pub use self::client::{WsClient, WsClientError, WsClientReader, WsClientWriter, WsHandshake};
 
 const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
 const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";

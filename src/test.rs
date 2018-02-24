@@ -182,7 +182,7 @@ impl TestServer {
     /// Connect to websocket server
     pub fn ws(&mut self) -> Result<(WsClientReader, WsClientWriter), WsClientError> {
         let url = self.url("/");
-        self.system.run_until_complete(WsClient::new(url).connect().unwrap())
+        self.system.run_until_complete(WsClient::new(url).connect())
     }
 
     /// Create `GET` request
