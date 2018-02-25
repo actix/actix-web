@@ -109,7 +109,7 @@ struct MyObj {name: String, number: i32}
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
    // `concat2` will asynchronously read each chunk of the request body and
    // return a single, concatenated, chunk
-   req.payload_mut().readany().concat2()
+   req.payload_mut().concat2()
       // `Future::from_err` acts like `?` in that it coerces the error type from
       // the future into the final error type
       .from_err()
@@ -256,13 +256,13 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
 ## Streaming request
 
-Actix uses [*Payload*](../actix_web/payload/struct.Payload.html) object as request payload stream.
-*HttpRequest* provides several methods, which can be used for payload access.
-At the same time *Payload* implements *Stream* trait, so it could be used with various
-stream combinators. Also *Payload* provides several convenience methods that return
-future object that resolve to Bytes object.
-
-* *readany()* method returns *Stream* of *Bytes* objects.
+*HttpRequest* is a stream of `Bytes` objects. It could be used to read request
+body payload. At the same time actix uses
+[*Payload*](../actix_web/payload/struct.Payload.html) object.
+*HttpRequest* provides several methods, which can be used for
+payload access.At the same time *Payload* implements *Stream* trait, so it
+could be used with various stream combinators. Also *Payload* provides
+several convenience methods that return future object that resolve to Bytes object.
 
 * *readexactly()* method returns *Future* that resolves when specified number of bytes
   get received.
@@ -283,9 +283,7 @@ use futures::{Future, Stream};
 
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.payload()
-       .readany()
-       .from_err()
+    req.from_err()
        .fold((), |_, chunk| {
             println!("Chunk: {:?}", chunk);
             result::<_, error::PayloadError>(Ok(()))

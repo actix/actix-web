@@ -32,11 +32,11 @@
 //! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
-//! * `WebSockets`
+//! * WebSockets server/client
 //! * Transparent content compression/decompression (br, gzip, deflate)
 //! * Configurable request routing
 //! * Multipart streams
-//! * Middlewares (`Logger`, `Session`, `DefaultHeaders`)
+//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
 //! * Graceful server shutdown
 //! * Built on top of [Actix](https://github.com/actix/actix).
 

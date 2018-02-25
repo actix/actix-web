@@ -22,7 +22,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     println!("{:?}", req);
 
     // example of ...
-    if let Ok(ch) = req.payload_mut().readany().poll() {
+    if let Ok(ch) = req.poll() {
         if let futures::Async::Ready(Some(d)) = ch {
             println!("{}", String::from_utf8_lossy(d.as_ref()));
         }

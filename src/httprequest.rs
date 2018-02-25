@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::{Bytes, BytesMut};
 use cookie::Cookie;
-use futures::{Async, Future, Stream, Poll};
+use futures::{Future, Stream, Poll};
 use http_range::HttpRange;
 use serde::de::DeserializeOwned;
 use mime::Mime;
@@ -155,8 +155,8 @@ impl<S> HttpRequest<S> {
         HttpRequest(self.0.clone(), None, None)
     }
 
-    // get mutable reference for inner message
-    // mutable reference should not be returned as result for request's method
+    /// get mutable reference for inner message
+    /// mutable reference should not be returned as result for request's method
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub(crate) fn as_mut(&self) -> &mut HttpMessage {
@@ -480,8 +480,8 @@ impl<S> HttpRequest<S> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn body(&self) -> RequestBody {
-        RequestBody::from_request(self)
+    pub fn body(self) -> RequestBody {
+        RequestBody::from(self)
     }
 
     /// Return stream to http payload processes as multipart.
@@ -518,7 +518,7 @@ impl<S> HttpRequest<S> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn multipart(&mut self) -> Multipart {
+    pub fn multipart(self) -> Multipart {
         Multipart::from_request(self)
     }
 
@@ -549,10 +549,8 @@ impl<S> HttpRequest<S> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn urlencoded(&self) -> UrlEncoded {
-        UrlEncoded::from(self.payload().clone(),
-                         self.headers(),
-                         self.chunked().unwrap_or(false))
+    pub fn urlencoded(self) -> UrlEncoded {
+        UrlEncoded::from(self)
     }
 
     /// Parse `application/json` encoded body.
@@ -585,7 +583,7 @@ impl<S> HttpRequest<S> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn json<T: DeserializeOwned>(&self) -> JsonBody<S, T> {
+    pub fn json<T: DeserializeOwned>(self) -> JsonBody<S, T> {
         JsonBody::from_request(self)
     }
 }
@@ -638,49 +636,24 @@ impl<S> fmt::Debug for HttpRequest<S> {
 
 /// Future that resolves to a parsed urlencoded values.
 pub struct UrlEncoded {
-    pl: Payload,
-    body: BytesMut,
-    error: Option<UrlencodedError>,
+    req: Option<HttpRequest<()>>,
+    limit: usize,
+    fut: Option<Box<Future<Item=HashMap<String, String>, Error=UrlencodedError>>>,
 }
 
 impl UrlEncoded {
-    pub fn from(pl: Payload, headers: &HeaderMap, chunked: bool) -> UrlEncoded {
-        let mut encoded = UrlEncoded {
-            pl: pl,
-            body: BytesMut::new(),
-            error: None
-        };
-
-        if chunked {
-            encoded.error = Some(UrlencodedError::Chunked);
-        } else if let Some(len) = headers.get(header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    if len > 262_144 {
-                        encoded.error = Some(UrlencodedError::Overflow);
-                    }
-                } else {
-                    encoded.error = Some(UrlencodedError::UnknownLength);
-                }
-            } else {
-                encoded.error = Some(UrlencodedError::UnknownLength);
-            }
+    pub fn from<S>(req: HttpRequest<S>) -> UrlEncoded {
+        UrlEncoded {
+            req: Some(req.clone_without_state()),
+            limit: 262_144,
+            fut: None,
         }
+    }
 
-        // check content type
-        if encoded.error.is_none() {
-            if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
-                if let Ok(content_type) = content_type.to_str() {
-                    if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
-                        return encoded
-                    }
-                }
-            }
-            encoded.error = Some(UrlencodedError::ContentType);
-            return encoded
-        }
-
-        encoded
+    /// Change max size of payload. By default max size is 256Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
     }
 }
 
@@ -689,48 +662,76 @@ impl Future for UrlEncoded {
     type Error = UrlencodedError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(err) = self.error.take() {
-            return Err(err)
-        }
+        if let Some(req) = self.req.take() {
+            if req.chunked().unwrap_or(false) {
+                return Err(UrlencodedError::Chunked)
+            } else if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = len.to_str() {
+                    if let Ok(len) = s.parse::<u64>() {
+                        if len > 262_144 {
+                            return Err(UrlencodedError::Overflow);
+                        }
+                    } else {
+                        return Err(UrlencodedError::UnknownLength)
+                    }
+                } else {
+                    return Err(UrlencodedError::UnknownLength)
+                }
+            }
 
-        loop {
-            return match self.pl.poll() {
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => {
+            // check content type
+            let mut err = true;
+            if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+                if let Ok(content_type) = content_type.to_str() {
+                    if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
+                        err = false;
+                    }
+                }
+            }
+            if err {
+                return Err(UrlencodedError::ContentType);
+            }
+
+            // future
+            let limit = self.limit;
+            let fut = req.from_err()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    if (body.len() + chunk.len()) > limit {
+                        Err(UrlencodedError::Overflow)
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Ok(body)
+                    }
+                })
+                .map(|body| {
                     let mut m = HashMap::new();
-                    for (k, v) in form_urlencoded::parse(&self.body) {
+                    for (k, v) in form_urlencoded::parse(&body) {
                         m.insert(k.into(), v.into());
                     }
-                    Ok(Async::Ready(m))
-                },
-                Ok(Async::Ready(Some(item))) => {
-                    self.body.extend_from_slice(&item);
-                    continue
-                },
-                Err(err) => Err(err.into()),
-            }
+                    m
+                });
+            self.fut = Some(Box::new(fut));
         }
+
+        self.fut.as_mut().expect("UrlEncoded could not be used second time").poll()
     }
 }
 
 /// Future that resolves to a complete request body.
 pub struct RequestBody {
-    pl: Payload,
-    body: BytesMut,
     limit: usize,
     req: Option<HttpRequest<()>>,
+    fut: Option<Box<Future<Item=Bytes, Error=PayloadError>>>,
 }
 
 impl RequestBody {
 
     /// Create `RequestBody` for request.
-    pub fn from_request<S>(req: &HttpRequest<S>) -> RequestBody {
-        let pl = req.payload().clone();
+    pub fn from<S>(req: HttpRequest<S>) -> RequestBody {
         RequestBody {
-            pl: pl,
-            body: BytesMut::new(),
             limit: 262_144,
-            req: Some(req.clone_without_state())
+            req: Some(req.clone_without_state()),
+            fut: None,
         }
  }
 
@@ -760,25 +761,24 @@ impl Future for RequestBody {
                     return Err(PayloadError::UnknownLength);
                 }
             }
+
+            // future
+            let limit = self.limit;
+            self.fut = Some(Box::new(
+                req.from_err()
+                    .fold(BytesMut::new(), move |mut body, chunk| {
+                        if (body.len() + chunk.len()) > limit {
+                            Err(PayloadError::Overflow)
+                        } else {
+                            body.extend_from_slice(&chunk);
+                            Ok(body)
+                        }
+                    })
+                    .map(|body| body.freeze())
+            ));
         }
 
-        loop {
-            return match self.pl.poll() {
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => {
-                    Ok(Async::Ready(self.body.take().freeze()))
-                },
-                Ok(Async::Ready(Some(chunk))) => {
-                    if (self.body.len() + chunk.len()) > self.limit {
-                        Err(PayloadError::Overflow)
-                    } else {
-                        self.body.extend_from_slice(&chunk);
-                        continue
-                    }
-                },
-                Err(err) => Err(err),
-            }
-        }
+        self.fut.as_mut().expect("UrlEncoded could not be used second time").poll()
     }
 }
 

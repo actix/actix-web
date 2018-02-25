@@ -85,7 +85,7 @@ impl Multipart {
     }
 
     /// Create multipart instance for request.
-    pub fn from_request<S>(req: &mut HttpRequest<S>) -> Multipart {
+    pub fn from_request<S>(req: HttpRequest<S>) -> Multipart {
         match Multipart::boundary(req.headers()) {
             Ok(boundary) => Multipart::new(boundary, req.payload().clone()),
             Err(err) =>
