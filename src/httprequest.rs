@@ -1,16 +1,18 @@
 //! HTTP Request message related code.
-use std::{str, fmt, mem};
+use std::{io, cmp, str, fmt, mem};
 use std::rc::Rc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use bytes::{Bytes, BytesMut};
 use cookie::Cookie;
-use futures::{Future, Stream, Poll};
+use futures::{Async, Future, Stream, Poll};
 use http_range::HttpRange;
 use serde::de::DeserializeOwned;
 use mime::Mime;
+use failure;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
+use tokio_io::AsyncRead;
 
 use info::ConnectionInfo;
 use param::Params;
@@ -610,6 +612,38 @@ impl<S> Stream for HttpRequest<S> {
         self.payload_mut().poll()
     }
 }
+
+impl<S> io::Read for HttpRequest<S> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.payload_mut().poll() {
+            Ok(Async::Ready(Some(mut b))) => {
+                let i = cmp::min(b.len(), buf.len());
+                buf.copy_from_slice(&b.split_to(i)[..i]);
+
+                if !b.is_empty() {
+                    self.payload_mut().unread_data(b);
+                }
+
+                if i < buf.len() {
+                    match self.read(&mut buf[i..]) {
+                        Ok(n) => Ok(i + n),
+                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(i),
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Ok(i)
+                }
+            }
+            Ok(Async::Ready(None)) => Ok(0),
+            Ok(Async::NotReady) =>
+                Err(io::Error::new(io::ErrorKind::WouldBlock, "Not ready")),
+            Err(e) =>
+                Err(io::Error::new(io::ErrorKind::Other, failure::Error::from(e).compat())),
+        }
+    }
+}
+
+impl<S> AsyncRead for HttpRequest<S> {}
 
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

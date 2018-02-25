@@ -96,8 +96,7 @@ impl<T: ResponseError> From<T> for Error {
 
 /// Compatibility for `failure::Error`
 impl<T> ResponseError for failure::Compat<T>
-    where T: fmt::Display + fmt::Debug + Sync + Send + 'static
-{ }
+    where T: fmt::Display + fmt::Debug + Sync + Send + 'static { }
 
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
