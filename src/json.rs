@@ -111,7 +111,7 @@ impl<S, T: DeserializeOwned> JsonBody<S, T> {
     }
 }
 
-impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
+impl<S: 'static, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
     type Item = T;
     type Error = JsonPayloadError;
 
@@ -134,8 +134,7 @@ impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
             }
 
             let limit = self.limit;
-            let fut = req.payload().readany()
-                .from_err()
+            let fut = req.from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(JsonPayloadError::Overflow)

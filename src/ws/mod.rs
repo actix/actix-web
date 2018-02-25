@@ -50,7 +50,7 @@ use futures::{Async, Poll, Stream};
 use actix::{Actor, AsyncContext, Handler};
 
 use body::Binary;
-use payload::ReadAny;
+use payload::Payload;
 use error::{Error, WsHandshakeError};
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
@@ -86,12 +86,12 @@ pub enum Message {
 }
 
 /// Do websocket handshake and start actor
-pub fn start<A, S>(mut req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
+pub fn start<A, S>(req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
     where A: Actor<Context=WebsocketContext<A, S>> + Handler<Message>,
           S: 'static
 {
     let mut resp = handshake(&req)?;
-    let stream = WsStream::new(req.payload_mut().readany());
+    let stream = WsStream::new(req.payload().clone());
 
     let mut ctx = WebsocketContext::new(req, actor);
     ctx.add_message_stream(stream);
@@ -166,14 +166,14 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHands
 
 /// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream {
-    rx: ReadAny,
+    rx: Payload,
     buf: BytesMut,
     closed: bool,
     error_sent: bool,
 }
 
 impl WsStream {
-    pub fn new(payload: ReadAny) -> WsStream {
+    pub fn new(payload: Payload) -> WsStream {
         WsStream { rx: payload,
                    buf: BytesMut::new(),
                    closed: false,

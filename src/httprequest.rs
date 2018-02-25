@@ -15,7 +15,7 @@ use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 use info::ConnectionInfo;
 use param::Params;
 use router::Router;
-use payload::{Payload, ReadAny};
+use payload::Payload;
 use json::JsonBody;
 use multipart::Multipart;
 use helpers::SharedHttpMessage;
@@ -604,6 +604,15 @@ impl<S> Clone for HttpRequest<S> {
     }
 }
 
+impl<S> Stream for HttpRequest<S> {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        self.payload_mut().poll()
+    }
+}
+
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
@@ -706,7 +715,7 @@ impl Future for UrlEncoded {
 
 /// Future that resolves to a complete request body.
 pub struct RequestBody {
-    pl: ReadAny,
+    pl: Payload,
     body: BytesMut,
     limit: usize,
     req: Option<HttpRequest<()>>,
@@ -716,7 +725,7 @@ impl RequestBody {
 
     /// Create `RequestBody` for request.
     pub fn from_request<S>(req: &HttpRequest<S>) -> RequestBody {
-        let pl = req.payload().readany();
+        let pl = req.payload().clone();
         RequestBody {
             pl: pl,
             body: BytesMut::new(),

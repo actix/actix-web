@@ -482,7 +482,7 @@ impl InnerField {
         if *size == 0 {
             Ok(Async::Ready(None))
         } else {
-            match payload.readany().poll() {
+            match payload.poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
                 Ok(Async::Ready(Some(mut chunk))) => {
