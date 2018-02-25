@@ -11,7 +11,7 @@ use body::{Body, Binary};
 use headers::ContentEncoding;
 use httprequest::HttpMessage;
 use httpresponse::HttpResponse;
-use super::encoding::PayloadEncoder;
+use super::encoding::ContentEncoder;
 use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
@@ -28,7 +28,7 @@ bitflags! {
 pub(crate) struct H2Writer {
     respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
-    encoder: PayloadEncoder,
+    encoder: ContentEncoder,
     flags: Flags,
     written: u64,
     buffer: SharedBytes,
@@ -40,7 +40,7 @@ impl H2Writer {
         H2Writer {
             respond: respond,
             stream: None,
-            encoder: PayloadEncoder::empty(buf.clone()),
+            encoder: ContentEncoder::empty(buf.clone()),
             flags: Flags::empty(),
             written: 0,
             buffer: buf,
@@ -113,7 +113,7 @@ impl Writer for H2Writer {
              -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg, encoding);
+        self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }

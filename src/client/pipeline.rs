@@ -13,11 +13,11 @@ use headers::ContentEncoding;
 use error::PayloadError;
 use server::WriterState;
 use server::shared::SharedBytes;
+use server::encoding::PayloadStream;
 use super::{ClientRequest, ClientResponse};
 use super::{Connect, Connection, ClientConnector, ClientConnectorError};
 use super::HttpClientWriter;
 use super::{HttpResponseParser, HttpResponseParserError};
-use super::encoding::PayloadStream;
 
 /// A set of errors that can occur during sending request and reading response
 #[derive(Fail, Debug)]
