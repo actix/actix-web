@@ -91,7 +91,7 @@ pub fn start<A, S>(req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
           S: 'static
 {
     let mut resp = handshake(&req)?;
-    let stream = WsStream::new(req.payload().clone());
+    let stream = WsStream::new(req.clone());
 
     let mut ctx = WebsocketContext::new(req, actor);
     ctx.add_message_stream(stream);

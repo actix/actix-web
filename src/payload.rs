@@ -441,14 +441,6 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         })
     }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
@@ -569,6 +561,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         self.items.push_front(data);
     }
 
+    #[allow(dead_code)]
     pub fn remaining(&mut self) -> Bytes {
         self.items.iter_mut()
             .fold(BytesMut::new(), |mut b, c| {

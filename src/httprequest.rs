@@ -436,26 +436,6 @@ impl<S> HttpRequest<S> {
         }
     }
 
-    /// Returns reference to the associated http payload.
-    #[inline]
-    pub fn payload(&self) -> &Payload {
-        let msg = self.as_mut();
-        if msg.payload.is_none() {
-            msg.payload = Some(Payload::empty());
-        }
-        msg.payload.as_ref().unwrap()
-    }
-
-    /// Returns mutable reference to the associated http payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        let msg = self.as_mut();
-        if msg.payload.is_none() {
-            msg.payload = Some(Payload::empty());
-        }
-        msg.payload.as_mut().unwrap()
-    }
-
     /// Load request body.
     ///
     /// By default only 256Kb payload reads to a memory, then `BAD REQUEST`
@@ -589,6 +569,24 @@ impl<S> HttpRequest<S> {
     pub fn json<T: DeserializeOwned>(self) -> JsonBody<S, T> {
         JsonBody::from_request(self)
     }
+
+    #[cfg(test)]
+    pub(crate) fn payload(&self) -> &Payload {
+        let msg = self.as_mut();
+        if msg.payload.is_none() {
+            msg.payload = Some(Payload::empty());
+        }
+        msg.payload.as_ref().unwrap()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn payload_mut(&mut self) -> &mut Payload {
+        let msg = self.as_mut();
+        if msg.payload.is_none() {
+            msg.payload = Some(Payload::empty());
+        }
+        msg.payload.as_mut().unwrap()
+    }
 }
 
 impl Default for HttpRequest<()> {
@@ -610,36 +608,45 @@ impl<S> Stream for HttpRequest<S> {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        self.payload_mut().poll()
+        let msg = self.as_mut();
+        if msg.payload.is_none() {
+            Ok(Async::Ready(None))
+        } else {
+            msg.payload.as_mut().unwrap().poll()
+        }
     }
 }
 
 impl<S> io::Read for HttpRequest<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.payload_mut().poll() {
-            Ok(Async::Ready(Some(mut b))) => {
-                let i = cmp::min(b.len(), buf.len());
-                buf.copy_from_slice(&b.split_to(i)[..i]);
+        if self.as_mut().payload.is_some() {
+            match self.as_mut().payload.as_mut().unwrap().poll() {
+                Ok(Async::Ready(Some(mut b))) => {
+                    let i = cmp::min(b.len(), buf.len());
+                    buf.copy_from_slice(&b.split_to(i)[..i]);
 
-                if !b.is_empty() {
-                    self.payload_mut().unread_data(b);
-                }
-
-                if i < buf.len() {
-                    match self.read(&mut buf[i..]) {
-                        Ok(n) => Ok(i + n),
-                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(i),
-                        Err(e) => Err(e),
+                    if !b.is_empty() {
+                        self.as_mut().payload.as_mut().unwrap().unread_data(b);
                     }
-                } else {
-                    Ok(i)
+
+                    if i < buf.len() {
+                        match self.read(&mut buf[i..]) {
+                            Ok(n) => Ok(i + n),
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(i),
+                            Err(e) => Err(e),
+                        }
+                    } else {
+                        Ok(i)
+                    }
                 }
+                Ok(Async::Ready(None)) => Ok(0),
+                Ok(Async::NotReady) =>
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, "Not ready")),
+                Err(e) =>
+                    Err(io::Error::new(io::ErrorKind::Other, failure::Error::from(e).compat())),
             }
-            Ok(Async::Ready(None)) => Ok(0),
-            Ok(Async::NotReady) =>
-                Err(io::Error::new(io::ErrorKind::WouldBlock, "Not ready")),
-            Err(e) =>
-                Err(io::Error::new(io::ErrorKind::Other, failure::Error::from(e).compat())),
+        } else {
+            Ok(0)
         }
     }
 }

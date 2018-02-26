@@ -259,20 +259,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 ## Streaming request
 
 *HttpRequest* is a stream of `Bytes` objects. It could be used to read request
-body payload. At the same time actix uses
-[*Payload*](../actix_web/payload/struct.Payload.html) object.
-*HttpRequest* provides several methods, which can be used for
-payload access.At the same time *Payload* implements *Stream* trait, so it
-could be used with various stream combinators. Also *Payload* provides
-several convenience methods that return future object that resolve to Bytes object.
-
-* *readexactly()* method returns *Future* that resolves when specified number of bytes
-  get received.
-  
-* *readline()* method returns *Future* that resolves when `\n` get received.
-
-* *readuntil()* method returns *Future* that resolves when specified bytes string
-  matches in input bytes stream
+body payload.
 
 In this example handle reads request payload chunk by chunk and prints every chunk.
 

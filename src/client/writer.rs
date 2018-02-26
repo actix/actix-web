@@ -1,5 +1,4 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
-#![allow(dead_code)]
 
 use std::io::{self, Write};
 use std::cell::RefCell;
@@ -67,9 +66,9 @@ impl HttpClientWriter {
         self.buffer.take();
     }
 
-    pub fn keepalive(&self) -> bool {
-        self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
-    }
+    // pub fn keepalive(&self) -> bool {
+    //    self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
+    // }
 
     /// Set write buffer capacity
     pub fn set_buffer_capacity(&mut self, low_watermark: usize, high_watermark: usize) {
@@ -107,6 +106,9 @@ impl HttpClientWriter {
         // prepare task
         self.flags.insert(Flags::STARTED);
         self.encoder = content_encoder(self.buffer.clone(), msg);
+        if let Some(capacity) = msg.buffer_capacity() {
+            self.set_buffer_capacity(capacity.0, capacity.1);
+        }
 
         // render message
         {

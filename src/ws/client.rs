@@ -1,21 +1,17 @@
 //! Http client request
-#![allow(unused_imports, dead_code)]
 use std::{fmt, io, str};
 use std::rc::Rc;
-use std::time::Duration;
 use std::cell::UnsafeCell;
 
 use base64;
 use rand;
+use bytes::Bytes;
 use cookie::Cookie;
-use bytes::{Bytes, BytesMut};
 use http::{HttpTryFrom, StatusCode, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use sha1::Sha1;
 use futures::{Async, Future, Poll, Stream};
-use futures::future::{Either, err as FutErr};
 use futures::unsync::mpsc::{unbounded, UnboundedSender};
-use tokio_core::net::TcpStream;
 use byteorder::{ByteOrder, NetworkEndian};
 
 use actix::prelude::*;
@@ -23,13 +19,10 @@ use actix::prelude::*;
 use body::{Body, Binary};
 use error::{WsError, UrlParseError};
 use payload::PayloadHelper;
-use server::shared::SharedBytes;
 
-use server::{utils, IoStream};
 use client::{ClientRequest, ClientRequestBuilder, ClientResponse,
-             HttpResponseParser, HttpResponseParserError, HttpClientWriter};
-use client::{Connect, Connection, ClientConnector, ClientConnectorError,
-             SendRequest, SendRequestError};
+             ClientConnector, SendRequest, SendRequestError,
+             HttpResponseParserError};
 
 use super::Message;
 use super::frame::Frame;
@@ -224,7 +217,6 @@ struct WsInner {
 }
 
 pub struct WsHandshake {
-    inner: Option<WsInner>,
     request: Option<SendRequest>,
     tx: Option<UnboundedSender<Bytes>>,
     key: String,
@@ -254,7 +246,6 @@ impl WsHandshake {
 
             WsHandshake {
                 key,
-                inner: None,
                 request: Some(request.with_connector(conn.clone())),
                 tx: Some(tx),
                 error: err,
@@ -262,7 +253,6 @@ impl WsHandshake {
         } else {
             WsHandshake {
                 key,
-                inner: None,
                 request: None,
                 tx: None,
                 error: err,

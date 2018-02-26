@@ -1,6 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables)]
-
-use std::any::Any;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::marker::PhantomData;
@@ -49,8 +46,7 @@ impl<S> RequestSession for HttpRequest<S> {
                 return Session(s.0.as_mut())
             }
         }
-        //Session(&mut DUMMY)
-        unreachable!()
+        Session(unsafe{&mut DUMMY})
     }
 }
 
@@ -195,15 +191,13 @@ pub trait SessionBackend<S>: Sized + 'static {
 /// Dummy session impl, does not do anything
 struct DummySessionImpl;
 
-static DUMMY: DummySessionImpl = DummySessionImpl;
+static mut DUMMY: DummySessionImpl = DummySessionImpl;
 
 impl SessionImpl for DummySessionImpl {
 
-    fn get(&self, key: &str) -> Option<&str> {
-        None
-    }
-    fn set(&mut self, key: &str, value: String) {}
-    fn remove(&mut self, key: &str) {}
+    fn get(&self, _: &str) -> Option<&str> { None }
+    fn set(&mut self, _: &str, _: String) {}
+    fn remove(&mut self, _: &str) {}
     fn clear(&mut self) {}
     fn write(&self, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))

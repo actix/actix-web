@@ -26,6 +26,7 @@ pub struct ClientRequest {
     upgrade: bool,
     encoding: ContentEncoding,
     response_decompress: bool,
+    buffer_capacity: Option<(usize, usize)>,
 }
 
 impl Default for ClientRequest {
@@ -41,6 +42,7 @@ impl Default for ClientRequest {
             upgrade: false,
             encoding: ContentEncoding::Auto,
             response_decompress: true,
+            buffer_capacity: None,
         }
     }
 }
@@ -167,6 +169,10 @@ impl ClientRequest {
         self.response_decompress
     }
 
+    pub fn buffer_capacity(&self) -> Option<(usize, usize)> {
+        self.buffer_capacity
+    }
+    
     /// Get body os this response
     #[inline]
     pub fn body(&self) -> &Body {
@@ -434,6 +440,16 @@ impl ClientRequestBuilder {
         self
     }
 
+    /// Set write buffer capacity
+    pub fn buffer_capacity(&mut self,
+                           low_watermark: usize,
+                           high_watermark: usize) -> &mut Self
+    {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.buffer_capacity = Some((low_watermark, high_watermark));
+        }
+        self
+    }
 
     /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self

@@ -1,19 +1,14 @@
-#![allow(unused_imports, dead_code)]
 use std::{io, time};
-use std::net::{SocketAddr, Shutdown};
-use std::collections::VecDeque;
-use std::time::Duration;
+use std::net::Shutdown;
 
-use actix::{fut, Actor, ActorFuture, Arbiter, Context,
+use actix::{fut, Actor, ActorFuture, Context,
             Handler, Message, ActorResponse, Supervised};
 use actix::registry::ArbiterService;
 use actix::fut::WrapFuture;
 use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
 
 use http::{Uri, HttpTryFrom, Error as HttpError};
-use futures::{Async, Future, Poll};
-use tokio_core::reactor::Timeout;
-use tokio_core::net::{TcpStream, TcpStreamNew};
+use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature="alpn")]
