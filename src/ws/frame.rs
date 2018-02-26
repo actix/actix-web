@@ -191,7 +191,7 @@ impl Frame {
             unsafe{buf.advance_mut(2)};
             buf
         } else {
-            let mut buf = BytesMut::with_capacity(p_len + 8);
+            let mut buf = BytesMut::with_capacity(p_len + 10);
             buf.put_slice(&[one, two | 127]);
             {
                 let buf_mut = unsafe{buf.bytes_mut()};

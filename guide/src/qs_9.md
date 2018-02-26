@@ -43,7 +43,7 @@ fn main() {
 ```
 
 Simple websocket echo server example is available in 
-[examples directory](https://github.com/actix/actix-web/blob/master/examples/websocket.rs).
+[examples directory](https://github.com/actix/actix-web/blob/master/examples/websocket).
 
 Example chat server with ability to chat over websocket connection or tcp connection
 is available in [websocket-chat directory](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
