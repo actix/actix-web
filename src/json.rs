@@ -188,27 +188,31 @@ mod tests {
 
     #[test]
     fn test_json_body() {
-        let mut req = HttpRequest::default();
+        let req = HttpRequest::default();
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut json = req.json::<MyObject>().content_type("text/json");
+        let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
                                  header::HeaderValue::from_static("application/json"));
+        let mut json = req.json::<MyObject>().content_type("text/json");
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut json = req.json::<MyObject>().limit(100);
+        let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
                                  header::HeaderValue::from_static("application/json"));
         req.headers_mut().insert(header::CONTENT_LENGTH,
                                  header::HeaderValue::from_static("10000"));
+        let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(header::CONTENT_TYPE,
+                                 header::HeaderValue::from_static("application/json"));
         req.headers_mut().insert(header::CONTENT_LENGTH,
                                  header::HeaderValue::from_static("16"));
         req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().ok().unwrap(), Async::Ready(MyObject{name: "test".to_owned()}));
     }
-
 }

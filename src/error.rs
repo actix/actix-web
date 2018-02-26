@@ -294,6 +294,9 @@ pub enum MultipartError {
     /// Multipart boundary is not found
     #[fail(display="Multipart boundary is not found")]
     Boundary,
+    /// Multipart stream is incomplete
+    #[fail(display="Multipart stream is incomplete")]
+    Incomplete,
     /// Error during field parsing
     #[fail(display="{}", _0)]
     Parse(#[cause] ParseError),

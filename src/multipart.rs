@@ -9,12 +9,11 @@ use httparse;
 use bytes::Bytes;
 use http::HttpTryFrom;
 use http::header::{self, HeaderMap, HeaderName, HeaderValue};
-use futures::{Async, Future, Stream, Poll};
+use futures::{Async, Stream, Poll};
 use futures::task::{Task, current as current_task};
 
 use error::{ParseError, PayloadError, MultipartError};
-use payload::Payload;
-use httprequest::HttpRequest;
+use payload::PayloadHelper;
 
 const MAX_HEADERS: usize = 32;
 
@@ -24,27 +23,24 @@ const MAX_HEADERS: usize = 32;
 /// Stream implementation.
 /// `MultipartItem::Field` contains multipart field. `MultipartItem::Multipart`
 /// is used for nested multipart streams.
-#[derive(Debug)]
-pub struct Multipart {
+pub struct Multipart<S> {
     safety: Safety,
     error: Option<MultipartError>,
-    inner: Option<Rc<RefCell<InnerMultipart>>>,
+    inner: Option<Rc<RefCell<InnerMultipart<S>>>>,
 }
 
 ///
-#[derive(Debug)]
-pub enum MultipartItem {
+pub enum MultipartItem<S> {
     /// Multipart field
-    Field(Field),
+    Field(Field<S>),
     /// Nested multipart stream
-    Nested(Multipart),
+    Nested(Multipart<S>),
 }
 
-#[derive(Debug)]
-enum InnerMultipartItem {
+enum InnerMultipartItem<S> {
     None,
-    Field(Rc<RefCell<InnerField>>),
-    Multipart(Rc<RefCell<InnerMultipart>>),
+    Field(Rc<RefCell<InnerField<S>>>),
+    Multipart(Rc<RefCell<InnerMultipart<S>>>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -59,57 +55,14 @@ enum InnerState {
     Headers,
 }
 
-#[derive(Debug)]
-struct InnerMultipart {
-    payload: PayloadRef,
+struct InnerMultipart<S> {
+    payload: PayloadRef<S>,
     boundary: String,
     state: InnerState,
-    item: InnerMultipartItem,
+    item: InnerMultipartItem<S>,
 }
 
-impl Multipart {
-
-    /// Create multipart instance for boundary.
-    pub fn new(boundary: String, payload: Payload) -> Multipart {
-        Multipart {
-            error: None,
-            safety: Safety::new(),
-            inner: Some(Rc::new(RefCell::new(
-                InnerMultipart {
-                    payload: PayloadRef::new(payload),
-                    boundary: boundary,
-                    state: InnerState::FirstBoundary,
-                    item: InnerMultipartItem::None,
-                })))
-        }
-    }
-
-    /// Create multipart instance for request.
-    pub fn from_request<S>(req: HttpRequest<S>) -> Multipart {
-        match Multipart::boundary(req.headers()) {
-            Ok(boundary) => Multipart::new(boundary, req.payload().clone()),
-            Err(err) =>
-                Multipart {
-                    error: Some(err),
-                    safety: Safety::new(),
-                    inner: None,
-                }
-        }
-    }
-
-    // /// Create multipart instance for client response.
-    // pub fn from_response(resp: &mut ClientResponse) -> Multipart {
-    //   match Multipart::boundary(resp.headers()) {
-    //         Ok(boundary) => Multipart::new(boundary, resp.payload().clone()),
-    //         Err(err) =>
-    //             Multipart {
-    //                 error: Some(err),
-    //                 safety: Safety::new(),
-    //                 inner: None,
-    //             }
-    //     }
-    // }
-
+impl Multipart<()> {
     /// Extract boundary info from headers.
     pub fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
         if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
@@ -132,8 +85,34 @@ impl Multipart {
     }
 }
 
-impl Stream for Multipart {
-    type Item = MultipartItem;
+impl<S> Multipart<S> where S: Stream<Item=Bytes, Error=PayloadError> {
+
+    /// Create multipart instance for boundary.
+    pub fn new(boundary: Result<String, MultipartError>, stream: S) -> Multipart<S> {
+        match boundary {
+            Ok(boundary) => Multipart {
+                error: None,
+                safety: Safety::new(),
+                inner: Some(Rc::new(RefCell::new(
+                    InnerMultipart {
+                        payload: PayloadRef::new(PayloadHelper::new(stream)),
+                        boundary: boundary,
+                        state: InnerState::FirstBoundary,
+                        item: InnerMultipartItem::None,
+                    })))
+            },
+            Err(err) =>
+                Multipart {
+                    error: Some(err),
+                    safety: Safety::new(),
+                    inner: None,
+                }
+        }
+    }
+}
+
+impl<S> Stream for Multipart<S> where S: Stream<Item=Bytes, Error=PayloadError> {
+    type Item = MultipartItem<S>;
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -147,13 +126,14 @@ impl Stream for Multipart {
     }
 }
 
-impl InnerMultipart {
+impl<S> InnerMultipart<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
-    fn read_headers(payload: &mut Payload) -> Poll<HeaderMap, MultipartError>
+    fn read_headers(payload: &mut PayloadHelper<S>) -> Poll<HeaderMap, MultipartError>
     {
-        match payload.readuntil(b"\r\n\r\n").poll()? {
+        match payload.readuntil(b"\r\n\r\n")? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(bytes) => {
+            Async::Ready(None) => Err(MultipartError::Incomplete),
+            Async::Ready(Some(bytes)) => {
                 let mut hdrs = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 match httparse::parse_headers(&bytes, &mut hdrs) {
                     Ok(httparse::Status::Complete((_, hdrs))) => {
@@ -179,12 +159,14 @@ impl InnerMultipart {
         }
     }
 
-    fn read_boundary(payload: &mut Payload, boundary: &str) -> Poll<bool, MultipartError>
+    fn read_boundary(payload: &mut PayloadHelper<S>, boundary: &str)
+                     -> Poll<bool, MultipartError>
     {
         // TODO: need to read epilogue
-        match payload.readline().poll()? {
+        match payload.readline()? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(chunk) => {
+            Async::Ready(None) => Err(MultipartError::Incomplete),
+            Async::Ready(Some(chunk)) => {
                 if chunk.len() == boundary.len() + 4 &&
                     &chunk[..2] == b"--" &&
                     &chunk[2..boundary.len()+2] == boundary.as_bytes()
@@ -203,39 +185,42 @@ impl InnerMultipart {
         }
     }
 
-    fn skip_until_boundary(payload: &mut Payload, boundary: &str) -> Poll<bool, MultipartError>
+    fn skip_until_boundary(payload: &mut PayloadHelper<S>, boundary: &str)
+                           -> Poll<bool, MultipartError>
     {
         let mut eof = false;
         loop {
-            if let Async::Ready(chunk) = payload.readline().poll()? {
-                if chunk.is_empty() {
-                    //ValueError("Could not find starting boundary %r"
-                    //% (self._boundary))
-                }
-                if chunk.len() < boundary.len() {
-                    continue
-                }
-                if &chunk[..2] == b"--" && &chunk[2..chunk.len()-2] == boundary.as_bytes() {
-                    break;
-                } else {
-                    if chunk.len() < boundary.len() + 2{
+            match payload.readline()? {
+                Async::Ready(Some(chunk)) => {
+                    if chunk.is_empty() {
+                        //ValueError("Could not find starting boundary %r"
+                        //% (self._boundary))
+                    }
+                    if chunk.len() < boundary.len() {
                         continue
                     }
-                    let b: &[u8] = boundary.as_ref();
-                    if &chunk[..boundary.len()] == b &&
-                        &chunk[boundary.len()..boundary.len()+2] == b"--" {
-                            eof = true;
-                            break;
+                    if &chunk[..2] == b"--" && &chunk[2..chunk.len()-2] == boundary.as_bytes() {
+                        break;
+                    } else {
+                        if chunk.len() < boundary.len() + 2{
+                            continue
                         }
-                }
-            } else {
-                return Ok(Async::NotReady)
+                        let b: &[u8] = boundary.as_ref();
+                        if &chunk[..boundary.len()] == b &&
+                            &chunk[boundary.len()..boundary.len()+2] == b"--" {
+                                eof = true;
+                                break;
+                            }
+                    }
+                },
+                Async::NotReady => return Ok(Async::NotReady),
+                Async::Ready(None) => return Err(MultipartError::Incomplete),
             }
         }
         Ok(Async::Ready(eof))
     }
 
-    fn poll(&mut self, safety: &Safety) -> Poll<Option<MultipartItem>, MultipartError> {
+    fn poll(&mut self, safety: &Safety) -> Poll<Option<MultipartItem<S>>, MultipartError> {
         if self.state == InnerState::Eof {
             Ok(Async::Ready(None))
         } else {
@@ -247,25 +232,18 @@ impl InnerMultipart {
                     let stop = match self.item {
                         InnerMultipartItem::Field(ref mut field) => {
                             match field.borrow_mut().poll(safety)? {
-                                Async::NotReady => {
-                                    return Ok(Async::NotReady)
-                                }
-                                Async::Ready(Some(_)) =>
-                                    continue,
-                                Async::Ready(None) =>
-                                    true,
+                                Async::NotReady => return Ok(Async::NotReady),
+                                Async::Ready(Some(_)) => continue,
+                                Async::Ready(None) => true,
                             }
-                        }
+                        },
                         InnerMultipartItem::Multipart(ref mut multipart) => {
                             match multipart.borrow_mut().poll(safety)? {
-                                Async::NotReady =>
-                                    return Ok(Async::NotReady),
-                                Async::Ready(Some(_)) =>
-                                    continue,
-                                Async::Ready(None) =>
-                                    true,
+                                Async::NotReady => return Ok(Async::NotReady),
+                                Async::Ready(Some(_)) => continue,
+                                Async::Ready(None) => true,
                             }
-                        }
+                        },
                         _ => false,
                     };
                     if stop {
@@ -281,25 +259,22 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        if let Async::Ready(eof) =
-                            InnerMultipart::skip_until_boundary(payload, &self.boundary)?
-                        {
-                            if eof {
-                                self.state = InnerState::Eof;
-                                return Ok(Async::Ready(None));
-                            } else {
-                                self.state = InnerState::Headers;
-                            }
-                        } else {
-                            return Ok(Async::NotReady)
+                        match InnerMultipart::skip_until_boundary(payload, &self.boundary)? {
+                            Async::Ready(eof) => {
+                                if eof {
+                                    self.state = InnerState::Eof;
+                                    return Ok(Async::Ready(None));
+                                } else {
+                                    self.state = InnerState::Headers;
+                                }
+                            },
+                            Async::NotReady => return Ok(Async::NotReady),
                         }
-                    }
+                    },
                     // read boundary
                     InnerState::Boundary => {
                         match InnerMultipart::read_boundary(payload, &self.boundary)? {
-                            Async::NotReady => {
-                                return Ok(Async::NotReady)
-                            }
+                            Async::NotReady => return Ok(Async::NotReady),
                             Async::Ready(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -375,7 +350,7 @@ impl InnerMultipart {
     }
 }
 
-impl Drop for InnerMultipart {
+impl<S> Drop for InnerMultipart<S> {
     fn drop(&mut self) {
         // InnerMultipartItem::Field has to be dropped first because of Safety.
         self.item = InnerMultipartItem::None;
@@ -383,17 +358,17 @@ impl Drop for InnerMultipart {
 }
 
 /// A single field in a multipart stream
-pub struct Field {
+pub struct Field<S> {
     ct: mime::Mime,
     headers: HeaderMap,
-    inner: Rc<RefCell<InnerField>>,
+    inner: Rc<RefCell<InnerField<S>>>,
     safety: Safety,
 }
 
-impl Field {
+impl<S> Field<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
     fn new(safety: Safety, headers: HeaderMap,
-           ct: mime::Mime, inner: Rc<RefCell<InnerField>>) -> Self {
+           ct: mime::Mime, inner: Rc<RefCell<InnerField<S>>>) -> Self {
         Field {
             ct: ct,
             headers: headers,
@@ -411,7 +386,7 @@ impl Field {
     }
 }
 
-impl Stream for Field {
+impl<S> Stream for Field<S> where S: Stream<Item=Bytes, Error=PayloadError> {
     type Item = Bytes;
     type Error = MultipartError;
 
@@ -424,7 +399,7 @@ impl Stream for Field {
     }
 }
 
-impl fmt::Debug for Field {
+impl<S> fmt::Debug for Field<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nMultipartField: {}\n", self.ct);
         let _ = write!(f, "  boundary: {}\n", self.inner.borrow().boundary);
@@ -441,18 +416,17 @@ impl fmt::Debug for Field {
     }
 }
 
-#[derive(Debug)]
-struct InnerField {
-    payload: Option<PayloadRef>,
+struct InnerField<S> {
+    payload: Option<PayloadRef<S>>,
     boundary: String,
     eof: bool,
     length: Option<u64>,
 }
 
-impl InnerField {
+impl<S> InnerField<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
-    fn new(payload: PayloadRef, boundary: String, headers: &HeaderMap)
-           -> Result<InnerField, PayloadError>
+    fn new(payload: PayloadRef<S>, boundary: String, headers: &HeaderMap)
+           -> Result<InnerField<S>, PayloadError>
     {
         let len = if let Some(len) = headers.get(header::CONTENT_LENGTH) {
             if let Ok(s) = len.to_str() {
@@ -477,14 +451,15 @@ impl InnerField {
 
     /// Reads body part content chunk of the specified size.
     /// The body part must has `Content-Length` header with proper value.
-    fn read_len(payload: &mut Payload, size: &mut u64) -> Poll<Option<Bytes>, MultipartError>
+    fn read_len(payload: &mut PayloadHelper<S>, size: &mut u64)
+                -> Poll<Option<Bytes>, MultipartError>
     {
         if *size == 0 {
             Ok(Async::Ready(None))
         } else {
-            match payload.poll() {
+            match payload.readany() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+                Ok(Async::Ready(None)) => Err(MultipartError::Incomplete),
                 Ok(Async::Ready(Some(mut chunk))) => {
                     let len = cmp::min(chunk.len() as u64, *size);
                     *size -= len;
@@ -501,16 +476,19 @@ impl InnerField {
 
     /// Reads content chunk of body part with unknown length.
     /// The `Content-Length` header for body part is not necessary.
-    fn read_stream(payload: &mut Payload, boundary: &str) -> Poll<Option<Bytes>, MultipartError>
+    fn read_stream(payload: &mut PayloadHelper<S>, boundary: &str)
+                   -> Poll<Option<Bytes>, MultipartError>
     {
-        match payload.readuntil(b"\r").poll()? {
+        match payload.readuntil(b"\r")? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(mut chunk) => {
+            Async::Ready(None) => Err(MultipartError::Incomplete),
+            Async::Ready(Some(mut chunk)) => {
                 if chunk.len() == 1 {
                     payload.unread_data(chunk);
-                    match payload.readexactly(boundary.len() + 4).poll()? {
+                    match payload.readexactly(boundary.len() + 4)? {
                         Async::NotReady => Ok(Async::NotReady),
-                        Async::Ready(chunk) => {
+                        Async::Ready(None) => Err(MultipartError::Incomplete),
+                        Async::Ready(Some(chunk)) => {
                             if &chunk[..2] == b"\r\n" && &chunk[2..4] == b"--" &&
                                 &chunk[4..] == boundary.as_bytes()
                             {
@@ -535,24 +513,6 @@ impl InnerField {
         if self.payload.is_none() {
             return Ok(Async::Ready(None))
         }
-        if self.eof {
-            if let Some(payload) = self.payload.as_ref().unwrap().get_mut(s) {
-                match payload.readline().poll()? {
-                    Async::NotReady =>
-                        return Ok(Async::NotReady),
-                    Async::Ready(chunk) => {
-                        assert_eq!(
-                            chunk.as_ref(), b"\r\n",
-                            "reader did not read all the data or it is malformed");
-                    }
-                }
-            } else {
-                return Ok(Async::NotReady);
-            }
-
-            self.payload.take();
-            return Ok(Async::Ready(None))
-        }
 
         let result = if let Some(payload) = self.payload.as_ref().unwrap().get_mut(s) {
             let res = if let Some(ref mut len) = self.length {
@@ -566,12 +526,13 @@ impl InnerField {
                 Async::Ready(Some(bytes)) => Async::Ready(Some(bytes)),
                 Async::Ready(None) => {
                     self.eof = true;
-                    match payload.readline().poll()? {
+                    match payload.readline()? {
                         Async::NotReady => Async::NotReady,
-                        Async::Ready(chunk) => {
-                            assert_eq!(
-                                chunk.as_ref(), b"\r\n",
-                                "reader did not read all the data or it is malformed");
+                        Async::Ready(None) => Async::Ready(None),
+                        Async::Ready(Some(line)) => {
+                            if line.as_ref() != b"\r\n" {
+                                warn!("multipart field did not read all the data or it is malformed");
+                            }
                             Async::Ready(None)
                         }
                     }
@@ -588,25 +549,22 @@ impl InnerField {
     }
 }
 
-#[derive(Debug)]
-struct PayloadRef {
-    task: Option<Task>,
-    payload: Rc<Payload>,
+struct PayloadRef<S> {
+    payload: Rc<PayloadHelper<S>>,
 }
 
-impl PayloadRef {
-    fn new(payload: Payload) -> PayloadRef {
+impl<S> PayloadRef<S> where S: Stream<Item=Bytes, Error=PayloadError> {
+    fn new(payload: PayloadHelper<S>) -> PayloadRef<S> {
         PayloadRef {
-            task: None,
             payload: Rc::new(payload),
         }
     }
 
-    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<&'a mut Payload>
+    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<&'a mut PayloadHelper<S>>
         where 'a: 'b
     {
         if s.current() {
-            let payload: &mut Payload = unsafe {
+            let payload: &mut PayloadHelper<S> = unsafe {
                 &mut *(self.payload.as_ref() as *const _ as *mut _)};
             Some(payload)
         } else {
@@ -615,10 +573,9 @@ impl PayloadRef {
     }
 }
 
-impl Clone for PayloadRef {
-    fn clone(&self) -> PayloadRef {
+impl<S> Clone for PayloadRef<S> {
+    fn clone(&self) -> PayloadRef<S> {
         PayloadRef {
-            task: Some(current_task()),
             payload: Rc::clone(&self.payload),
         }
     }
@@ -733,7 +690,7 @@ mod tests {
             sender.feed_data(bytes);
 
             let mut multipart = Multipart::new(
-                "abbc761f78ff4d7cb7573b5a23f96ef0".to_owned(), payload);
+                Ok("abbc761f78ff4d7cb7573b5a23f96ef0".to_owned()), payload);
             match multipart.poll() {
                 Ok(Async::Ready(Some(item))) => {
                     match item {

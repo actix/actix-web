@@ -11,7 +11,7 @@ use futures::{Future, Stream};
 use futures::future::{result, Either};
 
 
-fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
 {
     println!("{:?}", req);
 

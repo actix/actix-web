@@ -411,6 +411,148 @@ impl Inner {
     }
 }
 
+pub struct PayloadHelper<S> {
+    len: usize,
+    items: VecDeque<Bytes>,
+    stream: S,
+}
+
+impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
+
+    pub fn new(stream: S) -> Self {
+        PayloadHelper {
+            len: 0,
+            items: VecDeque::new(),
+            stream: stream,
+        }
+    }
+
+    fn poll_stream(&mut self) -> Poll<bool, PayloadError> {
+        self.stream.poll().map(|res| {
+            match res {
+                Async::Ready(Some(data)) => {
+                    self.len += data.len();
+                    self.items.push_back(data);
+                    Async::Ready(true)
+                },
+                Async::Ready(None) => Async::Ready(false),
+                Async::NotReady => Async::NotReady,
+            }
+        })
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        if let Some(data) = self.items.pop_front() {
+            self.len -= data.len();
+            Ok(Async::Ready(Some(data)))
+        } else {
+            match self.poll_stream()? {
+                Async::Ready(true) => self.readany(),
+                Async::Ready(false) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            }
+        }
+    }
+
+    pub fn readexactly(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
+        if size <= self.len {
+            let mut buf = BytesMut::with_capacity(size);
+            while buf.len() < size {
+                let mut chunk = self.items.pop_front().unwrap();
+                let rem = cmp::min(size - buf.len(), chunk.len());
+                self.len -= rem;
+                buf.extend_from_slice(&chunk.split_to(rem));
+                if !chunk.is_empty() {
+                    self.items.push_front(chunk);
+                    return Ok(Async::Ready(Some(buf.freeze())))
+                }
+            }
+        }
+
+        match self.poll_stream()? {
+            Async::Ready(true) => self.readexactly(size),
+            Async::Ready(false) => Ok(Async::Ready(None)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+
+    pub fn readuntil(&mut self, line: &[u8]) -> Poll<Option<Bytes>, PayloadError> {
+        let mut idx = 0;
+        let mut num = 0;
+        let mut offset = 0;
+        let mut found = false;
+        let mut length = 0;
+
+        for no in 0..self.items.len() {
+            {
+                let chunk = &self.items[no];
+                for (pos, ch) in chunk.iter().enumerate() {
+                    if *ch == line[idx] {
+                        idx += 1;
+                        if idx == line.len() {
+                            num = no;
+                            offset = pos+1;
+                            length += pos+1;
+                            found = true;
+                            break;
+                        }
+                    } else {
+                        idx = 0
+                    }
+                }
+                if !found {
+                    length += chunk.len()
+                }
+            }
+
+            if found {
+                let mut buf = BytesMut::with_capacity(length);
+                if num > 0 {
+                    for _ in 0..num {
+                        buf.extend_from_slice(&self.items.pop_front().unwrap());
+                    }
+                }
+                if offset > 0 {
+                    let mut chunk = self.items.pop_front().unwrap();
+                    buf.extend_from_slice(&chunk.split_to(offset));
+                    if !chunk.is_empty() {
+                        self.items.push_front(chunk)
+                    }
+                }
+                self.len -= length;
+                return Ok(Async::Ready(Some(buf.freeze())))
+            }
+        }
+
+        match self.poll_stream()? {
+            Async::Ready(true) => self.readuntil(line),
+            Async::Ready(false) => Ok(Async::Ready(None)),
+            Async::NotReady => Ok(Async::NotReady),
+        }
+    }
+
+    pub fn readline(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+        self.readuntil(b"\n")
+    }
+
+    pub fn unread_data(&mut self, data: Bytes) {
+        self.len += data.len();
+        self.items.push_front(data);
+    }
+
+    pub fn remaining(&mut self) -> Bytes {
+        self.items.iter_mut()
+            .fold(BytesMut::new(), |mut b, c| {
+                b.extend_from_slice(c);
+                b
+            }).freeze()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

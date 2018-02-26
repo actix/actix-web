@@ -520,8 +520,9 @@ impl<S> HttpRequest<S> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn multipart(self) -> Multipart {
-        Multipart::from_request(self)
+    pub fn multipart(self) -> Multipart<HttpRequest<S>> {
+        let boundary = Multipart::boundary(self.headers());
+        Multipart::new(boundary, self)
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded body.
