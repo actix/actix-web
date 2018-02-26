@@ -130,7 +130,7 @@ impl WsClient {
             http_err: None,
             origin: None,
             protocols: None,
-            conn: conn,
+            conn,
         };
         cl.request.uri(uri.as_ref());
         cl
@@ -253,7 +253,7 @@ impl WsHandshake {
                     io::ErrorKind::Other, "disconnected").into()))));
 
             WsHandshake {
-                key: key,
+                key,
                 inner: None,
                 request: Some(request.with_connector(conn.clone())),
                 tx: Some(tx),
@@ -261,7 +261,7 @@ impl WsHandshake {
             }
         } else {
             WsHandshake {
-                key: key,
+                key,
                 inner: None,
                 request: None,
                 tx: None,
@@ -340,7 +340,7 @@ impl Future for WsHandshake {
 
         let inner = Rc::new(UnsafeCell::new(inner));
         Ok(Async::Ready(
-            (WsClientReader{inner: Rc::clone(&inner)}, WsClientWriter{inner: inner})))
+            (WsClientReader{inner: Rc::clone(&inner)}, WsClientWriter{inner})))
     }
 }
 

@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, mem};
 use bytes::BufMut;
 use futures::{Async, Poll};
@@ -39,11 +41,11 @@ impl<T: AsyncWrite> H1Writer<T> {
     pub fn new(stream: T, buf: SharedBytes) -> H1Writer<T> {
         H1Writer {
             flags: Flags::empty(),
-            stream: stream,
             encoder: ContentEncoder::empty(buf.clone()),
             written: 0,
             headers_size: 0,
             buffer: buf,
+            stream,
         }
     }
 

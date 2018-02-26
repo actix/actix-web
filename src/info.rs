@@ -110,8 +110,8 @@ impl<'a> ConnectionInfo<'a> {
         ConnectionInfo {
             scheme: scheme.unwrap_or("http"),
             host: host.unwrap_or("localhost"),
-            remote: remote,
-            peer: peer,
+            remote,
+            peer,
         }
     }
 

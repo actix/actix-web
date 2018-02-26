@@ -105,10 +105,7 @@ pub struct Directory{
 
 impl Directory {
     pub fn new(base: PathBuf, path: PathBuf) -> Directory {
-        Directory {
-            base: base,
-            path: path
-        }
+        Directory { base, path }
     }
 
     fn can_list(&self, entry: &io::Result<DirEntry>) -> bool {

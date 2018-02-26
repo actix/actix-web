@@ -149,7 +149,7 @@ impl<S> Application<S> where S: 'static {
     pub fn with_state(state: S) -> Application<S> {
         Application {
             parts: Some(ApplicationParts {
-                state: state,
+                state,
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
                 default: Resource::default_not_found(),
@@ -361,17 +361,17 @@ impl<S> Application<S> where S: 'static {
                 default: parts.default,
                 encoding: parts.encoding,
                 router: router.clone(),
-                resources: resources,
                 handlers: parts.handlers,
+                resources,
             }
         ));
 
         HttpApplication {
             state: Rc::new(parts.state),
             prefix: prefix.to_owned(),
-            inner: inner,
             router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
+            inner,
         }
     }
 

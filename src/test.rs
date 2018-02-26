@@ -94,12 +94,12 @@ impl TestServer {
             let _ = sys.run();
         });
 
-        let (sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
-            addr: addr,
+            addr,
             thread: Some(join),
             system: System::new("actix-test"),
-            server_sys: sys,
+            server_sys,
         }
     }
 
@@ -131,12 +131,12 @@ impl TestServer {
             let _ = sys.run();
         });
 
-        let (sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
-            addr: addr,
+            addr,
+            server_sys,
             thread: Some(join),
             system: System::new("actix-test"),
-            server_sys: sys,
         }
     }
 
@@ -346,7 +346,7 @@ impl<S> TestRequest<S> {
     /// Start HttpRequest build process with application state
     pub fn with_state(state: S) -> TestRequest<S> {
         TestRequest {
-            state: state,
+            state,
             method: Method::GET,
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
@@ -434,7 +434,7 @@ impl<S> TestRequest<S> {
         let req = self.finish();
         let resp = h.handle(req.clone());
 
-        match resp.respond_to(req.clone_without_state()) {
+        match resp.respond_to(req.without_state()) {
             Ok(resp) => {
                 match resp.into().into() {
                     ReplyItem::Message(resp) => Ok(resp),
@@ -461,7 +461,7 @@ impl<S> TestRequest<S> {
         let mut core = Core::new().unwrap();
         match core.run(fut) {
             Ok(r) => {
-                match r.respond_to(req.clone_without_state()) {
+                match r.respond_to(req.without_state()) {
                     Ok(reply) => match reply.into().into() {
                         ReplyItem::Message(resp) => Ok(resp),
                         _ => panic!("Nested async replies are not supported"),

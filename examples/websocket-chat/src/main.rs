@@ -161,10 +161,9 @@ impl Handler<ws::Message> for WsChatSession {
             },
             ws::Message::Binary(bin) =>
                 println!("Unexpected binary"),
-            ws::Message::Closed | ws::Message::Error => {
+            ws::Message::Close(_) | ws::Message::Error => {
                 ctx.stop();
             }
-            _ => (),
         }
     }
 }

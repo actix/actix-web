@@ -309,7 +309,7 @@ pub(crate) struct EncodedPayload {
 
 impl EncodedPayload {
     pub fn new(inner: PayloadSender, enc: ContentEncoding) -> EncodedPayload {
-        EncodedPayload{ inner: inner, error: false, payload: PayloadStream::new(enc) }
+        EncodedPayload{ inner, error: false, payload: PayloadStream::new(enc) }
     }
 }
 
@@ -821,10 +821,7 @@ impl AcceptEncoding {
                 Err(_) => 0.0,
             }
         };
-        Some(AcceptEncoding {
-            encoding: encoding,
-            quality: quality,
-        })
+        Some(AcceptEncoding{ encoding, quality })
     }
 
     /// Parse a raw Accept-Encoding header value into an ordered list.

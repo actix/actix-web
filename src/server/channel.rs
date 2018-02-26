@@ -237,7 +237,7 @@ pub(crate) struct WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
 
 impl<T> WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
     pub fn new(io: T) -> Self {
-        WrapperStream{io: io}
+        WrapperStream{ io }
     }
 }
 

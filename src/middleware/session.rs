@@ -377,8 +377,8 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
         FutOk(
             CookieSession {
                 changed: false,
-                state: state,
                 inner: Rc::clone(&self.0),
+                state,
             })
     }
 }

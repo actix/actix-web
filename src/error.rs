@@ -90,7 +90,7 @@ impl<T: ResponseError> From<T> for Error {
         } else {
             None
         };
-        Error { cause: Box::new(err), backtrace: backtrace }
+        Error { cause: Box::new(err), backtrace }
     }
 }
 
@@ -566,10 +566,10 @@ unsafe impl<T> Sync for InternalError<T> {}
 unsafe impl<T> Send for InternalError<T> {}
 
 impl<T> InternalError<T> {
-    pub fn new(err: T, status: StatusCode) -> Self {
+    pub fn new(cause: T, status: StatusCode) -> Self {
         InternalError {
-            cause: err,
-            status: status,
+            cause,
+            status,
             backtrace: Backtrace::new(),
         }
     }

@@ -1,4 +1,6 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 #![allow(dead_code)]
+
 use std::io::{self, Write};
 use std::cell::RefCell;
 use std::fmt::Write as FmtWrite;
@@ -48,14 +50,14 @@ pub(crate) struct HttpClientWriter {
 
 impl HttpClientWriter {
 
-    pub fn new(buf: SharedBytes) -> HttpClientWriter {
-        let encoder = ContentEncoder::Identity(TransferEncoding::eof(buf.clone()));
+    pub fn new(buffer: SharedBytes) -> HttpClientWriter {
+        let encoder = ContentEncoder::Identity(TransferEncoding::eof(buffer.clone()));
         HttpClientWriter {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
-            buffer: buf,
-            encoder: encoder,
+            buffer,
+            encoder,
             low: LOW_WATERMARK,
             high: HIGH_WATERMARK,
         }

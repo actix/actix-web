@@ -230,10 +230,7 @@ pub struct Drain<A> {
 
 impl<A> Drain<A> {
     pub fn new(fut: oneshot::Receiver<()>) -> Self {
-        Drain {
-            fut: fut,
-            _a: PhantomData
-        }
+        Drain { fut, _a: PhantomData }
     }
 }
 

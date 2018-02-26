@@ -63,16 +63,13 @@ impl SendRequest {
     pub(crate) fn with_connector(req: ClientRequest, conn: Addr<Unsync, ClientConnector>)
                                  -> SendRequest
     {
-        SendRequest{
-            req: req,
-            state: State::New,
-            conn: conn}
+        SendRequest{req, conn, state: State::New}
     }
 
     pub(crate) fn with_connection(req: ClientRequest, conn: Connection) -> SendRequest
     {
         SendRequest{
-            req: req,
+            req,
             state: State::Connection(conn),
             conn: ClientConnector::from_registry()}
     }
@@ -103,7 +100,7 @@ impl Future for SendRequest {
                     Err(_) => return Err(SendRequestError::Connector(
                         ClientConnectorError::Disconnected))
                 },
-                State::Connection(stream) => {
+                State::Connection(conn) => {
                     let mut writer = HttpClientWriter::new(SharedBytes::default());
                     writer.start(&mut self.req)?;
 
@@ -114,9 +111,7 @@ impl Future for SendRequest {
                     };
 
                     let mut pl = Box::new(Pipeline {
-                        body: body,
-                        conn: stream,
-                        writer: writer,
+                        body, conn, writer,
                         parser: Some(HttpResponseParser::default()),
                         parser_buf: BytesMut::new(),
                         disconnected: false,
@@ -221,11 +216,10 @@ impl Pipeline {
         let mut need_run = false;
 
         // need write?
-        match self.poll_write()
+        if let Async::NotReady = self.poll_write()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))?
         {
-            Async::NotReady => need_run = true,
-            _ => (),
+            need_run = true;
         }
 
         // need read?

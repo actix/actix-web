@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, cmp};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
@@ -38,7 +40,7 @@ impl H2Writer {
 
     pub fn new(respond: SendResponse<Bytes>, buf: SharedBytes) -> H2Writer {
         H2Writer {
-            respond: respond,
+            respond,
             stream: None,
             encoder: ContentEncoder::empty(buf.clone()),
             flags: Flags::empty(),

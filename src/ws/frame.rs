@@ -146,13 +146,7 @@ impl Frame {
         }
 
         Ok(Async::Ready(Some(Frame {
-            finished: finished,
-            rsv1: rsv1,
-            rsv2: rsv2,
-            rsv3: rsv3,
-            opcode: opcode,
-            payload: data.into(),
-        })))
+            finished, rsv1, rsv2, rsv3, opcode, payload: data.into() })))
     }
 
     /// Generate binary representation

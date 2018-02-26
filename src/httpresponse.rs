@@ -659,11 +659,11 @@ impl InnerHttpResponse {
     #[inline]
     fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
         InnerHttpResponse {
+            status,
+            body,
             version: None,
             headers: HeaderMap::with_capacity(16),
-            status: status,
             reason: None,
-            body: body,
             chunked: None,
             encoding: None,
             connection_type: None,

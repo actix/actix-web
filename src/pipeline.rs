@@ -72,7 +72,7 @@ struct PipelineInfo<S> {
 impl<S> PipelineInfo<S> {
     fn new(req: HttpRequest<S>) -> PipelineInfo<S> {
         PipelineInfo {
-            req: req,
+            req,
             count: 0,
             mws: Rc::new(Vec::new()),
             error: None,
@@ -108,9 +108,8 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
                handler: Rc<RefCell<H>>) -> Pipeline<S, H>
     {
         let mut info = PipelineInfo {
-            req: req,
+            req, mws,
             count: 0,
-            mws: mws,
             error: None,
             context: None,
             disconnected: None,
@@ -307,7 +306,7 @@ impl<S: 'static, H> WaitingResponse<S, H> {
                 RunMiddlewares::init(info, resp),
             ReplyItem::Future(fut) =>
                 PipelineState::Handler(
-                    WaitingResponse { fut: fut, _s: PhantomData, _h: PhantomData }),
+                    WaitingResponse { fut, _s: PhantomData, _h: PhantomData }),
         }
     }
 
@@ -355,7 +354,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                 },
                 Ok(Response::Future(fut)) => {
                     return PipelineState::RunMiddlewares(
-                        RunMiddlewares { curr: curr, fut: Some(fut),
+                        RunMiddlewares { curr, fut: Some(fut),
                                          _s: PhantomData, _h: PhantomData })
                 },
             };
@@ -444,7 +443,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     #[inline]
     fn init(resp: HttpResponse) -> PipelineState<S, H> {
         PipelineState::Response(
-            ProcessResponse{ resp: resp,
+            ProcessResponse{ resp,
                              iostate: IOState::Response,
                              running: RunningState::Running,
                              drain: None, _s: PhantomData, _h: PhantomData})
@@ -644,7 +643,7 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
         if info.count == 0 {
             Completed::init(info)
         } else {
-            let mut state = FinishingMiddlewares{resp: resp, fut: None,
+            let mut state = FinishingMiddlewares{resp, fut: None,
                                                  _s: PhantomData, _h: PhantomData};
             if let Some(st) = state.poll(info) {
                 st

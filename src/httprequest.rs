@@ -106,16 +106,16 @@ impl HttpRequest<()> {
     {
         HttpRequest(
             SharedHttpMessage::from_message(HttpMessage {
-                method: method,
-                uri: uri,
-                version: version,
-                headers: headers,
+                method,
+                uri,
+                version,
+                headers,
+                payload,
                 params: Params::new(),
                 query: Params::new(),
                 query_loaded: false,
                 cookies: None,
                 addr: None,
-                payload: payload,
                 extensions: Extensions::new(),
                 info: None,
             }),
@@ -153,7 +153,7 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     /// Construct new http request without state.
-    pub(crate) fn clone_without_state(&self) -> HttpRequest {
+    pub(crate) fn without_state(&self) -> HttpRequest {
         HttpRequest(self.0.clone(), None, None)
     }
 
@@ -483,7 +483,7 @@ impl<S> HttpRequest<S> {
     /// # fn main() {}
     /// ```
     pub fn body(self) -> RequestBody {
-        RequestBody::from(self)
+        RequestBody::new(self.without_state())
     }
 
     /// Return stream to http payload processes as multipart.
@@ -553,7 +553,7 @@ impl<S> HttpRequest<S> {
     /// # fn main() {}
     /// ```
     pub fn urlencoded(self) -> UrlEncoded {
-        UrlEncoded::from(self)
+        UrlEncoded::new(self.without_state())
     }
 
     /// Parse `application/json` encoded body.
@@ -677,9 +677,9 @@ pub struct UrlEncoded {
 }
 
 impl UrlEncoded {
-    pub fn from<S>(req: HttpRequest<S>) -> UrlEncoded {
+    pub fn new(req: HttpRequest) -> UrlEncoded {
         UrlEncoded {
-            req: Some(req.clone_without_state()),
+            req: Some(req),
             limit: 262_144,
             fut: None,
         }
@@ -762,10 +762,10 @@ pub struct RequestBody {
 impl RequestBody {
 
     /// Create `RequestBody` for request.
-    pub fn from<S>(req: HttpRequest<S>) -> RequestBody {
+    pub fn new(req: HttpRequest) -> RequestBody {
         RequestBody {
             limit: 262_144,
-            req: Some(req.clone_without_state()),
+            req: Some(req),
             fut: None,
         }
  }

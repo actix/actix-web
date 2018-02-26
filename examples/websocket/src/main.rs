@@ -35,7 +35,7 @@ impl Handler<ws::Message> for MyWebSocket {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
-            ws::Message::Closed | ws::Message::Error => {
+            ws::Message::Close(_) | ws::Message::Error => {
                 ctx.stop();
             }
             _ => (),

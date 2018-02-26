@@ -176,12 +176,12 @@ impl HttpResponseParser {
         if let Some(decoder) = decoder {
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{status: status, version: version,
+                    ClientMessage{status, version,
                                   headers: hdrs, cookies: None}), Some(decoder))))
         } else {
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{status: status, version: version,
+                    ClientMessage{status, version,
                                   headers: hdrs, cookies: None}), None)))
         }
     }

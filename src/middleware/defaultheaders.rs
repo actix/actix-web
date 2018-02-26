@@ -95,7 +95,7 @@ impl DefaultHeadersBuilder {
     /// Finishes building and returns the built `DefaultHeaders` middleware.
     pub fn finish(&mut self) -> DefaultHeaders {
         let headers = self.headers.take().expect("cannot reuse middleware builder");
-        DefaultHeaders{ ct: self.ct, headers: headers }
+        DefaultHeaders{ ct: self.ct, headers }
     }
 }
 

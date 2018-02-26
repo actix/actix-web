@@ -95,8 +95,8 @@ impl<S> Multipart<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                 safety: Safety::new(),
                 inner: Some(Rc::new(RefCell::new(
                     InnerMultipart {
+                        boundary,
                         payload: PayloadRef::new(PayloadHelper::new(stream)),
-                        boundary: boundary,
                         state: InnerState::FirstBoundary,
                         item: InnerMultipartItem::None,
                     })))
@@ -369,12 +369,7 @@ impl<S> Field<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
     fn new(safety: Safety, headers: HeaderMap,
            ct: mime::Mime, inner: Rc<RefCell<InnerField<S>>>) -> Self {
-        Field {
-            ct: ct,
-            headers: headers,
-            inner: inner,
-            safety: safety,
-        }
+        Field {ct, headers, inner, safety}
     }
 
     pub fn headers(&self) -> &HeaderMap {
@@ -443,8 +438,8 @@ impl<S> InnerField<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         };
 
         Ok(InnerField {
+            boundary,
             payload: Some(payload),
-            boundary: boundary,
             eof: false,
             length: len })
     }
@@ -596,7 +591,7 @@ impl Safety {
         Safety {
             task: None,
             level: Rc::strong_count(&payload),
-            payload: payload,
+            payload,
         }
     }
 
@@ -612,7 +607,7 @@ impl Clone for Safety {
         Safety {
             task: Some(current_task()),
             level: Rc::strong_count(&payload),
-            payload: payload,
+            payload,
         }
     }
 }

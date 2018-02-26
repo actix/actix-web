@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{self, io};
 use std::rc::Rc;
 use std::net::SocketAddr;
@@ -62,18 +64,20 @@ struct Entry {
 impl<T, H> Http1<T, H>
     where T: IoStream, H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>, buf: BytesMut)
-               -> Self
+    pub fn new(settings: Rc<WorkerSettings<H>>,
+               stream: T,
+               addr: Option<SocketAddr>, read_buf: BytesMut) -> Self
     {
-        let bytes = h.get_shared_bytes();
+        let bytes = settings.get_shared_bytes();
         Http1{ flags: Flags::KEEPALIVE,
-               settings: h,
-               addr: addr,
                stream: H1Writer::new(stream, bytes),
                reader: Reader::new(),
-               read_buf: buf,
                tasks: VecDeque::new(),
-               keepalive_timer: None }
+               keepalive_timer: None,
+               addr,
+               read_buf,
+               settings,
+        }
     }
 
     pub fn settings(&self) -> &WorkerSettings<H> {
@@ -540,7 +544,7 @@ impl Reader {
             let (psender, payload) = Payload::new(false);
             let info = PayloadInfo {
                 tx: PayloadType::new(&msg.get_mut().headers, psender),
-                decoder: decoder,
+                decoder,
             };
             msg.get_mut().payload = Some(payload);
             Ok(Async::Ready((HttpRequest::from_message(msg), Some(info))))

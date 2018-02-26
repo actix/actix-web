@@ -46,13 +46,9 @@ impl Router {
             }
         }
 
-        let len = prefix.len();
+        let prefix_len = prefix.len();
         (Router(Rc::new(
-            Inner{ prefix: prefix,
-                   prefix_len: len,
-                   named: named,
-                   patterns: patterns,
-                   srv: settings })), resources)
+            Inner{ prefix, prefix_len, named, patterns, srv: settings })), resources)
     }
 
     /// Router prefix
@@ -168,10 +164,10 @@ impl Pattern {
         };
 
         Pattern {
-            tp: tp,
+            tp,
+            pattern,
+            elements,
             name: name.into(),
-            pattern: pattern,
-            elements: elements,
         }
     }
 

@@ -36,11 +36,7 @@ impl ServerSettings {
         } else {
             "localhost".to_owned()
         };
-        ServerSettings {
-            addr: addr,
-            secure: secure,
-            host: host,
-        }
+        ServerSettings { addr, secure, host }
     }
 
     /// Returns the socket address of the local half of this TCP connection

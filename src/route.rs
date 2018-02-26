@@ -179,14 +179,10 @@ impl<S: 'static> Compose<S> {
            mws: Rc<Vec<Box<Middleware<S>>>>,
            handler: InnerHandler<S>) -> Self
     {
-        let mut info = ComposeInfo {
-            count: 0,
-            req: req,
-            mws: mws,
-            handler: handler };
+        let mut info = ComposeInfo { count: 0, req, mws, handler };
         let state = StartMiddlewares::init(&mut info);
 
-        Compose {state: state, info: info}
+        Compose {state, info}
     }
 }
 
@@ -308,7 +304,7 @@ impl<S: 'static> WaitingResponse<S> {
                 RunMiddlewares::init(info, resp),
             ReplyItem::Future(fut) =>
                 ComposeState::Handler(
-                    WaitingResponse { fut: fut, _s: PhantomData }),
+                    WaitingResponse { fut, _s: PhantomData }),
         }
     }
 
@@ -353,7 +349,7 @@ impl<S: 'static> RunMiddlewares<S> {
                 },
                 Ok(MiddlewareResponse::Future(fut)) => {
                     return ComposeState::RunMiddlewares(
-                        RunMiddlewares { curr: curr, fut: Some(fut), _s: PhantomData })
+                        RunMiddlewares { curr, fut: Some(fut), _s: PhantomData })
                 },
             };
         }

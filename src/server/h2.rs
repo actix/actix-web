@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, cmp, mem};
 use std::rc::Rc;
 use std::io::{Read, Write};
@@ -53,15 +55,17 @@ impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
+    pub fn new(settings: Rc<WorkerSettings<H>>,
+               io: T,
+               addr: Option<SocketAddr>, buf: Bytes) -> Self
     {
         Http2{ flags: Flags::empty(),
-               settings: h,
-               addr: addr,
                tasks: VecDeque::new(),
                state: State::Handshake(
                    server::handshake(IoWrapper{unread: Some(buf), inner: io})),
                keepalive_timer: None,
+               addr,
+               settings,
         }
     }
 
@@ -286,10 +290,10 @@ impl Entry {
 
         Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
                payload: psender,
-               recv: recv,
                stream: H2Writer::new(resp, settings.get_shared_bytes()),
                flags: EntryFlags::empty(),
                capacity: 0,
+               recv,
         }
     }
 

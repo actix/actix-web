@@ -232,8 +232,8 @@ impl Inner {
 
     fn new(eof: bool) -> Self {
         Inner {
+            eof,
             len: 0,
-            eof: eof,
             err: None,
             task: None,
             items: VecDeque::new(),

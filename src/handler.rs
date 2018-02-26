@@ -215,7 +215,7 @@ impl<S, H, R> WrapHandler<S, H, R>
           S: 'static,
 {
     pub fn new(h: H) -> Self {
-        WrapHandler{h: h, s: PhantomData}
+        WrapHandler{h, s: PhantomData}
     }
 }
 
@@ -225,7 +225,7 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
           S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
-        let req2 = req.clone_without_state();
+        let req2 = req.without_state();
         match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
             Err(err) => Reply::response(err.into()),
@@ -266,7 +266,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
           S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
-        let req2 = req.clone_without_state();
+        let req2 = req.without_state();
         let fut = (self.h)(req)
             .map_err(|e| e.into())
             .then(move |r| {
@@ -345,10 +345,10 @@ impl NormalizePath {
     /// Create new `NormalizePath` instance
     pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
         NormalizePath {
-            append: append,
-            merge: merge,
+            append,
+            merge,
+            redirect,
             re_merge: Regex::new("//+").unwrap(),
-            redirect: redirect,
             not_found: StatusCode::NOT_FOUND,
         }
     }
