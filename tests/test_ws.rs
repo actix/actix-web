@@ -24,6 +24,7 @@ impl Handler<ws::Message> for Ws {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
+            ws::Message::Close(reason) => ctx.close(reason, ""),
             _ => (),
         }
     }
@@ -49,5 +50,5 @@ fn test_simple() {
 
     writer.close(ws::CloseCode::Normal, "");
     let (item, _) = srv.execute(reader.into_future()).unwrap();
-    assert!(item.is_none());
+    assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Normal)));
 }

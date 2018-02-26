@@ -8,24 +8,28 @@ use std::cell::UnsafeCell;
 use base64;
 use rand;
 use cookie::Cookie;
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use http::{HttpTryFrom, StatusCode, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use sha1::Sha1;
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{Either, err as FutErr};
+use futures::unsync::mpsc::{unbounded, UnboundedSender};
 use tokio_core::net::TcpStream;
+use byteorder::{ByteOrder, NetworkEndian};
 
 use actix::prelude::*;
 
-use body::Binary;
-use error::UrlParseError;
+use body::{Body, Binary};
+use error::{WsError, UrlParseError};
+use payload::PayloadHelper;
 use server::shared::SharedBytes;
 
 use server::{utils, IoStream};
-use client::{ClientRequest, ClientRequestBuilder,
+use client::{ClientRequest, ClientRequestBuilder, ClientResponse,
              HttpResponseParser, HttpResponseParserError, HttpClientWriter};
-use client::{Connect, Connection, ClientConnector, ClientConnectorError};
+use client::{Connect, Connection, ClientConnector, ClientConnectorError,
+             SendRequest, SendRequestError};
 
 use super::Message;
 use super::frame::Frame;
@@ -52,7 +56,9 @@ pub enum WsClientError {
     #[fail(display="Response parsing error")]
     ResponseParseError(HttpResponseParserError),
     #[fail(display="{}", _0)]
-    Connector(ClientConnectorError),
+    SendRequest(SendRequestError),
+    #[fail(display="{}", _0)]
+    Protocol(#[cause] WsError),
     #[fail(display="{}", _0)]
     Io(io::Error),
     #[fail(display="Disconnected")]
@@ -71,9 +77,15 @@ impl From<UrlParseError> for WsClientError {
     }
 }
 
-impl From<ClientConnectorError> for WsClientError {
-    fn from(err: ClientConnectorError) -> WsClientError {
-        WsClientError::Connector(err)
+impl From<SendRequestError> for WsClientError {
+    fn from(err: SendRequestError) -> WsClientError {
+        WsClientError::SendRequest(err)
+    }
+}
+
+impl From<WsError> for WsClientError {
+    fn from(err: WsError) -> WsClientError {
+        WsClientError::Protocol(err)
     }
 }
 
@@ -206,21 +218,17 @@ impl WsClient {
 }
 
 struct WsInner {
-    conn: Connection,
-    writer: HttpClientWriter,
-    parser: HttpResponseParser,
-    parser_buf: BytesMut,
+    tx: UnboundedSender<Bytes>,
+    rx: PayloadHelper<ClientResponse>,
     closed: bool,
-    error_sent: bool,
 }
 
 pub struct WsHandshake {
     inner: Option<WsInner>,
-    request: Option<ClientRequest>,
-    sent: bool,
+    request: Option<SendRequest>,
+    tx: Option<UnboundedSender<Bytes>>,
     key: String,
     error: Option<WsClientError>,
-    stream: Option<Box<Future<Item=Result<Connection, WsClientError>, Error=WsClientError>>>,
 }
 
 impl WsHandshake {
@@ -235,31 +243,29 @@ impl WsHandshake {
         let key = base64::encode(&sec_key);
 
         if let Some(mut request) = request {
-            let stream = Box::new(
-                conn.send(Connect(request.uri().clone()))
-                    .map(|res| res.map_err(|e| e.into()))
-                    .map_err(|_| WsClientError::Disconnected));
-
             request.headers_mut().insert(
                 HeaderName::try_from("SEC-WEBSOCKET-KEY").unwrap(),
                 HeaderValue::try_from(key.as_str()).unwrap());
 
+            let (tx, rx) = unbounded();
+            request.set_body(Body::Streaming(
+                Box::new(rx.map_err(|_| io::Error::new(
+                    io::ErrorKind::Other, "disconnected").into()))));
+
             WsHandshake {
                 key: key,
                 inner: None,
-                request: Some(request),
-                sent: false,
+                request: Some(request.with_connector(conn.clone())),
+                tx: Some(tx),
                 error: err,
-                stream: Some(stream),
             }
         } else {
             WsHandshake {
                 key: key,
                 inner: None,
                 request: None,
-                sent: false,
+                tx: None,
                 error: err,
-                stream: None,
             }
         }
     }
@@ -274,94 +280,67 @@ impl Future for WsHandshake {
             return Err(err)
         }
 
-        if self.stream.is_some() {
-            match self.stream.as_mut().unwrap().poll()? {
-                Async::Ready(result) => match result {
-                    Ok(conn) => {
-                        let inner = WsInner {
-                            conn: conn,
-                            writer: HttpClientWriter::new(SharedBytes::default()),
-                            parser: HttpResponseParser::default(),
-                            parser_buf: BytesMut::new(),
-                            closed: false,
-                            error_sent: false,
-                        };
-                        self.stream.take();
-                        self.inner = Some(inner);
-                    }
-                    Err(err) => return Err(err),
-                },
-                Async::NotReady => return Ok(Async::NotReady)
+        let resp = match self.request.as_mut().unwrap().poll()? {
+            Async::Ready(response) => {
+                self.request.take();
+                response
+            },
+            Async::NotReady => return Ok(Async::NotReady)
+        };
+
+        // verify response
+        if resp.status() != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(WsClientError::InvalidResponseStatus)
+        }
+        // Check for "UPGRADE" to websocket header
+        let has_hdr = if let Some(hdr) = resp.headers().get(header::UPGRADE) {
+            if let Ok(s) = hdr.to_str() {
+                s.to_lowercase().contains("websocket")
+            } else {
+                false
             }
+        } else {
+            false
+        };
+        if !has_hdr {
+            return Err(WsClientError::InvalidUpgradeHeader)
+        }
+        // Check for "CONNECTION" header
+        let has_hdr = if let Some(conn) = resp.headers().get(header::CONNECTION) {
+            if let Ok(s) = conn.to_str() {
+                s.to_lowercase().contains("upgrade")
+            } else { false }
+        } else { false };
+        if !has_hdr {
+            return Err(WsClientError::InvalidConnectionHeader)
         }
 
-        let mut inner = self.inner.take().unwrap();
-
-        if !self.sent {
-            self.sent = true;
-            inner.writer.start(self.request.as_mut().unwrap())?;
+        let match_key = if let Some(key) = resp.headers().get(
+            HeaderName::try_from("SEC-WEBSOCKET-ACCEPT").unwrap())
+        {
+            // field is constructed by concatenating /key/
+            // with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
+            const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            let mut sha1 = Sha1::new();
+            sha1.update(self.key.as_ref());
+            sha1.update(WS_GUID);
+            key.as_bytes() == base64::encode(&sha1.digest().bytes()).as_bytes()
+        } else {
+            false
+        };
+        if !match_key {
+            return Err(WsClientError::InvalidChallengeResponse)
         }
-        if let Err(err) = inner.writer.poll_completed(&mut inner.conn, false) {
-            return Err(err.into())
-        }
 
-        match inner.parser.parse(&mut inner.conn, &mut inner.parser_buf) {
-            Ok(Async::Ready(resp)) => {
-                // verify response
-                if resp.status() != StatusCode::SWITCHING_PROTOCOLS {
-                    return Err(WsClientError::InvalidResponseStatus)
-                }
-                // Check for "UPGRADE" to websocket header
-                let has_hdr = if let Some(hdr) = resp.headers().get(header::UPGRADE) {
-                    if let Ok(s) = hdr.to_str() {
-                        s.to_lowercase().contains("websocket")
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-                if !has_hdr {
-                    return Err(WsClientError::InvalidUpgradeHeader)
-                }
-                // Check for "CONNECTION" header
-                let has_hdr = if let Some(conn) = resp.headers().get(header::CONNECTION) {
-                    if let Ok(s) = conn.to_str() {
-                        s.to_lowercase().contains("upgrade")
-                    } else { false }
-                } else { false };
-                if !has_hdr {
-                    return Err(WsClientError::InvalidConnectionHeader)
-                }
+        let inner = WsInner {
+            tx: self.tx.take().unwrap(),
+            rx: PayloadHelper::new(resp),
+            closed: false,
+        };
 
-                let match_key = if let Some(key) = resp.headers().get(
-                    HeaderName::try_from("SEC-WEBSOCKET-ACCEPT").unwrap())
-                {
-                    // field is constructed by concatenating /key/
-                    // with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
-                    const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-                    let mut sha1 = Sha1::new();
-                    sha1.update(self.key.as_ref());
-                    sha1.update(WS_GUID);
-                    key.as_bytes() == base64::encode(&sha1.digest().bytes()).as_bytes()
-                } else {
-                    false
-                };
-                if !match_key {
-                    return Err(WsClientError::InvalidChallengeResponse)
-                }
-
-                let inner = Rc::new(UnsafeCell::new(inner));
-                Ok(Async::Ready(
-                    (WsClientReader{inner: Rc::clone(&inner)},
-                     WsClientWriter{inner: inner})))
-            },
-            Ok(Async::NotReady) => {
-                self.inner = Some(inner);
-                Ok(Async::NotReady)
-            },
-            Err(err) => Err(err.into())
-        }
+        let inner = Rc::new(UnsafeCell::new(inner));
+        Ok(Async::Ready(
+            (WsClientReader{inner: Rc::clone(&inner)}, WsClientWriter{inner: inner})))
     }
 }
 
@@ -389,24 +368,13 @@ impl Stream for WsClientReader {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let inner = self.as_mut();
-        let mut done = false;
-
-        match utils::read_from_io(&mut inner.conn, &mut inner.parser_buf) {
-            Ok(Async::Ready(0)) => {
-                done = true;
-                inner.closed = true;
-            },
-            Ok(Async::Ready(_)) | Ok(Async::NotReady) => (),
-            Err(err) =>
-                return Err(err.into())
+        if inner.closed {
+            return Ok(Async::Ready(None))
         }
 
-        // write
-        let _ = inner.writer.poll_completed(&mut inner.conn, false);
-
         // read
-        match Frame::parse(&mut inner.parser_buf, false) {
-            Ok(Some(frame)) => {
+        match Frame::parse(&mut inner.rx, false) {
+            Ok(Async::Ready(Some(frame))) => {
                 // trace!("WsFrame {}", frame);
                 let (_finished, opcode, payload) = frame.unpack();
 
@@ -416,8 +384,9 @@ impl Stream for WsClientReader {
                         Ok(Async::Ready(Some(Message::Error))),
                     OpCode::Close => {
                         inner.closed = true;
-                        inner.error_sent = true;
-                        Ok(Async::Ready(Some(Message::Closed)))
+                        let code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
+                        Ok(Async::Ready(
+                            Some(Message::Close(CloseCode::from(code)))))
                     },
                     OpCode::Ping =>
                         Ok(Async::Ready(Some(
@@ -440,23 +409,10 @@ impl Stream for WsClientReader {
                     }
                 }
             }
-            Ok(None) => {
-                if done {
-                    Ok(Async::Ready(None))
-                } else if inner.closed {
-                    if !inner.error_sent {
-                        inner.error_sent = true;
-                        Ok(Async::Ready(Some(Message::Closed)))
-                    } else {
-                        Ok(Async::Ready(None))
-                    }
-                } else {
-                    Ok(Async::NotReady)
-                }
-            },
+            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(err) => {
                 inner.closed = true;
-                inner.error_sent = true;
                 Err(err.into())
             }
         }
@@ -478,9 +434,9 @@ impl WsClientWriter {
 
     /// Write payload
     #[inline]
-    fn write(&mut self, data: Binary) {
+    fn write(&mut self, mut data: Binary) {
         if !self.as_mut().closed {
-            let _ = self.as_mut().writer.write(data);
+            let _ = self.as_mut().tx.unbounded_send(data.take());
         } else {
             warn!("Trying to write to disconnected response");
         }

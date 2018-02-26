@@ -32,7 +32,7 @@
 //! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
-//! * WebSockets server/client
+//! * *WebSockets* server/client
 //! * Transparent content compression/decompression (br, gzip, deflate)
 //! * Configurable request routing
 //! * Multipart streams
@@ -44,7 +44,7 @@
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
 #![cfg_attr(feature = "cargo-clippy", allow(
-    decimal_literal_representation,))]
+    decimal_literal_representation,suspicious_arithmetic_impl,))]
 
 #[macro_use]
 extern crate log;
@@ -96,8 +96,6 @@ extern crate tokio_tls;
 extern crate openssl;
 #[cfg(feature="openssl")]
 extern crate tokio_openssl;
-
-extern crate backtrace;
 
 mod application;
 mod body;

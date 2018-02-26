@@ -236,8 +236,6 @@ pub enum PayloadError {
 
 impl From<IoError> for PayloadError {
     fn from(err: IoError) -> PayloadError {
-        use backtrace;
-        println!("IO ERROR {:?}", backtrace::Backtrace::new());
         PayloadError::Io(err)
     }
 }
@@ -388,6 +386,34 @@ impl ResponseError for WsHandshakeError {
             WsHandshakeError::BadWebsocketKey =>
                 HTTPBadRequest.with_reason("Handshake error"),
         }
+    }
+}
+
+/// Websocket errors
+#[derive(Fail, Debug)]
+pub enum WsError {
+    /// Received an unmasked frame from client
+    #[fail(display="Received an unmasked frame from client")]
+    UnmaskedFrame,
+    /// Received a masked frame from server
+    #[fail(display="Received a masked frame from server")]
+    MaskedFrame,
+    /// Encountered invalid opcode
+    #[fail(display="Invalid opcode: {}", _0)]
+    InvalidOpcode(u8),
+    /// Invalid control frame length
+    #[fail(display="Invalid control frame length: {}", _0)]
+    InvalidLength(usize),
+    /// Payload error
+    #[fail(display="Payload error: {}", _0)]
+    Payload(#[cause] PayloadError),
+}
+
+impl ResponseError for WsError {}
+
+impl From<PayloadError> for WsError {
+    fn from(err: PayloadError) -> WsError {
+        WsError::Payload(err)
     }
 }
 

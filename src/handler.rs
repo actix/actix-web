@@ -395,7 +395,6 @@ impl<S> Handler<S> for NormalizePath {
                         }
                     }
                 } else if p.ends_with('/') {
-                    println!("=== {:?}", p);
                     // try to remove trailing slash
                     let p = p.as_ref().trim_right_matches('/');
                     if router.has_route(p) {

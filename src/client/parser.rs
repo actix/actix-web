@@ -151,7 +151,9 @@ impl HttpResponseParser {
             }
         }
 
-        let decoder = if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
+        let decoder = if status == StatusCode::SWITCHING_PROTOCOLS {
+            Some(Decoder::eof())
+        } else if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
@@ -167,8 +169,6 @@ impl HttpResponseParser {
         } else if chunked(&hdrs)? {
             // Chunked encoding
             Some(Decoder::chunked())
-        } else if hdrs.contains_key(header::UPGRADE) {
-            Some(Decoder::eof())
         } else {
             None
         };
