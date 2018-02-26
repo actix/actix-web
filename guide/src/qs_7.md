@@ -106,10 +106,10 @@ use futures::{Future, Stream};
 #[derive(Serialize, Deserialize)]
 struct MyObj {name: String, number: i32}
 
-fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
    // `concat2` will asynchronously read each chunk of the request body and
    // return a single, concatenated, chunk
-   req.payload_mut().concat2()
+   req.concat2()
       // `Future::from_err` acts like `?` in that it coerces the error type from
       // the future into the final error type
       .from_err()
@@ -170,12 +170,14 @@ Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
 
 ```rust
 # extern crate actix_web;
+# extern crate futures;
+# use futures::Stream;
 use actix_web::*;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .chunked()
-        .body(Body::Streaming(payload::Payload::empty().stream())).unwrap()
+        .body(Body::Streaming(Box::new(payload::Payload::empty().from_err()))).unwrap()
 }
 # fn main() {}
 ```
