@@ -48,7 +48,7 @@ fn main() {
 
 * [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
-* [Mulitpart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
+* [Multipart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
 * [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
 * [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
@@ -61,7 +61,7 @@ fn main() {
 
 * [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext)
 
-* Some basic benchmarks could be found in this [respository](https://github.com/fafhrd91/benchmarks).
+* Some basic benchmarks could be found in this [repository](https://github.com/fafhrd91/benchmarks).
 
 ## License
 
