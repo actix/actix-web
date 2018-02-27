@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use actix::*;
 use futures::Future;
-use actix_web::ws::{Message, WsClientError, WsClient, WsClientWriter};
+use actix_web::ws::{Message, WsError, WsClient, WsClientWriter};
 
 
 fn main() {
@@ -93,7 +93,7 @@ impl Handler<ClientCommand> for ChatClient {
 }
 
 /// Handle server websocket messages
-impl StreamHandler<Message, WsClientError> for ChatClient {
+impl StreamHandler<Message, WsError> for ChatClient {
 
     fn handle(&mut self, msg: Message, ctx: &mut Context<Self>) {
         match msg {

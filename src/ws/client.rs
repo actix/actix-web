@@ -17,14 +17,14 @@ use byteorder::{ByteOrder, NetworkEndian};
 use actix::prelude::*;
 
 use body::{Body, Binary};
-use error::{WsError, UrlParseError};
+use error::UrlParseError;
 use payload::PayloadHelper;
 
 use client::{ClientRequest, ClientRequestBuilder, ClientResponse,
              ClientConnector, SendRequest, SendRequestError,
              HttpResponseParserError};
 
-use super::Message;
+use super::{Message, WsError};
 use super::frame::Frame;
 use super::proto::{CloseCode, OpCode};
 
@@ -106,6 +106,7 @@ pub struct WsClient {
     origin: Option<HeaderValue>,
     protocols: Option<String>,
     conn: Addr<Unsync, ClientConnector>,
+    max_size: usize,
 }
 
 impl WsClient {
@@ -123,6 +124,7 @@ impl WsClient {
             http_err: None,
             origin: None,
             protocols: None,
+            max_size: 65_536,
             conn,
         };
         cl.request.uri(uri.as_ref());
@@ -158,6 +160,14 @@ impl WsClient {
         self
     }
 
+    /// Set max frame size
+    ///
+    /// By default max size is set to 64kb
+    pub fn max_frame_size(mut self, size: usize) -> Self {
+        self.max_size = size;
+        self
+    }
+
     /// Set request header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
         where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
@@ -167,12 +177,12 @@ impl WsClient {
     }
 
     /// Connect to websocket server and do ws handshake
-    pub fn connect(&mut self) -> WsHandshake {
+    pub fn connect(&mut self) -> WsClientHandshake {
         if let Some(e) = self.err.take() {
-            WsHandshake::new(None, Some(e), &self.conn)
+            WsClientHandshake::error(e)
         }
         else if let Some(e) = self.http_err.take() {
-            WsHandshake::new(None, Some(e.into()), &self.conn)
+            WsClientHandshake::error(e.into())
         } else {
             // origin
             if let Some(origin) = self.origin.take() {
@@ -189,23 +199,22 @@ impl WsClient {
             }
             let request = match self.request.finish() {
                 Ok(req) => req,
-                Err(err) => return WsHandshake::new(None, Some(err.into()), &self.conn),
+                Err(err) => return WsClientHandshake::error(err.into()),
             };
 
             if request.uri().host().is_none() {
-                return WsHandshake::new(None, Some(WsClientError::InvalidUrl), &self.conn)
+                return WsClientHandshake::error(WsClientError::InvalidUrl)
             }
             if let Some(scheme) = request.uri().scheme_part() {
                 if scheme != "http" && scheme != "https" && scheme != "ws" && scheme != "wss" {
-                    return WsHandshake::new(
-                        None, Some(WsClientError::InvalidUrl), &self.conn)
+                    return WsClientHandshake::error(WsClientError::InvalidUrl)
                 }
             } else {
-                return WsHandshake::new(None, Some(WsClientError::InvalidUrl), &self.conn)
+                return WsClientHandshake::error(WsClientError::InvalidUrl)
             }
 
             // start handshake
-            WsHandshake::new(Some(request), None, &self.conn)
+            WsClientHandshake::new(request, &self.conn, self.max_size)
         }
     }
 }
@@ -216,17 +225,17 @@ struct WsInner {
     closed: bool,
 }
 
-pub struct WsHandshake {
+pub struct WsClientHandshake {
     request: Option<SendRequest>,
     tx: Option<UnboundedSender<Bytes>>,
     key: String,
     error: Option<WsClientError>,
+    max_size: usize,
 }
 
-impl WsHandshake {
-    fn new(request: Option<ClientRequest>,
-           err: Option<WsClientError>,
-           conn: &Addr<Unsync, ClientConnector>) -> WsHandshake
+impl WsClientHandshake {
+    fn new(mut request: ClientRequest,
+           conn: &Addr<Unsync, ClientConnector>, max_size: usize) -> WsClientHandshake
     {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
@@ -234,34 +243,36 @@ impl WsHandshake {
         let sec_key: [u8; 16] = rand::random();
         let key = base64::encode(&sec_key);
 
-        if let Some(mut request) = request {
-            request.headers_mut().insert(
-                HeaderName::try_from("SEC-WEBSOCKET-KEY").unwrap(),
-                HeaderValue::try_from(key.as_str()).unwrap());
+        request.headers_mut().insert(
+            HeaderName::try_from("SEC-WEBSOCKET-KEY").unwrap(),
+            HeaderValue::try_from(key.as_str()).unwrap());
 
-            let (tx, rx) = unbounded();
-            request.set_body(Body::Streaming(
-                Box::new(rx.map_err(|_| io::Error::new(
-                    io::ErrorKind::Other, "disconnected").into()))));
+        let (tx, rx) = unbounded();
+        request.set_body(Body::Streaming(
+            Box::new(rx.map_err(|_| io::Error::new(
+                io::ErrorKind::Other, "disconnected").into()))));
 
-            WsHandshake {
-                key,
-                request: Some(request.with_connector(conn.clone())),
-                tx: Some(tx),
-                error: err,
-            }
-        } else {
-            WsHandshake {
-                key,
-                request: None,
-                tx: None,
-                error: err,
-            }
+        WsClientHandshake {
+            key,
+            max_size,
+            request: Some(request.with_connector(conn.clone())),
+            tx: Some(tx),
+            error: None,
+        }
+    }
+
+    fn error(err: WsClientError) -> WsClientHandshake {
+        WsClientHandshake {
+            key: String::new(),
+            request: None,
+            tx: None,
+            error: Some(err),
+            max_size: 0
         }
     }
 }
 
-impl Future for WsHandshake {
+impl Future for WsClientHandshake {
     type Item = (WsClientReader, WsClientWriter);
     type Error = WsClientError;
 
@@ -330,13 +341,15 @@ impl Future for WsHandshake {
 
         let inner = Rc::new(UnsafeCell::new(inner));
         Ok(Async::Ready(
-            (WsClientReader{inner: Rc::clone(&inner)}, WsClientWriter{inner})))
+            (WsClientReader{inner: Rc::clone(&inner), max_size: self.max_size},
+             WsClientWriter{inner})))
     }
 }
 
 
 pub struct WsClientReader {
-    inner: Rc<UnsafeCell<WsInner>>
+    inner: Rc<UnsafeCell<WsInner>>,
+    max_size: usize,
 }
 
 impl fmt::Debug for WsClientReader {
@@ -354,29 +367,36 @@ impl WsClientReader {
 
 impl Stream for WsClientReader {
     type Item = Message;
-    type Error = WsClientError;
+    type Error = WsError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        let max_size = self.max_size;
         let inner = self.as_mut();
         if inner.closed {
             return Ok(Async::Ready(None))
         }
 
         // read
-        match Frame::parse(&mut inner.rx, false) {
+        match Frame::parse(&mut inner.rx, false, max_size) {
             Ok(Async::Ready(Some(frame))) => {
-                // trace!("WsFrame {}", frame);
-                let (_finished, opcode, payload) = frame.unpack();
+                let (finished, opcode, payload) = frame.unpack();
+
+                // continuation is not supported
+                if !finished {
+                    inner.closed = true;
+                    return Err(WsError::NoContinuation)
+                }
 
                 match opcode {
                     OpCode::Continue => unimplemented!(),
-                    OpCode::Bad =>
-                        Ok(Async::Ready(Some(Message::Error))),
+                    OpCode::Bad => {
+                        inner.closed = true;
+                        Err(WsError::BadOpCode)
+                    },
                     OpCode::Close => {
                         inner.closed = true;
                         let code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
-                        Ok(Async::Ready(
-                            Some(Message::Close(CloseCode::from(code)))))
+                        Ok(Async::Ready(Some(Message::Close(CloseCode::from(code)))))
                     },
                     OpCode::Ping =>
                         Ok(Async::Ready(Some(
@@ -393,17 +413,19 @@ impl Stream for WsClientReader {
                         match String::from_utf8(tmp) {
                             Ok(s) =>
                                 Ok(Async::Ready(Some(Message::Text(s)))),
-                            Err(_) =>
-                                Ok(Async::Ready(Some(Message::Error))),
+                            Err(_) => {
+                                inner.closed = true;
+                                Err(WsError::BadEncoding)
+                            }
                         }
                     }
                 }
             }
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => {
+            Err(e) => {
                 inner.closed = true;
-                Err(err.into())
+                Err(e)
             }
         }
     }

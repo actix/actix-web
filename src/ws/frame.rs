@@ -6,8 +6,10 @@ use futures::{Async, Poll, Stream};
 use rand;
 
 use body::Binary;
-use error::{WsError, PayloadError};
+use error::{PayloadError};
 use payload::PayloadHelper;
+
+use ws::WsError;
 use ws::proto::{OpCode, CloseCode};
 use ws::mask::apply_mask;
 
@@ -50,7 +52,8 @@ impl Frame {
     }
 
     /// Parse the input stream into a frame.
-    pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool) -> Poll<Option<Frame>, WsError>
+    pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool, max_size: usize)
+                    -> Poll<Option<Frame>, WsError>
         where S: Stream<Item=Bytes, Error=PayloadError>
     {
         let mut idx = 2;
@@ -98,6 +101,11 @@ impl Frame {
         } else {
             len as usize
         };
+
+        // check for max allowed size
+        if length > max_size {
+            return Err(WsError::Overflow)
+        }
 
         let mask = if server {
             let buf = match pl.copy(idx + 4)? {
@@ -267,13 +275,13 @@ mod tests {
     fn test_parse() {
         let mut buf = PayloadHelper::new(
             once(Ok(BytesMut::from(&[0b00000001u8, 0b00000001u8][..]).freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false)));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b00000001u8, 0b00000001u8][..]);
         buf.extend(b"1");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = extract(Frame::parse(&mut buf, false));
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         println!("FRAME: {}", frame);
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
@@ -285,7 +293,7 @@ mod tests {
         let buf = BytesMut::from(&[0b00000001u8, 0b00000000u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = extract(Frame::parse(&mut buf, false));
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert!(frame.payload.is_empty());
@@ -295,14 +303,14 @@ mod tests {
     fn test_parse_length2() {
         let buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false)));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
         buf.extend(&[0u8, 4u8][..]);
         buf.extend(b"1234");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = extract(Frame::parse(&mut buf, false));
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -312,14 +320,14 @@ mod tests {
     fn test_parse_length4() {
         let buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false)));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
         buf.extend(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 4u8][..]);
         buf.extend(b"1234");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = extract(Frame::parse(&mut buf, false));
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -332,9 +340,9 @@ mod tests {
         buf.extend(b"1");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        assert!(Frame::parse(&mut buf, false).is_err());
+        assert!(Frame::parse(&mut buf, false, 1024).is_err());
 
-        let frame = extract(Frame::parse(&mut buf, true));
+        let frame = extract(Frame::parse(&mut buf, true, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, vec![1u8].into());
@@ -346,12 +354,26 @@ mod tests {
         buf.extend(&[1u8]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        assert!(Frame::parse(&mut buf, true).is_err());
+        assert!(Frame::parse(&mut buf, true, 1024).is_err());
 
-        let frame = extract(Frame::parse(&mut buf, false));
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, vec![1u8].into());
+    }
+
+    #[test]
+    fn test_parse_frame_max_size() {
+        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000010u8][..]);
+        buf.extend(&[1u8, 1u8]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+
+        assert!(Frame::parse(&mut buf, true, 1).is_err());
+
+        if let Err(WsError::Overflow) = Frame::parse(&mut buf, false, 0) {
+        } else {
+            panic!("error");
+        }
     }
 
     #[test]

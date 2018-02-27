@@ -16,8 +16,7 @@ impl Actor for Ws {
     type Context = ws::WebsocketContext<Self>;
 }
 
-impl Handler<ws::Message> for Ws {
-    type Result = ();
+impl StreamHandler<ws::Message, ws::WsError> for Ws {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {

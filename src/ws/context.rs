@@ -18,7 +18,7 @@ use ws::frame::Frame;
 use ws::proto::{OpCode, CloseCode};
 
 
-/// Http actor execution context
+/// `WebSockets` actor execution context
 pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,

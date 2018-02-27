@@ -25,8 +25,7 @@ impl Actor for MyWebSocket {
 }
 
 /// Handler for `ws::Message`
-impl Handler<ws::Message> for MyWebSocket {
-    type Result = ();
+impl StreamHandler<ws::Message, ws::WsError> for MyWebSocket {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         // process websocket messages
@@ -35,7 +34,7 @@ impl Handler<ws::Message> for MyWebSocket {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
-            ws::Message::Close(_) | ws::Message::Error => {
+            ws::Message::Close(_) => {
                 ctx.stop();
             }
             _ => (),
