@@ -169,15 +169,18 @@ get enabled automatically.
 Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
 
 ```rust
+# extern crate bytes;
 # extern crate actix_web;
 # extern crate futures;
 # use futures::Stream;
 use actix_web::*;
+use bytes::Bytes;
+use futures::stream::once;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .chunked()
-        .body(Body::Streaming(Box::new(payload::Payload::empty().from_err()))).unwrap()
+        .body(Body::Streaming(Box::new(once(Ok(Bytes::from_static(b"data")))))).unwrap()
 }
 # fn main() {}
 ```
