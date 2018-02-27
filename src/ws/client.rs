@@ -36,13 +36,17 @@ pub enum WsClientError {
     #[fail(display="Invalid url")]
     InvalidUrl,
     #[fail(display="Invalid response status")]
-    InvalidResponseStatus,
+    InvalidResponseStatus(StatusCode),
     #[fail(display="Invalid upgrade header")]
     InvalidUpgradeHeader,
     #[fail(display="Invalid connection header")]
-    InvalidConnectionHeader,
+    InvalidConnectionHeader(HeaderValue),
+    #[fail(display="Missing CONNECTION header")]
+    MissingConnectionHeader,
+    #[fail(display="Missing SEC-WEBSOCKET-ACCEPT header")]
+    MissingWebSocketAcceptHeader,
     #[fail(display="Invalid challenge response")]
-    InvalidChallengeResponse,
+    InvalidChallengeResponse(String, HeaderValue),
     #[fail(display="Http parsing error")]
     Http(HttpError),
     #[fail(display="Url parsing error")]
@@ -292,7 +296,7 @@ impl Future for WsClientHandshake {
 
         // verify response
         if resp.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(WsClientError::InvalidResponseStatus)
+            return Err(WsClientError::InvalidResponseStatus(resp.status()))
         }
         // Check for "UPGRADE" to websocket header
         let has_hdr = if let Some(hdr) = resp.headers().get(header::UPGRADE) {
@@ -305,19 +309,26 @@ impl Future for WsClientHandshake {
             false
         };
         if !has_hdr {
+            trace!("Invalid upgrade header");
             return Err(WsClientError::InvalidUpgradeHeader)
         }
         // Check for "CONNECTION" header
-        let has_hdr = if let Some(conn) = resp.headers().get(header::CONNECTION) {
+        if let Some(conn) = resp.headers().get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
-                s.to_lowercase().contains("upgrade")
-            } else { false }
-        } else { false };
-        if !has_hdr {
-            return Err(WsClientError::InvalidConnectionHeader)
+                if !s.to_lowercase().contains("upgrade") {
+                    trace!("Invalid connection header: {}", s);
+                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()))
+                }
+            } else {
+                trace!("Invalid connection header: {:?}", conn);
+                return Err(WsClientError::InvalidConnectionHeader(conn.clone()))
+            }
+        } else {
+            trace!("Missing connection header");
+            return Err(WsClientError::MissingConnectionHeader)
         }
 
-        let match_key = if let Some(key) = resp.headers().get(
+        if let Some(key) = resp.headers().get(
             HeaderName::try_from("SEC-WEBSOCKET-ACCEPT").unwrap())
         {
             // field is constructed by concatenating /key/
@@ -326,13 +337,17 @@ impl Future for WsClientHandshake {
             let mut sha1 = Sha1::new();
             sha1.update(self.key.as_ref());
             sha1.update(WS_GUID);
-            key.as_bytes() == base64::encode(&sha1.digest().bytes()).as_bytes()
+            let encoded = base64::encode(&sha1.digest().bytes());
+            if key.as_bytes() != encoded.as_bytes() {
+                trace!(
+                    "Invalid challenge response: expected: {} received: {:?}",
+                    encoded, key);
+                return Err(WsClientError::InvalidChallengeResponse(encoded, key.clone()));
+            }
         } else {
-            false
+            trace!("Missing SEC-WEBSOCKET-ACCEPT header");
+            return Err(WsClientError::MissingWebSocketAcceptHeader)
         };
-        if !match_key {
-            return Err(WsClientError::InvalidChallengeResponse)
-        }
 
         let inner = WsInner {
             tx: self.tx.take().unwrap(),
