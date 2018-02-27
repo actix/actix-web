@@ -12,9 +12,11 @@ use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslConnector, SslVerifyMode, Error as OpensslError};
+use openssl::ssl::{SslMethod, SslConnector, Error as OpensslError};
 #[cfg(feature="alpn")]
 use tokio_openssl::SslConnectorExt;
+#[cfg(feature="alpn")]
+use futures::Future;
 
 use HAS_OPENSSL;
 use server::IoStream;
@@ -92,7 +94,7 @@ impl Default for ClientConnector {
     fn default() -> ClientConnector {
         #[cfg(feature="alpn")]
         {
-            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+            let builder = SslConnector::builder(SslMethod::tls()).unwrap();
             ClientConnector {
                 connector: builder.build()
             }
@@ -149,9 +151,7 @@ impl ClientConnector {
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
-        ClientConnector {
-            connector: connector
-        }
+        ClientConnector { connector }
     }
 }
 
@@ -196,7 +196,7 @@ impl Handler<Connect> for ClientConnector {
                             if proto.is_secure() {
                                 fut::Either::A(
                                     _act.connector.connect_async(&host, stream)
-                                        .map_err(|e| ClientConnectorError::SslError(e))
+                                        .map_err(ClientConnectorError::SslError)
                                         .map(|stream| Connection{stream: Box::new(stream)})
                                         .into_actor(_act))
                             } else {
