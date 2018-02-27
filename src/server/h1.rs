@@ -88,18 +88,6 @@ impl<T, H> Http1<T, H>
         self.stream.get_mut()
     }
 
-    fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
-        // check stream state
-        match self.stream.poll_completed(shutdown) {
-            Ok(Async::Ready(_)) => Ok(true),
-            Ok(Async::NotReady) => Ok(false),
-            Err(err) => {
-                debug!("Error sending data: {}", err);
-                Err(())
-            }
-        }
-    }
-
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
         if let Some(ref mut timer) = self.keepalive_timer {
@@ -113,11 +101,29 @@ impl<T, H> Http1<T, H>
             }
         }
 
-        self.poll_io()
+        loop {
+            match self.poll_io()? {
+                Async::Ready(true) => (),
+                Async::Ready(false) => return Ok(Async::Ready(())),
+                Async::NotReady => return Ok(Async::NotReady),
+            }
+        }
+    }
+
+    fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
+        // check stream state
+        match self.stream.poll_completed(shutdown) {
+            Ok(Async::Ready(_)) => Ok(true),
+            Ok(Async::NotReady) => Ok(false),
+            Err(err) => {
+                debug!("Error sending data: {}", err);
+                Err(())
+            }
+        }
     }
 
     // TODO: refactor
-    pub fn poll_io(&mut self) -> Poll<(), ()> {
+    pub fn poll_io(&mut self) -> Poll<bool, ()> {
         // read incoming data
         let need_read =
             if !self.flags.contains(Flags::ERROR) && self.tasks.len() < MAX_PIPELINED_MESSAGES
@@ -135,9 +141,9 @@ impl<T, H> Http1<T, H>
                         // start request processing
                         for h in self.settings.handlers().iter_mut() {
                             req = match h.handle(req) {
-                                Ok(t) => {
+                                Ok(pipe) => {
                                     self.tasks.push_back(
-                                        Entry {pipe: t, flags: EntryFlags::empty()});
+                                        Entry {pipe, flags: EntryFlags::empty()});
                                     continue 'outer
                                 },
                                 Err(req) => req,
@@ -150,13 +156,6 @@ impl<T, H> Http1<T, H>
                         continue
                     },
                     Ok(Async::NotReady) => (),
-                    Err(ReaderError::Disconnect) => {
-                        self.flags.insert(Flags::ERROR);
-                        self.stream.disconnected();
-                        for entry in &mut self.tasks {
-                            entry.pipe.disconnected()
-                        }
-                    },
                     Err(err) => {
                         // notify all tasks
                         self.stream.disconnected();
@@ -171,12 +170,16 @@ impl<T, H> Http1<T, H>
                         // on parse error, stop reading stream but tasks need to be completed
                         self.flags.insert(Flags::ERROR);
 
-                        if self.tasks.is_empty() {
-                            if let ReaderError::Error(err) = err {
-                                self.tasks.push_back(
-                                    Entry {pipe: Pipeline::error(err.error_response()),
-                                           flags: EntryFlags::empty()});
-                            }
+                        match err {
+                            ReaderError::Disconnect => (),
+                            _ =>
+                                if self.tasks.is_empty() {
+                                    if let ReaderError::Error(err) = err {
+                                        self.tasks.push_back(
+                                            Entry {pipe: Pipeline::error(err.error_response()),
+                                                   flags: EntryFlags::empty()});
+                                    }
+                                }
                         }
                     },
                 }
@@ -186,6 +189,8 @@ impl<T, H> Http1<T, H>
         } else {
             true
         };
+
+        let retry = self.reader.need_read();
 
         loop {
             // check in-flight messages
@@ -221,7 +226,12 @@ impl<T, H> Http1<T, H>
                             }
                         },
                         // no more IO for this iteration
-                        Ok(Async::NotReady) => io = true,
+                        Ok(Async::NotReady) => {
+                            if self.reader.need_read() && !retry {
+                                return Ok(Async::Ready(true));
+                            }
+                            io = true;
+                        }
                         Err(err) => {
                             // it is not possible to recover from error
                             // during pipe handling, so just drop connection
@@ -268,14 +278,14 @@ impl<T, H> Http1<T, H>
                 if !self.poll_completed(true)? {
                     return Ok(Async::NotReady)
                 }
-                return Ok(Async::Ready(()))
+                return Ok(Async::Ready(false))
             }
 
             // start keep-alive timer, this also is slow request timeout
             if self.tasks.is_empty() {
                 // check stream state
                 if self.flags.contains(Flags::ERROR) {
-                    return Ok(Async::Ready(()))
+                    return Ok(Async::Ready(false))
                 }
 
                 if self.settings.keep_alive_enabled() {
@@ -295,7 +305,7 @@ impl<T, H> Http1<T, H>
                             return Ok(Async::NotReady)
                         }
                         // keep-alive is disabled, drop connection
-                        return Ok(Async::Ready(()))
+                        return Ok(Async::Ready(false))
                     }
                 } else if !self.poll_completed(false)? ||
                     self.flags.contains(Flags::KEEPALIVE) {
@@ -303,7 +313,7 @@ impl<T, H> Http1<T, H>
                         // if keep-alive unset, rely on operating system
                         return Ok(Async::NotReady)
                     } else {
-                        return Ok(Async::Ready(()))
+                        return Ok(Async::Ready(false))
                     }
             } else {
                 self.poll_completed(false)?;
@@ -342,13 +352,26 @@ impl Reader {
     }
 
     #[inline]
+    fn need_read(&self) -> bool {
+        if let Some(ref info) = self.payload {
+            info.tx.need_read()
+        } else {
+            true
+        }
+    }
+    
+    #[inline]
     fn decode(&mut self, buf: &mut BytesMut, payload: &mut PayloadInfo)
               -> Result<Decoding, ReaderError>
     {
-        loop {
+        while !buf.is_empty() {
             match payload.decoder.decode(buf) {
                 Ok(Async::Ready(Some(bytes))) => {
-                    payload.tx.feed_data(bytes)
+                    payload.tx.feed_data(bytes);
+                    if payload.decoder.is_eof() {
+                        payload.tx.feed_eof();
+                        return Ok(Decoding::Ready)
+                    }
                 },
                 Ok(Async::Ready(None)) => {
                     payload.tx.feed_eof();
@@ -361,6 +384,7 @@ impl Reader {
                 }
             }
         }
+        Ok(Decoding::NotReady)
     }
 
     pub fn parse<T, H>(&mut self, io: &mut T,
@@ -368,12 +392,13 @@ impl Reader {
                        settings: &WorkerSettings<H>) -> Poll<HttpRequest, ReaderError>
         where T: IoStream
     {
+        if !self.need_read() {
+            return Ok(Async::NotReady)
+        }
+
         // read payload
         let done = {
             if let Some(ref mut payload) = self.payload {
-                if payload.tx.capacity() == 0 {
-                    return Ok(Async::NotReady)
-                }
                 match utils::read_from_io(io, buf) {
                     Ok(Async::Ready(0)) => {
                         payload.tx.set_error(PayloadError::Incomplete);
@@ -392,7 +417,11 @@ impl Reader {
                 loop {
                     match payload.decoder.decode(buf) {
                         Ok(Async::Ready(Some(bytes))) => {
-                            payload.tx.feed_data(bytes)
+                            payload.tx.feed_data(bytes);
+                            if payload.decoder.is_eof() {
+                                payload.tx.feed_eof();
+                                break true
+                            }
                         },
                         Ok(Async::Ready(None)) => {
                             payload.tx.feed_eof();
@@ -628,6 +657,13 @@ enum ChunkedState {
 }
 
 impl Decoder {
+    pub fn is_eof(&self) -> bool {
+        match self.kind {
+            Kind::Length(0) | Kind::Chunked(ChunkedState::End, _) | Kind::Eof(true) => true,
+            _ => false,
+        }
+    }
+
     pub fn decode(&mut self, body: &mut BytesMut) -> Poll<Option<Bytes>, io::Error> {
         match self.kind {
             Kind::Length(ref mut remaining) => {
@@ -819,7 +855,7 @@ mod tests {
     use std::{io, cmp, time};
     use std::net::Shutdown;
     use bytes::{Bytes, BytesMut, Buf};
-    use futures::Async;
+    use futures::{Async, Stream};
     use tokio_io::{AsyncRead, AsyncWrite};
     use http::{Version, Method};
 
@@ -1324,6 +1360,7 @@ mod tests {
         assert!(!req.payload().eof());
 
         buf.feed_data("4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
+        let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
         assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
@@ -1348,6 +1385,7 @@ mod tests {
             "4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
              POST /test2 HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
+        let _ = req.payload_mut().poll();
 
         let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert_eq!(*req2.method(), Method::POST);
@@ -1391,10 +1429,14 @@ mod tests {
         //buf.feed_data("test: test\r\n");
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
 
+        let _ = req.payload_mut().poll();
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+
         assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
         assert!(!req.payload().eof());
 
         buf.feed_data("\r\n");
+        let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.payload().eof());
     }
@@ -1413,6 +1455,7 @@ mod tests {
         assert!(!req.payload().eof());
 
         buf.feed_data("4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
+        let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
         assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");

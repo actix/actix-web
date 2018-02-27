@@ -120,10 +120,10 @@ impl PayloadWriter for PayloadType {
     }
 
     #[inline]
-    fn capacity(&self) -> usize {
+    fn need_read(&self) -> bool {
         match *self {
-            PayloadType::Sender(ref sender) => sender.capacity(),
-            PayloadType::Encoding(ref enc) => enc.capacity(),
+            PayloadType::Sender(ref sender) => sender.need_read(),
+            PayloadType::Encoding(ref enc) => enc.need_read(),
         }
     }
 }
@@ -351,8 +351,9 @@ impl PayloadWriter for EncodedPayload {
         }
     }
 
-    fn capacity(&self) -> usize {
-        self.inner.capacity()
+    #[inline]
+    fn need_read(&self) -> bool {
+        self.inner.need_read()
     }
 }
 

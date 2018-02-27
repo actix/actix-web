@@ -34,7 +34,8 @@ bitflags! {
 }
 
 /// HTTP/2 Transport
-pub(crate) struct Http2<T, H>
+pub(crate)
+struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     flags: Flags,
@@ -103,21 +104,29 @@ impl<T, H> Http2<T, H>
                     item.poll_payload();
 
                     if !item.flags.contains(EntryFlags::EOF) {
-                        match item.task.poll_io(&mut item.stream) {
-                            Ok(Async::Ready(ready)) => {
-                                item.flags.insert(EntryFlags::EOF);
-                                if ready {
-                                    item.flags.insert(EntryFlags::FINISHED);
+                        let retry = item.payload.need_read();
+                        loop {
+                            match item.task.poll_io(&mut item.stream) {
+                                Ok(Async::Ready(ready)) => {
+                                    item.flags.insert(EntryFlags::EOF);
+                                    if ready {
+                                        item.flags.insert(EntryFlags::FINISHED);
+                                    }
+                                    not_ready = false;
+                                },
+                                Ok(Async::NotReady) => {
+                                    if item.payload.need_read() && !retry {
+                                        continue
+                                    }
+                                },
+                                Err(err) => {
+                                    error!("Unhandled error: {}", err);
+                                    item.flags.insert(EntryFlags::EOF);
+                                    item.flags.insert(EntryFlags::ERROR);
+                                    item.stream.reset(Reason::INTERNAL_ERROR);
                                 }
-                                not_ready = false;
-                            },
-                            Ok(Async::NotReady) => (),
-                            Err(err) => {
-                                error!("Unhandled error: {}", err);
-                                item.flags.insert(EntryFlags::EOF);
-                                item.flags.insert(EntryFlags::ERROR);
-                                item.stream.reset(Reason::INTERNAL_ERROR);
                             }
+                            break
                         }
                     } else if !item.flags.contains(EntryFlags::FINISHED) {
                         match item.task.poll() {
@@ -248,7 +257,6 @@ struct Entry {
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,
-    capacity: usize,
     flags: EntryFlags,
 }
 
@@ -292,13 +300,20 @@ impl Entry {
                payload: psender,
                stream: H2Writer::new(resp, settings.get_shared_bytes()),
                flags: EntryFlags::empty(),
-               capacity: 0,
                recv,
         }
     }
 
     fn poll_payload(&mut self) {
         if !self.flags.contains(EntryFlags::REOF) {
+            if self.payload.need_read() {
+                if let Err(err) = self.recv.release_capacity().release_capacity(32_768) {
+                    self.payload.set_error(PayloadError::Http2(err))
+                }
+            } else if let Err(err) = self.recv.release_capacity().release_capacity(0) {
+                self.payload.set_error(PayloadError::Http2(err))
+            }
+
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
                     self.payload.feed_data(chunk);
@@ -308,14 +323,6 @@ impl Entry {
                 },
                 Ok(Async::NotReady) => (),
                 Err(err) => {
-                    self.payload.set_error(PayloadError::Http2(err))
-                }
-            }
-
-            let capacity = self.payload.capacity();
-            if self.capacity != capacity {
-                self.capacity = capacity;
-                if let Err(err) = self.recv.release_capacity().release_capacity(capacity) {
                     self.payload.set_error(PayloadError::Http2(err))
                 }
             }

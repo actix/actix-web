@@ -5,11 +5,8 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
-use futures::task::{Task, current as current_task};
 
 use error::PayloadError;
-
-pub(crate) const DEFAULT_BUFFER_SIZE: usize = 65_536; // max buffer size 64k
 
 /// Buffered stream of bytes chunks
 ///
@@ -68,18 +65,6 @@ impl Payload {
         self.inner.borrow_mut().unread_data(data);
     }
 
-    /// Get size of payload buffer
-    #[inline]
-    pub fn buffer_size(&self) -> usize {
-        self.inner.borrow().buffer_size()
-    }
-
-    /// Set size of payload buffer
-    #[inline]
-    pub fn set_buffer_size(&self, size: usize) {
-        self.inner.borrow_mut().set_buffer_size(size)
-    }
-
     #[cfg(test)]
     pub(crate) fn readall(&self) -> Option<Bytes> {
         self.inner.borrow_mut().readall()
@@ -92,7 +77,7 @@ impl Stream for Payload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        self.inner.borrow_mut().readany(false)
+        self.inner.borrow_mut().readany()
     }
 }
 
@@ -103,7 +88,7 @@ impl Clone for Payload {
 }
 
 /// Payload writer interface.
-pub trait PayloadWriter {
+pub(crate) trait PayloadWriter {
 
     /// Set stream error.
     fn set_error(&mut self, err: PayloadError);
@@ -114,8 +99,8 @@ pub trait PayloadWriter {
     /// Feed bytes into a payload stream
     fn feed_data(&mut self, data: Bytes);
 
-    /// Get estimated available capacity
-    fn capacity(&self) -> usize;
+    /// Need read data
+    fn need_read(&self) -> bool;
 }
 
 /// Sender part of the payload stream
@@ -144,24 +129,22 @@ impl PayloadWriter for PayloadSender {
     }
 
     #[inline]
-    fn capacity(&self) -> usize {
+    fn need_read(&self) -> bool {
         if let Some(shared) = self.inner.upgrade() {
-            shared.borrow().capacity()
+            shared.borrow().need_read
         } else {
-            0
+            false
         }
     }
 }
-
 
 #[derive(Debug)]
 struct Inner {
     len: usize,
     eof: bool,
     err: Option<PayloadError>,
-    task: Option<Task>,
+    need_read: bool,
     items: VecDeque<Bytes>,
-    buf_size: usize,
 }
 
 impl Inner {
@@ -171,32 +154,23 @@ impl Inner {
             eof,
             len: 0,
             err: None,
-            task: None,
             items: VecDeque::new(),
-            buf_size: DEFAULT_BUFFER_SIZE,
+            need_read: false,
         }
     }
 
     fn set_error(&mut self, err: PayloadError) {
         self.err = Some(err);
-        if let Some(task) = self.task.take() {
-            task.notify()
-        }
     }
 
     fn feed_eof(&mut self) {
         self.eof = true;
-        if let Some(task) = self.task.take() {
-            task.notify()
-        }
     }
 
     fn feed_data(&mut self, data: Bytes) {
         self.len += data.len();
+        self.need_read = false;
         self.items.push_back(data);
-        if let Some(task) = self.task.take() {
-            task.notify()
-        }
     }
 
     fn eof(&self) -> bool {
@@ -219,11 +193,12 @@ impl Inner {
             self.len = 0;
             Some(buf.take().freeze())
         } else {
+            self.need_read = true;
             None
         }
     }
 
-    fn readany(&mut self, notify: bool) -> Poll<Option<Bytes>, PayloadError> {
+    fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             Ok(Async::Ready(Some(data)))
@@ -232,9 +207,7 @@ impl Inner {
         } else if self.eof {
             Ok(Async::Ready(None))
         } else {
-            if notify {
-                self.task = Some(current_task());
-            }
+            self.need_read = true;
             Ok(Async::NotReady)
         }
     }
@@ -242,23 +215,6 @@ impl Inner {
     fn unread_data(&mut self, data: Bytes) {
         self.len += data.len();
         self.items.push_front(data);
-    }
-
-    #[inline]
-    fn capacity(&self) -> usize {
-        if self.len > self.buf_size {
-            0
-        } else {
-            self.buf_size - self.len
-        }
-    }
-
-    fn buffer_size(&self) -> usize {
-        self.buf_size
-    }
-
-    fn set_buffer_size(&mut self, size: usize) {
-        self.buf_size = size
     }
 }
 
