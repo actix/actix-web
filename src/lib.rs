@@ -103,6 +103,7 @@ mod body;
 mod context;
 mod handler;
 mod helpers;
+mod httpmessage;
 mod httprequest;
 mod httpresponse;
 mod info;
@@ -128,6 +129,7 @@ pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use json::Json;
 pub use application::Application;
+pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
@@ -191,6 +193,6 @@ pub mod dev {
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
-    pub use httprequest::{UrlEncoded, RequestBody};
+    pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }

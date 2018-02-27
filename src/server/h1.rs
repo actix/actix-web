@@ -860,6 +860,7 @@ mod tests {
     use http::{Version, Method};
 
     use super::*;
+    use httpmessage::HttpMessage;
     use application::HttpApplication;
     use server::settings::WorkerSettings;
     use server::IoStream;

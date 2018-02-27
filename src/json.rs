@@ -1,4 +1,4 @@
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
 use http::header::CONTENT_LENGTH;
 
@@ -6,8 +6,9 @@ use serde_json;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use error::{Error, JsonPayloadError};
+use error::{Error, JsonPayloadError, PayloadError};
 use handler::Responder;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -54,6 +55,9 @@ impl<T: Serialize> Responder for Json<T> {
 /// * content type is not `application/json`
 /// * content length is greater than 256k
 ///
+///
+/// # Server example
+///
 /// ```rust
 /// # extern crate actix_web;
 /// # extern crate futures;
@@ -76,17 +80,17 @@ impl<T: Serialize> Responder for Json<T> {
 /// }
 /// # fn main() {}
 /// ```
-pub struct JsonBody<S, T: DeserializeOwned>{
+pub struct JsonBody<T, U: DeserializeOwned>{
     limit: usize,
     ct: &'static str,
-    req: Option<HttpRequest<S>>,
-    fut: Option<Box<Future<Item=T, Error=JsonPayloadError>>>,
+    req: Option<T>,
+    fut: Option<Box<Future<Item=U, Error=JsonPayloadError>>>,
 }
 
-impl<S, T: DeserializeOwned> JsonBody<S, T> {
+impl<T, U: DeserializeOwned> JsonBody<T, U> {
 
     /// Create `JsonBody` for request.
-    pub fn from_request(req: HttpRequest<S>) -> Self {
+    pub fn new(req: T) -> Self {
         JsonBody{
             limit: 262_144,
             req: Some(req),
@@ -111,11 +115,13 @@ impl<S, T: DeserializeOwned> JsonBody<S, T> {
     }
 }
 
-impl<S: 'static, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
-    type Item = T;
+impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
+    where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static
+{
+    type Item = U;
     type Error = JsonPayloadError;
 
-    fn poll(&mut self) -> Poll<T, JsonPayloadError> {
+    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
         if let Some(req) = self.req.take() {
             if let Some(len) = req.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
@@ -143,7 +149,7 @@ impl<S: 'static, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
                         Ok(body)
                     }
                 })
-                .and_then(|body| Ok(serde_json::from_slice::<T>(&body)?));
+                .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
             self.fut = Some(Box::new(fut));
         }
 

@@ -11,7 +11,7 @@ use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LEN
 use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use super::encoding::ContentEncoder;
 use super::shared::SharedBytes;
@@ -111,7 +111,7 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
+    fn start(&mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
              -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);

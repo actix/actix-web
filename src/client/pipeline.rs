@@ -10,6 +10,7 @@ use error::Error;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
 use headers::ContentEncoding;
+use httpmessage::HttpMessage;
 use error::PayloadError;
 use server::WriterState;
 use server::shared::SharedBytes;

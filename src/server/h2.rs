@@ -19,6 +19,7 @@ use tokio_core::reactor::Timeout;
 use pipeline::Pipeline;
 use error::PayloadError;
 use httpcodes::HTTPNotFound;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use payload::{Payload, PayloadWriter};
 

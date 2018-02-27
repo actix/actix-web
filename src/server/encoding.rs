@@ -16,7 +16,7 @@ use bytes::{Bytes, BytesMut, BufMut, Writer};
 use headers::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter};
 
@@ -371,7 +371,7 @@ impl ContentEncoder {
     }
 
     pub fn for_server(buf: SharedBytes,
-                      req: &HttpMessage,
+                      req: &HttpInnerMessage,
                       resp: &mut HttpResponse,
                       response_encoding: ContentEncoding) -> ContentEncoder
     {

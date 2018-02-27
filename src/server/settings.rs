@@ -103,8 +103,8 @@ impl<H> WorkerSettings<H> {
         SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
     }
 
-    pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
-        helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
+    pub fn get_http_message(&self) -> helpers::SharedHttpInnerMessage {
+        helpers::SharedHttpInnerMessage::new(self.messages.get(), Rc::clone(&self.messages))
     }
 
     pub fn add_channel(&self) {

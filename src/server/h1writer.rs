@@ -10,7 +10,7 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use super::shared::SharedBytes;
@@ -98,7 +98,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 
     fn start(&mut self,
-             req: &mut HttpMessage,
+             req: &mut HttpInnerMessage,
              msg: &mut HttpResponse,
              encoding: ContentEncoding) -> io::Result<WriterState>
     {

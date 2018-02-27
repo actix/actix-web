@@ -55,6 +55,7 @@ use http::header::{self, HeaderName, HeaderValue};
 
 use error::{Result, ResponseError};
 use resource::Resource;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use httpcodes::{HTTPOk, HTTPBadRequest};

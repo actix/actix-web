@@ -19,6 +19,7 @@ use actix::prelude::*;
 use body::{Body, Binary};
 use error::UrlParseError;
 use payload::PayloadHelper;
+use httpmessage::HttpMessage;
 
 use client::{ClientRequest, ClientRequestBuilder, ClientResponse,
              ClientConnector, SendRequest, SendRequestError,

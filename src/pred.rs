@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 use http;
 use http::{header, HttpTryFrom};
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 
 /// Trait defines resource route predicate.

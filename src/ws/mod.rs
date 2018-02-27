@@ -52,6 +52,7 @@ use actix::{Actor, AsyncContext, StreamHandler};
 use body::Binary;
 use payload::PayloadHelper;
 use error::{Error, PayloadError, ResponseError};
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};

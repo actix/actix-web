@@ -8,6 +8,7 @@ use time;
 use regex::Regex;
 
 use error::Result;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Started, Finished};

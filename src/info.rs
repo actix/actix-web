@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use http::header::{self, HeaderName};
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 
 const X_FORWARDED_FOR: &str = "X-FORWARDED-FOR";
