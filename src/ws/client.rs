@@ -194,6 +194,7 @@ impl WsClient {
             self.request.set_header(header::UPGRADE, "websocket");
             self.request.set_header(header::CONNECTION, "upgrade");
             self.request.set_header("SEC-WEBSOCKET-VERSION", "13");
+            self.request.with_connector(self.conn.clone());
 
             if let Some(protocols) = self.protocols.take() {
                 self.request.set_header("SEC-WEBSOCKET-PROTOCOL", protocols.as_str());
@@ -215,7 +216,7 @@ impl WsClient {
             }
 
             // start handshake
-            WsClientHandshake::new(request, &self.conn, self.max_size)
+            WsClientHandshake::new(request, self.max_size)
         }
     }
 }
@@ -235,8 +236,7 @@ pub struct WsClientHandshake {
 }
 
 impl WsClientHandshake {
-    fn new(mut request: ClientRequest,
-           conn: &Addr<Unsync, ClientConnector>, max_size: usize) -> WsClientHandshake
+    fn new(mut request: ClientRequest, max_size: usize) -> WsClientHandshake
     {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
@@ -256,7 +256,7 @@ impl WsClientHandshake {
         WsClientHandshake {
             key,
             max_size,
-            request: Some(request.with_connector(conn.clone())),
+            request: Some(request.send()),
             tx: Some(tx),
             error: None,
         }

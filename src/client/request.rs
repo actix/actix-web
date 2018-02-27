@@ -27,6 +27,14 @@ pub struct ClientRequest {
     encoding: ContentEncoding,
     response_decompress: bool,
     buffer_capacity: Option<(usize, usize)>,
+    conn: ConnectionType,
+
+}
+
+enum ConnectionType {
+    Default,
+    Connector(Addr<Unsync, ClientConnector>),
+    Connection(Connection),
 }
 
 impl Default for ClientRequest {
@@ -43,6 +51,7 @@ impl Default for ClientRequest {
             encoding: ContentEncoding::Auto,
             response_decompress: true,
             buffer_capacity: None,
+            conn: ConnectionType::Default,
         }
     }
 }
@@ -190,18 +199,14 @@ impl ClientRequest {
     }
 
     /// Send request
-    pub fn send(self) -> SendRequest {
-        SendRequest::new(self)
-    }
-
-    /// Send request using custom connector
-    pub fn with_connector(self, conn: Addr<Unsync, ClientConnector>) -> SendRequest {
-        SendRequest::with_connector(self, conn)
-    }
-
-    /// Send request using existing Connection
-    pub fn with_connection(self, conn: Connection) -> SendRequest {
-        SendRequest::with_connection(self, conn)
+    ///
+    /// This method returns future that resolves to a ClientResponse
+    pub fn send(mut self) -> SendRequest {
+        match mem::replace(&mut self.conn, ConnectionType::Default) {
+            ConnectionType::Default => SendRequest::new(self),
+            ConnectionType::Connector(conn) => SendRequest::with_connector(self, conn),
+            ConnectionType::Connection(conn) => SendRequest::with_connection(self, conn),
+        }
     }
 }
 
@@ -447,6 +452,22 @@ impl ClientRequestBuilder {
     {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.buffer_capacity = Some((low_watermark, high_watermark));
+        }
+        self
+    }
+
+    /// Send request using custom connector
+    pub fn with_connector(&mut self, conn: Addr<Unsync, ClientConnector>) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.conn = ConnectionType::Connector(conn);
+        }
+        self
+    }
+
+    /// Send request using existing Connection
+    pub fn with_connection(&mut self, conn: Connection) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.conn = ConnectionType::Connection(conn);
         }
         self
     }
