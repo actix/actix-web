@@ -77,6 +77,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate flate2;
 extern crate brotli2;
+extern crate encoding;
 extern crate percent_encoding;
 extern crate smallvec;
 extern crate num_cpus;

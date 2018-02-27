@@ -8,6 +8,8 @@
 
 * Simplify HttpServer type definition
 
+* Added HttpRequest::encoding() method
+
 * Added HttpRequest::mime_type() method
 
 * Added HttpRequest::uri_mut(), allows to modify request uri

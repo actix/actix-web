@@ -56,7 +56,8 @@ serde_json = "1.0"
 sha1 = "0.4"
 smallvec = "0.6"
 time = "0.1"
-url = "1.6"
+encoding = "0.2"
+url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # io

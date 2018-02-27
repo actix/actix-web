@@ -11,6 +11,9 @@ use serde::de::DeserializeOwned;
 use mime::Mime;
 use failure;
 use url::{Url, form_urlencoded};
+use encoding::all::UTF_8;
+use encoding::EncodingRef;
+use encoding::label::encoding_from_whatwg_label;
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
 use tokio_io::AsyncRead;
 
@@ -21,7 +24,7 @@ use payload::Payload;
 use json::JsonBody;
 use multipart::Multipart;
 use helpers::SharedHttpMessage;
-use error::{ParseError, UrlGenerationError,
+use error::{ParseError, ContentTypeError, UrlGenerationError,
             CookieParseError, HttpRangeError, PayloadError, UrlencodedError};
 
 
@@ -389,17 +392,38 @@ impl<S> HttpRequest<S> {
         ""
     }
 
+    /// Get content type encoding
+    ///
+    /// UTF-8 is used by default, If request charset is not set.
+    pub fn encoding(&self) -> Result<EncodingRef, ContentTypeError> {
+        if let Some(mime_type) = self.mime_type()? {
+            if let Some(charset) = mime_type.get_param("charset") {
+                if let Some(enc) = encoding_from_whatwg_label(charset.as_str()) {
+                    Ok(enc)
+                } else {
+                    Err(ContentTypeError::UnknownEncoding)
+                }
+            } else {
+                Ok(UTF_8)
+            }
+        } else {
+            Ok(UTF_8)
+        }
+    }
+
     /// Convert the request content type to a known mime type.
-    pub fn mime_type(&self) -> Option<Mime> {
+    pub fn mime_type(&self) -> Result<Option<Mime>, ContentTypeError> {
         if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 return match content_type.parse() {
-                    Ok(mt) => Some(mt),
-                    Err(_) => None
+                    Ok(mt) => Ok(Some(mt)),
+                    Err(_) => Err(ContentTypeError::ParseError),
                 };
+            } else {
+                return Err(ContentTypeError::ParseError)
             }
         }
-        None
+        Ok(None)
     }
 
     /// Check if request requires connection upgrade
@@ -722,17 +746,10 @@ impl Future for UrlEncoded {
             }
 
             // check content type
-            let mut err = true;
-            if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
-                if let Ok(content_type) = content_type.to_str() {
-                    if content_type.to_lowercase() == "application/x-www-form-urlencoded" {
-                        err = false;
-                    }
-                }
+            if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
+                return Err(UrlencodedError::ContentType)
             }
-            if err {
-                return Err(UrlencodedError::ContentType);
-            }
+            let encoding = req.encoding().map_err(|_| UrlencodedError::ContentType)?;
 
             // future
             let limit = self.limit;
@@ -745,12 +762,14 @@ impl Future for UrlEncoded {
                         Ok(body)
                     }
                 })
-                .map(|body| {
+                .and_then(move |body| {
                     let mut m = HashMap::new();
-                    for (k, v) in form_urlencoded::parse(&body) {
+                    let parsed = form_urlencoded::parse_with_encoding(
+                        &body, Some(encoding), false).map_err(|_| UrlencodedError::Parse)?;
+                    for (k, v) in parsed {
                         m.insert(k.into(), v.into());
                     }
-                    m
+                    Ok(m)
                 });
             self.fut = Some(Box::new(fut));
         }
@@ -828,8 +847,11 @@ impl Future for RequestBody {
 mod tests {
     use super::*;
     use mime;
+    use encoding::Encoding;
+    use encoding::all::ISO_8859_2;
     use http::{Uri, HttpTryFrom};
     use std::str::FromStr;
+    use std::iter::FromIterator;
     use router::Pattern;
     use resource::Resource;
     use test::TestRequest;
@@ -856,15 +878,47 @@ mod tests {
     #[test]
     fn test_mime_type() {
         let req = TestRequest::with_header("content-type", "application/json").finish();
-        assert_eq!(req.mime_type(), Some(mime::APPLICATION_JSON));
+        assert_eq!(req.mime_type().unwrap(), Some(mime::APPLICATION_JSON));
         let req = HttpRequest::default();
-        assert_eq!(req.mime_type(), None);
+        assert_eq!(req.mime_type().unwrap(), None);
         let req = TestRequest::with_header(
             "content-type", "application/json; charset=utf-8").finish();
-        let mt = req.mime_type().unwrap();
+        let mt = req.mime_type().unwrap().unwrap();
         assert_eq!(mt.get_param(mime::CHARSET), Some(mime::UTF_8));
         assert_eq!(mt.type_(), mime::APPLICATION);
         assert_eq!(mt.subtype(), mime::JSON);
+    }
+
+    #[test]
+    fn test_mime_type_error() {
+        let req = TestRequest::with_header(
+            "content-type", "applicationadfadsfasdflknadsfklnadsfjson").finish();
+        assert_eq!(Err(ContentTypeError::ParseError), req.mime_type());
+    }
+
+    #[test]
+    fn test_encoding() {
+        let req = HttpRequest::default();
+        assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
+
+        let req = TestRequest::with_header(
+            "content-type", "application/json").finish();
+        assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
+
+        let req = TestRequest::with_header(
+            "content-type", "application/json; charset=ISO-8859-2").finish();
+        assert_eq!(ISO_8859_2.name(), req.encoding().unwrap().name());
+    }
+
+    #[test]
+    fn test_encoding_error() {
+        let req = TestRequest::with_header(
+            "content-type", "applicatjson").finish();
+        assert_eq!(Some(ContentTypeError::ParseError), req.encoding().err());
+
+        let req = TestRequest::with_header(
+            "content-type", "application/json; charset=kkkttktk").finish();
+        assert_eq!(Some(ContentTypeError::UnknownEncoding), req.encoding().err());
     }
 
     #[test]
@@ -1008,6 +1062,29 @@ mod tests {
             .finish();
         assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::ContentType);
     }
+
+    #[test]
+    fn test_urlencoded() {
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(header::CONTENT_LENGTH, "11")
+            .finish();
+        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+
+        let result = req.urlencoded().poll().ok().unwrap();
+        assert_eq!(result, Async::Ready(
+            HashMap::from_iter(vec![("hello".to_owned(), "world".to_owned())])));
+
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE, "application/x-www-form-urlencoded; charset=utf-8")
+            .header(header::CONTENT_LENGTH, "11")
+            .finish();
+        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+
+        let result = req.urlencoded().poll().ok().unwrap();
+        assert_eq!(result, Async::Ready(
+            HashMap::from_iter(vec![("hello".to_owned(), "world".to_owned())])));
+}
 
     #[test]
     fn test_request_body() {

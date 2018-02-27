@@ -335,9 +335,26 @@ pub enum ExpectError {
 }
 
 impl ResponseError for ExpectError {
-
     fn error_response(&self) -> HttpResponse {
         HTTPExpectationFailed.with_body("Unknown Expect")
+    }
+}
+
+/// A set of error that can occure during parsing content type
+#[derive(Fail, PartialEq, Debug)]
+pub enum ContentTypeError {
+    /// Can not parse content type
+    #[fail(display="Can not parse content type")]
+    ParseError,
+    /// Unknown content encoding
+    #[fail(display="Unknown content encoding")]
+    UnknownEncoding,
+}
+
+/// Return `BadRequest` for `ContentTypeError`
+impl ResponseError for ContentTypeError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
     }
 }
 
@@ -356,6 +373,9 @@ pub enum UrlencodedError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Parse error
+    #[fail(display="Parse error")]
+    Parse,
     /// Payload error
     #[fail(display="Error that occur during reading payload: {}", _0)]
     Payload(#[cause] PayloadError),
