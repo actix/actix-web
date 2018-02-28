@@ -121,6 +121,7 @@ fn test_shutdown() {
         assert!(response.status().is_success());
     }
 
+    thread::sleep(time::Duration::from_millis(100));
     assert!(net::TcpStream::connect(addr).is_err());
 }
 
