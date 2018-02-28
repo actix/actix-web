@@ -21,7 +21,7 @@ use error::PayloadError;
 use httpcodes::HTTPNotFound;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
-use payload::{Payload, PayloadWriter};
+use payload::{Payload, PayloadWriter, PayloadStatus};
 
 use super::h2writer::H2Writer;
 use super::encoding::PayloadType;
@@ -105,7 +105,7 @@ impl<T, H> Http2<T, H>
                     item.poll_payload();
 
                     if !item.flags.contains(EntryFlags::EOF) {
-                        let retry = item.payload.need_read();
+                        let retry = item.payload.need_read() == PayloadStatus::Read;
                         loop {
                             match item.task.poll_io(&mut item.stream) {
                                 Ok(Async::Ready(ready)) => {
@@ -116,7 +116,8 @@ impl<T, H> Http2<T, H>
                                     not_ready = false;
                                 },
                                 Ok(Async::NotReady) => {
-                                    if item.payload.need_read() && !retry {
+                                    if item.payload.need_read() == PayloadStatus::Read && !retry
+                                    {
                                         continue
                                     }
                                 },
@@ -307,7 +308,7 @@ impl Entry {
 
     fn poll_payload(&mut self) {
         if !self.flags.contains(EntryFlags::REOF) {
-            if self.payload.need_read() {
+            if self.payload.need_read() == PayloadStatus::Read {
                 if let Err(err) = self.recv.release_capacity().release_capacity(32_768) {
                     self.payload.set_error(PayloadError::Http2(err))
                 }

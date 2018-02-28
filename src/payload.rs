@@ -8,6 +8,13 @@ use futures::{Async, Poll, Stream};
 
 use error::PayloadError;
 
+#[derive(Debug, PartialEq)]
+pub(crate) enum PayloadStatus {
+    Read,
+    Pause,
+    Dropped,
+}
+
 /// Buffered stream of bytes chunks
 ///
 /// Payload stores chunks in a vector. First chunk can be received with `.readany()` method.
@@ -100,7 +107,7 @@ pub(crate) trait PayloadWriter {
     fn feed_data(&mut self, data: Bytes);
 
     /// Need read data
-    fn need_read(&self) -> bool;
+    fn need_read(&self) -> PayloadStatus;
 }
 
 /// Sender part of the payload stream
@@ -129,11 +136,17 @@ impl PayloadWriter for PayloadSender {
     }
 
     #[inline]
-    fn need_read(&self) -> bool {
+    fn need_read(&self) -> PayloadStatus {
+        // we check need_read only if Payload (other side) is alive,
+        // otherwise always return true (consume payload)
         if let Some(shared) = self.inner.upgrade() {
-            shared.borrow().need_read
+            if shared.borrow().need_read {
+                PayloadStatus::Read
+            } else {
+                PayloadStatus::Pause
+            }
         } else {
-            false
+            PayloadStatus::Dropped
         }
     }
 }

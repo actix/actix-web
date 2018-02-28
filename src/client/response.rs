@@ -71,22 +71,10 @@ impl ClientResponse {
         self.as_ref().version
     }
 
-    /// Get a mutable reference to the headers.
-    #[inline]
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.as_mut().headers
-    }
-
     /// Get the status from the server.
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.as_ref().status
-    }
-
-    /// Set the `StatusCode` for this response.
-    #[inline]
-    pub fn set_status(&mut self, status: StatusCode) {
-        self.as_mut().status = status
     }
 
     /// Load request cookies.

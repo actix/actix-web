@@ -18,7 +18,7 @@ use pipeline::Pipeline;
 use httpcodes::HTTPNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
-use payload::{Payload, PayloadWriter};
+use payload::{Payload, PayloadWriter, PayloadStatus};
 
 use super::{utils, Writer};
 use super::h1writer::H1Writer;
@@ -190,7 +190,7 @@ impl<T, H> Http1<T, H>
             true
         };
 
-        let retry = self.reader.need_read();
+        let retry = self.reader.need_read() == PayloadStatus::Read;
 
         loop {
             // check in-flight messages
@@ -227,7 +227,7 @@ impl<T, H> Http1<T, H>
                         },
                         // no more IO for this iteration
                         Ok(Async::NotReady) => {
-                            if self.reader.need_read() && !retry {
+                            if self.reader.need_read() == PayloadStatus::Read && !retry {
                                 return Ok(Async::Ready(true));
                             }
                             io = true;
@@ -341,6 +341,7 @@ struct PayloadInfo {
 enum ReaderError {
     Disconnect,
     Payload,
+    PayloadDropped,
     Error(ParseError),
 }
 
@@ -352,11 +353,11 @@ impl Reader {
     }
 
     #[inline]
-    fn need_read(&self) -> bool {
+    fn need_read(&self) -> PayloadStatus {
         if let Some(ref info) = self.payload {
             info.tx.need_read()
         } else {
-            true
+            PayloadStatus::Read
         }
     }
     
@@ -392,8 +393,10 @@ impl Reader {
                        settings: &WorkerSettings<H>) -> Poll<HttpRequest, ReaderError>
         where T: IoStream
     {
-        if !self.need_read() {
-            return Ok(Async::NotReady)
+        match self.need_read() {
+            PayloadStatus::Read => (),
+            PayloadStatus::Pause => return Ok(Async::NotReady),
+            PayloadStatus::Dropped => return Err(ReaderError::PayloadDropped),
         }
 
         // read payload

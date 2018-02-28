@@ -18,7 +18,7 @@ use body::{Body, Binary};
 use error::PayloadError;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use payload::{PayloadSender, PayloadWriter};
+use payload::{PayloadSender, PayloadWriter, PayloadStatus};
 
 use super::shared::SharedBytes;
 
@@ -120,7 +120,7 @@ impl PayloadWriter for PayloadType {
     }
 
     #[inline]
-    fn need_read(&self) -> bool {
+    fn need_read(&self) -> PayloadStatus {
         match *self {
             PayloadType::Sender(ref sender) => sender.need_read(),
             PayloadType::Encoding(ref enc) => enc.need_read(),
@@ -352,7 +352,7 @@ impl PayloadWriter for EncodedPayload {
     }
 
     #[inline]
-    fn need_read(&self) -> bool {
+    fn need_read(&self) -> PayloadStatus {
         self.inner.need_read()
     }
 }
