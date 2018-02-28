@@ -2,7 +2,7 @@
 
 ## 0.4.1 (2018-03-xx)
 
-* Fix Session mutable borrow lifetime
+* Fix Session mutable borrow lifetime #87
 
 
 ## 0.4.0 (2018-02-28)
