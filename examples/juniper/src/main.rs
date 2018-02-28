@@ -6,8 +6,6 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate juniper;
 extern crate futures;
 extern crate actix;
@@ -26,10 +24,6 @@ mod schema;
 use schema::Schema;
 use schema::create_schema;
 
-lazy_static! {
-    static ref SCHEMA: Schema = create_schema();
-}
-
 struct State {
     executor: Addr<Syn, GraphQLExecutor>,
 }
@@ -41,7 +35,17 @@ impl Message for GraphQLData {
     type Result = Result<String, Error>;
 }
 
-pub struct GraphQLExecutor;
+pub struct GraphQLExecutor {
+    schema: std::sync::Arc<Schema>
+}
+
+impl GraphQLExecutor {
+    fn new(schema: std::sync::Arc<Schema>) -> GraphQLExecutor {
+        GraphQLExecutor {
+            schema: schema,
+        }
+    }
+}
 
 impl Actor for GraphQLExecutor {
     type Context = SyncContext<Self>;
@@ -51,7 +55,7 @@ impl Handler<GraphQLData> for GraphQLExecutor {
     type Result = Result<String, Error>;
 
     fn handle(&mut self, msg: GraphQLData, _: &mut Self::Context) -> Self::Result {
-        let res = msg.0.execute(&SCHEMA, &());
+        let res = msg.0.execute(&self.schema, &());
         let res_text = serde_json::to_string(&res)?;
         Ok(res_text)
     }
@@ -86,8 +90,9 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("juniper-example");
 
-    let addr = SyncArbiter::start(3, || {
-        GraphQLExecutor{}
+    let schema = std::sync::Arc::new(create_schema());
+    let addr = SyncArbiter::start(3, move || {
+        GraphQLExecutor::new(schema.clone())
     });
 
     // Start http server
