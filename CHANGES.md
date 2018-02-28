@@ -1,10 +1,10 @@
 # Changes
 
-## 0.4.0 (2018-02-..)
+## 0.4.0 (2018-02-28)
 
 * Actix 0.5 compatibility
 
-* Fix request json loader
+* Fix request json/urlencoded loaders
 
 * Simplify HttpServer type definition
 

@@ -17,9 +17,10 @@ use error::{ParseError, ContentTypeError,
             HttpRangeError, PayloadError, UrlencodedError};
 
 
+/// Trait that implements general purpose operations on http messages
 pub trait HttpMessage {
 
-    /// Read the Message Headers.
+    /// Read the message headers.
     fn headers(&self) -> &HeaderMap;
 
     /// Read the request content type. If request does not contain
