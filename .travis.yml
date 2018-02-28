@@ -57,6 +57,7 @@ script:
       cd examples/hello-world && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
+      cd examples/juniper && cargo check && cd ../..
       cd examples/state && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..
       cd examples/diesel && cargo check && cd ../..
