@@ -86,7 +86,7 @@ impl<'a> Session<'a> {
     }
 
     /// Set a `value` from the session.
-    pub fn set<T: Serialize>(&'a mut self, key: &str, value: T) -> Result<()> {
+    pub fn set<T: Serialize>(&mut self, key: &str, value: T) -> Result<()> {
         self.0.set(key, serde_json::to_string(&value)?);
         Ok(())
     }
