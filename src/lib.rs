@@ -188,6 +188,7 @@ pub mod dev {
 //! ```
 
     pub use body::BodyStream;
+    pub use context::Drain;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
     pub use json::JsonBody;
