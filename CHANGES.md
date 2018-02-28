@@ -1,5 +1,10 @@
 # Changes
 
+## 0.4.1 (2018-03-xx)
+
+* Fix Session mutable borrow lifetime
+
+
 ## 0.4.0 (2018-02-28)
 
 * Actix 0.5 compatibility
