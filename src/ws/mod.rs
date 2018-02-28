@@ -70,11 +70,6 @@ pub use self::context::WebsocketContext;
 pub use self::client::{WsClient, WsClientError,
                        WsClientReader, WsClientWriter, WsClientHandshake};
 
-const SEC_WEBSOCKET_ACCEPT: &str = "SEC-WEBSOCKET-ACCEPT";
-const SEC_WEBSOCKET_KEY: &str = "SEC-WEBSOCKET-KEY";
-const SEC_WEBSOCKET_VERSION: &str = "SEC-WEBSOCKET-VERSION";
-// const SEC_WEBSOCKET_PROTOCOL: &'static str = "SEC-WEBSOCKET-PROTOCOL";
-
 
 /// Websocket errors
 #[derive(Fail, Debug)]
@@ -222,11 +217,11 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHands
     }
 
     // check supported version
-    if !req.headers().contains_key(SEC_WEBSOCKET_VERSION) {
+    if !req.headers().contains_key(header::SEC_WEBSOCKET_VERSION) {
         return Err(WsHandshakeError::NoVersionHeader)
     }
     let supported_ver = {
-        if let Some(hdr) = req.headers().get(SEC_WEBSOCKET_VERSION) {
+        if let Some(hdr) = req.headers().get(header::SEC_WEBSOCKET_VERSION) {
             hdr == "13" || hdr == "8" || hdr == "7"
         } else {
             false
@@ -237,11 +232,11 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHands
     }
 
     // check client handshake for validity
-    if !req.headers().contains_key(SEC_WEBSOCKET_KEY) {
+    if !req.headers().contains_key(header::SEC_WEBSOCKET_KEY) {
         return Err(WsHandshakeError::BadWebsocketKey)
     }
     let key = {
-        let key = req.headers().get(SEC_WEBSOCKET_KEY).unwrap();
+        let key = req.headers().get(header::SEC_WEBSOCKET_KEY).unwrap();
         hash_key(key.as_ref())
     };
 
@@ -249,7 +244,7 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, WsHands
        .connection_type(ConnectionType::Upgrade)
        .header(header::UPGRADE, "websocket")
        .header(header::TRANSFER_ENCODING, "chunked")
-       .header(SEC_WEBSOCKET_ACCEPT, key.as_str())
+       .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
        .take())
 }
 
@@ -385,7 +380,7 @@ mod tests {
                        header::HeaderValue::from_static("websocket"));
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
-        headers.insert(SEC_WEBSOCKET_VERSION,
+        headers.insert(header::SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("5"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
                                    Version::HTTP_11, headers, None);
@@ -396,7 +391,7 @@ mod tests {
                        header::HeaderValue::from_static("websocket"));
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
-        headers.insert(SEC_WEBSOCKET_VERSION,
+        headers.insert(header::SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
                                    Version::HTTP_11, headers, None);
@@ -407,9 +402,9 @@ mod tests {
                        header::HeaderValue::from_static("websocket"));
         headers.insert(header::CONNECTION,
                        header::HeaderValue::from_static("upgrade"));
-        headers.insert(SEC_WEBSOCKET_VERSION,
+        headers.insert(header::SEC_WEBSOCKET_VERSION,
                        header::HeaderValue::from_static("13"));
-        headers.insert(SEC_WEBSOCKET_KEY,
+        headers.insert(header::SEC_WEBSOCKET_KEY,
                        header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
                                    Version::HTTP_11, headers, None);

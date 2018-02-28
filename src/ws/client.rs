@@ -197,11 +197,11 @@ impl WsClient {
             self.request.upgrade();
             self.request.set_header(header::UPGRADE, "websocket");
             self.request.set_header(header::CONNECTION, "upgrade");
-            self.request.set_header("SEC-WEBSOCKET-VERSION", "13");
+            self.request.set_header(header::SEC_WEBSOCKET_VERSION, "13");
             self.request.with_connector(self.conn.clone());
 
             if let Some(protocols) = self.protocols.take() {
-                self.request.set_header("SEC-WEBSOCKET-PROTOCOL", protocols.as_str());
+                self.request.set_header(header::SEC_WEBSOCKET_PROTOCOL, protocols.as_str());
             }
             let request = match self.request.finish() {
                 Ok(req) => req,
@@ -249,7 +249,7 @@ impl WsClientHandshake {
         let key = base64::encode(&sec_key);
 
         request.headers_mut().insert(
-            HeaderName::try_from("SEC-WEBSOCKET-KEY").unwrap(),
+            header::SEC_WEBSOCKET_KEY,
             HeaderValue::try_from(key.as_str()).unwrap());
 
         let (tx, rx) = unbounded();
@@ -328,8 +328,7 @@ impl Future for WsClientHandshake {
             return Err(WsClientError::MissingConnectionHeader)
         }
 
-        if let Some(key) = resp.headers().get(
-            HeaderName::try_from("SEC-WEBSOCKET-ACCEPT").unwrap())
+        if let Some(key) = resp.headers().get(header::SEC_WEBSOCKET_ACCEPT)
         {
             // field is constructed by concatenating /key/
             // with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
