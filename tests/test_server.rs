@@ -134,6 +134,25 @@ fn test_simple() {
 }
 
 #[test]
+fn test_headers() {
+    let mut srv = test::TestServer::new(
+        |app| app.handler(|_| {
+            let mut builder = httpcodes::HTTPOk.build();
+            for idx in 0..90 {
+                builder.header(format!("X-TEST-{}", idx).as_str(), "TEST TEST TEST");
+            }
+            builder.body(STR)}));
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(Bytes::from(bytes), Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_body() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| httpcodes::HTTPOk.build().body(STR)));
