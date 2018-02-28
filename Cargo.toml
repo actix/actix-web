@@ -108,6 +108,7 @@ members = [
   "examples/hello-world",
   "examples/multipart",
   "examples/state",
+  "examples/redis-session",
   "examples/template_tera",
   "examples/tls",
   "examples/websocket",
