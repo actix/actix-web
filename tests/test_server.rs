@@ -94,6 +94,37 @@ fn test_start() {
 }
 
 #[test]
+fn test_shutdown() {
+    let _ = test::TestServer::unused_addr();
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let sys = System::new("test");
+        let srv = HttpServer::new(
+            || vec![Application::new()
+                    .resource("/", |r| r.method(Method::GET).h(httpcodes::HTTPOk))]);
+
+        let srv = srv.bind("127.0.0.1:0").unwrap();
+        let addr = srv.addrs()[0];
+        let srv_addr = srv.shutdown_timeout(1).start();
+        let _ = tx.send((addr, srv_addr));
+        sys.run();
+    });
+    let (addr, srv_addr) = rx.recv().unwrap();
+
+    let mut sys = System::new("test-server");
+
+    {
+        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str()).finish().unwrap();
+        let response = sys.run_until_complete(req.send()).unwrap();
+        srv_addr.do_send(server::StopServer{graceful: true});
+        assert!(response.status().is_success());
+    }
+
+    assert!(net::TcpStream::connect(addr).is_err());
+}
+
+#[test]
 fn test_simple() {
     let mut srv = test::TestServer::new(|app| app.handler(httpcodes::HTTPOk));
     let req = srv.get().finish().unwrap();
