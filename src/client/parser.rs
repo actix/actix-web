@@ -2,7 +2,7 @@ use std::mem;
 use httparse;
 use http::{Version, HttpTryFrom, HeaderMap, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Poll, Async};
 
 use error::{ParseError, PayloadError};
@@ -64,7 +64,7 @@ impl HttpResponseParser {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
-                    if read {
+                    if read || buf.remaining_mut() == 0 {
                         match utils::read_from_io(io, buf) {
                             Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
                             Ok(Async::Ready(_)) => (),

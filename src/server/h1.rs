@@ -10,7 +10,7 @@ use actix::Arbiter;
 use httparse;
 use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Future, Poll, Async};
 use tokio_core::reactor::Timeout;
 
@@ -474,7 +474,7 @@ impl Reader {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         return Err(ReaderError::Error(ParseError::TooLarge));
                     }
-                    if read {
+                    if read || buf.remaining_mut() == 0 {
                         match utils::read_from_io(io, buf) {
                             Ok(Async::Ready(0)) => {
                                 debug!("Ignored premature client disconnection");
