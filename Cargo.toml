@@ -99,6 +99,7 @@ codegen-units = 1
 members = [
   "./",
   "examples/basics",
+  "examples/juniper",
   "examples/diesel",
   "examples/r2d2",
   "examples/json",
