@@ -112,6 +112,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
             }
             let stream = self.stream.as_mut().unwrap();
             stream.push(ContextFrame::Chunk(Some(data)));
+            self.inner.modify();
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -179,6 +180,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
             self.stream = Some(SmallVec::new());
         }
         self.stream.as_mut().map(|s| s.push(frame));
+        self.inner.modify();
     }
 
     /// Handle of the running future
