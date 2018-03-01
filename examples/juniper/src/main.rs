@@ -62,7 +62,7 @@ impl Handler<GraphQLData> for GraphQLExecutor {
 }
 
 fn graphiql(_req: HttpRequest<State>) -> Result<HttpResponse>  {
-    let html = graphiql_source("http://localhost:8080/graphql");
+    let html = graphiql_source("http://127.0.0.1:8080/graphql");
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body(html).unwrap())
