@@ -35,10 +35,11 @@
 //! * `WebSockets` server/client
 //! * Transparent content compression/decompression (br, gzip, deflate)
 //! * Configurable request routing
-//! * Multipart streams
-//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
 //! * Graceful server shutdown
-//! * Built on top of [Actix](https://github.com/actix/actix).
+//! * Multipart streams
+//! * SSL support with openssl or native-tls
+//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
+//! * Built on top of [Actix actor framework](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error

@@ -13,9 +13,10 @@ Actix web is a small, pragmatic, extremely fast, web framework for Rust.
 * SSL support with openssl or native-tls
 * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
   [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
+  [Redis sessions](https://github.com/actix/actix-redis),
   [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
   [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
-* Built on top of [Actix](https://github.com/actix/actix).
+* Built on top of [Actix actor framework](https://github.com/actix/actix).
 
 ## Documentation
 
@@ -57,6 +58,9 @@ fn main() {
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
 * [SockJS Server](https://github.com/actix/actix-sockjs)
 * [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
+
+You may consider checking out
+[this directory](https://github.com/actix/actix-web/tree/master/examples) for more examples.
 
 ## Benchmarks
 
