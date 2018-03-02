@@ -4,6 +4,8 @@
 
 * Better naming for websockets implementation
 
+* A filter for cross-site request forgery #89
+
 
 ## 0.4.1 (2018-03-01)
 
