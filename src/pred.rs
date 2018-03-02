@@ -28,7 +28,7 @@ pub trait Predicate<S> {
 /// fn main() {
 ///     Application::new()
 ///         .resource("/index.html", |r| r.route()
-///             .p(pred::Any(pred::Get()).or(pred::Post()))
+///             .filter(pred::Any(pred::Get()).or(pred::Post()))
 ///             .h(HTTPMethodNotAllowed));
 /// }
 /// ```
@@ -71,7 +71,7 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 /// fn main() {
 ///     Application::new()
 ///         .resource("/index.html", |r| r.route()
-///            .p(pred::All(pred::Get())
+///            .filter(pred::All(pred::Get())
 ///                 .and(pred::Header("content-type", "plain/text")))
 ///            .h(HTTPMethodNotAllowed));
 /// }

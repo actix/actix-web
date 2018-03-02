@@ -2,6 +2,8 @@
 
 ## 0.4.1 (2018-03-01)
 
+* Rename `Route::p()` to `Route::filter()`
+
 * Fix payload parse in situation when socket data is not ready.
 
 * Fix Session mutable borrow lifetime #87

@@ -68,8 +68,8 @@ fn main() {
     Application::new()
         .resource("/path", |resource|
             resource.route()
-              .p(pred::Get())
-              .p(pred::Header("content-type", "text/plain"))
+              .filter(pred::Get())
+              .filter(pred::Header("content-type", "text/plain"))
               .f(|req| HTTPOk)
         )
         .finish();
@@ -85,7 +85,7 @@ If resource can not match any route "NOT FOUND" response get returned.
 [*Route*](../actix_web/struct.Route.html) object. Route can be configured with
 builder-like pattern. Following configuration methods are available:
 
-* [*Route::p()*](../actix_web/struct.Route.html#method.p) method registers new predicate,
+* [*Route::filter()*](../actix_web/struct.Route.html#method.filter) method registers new predicate,
   any number of predicates could be registered for each route.
 
 * [*Route::f()*](../actix_web/struct.Route.html#method.f) method registers handler function
@@ -502,7 +502,7 @@ fn main() {
     Application::new()
         .resource("/index.html", |r|
            r.route()
-              .p(ContentTypeHeader)
+              .filter(ContentTypeHeader)
               .h(HTTPOk));
 }
 ```
@@ -530,7 +530,7 @@ fn main() {
     Application::new()
         .resource("/index.html", |r|
            r.route()
-              .p(pred::Not(pred::Get()))
+              .filter(pred::Not(pred::Get()))
               .f(|req| HTTPMethodNotAllowed))
         .finish();
 }
@@ -568,7 +568,7 @@ fn main() {
     Application::new()
         .default_resource(|r| {
               r.method(Method::GET).f(|req| HTTPNotFound);
-              r.route().p(pred::Not(pred::Get())).f(|req| HTTPMethodNotAllowed);
+              r.route().filter(pred::Not(pred::Get())).f(|req| HTTPMethodNotAllowed);
          })
 #        .finish();
 }
