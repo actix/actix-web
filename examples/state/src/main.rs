@@ -36,7 +36,7 @@ impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self, AppState>;
 }
 
-impl StreamHandler<ws::Message, ws::WsError> for MyWebSocket {
+impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         self.counter += 1;

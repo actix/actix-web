@@ -25,7 +25,7 @@ impl Actor for MyWebSocket {
 }
 
 /// Handler for `ws::Message`
-impl StreamHandler<ws::Message, ws::WsError> for MyWebSocket {
+impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         // process websocket messages

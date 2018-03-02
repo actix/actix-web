@@ -1,5 +1,10 @@
 # Changes
 
+## 0.4.2 (2018-03-xx)
+
+* Better naming for websockets implementation
+
+
 ## 0.4.1 (2018-03-01)
 
 * Rename `Route::p()` to `Route::filter()`
