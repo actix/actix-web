@@ -14,6 +14,7 @@ use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
+use ws;
 use body::Binary;
 use error::Error;
 use handler::{Handler, Responder, ReplyItem};
@@ -25,7 +26,6 @@ use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
-use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 use client::{ClientRequest, ClientRequestBuilder};
 
 /// The `TestServer` type.
@@ -180,9 +180,9 @@ impl TestServer {
     }
 
     /// Connect to websocket server
-    pub fn ws(&mut self) -> Result<(WsClientReader, WsClientWriter), WsClientError> {
+    pub fn ws(&mut self) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url("/");
-        self.system.run_until_complete(WsClient::new(url).connect())
+        self.system.run_until_complete(ws::Client::new(url).connect())
     }
 
     /// Create `GET` request

@@ -92,7 +92,7 @@ impl Handler<session::Message> for WsChatSession {
 }
 
 /// WebSocket message handler
-impl StreamHandler<ws::Message, ws::WsError> for WsChatSession {
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         println!("WEBSOCKET MESSAGE: {:?}", msg);

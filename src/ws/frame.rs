@@ -9,7 +9,7 @@ use body::Binary;
 use error::{PayloadError};
 use payload::PayloadHelper;
 
-use ws::WsError;
+use ws::ProtocolError;
 use ws::proto::{OpCode, CloseCode};
 use ws::mask::apply_mask;
 
@@ -53,7 +53,7 @@ impl Frame {
 
     /// Parse the input stream into a frame.
     pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool, max_size: usize)
-                    -> Poll<Option<Frame>, WsError>
+                    -> Poll<Option<Frame>, ProtocolError>
         where S: Stream<Item=Bytes, Error=PayloadError>
     {
         let mut idx = 2;
@@ -69,9 +69,9 @@ impl Frame {
         // check masking
         let masked = second & 0x80 != 0;
         if !masked && server {
-            return Err(WsError::UnmaskedFrame)
+            return Err(ProtocolError::UnmaskedFrame)
         } else if masked && !server {
-            return Err(WsError::MaskedFrame)
+            return Err(ProtocolError::MaskedFrame)
         }
 
         let rsv1 = first & 0x40 != 0;
@@ -104,7 +104,7 @@ impl Frame {
 
         // check for max allowed size
         if length > max_size {
-            return Err(WsError::Overflow)
+            return Err(ProtocolError::Overflow)
         }
 
         let mask = if server {
@@ -133,13 +133,13 @@ impl Frame {
 
         // Disallow bad opcode
         if let OpCode::Bad = opcode {
-            return Err(WsError::InvalidOpcode(first & 0x0F))
+            return Err(ProtocolError::InvalidOpcode(first & 0x0F))
         }
 
         // control frames must have length <= 125
         match opcode {
             OpCode::Ping | OpCode::Pong if length > 125 => {
-                return Err(WsError::InvalidLength(length))
+                return Err(ProtocolError::InvalidLength(length))
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
@@ -257,14 +257,14 @@ mod tests {
     use super::*;
     use futures::stream::once;
 
-    fn is_none(frm: Poll<Option<Frame>, WsError>) -> bool {
+    fn is_none(frm: Poll<Option<Frame>, ProtocolError>) -> bool {
         match frm {
             Ok(Async::Ready(None)) => true,
             _ => false,
         }
     }
     
-    fn extract(frm: Poll<Option<Frame>, WsError>) -> Frame {
+    fn extract(frm: Poll<Option<Frame>, ProtocolError>) -> Frame {
         match frm {
             Ok(Async::Ready(Some(frame))) => frame,
             _ => panic!("error"),
@@ -370,7 +370,7 @@ mod tests {
 
         assert!(Frame::parse(&mut buf, true, 1).is_err());
 
-        if let Err(WsError::Overflow) = Frame::parse(&mut buf, false, 0) {
+        if let Err(ProtocolError::Overflow) = Frame::parse(&mut buf, false, 0) {
         } else {
             panic!("error");
         }

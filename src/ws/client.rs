@@ -25,14 +25,32 @@ use client::{ClientRequest, ClientRequestBuilder, ClientResponse,
              ClientConnector, SendRequest, SendRequestError,
              HttpResponseParserError};
 
-use super::{Message, WsError};
+use super::{Message, ProtocolError};
 use super::frame::Frame;
 use super::proto::{CloseCode, OpCode};
 
 
+/// Backward compatibility
+#[doc(hidden)]
+#[deprecated(since="0.4.2", note="please use `ws::Client` instead")]
+pub type WsClient = Client;
+#[doc(hidden)]
+#[deprecated(since="0.4.2", note="please use `ws::ClientError` instead")]
+pub type WsClientError = ClientError;
+#[doc(hidden)]
+#[deprecated(since="0.4.2", note="please use `ws::ClientReader` instead")]
+pub type WsClientReader = ClientReader;
+#[doc(hidden)]
+#[deprecated(since="0.4.2", note="please use `ws::ClientWriter` instead")]
+pub type WsClientWriter = ClientWriter;
+#[doc(hidden)]
+#[deprecated(since="0.4.2", note="please use `ws::ClientHandshake` instead")]
+pub type WsClientHandshake = ClientHandshake;
+
+
 /// Websocket client error
 #[derive(Fail, Debug)]
-pub enum WsClientError {
+pub enum ClientError {
     #[fail(display="Invalid url")]
     InvalidUrl,
     #[fail(display="Invalid response status")]
@@ -56,46 +74,46 @@ pub enum WsClientError {
     #[fail(display="{}", _0)]
     SendRequest(SendRequestError),
     #[fail(display="{}", _0)]
-    Protocol(#[cause] WsError),
+    Protocol(#[cause] ProtocolError),
     #[fail(display="{}", _0)]
     Io(io::Error),
     #[fail(display="Disconnected")]
     Disconnected,
 }
 
-impl From<HttpError> for WsClientError {
-    fn from(err: HttpError) -> WsClientError {
-        WsClientError::Http(err)
+impl From<HttpError> for ClientError {
+    fn from(err: HttpError) -> ClientError {
+        ClientError::Http(err)
     }
 }
 
-impl From<UrlParseError> for WsClientError {
-    fn from(err: UrlParseError) -> WsClientError {
-        WsClientError::Url(err)
+impl From<UrlParseError> for ClientError {
+    fn from(err: UrlParseError) -> ClientError {
+        ClientError::Url(err)
     }
 }
 
-impl From<SendRequestError> for WsClientError {
-    fn from(err: SendRequestError) -> WsClientError {
-        WsClientError::SendRequest(err)
+impl From<SendRequestError> for ClientError {
+    fn from(err: SendRequestError) -> ClientError {
+        ClientError::SendRequest(err)
     }
 }
 
-impl From<WsError> for WsClientError {
-    fn from(err: WsError) -> WsClientError {
-        WsClientError::Protocol(err)
+impl From<ProtocolError> for ClientError {
+    fn from(err: ProtocolError) -> ClientError {
+        ClientError::Protocol(err)
     }
 }
 
-impl From<io::Error> for WsClientError {
-    fn from(err: io::Error) -> WsClientError {
-        WsClientError::Io(err)
+impl From<io::Error> for ClientError {
+    fn from(err: io::Error) -> ClientError {
+        ClientError::Io(err)
     }
 }
 
-impl From<HttpResponseParserError> for WsClientError {
-    fn from(err: HttpResponseParserError) -> WsClientError {
-        WsClientError::ResponseParseError(err)
+impl From<HttpResponseParserError> for ClientError {
+    fn from(err: HttpResponseParserError) -> ClientError {
+        ClientError::ResponseParseError(err)
     }
 }
 
@@ -104,9 +122,9 @@ impl From<HttpResponseParserError> for WsClientError {
 /// Example of `WebSocket` client usage is available in
 /// [websocket example](
 /// https://github.com/actix/actix-web/blob/master/examples/websocket/src/client.rs#L24)
-pub struct WsClient {
+pub struct Client {
     request: ClientRequestBuilder,
-    err: Option<WsClientError>,
+    err: Option<ClientError>,
     http_err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
@@ -114,16 +132,16 @@ pub struct WsClient {
     max_size: usize,
 }
 
-impl WsClient {
+impl Client {
 
     /// Create new websocket connection
-    pub fn new<S: AsRef<str>>(uri: S) -> WsClient {
-        WsClient::with_connector(uri, ClientConnector::from_registry())
+    pub fn new<S: AsRef<str>>(uri: S) -> Client {
+        Client::with_connector(uri, ClientConnector::from_registry())
     }
 
     /// Create new websocket connection with custom `ClientConnector`
-    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<Unsync, ClientConnector>) -> WsClient {
-        let mut cl = WsClient {
+    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<Unsync, ClientConnector>) -> Client {
+        let mut cl = Client {
             request: ClientRequest::build(),
             err: None,
             http_err: None,
@@ -182,12 +200,12 @@ impl WsClient {
     }
 
     /// Connect to websocket server and do ws handshake
-    pub fn connect(&mut self) -> WsClientHandshake {
+    pub fn connect(&mut self) -> ClientHandshake {
         if let Some(e) = self.err.take() {
-            WsClientHandshake::error(e)
+            ClientHandshake::error(e)
         }
         else if let Some(e) = self.http_err.take() {
-            WsClientHandshake::error(e.into())
+            ClientHandshake::error(e.into())
         } else {
             // origin
             if let Some(origin) = self.origin.take() {
@@ -205,42 +223,42 @@ impl WsClient {
             }
             let request = match self.request.finish() {
                 Ok(req) => req,
-                Err(err) => return WsClientHandshake::error(err.into()),
+                Err(err) => return ClientHandshake::error(err.into()),
             };
 
             if request.uri().host().is_none() {
-                return WsClientHandshake::error(WsClientError::InvalidUrl)
+                return ClientHandshake::error(ClientError::InvalidUrl)
             }
             if let Some(scheme) = request.uri().scheme_part() {
                 if scheme != "http" && scheme != "https" && scheme != "ws" && scheme != "wss" {
-                    return WsClientHandshake::error(WsClientError::InvalidUrl)
+                    return ClientHandshake::error(ClientError::InvalidUrl)
                 }
             } else {
-                return WsClientHandshake::error(WsClientError::InvalidUrl)
+                return ClientHandshake::error(ClientError::InvalidUrl)
             }
 
             // start handshake
-            WsClientHandshake::new(request, self.max_size)
+            ClientHandshake::new(request, self.max_size)
         }
     }
 }
 
-struct WsInner {
+struct Inner {
     tx: UnboundedSender<Bytes>,
     rx: PayloadHelper<ClientResponse>,
     closed: bool,
 }
 
-pub struct WsClientHandshake {
+pub struct ClientHandshake {
     request: Option<SendRequest>,
     tx: Option<UnboundedSender<Bytes>>,
     key: String,
-    error: Option<WsClientError>,
+    error: Option<ClientError>,
     max_size: usize,
 }
 
-impl WsClientHandshake {
-    fn new(mut request: ClientRequest, max_size: usize) -> WsClientHandshake
+impl ClientHandshake {
+    fn new(mut request: ClientRequest, max_size: usize) -> ClientHandshake
     {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
@@ -257,7 +275,7 @@ impl WsClientHandshake {
             Box::new(rx.map_err(|_| io::Error::new(
                 io::ErrorKind::Other, "disconnected").into()))));
 
-        WsClientHandshake {
+        ClientHandshake {
             key,
             max_size,
             request: Some(request.send()),
@@ -266,8 +284,8 @@ impl WsClientHandshake {
         }
     }
 
-    fn error(err: WsClientError) -> WsClientHandshake {
-        WsClientHandshake {
+    fn error(err: ClientError) -> ClientHandshake {
+        ClientHandshake {
             key: String::new(),
             request: None,
             tx: None,
@@ -277,9 +295,9 @@ impl WsClientHandshake {
     }
 }
 
-impl Future for WsClientHandshake {
-    type Item = (WsClientReader, WsClientWriter);
-    type Error = WsClientError;
+impl Future for ClientHandshake {
+    type Item = (ClientReader, ClientWriter);
+    type Error = ClientError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(err) = self.error.take() {
@@ -296,7 +314,7 @@ impl Future for WsClientHandshake {
 
         // verify response
         if resp.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(WsClientError::InvalidResponseStatus(resp.status()))
+            return Err(ClientError::InvalidResponseStatus(resp.status()))
         }
         // Check for "UPGRADE" to websocket header
         let has_hdr = if let Some(hdr) = resp.headers().get(header::UPGRADE) {
@@ -310,22 +328,22 @@ impl Future for WsClientHandshake {
         };
         if !has_hdr {
             trace!("Invalid upgrade header");
-            return Err(WsClientError::InvalidUpgradeHeader)
+            return Err(ClientError::InvalidUpgradeHeader)
         }
         // Check for "CONNECTION" header
         if let Some(conn) = resp.headers().get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 if !s.to_lowercase().contains("upgrade") {
                     trace!("Invalid connection header: {}", s);
-                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()))
+                    return Err(ClientError::InvalidConnectionHeader(conn.clone()))
                 }
             } else {
                 trace!("Invalid connection header: {:?}", conn);
-                return Err(WsClientError::InvalidConnectionHeader(conn.clone()))
+                return Err(ClientError::InvalidConnectionHeader(conn.clone()))
             }
         } else {
             trace!("Missing connection header");
-            return Err(WsClientError::MissingConnectionHeader)
+            return Err(ClientError::MissingConnectionHeader)
         }
 
         if let Some(key) = resp.headers().get(header::SEC_WEBSOCKET_ACCEPT)
@@ -341,14 +359,14 @@ impl Future for WsClientHandshake {
                 trace!(
                     "Invalid challenge response: expected: {} received: {:?}",
                     encoded, key);
-                return Err(WsClientError::InvalidChallengeResponse(encoded, key.clone()));
+                return Err(ClientError::InvalidChallengeResponse(encoded, key.clone()));
             }
         } else {
             trace!("Missing SEC-WEBSOCKET-ACCEPT header");
-            return Err(WsClientError::MissingWebSocketAcceptHeader)
+            return Err(ClientError::MissingWebSocketAcceptHeader)
         };
 
-        let inner = WsInner {
+        let inner = Inner {
             tx: self.tx.take().unwrap(),
             rx: PayloadHelper::new(resp),
             closed: false,
@@ -356,33 +374,33 @@ impl Future for WsClientHandshake {
 
         let inner = Rc::new(UnsafeCell::new(inner));
         Ok(Async::Ready(
-            (WsClientReader{inner: Rc::clone(&inner), max_size: self.max_size},
-             WsClientWriter{inner})))
+            (ClientReader{inner: Rc::clone(&inner), max_size: self.max_size},
+             ClientWriter{inner})))
     }
 }
 
 
-pub struct WsClientReader {
-    inner: Rc<UnsafeCell<WsInner>>,
+pub struct ClientReader {
+    inner: Rc<UnsafeCell<Inner>>,
     max_size: usize,
 }
 
-impl fmt::Debug for WsClientReader {
+impl fmt::Debug for ClientReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "WsClientReader()")
+        write!(f, "ws::ClientReader()")
     }
 }
 
-impl WsClientReader {
+impl ClientReader {
     #[inline]
-    fn as_mut(&mut self) -> &mut WsInner {
+    fn as_mut(&mut self) -> &mut Inner {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl Stream for WsClientReader {
+impl Stream for ClientReader {
     type Item = Message;
-    type Error = WsError;
+    type Error = ProtocolError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let max_size = self.max_size;
@@ -399,14 +417,14 @@ impl Stream for WsClientReader {
                 // continuation is not supported
                 if !finished {
                     inner.closed = true;
-                    return Err(WsError::NoContinuation)
+                    return Err(ProtocolError::NoContinuation)
                 }
 
                 match opcode {
                     OpCode::Continue => unimplemented!(),
                     OpCode::Bad => {
                         inner.closed = true;
-                        Err(WsError::BadOpCode)
+                        Err(ProtocolError::BadOpCode)
                     },
                     OpCode::Close => {
                         inner.closed = true;
@@ -430,7 +448,7 @@ impl Stream for WsClientReader {
                                 Ok(Async::Ready(Some(Message::Text(s)))),
                             Err(_) => {
                                 inner.closed = true;
-                                Err(WsError::BadEncoding)
+                                Err(ProtocolError::BadEncoding)
                             }
                         }
                     }
@@ -446,18 +464,18 @@ impl Stream for WsClientReader {
     }
 }
 
-pub struct WsClientWriter {
-    inner: Rc<UnsafeCell<WsInner>>
+pub struct ClientWriter {
+    inner: Rc<UnsafeCell<Inner>>
 }
 
-impl WsClientWriter {
+impl ClientWriter {
     #[inline]
-    fn as_mut(&mut self) -> &mut WsInner {
+    fn as_mut(&mut self) -> &mut Inner {
         unsafe{ &mut *self.inner.get() }
     }
 }
 
-impl WsClientWriter {
+impl ClientWriter {
 
     /// Write payload
     #[inline]

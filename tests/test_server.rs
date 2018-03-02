@@ -163,7 +163,7 @@ fn test_headers() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(Bytes::from(bytes), Bytes::from_static(STR.as_ref()));
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
 #[test]
