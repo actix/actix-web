@@ -4,8 +4,8 @@ use futures::{Async, Poll};
 
 use super::IoStream;
 
-const LW_BUFFER_SIZE: usize = 4096;
-const HW_BUFFER_SIZE: usize = 16_384;
+const LW_BUFFER_SIZE: usize = 8192;
+const HW_BUFFER_SIZE: usize = 32_768;
 
 
 pub fn read_from_io<T: IoStream>(io: &mut T, buf: &mut BytesMut) -> Poll<usize, io::Error> {
