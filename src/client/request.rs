@@ -516,7 +516,7 @@ impl ClientRequestBuilder {
                 self.header(header::ACCEPT_ENCODING, "gzip, deflate");
             }
         }
-        
+
         let mut request = self.request.take().expect("cannot reuse request builder");
 
         // set cookies

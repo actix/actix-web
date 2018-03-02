@@ -41,7 +41,7 @@ use client::{ClientRequest, ClientRequestBuilder};
 /// # use actix_web::*;
 /// #
 /// # fn my_handler(req: HttpRequest) -> HttpResponse {
-/// #     httpcodes::HTTPOk.into()
+/// #     httpcodes::HttpOk.into()
 /// # }
 /// #
 /// # fn main() {
@@ -282,9 +282,9 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         httpcodes::HTTPOk.into()
+///         httpcodes::HttpOk.into()
 ///     } else {
-///         httpcodes::HTTPBadRequest.into()
+///         httpcodes::HttpBadRequest.into()
 ///     }
 /// }
 ///
@@ -403,7 +403,7 @@ impl<S> TestRequest<S> {
         self.payload = Some(payload);
         self
     }
-    
+
     /// Complete request creation and generate `HttpRequest` instance
     pub fn finish(self) -> HttpRequest<S> {
         let TestRequest { state, method, uri, version, headers, params, cookies, payload } = self;

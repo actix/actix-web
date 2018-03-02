@@ -84,7 +84,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json().from_err()
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(httpcodes::HTTPOk.build().json(val)?)  // <- send response
+            Ok(httpcodes::HttpOk.build().json(val)?)  // <- send response
         })
         .responder()
 }
@@ -117,7 +117,7 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
       // synchronous workflow
       .and_then(|body| {                           // <- body is loaded, now we can deserialize json
           let obj = serde_json::from_slice::<MyObj>(&body)?;
-          Ok(httpcodes::HTTPOk.build().json(obj)?) // <- send response
+          Ok(httpcodes::HttpOk.build().json(obj)?) // <- send response
       })
       .responder()
 }
@@ -251,7 +251,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
        .from_err()
        .and_then(|params| {  // <- url encoded parameters
              println!("==== BODY ==== {:?}", params);
-             ok(httpcodes::HTTPOk.into())
+             ok(httpcodes::HttpOk.into())
        })
        .responder()
 }

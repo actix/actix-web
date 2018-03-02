@@ -55,7 +55,7 @@ use error::{Error, PayloadError, ResponseError};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
-use httpcodes::{HTTPBadRequest, HTTPMethodNotAllowed};
+use httpcodes::{HttpBadRequest, HttpMethodNotAllowed};
 
 mod frame;
 mod proto;
@@ -139,22 +139,22 @@ impl ResponseError for WsHandshakeError {
     fn error_response(&self) -> HttpResponse {
         match *self {
             WsHandshakeError::GetMethodRequired => {
-                HTTPMethodNotAllowed
+                HttpMethodNotAllowed
                     .build()
                     .header(header::ALLOW, "GET")
                     .finish()
                     .unwrap()
             }
             WsHandshakeError::NoWebsocketUpgrade =>
-                HTTPBadRequest.with_reason("No WebSocket UPGRADE header found"),
+                HttpBadRequest.with_reason("No WebSocket UPGRADE header found"),
             WsHandshakeError::NoConnectionUpgrade =>
-                HTTPBadRequest.with_reason("No CONNECTION upgrade"),
+                HttpBadRequest.with_reason("No CONNECTION upgrade"),
             WsHandshakeError::NoVersionHeader =>
-                HTTPBadRequest.with_reason("Websocket version header is required"),
+                HttpBadRequest.with_reason("Websocket version header is required"),
             WsHandshakeError::UnsupportedVersion =>
-                HTTPBadRequest.with_reason("Unsupported version"),
+                HttpBadRequest.with_reason("Unsupported version"),
             WsHandshakeError::BadWebsocketKey =>
-                HTTPBadRequest.with_reason("Handshake error"),
+                HttpBadRequest.with_reason("Handshake error"),
         }
     }
 }

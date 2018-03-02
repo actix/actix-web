@@ -8,7 +8,7 @@ use pred::Predicate;
 use handler::{Reply, ReplyItem, Handler,
               Responder, RouteHandler, AsyncHandler, WrapHandler};
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
-use httpcodes::HTTPNotFound;
+use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -26,7 +26,7 @@ impl<S: 'static> Default for Route<S> {
     fn default() -> Route<S> {
         Route {
             preds: Vec::new(),
-            handler: InnerHandler::new(|_| HTTPNotFound),
+            handler: InnerHandler::new(|_| HttpNotFound),
         }
     }
 }
@@ -67,7 +67,7 @@ impl<S: 'static> Route<S> {
     ///       r.route()
     ///          .filter(pred::Get())
     ///          .filter(pred::Header("content-type", "text/plain"))
-    ///          .f(|req| HTTPOk)
+    ///          .f(|req| HttpOk)
     ///       )
     /// #      .finish();
     /// # }

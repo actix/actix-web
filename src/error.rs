@@ -24,7 +24,7 @@ use body::Body;
 use handler::Responder;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{self, HTTPExpectationFailed};
+use httpcodes::{self, HttpExpectationFailed};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -336,7 +336,7 @@ pub enum ExpectError {
 
 impl ResponseError for ExpectError {
     fn error_response(&self) -> HttpResponse {
-        HTTPExpectationFailed.with_body("Unknown Expect")
+        HttpExpectationFailed.with_body("Unknown Expect")
     }
 }
 
@@ -386,9 +386,9 @@ impl ResponseError for UrlencodedError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            UrlencodedError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
-            UrlencodedError::UnknownLength => httpcodes::HTTPLengthRequired.into(),
-            _ => httpcodes::HTTPBadRequest.into(),
+            UrlencodedError::Overflow => httpcodes::HttpPayloadTooLarge.into(),
+            UrlencodedError::UnknownLength => httpcodes::HttpLengthRequired.into(),
+            _ => httpcodes::HttpBadRequest.into(),
         }
     }
 }
@@ -421,8 +421,8 @@ impl ResponseError for JsonPayloadError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            JsonPayloadError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
-            _ => httpcodes::HTTPBadRequest.into(),
+            JsonPayloadError::Overflow => httpcodes::HttpPayloadTooLarge.into(),
+            _ => httpcodes::HttpBadRequest.into(),
         }
     }
 }

@@ -309,7 +309,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// # use actix_web::*;
 /// #
 /// # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-/// #     httpcodes::HTTPOk
+/// #     httpcodes::HttpOk
 /// # }
 /// fn main() {
 ///     let app = Application::new()

@@ -29,7 +29,7 @@ pub trait Predicate<S> {
 ///     Application::new()
 ///         .resource("/index.html", |r| r.route()
 ///             .filter(pred::Any(pred::Get()).or(pred::Post()))
-///             .h(HTTPMethodNotAllowed));
+///             .h(HttpMethodNotAllowed));
 /// }
 /// ```
 pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S>
@@ -73,7 +73,7 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 ///         .resource("/index.html", |r| r.route()
 ///            .filter(pred::All(pred::Get())
 ///                 .and(pred::Header("content-type", "plain/text")))
-///            .h(HTTPMethodNotAllowed));
+///            .h(HttpMethodNotAllowed));
 /// }
 /// ```
 pub fn All<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AllPredicate<S> {

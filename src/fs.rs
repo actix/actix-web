@@ -15,7 +15,7 @@ use handler::{Handler, Responder};
 use headers::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HTTPOk, HTTPFound};
+use httpcodes::{HttpOk, HttpFound};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -84,7 +84,7 @@ impl Responder for NamedFile {
     type Error = io::Error;
 
     fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
-        let mut resp = HTTPOk.build();
+        let mut resp = HttpOk.build();
         resp.content_encoding(ContentEncoding::Identity);
         if let Some(ext) = self.path().extension() {
             let mime = get_mime_type(&ext.to_string_lossy());
@@ -164,7 +164,7 @@ impl Responder for Directory {
                             <ul>\
                             {}\
                             </ul></body>\n</html>", index_of, index_of, body);
-        Ok(HTTPOk.build()
+        Ok(HttpOk.build()
            .content_type("text/html; charset=utf-8")
            .body(html).unwrap())
     }
@@ -289,7 +289,7 @@ impl<S> Handler<S> for StaticFiles {
                     }
                     new_path.push_str(redir_index);
                     Ok(FilesystemElement::Redirect(
-                        HTTPFound
+                        HttpFound
                             .build()
                             .header::<_, &str>("LOCATION", &new_path)
                             .finish().unwrap()))

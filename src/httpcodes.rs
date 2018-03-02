@@ -7,67 +7,174 @@ use handler::{Reply, Handler, RouteHandler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 
+pub const HttpOk: StaticResponse = StaticResponse(StatusCode::OK);
+pub const HttpCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
+pub const HttpAccepted: StaticResponse = StaticResponse(StatusCode::ACCEPTED);
+pub const HttpNonAuthoritativeInformation: StaticResponse =
+    StaticResponse(StatusCode::NON_AUTHORITATIVE_INFORMATION);
+pub const HttpNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+pub const HttpResetContent: StaticResponse = StaticResponse(StatusCode::RESET_CONTENT);
+pub const HttpPartialContent: StaticResponse = StaticResponse(StatusCode::PARTIAL_CONTENT);
+pub const HttpMultiStatus: StaticResponse = StaticResponse(StatusCode::MULTI_STATUS);
+pub const HttpAlreadyReported: StaticResponse = StaticResponse(StatusCode::ALREADY_REPORTED);
+
+pub const HttpMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
+pub const HttpMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
+pub const HttpFound: StaticResponse = StaticResponse(StatusCode::FOUND);
+pub const HttpSeeOther: StaticResponse = StaticResponse(StatusCode::SEE_OTHER);
+pub const HttpNotModified: StaticResponse = StaticResponse(StatusCode::NOT_MODIFIED);
+pub const HttpUseProxy: StaticResponse = StaticResponse(StatusCode::USE_PROXY);
+pub const HttpTemporaryRedirect: StaticResponse =
+    StaticResponse(StatusCode::TEMPORARY_REDIRECT);
+pub const HttpPermanentRedirect: StaticResponse =
+    StaticResponse(StatusCode::PERMANENT_REDIRECT);
+
+pub const HttpBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
+pub const HttpUnauthorized: StaticResponse = StaticResponse(StatusCode::UNAUTHORIZED);
+pub const HttpPaymentRequired: StaticResponse = StaticResponse(StatusCode::PAYMENT_REQUIRED);
+pub const HttpForbidden: StaticResponse = StaticResponse(StatusCode::FORBIDDEN);
+pub const HttpNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
+pub const HttpMethodNotAllowed: StaticResponse =
+    StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
+pub const HttpNotAcceptable: StaticResponse = StaticResponse(StatusCode::NOT_ACCEPTABLE);
+pub const HttpProxyAuthenticationRequired: StaticResponse =
+    StaticResponse(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+pub const HttpRequestTimeout: StaticResponse = StaticResponse(StatusCode::REQUEST_TIMEOUT);
+pub const HttpConflict: StaticResponse = StaticResponse(StatusCode::CONFLICT);
+pub const HttpGone: StaticResponse = StaticResponse(StatusCode::GONE);
+pub const HttpLengthRequired: StaticResponse = StaticResponse(StatusCode::LENGTH_REQUIRED);
+pub const HttpPreconditionFailed: StaticResponse =
+    StaticResponse(StatusCode::PRECONDITION_FAILED);
+pub const HttpPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
+pub const HttpUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+pub const HttpUnsupportedMediaType: StaticResponse =
+    StaticResponse(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+pub const HttpRangeNotSatisfiable: StaticResponse =
+    StaticResponse(StatusCode::RANGE_NOT_SATISFIABLE);
+pub const HttpExpectationFailed: StaticResponse =
+    StaticResponse(StatusCode::EXPECTATION_FAILED);
+
+pub const HttpInternalServerError: StaticResponse =
+    StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
+pub const HttpNotImplemented: StaticResponse = StaticResponse(StatusCode::NOT_IMPLEMENTED);
+pub const HttpBadGateway: StaticResponse = StaticResponse(StatusCode::BAD_GATEWAY);
+pub const HttpServiceUnavailable: StaticResponse =
+    StaticResponse(StatusCode::SERVICE_UNAVAILABLE);
+pub const HttpGatewayTimeout: StaticResponse =
+    StaticResponse(StatusCode::GATEWAY_TIMEOUT);
+pub const HttpVersionNotSupported: StaticResponse =
+    StaticResponse(StatusCode::HTTP_VERSION_NOT_SUPPORTED);
+pub const HttpVariantAlsoNegotiates: StaticResponse =
+    StaticResponse(StatusCode::VARIANT_ALSO_NEGOTIATES);
+pub const HttpInsufficientStorage: StaticResponse =
+    StaticResponse(StatusCode::INSUFFICIENT_STORAGE);
+pub const HttpLoopDetected: StaticResponse = StaticResponse(StatusCode::LOOP_DETECTED);
+
+#[doc(hidden)]
 pub const HTTPOk: StaticResponse = StaticResponse(StatusCode::OK);
+#[doc(hidden)]
 pub const HTTPCreated: StaticResponse = StaticResponse(StatusCode::CREATED);
+#[doc(hidden)]
 pub const HTTPAccepted: StaticResponse = StaticResponse(StatusCode::ACCEPTED);
+#[doc(hidden)]
 pub const HTTPNonAuthoritativeInformation: StaticResponse =
     StaticResponse(StatusCode::NON_AUTHORITATIVE_INFORMATION);
+#[doc(hidden)]
 pub const HTTPNoContent: StaticResponse = StaticResponse(StatusCode::NO_CONTENT);
+#[doc(hidden)]
 pub const HTTPResetContent: StaticResponse = StaticResponse(StatusCode::RESET_CONTENT);
+#[doc(hidden)]
 pub const HTTPPartialContent: StaticResponse = StaticResponse(StatusCode::PARTIAL_CONTENT);
+#[doc(hidden)]
 pub const HTTPMultiStatus: StaticResponse = StaticResponse(StatusCode::MULTI_STATUS);
+#[doc(hidden)]
 pub const HTTPAlreadyReported: StaticResponse = StaticResponse(StatusCode::ALREADY_REPORTED);
 
+#[doc(hidden)]
 pub const HTTPMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
+#[doc(hidden)]
 pub const HTTPMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
+#[doc(hidden)]
 pub const HTTPFound: StaticResponse = StaticResponse(StatusCode::FOUND);
+#[doc(hidden)]
 pub const HTTPSeeOther: StaticResponse = StaticResponse(StatusCode::SEE_OTHER);
+#[doc(hidden)]
 pub const HTTPNotModified: StaticResponse = StaticResponse(StatusCode::NOT_MODIFIED);
+#[doc(hidden)]
 pub const HTTPUseProxy: StaticResponse = StaticResponse(StatusCode::USE_PROXY);
+#[doc(hidden)]
 pub const HTTPTemporaryRedirect: StaticResponse =
     StaticResponse(StatusCode::TEMPORARY_REDIRECT);
+#[doc(hidden)]
 pub const HTTPPermanentRedirect: StaticResponse =
     StaticResponse(StatusCode::PERMANENT_REDIRECT);
 
+#[doc(hidden)]
 pub const HTTPBadRequest: StaticResponse = StaticResponse(StatusCode::BAD_REQUEST);
+#[doc(hidden)]
 pub const HTTPUnauthorized: StaticResponse = StaticResponse(StatusCode::UNAUTHORIZED);
+#[doc(hidden)]
 pub const HTTPPaymentRequired: StaticResponse = StaticResponse(StatusCode::PAYMENT_REQUIRED);
+#[doc(hidden)]
 pub const HTTPForbidden: StaticResponse = StaticResponse(StatusCode::FORBIDDEN);
+#[doc(hidden)]
 pub const HTTPNotFound: StaticResponse = StaticResponse(StatusCode::NOT_FOUND);
+#[doc(hidden)]
 pub const HTTPMethodNotAllowed: StaticResponse =
     StaticResponse(StatusCode::METHOD_NOT_ALLOWED);
+#[doc(hidden)]
 pub const HTTPNotAcceptable: StaticResponse = StaticResponse(StatusCode::NOT_ACCEPTABLE);
+#[doc(hidden)]
 pub const HTTPProxyAuthenticationRequired: StaticResponse =
     StaticResponse(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+#[doc(hidden)]
 pub const HTTPRequestTimeout: StaticResponse = StaticResponse(StatusCode::REQUEST_TIMEOUT);
+#[doc(hidden)]
 pub const HTTPConflict: StaticResponse = StaticResponse(StatusCode::CONFLICT);
+#[doc(hidden)]
 pub const HTTPGone: StaticResponse = StaticResponse(StatusCode::GONE);
+#[doc(hidden)]
 pub const HTTPLengthRequired: StaticResponse = StaticResponse(StatusCode::LENGTH_REQUIRED);
+#[doc(hidden)]
 pub const HTTPPreconditionFailed: StaticResponse =
     StaticResponse(StatusCode::PRECONDITION_FAILED);
+#[doc(hidden)]
 pub const HTTPPayloadTooLarge: StaticResponse = StaticResponse(StatusCode::PAYLOAD_TOO_LARGE);
+#[doc(hidden)]
 pub const HTTPUriTooLong: StaticResponse = StaticResponse(StatusCode::URI_TOO_LONG);
+#[doc(hidden)]
 pub const HTTPUnsupportedMediaType: StaticResponse =
     StaticResponse(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+#[doc(hidden)]
 pub const HTTPRangeNotSatisfiable: StaticResponse =
     StaticResponse(StatusCode::RANGE_NOT_SATISFIABLE);
+#[doc(hidden)]
 pub const HTTPExpectationFailed: StaticResponse =
     StaticResponse(StatusCode::EXPECTATION_FAILED);
 
+#[doc(hidden)]
 pub const HTTPInternalServerError: StaticResponse =
     StaticResponse(StatusCode::INTERNAL_SERVER_ERROR);
+#[doc(hidden)]
 pub const HTTPNotImplemented: StaticResponse = StaticResponse(StatusCode::NOT_IMPLEMENTED);
+#[doc(hidden)]
 pub const HTTPBadGateway: StaticResponse = StaticResponse(StatusCode::BAD_GATEWAY);
+#[doc(hidden)]
 pub const HTTPServiceUnavailable: StaticResponse =
     StaticResponse(StatusCode::SERVICE_UNAVAILABLE);
+#[doc(hidden)]
 pub const HTTPGatewayTimeout: StaticResponse =
     StaticResponse(StatusCode::GATEWAY_TIMEOUT);
+#[doc(hidden)]
 pub const HTTPVersionNotSupported: StaticResponse =
     StaticResponse(StatusCode::HTTP_VERSION_NOT_SUPPORTED);
+#[doc(hidden)]
 pub const HTTPVariantAlsoNegotiates: StaticResponse =
     StaticResponse(StatusCode::VARIANT_ALSO_NEGOTIATES);
+#[doc(hidden)]
 pub const HTTPInsufficientStorage: StaticResponse =
     StaticResponse(StatusCode::INSUFFICIENT_STORAGE);
+#[doc(hidden)]
 pub const HTTPLoopDetected: StaticResponse = StaticResponse(StatusCode::LOOP_DETECTED);
 
 

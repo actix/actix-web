@@ -252,7 +252,7 @@ impl HttpResponseBuilder {
     /// use http::header;
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HTTPOk.build()
+    ///     Ok(HttpOk.build()
     ///         .header("X-TEST", "value")
     ///         .header(header::CONTENT_TYPE, "application/json")
     ///         .finish()?)
@@ -372,7 +372,7 @@ impl HttpResponseBuilder {
     /// use actix_web::headers::Cookie;
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HTTPOk.build()
+    ///     Ok(HttpOk.build()
     ///         .cookie(
     ///             Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
@@ -753,7 +753,7 @@ mod tests {
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
         let cookies = req.cookies().unwrap();
 
-        let resp = httpcodes::HTTPOk
+        let resp = httpcodes::HttpOk
             .build()
             .cookie(headers::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")

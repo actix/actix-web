@@ -4,6 +4,8 @@
 
 * Rename `Route::p()` to `Route::filter()`
 
+* Better naming for http codes
+
 * Fix payload parse in situation when socket data is not ready.
 
 * Fix Session mutable borrow lifetime #87

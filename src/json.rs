@@ -75,7 +75,7 @@ impl<T: Serialize> Responder for Json<T> {
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
 ///            println!("==== BODY ==== {:?}", val);
-///            Ok(httpcodes::HTTPOk.into())
+///            Ok(httpcodes::HttpOk.into())
 ///        }).responder()
 /// }
 /// # fn main() {}

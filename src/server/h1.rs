@@ -15,7 +15,7 @@ use futures::{Future, Poll, Async};
 use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
-use httpcodes::HTTPNotFound;
+use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use error::{ParseError, PayloadError, ResponseError};
 use payload::{Payload, PayloadWriter, PayloadStatus};
@@ -151,7 +151,7 @@ impl<T, H> Http1<T, H>
                         }
 
                         self.tasks.push_back(
-                            Entry {pipe: Pipeline::error(HTTPNotFound),
+                            Entry {pipe: Pipeline::error(HttpNotFound),
                                    flags: EntryFlags::empty()});
                         continue
                     },

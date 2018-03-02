@@ -249,14 +249,14 @@ impl<S> HttpRequest<S> {
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
-    ///     HTTPOk.into()
+    ///     HttpOk.into()
     /// }
     ///
     /// fn main() {
     ///     let app = Application::new()
     ///         .resource("/test/{one}/{two}/{three}", |r| {
     ///              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
     ///         })
     ///         .finish();
     /// }

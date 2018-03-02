@@ -183,8 +183,8 @@ impl<S> Application<S> where S: 'static {
     ///     let app = Application::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
-    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
     ///         })
     ///         .finish();
     /// }
@@ -226,8 +226,8 @@ impl<S> Application<S> where S: 'static {
     /// fn main() {
     ///     let app = Application::new()
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
-    ///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
     ///         });
     /// }
     /// ```
@@ -281,7 +281,7 @@ impl<S> Application<S> where S: 'static {
     /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
     ///    assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    ///    Ok(httpcodes::HTTPOk.into())
+    ///    Ok(httpcodes::HttpOk.into())
     /// }
     ///
     /// fn main() {
@@ -320,9 +320,9 @@ impl<S> Application<S> where S: 'static {
     ///     let app = Application::new()
     ///         .handler("/app", |req: HttpRequest| {
     ///             match *req.method() {
-    ///                 Method::GET => httpcodes::HTTPOk,
-    ///                 Method::POST => httpcodes::HTTPMethodNotAllowed,
-    ///                 _ => httpcodes::HTTPNotFound,
+    ///                 Method::GET => httpcodes::HttpOk,
+    ///                 Method::POST => httpcodes::HttpMethodNotAllowed,
+    ///                 _ => httpcodes::HttpNotFound,
     ///         }});
     /// }
     /// ```
@@ -394,11 +394,11 @@ impl<S> Application<S> where S: 'static {
     ///     HttpServer::new(|| { vec![
     ///         Application::with_state(State1)
     ///              .prefix("/app1")
-    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .resource("/", |r| r.h(httpcodes::HttpOk))
     ///              .boxed(),
     ///         Application::with_state(State2)
     ///              .prefix("/app2")
-    ///              .resource("/", |r| r.h(httpcodes::HTTPOk))
+    ///              .resource("/", |r| r.h(httpcodes::HttpOk))
     ///              .boxed() ]})
     ///         .bind("127.0.0.1:8080").unwrap()
     ///         .run()
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn test_default_resource() {
         let mut app = Application::new()
-            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .resource("/test", |r| r.h(httpcodes::HttpOk))
             .finish();
 
         let req = TestRequest::with_uri("/test").finish();
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
         let mut app = Application::new()
-            .default_resource(|r| r.h(httpcodes::HTTPMethodNotAllowed))
+            .default_resource(|r| r.h(httpcodes::HttpMethodNotAllowed))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
@@ -482,7 +482,7 @@ mod tests {
     fn test_unhandled_prefix() {
         let mut app = Application::new()
             .prefix("/test")
-            .resource("/test", |r| r.h(httpcodes::HTTPOk))
+            .resource("/test", |r| r.h(httpcodes::HttpOk))
             .finish();
         assert!(app.handle(HttpRequest::default()).is_err());
     }
@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn test_state() {
         let mut app = Application::with_state(10)
-            .resource("/", |r| r.h(httpcodes::HTTPOk))
+            .resource("/", |r| r.h(httpcodes::HttpOk))
             .finish();
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
@@ -501,7 +501,7 @@ mod tests {
     fn test_prefix() {
         let mut app = Application::new()
             .prefix("/test")
-            .resource("/blah", |r| r.h(httpcodes::HTTPOk))
+            .resource("/blah", |r| r.h(httpcodes::HttpOk))
             .finish();
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.handle(req);
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn test_handler() {
         let mut app = Application::new()
-            .handler("/test", httpcodes::HTTPOk)
+            .handler("/test", httpcodes::HttpOk)
             .finish();
 
         let req = TestRequest::with_uri("/test").finish();
@@ -551,7 +551,7 @@ mod tests {
     fn test_handler_prefix() {
         let mut app = Application::new()
             .prefix("/app")
-            .handler("/test", httpcodes::HTTPOk)
+            .handler("/test", httpcodes::HttpOk)
             .finish();
 
         let req = TestRequest::with_uri("/test").finish();

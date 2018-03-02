@@ -114,7 +114,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|bytes: Bytes| {  // <- complete body
     ///            println!("==== BODY ==== {:?}", bytes);
-    ///            Ok(httpcodes::HTTPOk.into())
+    ///            Ok(httpcodes::HttpOk.into())
     ///        }).responder()
     /// }
     /// # fn main() {}
@@ -148,7 +148,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|params| {  // <- url encoded parameters
     ///             println!("==== BODY ==== {:?}", params);
-    ///             ok(httpcodes::HTTPOk.into())
+    ///             ok(httpcodes::HttpOk.into())
     ///        })
     ///        .responder()
     /// }
@@ -187,7 +187,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|val: MyObj| {  // <- deserialized value
     ///            println!("==== BODY ==== {:?}", val);
-    ///            Ok(httpcodes::HTTPOk.into())
+    ///            Ok(httpcodes::HttpOk.into())
     ///        }).responder()
     /// }
     /// # fn main() {}

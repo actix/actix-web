@@ -32,7 +32,7 @@ fn main() {
     Application::new()
         .resource("/prefix", |r| r.f(index))
         .resource("/user/{name}",
-             |r| r.method(Method::GET).f(|req| HTTPOk))
+             |r| r.method(Method::GET).f(|req| HttpOk))
         .finish();
 }
 ```
@@ -52,7 +52,7 @@ returns *NOT FOUND* http resources.
 Resource contains set of routes. Each route in turn has set of predicates and handler.
 New route could be created with `Resource::route()` method which returns reference
 to new *Route* instance. By default *route* does not contain any predicates, so matches
-all requests and default handler is `HTTPNotFound`.
+all requests and default handler is `HttpNotFound`.
 
 Application routes incoming requests based on route criteria which is defined during
 resource registration and route registration. Resource matches all routes it contains in
@@ -70,7 +70,7 @@ fn main() {
             resource.route()
               .filter(pred::Get())
               .filter(pred::Header("content-type", "text/plain"))
-              .f(|req| HTTPOk)
+              .f(|req| HttpOk)
         )
         .finish();
 }
@@ -336,14 +336,14 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this.
 #
 fn index(req: HttpRequest) -> HttpResponse {
     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
-    HTTPOk.into()
+    HttpOk.into()
 }
 
 fn main() {
     let app = Application::new()
         .resource("/test/{a}/{b}/{c}", |r| {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-             r.method(Method::GET).f(|_| httpcodes::HTTPOk);
+             r.method(Method::GET).f(|_| httpcodes::HttpOk);
         })
         .finish();
 }
@@ -367,7 +367,7 @@ use actix_web::*;
 fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    Ok(httpcodes::HTTPOk.into())
+    Ok(httpcodes::HttpOk.into())
 }
 
 fn main() {
@@ -404,7 +404,7 @@ This handler designed to be use as a handler for application's *default resource
 # use actix_web::*;
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-#    httpcodes::HTTPOk
+#    httpcodes::HttpOk
 # }
 fn main() {
     let app = Application::new()
@@ -429,7 +429,7 @@ It is possible to register path normalization only for *GET* requests only
 # use actix_web::*;
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-#    httpcodes::HTTPOk
+#    httpcodes::HttpOk
 # }
 fn main() {
     let app = Application::new()
@@ -503,7 +503,7 @@ fn main() {
         .resource("/index.html", |r|
            r.route()
               .filter(ContentTypeHeader)
-              .h(HTTPOk));
+              .h(HttpOk));
 }
 ```
 
@@ -531,7 +531,7 @@ fn main() {
         .resource("/index.html", |r|
            r.route()
               .filter(pred::Not(pred::Get()))
-              .f(|req| HTTPMethodNotAllowed))
+              .f(|req| HttpMethodNotAllowed))
         .finish();
 }
 ```
@@ -567,8 +567,8 @@ use actix_web::httpcodes::*;
 fn main() {
     Application::new()
         .default_resource(|r| {
-              r.method(Method::GET).f(|req| HTTPNotFound);
-              r.route().filter(pred::Not(pred::Get())).f(|req| HTTPMethodNotAllowed);
+              r.method(Method::GET).f(|req| HttpNotFound);
+              r.route().filter(pred::Not(pred::Get())).f(|req| HttpMethodNotAllowed);
          })
 #        .finish();
 }
