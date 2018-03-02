@@ -4,7 +4,7 @@ use futures::{Async, Poll};
 
 use super::IoStream;
 
-const LW_BUFFER_SIZE: usize = 8192;
+const LW_BUFFER_SIZE: usize = 4096;
 const HW_BUFFER_SIZE: usize = 32_768;
 
 
