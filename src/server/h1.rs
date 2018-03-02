@@ -431,7 +431,7 @@ impl Reader {
                             break true
                         },
                         Ok(Async::NotReady) =>
-                            break false,
+                            return Ok(Async::NotReady),
                         Err(err) => {
                             payload.tx.set_error(err.into());
                             return Err(ReaderError::Payload)
