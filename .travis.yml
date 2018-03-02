@@ -47,7 +47,7 @@ script:
        USE_SKEPTIC=1 cargo test --features=alpn
     else
        cargo clean
-       cargo test
+       cargo test -- --nocapture
        # --features=alpn
     fi
 

@@ -111,7 +111,7 @@ impl Future for SendRequest {
                         _ => IoBody::Done,
                     };
 
-                    let mut pl = Box::new(Pipeline {
+                    let pl = Box::new(Pipeline {
                         body, conn, writer,
                         parser: Some(HttpResponseParser::default()),
                         parser_buf: BytesMut::new(),
