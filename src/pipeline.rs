@@ -173,7 +173,8 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
                 PipelineState::None =>
                     return Ok(Async::Ready(true)),
                 PipelineState::Error =>
-                    return Err(io::Error::new(io::ErrorKind::Other, "Internal error").into()),
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other, "Internal error").into()),
                 _ => (),
             }
 

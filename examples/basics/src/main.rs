@@ -139,7 +139,7 @@ fn main() {
             // default
             .default_resource(|r| {
                 r.method(Method::GET).f(p404);
-                r.route().p(pred::Not(pred::Get())).f(|req| httpcodes::HTTPMethodNotAllowed);
+                r.route().filter(pred::Not(pred::Get())).f(|req| httpcodes::HTTPMethodNotAllowed);
             }))
 
         .bind("127.0.0.1:8080").expect("Can not bind to 127.0.0.1:8080")

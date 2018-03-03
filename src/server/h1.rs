@@ -125,8 +125,8 @@ impl<T, H> Http1<T, H>
     // TODO: refactor
     pub fn poll_io(&mut self) -> Poll<bool, ()> {
         // read incoming data
-        let need_read =
-            if !self.flags.contains(Flags::ERROR) && self.tasks.len() < MAX_PIPELINED_MESSAGES
+        let need_read = if !self.flags.intersects(Flags::ERROR) &&
+            self.tasks.len() < MAX_PIPELINED_MESSAGES
         {
             'outer: loop {
                 match self.reader.parse(self.stream.get_mut(),
@@ -1413,6 +1413,10 @@ mod tests {
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
+        buf.feed_data("4\r\n1111\r\n");
+        not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"1111");
+
         buf.feed_data("4\r\ndata\r");
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
@@ -1430,6 +1434,7 @@ mod tests {
         buf.feed_data("ne\r\n0\r\n");
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
+        //trailers
         //buf.feed_data("test: test\r\n");
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
 
