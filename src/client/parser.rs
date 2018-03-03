@@ -39,10 +39,8 @@ impl HttpResponseParser {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         let read = if buf.is_empty() {
             match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    // debug!("Ignored premature client disconnection");
-                    return Err(HttpResponseParserError::Disconnect);
-                },
+                Ok(Async::Ready(0)) =>
+                    return Err(HttpResponseParserError::Disconnect),
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) =>
                     return Ok(Async::NotReady),
@@ -66,10 +64,12 @@ impl HttpResponseParser {
                     }
                     if read || buf.remaining_mut() == 0 {
                         match utils::read_from_io(io, buf) {
-                            Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
+                            Ok(Async::Ready(0)) =>
+                                return Err(HttpResponseParserError::Disconnect),
                             Ok(Async::Ready(_)) => (),
                             Ok(Async::NotReady) => return Ok(Async::NotReady),
-                            Err(err) => return Err(HttpResponseParserError::Error(err.into())),
+                            Err(err) =>
+                                return Err(HttpResponseParserError::Error(err.into())),
                         }
                     } else {
                         return Ok(Async::NotReady)
@@ -109,7 +109,8 @@ impl HttpResponseParser {
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<Decoder>), ParseError>
+    fn parse_message(buf: &mut BytesMut)
+                     -> Poll<(ClientResponse, Option<Decoder>), ParseError>
     {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;

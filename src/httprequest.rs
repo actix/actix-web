@@ -365,7 +365,7 @@ impl<S> HttpRequest<S> {
 
     /// Get mutable reference to request's Params.
     #[inline]
-    pub(crate) fn match_info_mut(&mut self) -> &mut Params {
+    pub fn match_info_mut(&mut self) -> &mut Params {
         unsafe{ mem::transmute(&mut self.as_mut().params) }
     }
 
