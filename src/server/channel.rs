@@ -95,7 +95,7 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
                         h1.settings().remove_channel();
-                        self.node.as_ref().unwrap().remove();
+                        self.node.as_mut().unwrap().remove();
                     },
                     _ => (),
                 }
@@ -106,7 +106,7 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
                         h2.settings().remove_channel();
-                        self.node.as_ref().unwrap().remove();
+                        self.node.as_mut().unwrap().remove();
                     },
                     _ => (),
                 }
@@ -186,13 +186,15 @@ impl<T> Node<T>
         }
     }
 
-    fn remove(&self) {
+    fn remove(&mut self) {
         #[allow(mutable_transmutes)]
         unsafe {
-            if let Some(ref prev) = self.prev {
+            let mut prev = self.prev.take();
+            let next = self.next.take();
+
+            if let Some(ref mut prev) = prev {
                 let p: &mut Node<()> = mem::transmute(prev.as_ref().unwrap());
-                let slf: &mut Node<T> = mem::transmute(self);
-                p.next = slf.next.take();
+                p.next = next;
             }
         }
     }
