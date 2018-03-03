@@ -168,7 +168,7 @@ impl Inner {
             len: 0,
             err: None,
             items: VecDeque::new(),
-            need_read: false,
+            need_read: true,
         }
     }
 

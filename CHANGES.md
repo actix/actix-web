@@ -8,6 +8,8 @@
 
 * Add csrf middleware for filter for cross-site request forgery #89
 
+* Fix disconnect on idle connections
+
 
 ## 0.4.1 (2018-03-01)
 
