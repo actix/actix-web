@@ -1,5 +1,12 @@
 # Changes
 
+## 0.4.3 (2018-03-xx)
+
+* Fix request body read bug
+
+* Set reuse address before bind #90
+
+
 ## 0.4.2 (2018-03-02)
 
 * Better naming for websockets implementation
