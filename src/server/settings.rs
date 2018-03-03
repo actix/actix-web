@@ -63,7 +63,7 @@ pub(crate) struct WorkerSettings<H> {
     bytes: Rc<SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
-    node: Node<()>,
+    node: Box<Node<()>>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -75,7 +75,7 @@ impl<H> WorkerSettings<H> {
             bytes: Rc::new(SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
-            node: Node::head(),
+            node: Box::new(Node::head()),
         }
     }
 
