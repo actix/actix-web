@@ -402,39 +402,48 @@ impl Reader {
         // read payload
         let done = {
             if let Some(ref mut payload) = self.payload {
-                match utils::read_from_io(io, buf) {
-                    Ok(Async::Ready(0)) => {
-                        payload.tx.set_error(PayloadError::Incomplete);
+                'buf: loop {
+                    match utils::read_from_io(io, buf) {
+                        Ok(Async::Ready(0)) => {
+                            payload.tx.set_error(PayloadError::Incomplete);
 
-                        // http channel should not deal with payload errors
-                        return Err(ReaderError::Payload)
-                    },
-                    Err(err) => {
-                        payload.tx.set_error(err.into());
-
-                        // http channel should not deal with payload errors
-                        return Err(ReaderError::Payload)
-                    }
-                    _ => (),
-                }
-                loop {
-                    match payload.decoder.decode(buf) {
-                        Ok(Async::Ready(Some(bytes))) => {
-                            payload.tx.feed_data(bytes);
-                            if payload.decoder.is_eof() {
-                                payload.tx.feed_eof();
-                                break true
-                            }
+                            // http channel should not deal with payload errors
+                            return Err(ReaderError::Payload)
                         },
-                        Ok(Async::Ready(None)) => {
-                            payload.tx.feed_eof();
-                            break true
-                        },
-                        Ok(Async::NotReady) =>
-                            return Ok(Async::NotReady),
                         Err(err) => {
                             payload.tx.set_error(err.into());
+
+                            // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
+                        }
+                        _ => (),
+                    }
+                    let is_full = buf.remaining_mut() == 0;
+                    loop {
+                        match payload.decoder.decode(buf) {
+                            Ok(Async::Ready(Some(bytes))) => {
+                                payload.tx.feed_data(bytes);
+                                if payload.decoder.is_eof() {
+                                    payload.tx.feed_eof();
+                                    break 'buf true
+                                }
+                            },
+                            Ok(Async::Ready(None)) => {
+                                payload.tx.feed_eof();
+                                break 'buf true
+                            },
+                            Ok(Async::NotReady) => {
+                                // if buffer is full then
+                                // socket still can contain more data
+                                if is_full {
+                                    continue 'buf
+                                }
+                                return Ok(Async::NotReady)
+                            },
+                            Err(err) => {
+                                payload.tx.set_error(err.into());
+                                return Err(ReaderError::Payload)
+                            }
                         }
                     }
                 }
@@ -470,7 +479,7 @@ impl Reader {
                     return Ok(Async::Ready(msg));
                 },
                 Async::NotReady => {
-                    if buf.capacity() >= MAX_BUFFER_SIZE {
+                    if buf.len() >= MAX_BUFFER_SIZE {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         return Err(ReaderError::Error(ParseError::TooLarge));
                     }
