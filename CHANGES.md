@@ -4,7 +4,9 @@
 
 * Better naming for websockets implementation
 
-* A filter for cross-site request forgery #89
+* Add `Pattern::with_prefix()`, make it more usable outside of actix
+
+* Add csrf middleware for filter for cross-site request forgery #89
 
 
 ## 0.4.1 (2018-03-01)
