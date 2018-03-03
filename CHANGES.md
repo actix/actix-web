@@ -1,6 +1,6 @@
 # Changes
 
-## 0.4.2 (2018-03-xx)
+## 0.4.2 (2018-03-02)
 
 * Better naming for websockets implementation
 
