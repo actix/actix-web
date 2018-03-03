@@ -10,7 +10,7 @@ use actix::Arbiter;
 use httparse;
 use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
 use http::header::{self, HeaderName, HeaderValue};
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{Bytes, BytesMut};
 use futures::{Future, Poll, Async};
 use tokio_core::reactor::Timeout;
 
@@ -403,22 +403,22 @@ impl Reader {
         let done = {
             if let Some(ref mut payload) = self.payload {
                 'buf: loop {
-                    match utils::read_from_io(io, buf) {
+                    let not_ready = match utils::read_from_io(io, buf) {
                         Ok(Async::Ready(0)) => {
                             payload.tx.set_error(PayloadError::Incomplete);
 
                             // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
                         },
+                        Ok(Async::NotReady) => true,
                         Err(err) => {
                             payload.tx.set_error(err.into());
 
                             // http channel should not deal with payload errors
                             return Err(ReaderError::Payload)
                         }
-                        _ => (),
-                    }
-                    let is_full = buf.remaining_mut() == 0;
+                        _ => false,
+                    };
                     loop {
                         match payload.decoder.decode(buf) {
                             Ok(Async::Ready(Some(bytes))) => {
@@ -435,10 +435,10 @@ impl Reader {
                             Ok(Async::NotReady) => {
                                 // if buffer is full then
                                 // socket still can contain more data
-                                if is_full {
-                                    continue 'buf
+                                if not_ready {
+                                    return Ok(Async::NotReady)
                                 }
-                                return Ok(Async::NotReady)
+                                continue 'buf
                             },
                             Err(err) => {
                                 payload.tx.set_error(err.into());
@@ -454,16 +454,13 @@ impl Reader {
         if done { self.payload = None }
 
         // if buf is empty parse_message will always return NotReady, let's avoid that
-        let read = if buf.is_empty() {
+        if buf.is_empty() {
             match utils::read_from_io(io, buf) {
                 Ok(Async::Ready(0)) => return Err(ReaderError::Disconnect),
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => return Err(ReaderError::Error(err.into()))
             }
-            false
-        } else {
-            true
         };
 
         loop {
@@ -483,18 +480,14 @@ impl Reader {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         return Err(ReaderError::Error(ParseError::TooLarge));
                     }
-                    if read || buf.remaining_mut() == 0 {
-                        match utils::read_from_io(io, buf) {
-                            Ok(Async::Ready(0)) => {
-                                debug!("Ignored premature client disconnection");
-                                return Err(ReaderError::Disconnect);
-                            },
-                            Ok(Async::Ready(_)) => (),
-                            Ok(Async::NotReady) => return Ok(Async::NotReady),
-                            Err(err) => return Err(ReaderError::Error(err.into())),
-                        }
-                    } else {
-                        return Ok(Async::NotReady)
+                    match utils::read_from_io(io, buf) {
+                        Ok(Async::Ready(0)) => {
+                            debug!("Ignored premature client disconnection");
+                            return Err(ReaderError::Disconnect);
+                        },
+                        Ok(Async::Ready(_)) => (),
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(err) => return Err(ReaderError::Error(err.into())),
                     }
                 },
             }

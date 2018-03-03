@@ -2,7 +2,7 @@ use std::mem;
 use httparse;
 use http::{Version, HttpTryFrom, HeaderMap, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{Bytes, BytesMut};
 use futures::{Poll, Async};
 
 use error::{ParseError, PayloadError};
@@ -37,7 +37,7 @@ impl HttpResponseParser {
         where T: IoStream
     {
         // if buf is empty parse_message will always return NotReady, let's avoid that
-        let read = if buf.is_empty() {
+        if buf.is_empty() {
             match utils::read_from_io(io, buf) {
                 Ok(Async::Ready(0)) =>
                     return Err(HttpResponseParserError::Disconnect),
@@ -47,13 +47,12 @@ impl HttpResponseParser {
                 Err(err) =>
                     return Err(HttpResponseParserError::Error(err.into()))
             }
-            false
-        } else {
-            true
-        };
+        }
 
         loop {
-            match HttpResponseParser::parse_message(buf).map_err(HttpResponseParserError::Error)? {
+            match HttpResponseParser::parse_message(buf)
+                .map_err(HttpResponseParserError::Error)?
+            {
                 Async::Ready((msg, decoder)) => {
                     self.decoder = decoder;
                     return Ok(Async::Ready(msg));
@@ -62,17 +61,13 @@ impl HttpResponseParser {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
-                    if read || buf.remaining_mut() == 0 {
-                        match utils::read_from_io(io, buf) {
-                            Ok(Async::Ready(0)) =>
-                                return Err(HttpResponseParserError::Disconnect),
-                            Ok(Async::Ready(_)) => (),
-                            Ok(Async::NotReady) => return Ok(Async::NotReady),
-                            Err(err) =>
-                                return Err(HttpResponseParserError::Error(err.into())),
-                        }
-                    } else {
-                        return Ok(Async::NotReady)
+                    match utils::read_from_io(io, buf) {
+                        Ok(Async::Ready(0)) =>
+                            return Err(HttpResponseParserError::Disconnect),
+                        Ok(Async::Ready(_)) => (),
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(err) =>
+                            return Err(HttpResponseParserError::Error(err.into())),
                     }
                 },
             }
@@ -84,25 +79,34 @@ impl HttpResponseParser {
         where T: IoStream
     {
         if self.decoder.is_some() {
-            // read payload
-            match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    if buf.is_empty() {
-                        return Err(PayloadError::Incomplete)
+            loop {
+                // read payload
+                let not_ready = match utils::read_from_io(io, buf) {
+                    Ok(Async::Ready(0)) => {
+                        if buf.is_empty() {
+                            return Err(PayloadError::Incomplete)
+                        }
+                        true
                     }
-                }
-                Err(err) => return Err(err.into()),
-                _ => (),
-            }
+                    Err(err) => return Err(err.into()),
+                    Ok(Async::NotReady) => true,
+                    _ => false,
+                };
 
-            match self.decoder.as_mut().unwrap().decode(buf) {
-                Ok(Async::Ready(Some(b))) => Ok(Async::Ready(Some(b))),
-                Ok(Async::Ready(None)) => {
-                    self.decoder.take();
-                    Ok(Async::Ready(None))
+                match self.decoder.as_mut().unwrap().decode(buf) {
+                    Ok(Async::Ready(Some(b))) =>
+                        return Ok(Async::Ready(Some(b))),
+                    Ok(Async::Ready(None)) => {
+                        self.decoder.take();
+                        return Ok(Async::Ready(None))
+                    }
+                    Ok(Async::NotReady) => {
+                        if not_ready {
+                            return Ok(Async::NotReady)
+                        }
+                    }
+                    Err(err) => return Err(err.into()),
                 }
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Err(err) => Err(err.into()),
             }
         } else {
             Ok(Async::Ready(None))
