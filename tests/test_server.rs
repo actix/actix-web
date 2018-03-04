@@ -94,6 +94,7 @@ fn test_start() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_shutdown() {
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
