@@ -1,5 +1,9 @@
 # Changes
 
+## 0.4.4 (2018-03-xx)
+
+* Fix handling of requests with an encoded body with a length > 8192 #93
+
 ## 0.4.3 (2018-03-03)
 
 * Fix request body read bug

@@ -136,27 +136,32 @@ fn test_simple() {
 
 #[test]
 fn test_headers() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let srv_data = Arc::new(data.clone());
     let mut srv = test::TestServer::new(
-        |app| app.handler(|_| {
-            let mut builder = httpcodes::HTTPOk.build();
-            for idx in 0..90 {
-                builder.header(
-                    format!("X-TEST-{}", idx).as_str(),
-                    "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
-                     TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ");
-            }
-            builder.body(STR)}));
+        move |app| {
+            let data = srv_data.clone();
+            app.handler(move |_| {
+                let mut builder = httpcodes::HTTPOk.build();
+                for idx in 0..90 {
+                    builder.header(
+                        format!("X-TEST-{}", idx).as_str(),
+                        "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ");
+                }
+                builder.body(data.as_ref())})
+        });
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -164,7 +169,7 @@ fn test_headers() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    assert_eq!(bytes, Bytes::from(data));
 }
 
 #[test]
@@ -201,6 +206,33 @@ fn test_body_gzip() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_gzip_large() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let srv_data = Arc::new(data.clone());
+
+    let mut srv = test::TestServer::new(
+        move |app| {
+            let data = srv_data.clone();
+            app.handler(
+                move |_| httpcodes::HTTPOk.build()
+                    .content_encoding(headers::ContentEncoding::Gzip)
+                    .body(data.as_ref()))});
+
+    let request = srv.get().disable_decompress().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+
+    // decode
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
 #[test]
@@ -431,6 +463,35 @@ fn test_gzip_encoding() {
 }
 
 #[test]
+fn test_gzip_encoding_large() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "gzip")
+        .body(enc.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
 fn test_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -459,6 +520,35 @@ fn test_deflate_encoding() {
 }
 
 #[test]
+fn test_deflate_encoding_large() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "deflate")
+        .body(enc).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
 fn test_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -484,6 +574,35 @@ fn test_brotli_encoding() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_brotli_encoding_large() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "br")
+        .body(enc).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
 }
 
 #[test]

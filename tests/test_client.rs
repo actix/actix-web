@@ -117,6 +117,32 @@ fn test_client_gzip_encoding() {
 }
 
 #[test]
+fn test_client_gzip_encoding_large() {
+    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Deflate)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    // client request
+    let request = srv.post()
+        .content_encoding(headers::ContentEncoding::Gzip)
+        .body(data.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
 fn test_client_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()

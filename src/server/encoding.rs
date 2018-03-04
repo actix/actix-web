@@ -11,7 +11,7 @@ use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
-use bytes::{Bytes, BytesMut, BufMut, Writer};
+use bytes::{Bytes, BytesMut, BufMut};
 
 use headers::ContentEncoding;
 use body::{Body, Binary};
@@ -128,177 +128,6 @@ impl PayloadWriter for PayloadType {
     }
 }
 
-pub(crate) enum Decoder {
-    Deflate(Box<DeflateDecoder<Writer<BytesMut>>>),
-    Gzip(Option<Box<GzDecoder<Wrapper>>>),
-    Br(Box<BrotliDecoder<Writer<BytesMut>>>),
-    Identity,
-}
-
-// should go after write::GzDecoder get implemented
-#[derive(Debug)]
-pub(crate) struct Wrapper {
-    pub buf: BytesMut,
-    pub eof: bool,
-}
-
-impl io::Read for Wrapper {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let len = cmp::min(buf.len(), self.buf.len());
-        buf[..len].copy_from_slice(&self.buf[..len]);
-        self.buf.split_to(len);
-        if len == 0 {
-            if self.eof {
-                Ok(0)
-            } else {
-                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
-            }
-        } else {
-            Ok(len)
-        }
-    }
-}
-
-impl io::Write for Wrapper {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buf.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Payload stream with decompression support
-pub(crate) struct PayloadStream {
-    decoder: Decoder,
-    dst: BytesMut,
-}
-
-impl PayloadStream {
-    pub fn new(enc: ContentEncoding) -> PayloadStream {
-        let dec = match enc {
-            ContentEncoding::Br => Decoder::Br(
-                Box::new(BrotliDecoder::new(BytesMut::with_capacity(8192).writer()))),
-            ContentEncoding::Deflate => Decoder::Deflate(
-                Box::new(DeflateDecoder::new(BytesMut::with_capacity(8192).writer()))),
-            ContentEncoding::Gzip => Decoder::Gzip(None),
-            _ => Decoder::Identity,
-        };
-        PayloadStream{ decoder: dec, dst: BytesMut::new() }
-    }
-}
-
-impl PayloadStream {
-
-    pub fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
-        match self.decoder {
-            Decoder::Br(ref mut decoder) => {
-                match decoder.finish() {
-                    Ok(mut writer) => {
-                        let b = writer.get_mut().take().freeze();
-                        if !b.is_empty() {
-                            Ok(Some(b))
-                        } else {
-                            Ok(None)
-                        }
-                    },
-                    Err(err) => Err(err),
-                }
-            },
-            Decoder::Gzip(ref mut decoder) => {
-                if let Some(ref mut decoder) = *decoder {
-                    decoder.as_mut().get_mut().eof = true;
-
-                    loop {
-                        self.dst.reserve(8192);
-                        match decoder.read(unsafe{self.dst.bytes_mut()}) {
-                            Ok(n) =>  {
-                                if n == 0 {
-                                    return Ok(Some(self.dst.take().freeze()))
-                                } else {
-                                    unsafe{self.dst.set_len(n)};
-                                }
-                            }
-                            Err(err) => return Err(err),
-                        }
-                    }
-                } else {
-                    Ok(None)
-                }
-            },
-            Decoder::Deflate(ref mut decoder) => {
-                match decoder.try_finish() {
-                    Ok(_) => {
-                        let b = decoder.get_mut().get_mut().take().freeze();
-                        if !b.is_empty() {
-                            Ok(Some(b))
-                        } else {
-                            Ok(None)
-                        }
-                    },
-                    Err(err) => Err(err),
-                }
-            },
-            Decoder::Identity => Ok(None),
-        }
-    }
-
-    pub fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
-        match self.decoder {
-            Decoder::Br(ref mut decoder) => {
-                match decoder.write(&data).and_then(|_| decoder.flush()) {
-                    Ok(_) => {
-                        let b = decoder.get_mut().get_mut().take().freeze();
-                        if !b.is_empty() {
-                            Ok(Some(b))
-                        } else {
-                            Ok(None)
-                        }
-                    },
-                    Err(err) => Err(err)
-                }
-            },
-            Decoder::Gzip(ref mut decoder) => {
-                if decoder.is_none() {
-                    *decoder = Some(
-                        Box::new(GzDecoder::new(
-                            Wrapper{buf: BytesMut::from(data), eof: false})));
-                } else {
-                    let _ = decoder.as_mut().unwrap().write(&data);
-                }
-
-                loop {
-                    self.dst.reserve(8192);
-                    match decoder.as_mut().as_mut().unwrap().read(unsafe{self.dst.bytes_mut()}) {
-                        Ok(n) =>  {
-                            if n == 0 {
-                                return Ok(Some(self.dst.split_to(n).freeze()));
-                            } else {
-                                unsafe{self.dst.set_len(n)};
-                            }
-                        }
-                        Err(e) => return Err(e),
-                    }
-                }
-            },
-            Decoder::Deflate(ref mut decoder) => {
-                match decoder.write(&data).and_then(|_| decoder.flush()) {
-                    Ok(_) => {
-                        let b = decoder.get_mut().get_mut().take().freeze();
-                        if !b.is_empty() {
-                            Ok(Some(b))
-                        } else {
-                            Ok(None)
-                        }
-                    },
-                    Err(e) => Err(e),
-                }
-            },
-            Decoder::Identity => Ok(Some(data)),
-        }
-    }
-}
 
 /// Payload wrapper with content decompression support
 pub(crate) struct EncodedPayload {
@@ -354,6 +183,203 @@ impl PayloadWriter for EncodedPayload {
     #[inline]
     fn need_read(&self) -> PayloadStatus {
         self.inner.need_read()
+    }
+}
+
+pub(crate) enum Decoder {
+    Deflate(Box<DeflateDecoder<Writer>>),
+    Gzip(Option<Box<GzDecoder<Wrapper>>>),
+    Br(Box<BrotliDecoder<Writer>>),
+    Identity,
+}
+
+// should go after write::GzDecoder get implemented
+#[derive(Debug)]
+pub(crate) struct Wrapper {
+    pub buf: BytesMut,
+    pub eof: bool,
+}
+
+impl io::Read for Wrapper {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let len = cmp::min(buf.len(), self.buf.len());
+        buf[..len].copy_from_slice(&self.buf[..len]);
+        self.buf.split_to(len);
+        if len == 0 {
+            if self.eof {
+                Ok(0)
+            } else {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+            }
+        } else {
+            Ok(len)
+        }
+    }
+}
+
+impl io::Write for Wrapper {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) struct Writer {
+    buf: BytesMut,
+}
+
+impl Writer {
+    fn new() -> Writer {
+        Writer{buf: BytesMut::with_capacity(8192)}
+    }
+    fn take(&mut self) -> Bytes {
+        self.buf.take().freeze()
+    }
+}
+
+impl io::Write for Writer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Payload stream with decompression support
+pub(crate) struct PayloadStream {
+    decoder: Decoder,
+    dst: BytesMut,
+}
+
+impl PayloadStream {
+    pub fn new(enc: ContentEncoding) -> PayloadStream {
+        let dec = match enc {
+            ContentEncoding::Br => Decoder::Br(
+                Box::new(BrotliDecoder::new(Writer::new()))),
+            ContentEncoding::Deflate => Decoder::Deflate(
+                Box::new(DeflateDecoder::new(Writer::new()))),
+            ContentEncoding::Gzip => Decoder::Gzip(None),
+            _ => Decoder::Identity,
+        };
+        PayloadStream{ decoder: dec, dst: BytesMut::new() }
+    }
+}
+
+impl PayloadStream {
+
+    pub fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
+        match self.decoder {
+            Decoder::Br(ref mut decoder) => {
+                match decoder.finish() {
+                    Ok(mut writer) => {
+                        let b = writer.take();
+                        if !b.is_empty() {
+                            Ok(Some(b))
+                        } else {
+                            Ok(None)
+                        }
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Decoder::Gzip(ref mut decoder) => {
+                if let Some(ref mut decoder) = *decoder {
+                    decoder.as_mut().get_mut().eof = true;
+
+                    loop {
+                        self.dst.reserve(8192);
+                        match decoder.read(unsafe{self.dst.bytes_mut()}) {
+                            Ok(n) =>  {
+                                if n == 0 {
+                                    return Ok(Some(self.dst.take().freeze()))
+                                } else {
+                                    unsafe{self.dst.advance_mut(n)};
+                                }
+                            }
+                            Err(e) => return Err(e),
+                        }
+                    }
+                } else {
+                    Ok(None)
+                }
+            },
+            Decoder::Deflate(ref mut decoder) => {
+                match decoder.try_finish() {
+                    Ok(_) => {
+                        let b = decoder.get_mut().take();
+                        if !b.is_empty() {
+                            Ok(Some(b))
+                        } else {
+                            Ok(None)
+                        }
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Decoder::Identity => Ok(None),
+        }
+    }
+
+    pub fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
+        match self.decoder {
+            Decoder::Br(ref mut decoder) => {
+                match decoder.write(&data).and_then(|_| decoder.flush()) {
+                    Ok(_) => {
+                        let b = decoder.get_mut().take();
+                        if !b.is_empty() {
+                            Ok(Some(b))
+                        } else {
+                            Ok(None)
+                        }
+                    },
+                    Err(e) => Err(e)
+                }
+            },
+            Decoder::Gzip(ref mut decoder) => {
+                if decoder.is_none() {
+                    *decoder = Some(
+                        Box::new(GzDecoder::new(
+                            Wrapper{buf: BytesMut::from(data), eof: false})));
+                } else {
+                    let _ = decoder.as_mut().unwrap().write(&data);
+                }
+
+                loop {
+                    self.dst.reserve(8192);
+                    match decoder.as_mut().as_mut().unwrap().read(unsafe{self.dst.bytes_mut()}) {
+                        Ok(n) =>  {
+                            if n == 0 {
+                                return Ok(Some(self.dst.take().freeze()));
+                            } else {
+                                unsafe{self.dst.advance_mut(n)};
+                            }
+                        }
+                        Err(e) => {
+                            return Err(e)
+                        }
+                    }
+                }
+            },
+            Decoder::Deflate(ref mut decoder) => {
+                match decoder.write(&data).and_then(|_| decoder.flush()) {
+                    Ok(_) => {
+                        let b = decoder.get_mut().take();
+                        if !b.is_empty() {
+                            Ok(Some(b))
+                        } else {
+                            Ok(None)
+                        }
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Decoder::Identity => Ok(Some(data)),
+        }
     }
 }
 
