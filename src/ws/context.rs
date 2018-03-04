@@ -132,7 +132,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send text frame
     #[inline]
-    pub fn text<T: Into<String>>(&mut self, text: T) {
+    pub fn text<T: Into<Binary>>(&mut self, text: T) {
         self.write(Frame::message(text.into(), OpCode::Text, true, false));
     }
 
