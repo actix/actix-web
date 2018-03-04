@@ -88,7 +88,7 @@ impl Handler<ClientCommand> for ChatClient {
     type Result = ();
 
     fn handle(&mut self, msg: ClientCommand, ctx: &mut Context<Self>) {
-        self.0.text(msg.0.as_str())
+        self.0.text(msg.0)
     }
 }
 
