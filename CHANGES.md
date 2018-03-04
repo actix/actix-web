@@ -1,8 +1,10 @@
 # Changes
 
-## 0.4.3 (2018-03-xx)
+## 0.4.3 (2018-03-03)
 
 * Fix request body read bug
+
+* Fix segmentation fault #79
 
 * Set reuse address before bind #90
 
