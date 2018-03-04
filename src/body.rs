@@ -36,6 +36,8 @@ pub enum Binary {
     /// Shared string body
     #[doc(hidden)]
     ArcSharedString(Arc<String>),
+    /// Shared vec body
+    SharedVec(Arc<Vec<u8>>),
 }
 
 impl Body {
@@ -115,6 +117,7 @@ impl Binary {
             Binary::Slice(slice) => slice.len(),
             Binary::SharedString(ref s) => s.len(),
             Binary::ArcSharedString(ref s) => s.len(),
+            Binary::SharedVec(ref s) => s.len(),
         }
     }
 
@@ -134,8 +137,9 @@ impl Clone for Binary {
         match *self {
             Binary::Bytes(ref bytes) => Binary::Bytes(bytes.clone()),
             Binary::Slice(slice) => Binary::Bytes(Bytes::from(slice)),
-            Binary::SharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
-            Binary::ArcSharedString(ref s) => Binary::Bytes(Bytes::from(s.as_str())),
+            Binary::SharedString(ref s) => Binary::SharedString(s.clone()),
+            Binary::ArcSharedString(ref s) => Binary::ArcSharedString(s.clone()),
+            Binary::SharedVec(ref s) => Binary::SharedVec(s.clone()),
         }
     }
 }
@@ -147,6 +151,7 @@ impl Into<Bytes> for Binary {
             Binary::Slice(slice) => Bytes::from(slice),
             Binary::SharedString(s) => Bytes::from(s.as_str()),
             Binary::ArcSharedString(s) => Bytes::from(s.as_str()),
+            Binary::SharedVec(s) => Bytes::from(AsRef::<[u8]>::as_ref(s.as_ref())),
         }
     }
 }
@@ -217,6 +222,18 @@ impl<'a> From<&'a Arc<String>> for Binary {
     }
 }
 
+impl From<Arc<Vec<u8>>> for Binary {
+    fn from(body: Arc<Vec<u8>>) -> Binary {
+        Binary::SharedVec(body)
+    }
+}
+
+impl<'a> From<&'a Arc<Vec<u8>>> for Binary {
+    fn from(body: &'a Arc<Vec<u8>>) -> Binary {
+        Binary::SharedVec(Arc::clone(body))
+    }
+}
+
 impl AsRef<[u8]> for Binary {
     fn as_ref(&self) -> &[u8] {
         match *self {
@@ -224,6 +241,7 @@ impl AsRef<[u8]> for Binary {
             Binary::Slice(slice) => slice,
             Binary::SharedString(ref s) => s.as_bytes(),
             Binary::ArcSharedString(ref s) => s.as_bytes(),
+            Binary::SharedVec(ref s) => s.as_ref().as_ref(),
         }
     }
 }
@@ -302,6 +320,15 @@ mod tests {
         assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
         assert_eq!(Binary::from(&b).len(), 4);
         assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+    }
+
+    #[test]
+    fn test_shared_vec() {
+        let b = Arc::new(Vec::from(&b"test"[..]));
+        assert_eq!(Binary::from(b.clone()).len(), 4);
+        assert_eq!(Binary::from(b.clone()).as_ref(), &b"test"[..]);
+        assert_eq!(Binary::from(&b).len(), 4);
+        assert_eq!(Binary::from(&b).as_ref(), &b"test"[..]);
     }
 
     #[test]

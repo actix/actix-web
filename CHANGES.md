@@ -2,6 +2,8 @@
 
 ## 0.4.4 (2018-03-xx)
 
+* Allow to use Arc<Vec<u8>> as response/request body
+
 * Fix handling of requests with an encoded body with a length > 8192 #93
 
 ## 0.4.3 (2018-03-03)
