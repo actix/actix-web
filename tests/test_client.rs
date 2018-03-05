@@ -118,7 +118,7 @@ fn test_client_gzip_encoding() {
 
 #[test]
 fn test_client_gzip_encoding_large() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
 
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
