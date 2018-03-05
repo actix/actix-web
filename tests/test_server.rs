@@ -136,7 +136,7 @@ fn test_simple() {
 
 #[test]
 fn test_headers() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
     let srv_data = Arc::new(data.clone());
     let mut srv = test::TestServer::new(
         move |app| {
@@ -210,7 +210,7 @@ fn test_body_gzip() {
 
 #[test]
 fn test_body_gzip_large() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
     let srv_data = Arc::new(data.clone());
 
     let mut srv = test::TestServer::new(
@@ -464,7 +464,7 @@ fn test_gzip_encoding() {
 
 #[test]
 fn test_gzip_encoding_large() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
@@ -521,7 +521,7 @@ fn test_deflate_encoding() {
 
 #[test]
 fn test_deflate_encoding_large() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
@@ -578,7 +578,7 @@ fn test_brotli_encoding() {
 
 #[test]
 fn test_brotli_encoding_large() {
-    let data = STR.to_owned() + STR + STR + STR + STR + STR + STR + STR + STR + STR + STR;
+    let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
