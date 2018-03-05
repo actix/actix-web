@@ -8,14 +8,14 @@ use std::fs::{File, DirEntry};
 use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 
+use http::{header, Method};
 use mime_guess::get_mime_type;
 
 use param::FromParam;
 use handler::{Handler, Responder};
-use headers::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HttpOk, HttpFound};
+use httpcodes::{HttpOk, HttpFound, HttpMethodNotAllowed};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -83,15 +83,22 @@ impl Responder for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
-        let mut resp = HttpOk.build();
-        if let Some(ext) = self.path().extension() {
-            let mime = get_mime_type(&ext.to_string_lossy());
-            resp.content_type(format!("{}", mime).as_str());
+    fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+        if *req.method() != Method::GET && *req.method() != Method::HEAD {
+            Ok(HttpMethodNotAllowed.build()
+               .header(header::CONTENT_TYPE, "text/plain")
+               .header(header::ALLOW, "GET, HEAD")
+               .body("This resource only supports GET and HEAD.").unwrap())
+        } else {
+            let mut resp = HttpOk.build();
+            if let Some(ext) = self.path().extension() {
+                let mime = get_mime_type(&ext.to_string_lossy());
+                resp.content_type(format!("{}", mime).as_str());
+            }
+            let mut data = Vec::new();
+            let _ = self.1.read_to_end(&mut data);
+            Ok(resp.body(data).unwrap())
         }
-        let mut data = Vec::new();
-        let _ = self.1.read_to_end(&mut data);
-        Ok(resp.body(data).unwrap())
     }
 }
 
