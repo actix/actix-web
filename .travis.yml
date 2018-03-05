@@ -65,6 +65,7 @@ script:
       cd examples/tls && cargo check && cd ../..
       cd examples/websocket-chat && cargo check && cd ../..
       cd examples/websocket && cargo check && cd ../..
+      cd examples/unix-socket && cargo check && cd ../..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then

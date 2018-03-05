@@ -114,5 +114,6 @@ members = [
   "examples/websocket",
   "examples/websocket-chat",
   "examples/web-cors/backend",
+  "examples/unix-socket",
   "tools/wsload/",
 ]
