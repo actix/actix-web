@@ -4,40 +4,52 @@ extern crate futures;
 extern crate env_logger;
 
 use actix_web::*;
-use futures::Future;
-use futures::future::{ok, err, Either};
+use futures::{Future, Stream};
 
 
+/// Stream client request response and then send body to a server response
 fn index(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     client::ClientRequest::get("https://www.rust-lang.org/en-US/")
         .finish().unwrap()
         .send()
-        .map_err(|e| error::Error::from(error::ErrorInternalServerError(e)))
-        .then(|result| match result {
-            Ok(resp) => {
-                Either::A(resp.body().from_err().and_then(|body| {
-                    match httpcodes::HttpOk.build().body(body) {
-                        Ok(resp) => ok(resp),
-                        Err(e) => err(e.into()),
-                    }
+        .map_err(error::Error::from)   // <- convert SendRequestError to an Error
+        .and_then(
+            |resp| resp.body()         // <- this is MessageBody type, resolves to complete body
+                .from_err()            // <- convet PayloadError to a Error
+                .and_then(|body| {     // <- we got complete body, now send as server response
+                    httpcodes::HttpOk.build()
+                        .body(body)
+                        .map_err(error::Error::from)
                 }))
-            },
-            Err(e) => {
-                Either::B(err(error::Error::from(e)))
-            }
+        .responder()
+}
+
+/// stream client request to a server response
+fn streaming(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    // send client request
+    client::ClientRequest::get("https://www.rust-lang.org/en-US/")
+        .finish().unwrap()
+        .send()                         // <- connect to host and send request
+        .map_err(error::Error::from)    // <- convert SendRequestError to an Error
+        .and_then(|resp| {              // <- we received client response
+            httpcodes::HttpOk.build()
+                // read one chunk from client response and send this chunk to a server response
+                // .from_err() converts PayloadError to a Error
+                .body(Body::Streaming(Box::new(resp.from_err())))
+                .map_err(|e| e.into()) // HttpOk::build() mayb return HttpError, we need to convert it to a Error
         })
         .responder()
 }
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
-    let sys = actix::System::new("ws-example");
+    env_logger::init();
+    let sys = actix::System::new("http-proxy");
 
     let _addr = HttpServer::new(
         || Application::new()
-            // enable logger
             .middleware(middleware::Logger::default())
+            .resource("/streaming", |r| r.f(streaming))
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8080").unwrap()
         .start();

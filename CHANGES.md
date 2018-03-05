@@ -1,5 +1,11 @@
 # Changes
 
+## 0.4.5 (2018-03-xx)
+
+* Add `ResponseError` impl for `SendRequestError`.
+  This improves ergonomics of http client.
+
+
 ## 0.4.4 (2018-03-04)
 
 * Allow to use Arc<Vec<u8>> as response/request body
