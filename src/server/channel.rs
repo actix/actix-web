@@ -32,9 +32,10 @@ pub struct HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static {
 impl<T, H> HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
 {
     pub(crate) fn new(settings: Rc<WorkerSettings<H>>,
-                      io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
+                      mut io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
     {
         settings.add_channel();
+        let _ = io.set_nodelay(true);
 
         if http2 {
             HttpChannel {
