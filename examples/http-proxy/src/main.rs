@@ -24,7 +24,7 @@ fn index(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .responder()
 }
 
-/// stream client request to a server response
+/// streaming client request to a streaming server response
 fn streaming(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     // send client request
     client::ClientRequest::get("https://www.rust-lang.org/en-US/")

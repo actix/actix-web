@@ -2,6 +2,8 @@
 
 ## 0.4.5 (2018-03-xx)
 
+* Enable compression support for `NamedFile`
+
 * Add `ResponseError` impl for `SendRequestError`.
   This improves ergonomics of http client.
 
