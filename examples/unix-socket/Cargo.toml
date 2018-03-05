@@ -1,0 +1,10 @@
+[package]
+name = "unix-socket"
+version = "0.1.0"
+authors = ["Messense Lv <messense@icloud.com>"]
+
+[dependencies]
+env_logger = "0.5"
+actix = "0.5"
+actix-web = { path = "../../" }
+tokio-uds = "0.1"
