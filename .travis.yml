@@ -55,6 +55,7 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cd examples/basics && cargo check && cd ../..
       cd examples/hello-world && cargo check && cd ../..
+      cd examples/http-proxy && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
       cd examples/juniper && cargo check && cd ../..

@@ -106,6 +106,7 @@ members = [
   "examples/r2d2",
   "examples/json",
   "examples/hello-world",
+  "examples/http-proxy",
   "examples/multipart",
   "examples/state",
   "examples/redis-session",
