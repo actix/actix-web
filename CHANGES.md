@@ -10,7 +10,8 @@
 
 * Add `ResponseError` impl for `SendRequestError`.
   This improves ergonomics of http client.
-
+  
+* Allow connection timeout to be set
 
 ## 0.4.4 (2018-03-04)
 
