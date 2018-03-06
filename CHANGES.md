@@ -1,7 +1,16 @@
 # Changes
 
-## 0.4.5 
+## 0.4.5 (2018-03-xx)
 
+* Fix compression #103 and #104
+
+* Enable compression support for `NamedFile`
+
+* Better support for `NamedFile` type
+
+* Add `ResponseError` impl for `SendRequestError`.
+  This improves ergonomics of http client.
+  
 * Allow connection timeout to be set
 
 ## 0.4.4 (2018-03-04)

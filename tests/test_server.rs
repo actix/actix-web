@@ -7,6 +7,7 @@ extern crate http;
 extern crate bytes;
 extern crate flate2;
 extern crate brotli2;
+extern crate rand;
 
 use std::{net, thread, time};
 use std::io::{Read, Write};
@@ -23,6 +24,7 @@ use bytes::{Bytes, BytesMut};
 use http::{header, Request};
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
+use rand::Rng;
 
 use actix::System;
 use actix_web::*;
@@ -232,6 +234,37 @@ fn test_body_gzip_large() {
     let mut e = GzDecoder::new(&bytes[..]);
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from(data));
+}
+
+#[test]
+fn test_body_gzip_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(70_000)
+        .collect::<String>();
+    let srv_data = Arc::new(data.clone());
+
+    let mut srv = test::TestServer::new(
+        move |app| {
+            let data = srv_data.clone();
+            app.handler(
+                move |_| httpcodes::HTTPOk.build()
+                    .content_encoding(headers::ContentEncoding::Gzip)
+                    .body(data.as_ref()))});
+
+    let request = srv.get().disable_decompress().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+
+    // decode
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(dec.len(), data.len());
     assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
@@ -492,7 +525,41 @@ fn test_gzip_encoding_large() {
 }
 
 #[test]
-fn test_deflate_encoding() {
+fn test_reading_gzip_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(60_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "gzip")
+        .body(enc.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
+fn test_reading_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
@@ -520,7 +587,7 @@ fn test_deflate_encoding() {
 }
 
 #[test]
-fn test_deflate_encoding_large() {
+fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -545,6 +612,40 @@ fn test_deflate_encoding_large() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
+fn test_reading_deflate_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(160_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "deflate")
+        .body(enc).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
 }
 

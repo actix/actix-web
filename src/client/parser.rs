@@ -78,6 +78,7 @@ impl HttpResponseParser {
                             -> Poll<Option<Bytes>, PayloadError>
         where T: IoStream
     {
+        println!("PARSE payload, {:?}", self.decoder.is_some());
         if self.decoder.is_some() {
             loop {
                 // read payload
