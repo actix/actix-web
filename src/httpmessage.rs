@@ -12,6 +12,7 @@ use encoding::label::encoding_from_whatwg_label;
 use http::{header, HeaderMap};
 
 use json::JsonBody;
+use header::Header;
 use multipart::Multipart;
 use error::{ParseError, ContentTypeError,
             HttpRangeError, PayloadError, UrlencodedError};
@@ -23,6 +24,12 @@ pub trait HttpMessage {
     /// Read the message headers.
     fn headers(&self) -> &HeaderMap;
 
+    #[doc(hidden)]
+    /// Get a header
+    fn get_header<H: Header>(&self) -> Result<H, ParseError> where Self: Sized {
+        H::parse(self)
+    }
+    
     /// Read the request content type. If request does not contain
     /// *Content-Type* header, empty str get returned.
     fn content_type(&self) -> &str {

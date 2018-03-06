@@ -71,6 +71,7 @@ extern crate httparse;
 extern crate http_range;
 extern crate mime;
 extern crate mime_guess;
+extern crate language_tags;
 extern crate rand;
 extern crate url;
 extern crate libc;
@@ -120,6 +121,7 @@ pub mod client;
 pub mod fs;
 pub mod ws;
 pub mod error;
+pub mod header;
 pub mod httpcodes;
 pub mod multipart;
 pub mod middleware;
@@ -152,29 +154,15 @@ pub(crate) const HAS_OPENSSL: bool = false;
 // #[cfg(not(feature="tls"))]
 // pub(crate) const HAS_TLS: bool = false;
 
-
+#[doc(hidden)]
+#[deprecated(since="0.4.4", note="please use `actix::header` module")]
 pub mod headers {
 //! Headers implementation
 
     pub use httpresponse::ConnectionType;
-
     pub use cookie::{Cookie, CookieBuilder};
     pub use http_range::HttpRange;
-
-    /// Represents supported types of content encodings
-    #[derive(Copy, Clone, PartialEq, Debug)]
-    pub enum ContentEncoding {
-        /// Automatically select encoding based on encoding negotiation
-        Auto,
-        /// A format using the Brotli algorithm
-        Br,
-        /// A format using the zlib structure with deflate algorithm
-        Deflate,
-        /// Gzip algorithm
-        Gzip,
-        /// Indicates the identity function (i.e. no compression, nor modification)
-        Identity,
-    }
+    pub use header::ContentEncoding;
 }
 
 pub mod dev {

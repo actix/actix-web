@@ -8,7 +8,7 @@ use std::str::FromStr;
 use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
-use http::header::{HeaderName, HeaderValue};
+use http::header::HeaderName;
 use futures::Future;
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
@@ -17,6 +17,7 @@ use net2::TcpBuilder;
 use ws;
 use body::Binary;
 use error::Error;
+use header::{Header, IntoHeaderValue};
 use handler::{Handler, Responder, ReplyItem};
 use middleware::Middleware;
 use application::{Application, HttpApplication};
@@ -333,9 +334,14 @@ impl TestRequest<()> {
     }
 
     /// Create TestRequest and set header
+    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest<()>
+    {
+        TestRequest::default().set(hdr)
+    }
+
+    /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest<()>
-        where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value)
     }
@@ -376,12 +382,21 @@ impl<S> TestRequest<S> {
     }
 
     /// Set a header
+    pub fn set<H: Header>(mut self, hdr: H) -> Self
+    {
+        if let Ok(value) = hdr.try_into() {
+            self.headers.append(H::name(), value);
+            return self
+        }
+        panic!("Can not set header");
+    }
+
+    /// Set a header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
-        where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue
     {
         if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = HeaderValue::try_from(value) {
+            if let Ok(value) = value.try_into() {
                 self.headers.append(key, value);
                 return self
             }

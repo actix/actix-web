@@ -281,7 +281,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start acceptors threads
             for (addr, sock) in addrs {
-                info!("Starting http server on {}", addr);
+                info!("Starting server on http://{}", addr);
                 self.accept.push(
                     start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
@@ -343,7 +343,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start acceptors threads
             for (addr, sock) in addrs {
-                info!("Starting tls http server on {}", addr);
+                info!("Starting server on https://{}", addr);
                 self.accept.push(
                     start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
@@ -387,7 +387,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start acceptors threads
             for (addr, sock) in addrs {
-                info!("Starting tls http server on {}", addr);
+                info!("Starting server on https://{}", addr);
                 self.accept.push(
                     start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
@@ -420,7 +420,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             // start acceptors threads
             for (addr, sock) in addrs {
-                info!("Starting http server on {}", addr);
+                info!("Starting server on http://{}", addr);
                 self.accept.push(
                     start_accept_thread(sock, addr, self.backlog, workers.clone()));
             }
