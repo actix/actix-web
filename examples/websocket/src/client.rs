@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use actix::*;
 use futures::Future;
-use actix_web::ws::{Message, WsClientError, WsClient, WsClientWriter};
+use actix_web::ws::{Message, ProtocolError, Client, ClientWriter};
 
 
 fn main() {
@@ -21,8 +21,8 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     Arbiter::handle().spawn(
-        WsClient::new("http://127.0.0.1:8080/ws/")
-            .connect().unwrap()
+        Client::new("http://127.0.0.1:8080/ws/")
+            .connect()
             .map_err(|e| {
                 println!("Error: {}", e);
                 ()
@@ -53,7 +53,7 @@ fn main() {
 }
 
 
-struct ChatClient(WsClientWriter);
+struct ChatClient(ClientWriter);
 
 #[derive(Message)]
 struct ClientCommand(String);
@@ -88,12 +88,12 @@ impl Handler<ClientCommand> for ChatClient {
     type Result = ();
 
     fn handle(&mut self, msg: ClientCommand, ctx: &mut Context<Self>) {
-        self.0.text(msg.0.as_str())
+        self.0.text(msg.0)
     }
 }
 
 /// Handle server websocket messages
-impl StreamHandler<Message, WsClientError> for ChatClient {
+impl StreamHandler<Message, ProtocolError> for ChatClient {
 
     fn handle(&mut self, msg: Message, ctx: &mut Context<Self>) {
         match msg {

@@ -92,8 +92,7 @@ impl Handler<session::Message> for WsChatSession {
 }
 
 /// WebSocket message handler
-impl Handler<ws::Message> for WsChatSession {
-    type Result = ();
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsChatSession {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         println!("WEBSOCKET MESSAGE: {:?}", msg);
@@ -161,10 +160,9 @@ impl Handler<ws::Message> for WsChatSession {
             },
             ws::Message::Binary(bin) =>
                 println!("Unexpected binary"),
-            ws::Message::Closed | ws::Message::Error => {
+            ws::Message::Close(_) => {
                 ctx.stop();
             }
-            _ => (),
         }
     }
 }

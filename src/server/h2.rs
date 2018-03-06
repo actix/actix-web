@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, cmp, mem};
 use std::rc::Rc;
 use std::io::{Read, Write};
@@ -16,9 +18,10 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use error::PayloadError;
-use httpcodes::HTTPNotFound;
+use httpcodes::HttpNotFound;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
-use payload::{Payload, PayloadWriter};
+use payload::{Payload, PayloadWriter, PayloadStatus};
 
 use super::h2writer::H2Writer;
 use super::encoding::PayloadType;
@@ -32,7 +35,8 @@ bitflags! {
 }
 
 /// HTTP/2 Transport
-pub(crate) struct Http2<T, H>
+pub(crate)
+struct Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static, H: 'static
 {
     flags: Flags,
@@ -53,15 +57,17 @@ impl<T, H> Http2<T, H>
     where T: AsyncRead + AsyncWrite + 'static,
           H: HttpHandler + 'static
 {
-    pub fn new(h: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes) -> Self
+    pub fn new(settings: Rc<WorkerSettings<H>>,
+               io: T,
+               addr: Option<SocketAddr>, buf: Bytes) -> Self
     {
         Http2{ flags: Flags::empty(),
-               settings: h,
-               addr: addr,
                tasks: VecDeque::new(),
                state: State::Handshake(
                    server::handshake(IoWrapper{unread: Some(buf), inner: io})),
                keepalive_timer: None,
+               addr,
+               settings,
         }
     }
 
@@ -99,21 +105,30 @@ impl<T, H> Http2<T, H>
                     item.poll_payload();
 
                     if !item.flags.contains(EntryFlags::EOF) {
-                        match item.task.poll_io(&mut item.stream) {
-                            Ok(Async::Ready(ready)) => {
-                                item.flags.insert(EntryFlags::EOF);
-                                if ready {
-                                    item.flags.insert(EntryFlags::FINISHED);
+                        let retry = item.payload.need_read() == PayloadStatus::Read;
+                        loop {
+                            match item.task.poll_io(&mut item.stream) {
+                                Ok(Async::Ready(ready)) => {
+                                    item.flags.insert(EntryFlags::EOF);
+                                    if ready {
+                                        item.flags.insert(EntryFlags::FINISHED);
+                                    }
+                                    not_ready = false;
+                                },
+                                Ok(Async::NotReady) => {
+                                    if item.payload.need_read() == PayloadStatus::Read && !retry
+                                    {
+                                        continue
+                                    }
+                                },
+                                Err(err) => {
+                                    error!("Unhandled error: {}", err);
+                                    item.flags.insert(EntryFlags::EOF);
+                                    item.flags.insert(EntryFlags::ERROR);
+                                    item.stream.reset(Reason::INTERNAL_ERROR);
                                 }
-                                not_ready = false;
-                            },
-                            Ok(Async::NotReady) => (),
-                            Err(err) => {
-                                error!("Unhandled error: {}", err);
-                                item.flags.insert(EntryFlags::EOF);
-                                item.flags.insert(EntryFlags::ERROR);
-                                item.stream.reset(Reason::INTERNAL_ERROR);
                             }
+                            break
                         }
                     } else if !item.flags.contains(EntryFlags::FINISHED) {
                         match item.task.poll() {
@@ -244,7 +259,6 @@ struct Entry {
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer,
-    capacity: usize,
     flags: EntryFlags,
 }
 
@@ -284,17 +298,24 @@ impl Entry {
             }
         }
 
-        Entry {task: task.unwrap_or_else(|| Pipeline::error(HTTPNotFound)),
+        Entry {task: task.unwrap_or_else(|| Pipeline::error(HttpNotFound)),
                payload: psender,
-               recv: recv,
                stream: H2Writer::new(resp, settings.get_shared_bytes()),
                flags: EntryFlags::empty(),
-               capacity: 0,
+               recv,
         }
     }
 
     fn poll_payload(&mut self) {
         if !self.flags.contains(EntryFlags::REOF) {
+            if self.payload.need_read() == PayloadStatus::Read {
+                if let Err(err) = self.recv.release_capacity().release_capacity(32_768) {
+                    self.payload.set_error(PayloadError::Http2(err))
+                }
+            } else if let Err(err) = self.recv.release_capacity().release_capacity(0) {
+                self.payload.set_error(PayloadError::Http2(err))
+            }
+
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
                     self.payload.feed_data(chunk);
@@ -304,14 +325,6 @@ impl Entry {
                 },
                 Ok(Async::NotReady) => (),
                 Err(err) => {
-                    self.payload.set_error(PayloadError::Http2(err))
-                }
-            }
-
-            let capacity = self.payload.capacity();
-            if self.capacity != capacity {
-                self.capacity = capacity;
-                if let Err(err) = self.recv.release_capacity().release_capacity(capacity) {
                     self.payload.set_error(PayloadError::Http2(err))
                 }
             }

@@ -34,9 +34,9 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 const MAX_SIZE: usize = 262_144;  // max payload size is 256k
 
 /// This handler manually load request payload and parse serde json
-fn index_manual(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    // readany() returns asynchronous stream of Bytes objects
-    req.payload_mut().readany()
+fn index_manual(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    // HttpRequest is stream of Bytes objects
+    req
         // `Future::from_err` acts like `?` in that it coerces the error type from
         // the future into the final error type
         .from_err()
@@ -63,8 +63,8 @@ fn index_manual(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Err
 }
 
 /// This handler manually load request payload and parse json-rust
-fn index_mjsonrust(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.payload_mut().readany().concat2()
+fn index_mjsonrust(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    req.concat2()
         .from_err()
         .and_then(|body| {
             // body is loaded, now we can deserialize json-rust

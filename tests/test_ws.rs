@@ -16,14 +16,14 @@ impl Actor for Ws {
     type Context = ws::WebsocketContext<Self>;
 }
 
-impl Handler<ws::Message> for Ws {
-    type Result = ();
+impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
+            ws::Message::Close(reason) => ctx.close(reason, ""),
             _ => (),
         }
     }
@@ -49,5 +49,5 @@ fn test_simple() {
 
     writer.close(ws::CloseCode::Normal, "");
     let (item, _) = srv.execute(reader.into_future()).unwrap();
-    assert!(item.is_none());
+    assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Normal)));
 }

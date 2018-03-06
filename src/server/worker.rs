@@ -62,7 +62,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
         Worker {
             settings: Rc::new(WorkerSettings::new(h, keep_alive)),
             hnd: Arbiter::handle().clone(),
-            handler: handler,
+            handler,
         }
     }
 

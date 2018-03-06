@@ -1,6 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables)]
-
-use std::any::Any;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::marker::PhantomData;
@@ -49,8 +46,7 @@ impl<S> RequestSession for HttpRequest<S> {
                 return Session(s.0.as_mut())
             }
         }
-        //Session(&mut DUMMY)
-        unreachable!()
+        Session(unsafe{&mut DUMMY})
     }
 }
 
@@ -90,7 +86,7 @@ impl<'a> Session<'a> {
     }
 
     /// Set a `value` from the session.
-    pub fn set<T: Serialize>(&'a mut self, key: &str, value: T) -> Result<()> {
+    pub fn set<T: Serialize>(&mut self, key: &str, value: T) -> Result<()> {
         self.0.set(key, serde_json::to_string(&value)?);
         Ok(())
     }
@@ -195,15 +191,13 @@ pub trait SessionBackend<S>: Sized + 'static {
 /// Dummy session impl, does not do anything
 struct DummySessionImpl;
 
-static DUMMY: DummySessionImpl = DummySessionImpl;
+static mut DUMMY: DummySessionImpl = DummySessionImpl;
 
 impl SessionImpl for DummySessionImpl {
 
-    fn get(&self, key: &str) -> Option<&str> {
-        None
-    }
-    fn set(&mut self, key: &str, value: String) {}
-    fn remove(&mut self, key: &str) {}
+    fn get(&self, _: &str) -> Option<&str> { None }
+    fn set(&mut self, _: &str, _: String) {}
+    fn remove(&mut self, _: &str) {}
     fn clear(&mut self) {}
     fn write(&self, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
@@ -377,8 +371,8 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
         FutOk(
             CookieSession {
                 changed: false,
-                state: state,
                 inner: Rc::clone(&self.0),
+                state,
             })
     }
 }

@@ -1,25 +1,22 @@
-#![allow(unused_imports, dead_code)]
 use std::{io, time};
-use std::net::{SocketAddr, Shutdown};
-use std::collections::VecDeque;
-use std::time::Duration;
+use std::net::Shutdown;
 
-use actix::{fut, Actor, ActorFuture, Arbiter, Context,
+use actix::{fut, Actor, ActorFuture, Context,
             Handler, Message, ActorResponse, Supervised};
 use actix::registry::ArbiterService;
 use actix::fut::WrapFuture;
 use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
 
 use http::{Uri, HttpTryFrom, Error as HttpError};
-use futures::{Async, Future, Poll};
-use tokio_core::reactor::Timeout;
-use tokio_core::net::{TcpStream, TcpStreamNew};
+use futures::Poll;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslConnector, SslVerifyMode, Error as OpensslError};
+use openssl::ssl::{SslMethod, SslConnector, Error as OpensslError};
 #[cfg(feature="alpn")]
 use tokio_openssl::SslConnectorExt;
+#[cfg(feature="alpn")]
+use futures::Future;
 
 use HAS_OPENSSL;
 use server::IoStream;
@@ -97,7 +94,7 @@ impl Default for ClientConnector {
     fn default() -> ClientConnector {
         #[cfg(feature="alpn")]
         {
-            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+            let builder = SslConnector::builder(SslMethod::tls()).unwrap();
             ClientConnector {
                 connector: builder.build()
             }
@@ -154,9 +151,7 @@ impl ClientConnector {
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
-        ClientConnector {
-            connector: connector
-        }
+        ClientConnector { connector }
     }
 }
 
@@ -201,7 +196,7 @@ impl Handler<Connect> for ClientConnector {
                             if proto.is_secure() {
                                 fut::Either::A(
                                     _act.connector.connect_async(&host, stream)
-                                        .map_err(|e| ClientConnectorError::SslError(e))
+                                        .map_err(ClientConnectorError::SslError)
                                         .map(|stream| Connection{stream: Box::new(stream)})
                                         .into_actor(_act))
                             } else {

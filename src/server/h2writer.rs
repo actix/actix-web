@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, cmp};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
@@ -9,9 +11,9 @@ use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LEN
 use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use super::encoding::PayloadEncoder;
+use super::encoding::ContentEncoder;
 use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
@@ -28,7 +30,7 @@ bitflags! {
 pub(crate) struct H2Writer {
     respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
-    encoder: PayloadEncoder,
+    encoder: ContentEncoder,
     flags: Flags,
     written: u64,
     buffer: SharedBytes,
@@ -38,9 +40,9 @@ impl H2Writer {
 
     pub fn new(respond: SendResponse<Bytes>, buf: SharedBytes) -> H2Writer {
         H2Writer {
-            respond: respond,
+            respond,
             stream: None,
-            encoder: PayloadEncoder::empty(buf.clone()),
+            encoder: ContentEncoder::empty(buf.clone()),
             flags: Flags::empty(),
             written: 0,
             buffer: buf,
@@ -109,11 +111,11 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
+    fn start(&mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
              -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg, encoding);
+        self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }

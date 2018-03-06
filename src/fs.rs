@@ -143,10 +143,7 @@ pub struct Directory{
 
 impl Directory {
     pub fn new(base: PathBuf, path: PathBuf) -> Directory {
-        Directory {
-            base: base,
-            path: path
-        }
+        Directory { base, path }
     }
 
     fn can_list(&self, entry: &io::Result<DirEntry>) -> bool {
@@ -205,7 +202,7 @@ impl Responder for Directory {
                             <ul>\
                             {}\
                             </ul></body>\n</html>", index_of, index_of, body);
-        Ok(HTTPOk.build()
+        Ok(HttpOk.build()
            .content_type("text/html; charset=utf-8")
            .body(html).unwrap())
     }
@@ -330,7 +327,7 @@ impl<S> Handler<S> for StaticFiles {
                     }
                     new_path.push_str(redir_index);
                     Ok(FilesystemElement::Redirect(
-                        HTTPFound
+                        HttpFound
                             .build()
                             .header::<_, &str>("LOCATION", &new_path)
                             .finish().unwrap()))

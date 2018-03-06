@@ -81,8 +81,8 @@ impl<S: 'static> Resource<S> {
     ///     let app = Application::new()
     ///         .resource(
     ///             "/", |r| r.route()
-    ///                  .p(pred::Any(pred::Get()).or(pred::Put()))
-    ///                  .p(pred::Header("Content-Type", "text/plain"))
+    ///                  .filter(pred::Any(pred::Get()).or(pred::Put()))
+    ///                  .filter(pred::Header("Content-Type", "text/plain"))
     ///                  .f(|r| HttpResponse::Ok()))
     ///         .finish();
     /// }
@@ -97,11 +97,11 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().p(pred::Get()).f(index)
+    /// Resource::resource("/", |r| r.route().filter(pred::Get()).f(index)
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().p(pred::Method(method))
+        self.routes.last_mut().unwrap().filter(pred::Method(method))
     }
 
     /// Register a new route and add handler object.

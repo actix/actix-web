@@ -37,25 +37,22 @@ impl HttpResponseParser {
         where T: IoStream
     {
         // if buf is empty parse_message will always return NotReady, let's avoid that
-        let read = if buf.is_empty() {
+        if buf.is_empty() {
             match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => {
-                    // debug!("Ignored premature client disconnection");
-                    return Err(HttpResponseParserError::Disconnect);
-                },
+                Ok(Async::Ready(0)) =>
+                    return Err(HttpResponseParserError::Disconnect),
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) =>
                     return Ok(Async::NotReady),
                 Err(err) =>
                     return Err(HttpResponseParserError::Error(err.into()))
             }
-            false
-        } else {
-            true
-        };
+        }
 
         loop {
-            match HttpResponseParser::parse_message(buf).map_err(HttpResponseParserError::Error)? {
+            match HttpResponseParser::parse_message(buf)
+                .map_err(HttpResponseParserError::Error)?
+            {
                 Async::Ready((msg, decoder)) => {
                     self.decoder = decoder;
                     return Ok(Async::Ready(msg));
@@ -64,15 +61,13 @@ impl HttpResponseParser {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
-                    if read {
-                        match utils::read_from_io(io, buf) {
-                            Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
-                            Ok(Async::Ready(_)) => (),
-                            Ok(Async::NotReady) => return Ok(Async::NotReady),
-                            Err(err) => return Err(HttpResponseParserError::Error(err.into())),
-                        }
-                    } else {
-                        return Ok(Async::NotReady)
+                    match utils::read_from_io(io, buf) {
+                        Ok(Async::Ready(0)) =>
+                            return Err(HttpResponseParserError::Disconnect),
+                        Ok(Async::Ready(_)) => (),
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(err) =>
+                            return Err(HttpResponseParserError::Error(err.into())),
                     }
                 },
             }
@@ -83,20 +78,44 @@ impl HttpResponseParser {
                             -> Poll<Option<Bytes>, PayloadError>
         where T: IoStream
     {
-        if let Some(ref mut decoder) = self.decoder {
-            // read payload
-            match utils::read_from_io(io, buf) {
-                Ok(Async::Ready(0)) => return Err(PayloadError::Incomplete),
-                Err(err) => return Err(err.into()),
-                _ => (),
+        if self.decoder.is_some() {
+            loop {
+                // read payload
+                let not_ready = match utils::read_from_io(io, buf) {
+                    Ok(Async::Ready(0)) => {
+                        if buf.is_empty() {
+                            return Err(PayloadError::Incomplete)
+                        }
+                        true
+                    }
+                    Err(err) => return Err(err.into()),
+                    Ok(Async::NotReady) => true,
+                    _ => false,
+                };
+
+                match self.decoder.as_mut().unwrap().decode(buf) {
+                    Ok(Async::Ready(Some(b))) =>
+                        return Ok(Async::Ready(Some(b))),
+                    Ok(Async::Ready(None)) => {
+                        self.decoder.take();
+                        return Ok(Async::Ready(None))
+                    }
+                    Ok(Async::NotReady) => {
+                        if not_ready {
+                            return Ok(Async::NotReady)
+                        }
+                    }
+                    Err(err) => return Err(err.into()),
+                }
             }
-            decoder.decode(buf).map_err(|e| e.into())
         } else {
             Ok(Async::Ready(None))
         }
     }
 
-    fn parse_message(buf: &mut BytesMut) -> Poll<(ClientResponse, Option<Decoder>), ParseError> {
+    fn parse_message(buf: &mut BytesMut)
+                     -> Poll<(ClientResponse, Option<Decoder>), ParseError>
+    {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;
         let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -137,7 +156,9 @@ impl HttpResponseParser {
             }
         }
 
-        let decoder = if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
+        let decoder = if status == StatusCode::SWITCHING_PROTOCOLS {
+            Some(Decoder::eof())
+        } else if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
@@ -153,25 +174,19 @@ impl HttpResponseParser {
         } else if chunked(&hdrs)? {
             // Chunked encoding
             Some(Decoder::chunked())
-        } else if hdrs.contains_key(header::UPGRADE) {
-            Some(Decoder::eof())
         } else {
             None
         };
 
         if let Some(decoder) = decoder {
-            //let info = PayloadInfo {
-            //tx: PayloadType::new(&hdrs, psender),
-            //    decoder: decoder,
-            //};
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{status: status, version: version,
+                    ClientMessage{status, version,
                                   headers: hdrs, cookies: None}), Some(decoder))))
         } else {
             Ok(Async::Ready(
                 (ClientResponse::new(
-                    ClientMessage{status: status, version: version,
+                    ClientMessage{status, version,
                                   headers: hdrs, cookies: None}), None)))
         }
     }

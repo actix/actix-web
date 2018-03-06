@@ -65,7 +65,7 @@ impl<S> Handler<S> for MyHandler {
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         self.0 += 1;
-        httpcodes::HTTPOk.into()
+        httpcodes::HttpOk.into()
     }
 }
 # fn main() {}
@@ -90,7 +90,7 @@ impl<S> Handler<S> for MyHandler {
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         self.0.fetch_add(1, Ordering::Relaxed);
-        httpcodes::HTTPOk.into()
+        httpcodes::HttpOk.into()
     }
 }
 

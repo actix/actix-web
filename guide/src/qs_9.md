@@ -21,9 +21,8 @@ impl Actor for Ws {
     type Context = ws::WebsocketContext<Self>;
 }
 
-/// Define Handler for ws::Message message
-impl Handler<ws::Message> for Ws {
-    type Result=();
+/// Handler for ws::Message message
+impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
@@ -43,7 +42,7 @@ fn main() {
 ```
 
 Simple websocket echo server example is available in 
-[examples directory](https://github.com/actix/actix-web/blob/master/examples/websocket.rs).
+[examples directory](https://github.com/actix/actix-web/blob/master/examples/websocket).
 
 Example chat server with ability to chat over websocket connection or tcp connection
 is available in [websocket-chat directory](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)

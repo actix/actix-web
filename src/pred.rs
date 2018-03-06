@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 use http;
 use http::{header, HttpTryFrom};
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 
 /// Trait defines resource route predicate.
@@ -27,8 +28,8 @@ pub trait Predicate<S> {
 /// fn main() {
 ///     Application::new()
 ///         .resource("/index.html", |r| r.route()
-///             .p(pred::Any(pred::Get()).or(pred::Post()))
-///             .h(HTTPMethodNotAllowed));
+///             .filter(pred::Any(pred::Get()).or(pred::Post()))
+///             .h(HttpMethodNotAllowed));
 /// }
 /// ```
 pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S>
@@ -70,9 +71,9 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 /// fn main() {
 ///     Application::new()
 ///         .resource("/index.html", |r| r.route()
-///            .p(pred::All(pred::Get())
+///            .filter(pred::All(pred::Get())
 ///                 .and(pred::Header("content-type", "plain/text")))
-///            .h(HTTPMethodNotAllowed));
+///            .h(HttpMethodNotAllowed));
 /// }
 /// ```
 pub fn All<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AllPredicate<S> {

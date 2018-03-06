@@ -1,12 +1,59 @@
 # Changes
 
-## 0.4.0 (2018-02-..)
+## 0.4.5 (2018-03-xx)
+
+* Enable compression support for `NamedFile`
+
+* Add `ResponseError` impl for `SendRequestError`.
+  This improves ergonomics of http client.
+
+
+## 0.4.4 (2018-03-04)
+
+* Allow to use Arc<Vec<u8>> as response/request body
+
+* Fix handling of requests with an encoded body with a length > 8192 #93
+
+## 0.4.3 (2018-03-03)
+
+* Fix request body read bug
+
+* Fix segmentation fault #79
+
+* Set reuse address before bind #90
+
+
+## 0.4.2 (2018-03-02)
+
+* Better naming for websockets implementation
+
+* Add `Pattern::with_prefix()`, make it more usable outside of actix
+
+* Add csrf middleware for filter for cross-site request forgery #89
+
+* Fix disconnect on idle connections
+
+
+## 0.4.1 (2018-03-01)
+
+* Rename `Route::p()` to `Route::filter()`
+
+* Better naming for http codes
+
+* Fix payload parse in situation when socket data is not ready.
+
+* Fix Session mutable borrow lifetime #87
+
+
+## 0.4.0 (2018-02-28)
 
 * Actix 0.5 compatibility
 
-* Fix request json loader
+* Fix request json/urlencoded loaders
 
 * Simplify HttpServer type definition
+
+* Added HttpRequest::encoding() method
 
 * Added HttpRequest::mime_type() method
 
@@ -16,11 +63,11 @@
 
 * Added http client
 
-* Added basic websocket client
+* Added websocket client
 
 * Added TestServer::ws(), test websockets client
 
-* Added TestServer test http client
+* Added TestServer http client support
 
 * Allow to override content encoding on application level
 

@@ -1,4 +1,4 @@
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
 use http::header::CONTENT_LENGTH;
 
@@ -6,8 +6,9 @@ use serde_json;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use error::{Error, JsonPayloadError};
+use error::{Error, JsonPayloadError, PayloadError};
 use handler::Responder;
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -54,6 +55,9 @@ impl<T: Serialize> Responder for Json<T> {
 /// * content type is not `application/json`
 /// * content length is greater than 256k
 ///
+///
+/// # Server example
+///
 /// ```rust
 /// # extern crate actix_web;
 /// # extern crate futures;
@@ -71,25 +75,25 @@ impl<T: Serialize> Responder for Json<T> {
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
 ///            println!("==== BODY ==== {:?}", val);
-///            Ok(httpcodes::HTTPOk.into())
+///            Ok(httpcodes::HttpOk.into())
 ///        }).responder()
 /// }
 /// # fn main() {}
 /// ```
-pub struct JsonBody<S, T: DeserializeOwned>{
+pub struct JsonBody<T, U: DeserializeOwned>{
     limit: usize,
     ct: &'static str,
-    req: Option<HttpRequest<S>>,
-    fut: Option<Box<Future<Item=T, Error=JsonPayloadError>>>,
+    req: Option<T>,
+    fut: Option<Box<Future<Item=U, Error=JsonPayloadError>>>,
 }
 
-impl<S, T: DeserializeOwned> JsonBody<S, T> {
+impl<T, U: DeserializeOwned> JsonBody<T, U> {
 
     /// Create `JsonBody` for request.
-    pub fn from_request(req: &HttpRequest<S>) -> Self {
+    pub fn new(req: T) -> Self {
         JsonBody{
             limit: 262_144,
-            req: Some(req.clone()),
+            req: Some(req),
             fut: None,
             ct: "application/json",
         }
@@ -111,11 +115,13 @@ impl<S, T: DeserializeOwned> JsonBody<S, T> {
     }
 }
 
-impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
-    type Item = T;
+impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
+    where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static
+{
+    type Item = U;
     type Error = JsonPayloadError;
 
-    fn poll(&mut self) -> Poll<T, JsonPayloadError> {
+    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
         if let Some(req) = self.req.take() {
             if let Some(len) = req.headers().get(CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
@@ -134,8 +140,7 @@ impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
             }
 
             let limit = self.limit;
-            let fut = req.payload().readany()
-                .from_err()
+            let fut = req.from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(JsonPayloadError::Overflow)
@@ -144,7 +149,7 @@ impl<S, T: DeserializeOwned + 'static> Future for JsonBody<S, T> {
                         Ok(body)
                     }
                 })
-                .and_then(|body| Ok(serde_json::from_slice::<T>(&body)?));
+                .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
             self.fut = Some(Box::new(fut));
         }
 
@@ -189,27 +194,31 @@ mod tests {
 
     #[test]
     fn test_json_body() {
-        let mut req = HttpRequest::default();
+        let req = HttpRequest::default();
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut json = req.json::<MyObject>().content_type("text/json");
+        let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
                                  header::HeaderValue::from_static("application/json"));
+        let mut json = req.json::<MyObject>().content_type("text/json");
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut json = req.json::<MyObject>().limit(100);
+        let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
                                  header::HeaderValue::from_static("application/json"));
         req.headers_mut().insert(header::CONTENT_LENGTH,
                                  header::HeaderValue::from_static("10000"));
+        let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(header::CONTENT_TYPE,
+                                 header::HeaderValue::from_static("application/json"));
         req.headers_mut().insert(header::CONTENT_LENGTH,
                                  header::HeaderValue::from_static("16"));
         req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().ok().unwrap(), Async::Ready(MyObject{name: "test".to_owned()}));
     }
-
 }

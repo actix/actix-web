@@ -46,13 +46,9 @@ impl Router {
             }
         }
 
-        let len = prefix.len();
+        let prefix_len = prefix.len();
         (Router(Rc::new(
-            Inner{ prefix: prefix,
-                   prefix_len: len,
-                   named: named,
-                   patterns: patterns,
-                   srv: settings })), resources)
+            Inner{ prefix, prefix_len, named, patterns, srv: settings })), resources)
     }
 
     /// Router prefix
@@ -152,7 +148,12 @@ impl Pattern {
     ///
     /// Panics if path pattern is wrong.
     pub fn new(name: &str, path: &str) -> Self {
-        let (pattern, elements, is_dynamic) = Pattern::parse(path);
+        Pattern::with_prefix(name, path, "/")
+    }
+
+    /// Parse path pattern and create new `Pattern` instance with custom prefix
+    pub fn with_prefix(name: &str, path: &str, prefix: &str) -> Self {
+        let (pattern, elements, is_dynamic) = Pattern::parse(path, prefix);
 
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
@@ -168,10 +169,10 @@ impl Pattern {
         };
 
         Pattern {
-            tp: tp,
+            tp,
+            pattern,
+            elements,
             name: name.into(),
-            pattern: pattern,
-            elements: elements,
         }
     }
 
@@ -192,7 +193,9 @@ impl Pattern {
         }
     }
 
-    pub fn match_with_params<'a>(&'a self, path: &'a str, params: &'a mut Params<'a>) -> bool {
+    pub fn match_with_params<'a>(&'a self, path: &'a str, params: &'a mut Params<'a>)
+                                 -> bool
+    {
         match self.tp {
             PatternType::Static(ref s) => s == path,
             PatternType::Dynamic(ref re, ref names) => {
@@ -240,11 +243,11 @@ impl Pattern {
         Ok(path)
     }
 
-    fn parse(pattern: &str) -> (String, Vec<PatternElement>, bool) {
+    fn parse(pattern: &str, prefix: &str) -> (String, Vec<PatternElement>, bool) {
         const DEFAULT_PATTERN: &str = "[^/]+";
 
-        let mut re1 = String::from("^/");
-        let mut re2 = String::from("/");
+        let mut re1 = String::from("^") + prefix;
+        let mut re2 = String::from(prefix);
         let mut el = String::new();
         let mut in_param = false;
         let mut in_param_pattern = false;

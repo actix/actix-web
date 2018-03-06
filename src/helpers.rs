@@ -8,7 +8,7 @@ use time;
 use bytes::{BufMut, BytesMut};
 use http::Version;
 
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub(crate) const DATE_VALUE_LENGTH: usize = 29;
@@ -67,7 +67,7 @@ impl fmt::Write for CachedDate {
 }
 
 /// Internal use only! unsafe
-pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpMessage>>>);
+pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpInnerMessage>>>);
 
 impl SharedMessagePool {
     pub fn new() -> SharedMessagePool {
@@ -75,16 +75,16 @@ impl SharedMessagePool {
     }
 
     #[inline]
-    pub fn get(&self) -> Rc<HttpMessage> {
+    pub fn get(&self) -> Rc<HttpInnerMessage> {
         if let Some(msg) = self.0.borrow_mut().pop_front() {
             msg
         } else {
-            Rc::new(HttpMessage::default())
+            Rc::new(HttpInnerMessage::default())
         }
     }
 
     #[inline]
-    pub fn release(&self, mut msg: Rc<HttpMessage>) {
+    pub fn release(&self, mut msg: Rc<HttpInnerMessage>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
             Rc::get_mut(&mut msg).unwrap().reset();
@@ -93,10 +93,10 @@ impl SharedMessagePool {
     }
 }
 
-pub(crate) struct SharedHttpMessage(
-    Option<Rc<HttpMessage>>, Option<Rc<SharedMessagePool>>);
+pub(crate) struct SharedHttpInnerMessage(
+    Option<Rc<HttpInnerMessage>>, Option<Rc<SharedMessagePool>>);
 
-impl Drop for SharedHttpMessage {
+impl Drop for SharedHttpInnerMessage {
     fn drop(&mut self) {
         if let Some(ref pool) = self.1 {
             if let Some(msg) = self.0.take() {
@@ -108,56 +108,56 @@ impl Drop for SharedHttpMessage {
     }
 }
 
-impl Deref for SharedHttpMessage {
-    type Target = HttpMessage;
+impl Deref for SharedHttpInnerMessage {
+    type Target = HttpInnerMessage;
 
-    fn deref(&self) -> &HttpMessage {
+    fn deref(&self) -> &HttpInnerMessage {
         self.get_ref()
     }
 }
 
-impl DerefMut for SharedHttpMessage {
+impl DerefMut for SharedHttpInnerMessage {
 
-    fn deref_mut(&mut self) -> &mut HttpMessage {
+    fn deref_mut(&mut self) -> &mut HttpInnerMessage {
         self.get_mut()
     }
 }
 
-impl Clone for SharedHttpMessage {
+impl Clone for SharedHttpInnerMessage {
 
-    fn clone(&self) -> SharedHttpMessage {
-        SharedHttpMessage(self.0.clone(), self.1.clone())
+    fn clone(&self) -> SharedHttpInnerMessage {
+        SharedHttpInnerMessage(self.0.clone(), self.1.clone())
     }
 }
 
-impl Default for SharedHttpMessage {
+impl Default for SharedHttpInnerMessage {
 
-    fn default() -> SharedHttpMessage {
-        SharedHttpMessage(Some(Rc::new(HttpMessage::default())), None)
+    fn default() -> SharedHttpInnerMessage {
+        SharedHttpInnerMessage(Some(Rc::new(HttpInnerMessage::default())), None)
     }
 }
 
-impl SharedHttpMessage {
+impl SharedHttpInnerMessage {
 
-    pub fn from_message(msg: HttpMessage) -> SharedHttpMessage {
-        SharedHttpMessage(Some(Rc::new(msg)), None)
+    pub fn from_message(msg: HttpInnerMessage) -> SharedHttpInnerMessage {
+        SharedHttpInnerMessage(Some(Rc::new(msg)), None)
     }
 
-    pub fn new(msg: Rc<HttpMessage>, pool: Rc<SharedMessagePool>) -> SharedHttpMessage {
-        SharedHttpMessage(Some(msg), Some(pool))
+    pub fn new(msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>) -> SharedHttpInnerMessage {
+        SharedHttpInnerMessage(Some(msg), Some(pool))
     }
 
     #[inline(always)]
     #[allow(mutable_transmutes)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    pub fn get_mut(&self) -> &mut HttpMessage {
-        let r: &HttpMessage = self.0.as_ref().unwrap().as_ref();
+    pub fn get_mut(&self) -> &mut HttpInnerMessage {
+        let r: &HttpInnerMessage = self.0.as_ref().unwrap().as_ref();
         unsafe{mem::transmute(r)}
     }
 
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
-    pub fn get_ref(&self) -> &HttpMessage {
+    pub fn get_ref(&self) -> &HttpInnerMessage {
         self.0.as_ref().unwrap()
     }
 }

@@ -19,7 +19,7 @@ use futures::Future;
 use rand::{thread_rng, Rng};
 
 use actix::prelude::*;
-use actix_web::ws::{Message, WsClientError, WsClient, WsClientWriter};
+use actix_web::ws;
 
 
 fn main() {
@@ -71,21 +71,21 @@ fn main() {
         let perf = perf_counters.clone();
         let addr = Arbiter::new(format!("test {}", t));
 
-        addr.send(actix::msgs::Execute::new(move || -> Result<(), ()> {
+        addr.do_send(actix::msgs::Execute::new(move || -> Result<(), ()> {
             let mut reps = report;
             for _ in 0..concurrency {
                 let pl2 = pl.clone();
                 let perf2 = perf.clone();
 
                 Arbiter::handle().spawn(
-                    WsClient::new(&ws).connect().unwrap()
+                    ws::Client::new(&ws).connect()
                         .map_err(|e| {
                             println!("Error: {}", e);
-                            Arbiter::system().send(actix::msgs::SystemExit(0));
+                            Arbiter::system().do_send(actix::msgs::SystemExit(0));
                             ()
                         })
                         .map(move |(reader, writer)| {
-                            let addr: SyncAddress<_> = ChatClient::create(move |ctx| {
+                            let addr: Addr<Syn, _> = ChatClient::create(move |ctx| {
                                 ChatClient::add_stream(reader, ctx);
                                 ChatClient{conn: writer,
                                            payload: pl2,
@@ -114,7 +114,7 @@ fn parse_u64_default(input: Option<&str>, default: u64) -> u64 {
 }
 
 struct ChatClient{
-    conn: WsClientWriter,
+    conn: ws::ClientWriter,
     payload: Arc<String>,
     ts: u64,
     bin: bool,
@@ -133,9 +133,9 @@ impl Actor for ChatClient {
         }
     }
 
-    fn stopping(&mut self, _: &mut Context<Self>) -> bool {
-        Arbiter::system().send(actix::msgs::SystemExit(0));
-        true
+    fn stopping(&mut self, _: &mut Context<Self>) -> Running {
+        Arbiter::system().do_send(actix::msgs::SystemExit(0));
+        Running::Stop
     }
 }
 
@@ -171,15 +171,15 @@ impl ChatClient {
 }
 
 /// Handle server websocket messages
-impl StreamHandler<Message, WsClientError> for ChatClient {
+impl StreamHandler<ws::Message, ws::ProtocolError> for ChatClient {
 
     fn finished(&mut self, ctx: &mut Context<Self>) {
         ctx.stop()
     }
 
-    fn handle(&mut self, msg: Message, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Context<Self>) {
         match msg {
-            Message::Text(txt) => {
+            ws::Message::Text(txt) => {
                 if txt == self.payload.as_ref().as_str() {
                     self.perf_counters.register_request();
                     self.perf_counters.register_latency(time::precise_time_ns() - self.ts);

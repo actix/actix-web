@@ -8,7 +8,7 @@ use pred::Predicate;
 use handler::{Reply, ReplyItem, Handler,
               Responder, RouteHandler, AsyncHandler, WrapHandler};
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
-use httpcodes::HTTPNotFound;
+use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -26,7 +26,7 @@ impl<S: 'static> Default for Route<S> {
     fn default() -> Route<S> {
         Route {
             preds: Vec::new(),
-            handler: InnerHandler::new(|_| HTTPNotFound),
+            handler: InnerHandler::new(|_| HttpNotFound),
         }
     }
 }
@@ -65,16 +65,22 @@ impl<S: 'static> Route<S> {
     /// Application::new()
     ///    .resource("/path", |r|
     ///       r.route()
-    ///          .p(pred::Get())
-    ///          .p(pred::Header("content-type", "text/plain"))
-    ///          .f(|req| HTTPOk)
+    ///          .filter(pred::Get())
+    ///          .filter(pred::Header("content-type", "text/plain"))
+    ///          .f(|req| HttpOk)
     ///       )
     /// #      .finish();
     /// # }
     /// ```
-    pub fn p<T: Predicate<S> + 'static>(&mut self, p: T) -> &mut Self {
+    pub fn filter<T: Predicate<S> + 'static>(&mut self, p: T) -> &mut Self {
         self.preds.push(Box::new(p));
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since="0.4.1", note="please use `.filter()` instead")]
+    pub fn p<T: Predicate<S> + 'static>(&mut self, p: T) -> &mut Self {
+        self.filter(p)
     }
 
     /// Set handler object. Usually call to this method is last call
@@ -179,14 +185,10 @@ impl<S: 'static> Compose<S> {
            mws: Rc<Vec<Box<Middleware<S>>>>,
            handler: InnerHandler<S>) -> Self
     {
-        let mut info = ComposeInfo {
-            count: 0,
-            req: req,
-            mws: mws,
-            handler: handler };
+        let mut info = ComposeInfo { count: 0, req, mws, handler };
         let state = StartMiddlewares::init(&mut info);
 
-        Compose {state: state, info: info}
+        Compose {state, info}
     }
 }
 
@@ -308,7 +310,7 @@ impl<S: 'static> WaitingResponse<S> {
                 RunMiddlewares::init(info, resp),
             ReplyItem::Future(fut) =>
                 ComposeState::Handler(
-                    WaitingResponse { fut: fut, _s: PhantomData }),
+                    WaitingResponse { fut, _s: PhantomData }),
         }
     }
 
@@ -353,7 +355,7 @@ impl<S: 'static> RunMiddlewares<S> {
                 },
                 Ok(MiddlewareResponse::Future(fut)) => {
                     return ComposeState::RunMiddlewares(
-                        RunMiddlewares { curr: curr, fut: Some(fut), _s: PhantomData })
+                        RunMiddlewares { curr, fut: Some(fut), _s: PhantomData })
                 },
             };
         }

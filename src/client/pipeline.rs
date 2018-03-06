@@ -1,5 +1,6 @@
 use std::{io, mem};
 use bytes::{Bytes, BytesMut};
+use http::header::CONTENT_ENCODING;
 use futures::{Async, Future, Poll};
 use futures::unsync::oneshot;
 
@@ -8,9 +9,12 @@ use actix::prelude::*;
 use error::Error;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
+use headers::ContentEncoding;
+use httpmessage::HttpMessage;
 use error::PayloadError;
 use server::WriterState;
 use server::shared::SharedBytes;
+use server::encoding::PayloadStream;
 use super::{ClientRequest, ClientResponse};
 use super::{Connect, Connection, ClientConnector, ClientConnectorError};
 use super::HttpClientWriter;
@@ -60,16 +64,13 @@ impl SendRequest {
     pub(crate) fn with_connector(req: ClientRequest, conn: Addr<Unsync, ClientConnector>)
                                  -> SendRequest
     {
-        SendRequest{
-            req: req,
-            state: State::New,
-            conn: conn}
+        SendRequest{req, conn, state: State::New}
     }
 
     pub(crate) fn with_connection(req: ClientRequest, conn: Connection) -> SendRequest
     {
         SendRequest{
-            req: req,
+            req,
             state: State::Connection(conn),
             conn: ClientConnector::from_registry()}
     }
@@ -100,7 +101,7 @@ impl Future for SendRequest {
                     Err(_) => return Err(SendRequestError::Connector(
                         ClientConnectorError::Disconnected))
                 },
-                State::Connection(stream) => {
+                State::Connection(conn) => {
                     let mut writer = HttpClientWriter::new(SharedBytes::default());
                     writer.start(&mut self.req)?;
 
@@ -110,15 +111,15 @@ impl Future for SendRequest {
                         _ => IoBody::Done,
                     };
 
-                    let mut pl = Box::new(Pipeline {
-                        body: body,
-                        conn: stream,
-                        writer: writer,
-                        parser: HttpResponseParser::default(),
+                    let pl = Box::new(Pipeline {
+                        body, conn, writer,
+                        parser: Some(HttpResponseParser::default()),
                         parser_buf: BytesMut::new(),
                         disconnected: false,
-                        running: RunningState::Running,
                         drain: None,
+                        decompress: None,
+                        should_decompress: self.req.response_decompress(),
+                        write_state: RunningState::Running,
                     });
                     self.state = State::Send(pl);
                 },
@@ -150,11 +151,13 @@ pub(crate) struct Pipeline {
     body: IoBody,
     conn: Connection,
     writer: HttpClientWriter,
-    parser: HttpResponseParser,
+    parser: Option<HttpResponseParser>,
     parser_buf: BytesMut,
     disconnected: bool,
-    running: RunningState,
     drain: Option<oneshot::Sender<()>>,
+    decompress: Option<PayloadStream>,
+    should_decompress: bool,
+    write_state: RunningState,
 }
 
 enum IoBody {
@@ -163,7 +166,7 @@ enum IoBody {
     Done,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum RunningState {
     Running,
     Paused,
@@ -189,25 +192,89 @@ impl Pipeline {
 
     #[inline]
     pub fn parse(&mut self) -> Poll<ClientResponse, HttpResponseParserError> {
-        self.parser.parse(&mut self.conn, &mut self.parser_buf)
+        match self.parser.as_mut().unwrap().parse(&mut self.conn, &mut self.parser_buf) {
+            Ok(Async::Ready(resp)) => {
+                // check content-encoding
+                if self.should_decompress {
+                    if let Some(enc) = resp.headers().get(CONTENT_ENCODING) {
+                        if let Ok(enc) = enc.to_str() {
+                            match ContentEncoding::from(enc) {
+                                ContentEncoding::Auto | ContentEncoding::Identity => (),
+                                enc => self.decompress = Some(PayloadStream::new(enc)),
+                            }
+                        }
+                    }
+                }
+
+                Ok(Async::Ready(resp))
+            }
+            val => val,
+        }
     }
 
     #[inline]
     pub fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        self.poll_write()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e).as_str()))?;
-        Ok(self.parser.parse_payload(&mut self.conn, &mut self.parser_buf)?)
+        let mut need_run = false;
+
+        // need write?
+        if let Async::NotReady = self.poll_write()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))?
+        {
+            need_run = true;
+        }
+
+        // need read?
+        if self.parser.is_some() {
+            loop {
+                match self.parser.as_mut().unwrap()
+                    .parse_payload(&mut self.conn, &mut self.parser_buf)?
+                {
+                    Async::Ready(Some(b)) => {
+                        if let Some(ref mut decompress) = self.decompress {
+                            match decompress.feed_data(b) {
+                                Ok(Some(b)) => return Ok(Async::Ready(Some(b))),
+                                Ok(None) => return Ok(Async::NotReady),
+                                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock =>
+                                    continue,
+                                Err(err) => return Err(err.into()),
+                            }
+                        } else {
+                            return Ok(Async::Ready(Some(b)))
+                        }
+                    },
+                    Async::Ready(None) => {
+                        let _ = self.parser.take();
+                        break
+                    }
+                    Async::NotReady => return Ok(Async::NotReady),
+                }
+            }
+        }
+
+        // eof
+        if let Some(mut decompress) = self.decompress.take() {
+            let res = decompress.feed_eof();
+            if let Some(b) = res? {
+                return Ok(Async::Ready(Some(b)))
+            }
+        }
+
+        if need_run {
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(None))
+        }
     }
 
     #[inline]
     pub fn poll_write(&mut self) -> Poll<(), Error> {
-        if self.running == RunningState::Done {
+        if self.write_state == RunningState::Done {
             return Ok(Async::Ready(()))
         }
 
         let mut done = false;
 
-        if self.drain.is_none() && self.running != RunningState::Paused {
+        if self.drain.is_none() && self.write_state != RunningState::Paused {
             'outter: loop {
                 let result = match mem::replace(&mut self.body, IoBody::Done) {
                     IoBody::Payload(mut body) => {
@@ -243,6 +310,7 @@ impl Pipeline {
                                     match frame {
                                         Frame::Chunk(None) => {
                                             // info.context = Some(ctx);
+                                            self.disconnected = true;
                                             self.writer.write_eof()?;
                                             break 'outter
                                         },
@@ -253,7 +321,7 @@ impl Pipeline {
                                 }
                                 self.body = IoBody::Actor(ctx);
                                 if self.drain.is_some() {
-                                    self.running.resume();
+                                    self.write_state.resume();
                                     break
                                 }
                                 res.unwrap()
@@ -270,6 +338,7 @@ impl Pipeline {
                         }
                     },
                     IoBody::Done => {
+                        self.disconnected = true;
                         done = true;
                         break
                     }
@@ -277,11 +346,11 @@ impl Pipeline {
 
                 match result {
                     WriterState::Pause => {
-                        self.running.pause();
+                        self.write_state.pause();
                         break
                     }
                     WriterState::Done => {
-                        self.running.resume()
+                        self.write_state.resume()
                     },
                 }
             }
@@ -290,14 +359,18 @@ impl Pipeline {
         // flush io but only if we need to
         match self.writer.poll_completed(&mut self.conn, false) {
             Ok(Async::Ready(_)) => {
-                self.running.resume();
+                if self.disconnected {
+                    self.write_state = RunningState::Done;
+                } else {
+                    self.write_state.resume();
+                }
 
                 // resolve drain futures
                 if let Some(tx) = self.drain.take() {
                     let _ = tx.send(());
                 }
                 // restart io processing
-                if !done {
+                if !done || self.write_state == RunningState::Done {
                     self.poll_write()
                 } else {
                     Ok(Async::NotReady)

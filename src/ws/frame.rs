@@ -1,11 +1,15 @@
 use std::{fmt, mem};
-use std::io::{Error, ErrorKind};
 use std::iter::FromIterator;
-use bytes::{BytesMut, BufMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use byteorder::{ByteOrder, BigEndian, NetworkEndian};
+use futures::{Async, Poll, Stream};
 use rand;
 
 use body::Binary;
+use error::{PayloadError};
+use payload::PayloadHelper;
+
+use ws::ProtocolError;
 use ws::proto::{OpCode, CloseCode};
 use ws::mask::apply_mask;
 
@@ -48,14 +52,16 @@ impl Frame {
     }
 
     /// Parse the input stream into a frame.
-    pub fn parse(buf: &mut BytesMut, server: bool) -> Result<Option<Frame>, Error> {
+    pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool, max_size: usize)
+                    -> Poll<Option<Frame>, ProtocolError>
+        where S: Stream<Item=Bytes, Error=PayloadError>
+    {
         let mut idx = 2;
-        let mut size = buf.len();
-
-        if size < 2 {
-            return Ok(None)
-        }
-        size -= 2;
+        let buf = match pl.copy(2)? {
+            Async::Ready(Some(buf)) => buf,
+            Async::Ready(None) => return Ok(Async::Ready(None)),
+            Async::NotReady => return Ok(Async::NotReady),
+        };
         let first = buf[0];
         let second = buf[1];
         let finished = first & 0x80 != 0;
@@ -63,11 +69,9 @@ impl Frame {
         // check masking
         let masked = second & 0x80 != 0;
         if !masked && server {
-            return Err(Error::new(
-                ErrorKind::Other, "Received an unmasked frame from client"))
+            return Err(ProtocolError::UnmaskedFrame)
         } else if masked && !server {
-            return Err(Error::new(
-                ErrorKind::Other, "Received a masked frame from server"))
+            return Err(ProtocolError::MaskedFrame)
         }
 
         let rsv1 = first & 0x40 != 0;
@@ -77,70 +81,69 @@ impl Frame {
         let len = second & 0x7F;
 
         let length = if len == 126 {
-            if size < 2 {
-                return Ok(None)
-            }
+            let buf = match pl.copy(4)? {
+                Async::Ready(Some(buf)) => buf,
+                Async::Ready(None) => return Ok(Async::Ready(None)),
+                Async::NotReady => return Ok(Async::NotReady),
+            };
             let len = NetworkEndian::read_uint(&buf[idx..], 2) as usize;
-            size -= 2;
             idx += 2;
             len
         } else if len == 127 {
-            if size < 8 {
-                return Ok(None)
-            }
+            let buf = match pl.copy(10)? {
+                Async::Ready(Some(buf)) => buf,
+                Async::Ready(None) => return Ok(Async::Ready(None)),
+                Async::NotReady => return Ok(Async::NotReady),
+            };
             let len = NetworkEndian::read_uint(&buf[idx..], 8) as usize;
-            size -= 8;
             idx += 8;
             len
         } else {
             len as usize
         };
 
+        // check for max allowed size
+        if length > max_size {
+            return Err(ProtocolError::Overflow)
+        }
+
         let mask = if server {
-            if size < 4 {
-                return Ok(None)
-            } else {
-                let mut mask_bytes = [0u8; 4];
-                size -= 4;
-                mask_bytes.copy_from_slice(&buf[idx..idx+4]);
-                idx += 4;
-                Some(mask_bytes)
-            }
+            let buf = match pl.copy(idx + 4)? {
+                Async::Ready(Some(buf)) => buf,
+                Async::Ready(None) => return Ok(Async::Ready(None)),
+                Async::NotReady => return Ok(Async::NotReady),
+            };
+
+            let mut mask_bytes = [0u8; 4];
+            mask_bytes.copy_from_slice(&buf[idx..idx+4]);
+            idx += 4;
+            Some(mask_bytes)
         } else {
             None
         };
 
-        if size < length {
-            return Ok(None)
-        }
+        let mut data = match pl.readexactly(idx + length)? {
+            Async::Ready(Some(buf)) => buf,
+            Async::Ready(None) => return Ok(Async::Ready(None)),
+            Async::NotReady => return Ok(Async::NotReady),
+        };
 
         // get body
-        buf.split_to(idx);
-        let mut data = if length > 0 {
-            buf.split_to(length)
-        } else {
-            BytesMut::new()
-        };
+        data.split_to(idx);
 
         // Disallow bad opcode
         if let OpCode::Bad = opcode {
-            return Err(
-                Error::new(
-                    ErrorKind::Other,
-                    format!("Encountered invalid opcode: {}", first & 0x0F)))
+            return Err(ProtocolError::InvalidOpcode(first & 0x0F))
         }
 
         // control frames must have length <= 125
         match opcode {
             OpCode::Ping | OpCode::Pong if length > 125 => {
-                return Err(
-                    Error::new(
-                        ErrorKind::Other,
-                        format!("Rejected WebSocket handshake.Received control frame with length: {}.", length)))
+                return Err(ProtocolError::InvalidLength(length))
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some(Frame::default()))
+                return Ok(Async::Ready(Some(Frame::default())))
             }
             _ => ()
         }
@@ -150,14 +153,8 @@ impl Frame {
             apply_mask(&mut data, mask);
         }
 
-        Ok(Some(Frame {
-            finished: finished,
-            rsv1: rsv1,
-            rsv2: rsv2,
-            rsv3: rsv3,
-            opcode: opcode,
-            payload: data.into(),
-        }))
+        Ok(Async::Ready(Some(Frame {
+            finished, rsv1, rsv2, rsv3, opcode, payload: data.into() })))
     }
 
     /// Generate binary representation
@@ -191,7 +188,7 @@ impl Frame {
             unsafe{buf.advance_mut(2)};
             buf
         } else {
-            let mut buf = BytesMut::with_capacity(p_len + 8);
+            let mut buf = BytesMut::with_capacity(p_len + 10);
             buf.put_slice(&[one, two | 127]);
             {
                 let buf_mut = unsafe{buf.bytes_mut()};
@@ -258,13 +255,33 @@ impl fmt::Display for Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::stream::once;
+
+    fn is_none(frm: Poll<Option<Frame>, ProtocolError>) -> bool {
+        match frm {
+            Ok(Async::Ready(None)) => true,
+            _ => false,
+        }
+    }
+    
+    fn extract(frm: Poll<Option<Frame>, ProtocolError>) -> Frame {
+        match frm {
+            Ok(Async::Ready(Some(frame))) => frame,
+            _ => panic!("error"),
+        }
+    }
 
     #[test]
     fn test_parse() {
+        let mut buf = PayloadHelper::new(
+            once(Ok(BytesMut::from(&[0b00000001u8, 0b00000001u8][..]).freeze())));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+
         let mut buf = BytesMut::from(&[0b00000001u8, 0b00000001u8][..]);
-        assert!(Frame::parse(&mut buf, false).unwrap().is_none());
         buf.extend(b"1");
-        let frame = Frame::parse(&mut buf, false).unwrap().unwrap();
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         println!("FRAME: {}", frame);
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
@@ -273,8 +290,10 @@ mod tests {
 
     #[test]
     fn test_parse_length0() {
-        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000000u8][..]);
-        let frame = Frame::parse(&mut buf, false).unwrap().unwrap();
+        let buf = BytesMut::from(&[0b00000001u8, 0b00000000u8][..]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert!(frame.payload.is_empty());
@@ -282,12 +301,16 @@ mod tests {
 
     #[test]
     fn test_parse_length2() {
+        let buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+
         let mut buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
-        assert!(Frame::parse(&mut buf, false).unwrap().is_none());
         buf.extend(&[0u8, 4u8][..]);
         buf.extend(b"1234");
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = Frame::parse(&mut buf, false).unwrap().unwrap();
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -295,12 +318,16 @@ mod tests {
 
     #[test]
     fn test_parse_length4() {
+        let buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+
         let mut buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
-        assert!(Frame::parse(&mut buf, false).unwrap().is_none());
         buf.extend(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 4u8][..]);
         buf.extend(b"1234");
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        let frame = Frame::parse(&mut buf, false).unwrap().unwrap();
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -311,10 +338,11 @@ mod tests {
         let mut buf = BytesMut::from(&[0b00000001u8, 0b10000001u8][..]);
         buf.extend(b"0001");
         buf.extend(b"1");
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        assert!(Frame::parse(&mut buf, false).is_err());
+        assert!(Frame::parse(&mut buf, false, 1024).is_err());
 
-        let frame = Frame::parse(&mut buf, true).unwrap().unwrap();
+        let frame = extract(Frame::parse(&mut buf, true, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, vec![1u8].into());
@@ -324,13 +352,28 @@ mod tests {
     fn test_parse_frame_no_mask() {
         let mut buf = BytesMut::from(&[0b00000001u8, 0b00000001u8][..]);
         buf.extend(&[1u8]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
-        assert!(Frame::parse(&mut buf, true).is_err());
+        assert!(Frame::parse(&mut buf, true, 1024).is_err());
 
-        let frame = Frame::parse(&mut buf, false).unwrap().unwrap();
+        let frame = extract(Frame::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload, vec![1u8].into());
+    }
+
+    #[test]
+    fn test_parse_frame_max_size() {
+        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000010u8][..]);
+        buf.extend(&[1u8, 1u8]);
+        let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
+
+        assert!(Frame::parse(&mut buf, true, 1).is_err());
+
+        if let Err(ProtocolError::Overflow) = Frame::parse(&mut buf, false, 0) {
+        } else {
+            panic!("error");
+        }
     }
 
     #[test]

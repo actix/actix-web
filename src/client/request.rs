@@ -4,7 +4,7 @@ use std::io::Write;
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
 use bytes::{BytesMut, BufMut};
-use http::{HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
+use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
@@ -25,6 +25,16 @@ pub struct ClientRequest {
     chunked: bool,
     upgrade: bool,
     encoding: ContentEncoding,
+    response_decompress: bool,
+    buffer_capacity: Option<(usize, usize)>,
+    conn: ConnectionType,
+
+}
+
+enum ConnectionType {
+    Default,
+    Connector(Addr<Unsync, ClientConnector>),
+    Connection(Connection),
 }
 
 impl Default for ClientRequest {
@@ -39,6 +49,9 @@ impl Default for ClientRequest {
             chunked: false,
             upgrade: false,
             encoding: ContentEncoding::Auto,
+            response_decompress: true,
+            buffer_capacity: None,
+            conn: ConnectionType::Default,
         }
     }
 }
@@ -89,6 +102,7 @@ impl ClientRequest {
             request: Some(ClientRequest::default()),
             err: None,
             cookies: None,
+            default_headers: true,
         }
     }
 
@@ -158,6 +172,16 @@ impl ClientRequest {
         self.encoding
     }
 
+    /// Decompress response payload
+    #[inline]
+    pub fn response_decompress(&self) -> bool {
+        self.response_decompress
+    }
+
+    pub fn buffer_capacity(&self) -> Option<(usize, usize)> {
+        self.buffer_capacity
+    }
+    
     /// Get body os this response
     #[inline]
     pub fn body(&self) -> &Body {
@@ -175,18 +199,14 @@ impl ClientRequest {
     }
 
     /// Send request
-    pub fn send(self) -> SendRequest {
-        SendRequest::new(self)
-    }
-
-    /// Send request using custom connector
-    pub fn with_connector(self, conn: Addr<Unsync, ClientConnector>) -> SendRequest {
-        SendRequest::with_connector(self, conn)
-    }
-
-    /// Send request using existing Connection
-    pub fn with_connection(self, conn: Connection) -> SendRequest {
-        SendRequest::with_connection(self, conn)
+    ///
+    /// This method returns future that resolves to a ClientResponse
+    pub fn send(mut self) -> SendRequest {
+        match mem::replace(&mut self.conn, ConnectionType::Default) {
+            ConnectionType::Default => SendRequest::new(self),
+            ConnectionType::Connector(conn) => SendRequest::with_connector(self, conn),
+            ConnectionType::Connection(conn) => SendRequest::with_connection(self, conn),
+        }
     }
 }
 
@@ -216,6 +236,7 @@ pub struct ClientRequestBuilder {
     request: Option<ClientRequest>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
+    default_headers: bool,
 }
 
 impl ClientRequestBuilder {
@@ -409,6 +430,48 @@ impl ClientRequestBuilder {
         self
     }
 
+    /// Do not add default request headers.
+    /// By default `Accept-Encoding` header is set.
+    pub fn no_default_headers(&mut self) -> &mut Self {
+        self.default_headers = false;
+        self
+    }
+
+    /// Disable automatic decompress response body
+    pub fn disable_decompress(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.response_decompress = false;
+        }
+        self
+    }
+
+    /// Set write buffer capacity
+    pub fn buffer_capacity(&mut self,
+                           low_watermark: usize,
+                           high_watermark: usize) -> &mut Self
+    {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.buffer_capacity = Some((low_watermark, high_watermark));
+        }
+        self
+    }
+
+    /// Send request using custom connector
+    pub fn with_connector(&mut self, conn: Addr<Unsync, ClientConnector>) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.conn = ConnectionType::Connector(conn);
+        }
+        self
+    }
+
+    /// Send request using existing Connection
+    pub fn with_connection(&mut self, conn: Connection) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.conn = ConnectionType::Connection(conn);
+        }
+        self
+    }
+
     /// This method calls provided closure with builder reference if value is true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: FnOnce(&mut ClientRequestBuilder)
@@ -435,6 +498,23 @@ impl ClientRequestBuilder {
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<ClientRequest, HttpError> {
         if let Some(e) = self.err.take() {
             return Err(e)
+        }
+
+        if self.default_headers {
+            // enable br only for https
+            let https =
+                if let Some(parts) = parts(&mut self.request, &self.err) {
+                    parts.uri.scheme_part()
+                        .map(|s| s == &uri::Scheme::HTTPS).unwrap_or(true)
+                } else {
+                    true
+                };
+
+            if https {
+                self.header(header::ACCEPT_ENCODING, "br, gzip, deflate");
+            } else {
+                self.header(header::ACCEPT_ENCODING, "gzip, deflate");
+            }
         }
 
         let mut request = self.request.take().expect("cannot reuse request builder");
@@ -482,6 +562,7 @@ impl ClientRequestBuilder {
             request: self.request.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
+            default_headers: self.default_headers,
         }
     }
 }

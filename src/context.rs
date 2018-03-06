@@ -164,6 +164,7 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
             self.stream = Some(SmallVec::new());
         }
         self.stream.as_mut().map(|s| s.push(frame));
+        self.inner.modify();
     }
 
     /// Handle of the running future
@@ -230,10 +231,7 @@ pub struct Drain<A> {
 
 impl<A> Drain<A> {
     pub fn new(fut: oneshot::Receiver<()>) -> Self {
-        Drain {
-            fut: fut,
-            _a: PhantomData
-        }
+        Drain { fut, _a: PhantomData }
     }
 }
 

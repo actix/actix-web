@@ -24,7 +24,7 @@ use body::Body;
 use handler::Responder;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{self, HTTPBadRequest, HTTPMethodNotAllowed, HTTPExpectationFailed};
+use httpcodes::{self, HttpExpectationFailed};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -90,14 +90,13 @@ impl<T: ResponseError> From<T> for Error {
         } else {
             None
         };
-        Error { cause: Box::new(err), backtrace: backtrace }
+        Error { cause: Box::new(err), backtrace }
     }
 }
 
 /// Compatibility for `failure::Error`
 impl<T> ResponseError for failure::Compat<T>
-    where T: fmt::Display + fmt::Debug + Sync + Send + 'static
-{ }
+    where T: fmt::Display + fmt::Debug + Sync + Send + 'static { }
 
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
@@ -293,6 +292,9 @@ pub enum MultipartError {
     /// Multipart boundary is not found
     #[fail(display="Multipart boundary is not found")]
     Boundary,
+    /// Multipart stream is incomplete
+    #[fail(display="Multipart stream is incomplete")]
+    Incomplete,
     /// Error during field parsing
     #[fail(display="{}", _0)]
     Parse(#[cause] ParseError),
@@ -333,57 +335,26 @@ pub enum ExpectError {
 }
 
 impl ResponseError for ExpectError {
-
     fn error_response(&self) -> HttpResponse {
-        HTTPExpectationFailed.with_body("Unknown Expect")
+        HttpExpectationFailed.with_body("Unknown Expect")
     }
 }
 
-/// Websocket handshake errors
+/// A set of error that can occure during parsing content type
 #[derive(Fail, PartialEq, Debug)]
-pub enum WsHandshakeError {
-    /// Only get method is allowed
-    #[fail(display="Method not allowed")]
-    GetMethodRequired,
-    /// Upgrade header if not set to websocket
-    #[fail(display="Websocket upgrade is expected")]
-    NoWebsocketUpgrade,
-    /// Connection header is not set to upgrade
-    #[fail(display="Connection upgrade is expected")]
-    NoConnectionUpgrade,
-    /// Websocket version header is not set
-    #[fail(display="Websocket version header is required")]
-    NoVersionHeader,
-    /// Unsupported websocket version
-    #[fail(display="Unsupported version")]
-    UnsupportedVersion,
-    /// Websocket key is not set or wrong
-    #[fail(display="Unknown websocket key")]
-    BadWebsocketKey,
+pub enum ContentTypeError {
+    /// Can not parse content type
+    #[fail(display="Can not parse content type")]
+    ParseError,
+    /// Unknown content encoding
+    #[fail(display="Unknown content encoding")]
+    UnknownEncoding,
 }
 
-impl ResponseError for WsHandshakeError {
-
+/// Return `BadRequest` for `ContentTypeError`
+impl ResponseError for ContentTypeError {
     fn error_response(&self) -> HttpResponse {
-        match *self {
-            WsHandshakeError::GetMethodRequired => {
-                HTTPMethodNotAllowed
-                    .build()
-                    .header(header::ALLOW, "GET")
-                    .finish()
-                    .unwrap()
-            }
-            WsHandshakeError::NoWebsocketUpgrade =>
-                HTTPBadRequest.with_reason("No WebSocket UPGRADE header found"),
-            WsHandshakeError::NoConnectionUpgrade =>
-                HTTPBadRequest.with_reason("No CONNECTION upgrade"),
-            WsHandshakeError::NoVersionHeader =>
-                HTTPBadRequest.with_reason("Websocket version header is required"),
-            WsHandshakeError::UnsupportedVersion =>
-                HTTPBadRequest.with_reason("Unsupported version"),
-            WsHandshakeError::BadWebsocketKey =>
-                HTTPBadRequest.with_reason("Handshake error"),
-        }
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
     }
 }
 
@@ -402,6 +373,9 @@ pub enum UrlencodedError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Parse error
+    #[fail(display="Parse error")]
+    Parse,
     /// Payload error
     #[fail(display="Error that occur during reading payload: {}", _0)]
     Payload(#[cause] PayloadError),
@@ -412,9 +386,9 @@ impl ResponseError for UrlencodedError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            UrlencodedError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
-            UrlencodedError::UnknownLength => httpcodes::HTTPLengthRequired.into(),
-            _ => httpcodes::HTTPBadRequest.into(),
+            UrlencodedError::Overflow => httpcodes::HttpPayloadTooLarge.into(),
+            UrlencodedError::UnknownLength => httpcodes::HttpLengthRequired.into(),
+            _ => httpcodes::HttpBadRequest.into(),
         }
     }
 }
@@ -447,8 +421,8 @@ impl ResponseError for JsonPayloadError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            JsonPayloadError::Overflow => httpcodes::HTTPPayloadTooLarge.into(),
-            _ => httpcodes::HTTPBadRequest.into(),
+            JsonPayloadError::Overflow => httpcodes::HttpPayloadTooLarge.into(),
+            _ => httpcodes::HttpBadRequest.into(),
         }
     }
 }
@@ -536,10 +510,10 @@ unsafe impl<T> Sync for InternalError<T> {}
 unsafe impl<T> Send for InternalError<T> {}
 
 impl<T> InternalError<T> {
-    pub fn new(err: T, status: StatusCode) -> Self {
+    pub fn new(cause: T, status: StatusCode) -> Self {
         InternalError {
-            cause: err,
-            status: status,
+            cause,
+            status,
             backtrace: Backtrace::new(),
         }
     }
@@ -737,22 +711,6 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
         let resp: HttpResponse = ExpectError::UnknownExpect.error_response();
         assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
-    }
-
-    #[test]
-    fn test_wserror_http_response() {
-        let resp: HttpResponse = WsHandshakeError::GetMethodRequired.error_response();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp: HttpResponse = WsHandshakeError::NoWebsocketUpgrade.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = WsHandshakeError::NoConnectionUpgrade.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = WsHandshakeError::NoVersionHeader.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = WsHandshakeError::UnsupportedVersion.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = WsHandshakeError::BadWebsocketKey.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     macro_rules! from {

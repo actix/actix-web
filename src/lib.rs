@@ -1,4 +1,4 @@
-//! Actix web is a small, fast, pragmatic, open source rust web framework.
+//! Actix web is a small, pragmatic, extremely fast, web framework for Rust.
 //!
 //! ```rust
 //! use actix_web::*;
@@ -32,19 +32,20 @@
 //! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
-//! * `WebSockets`
+//! * `WebSockets` server/client
 //! * Transparent content compression/decompression (br, gzip, deflate)
 //! * Configurable request routing
-//! * Multipart streams
-//! * Middlewares (`Logger`, `Session`, `DefaultHeaders`)
 //! * Graceful server shutdown
-//! * Built on top of [Actix](https://github.com/actix/actix).
+//! * Multipart streams
+//! * SSL support with openssl or native-tls
+//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
+//! * Built on top of [Actix actor framework](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
 #![cfg_attr(feature = "cargo-clippy", allow(
-    decimal_literal_representation,))]
+    decimal_literal_representation,suspicious_arithmetic_impl,))]
 
 #[macro_use]
 extern crate log;
@@ -77,6 +78,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate flate2;
 extern crate brotli2;
+extern crate encoding;
 extern crate percent_encoding;
 extern crate smallvec;
 extern crate num_cpus;
@@ -100,16 +102,18 @@ extern crate tokio_openssl;
 mod application;
 mod body;
 mod context;
+mod handler;
 mod helpers;
+mod httpmessage;
 mod httprequest;
 mod httpresponse;
 mod info;
 mod json;
 mod route;
 mod router;
-mod param;
 mod resource;
-mod handler;
+mod param;
+mod payload;
 mod pipeline;
 
 pub mod client;
@@ -121,12 +125,12 @@ pub mod multipart;
 pub mod middleware;
 pub mod pred;
 pub mod test;
-pub mod payload;
 pub mod server;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use json::Json;
 pub use application::Application;
+pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
@@ -185,11 +189,12 @@ pub mod dev {
 //! ```
 
     pub use body::BodyStream;
+    pub use context::Drain;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
-    pub use httprequest::{UrlEncoded, RequestBody};
+    pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }

@@ -14,6 +14,7 @@ use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use net2::TcpBuilder;
 
+use ws;
 use body::Binary;
 use error::Error;
 use handler::{Handler, Responder, ReplyItem};
@@ -25,7 +26,6 @@ use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
-use ws::{WsClient, WsClientError, WsClientReader, WsClientWriter};
 use client::{ClientRequest, ClientRequestBuilder};
 
 /// The `TestServer` type.
@@ -41,7 +41,7 @@ use client::{ClientRequest, ClientRequestBuilder};
 /// # use actix_web::*;
 /// #
 /// # fn my_handler(req: HttpRequest) -> HttpResponse {
-/// #     httpcodes::HTTPOk.into()
+/// #     httpcodes::HttpOk.into()
 /// # }
 /// #
 /// # fn main() {
@@ -94,12 +94,12 @@ impl TestServer {
             let _ = sys.run();
         });
 
-        let (sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
-            addr: addr,
+            addr,
             thread: Some(join),
             system: System::new("actix-test"),
-            server_sys: sys,
+            server_sys,
         }
     }
 
@@ -131,12 +131,12 @@ impl TestServer {
             let _ = sys.run();
         });
 
-        let (sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
-            addr: addr,
+            addr,
+            server_sys,
             thread: Some(join),
             system: System::new("actix-test"),
-            server_sys: sys,
         }
     }
 
@@ -180,9 +180,9 @@ impl TestServer {
     }
 
     /// Connect to websocket server
-    pub fn ws(&mut self) -> Result<(WsClientReader, WsClientWriter), WsClientError> {
+    pub fn ws(&mut self) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url("/");
-        self.system.run_until_complete(WsClient::new(url).connect().unwrap())
+        self.system.run_until_complete(ws::Client::new(url).connect())
     }
 
     /// Create `GET` request
@@ -282,9 +282,9 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         httpcodes::HTTPOk.into()
+///         httpcodes::HttpOk.into()
 ///     } else {
-///         httpcodes::HTTPBadRequest.into()
+///         httpcodes::HttpBadRequest.into()
 ///     }
 /// }
 ///
@@ -346,7 +346,7 @@ impl<S> TestRequest<S> {
     /// Start HttpRequest build process with application state
     pub fn with_state(state: S) -> TestRequest<S> {
         TestRequest {
-            state: state,
+            state,
             method: Method::GET,
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
@@ -403,7 +403,7 @@ impl<S> TestRequest<S> {
         self.payload = Some(payload);
         self
     }
-    
+
     /// Complete request creation and generate `HttpRequest` instance
     pub fn finish(self) -> HttpRequest<S> {
         let TestRequest { state, method, uri, version, headers, params, cookies, payload } = self;
@@ -434,7 +434,7 @@ impl<S> TestRequest<S> {
         let req = self.finish();
         let resp = h.handle(req.clone());
 
-        match resp.respond_to(req.clone_without_state()) {
+        match resp.respond_to(req.without_state()) {
             Ok(resp) => {
                 match resp.into().into() {
                     ReplyItem::Message(resp) => Ok(resp),
@@ -461,7 +461,7 @@ impl<S> TestRequest<S> {
         let mut core = Core::new().unwrap();
         match core.run(fut) {
             Ok(r) => {
-                match r.respond_to(req.clone_without_state()) {
+                match r.respond_to(req.without_state()) {
                     Ok(reply) => match reply.into().into() {
                         ReplyItem::Message(resp) => Ok(resp),
                         _ => panic!("Nested async replies are not supported"),

@@ -36,11 +36,7 @@ impl ServerSettings {
         } else {
             "localhost".to_owned()
         };
-        ServerSettings {
-            addr: addr,
-            secure: secure,
-            host: host,
-        }
+        ServerSettings { addr, secure, host }
     }
 
     /// Returns the socket address of the local half of this TCP connection
@@ -67,7 +63,7 @@ pub(crate) struct WorkerSettings<H> {
     bytes: Rc<SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
-    node: Node<()>,
+    node: Box<Node<()>>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -79,7 +75,7 @@ impl<H> WorkerSettings<H> {
             bytes: Rc::new(SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
-            node: Node::head(),
+            node: Box::new(Node::head()),
         }
     }
 
@@ -107,8 +103,8 @@ impl<H> WorkerSettings<H> {
         SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
     }
 
-    pub fn get_http_message(&self) -> helpers::SharedHttpMessage {
-        helpers::SharedHttpMessage::new(self.messages.get(), Rc::clone(&self.messages))
+    pub fn get_http_message(&self) -> helpers::SharedHttpInnerMessage {
+        helpers::SharedHttpInnerMessage::new(self.messages.get(), Rc::clone(&self.messages))
     }
 
     pub fn add_channel(&self) {

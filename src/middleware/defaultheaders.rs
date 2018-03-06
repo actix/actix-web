@@ -22,8 +22,8 @@ use middleware::{Response, Middleware};
 ///                 .header("X-Version", "0.2")
 ///                 .finish())
 ///         .resource("/test", |r| {
-///              r.method(Method::GET).f(|_| httpcodes::HTTPOk);
-///              r.method(Method::HEAD).f(|_| httpcodes::HTTPMethodNotAllowed);
+///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
+///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
 ///         })
 ///         .finish();
 /// }
@@ -95,7 +95,7 @@ impl DefaultHeadersBuilder {
     /// Finishes building and returns the built `DefaultHeaders` middleware.
     pub fn finish(&mut self) -> DefaultHeaders {
         let headers = self.headers.take().expect("cannot reuse middleware builder");
-        DefaultHeaders{ ct: self.ct, headers: headers }
+        DefaultHeaders{ ct: self.ct, headers }
     }
 }
 

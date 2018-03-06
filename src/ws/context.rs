@@ -18,7 +18,7 @@ use ws::frame::Frame;
 use ws::proto::{OpCode, CloseCode};
 
 
-/// Http actor execution context
+/// `WebSockets` actor execution context
 pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
@@ -112,6 +112,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
             }
             let stream = self.stream.as_mut().unwrap();
             stream.push(ContextFrame::Chunk(Some(data)));
+            self.inner.modify();
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -131,7 +132,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
 
     /// Send text frame
     #[inline]
-    pub fn text<T: Into<String>>(&mut self, text: T) {
+    pub fn text<T: Into<Binary>>(&mut self, text: T) {
         self.write(Frame::message(text.into(), OpCode::Text, true, false));
     }
 
@@ -179,6 +180,7 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
             self.stream = Some(SmallVec::new());
         }
         self.stream.as_mut().map(|s| s.push(frame));
+        self.inner.modify();
     }
 
     /// Handle of the running future

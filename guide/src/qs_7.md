@@ -84,7 +84,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json().from_err()
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(httpcodes::HTTPOk.build().json(val)?)  // <- send response
+            Ok(httpcodes::HttpOk.build().json(val)?)  // <- send response
         })
         .responder()
 }
@@ -106,10 +106,10 @@ use futures::{Future, Stream};
 #[derive(Serialize, Deserialize)]
 struct MyObj {name: String, number: i32}
 
-fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
    // `concat2` will asynchronously read each chunk of the request body and
    // return a single, concatenated, chunk
-   req.payload_mut().readany().concat2()
+   req.concat2()
       // `Future::from_err` acts like `?` in that it coerces the error type from
       // the future into the final error type
       .from_err()
@@ -117,7 +117,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
       // synchronous workflow
       .and_then(|body| {                           // <- body is loaded, now we can deserialize json
           let obj = serde_json::from_slice::<MyObj>(&body)?;
-          Ok(httpcodes::HTTPOk.build().json(obj)?) // <- send response
+          Ok(httpcodes::HttpOk.build().json(obj)?) // <- send response
       })
       .responder()
 }
@@ -169,13 +169,18 @@ get enabled automatically.
 Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
 
 ```rust
+# extern crate bytes;
 # extern crate actix_web;
+# extern crate futures;
+# use futures::Stream;
 use actix_web::*;
+use bytes::Bytes;
+use futures::stream::once;
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .chunked()
-        .body(Body::Streaming(payload::Payload::empty().stream())).unwrap()
+        .body(Body::Streaming(Box::new(once(Ok(Bytes::from_static(b"data")))))).unwrap()
 }
 # fn main() {}
 ```
@@ -246,7 +251,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
        .from_err()
        .and_then(|params| {  // <- url encoded parameters
              println!("==== BODY ==== {:?}", params);
-             ok(httpcodes::HTTPOk.into())
+             ok(httpcodes::HttpOk.into())
        })
        .responder()
 }
@@ -256,21 +261,8 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
 ## Streaming request
 
-Actix uses [*Payload*](../actix_web/payload/struct.Payload.html) object as request payload stream.
-*HttpRequest* provides several methods, which can be used for payload access.
-At the same time *Payload* implements *Stream* trait, so it could be used with various
-stream combinators. Also *Payload* provides several convenience methods that return
-future object that resolve to Bytes object.
-
-* *readany()* method returns *Stream* of *Bytes* objects.
-
-* *readexactly()* method returns *Future* that resolves when specified number of bytes
-  get received.
-  
-* *readline()* method returns *Future* that resolves when `\n` get received.
-
-* *readuntil()* method returns *Future* that resolves when specified bytes string
-  matches in input bytes stream
+*HttpRequest* is a stream of `Bytes` objects. It could be used to read request
+body payload.
 
 In this example handle reads request payload chunk by chunk and prints every chunk.
 
@@ -283,9 +275,7 @@ use futures::{Future, Stream};
 
 
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.payload()
-       .readany()
-       .from_err()
+    req.from_err()
        .fold((), |_, chunk| {
             println!("Chunk: {:?}", chunk);
             result::<_, error::PayloadError>(Ok(()))

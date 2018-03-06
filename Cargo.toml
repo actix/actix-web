@@ -1,15 +1,17 @@
 [package]
 name = "actix-web"
-version = "0.4.0"
+version = "0.4.4"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web framework"
+description = "Actix web is a small, pragmatic, extremely fast, web framework for Rust."
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://github.com/actix/actix-web"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
-              "web-programming::http-server", "web-programming::websocket"]
+              "web-programming::http-server",
+              "web-programming::http-client",
+              "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config",
            "appveyor.yml", "/examples/**"]
@@ -40,7 +42,7 @@ brotli2 = "^0.3.2"
 failure = "0.1.1"
 flate2 = "1.0"
 h2 = "0.1"
-http = "^0.1.2"
+http = "^0.1.5"
 httparse = "1.2"
 http-range = "0.1"
 libc = "0.2"
@@ -53,10 +55,11 @@ rand = "0.4"
 regex = "0.2"
 serde = "1.0"
 serde_json = "1.0"
-sha1 = "0.4"
+sha1 = "0.6"
 smallvec = "0.6"
 time = "0.1"
-url = "1.6"
+encoding = "0.2"
+url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode", "secure"] }
 
 # io
@@ -78,7 +81,7 @@ openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
 
 [dependencies.actix]
-version = "0.5"
+version = "^0.5.1"
 
 [dev-dependencies]
 env_logger = "0.5"
@@ -98,16 +101,20 @@ codegen-units = 1
 members = [
   "./",
   "examples/basics",
+  "examples/juniper",
   "examples/diesel",
   "examples/r2d2",
   "examples/json",
   "examples/hello-world",
+  "examples/http-proxy",
   "examples/multipart",
   "examples/state",
+  "examples/redis-session",
   "examples/template_tera",
   "examples/tls",
   "examples/websocket",
   "examples/websocket-chat",
   "examples/web-cors/backend",
+  "examples/unix-socket",
   "tools/wsload/",
 ]

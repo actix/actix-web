@@ -261,7 +261,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///
     ///     HttpServer::new(
     ///         || Application::new()
-    ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
+    ///              .resource("/", |r| r.h(httpcodes::HttpOk)))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .start();
     /// #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
@@ -312,7 +312,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     /// fn main() {
     ///     HttpServer::new(
     ///         || Application::new()
-    ///              .resource("/", |r| r.h(httpcodes::HTTPOk)))
+    ///              .resource("/", |r| r.h(httpcodes::HttpOk)))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .run();
     /// }
@@ -697,7 +697,7 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: i32) -> io::Result<net::T
         net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,
         net::SocketAddr::V6(_) => TcpBuilder::new_v6()?,
     };
-    builder.bind(addr)?;
     builder.reuse_address(true)?;
+    builder.bind(addr)?;
     Ok(builder.listen(backlog)?)
 }

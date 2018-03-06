@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
 use std::{io, mem};
 use bytes::BufMut;
 use futures::{Async, Poll};
@@ -8,11 +10,11 @@ use http::header::{HeaderValue, CONNECTION, DATE};
 use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
-use httprequest::HttpMessage;
+use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use super::shared::SharedBytes;
-use super::encoding::PayloadEncoder;
+use super::encoding::ContentEncoder;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
@@ -28,7 +30,7 @@ bitflags! {
 pub(crate) struct H1Writer<T: AsyncWrite> {
     flags: Flags,
     stream: T,
-    encoder: PayloadEncoder,
+    encoder: ContentEncoder,
     written: u64,
     headers_size: u32,
     buffer: SharedBytes,
@@ -39,11 +41,11 @@ impl<T: AsyncWrite> H1Writer<T> {
     pub fn new(stream: T, buf: SharedBytes) -> H1Writer<T> {
         H1Writer {
             flags: Flags::empty(),
-            stream: stream,
-            encoder: PayloadEncoder::empty(buf.clone()),
+            encoder: ContentEncoder::empty(buf.clone()),
             written: 0,
             headers_size: 0,
             buffer: buf,
+            stream,
         }
     }
 
@@ -96,12 +98,12 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     }
 
     fn start(&mut self,
-             req: &mut HttpMessage,
+             req: &mut HttpInnerMessage,
              msg: &mut HttpResponse,
              encoding: ContentEncoding) -> io::Result<WriterState>
     {
         // prepare task
-        self.encoder = PayloadEncoder::new(self.buffer.clone(), req, msg, encoding);
+        self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags.insert(Flags::STARTED | Flags::KEEPALIVE);
         } else {

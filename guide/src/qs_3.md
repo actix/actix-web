@@ -49,12 +49,12 @@ fn main() {
     HttpServer::new(|| vec![
         Application::new()
             .prefix("/app1")
-            .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
+            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
         Application::new()
             .prefix("/app2")
-            .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
+            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
         Application::new()
-            .resource("/", |r| r.f(|r| httpcodes::HTTPOk)),
+            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
     ]);
 }
 ```

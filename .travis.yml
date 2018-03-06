@@ -47,7 +47,7 @@ script:
        USE_SKEPTIC=1 cargo test --features=alpn
     else
        cargo clean
-       cargo test
+       cargo test -- --nocapture
        # --features=alpn
     fi
 
@@ -55,8 +55,10 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cd examples/basics && cargo check && cd ../..
       cd examples/hello-world && cargo check && cd ../..
+      cd examples/http-proxy && cargo check && cd ../..
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
+      cd examples/juniper && cargo check && cd ../..
       cd examples/state && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..
       cd examples/diesel && cargo check && cd ../..
@@ -64,6 +66,7 @@ script:
       cd examples/tls && cargo check && cd ../..
       cd examples/websocket-chat && cargo check && cd ../..
       cd examples/websocket && cargo check && cd ../..
+      cd examples/unix-socket && cargo check && cd ../..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
@@ -73,7 +76,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
       cargo doc --features "alpn, tls" --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
