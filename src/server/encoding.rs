@@ -13,59 +13,15 @@ use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut, BufMut};
 
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
+use helpers::convert_usize;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter, PayloadStatus};
 
 use super::shared::SharedBytes;
-
-
-impl ContentEncoding {
-
-    #[inline]
-    pub fn is_compression(&self) -> bool {
-        match *self {
-            ContentEncoding::Identity | ContentEncoding::Auto => false,
-            _ => true
-        }
-    }
-
-    #[inline]
-    pub fn as_str(&self) -> &'static str {
-        match *self {
-            ContentEncoding::Br => "br",
-            ContentEncoding::Gzip => "gzip",
-            ContentEncoding::Deflate => "deflate",
-            ContentEncoding::Identity | ContentEncoding::Auto => "identity",
-        }
-    }
-    /// default quality value
-    fn quality(&self) -> f64 {
-        match *self {
-            ContentEncoding::Br => 1.1,
-            ContentEncoding::Gzip => 1.0,
-            ContentEncoding::Deflate => 0.9,
-            ContentEncoding::Identity | ContentEncoding::Auto => 0.1,
-        }
-    }
-}
-
-// TODO: remove memory allocation
-impl<'a> From<&'a str> for ContentEncoding {
-    fn from(s: &'a str) -> ContentEncoding {
-        match s.trim().to_lowercase().as_ref() {
-            "br" => ContentEncoding::Br,
-            "gzip" => ContentEncoding::Gzip,
-            "deflate" => ContentEncoding::Deflate,
-            "identity" => ContentEncoding::Identity,
-            _ => ContentEncoding::Auto,
-        }
-    }
-}
-
 
 pub(crate) enum PayloadType {
     Sender(PayloadSender),
@@ -466,7 +422,7 @@ impl ContentEncoder {
                 }
                 if req.method == Method::HEAD {
                     let mut b = BytesMut::new();
-                    let _ = write!(b, "{}", bytes.len());
+                    convert_usize(bytes.len(), &mut b);
                     resp.headers_mut().insert(
                         CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
                 } else {

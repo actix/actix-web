@@ -129,8 +129,19 @@ impl ResponseError for io::Error {
     }
 }
 
-/// `InternalServerError` for `InvalidHeaderValue`
-impl ResponseError for header::InvalidHeaderValue {}
+/// `BadRequest` for `InvalidHeaderValue`
+impl ResponseError for header::InvalidHeaderValue {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+ }
+}
+
+/// `BadRequest` for `InvalidHeaderValue`
+impl ResponseError for header::InvalidHeaderValueBytes {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
 
 /// `InternalServerError` for `futures::Canceled`
 impl ResponseError for Canceled {}

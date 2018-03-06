@@ -14,7 +14,7 @@ use serde::Serialize;
 use body::Body;
 use error::Error;
 use handler::Responder;
-use headers::ContentEncoding;
+use header::{IntoHeaderValue, ContentEncoding};
 use httprequest::HttpRequest;
 
 /// Represents various types of connection
@@ -261,12 +261,12 @@ impl HttpResponseBuilder {
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
         where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
+              V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => {
-                    match HeaderValue::try_from(value) {
+                    match value.try_into() {
                         Ok(value) => { parts.headers.append(key, value); }
                         Err(e) => self.err = Some(e.into()),
                     }
