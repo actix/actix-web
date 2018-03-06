@@ -2,9 +2,9 @@
 
 // //! TODO: needs to re-implement actual files handling, current impl blocks
 use std::io;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::fmt::Write;
-use std::fs::{File, DirEntry};
+use std::fs::{File, DirEntry, metadata};
 use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 
@@ -12,10 +12,11 @@ use mime_guess::get_mime_type;
 
 use param::FromParam;
 use handler::{Handler, Responder};
-use headers::ContentEncoding;
+use headers::{ContentEncoding, HttpRange};
+use http::header;
+use httpcodes::{HTTPBadRequest, HTTPOk, HTTPFound, HTTPPartialContent, HTTPRangeNotSatisfiable};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HttpOk, HttpFound};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -83,15 +84,53 @@ impl Responder for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, io::Error> {
-        let mut resp = HttpOk.build();
-        if let Some(ext) = self.path().extension() {
-            let mime = get_mime_type(&ext.to_string_lossy());
-            resp.content_type(format!("{}", mime).as_str());
+    fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+        if let Some(rangeheader) = req.headers().get(header::RANGE) {
+            let file_metadata = metadata(&self.0)?;
+            if let Ok(rangeheaderstr) = rangeheader.to_str() {
+                if let Ok(ranges) = HttpRange::parse(rangeheaderstr, file_metadata.len()) {
+                    let mut resp = HTTPPartialContent.build();
+                    let length: usize = ranges[0].length as usize;
+                    let mut data: Vec<u8> = vec![0u8; length];
+                    if let Some(ext) = self.path().extension() {
+                        let mime = get_mime_type(&ext.to_string_lossy());
+                        resp.content_type(format!("{}", mime).as_str());
+                    }
+                    let _ = &self.1.seek(SeekFrom::Start(ranges[0].start))?;
+                    let _ = self.1.read_exact(&mut data)?;
+                    Ok(resp
+                        .header(header::CONTENT_RANGE, 
+                            format!("bytes {}-{}/{}", 
+                                ranges[0].start, 
+                                ranges[0].start + ranges[0].length, 
+                                file_metadata.len()).as_str())
+                        .body(data).unwrap())
+                } else {
+                    Ok(HTTPRangeNotSatisfiable.build()
+                        .header(header::CONTENT_RANGE, 
+                            format!("bytes */{}", file_metadata.len()).as_str())
+                        .header(header::ACCEPT_RANGES, "bytes")
+                        .finish().unwrap())
+                }
+            } else {
+                Ok(HTTPBadRequest.build()
+                    .header(header::CONTENT_RANGE,
+                        format!("bytes */{}", file_metadata.len()).as_str())
+                    .header(header::ACCEPT_RANGES, "bytes")
+                    .finish().unwrap())
+            }
+        } else {
+            let mut resp = HTTPOk.build();
+            resp.header(header::ACCEPT_RANGES, "bytes");
+            resp.content_encoding(ContentEncoding::Identity);
+            if let Some(ext) = self.path().extension() {
+                let mime = get_mime_type(&ext.to_string_lossy());
+                resp.content_type(format!("{}", mime).as_str());
+            }
+            let mut data = Vec::new();
+            let _ = self.1.read_to_end(&mut data);
+            Ok(resp.body(data).unwrap())
         }
-        let mut data = Vec::new();
-        let _ = self.1.read_to_end(&mut data);
-        Ok(resp.body(data).unwrap())
     }
 }
 
