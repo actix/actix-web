@@ -29,10 +29,12 @@ header! {
     /// use actix_web::header::Allow;
     /// use http::Method;
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     /// builder.set(
     ///     Allow(vec![Method::GET])
     /// );
+    /// # }
     /// ```
     ///
     /// ```rust
@@ -42,6 +44,7 @@ header! {
     /// use actix_web::header::Allow;
     /// use http::Method;
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     /// builder.set(
     ///     Allow(vec![
@@ -50,6 +53,7 @@ header! {
     ///         Method::PATCH,
     ///     ])
     /// );
+    /// # }
     /// ```
     (Allow, http::ALLOW) => (Method)*
 

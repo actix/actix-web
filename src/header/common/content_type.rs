@@ -35,23 +35,27 @@ header! {
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::ContentType;
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     /// builder.set(
     ///     ContentType::json()
     /// );
+    /// # }
     /// ```
     ///
     /// ```rust
     /// # extern crate mime;
     /// # extern crate actix_web;
-    /// use mime;
+    /// use mime::TEXT_HTML;
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::ContentType;
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     /// builder.set(
-    ///     ContentType(mime::TEXT_HTML)
+    ///     ContentType(TEXT_HTML)
     /// );
+    /// # }
     /// ```
     (ContentType, http::CONTENT_TYPE) => [Mime]
 

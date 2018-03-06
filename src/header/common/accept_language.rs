@@ -29,6 +29,7 @@ header! {
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::{AcceptLanguage, LanguageTag, qitem};
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     /// let mut langtag: LanguageTag = Default::default();
     /// langtag.language = Some("en".to_owned());
@@ -38,6 +39,7 @@ header! {
     ///         qitem(langtag),
     ///     ])
     /// );
+    /// # }
     /// ```
     ///
     /// ```rust

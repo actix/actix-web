@@ -34,6 +34,7 @@ header! {
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::{Accept, qitem};
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     ///
     /// builder.set(
@@ -41,6 +42,7 @@ header! {
     ///         qitem(mime::TEXT_HTML),
     ///     ])
     /// );
+    /// # }
     /// ```
     ///
     /// ```rust
@@ -49,6 +51,7 @@ header! {
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::{Accept, qitem};
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     ///
     /// builder.set(
@@ -56,6 +59,7 @@ header! {
     ///         qitem(mime::APPLICATION_JSON),
     ///     ])
     /// );
+    /// # }
     /// ```
     ///
     /// ```rust
@@ -64,6 +68,7 @@ header! {
     /// use actix_web::httpcodes::HttpOk;
     /// use actix_web::header::{Accept, QualityItem, q, qitem};
     ///
+    /// # fn main() {
     /// let mut builder = HttpOk.build();
     ///
     /// builder.set(
@@ -81,6 +86,7 @@ header! {
     ///         ),
     ///     ])
     /// );
+    /// # }
     /// ```
     (Accept, http::ACCEPT) => (QualityItem<Mime>)+
 
