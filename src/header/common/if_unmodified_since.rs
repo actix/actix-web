@@ -1,52 +1,40 @@
-use http::header;
+use header::{http, HttpDate};
 
-use header::{Header, HttpDate, IntoHeaderValue};
-use error::ParseError;
-use httpmessage::HttpMessage;
+header! {
+    /// `If-Unmodified-Since` header, defined in
+    /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
+    ///
+    /// The `If-Unmodified-Since` header field makes the request method
+    /// conditional on the selected representation's last modification date
+    /// being earlier than or equal to the date provided in the field-value.
+    /// This field accomplishes the same purpose as If-Match for cases where
+    /// the user agent does not have an entity-tag for the representation.
+    ///
+    /// # ABNF
+    ///
+    /// ```text
+    /// If-Unmodified-Since = HTTP-date
+    /// ```
+    ///
+    /// # Example values
+    ///
+    /// * `Sat, 29 Oct 1994 19:43:31 GMT`
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use actix_web::httpcodes;
+    /// use actix_web::header::IfUnmodifiedSince;
+    /// use std::time::{SystemTime, Duration};
+    ///
+    /// let mut builder = httpcodes::HttpOk.build();
+    /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
+    /// builder.set(IfUnmodifiedSince(modified.into()));
+    /// ```
+    (IfUnmodifiedSince, http::IF_UNMODIFIED_SINCE) => [HttpDate]
 
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct IfUnmodifiedSince(pub HttpDate);
-
-impl Header for IfUnmodifiedSince {
-    fn name() -> header::HeaderName {
-        header::IF_MODIFIED_SINCE
-    }
-    
-    fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError> {
-        let val = msg.headers().get(Self::name())
-            .ok_or(ParseError::Header)?.to_str().map_err(|_| ParseError::Header)?;
-        Ok(IfUnmodifiedSince(val.parse()?))
-    }
-}
-
-impl IntoHeaderValue for IfUnmodifiedSince {
-    type Error = header::InvalidHeaderValueBytes;
-
-    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
-        self.0.try_into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use time::Tm;
-    use test::TestRequest;
-    use httpmessage::HttpMessage;
-    use super::HttpDate;
-    use super::IfUnmodifiedSince;
-
-    fn date() -> HttpDate {
-        Tm {
-            tm_nsec: 0, tm_sec: 37, tm_min: 48, tm_hour: 8,
-            tm_mday: 7, tm_mon: 10, tm_year: 94,
-            tm_wday: 0, tm_isdst: 0, tm_yday: 0, tm_utcoff: 0}.into()
-    }
-
-    #[test]
-    fn test_if_mod_since() {
-        let req = TestRequest::with_hdr(IfUnmodifiedSince(date())).finish();
-        let h = req.get::<IfUnmodifiedSince>().unwrap();
-        assert_eq!(h.0, date());
+    test_if_unmodified_since {
+        // Testcase from RFC
+        test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }
 }

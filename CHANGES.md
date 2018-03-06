@@ -4,6 +4,8 @@
 
 * Enable compression support for `NamedFile`
 
+* Better support for `NamedFile` type
+
 * Add `ResponseError` impl for `SendRequestError`.
   This improves ergonomics of http client.
 

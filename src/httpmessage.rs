@@ -26,7 +26,7 @@ pub trait HttpMessage {
 
     #[doc(hidden)]
     /// Get a header
-    fn get<H: Header>(&self) -> Result<H, ParseError> where Self: Sized {
+    fn get_header<H: Header>(&self) -> Result<H, ParseError> where Self: Sized {
         H::parse(self)
     }
     

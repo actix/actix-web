@@ -71,6 +71,7 @@ extern crate httparse;
 extern crate http_range;
 extern crate mime;
 extern crate mime_guess;
+extern crate language_tags;
 extern crate rand;
 extern crate url;
 extern crate libc;

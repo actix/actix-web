@@ -16,7 +16,6 @@ use bytes::{Bytes, BytesMut, BufMut};
 use header::ContentEncoding;
 use body::{Body, Binary};
 use error::PayloadError;
-use helpers::convert_usize;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadWriter, PayloadStatus};
@@ -422,7 +421,7 @@ impl ContentEncoder {
                 }
                 if req.method == Method::HEAD {
                     let mut b = BytesMut::new();
-                    convert_usize(bytes.len(), &mut b);
+                    let _ = write!(b, "{}", bytes.len());
                     resp.headers_mut().insert(
                         CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
                 } else {

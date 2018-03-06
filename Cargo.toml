@@ -48,7 +48,7 @@ http-range = "0.1"
 libc = "0.2"
 log = "0.4"
 mime = "0.3"
-mime_guess = "1.8"
+mime_guess = "2.0.0-alpha"
 num_cpus = "1.0"
 percent-encoding = "1.0"
 rand = "0.4"
@@ -59,6 +59,7 @@ sha1 = "0.6"
 smallvec = "0.6"
 time = "0.1"
 encoding = "0.2"
+language-tags = "0.2"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode", "secure"] }
 

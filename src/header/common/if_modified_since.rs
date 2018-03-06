@@ -1,52 +1,39 @@
-use http::header;
+use header::{http, HttpDate};
 
-use header::{Header, HttpDate, IntoHeaderValue};
-use error::ParseError;
-use httpmessage::HttpMessage;
+header! {
+    /// `If-Modified-Since` header, defined in
+    /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.3)
+    ///
+    /// The `If-Modified-Since` header field makes a GET or HEAD request
+    /// method conditional on the selected representation's modification date
+    /// being more recent than the date provided in the field-value.
+    /// Transfer of the selected representation's data is avoided if that
+    /// data has not changed.
+    ///
+    /// # ABNF
+    ///
+    /// ```text
+    /// If-Unmodified-Since = HTTP-date
+    /// ```
+    ///
+    /// # Example values
+    /// * `Sat, 29 Oct 1994 19:43:31 GMT`
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use actix_web::httpcodes;
+    /// use actix_web::header::IfModifiedSince;
+    /// use std::time::{SystemTime, Duration};
+    ///
+    /// let mut builder = httpcodes::HttpOk.build();
+    /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
+    /// builder.set(IfModifiedSince(modified.into()));
+    /// ```
+    (IfModifiedSince, http::IF_MODIFIED_SINCE) => [HttpDate]
 
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct IfModifiedSince(pub HttpDate);
-
-impl Header for IfModifiedSince {
-    fn name() -> header::HeaderName {
-        header::IF_MODIFIED_SINCE
-    }
-    
-    fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError> {
-        let val = msg.headers().get(Self::name())
-            .ok_or(ParseError::Header)?.to_str().map_err(|_| ParseError::Header)?;
-        Ok(IfModifiedSince(val.parse()?))
-    }
-}
-
-impl IntoHeaderValue for IfModifiedSince {
-    type Error = header::InvalidHeaderValueBytes;
-
-    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
-        self.0.try_into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use time::Tm;
-    use test::TestRequest;
-    use httpmessage::HttpMessage;
-    use super::HttpDate;
-    use super::IfModifiedSince;
-
-    fn date() -> HttpDate {
-        Tm {
-            tm_nsec: 0, tm_sec: 37, tm_min: 48, tm_hour: 8,
-            tm_mday: 7, tm_mon: 10, tm_year: 94,
-            tm_wday: 0, tm_isdst: 0, tm_yday: 0, tm_utcoff: 0}.into()
-    }
-
-    #[test]
-    fn test_if_mod_since() {
-        let req = TestRequest::with_hdr(IfModifiedSince(date())).finish();
-        let h = req.get::<IfModifiedSince>().unwrap();
-        assert_eq!(h.0, date());
+    test_if_modified_since {
+        // Testcase from RFC
+        test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }
 }

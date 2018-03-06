@@ -8,7 +8,7 @@ use bytes::{BytesMut, BufMut};
 use http::header::{HeaderValue, InvalidHeaderValueBytes};
 
 use error::ParseError;
-use super::IntoHeaderValue;
+use header::IntoHeaderValue;
 
 
 /// A timestamp with HTTP formatting and parsing
