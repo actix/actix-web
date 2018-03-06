@@ -246,18 +246,14 @@ impl PayloadStream {
                 if let Some(ref mut decoder) = *decoder {
                     decoder.as_mut().get_mut().eof = true;
 
-                    loop {
-                        self.dst.reserve(8192);
-                        match decoder.read(unsafe{self.dst.bytes_mut()}) {
-                            Ok(n) =>  {
-                                if n == 0 {
-                                    return Ok(Some(self.dst.take().freeze()))
-                                } else {
-                                    unsafe{self.dst.advance_mut(n)};
-                                }
-                            }
-                            Err(e) => return Err(e),
+                    self.dst.reserve(8192);
+                    match decoder.read(unsafe{self.dst.bytes_mut()}) {
+                        Ok(n) =>  {
+                            unsafe{self.dst.advance_mut(n)};
+                            return Ok(Some(self.dst.take().freeze()))
                         }
+                        Err(e) =>
+                            return Err(e),
                     }
                 } else {
                     Ok(None)
@@ -283,8 +279,9 @@ impl PayloadStream {
     pub fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self.decoder {
             Decoder::Br(ref mut decoder) => {
-                match decoder.write(&data).and_then(|_| decoder.flush()) {
+                match decoder.write_all(&data) {
                     Ok(_) => {
+                        decoder.flush()?;
                         let b = decoder.get_mut().take();
                         if !b.is_empty() {
                             Ok(Some(b))
@@ -306,23 +303,31 @@ impl PayloadStream {
 
                 loop {
                     self.dst.reserve(8192);
-                    match decoder.as_mut().as_mut().unwrap().read(unsafe{self.dst.bytes_mut()}) {
+                    match decoder.as_mut()
+                        .as_mut().unwrap().read(unsafe{self.dst.bytes_mut()})
+                    {
                         Ok(n) =>  {
+                            if n != 0 {
+                                unsafe{self.dst.advance_mut(n)};
+                            }
                             if n == 0 {
                                 return Ok(Some(self.dst.take().freeze()));
-                            } else {
-                                unsafe{self.dst.advance_mut(n)};
                             }
                         }
                         Err(e) => {
+                            if e.kind() == io::ErrorKind::WouldBlock && !self.dst.is_empty()
+                            {
+                                return Ok(Some(self.dst.take().freeze()));
+                            }
                             return Err(e)
                         }
                     }
                 }
             },
             Decoder::Deflate(ref mut decoder) => {
-                match decoder.write(&data).and_then(|_| decoder.flush()) {
+                match decoder.write_all(&data) {
                     Ok(_) => {
+                        decoder.flush()?;
                         let b = decoder.get_mut().take();
                         if !b.is_empty() {
                             Ok(Some(b))
@@ -590,9 +595,8 @@ impl ContentEncoder {
     pub fn write(&mut self, data: Binary) -> Result<(), io::Error> {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
-                match encoder.write(data.as_ref()) {
-                    Ok(_) =>
-                        encoder.flush(),
+                match encoder.write_all(data.as_ref()) {
+                    Ok(_) => Ok(()),
                     Err(err) => {
                         trace!("Error decoding br encoding: {}", err);
                         Err(err)
@@ -600,9 +604,8 @@ impl ContentEncoder {
                 }
             },
             ContentEncoder::Gzip(ref mut encoder) => {
-                match encoder.write(data.as_ref()) {
-                    Ok(_) =>
-                        encoder.flush(),
+                match encoder.write_all(data.as_ref()) {
+                    Ok(_) => Ok(()),
                     Err(err) => {
                         trace!("Error decoding gzip encoding: {}", err);
                         Err(err)
@@ -610,9 +613,8 @@ impl ContentEncoder {
                 }
             }
             ContentEncoder::Deflate(ref mut encoder) => {
-                match encoder.write(data.as_ref()) {
-                    Ok(_) =>
-                        encoder.flush(),
+                match encoder.write_all(data.as_ref()) {
+                    Ok(_) => Ok(()),
                     Err(err) => {
                         trace!("Error decoding deflate encoding: {}", err);
                         Err(err)

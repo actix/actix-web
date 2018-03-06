@@ -3,6 +3,7 @@ extern crate actix_web;
 extern crate bytes;
 extern crate futures;
 extern crate flate2;
+extern crate rand;
 
 use std::io::Read;
 
@@ -10,6 +11,7 @@ use bytes::Bytes;
 use futures::Future;
 use futures::stream::once;
 use flate2::read::GzDecoder;
+use rand::Rng;
 
 use actix_web::*;
 
@@ -143,13 +145,42 @@ fn test_client_gzip_encoding_large() {
 }
 
 #[test]
-fn test_client_brotli_encoding() {
+fn test_client_gzip_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(100_000)
+        .collect::<String>();
+
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
                    .content_encoding(headers::ContentEncoding::Deflate)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    // client request
+    let request = srv.post()
+        .content_encoding(headers::ContentEncoding::Gzip)
+        .body(data.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
+fn test_client_brotli_encoding() {
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Gzip)
                    .body(bytes))
             }).responder()}
     ));
@@ -164,6 +195,36 @@ fn test_client_brotli_encoding() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_client_brotli_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(70_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(move |bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Gzip)
+                   .body(bytes))
+            }).responder()}
+        ));
+
+    // client request
+    let request = srv.client(Method::POST, "/")
+        .content_encoding(headers::ContentEncoding::Br)
+        .body(data.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
 }
 
 #[test]
@@ -188,6 +249,35 @@ fn test_client_deflate_encoding() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_client_deflate_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(70_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Br)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    // client request
+    let request = srv.post()
+        .content_encoding(headers::ContentEncoding::Deflate)
+        .body(data.clone()).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
 }
 
 #[test]

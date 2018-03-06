@@ -154,7 +154,7 @@ pub(crate) const HAS_OPENSSL: bool = false;
 // #[cfg(not(feature="tls"))]
 // pub(crate) const HAS_TLS: bool = false;
 
-
+#[doc(hidden)]
 #[deprecated(since="0.4.4", note="please use `actix::header` module")]
 pub mod headers {
 //! Headers implementation

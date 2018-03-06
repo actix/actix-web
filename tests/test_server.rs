@@ -241,7 +241,7 @@ fn test_body_gzip_large() {
 fn test_body_gzip_large_random() {
     let data = rand::thread_rng()
         .gen_ascii_chars()
-        .take(70000)
+        .take(70_000)
         .collect::<String>();
     let srv_data = Arc::new(data.clone());
 
@@ -525,10 +525,10 @@ fn test_gzip_encoding_large() {
 }
 
 #[test]
-fn test_gzip_encoding_large_random() {
+fn test_reading_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .gen_ascii_chars()
-        .take(6000)
+        .take(60_000)
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
@@ -554,11 +554,12 @@ fn test_gzip_encoding_large_random() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
 }
 
 #[test]
-fn test_deflate_encoding() {
+fn test_reading_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
@@ -586,7 +587,7 @@ fn test_deflate_encoding() {
 }
 
 #[test]
-fn test_deflate_encoding_large() {
+fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
@@ -611,6 +612,40 @@ fn test_deflate_encoding_large() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[test]
+fn test_reading_deflate_encoding_large_random() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(160_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
+        req.body()
+            .and_then(|bytes: Bytes| {
+                Ok(httpcodes::HTTPOk
+                   .build()
+                   .content_encoding(headers::ContentEncoding::Identity)
+                   .body(bytes))
+            }).responder()}
+    ));
+
+    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv.post()
+        .header(header::CONTENT_ENCODING, "deflate")
+        .body(enc).unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
 }
 

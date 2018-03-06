@@ -2,6 +2,8 @@
 
 ## 0.4.5 (2018-03-xx)
 
+* Fix compression #103 and #104
+
 * Enable compression support for `NamedFile`
 
 * Better support for `NamedFile` type
