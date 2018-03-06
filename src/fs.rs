@@ -14,9 +14,15 @@ use param::FromParam;
 use handler::{Handler, Responder};
 use headers::{ContentEncoding, HttpRange};
 use http::header;
+<<<<<<< HEAD
 use httpcodes::{HTTPBadRequest, HTTPOk, HTTPFound, HTTPPartialContent, HTTPRangeNotSatisfiable};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+=======
+use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
+use httpcodes::{HTTPOk, HTTPFound, HTTPPartialContent, HTTPRangeNotSatisfiable};
+>>>>>>> 3ccfc10f0fd727b88c12cd95952158acba690e40
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -87,6 +93,7 @@ impl Responder for NamedFile {
     fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         if let Some(rangeheader) = req.headers().get(header::RANGE) {
             let file_metadata = metadata(&self.0)?;
+<<<<<<< HEAD
             if let Ok(rangeheaderstr) = rangeheader.to_str() {
                 if let Ok(ranges) = HttpRange::parse(rangeheaderstr, file_metadata.len()) {
                     let mut resp = HTTPPartialContent.build();
@@ -115,6 +122,28 @@ impl Responder for NamedFile {
             } else {
                 Ok(HTTPBadRequest.build()
                     .header(header::CONTENT_RANGE,
+=======
+            if let Ok(ranges) = HttpRange::parse(rangeheader.to_str().unwrap_or(""), file_metadata.len()) {
+                let mut resp = HTTPPartialContent.build();
+                let length: usize = ranges[0].length as usize;
+                let mut data: Vec<u8> = vec![0u8; length];
+                if let Some(ext) = self.path().extension() {
+                    let mime = get_mime_type(&ext.to_string_lossy());
+                    resp.content_type(format!("{}", mime).as_str());
+                }
+                let _ = &self.1.seek(SeekFrom::Start(ranges[0].start))?;
+                let _ = self.1.read_exact(&mut data)?;
+                Ok(resp
+                    .header(header::CONTENT_RANGE, 
+                        format!("bytes {}-{}/{}", 
+                            ranges[0].start, 
+                            ranges[0].start + ranges[0].length, 
+                            file_metadata.len()).as_str())
+                    .body(data).unwrap())
+            } else {
+                Ok(HTTPRangeNotSatisfiable.build()
+                    .header(header::CONTENT_RANGE, 
+>>>>>>> 3ccfc10f0fd727b88c12cd95952158acba690e40
                         format!("bytes */{}", file_metadata.len()).as_str())
                     .header(header::ACCEPT_RANGES, "bytes")
                     .finish().unwrap())
