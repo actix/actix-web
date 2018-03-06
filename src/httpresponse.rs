@@ -14,7 +14,7 @@ use serde::Serialize;
 use body::Body;
 use error::Error;
 use handler::Responder;
-use header::{IntoHeaderValue, ContentEncoding};
+use header::{Header, IntoHeaderValue, ContentEncoding};
 use httprequest::HttpRequest;
 
 /// Represents various types of connection
@@ -237,6 +237,34 @@ impl HttpResponseBuilder {
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.version = Some(version);
+        }
+        self
+    }
+
+    /// Set a header.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use actix_web::header;
+    ///
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     Ok(HttpOk.build()
+    ///         .set(header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
+    ///         .finish()?)
+    /// }
+    /// fn main() {}
+    /// ```
+    #[doc(hidden)]
+    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self
+    {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            match hdr.try_into() {
+                Ok(value) => { parts.headers.append(H::name(), value); }
+                Err(e) => self.err = Some(e.into()),
+            }
         }
         self
     }
@@ -733,8 +761,9 @@ mod tests {
     use std::str::FromStr;
     use time::Duration;
     use http::{Method, Uri};
+    use http::header::{COOKIE, CONTENT_TYPE};
     use body::Binary;
-    use {headers, httpcodes};
+    use {header, httpcodes};
 
     #[test]
     fn test_debug() {
@@ -746,7 +775,7 @@ mod tests {
     #[test]
     fn test_response_cookies() {
         let mut headers = HeaderMap::new();
-        headers.insert(header::COOKIE,
+        headers.insert(COOKIE,
                        header::HeaderValue::from_static("cookie1=value1; cookie2=value2"));
 
         let req = HttpRequest::new(
@@ -755,7 +784,7 @@ mod tests {
 
         let resp = httpcodes::HttpOk
             .build()
-            .cookie(headers::Cookie::build("name", "value")
+            .cookie(header::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
                     .path("/test")
                     .http_only(true)
@@ -803,7 +832,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponse::build(StatusCode::OK)
             .content_type("text/plain").body(Body::Empty).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain")
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
@@ -820,7 +849,7 @@ mod tests {
     fn test_json() {
         let resp = HttpResponse::build(StatusCode::OK)
             .json(vec!["v1", "v2", "v3"]).unwrap();
-        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, header::HeaderValue::from_static("application/json"));
         assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
     }
@@ -828,9 +857,9 @@ mod tests {
     #[test]
     fn test_json_ct() {
         let resp = HttpResponse::build(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "text/json")
+            .header(CONTENT_TYPE, "text/json")
             .json(vec!["v1", "v2", "v3"]).unwrap();
-        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, header::HeaderValue::from_static("text/json"));
         assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
     }
@@ -850,56 +879,56 @@ mod tests {
 
         let resp: HttpResponse = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
         let resp: HttpResponse = "test".respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
         let resp: HttpResponse = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
 
         let resp: HttpResponse = b"test".as_ref().respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
 
         let resp: HttpResponse = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
 
         let resp: HttpResponse = "test".to_owned().respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
 
         let resp: HttpResponse = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
 
         let resp: HttpResponse = (&"test".to_owned()).respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("text/plain; charset=utf-8"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
@@ -907,7 +936,7 @@ mod tests {
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
@@ -915,7 +944,7 @@ mod tests {
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
@@ -923,7 +952,7 @@ mod tests {
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
@@ -931,7 +960,7 @@ mod tests {
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
                    header::HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));

@@ -17,6 +17,7 @@ use net2::TcpBuilder;
 use ws;
 use body::Binary;
 use error::Error;
+use header::Header;
 use handler::{Handler, Responder, ReplyItem};
 use middleware::Middleware;
 use application::{Application, HttpApplication};
@@ -333,6 +334,12 @@ impl TestRequest<()> {
     }
 
     /// Create TestRequest and set header
+    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest<()>
+    {
+        TestRequest::default().set(hdr)
+    }
+
+    /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest<()>
         where HeaderName: HttpTryFrom<K>,
               HeaderValue: HttpTryFrom<V>
@@ -373,6 +380,16 @@ impl<S> TestRequest<S> {
     pub fn uri(mut self, path: &str) -> Self {
         self.uri = Uri::from_str(path).unwrap();
         self
+    }
+
+    /// Set a header
+    pub fn set<H: Header>(mut self, hdr: H) -> Self
+    {
+        if let Ok(value) = hdr.try_into() {
+            self.headers.append(H::name(), value);
+            return self
+        }
+        panic!("Can not set header");
     }
 
     /// Set a header
