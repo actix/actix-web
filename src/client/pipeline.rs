@@ -86,7 +86,10 @@ impl Future for SendRequest {
 
             match state {
                 State::New =>
-                    self.state = State::Connect(self.conn.send(Connect(self.req.uri().clone()))),
+                    self.state = State::Connect(self.conn.send(Connect {
+                        uri: self.req.uri().clone(),
+                        connection_timeout: self.req.connection_timeout()
+                    })),
                 State::Connect(mut conn) => match conn.poll() {
                     Ok(Async::NotReady) => {
                         self.state = State::Connect(conn);

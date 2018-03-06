@@ -1,5 +1,6 @@
 use std::{fmt, mem};
 use std::io::Write;
+use std::time::Duration;
 
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
@@ -28,6 +29,7 @@ pub struct ClientRequest {
     response_decompress: bool,
     buffer_capacity: Option<(usize, usize)>,
     conn: ConnectionType,
+    connection_timeout: Duration
 
 }
 
@@ -52,6 +54,7 @@ impl Default for ClientRequest {
             response_decompress: true,
             buffer_capacity: None,
             conn: ConnectionType::Default,
+            connection_timeout: Duration::from_secs(1)
         }
     }
 }
@@ -102,7 +105,7 @@ impl ClientRequest {
             request: Some(ClientRequest::default()),
             err: None,
             cookies: None,
-            default_headers: true,
+            default_headers: true
         }
     }
 
@@ -110,6 +113,11 @@ impl ClientRequest {
     #[inline]
     pub fn uri(&self) -> &Uri {
         &self.uri
+    }
+
+    #[inline]
+    pub fn connection_timeout(&self) -> Duration {
+        self.connection_timeout
     }
 
     /// Set client request uri
@@ -236,7 +244,7 @@ pub struct ClientRequestBuilder {
     request: Option<ClientRequest>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
-    default_headers: bool,
+    default_headers: bool
 }
 
 impl ClientRequestBuilder {
@@ -357,6 +365,15 @@ impl ClientRequestBuilder {
     pub fn upgrade(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.upgrade = true;
+        }
+        self
+    }
+
+    /// Set connection timeout
+    #[inline]
+    pub fn connection_timeout(&mut self, connection_timeout: Duration) -> &mut Self {
+        if let Some(ref mut request) = self.request {
+            request.connection_timeout = connection_timeout;
         }
         self
     }
@@ -562,7 +579,7 @@ impl ClientRequestBuilder {
             request: self.request.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
-            default_headers: self.default_headers,
+            default_headers: self.default_headers
         }
     }
 }

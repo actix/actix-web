@@ -1,5 +1,6 @@
 use std::{io, time};
 use std::net::Shutdown;
+use std::time::Duration;
 
 use actix::{fut, Actor, ActorFuture, Context,
             Handler, Message, ActorResponse, Supervised};
@@ -25,12 +26,18 @@ use server::IoStream;
 #[derive(Debug)]
 /// `Connect` type represents message that can be send to `ClientConnector`
 /// with connection request.
-pub struct Connect(pub Uri);
+pub struct Connect {
+    pub uri: Uri,
+    pub connection_timeout: Duration
+}
 
 impl Connect {
     /// Create `Connect` message for specified `Uri`
     pub fn new<U>(uri: U) -> Result<Connect, HttpError> where Uri: HttpTryFrom<U> {
-        Ok(Connect(Uri::try_from(uri).map_err(|e| e.into())?))
+        Ok(Connect {
+            uri: Uri::try_from(uri).map_err(|e| e.into())?,
+            connection_timeout: Duration::from_secs(1)
+        })
     }
 }
 
@@ -159,7 +166,8 @@ impl Handler<Connect> for ClientConnector {
     type Result = ActorResponse<ClientConnector, Connection, ClientConnectorError>;
 
     fn handle(&mut self, msg: Connect, _: &mut Self::Context) -> Self::Result {
-        let uri = &msg.0;
+        let uri = &msg.uri;
+        let connection_timeout = msg.connection_timeout;
 
         // host name is required
         if uri.host().is_none() {
@@ -185,7 +193,7 @@ impl Handler<Connect> for ClientConnector {
 
         ActorResponse::async(
             Connector::from_registry()
-                .send(ResolveConnect::host_and_port(&host, port))
+                .send(ResolveConnect::host_and_port(&host, port).timeout(connection_timeout))
                 .into_actor(self)
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
                 .and_then(move |res, _act, _| {
