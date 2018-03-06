@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use body::Body;
 use error::Error;
-use headers::ContentEncoding;
+use header::{ContentEncoding, Header, IntoHeaderValue};
 use super::pipeline::SendRequest;
 use super::connector::{Connection, ClientConnector};
 
@@ -275,6 +275,14 @@ impl ClientRequestBuilder {
         self
     }
 
+    /// Set HTTP method of this request.
+    #[inline]
+    pub fn get_method(&mut self) -> &Method {
+        let parts = parts(&mut self.request, &self.err)
+            .expect("cannot reuse request builder");
+        &parts.method
+    }
+
     /// Set HTTP version of this request.
     ///
     /// By default requests's http version depends on network stream
@@ -286,7 +294,36 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// Add a header.
+    /// Set a header.
+    ///
+    /// ```rust
+    /// # extern crate mime;
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # use actix_web::httpcodes::*;
+    /// #
+    /// use actix_web::header;
+    ///
+    /// fn main() {
+    ///     let req = ClientRequest::build()
+    ///         .set(header::Date::now())
+    ///         .set(header::ContentType(mime::TEXT_HTML)
+    ///         .finish().unwrap();
+    /// }
+    /// ```
+    #[doc(hidden)]
+    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self
+    {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            match hdr.try_into() {
+                Ok(value) => { parts.headers.insert(H::name(), value); }
+                Err(e) => self.err = Some(e.into()),
+            }
+        }
+        self
+    }
+
+    /// Append a header.
     ///
     /// Header get appended to existing header.
     /// To override header use `set_header()` method.
@@ -306,12 +343,12 @@ impl ClientRequestBuilder {
     /// }
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-        where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue
     {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => {
-                    match HeaderValue::try_from(value) {
+                    match value.try_into() {
                         Ok(value) => { parts.headers.append(key, value); }
                         Err(e) => self.err = Some(e.into()),
                     }
@@ -322,14 +359,14 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// Replace a header.
+    /// Set a header.
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
-        where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue
     {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => {
-                    match HeaderValue::try_from(value) {
+                    match value.try_into() {
                         Ok(value) => { parts.headers.insert(key, value); }
                         Err(e) => self.err = Some(e.into()),
                     }

@@ -18,6 +18,7 @@ use actix::prelude::*;
 
 use body::{Body, Binary};
 use error::UrlParseError;
+use header::IntoHeaderValue;
 use payload::PayloadHelper;
 use httpmessage::HttpMessage;
 
@@ -193,7 +194,7 @@ impl Client {
 
     /// Set request header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
-        where HeaderName: HttpTryFrom<K>, HeaderValue: HttpTryFrom<V>
+        where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue
     {
         self.request.header(key, value);
         self
