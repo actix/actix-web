@@ -1,4 +1,6 @@
+use std::time::SystemTime;
 use header::{http, HttpDate};
+
 
 header! {
     /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
@@ -30,5 +32,11 @@ header! {
 
     test_date {
         test_header!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
+    }
+}
+
+impl Date {
+    pub fn now() -> Date {
+        Date(SystemTime::now().into())
     }
 }
