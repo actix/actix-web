@@ -13,6 +13,8 @@
 * Add `ResponseError` impl for `SendRequestError`.
   This improves ergonomics of http client.
   
+* Add native-tls support for client
+
 * Allow client connection timeout to be set #108
 
 
