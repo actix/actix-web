@@ -92,7 +92,10 @@ pub enum ClientConnectorError {
 
 impl From<ConnectorError> for ClientConnectorError {
     fn from(err: ConnectorError) -> ClientConnectorError {
-        ClientConnectorError::Connector(err)
+        match err {
+            ConnectorError::Timeout => ClientConnectorError::Timeout,
+            _ => ClientConnectorError::Connector(err)
+        }
     }
 }
 
