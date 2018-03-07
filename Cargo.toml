@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.4.4"
+version = "0.4.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a small, pragmatic, extremely fast, web framework for Rust."
 readme = "README.md"
@@ -36,6 +36,8 @@ tls = ["native-tls", "tokio-tls"]
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 
 [dependencies]
+actix = "^0.5.2"
+
 base64 = "0.9"
 bitflags = "1.0"
 brotli2 = "^0.3.2"
@@ -80,9 +82,6 @@ tokio-tls = { version="0.1", optional = true }
 # openssl
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
-
-[dependencies.actix]
-git = "https://github.com/actix/actix.git"
 
 [dev-dependencies]
 env_logger = "0.5"
