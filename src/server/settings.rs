@@ -1,6 +1,8 @@
-use std::net;
+use std::{fmt, net};
 use std::rc::Rc;
-use std::cell::{Cell, RefCell, RefMut};
+use std::sync::Arc;
+use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
+use futures_cpupool::{Builder, CpuPool};
 
 use helpers;
 use super::channel::Node;
@@ -12,7 +14,37 @@ pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
     host: String,
+    cpu_pool: Arc<InnerCpuPool>,
 }
+
+struct InnerCpuPool {
+    cpu_pool: UnsafeCell<Option<CpuPool>>,
+}
+
+impl fmt::Debug for InnerCpuPool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CpuPool")
+    }
+}
+
+impl InnerCpuPool {
+    fn new() -> Self {
+        InnerCpuPool {
+            cpu_pool: UnsafeCell::new(None),
+        }
+    }
+    fn cpu_pool(&self) -> &CpuPool {
+        unsafe {
+            let val = &mut *self.cpu_pool.get();
+            if val.is_none() {
+                *val = Some(Builder::new().create());
+            }
+            val.as_ref().unwrap()
+        }
+    }
+}
+
+unsafe impl Sync for InnerCpuPool {}
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -20,6 +52,7 @@ impl Default for ServerSettings {
             addr: None,
             secure: false,
             host: "localhost:8080".to_owned(),
+            cpu_pool: Arc::new(InnerCpuPool::new()),
         }
     }
 }
@@ -36,7 +69,8 @@ impl ServerSettings {
         } else {
             "localhost".to_owned()
         };
-        ServerSettings { addr, secure, host }
+        let cpu_pool = Arc::new(InnerCpuPool::new());
+        ServerSettings { addr, secure, host, cpu_pool }
     }
 
     /// Returns the socket address of the local half of this TCP connection
@@ -52,6 +86,11 @@ impl ServerSettings {
     /// Returns host header value
     pub fn host(&self) -> &str {
         &self.host
+    }
+
+    /// Returns default `CpuPool` for server
+    pub fn cpu_pool(&self) -> &CpuPool {
+        self.cpu_pool.cpu_pool()
     }
 }
 

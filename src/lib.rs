@@ -61,6 +61,7 @@ extern crate bitflags;
 extern crate failure;
 #[macro_use]
 extern crate futures;
+extern crate futures_cpupool;
 extern crate tokio_io;
 extern crate tokio_core;
 extern crate mio;

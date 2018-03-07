@@ -84,13 +84,13 @@ impl<S: 'static> Route<S> {
     }
 
     /// Set handler object. Usually call to this method is last call
-    /// during route configuration, because it does not return reference to self.
+    /// during route configuration, so it does not return reference to self.
     pub fn h<H: Handler<S>>(&mut self, handler: H) {
         self.handler = InnerHandler::new(handler);
     }
 
     /// Set handler function. Usually call to this method is last call
-    /// during route configuration, because it does not return reference to self.
+    /// during route configuration, so it does not return reference to self.
     pub fn f<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
               R: Responder + 'static,
@@ -133,7 +133,7 @@ impl<S: 'static> InnerHandler<S> {
     #[inline]
     pub fn handle(&self, req: HttpRequest<S>) -> Reply {
         // reason: handler is unique per thread,
-        // handler get called from async code, and handler doesn't have side effects
+        // handler get called from async code only
         #[allow(mutable_transmutes)]
         #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
         let h: &mut Box<RouteHandler<S>> = unsafe { mem::transmute(self.0.as_ref()) };

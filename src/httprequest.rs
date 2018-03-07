@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures::{Async, Stream, Poll};
+use futures_cpupool::CpuPool;
 use failure;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions};
@@ -129,12 +130,6 @@ impl HttpRequest<()> {
     pub fn with_state<S>(self, state: Rc<S>, router: Router) -> HttpRequest<S> {
         HttpRequest(self.0, Some(state), Some(router))
     }
-
-    #[cfg(test)]
-    /// Construct new http request with state.
-    pub(crate) fn with_state_no_router<S>(self, state: Rc<S>) -> HttpRequest<S> {
-        HttpRequest(self.0, Some(state), None)
-    }
 }
 
 
@@ -156,7 +151,7 @@ impl<S> HttpRequest<S> {
     #[inline]
     /// Construct new http request without state.
     pub(crate) fn without_state(&self) -> HttpRequest {
-        HttpRequest(self.0.clone(), None, None)
+        HttpRequest(self.0.clone(), None, self.2.clone())
     }
 
     /// get mutable reference for inner message
@@ -184,10 +179,18 @@ impl<S> HttpRequest<S> {
         self.1.as_ref().unwrap()
     }
 
-    /// Protocol extensions.
+    /// Request extensions
     #[inline]
     pub fn extensions(&mut self) -> &mut Extensions {
         &mut self.as_mut().extensions
+    }
+
+    /// Default `CpuPool`
+    #[inline]
+    #[doc(hidden)]
+    pub fn cpu_pool(&mut self) -> &CpuPool {
+        self.router().expect("HttpRequest has to have Router instance")
+            .server_settings().cpu_pool()
     }
 
     #[doc(hidden)]
@@ -567,8 +570,9 @@ mod tests {
 
     #[test]
     fn test_url_for() {
-        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
-            .finish_no_router();
+        let req2 = HttpRequest::default();
+        assert_eq!(req2.url_for("unknown", &["test"]),
+                   Err(UrlGenerationError::RouterNotAvailable));
 
         let mut resource = Resource::<()>::default();
         resource.name("index");
@@ -577,10 +581,8 @@ mod tests {
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
 
-        assert_eq!(req.url_for("unknown", &["test"]),
-                   Err(UrlGenerationError::RouterNotAvailable));
-
-        let req = req.with_state(Rc::new(()), router);
+        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
+            .finish_with_router(router);
 
         assert_eq!(req.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::ResourceNotFound));

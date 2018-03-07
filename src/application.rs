@@ -44,8 +44,9 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
             for &mut (ref prefix, ref mut handler) in &mut self.handlers {
                 let m = {
                     let path = &req.path()[self.prefix..];
-                    path.starts_with(prefix) && (path.len() == prefix.len() ||
-                                                 path.split_at(prefix.len()).1.starts_with('/'))
+                    path.starts_with(prefix) && (
+                        path.len() == prefix.len() ||
+                            path.split_at(prefix.len()).1.starts_with('/'))
                 };
                 if m {
                     let path: &'static str = unsafe {

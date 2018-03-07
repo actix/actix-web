@@ -431,12 +431,14 @@ impl<S> TestRequest<S> {
 
     #[cfg(test)]
     /// Complete request creation and generate `HttpRequest` instance
-    pub(crate) fn finish_no_router(self) -> HttpRequest<S> {
-        let TestRequest { state, method, uri, version, headers, params, cookies, payload } = self;
+    pub(crate) fn finish_with_router(self, router: Router) -> HttpRequest<S> {
+        let TestRequest { state, method, uri,
+                          version, headers, params, cookies, payload } = self;
+
         let req = HttpRequest::new(method, uri, version, headers, payload);
         req.as_mut().cookies = cookies;
         req.as_mut().params = params;
-        req.with_state_no_router(Rc::new(state))
+        req.with_state(Rc::new(state), router)
     }
 
     /// This method generates `HttpRequest` instance and runs handler
