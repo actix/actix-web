@@ -1,6 +1,5 @@
 use std::{fmt, mem};
 use std::io::Write;
-use std::time::Duration;
 
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
@@ -29,8 +28,6 @@ pub struct ClientRequest {
     response_decompress: bool,
     buffer_capacity: Option<(usize, usize)>,
     conn: ConnectionType,
-    connection_timeout: Duration
-
 }
 
 enum ConnectionType {
@@ -54,7 +51,6 @@ impl Default for ClientRequest {
             response_decompress: true,
             buffer_capacity: None,
             conn: ConnectionType::Default,
-            connection_timeout: Duration::from_secs(1)
         }
     }
 }
@@ -113,11 +109,6 @@ impl ClientRequest {
     #[inline]
     pub fn uri(&self) -> &Uri {
         &self.uri
-    }
-
-    #[inline]
-    pub fn connection_timeout(&self) -> Duration {
-        self.connection_timeout
     }
 
     /// Set client request uri
@@ -402,15 +393,6 @@ impl ClientRequestBuilder {
     pub fn upgrade(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.upgrade = true;
-        }
-        self
-    }
-
-    /// Set connection timeout
-    #[inline]
-    pub fn connection_timeout(&mut self, connection_timeout: Duration) -> &mut Self {
-        if let Some(ref mut request) = self.request {
-            request.connection_timeout = connection_timeout;
         }
         self
     }

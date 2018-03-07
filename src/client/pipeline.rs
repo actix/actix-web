@@ -1,8 +1,10 @@
 use std::{io, mem};
+use std::time::Duration;
 use bytes::{Bytes, BytesMut};
 use http::header::CONTENT_ENCODING;
 use futures::{Async, Future, Poll};
 use futures::unsync::oneshot;
+use tokio_core::reactor::Timeout;
 
 use actix::prelude::*;
 
@@ -23,6 +25,9 @@ use super::{HttpResponseParser, HttpResponseParserError};
 /// A set of errors that can occur during sending request and reading response
 #[derive(Fail, Debug)]
 pub enum SendRequestError {
+    /// Response took too long
+    #[fail(display = "Timeout out while waiting for response")]
+    Timeout,
     /// Failed to connect to host
     #[fail(display="Failed to connect to host: {}", _0)]
     Connector(#[cause] ClientConnectorError),
@@ -40,6 +45,15 @@ impl From<io::Error> for SendRequestError {
     }
 }
 
+impl From<ClientConnectorError> for SendRequestError {
+    fn from(err: ClientConnectorError) -> SendRequestError {
+        match err {
+            ClientConnectorError::Timeout => SendRequestError::Timeout,
+            _ => SendRequestError::Connector(err),
+        }
+    }
+}
+
 enum State {
     New,
     Connect(actix::dev::Request<Unsync, ClientConnector, Connect>),
@@ -54,6 +68,8 @@ pub struct SendRequest {
     req: ClientRequest,
     state: State,
     conn: Addr<Unsync, ClientConnector>,
+    conn_timeout: Duration,
+    timeout: Option<Timeout>,
 }
 
 impl SendRequest {
@@ -64,15 +80,53 @@ impl SendRequest {
     pub(crate) fn with_connector(req: ClientRequest, conn: Addr<Unsync, ClientConnector>)
                                  -> SendRequest
     {
-        SendRequest{req, conn, state: State::New}
+        SendRequest{req, conn,
+                    state: State::New,
+                    timeout: None,
+                    conn_timeout: Duration::from_secs(1)
+        }
     }
 
     pub(crate) fn with_connection(req: ClientRequest, conn: Connection) -> SendRequest
     {
-        SendRequest{
-            req,
-            state: State::Connection(conn),
-            conn: ClientConnector::from_registry()}
+        SendRequest{req,
+                    state: State::Connection(conn),
+                    conn: ClientConnector::from_registry(),
+                    timeout: None,
+                    conn_timeout: Duration::from_secs(1),
+        }
+    }
+
+    /// Set request timeout
+    ///
+    /// Request timeout is a total time before response should be received.
+    /// Default value is 5 seconds.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(Timeout::new(timeout, Arbiter::handle()).unwrap());
+        self
+    }
+
+    /// Set connection timeout
+    ///
+    /// Connection timeout includes resolving hostname and actual connection to
+    /// the host.
+    /// Default value is 1 second.
+    pub fn conn_timeout(mut self, timeout: Duration) -> Self {
+        self.conn_timeout = timeout;
+        self
+    }
+
+    fn poll_timeout(&mut self) -> Poll<(), SendRequestError> {
+        if self.timeout.is_none() {
+            self.timeout = Some(Timeout::new(
+                Duration::from_secs(5), Arbiter::handle()).unwrap());
+        }
+
+        match self.timeout.as_mut().unwrap().poll() {
+            Ok(Async::Ready(())) => Err(SendRequestError::Timeout),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(_) => unreachable!()
+        }
     }
 }
 
@@ -81,6 +135,8 @@ impl Future for SendRequest {
     type Error = SendRequestError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.poll_timeout()?;
+
         loop {
             let state = mem::replace(&mut self.state, State::None);
 
@@ -88,7 +144,7 @@ impl Future for SendRequest {
                 State::New =>
                     self.state = State::Connect(self.conn.send(Connect {
                         uri: self.req.uri().clone(),
-                        connection_timeout: self.req.connection_timeout()
+                        conn_timeout: self.conn_timeout,
                     })),
                 State::Connect(mut conn) => match conn.poll() {
                     Ok(Async::NotReady) => {
@@ -99,7 +155,7 @@ impl Future for SendRequest {
                         Ok(stream) => {
                             self.state = State::Connection(stream)
                         },
-                        Err(err) => return Err(SendRequestError::Connector(err)),
+                        Err(err) => return Err(err.into()),
                     },
                     Err(_) => return Err(SendRequestError::Connector(
                         ClientConnectorError::Disconnected))

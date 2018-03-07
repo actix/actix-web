@@ -28,7 +28,7 @@ use server::IoStream;
 /// with connection request.
 pub struct Connect {
     pub uri: Uri,
-    pub connection_timeout: Duration
+    pub conn_timeout: Duration,
 }
 
 impl Connect {
@@ -36,7 +36,7 @@ impl Connect {
     pub fn new<U>(uri: U) -> Result<Connect, HttpError> where Uri: HttpTryFrom<U> {
         Ok(Connect {
             uri: Uri::try_from(uri).map_err(|e| e.into())?,
-            connection_timeout: Duration::from_secs(1)
+            conn_timeout: Duration::from_secs(1)
         })
     }
 }
@@ -167,7 +167,7 @@ impl Handler<Connect> for ClientConnector {
 
     fn handle(&mut self, msg: Connect, _: &mut Self::Context) -> Self::Result {
         let uri = &msg.uri;
-        let connection_timeout = msg.connection_timeout;
+        let conn_timeout = msg.conn_timeout;
 
         // host name is required
         if uri.host().is_none() {
@@ -193,7 +193,8 @@ impl Handler<Connect> for ClientConnector {
 
         ActorResponse::async(
             Connector::from_registry()
-                .send(ResolveConnect::host_and_port(&host, port).timeout(connection_timeout))
+                .send(ResolveConnect::host_and_port(&host, port)
+                      .timeout(conn_timeout))
                 .into_actor(self)
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
                 .and_then(move |res, _act, _| {
