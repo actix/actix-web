@@ -4,7 +4,7 @@
 
 * Fix compression #103 and #104
 
-* Fix client cookie support #101
+* Fix client cookie handling #111
 
 * Enable compression support for `NamedFile`
 
