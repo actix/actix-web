@@ -6,12 +6,16 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 mod logger;
+
+#[cfg(feature = "session")]
 mod session;
 mod defaultheaders;
 pub mod cors;
 pub mod csrf;
 pub use self::logger::Logger;
 pub use self::defaultheaders::{DefaultHeaders, DefaultHeadersBuilder};
+
+#[cfg(feature = "session")]
 pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
                         CookieSessionError, CookieSessionBackend, CookieSessionBackendBuilder};
 
