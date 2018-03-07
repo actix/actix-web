@@ -116,6 +116,7 @@ pub struct CsrfFilter {
     origins: HashSet<String>,
     allow_xhr: bool,
     allow_missing_origin: bool,
+    allow_upgrade: bool,
 }
 
 impl CsrfFilter {
@@ -126,12 +127,16 @@ impl CsrfFilter {
                 origins: HashSet::new(),
                 allow_xhr: false,
                 allow_missing_origin: false,
+                allow_upgrade: false,
             }
         }
     }
 
     fn validate<S>(&self, req: &mut HttpRequest<S>) -> Result<(), CsrfError> {
-        if req.method().is_safe() || (self.allow_xhr && req.headers().contains_key("x-requested-with")) {
+        let is_upgrade = req.headers().contains_key(header::UPGRADE);
+        let is_safe = req.method().is_safe() && (self.allow_upgrade || !is_upgrade);
+
+        if is_safe || (self.allow_xhr && req.headers().contains_key("x-requested-with")) {
             Ok(())
         } else if let Some(header) = origin(req.headers()) {
             match header {
@@ -210,6 +215,12 @@ impl CsrfFilterBuilder {
     /// the browser from sending `Origin` on unsafe requests.
     pub fn allow_missing_origin(mut self) -> CsrfFilterBuilder {
         self.csrf.allow_missing_origin = true;
+        self
+    }
+
+    /// Allow cross-site upgrade requests (for example to open a WebSocket).
+    pub fn allow_upgrade(mut self) -> CsrfFilterBuilder {
+        self.csrf.allow_upgrade = true;
         self
     }
 
