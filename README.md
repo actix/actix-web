@@ -15,7 +15,8 @@ Actix web is a small, pragmatic, extremely fast, web framework for Rust.
   [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
   [Redis sessions](https://github.com/actix/actix-redis),
   [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
-  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html))
+  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html),
+  [CSRF](https://actix.github.io/actix-web/actix_web/middleware/csrf/index.html))
 * Built on top of [Actix actor framework](https://github.com/actix/actix).
 
 ## Documentation
