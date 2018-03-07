@@ -173,6 +173,14 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
         self.sockets.keys().cloned().collect()
     }
 
+    /// Use listener for accepting incoming connection requests
+    ///
+    /// HttpServer does not change any configuration for TcpListener,
+    /// it needs to be configured before passing it to listen() method.
+    pub fn listen(mut self, lst: net::TcpListener) {
+        self.sockets.insert(lst.local_addr().unwrap(), lst);
+    }
+
     /// The socket address to bind
     ///
     /// To mind multiple addresses this method can be call multiple times.

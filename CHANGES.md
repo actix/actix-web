@@ -17,6 +17,8 @@
 
 * Allow client connection timeout to be set #108
 
+* Allow to use std::net::TcpListener for HttpServer
+
 
 ## 0.4.4 (2018-03-04)
 
