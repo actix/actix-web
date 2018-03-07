@@ -544,9 +544,21 @@ impl ClientRequestBuilder {
 
         // set cookies
         if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
+            let ncookies = jar.iter().count();
+            if ncookies > 0 {
+                let mut payload = String::new();
+                for (ix, cookie) in jar.iter().enumerate() {
+                    payload.push_str(&cookie.name());
+                    payload.push('=');
+                    payload.push_str(&cookie.value());
+                    // semi-colon delimited, except for final k-v pair
+                    if ix < ncookies - 1 {
+                        payload.push(';');
+                        payload.push(' ');
+                    }
+                }
                 request.headers.append(
-                    header::COOKIE, HeaderValue::from_str(&cookie.to_string())?);
+                    header::COOKIE, HeaderValue::from_str(&payload)?);
             }
         }
         request.body = body.into();
