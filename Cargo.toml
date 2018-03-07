@@ -27,13 +27,16 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["session"]
 
 # tls
 tls = ["native-tls", "tokio-tls"]
 
 # openssl
 alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
+
+# sessions
+session = ["cookie/secure"]
 
 [dependencies]
 actix = "^0.5.2"
@@ -63,7 +66,7 @@ time = "0.1"
 encoding = "0.2"
 language-tags = "0.2"
 url = { version="1.7", features=["query_encoding"] }
-cookie = { version="0.10", features=["percent-encode", "secure"] }
+cookie = { version="0.10", features=["percent-encode"] }
 
 # io
 mio = "^0.6.13"
