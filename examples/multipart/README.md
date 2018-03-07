@@ -8,7 +8,7 @@ Multipart's `Getting Started` guide for Actix web
 
 ```bash
 cd actix-web/examples/multipart
-cargo run (or ``cargo watch -x run``)
+cargo run (or see examples/catflap for rebuilding and redeploying on file change)
 # Started http server: 127.0.0.1:8080
 ```
 

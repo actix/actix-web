@@ -19,7 +19,7 @@ diesel migration run
 # if ubuntu : sudo apt-get install libsqlite3-dev
 # if fedora : sudo dnf install libsqlite3x-devel
 cd actix-web/examples/diesel
-cargo run (or ``cargo watch -x run``)
+cargo run (or see examples/catflap for rebuilding and redeploying on file change)
 # Started http server: 127.0.0.1:8080
 ```
 
