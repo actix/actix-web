@@ -19,7 +19,14 @@ use tokio_openssl::SslConnectorExt;
 #[cfg(feature="alpn")]
 use futures::Future;
 
-use HAS_OPENSSL;
+#[cfg(all(feature="tls", not(feature="alpn")))]
+use native_tls::{TlsConnector, Error as TlsError};
+#[cfg(all(feature="tls", not(feature="alpn")))]
+use tokio_tls::TlsConnectorExt;
+#[cfg(all(feature="tls", not(feature="alpn")))]
+use futures::Future;
+
+use {HAS_OPENSSL, HAS_TLS};
 use server::IoStream;
 
 
@@ -61,6 +68,11 @@ pub enum ClientConnectorError {
     #[fail(display="{}", _0)]
     SslError(#[cause] OpensslError),
 
+    /// SSL error
+    #[cfg(all(feature="tls", not(feature="alpn")))]
+    #[fail(display="{}", _0)]
+    SslError(#[cause] TlsError),
+
     /// Connection error
     #[fail(display = "{}", _0)]
     Connector(#[cause] ConnectorError),
@@ -85,8 +97,10 @@ impl From<ConnectorError> for ClientConnectorError {
 }
 
 pub struct ClientConnector {
-    #[cfg(feature="alpn")]
+    #[cfg(all(feature="alpn"))]
     connector: SslConnector,
+    #[cfg(all(feature="tls", not(feature="alpn")))]
+    connector: TlsConnector,
 }
 
 impl Actor for ClientConnector {
@@ -99,15 +113,22 @@ impl ArbiterService for ClientConnector {}
 
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
-        #[cfg(feature="alpn")]
+        #[cfg(all(feature="alpn"))]
         {
             let builder = SslConnector::builder(SslMethod::tls()).unwrap();
             ClientConnector {
                 connector: builder.build()
             }
         }
+        #[cfg(all(feature="tls", not(feature="alpn")))]
+        {
+            let builder = TlsConnector::builder().unwrap();
+            ClientConnector {
+                connector: builder.build().unwrap()
+            }
+        }
 
-        #[cfg(not(feature="alpn"))]
+        #[cfg(not(any(feature="alpn", feature="tls")))]
         ClientConnector {}
     }
 }
@@ -184,7 +205,7 @@ impl Handler<Connect> for ClientConnector {
         };
 
         // check ssl availability
-        if proto.is_secure() && !HAS_OPENSSL { //&& !HAS_TLS {
+        if proto.is_secure() && !HAS_OPENSSL && !HAS_TLS {
             return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported))
         }
 
@@ -214,7 +235,23 @@ impl Handler<Connect> for ClientConnector {
                         }
                     }
 
-                    #[cfg(not(feature="alpn"))]
+                    #[cfg(all(feature="tls", not(feature="alpn")))]
+                    match res {
+                        Err(err) => fut::Either::B(fut::err(err.into())),
+                        Ok(stream) => {
+                            if proto.is_secure() {
+                                fut::Either::A(
+                                    _act.connector.connect_async(&host, stream)
+                                        .map_err(ClientConnectorError::SslError)
+                                        .map(|stream| Connection{stream: Box::new(stream)})
+                                        .into_actor(_act))
+                            } else {
+                                fut::Either::B(fut::ok(Connection{stream: Box::new(stream)}))
+                            }
+                        }
+                    }
+
+                    #[cfg(not(any(feature="alpn", feature="tls")))]
                     match res {
                         Err(err) => fut::err(err.into()),
                         Ok(stream) => {

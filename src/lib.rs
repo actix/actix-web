@@ -149,10 +149,10 @@ pub(crate) const HAS_OPENSSL: bool = true;
 #[cfg(not(feature="openssl"))]
 pub(crate) const HAS_OPENSSL: bool = false;
 
-// #[cfg(feature="tls")]
-// pub(crate) const HAS_TLS: bool = true;
-// #[cfg(not(feature="tls"))]
-// pub(crate) const HAS_TLS: bool = false;
+#[cfg(feature="tls")]
+pub(crate) const HAS_TLS: bool = true;
+#[cfg(not(feature="tls"))]
+pub(crate) const HAS_TLS: bool = false;
 
 #[doc(hidden)]
 #[deprecated(since="0.4.4", note="please use `actix::header` module")]
