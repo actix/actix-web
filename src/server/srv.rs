@@ -177,8 +177,9 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     ///
     /// HttpServer does not change any configuration for TcpListener,
     /// it needs to be configured before passing it to listen() method.
-    pub fn listen(mut self, lst: net::TcpListener) {
+    pub fn listen(mut self, lst: net::TcpListener) -> Self {
         self.sockets.insert(lst.local_addr().unwrap(), lst);
+        self
     }
 
     /// The socket address to bind
