@@ -77,12 +77,12 @@ impl ClientResponse {
         self.as_ref().status
     }
 
-    /// Load request cookies.
+    /// Load response cookies.
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
         if self.as_ref().cookies.is_none() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
-            if let Some(val) = msg.headers.get(header::COOKIE) {
+            if let Some(val) = msg.headers.get(header::SET_COOKIE) {
                 let s = str::from_utf8(val.as_bytes())
                     .map_err(CookieParseError::from)?;
                 for cookie in s.split("; ") {

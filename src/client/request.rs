@@ -292,13 +292,14 @@ impl ClientRequestBuilder {
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # use actix_web::httpcodes::*;
+    /// # use actix_web::client::*;
     /// #
     /// use actix_web::header;
     ///
     /// fn main() {
     ///     let req = ClientRequest::build()
     ///         .set(header::Date::now())
-    ///         .set(header::ContentType(mime::TEXT_HTML)
+    ///         .set(header::ContentType(mime::TEXT_HTML))
     ///         .finish().unwrap();
     /// }
     /// ```
@@ -452,20 +453,6 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
-    pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        {
-            if self.cookies.is_none() {
-                self.cookies = Some(CookieJar::new())
-            }
-            let jar = self.cookies.as_mut().unwrap();
-            let cookie = cookie.clone().into_owned();
-            jar.add_original(cookie.clone());
-            jar.remove(cookie);
-        }
-        self
-    }
-
     /// Do not add default request headers.
     /// By default `Accept-Encoding` header is set.
     pub fn no_default_headers(&mut self) -> &mut Self {
@@ -559,8 +546,7 @@ impl ClientRequestBuilder {
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 request.headers.append(
-                    header::SET_COOKIE,
-                    HeaderValue::from_str(&cookie.to_string())?);
+                    header::COOKIE, HeaderValue::from_str(&cookie.to_string())?);
             }
         }
         request.body = body.into();
