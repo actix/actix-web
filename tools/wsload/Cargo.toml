@@ -17,5 +17,5 @@ rand = "0.4"
 time = "*"
 num_cpus = "1"
 tokio-core = "0.1"
-actix = { git = "https://github.com/actix/actix.git" }
+actix = "0.5"
 actix-web = { path="../../" }
