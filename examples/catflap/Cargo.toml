@@ -1,0 +1,10 @@
+[package]
+name = "catflap"
+version = "0.1.0"
+authors = ["ivegotasthma <ivegotasthma@protonmail.com>"]
+workspace = "../.."
+
+[dependencies]
+env_logger = "0.5"
+actix = "0.5"
+actix-web = { path = "../../" }
