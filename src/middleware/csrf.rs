@@ -274,4 +274,25 @@ mod tests {
 
         assert!(csrf.start(&mut req).is_ok());
     }
+
+    #[test]
+    fn test_upgrade() {
+        let strict_csrf = CsrfFilter::build()
+            .allowed_origin("https://www.example.com")
+            .finish();
+
+        let lax_csrf = CsrfFilter::build()
+            .allowed_origin("https://www.example.com")
+            .allow_upgrade()
+            .finish();
+
+        let mut req = TestRequest::with_header("Origin", "https://cswsh.com")
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .method(Method::GET)
+            .finish();
+
+        assert!(strict_csrf.start(&mut req).is_err());
+        assert!(lax_csrf.start(&mut req).is_ok());
+    }
 }
