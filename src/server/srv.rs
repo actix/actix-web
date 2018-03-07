@@ -618,6 +618,9 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
         // Create storage for events
         let mut events = mio::Events::with_capacity(128);
 
+        // Sleep on error
+        let sleep = Duration::from_millis(100);
+
         let mut next = 0;
         loop {
             if let Err(err) = poll.poll(&mut events, None) {
@@ -641,6 +644,8 @@ fn start_accept_thread(sock: net::TcpListener, addr: net::SocketAddr, backlog: i
                                         if err.kind() != io::ErrorKind::WouldBlock {
                                             error!("Error accepting connection: {:?}", err);
                                         }
+                                        // sleep after error
+                                        thread::sleep(sleep);
                                         break
                                     }
                                 }
