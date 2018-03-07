@@ -214,13 +214,8 @@ impl fmt::Debug for ClientRequest {
         let res = write!(f, "\nClientRequest {:?} {}:{}\n",
                          self.version, self.method, self.uri);
         let _ = write!(f, "  headers:\n");
-        for key in self.headers.keys() {
-            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
+        for (key, val) in self.headers.iter() {
+            let _ = write!(f, "    {:?}: {:?}\n", key, val);
         }
         res
     }
@@ -543,22 +538,10 @@ impl ClientRequestBuilder {
         let mut request = self.request.take().expect("cannot reuse request builder");
 
         // set cookies
-        if let Some(ref jar) = self.cookies {
-            let ncookies = jar.iter().count();
-            if ncookies > 0 {
-                let mut payload = String::new();
-                for (ix, cookie) in jar.iter().enumerate() {
-                    payload.push_str(&cookie.name());
-                    payload.push('=');
-                    payload.push_str(&cookie.value());
-                    // semi-colon delimited, except for final k-v pair
-                    if ix < ncookies - 1 {
-                        payload.push(';');
-                        payload.push(' ');
-                    }
-                }
+        if let Some(ref mut jar) = self.cookies {
+            for cookie in jar.delta() {
                 request.headers.append(
-                    header::COOKIE, HeaderValue::from_str(&payload)?);
+                    header::COOKIE, HeaderValue::from_str(&cookie.to_string()).unwrap());
             }
         }
         request.body = body.into();

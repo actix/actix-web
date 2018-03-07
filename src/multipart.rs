@@ -399,13 +399,8 @@ impl<S> fmt::Debug for Field<S> {
         let res = write!(f, "\nMultipartField: {}\n", self.ct);
         let _ = write!(f, "  boundary: {}\n", self.inner.borrow().boundary);
         let _ = write!(f, "  headers:\n");
-        for key in self.headers.keys() {
-            let vals: Vec<_> = self.headers.get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
+        for (key, val) in self.headers.iter() {
+            let _ = write!(f, "    {:?}: {:?}\n", key, val);
         }
         res
     }

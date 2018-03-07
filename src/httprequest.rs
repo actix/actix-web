@@ -333,12 +333,9 @@ impl<S> HttpRequest<S> {
         if self.as_ref().cookies.is_none() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
-            if let Some(val) = msg.headers.get(header::COOKIE) {
-                let s = str::from_utf8(val.as_bytes())
-                    .map_err(CookieParseError::from)?;
-                for cookie in s.split("; ") {
-                    cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
-                }
+            for hdr in msg.headers.get_all(header::COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
             msg.cookies = Some(cookies)
         }
@@ -481,13 +478,8 @@ impl<S> fmt::Debug for HttpRequest<S> {
             let _ = write!(f, "  params: {:?}\n", self.as_ref().params);
         }
         let _ = write!(f, "  headers:\n");
-        for key in self.as_ref().headers.keys() {
-            let vals: Vec<_> = self.as_ref().headers.get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
+        for (key, val) in self.as_ref().headers.iter() {
+            let _ = write!(f, "    {:?}: {:?}\n", key, val);
         }
         res
     }
@@ -525,8 +517,10 @@ mod tests {
 
     #[test]
     fn test_request_cookies() {
-        let req = TestRequest::with_header(
-            header::COOKIE, "cookie1=value1; cookie2=value2").finish();
+        let req = TestRequest::default()
+            .header(header::COOKIE, "cookie1=value1")
+            .header(header::COOKIE, "cookie2=value2")
+            .finish();
         {
             let cookies = req.cookies().unwrap();
             assert_eq!(cookies.len(), 2);

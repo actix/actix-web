@@ -206,13 +206,8 @@ impl fmt::Debug for HttpResponse {
                          self.get_ref().reason.unwrap_or(""));
         let _ = write!(f, "  encoding: {:?}\n", self.get_ref().encoding);
         let _ = write!(f, "  headers:\n");
-        for key in self.get_ref().headers.keys() {
-            let vals: Vec<_> = self.get_ref().headers.get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
+        for (key, val) in self.get_ref().headers.iter() {
+            let _ = write!(f, "    {:?}: {:?}\n", key, val);
         }
         res
     }

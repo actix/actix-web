@@ -83,8 +83,7 @@ impl ClientResponse {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
             for val in msg.headers.get_all(header::SET_COOKIE).iter() {
-                let s = str::from_utf8(val.as_bytes())
-                    .map_err(CookieParseError::from)?;
+                let s = str::from_utf8(val.as_bytes()).map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
             msg.cookies = Some(cookies)
@@ -110,13 +109,8 @@ impl fmt::Debug for ClientResponse {
         let res = write!(
             f, "\nClientResponse {:?} {}\n", self.version(), self.status());
         let _ = write!(f, "  headers:\n");
-        for key in self.headers().keys() {
-            let vals: Vec<_> = self.headers().get_all(key).iter().collect();
-            if vals.len() > 1 {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals);
-            } else {
-                let _ = write!(f, "    {:?}: {:?}\n", key, vals[0]);
-            }
+        for (key, val) in self.headers().iter() {
+            let _ = write!(f, "    {:?}: {:?}\n", key, val);
         }
         res
     }
