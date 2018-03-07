@@ -19,6 +19,9 @@ use native_tls::TlsAcceptor;
 #[cfg(feature="alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
+#[cfg(target_family="unix")]
+use std::os::unix::io::{FromRawFd, RawFd};
+
 use helpers;
 use super::{IntoHttpHandler, IoStream};
 use super::{PauseServer, ResumeServer, StopServer};
@@ -68,7 +71,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
         let f = move || {
             (factory)().into_iter().collect()
         };
-        
+
         HttpServer{ h: None,
                     threads: num_cpus::get(),
                     backlog: 2048,
@@ -173,9 +176,22 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
         self.sockets.keys().cloned().collect()
     }
 
+    #[cfg(target_family="unix")]
+    /// The socket to bind to
+    ///
+    /// To bind multiple sockets this method can be called multiple times.
+    pub fn bind_socket(mut self, sock: RawFd) -> io::Result<Self> {
+        unsafe {
+            let lst = net::TcpListener::from_raw_fd(sock);
+            self.sockets.insert(lst.local_addr().unwrap(), lst);
+        }
+
+        Ok(self)
+    }
+
     /// The socket address to bind
     ///
-    /// To mind multiple addresses this method can be call multiple times.
+    /// To bind multiple addresses this method can be called multiple times.
     pub fn bind<S: net::ToSocketAddrs>(mut self, addr: S) -> io::Result<Self> {
         let mut err = None;
         let mut succ = false;
