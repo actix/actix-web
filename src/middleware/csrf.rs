@@ -122,7 +122,7 @@ impl CsrfFilter {
     /// Start building a `CsrfFilter`.
     pub fn build() -> CsrfFilterBuilder {
         CsrfFilterBuilder {
-            cors: CsrfFilter {
+            csrf: CsrfFilter {
                 origins: HashSet::new(),
                 allow_xhr: false,
                 allow_missing_origin: false,
@@ -175,14 +175,14 @@ impl<S> Middleware<S> for CsrfFilter {
 ///     .finish();
 /// ```
 pub struct CsrfFilterBuilder {
-    cors: CsrfFilter,
+    csrf: CsrfFilter,
 }
 
 impl CsrfFilterBuilder {
     /// Add an origin that is allowed to make requests. Will be verified
     /// against the `Origin` request header.
     pub fn allowed_origin(mut self, origin: &str) -> CsrfFilterBuilder {
-        self.cors.origins.insert(origin.to_owned());
+        self.csrf.origins.insert(origin.to_owned());
         self
     }
 
@@ -198,7 +198,7 @@ impl CsrfFilterBuilder {
     ///
     /// Use this method to enable more lax filtering.
     pub fn allow_xhr(mut self) -> CsrfFilterBuilder {
-        self.cors.allow_xhr = true;
+        self.csrf.allow_xhr = true;
         self
     }
 
@@ -209,13 +209,13 @@ impl CsrfFilterBuilder {
     /// missing `Origin` headers because a cross-site attacker cannot prevent
     /// the browser from sending `Origin` on unsafe requests.
     pub fn allow_missing_origin(mut self) -> CsrfFilterBuilder {
-        self.cors.allow_missing_origin = true;
+        self.csrf.allow_missing_origin = true;
         self
     }
 
     /// Finishes building the `CsrfFilter` instance.
     pub fn finish(self) -> CsrfFilter {
-        self.cors
+        self.csrf
     }
 }
 
