@@ -19,7 +19,7 @@ pub const HttpMultiStatus: StaticResponse = StaticResponse(StatusCode::MULTI_STA
 pub const HttpAlreadyReported: StaticResponse = StaticResponse(StatusCode::ALREADY_REPORTED);
 
 pub const HttpMultipleChoices: StaticResponse = StaticResponse(StatusCode::MULTIPLE_CHOICES);
-pub const HttpMovedPermanenty: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
+pub const HttpMovedPermanently: StaticResponse = StaticResponse(StatusCode::MOVED_PERMANENTLY);
 pub const HttpFound: StaticResponse = StaticResponse(StatusCode::FOUND);
 pub const HttpSeeOther: StaticResponse = StaticResponse(StatusCode::SEE_OTHER);
 pub const HttpNotModified: StaticResponse = StaticResponse(StatusCode::NOT_MODIFIED);
