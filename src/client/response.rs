@@ -82,12 +82,10 @@ impl ClientResponse {
         if self.as_ref().cookies.is_none() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
-            if let Some(val) = msg.headers.get(header::SET_COOKIE) {
+            for val in msg.headers.get_all(header::SET_COOKIE).iter() {
                 let s = str::from_utf8(val.as_bytes())
                     .map_err(CookieParseError::from)?;
-                for cookie in s.split("; ") {
-                    cookies.push(Cookie::parse_encoded(cookie)?.into_owned());
-                }
+                cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
             msg.cookies = Some(cookies)
         }
