@@ -363,15 +363,20 @@ impl<H: IntoHttpHandler> HttpServer<H>
         if self.sockets.is_empty() {
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
+            let (tx, rx) = mpsc::unbounded();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
-            let workers = self.start_workers(&settings, &StreamHandlerType::Tls(acceptor));
+            let workers = self.start_workers(
+                &settings, &StreamHandlerType::Tls(acceptor.clone()));
+            let info = Info{addr: addrs[0].0, handler: StreamHandlerType::Tls(acceptor)};
 
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting server on https://{}", addr);
                 self.accept.push(
-                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
+                    start_accept_thread(
+                        sock, addr, self.backlog,
+                        tx.clone(), info.clone(), workers.clone()));
             }
 
             // start http server actor
@@ -409,16 +414,21 @@ impl<H: IntoHttpHandler> HttpServer<H>
                 }
             });
 
+            let (tx, rx) = mpsc::unbounded();
             let acceptor = builder.build();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
-            let workers = self.start_workers(&settings, &StreamHandlerType::Alpn(acceptor));
+            let workers = self.start_workers(
+                &settings, &StreamHandlerType::Alpn(acceptor.clone()));
+            let info = Info{addr: addrs[0].0, handler: StreamHandlerType::Alpn(acceptor)};
 
             // start acceptors threads
             for (addr, sock) in addrs {
                 info!("Starting server on https://{}", addr);
                 self.accept.push(
-                    start_accept_thread(sock, addr, self.backlog, workers.clone()));
+                    start_accept_thread(
+                        sock, addr, self.backlog,
+                        tx.clone(), info.clone(), workers.clone()));
             }
 
             // start http server actor
