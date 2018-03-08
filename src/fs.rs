@@ -82,7 +82,7 @@ impl NamedFile {
         self.path.as_path()
     }
 
-    /// Returns reference to the underlying `File` object.
+    /// Set `CpuPool` to use
     #[inline]
     pub fn set_cpu_pool(mut self, cpu_pool: CpuPool) -> Self {
         self.cpu_pool = Some(cpu_pool);
@@ -502,7 +502,8 @@ mod tests {
     #[test]
     fn test_named_file() {
         assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        let mut file = NamedFile::open("Cargo.toml").unwrap()
+            .set_cpu_pool(CpuPool::new(1));
         { file.file();
           let _f: &File = &file; }
         { let _f: &mut File = &mut file; }
