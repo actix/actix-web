@@ -21,6 +21,8 @@
 
 * Allow to use std::net::TcpListener for HttpServer
 
+* Handle panics in worker threads
+
 
 ## 0.4.4 (2018-03-04)
 

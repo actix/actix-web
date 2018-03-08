@@ -322,10 +322,8 @@ fn test_body_streaming_implicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-extern crate env_logger;
 #[test]
 fn test_client_cookie_handling() {
-    env_logger::init();
     use actix_web::header::Cookie;
     fn err() -> Error {
         use std::io::{ErrorKind, Error as IoError};
