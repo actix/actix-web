@@ -2,7 +2,7 @@
 name = "actix-web"
 version = "0.4.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a small, pragmatic, extremely fast, web framework for Rust."
+description = "Actix web is a simple, pragmatic, extremely fast, web framework for Rust."
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://github.com/actix/actix-web"
