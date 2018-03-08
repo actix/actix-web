@@ -1,5 +1,8 @@
 # Changes
 
+## 0.4.6 (2018-03-xx)
+
+
 ## 0.4.5 (2018-03-07)
 
 * Fix compression #103 and #104
@@ -12,8 +15,7 @@
 
 * Better support for `NamedFile` type
 
-* Add `ResponseError` impl for `SendRequestError`.
-  This improves ergonomics of http client.
+* Add `ResponseError` impl for `SendRequestError`. This improves ergonomics of the client.
   
 * Add native-tls support for client
 

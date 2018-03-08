@@ -129,3 +129,20 @@ impl Stream for ClientResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_debug() {
+        let resp = ClientResponse::new(ClientMessage::default());
+        resp.as_mut().headers.insert(
+            header::COOKIE, HeaderValue::from_static("cookie1=value1"));
+        resp.as_mut().headers.insert(
+            header::COOKIE, HeaderValue::from_static("cookie2=value2"));
+
+        let dbg = format!("{:?}", resp);
+        assert!(dbg.contains("ClientResponse"));
+    }
+}

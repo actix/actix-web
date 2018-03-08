@@ -781,7 +781,10 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        let resp = HttpResponse::Ok().finish().unwrap();
+        let resp = HttpResponse::Ok()
+            .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
+            .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
+            .finish().unwrap();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("HttpResponse"));
     }
@@ -789,8 +792,8 @@ mod tests {
     #[test]
     fn test_response_cookies() {
         let mut headers = HeaderMap::new();
-        headers.insert(COOKIE,
-                       HeaderValue::from_static("cookie1=value1; cookie2=value2"));
+        headers.insert(COOKIE, HeaderValue::from_static("cookie1=value1; HttpOnly;"));
+        headers.insert(COOKIE, HeaderValue::from_static("cookie2=value2; HttpOnly;"));
 
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
@@ -813,7 +816,8 @@ mod tests {
         let mut val: Vec<_> = resp.headers().get_all("Set-Cookie")
             .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
         val.sort();
-        assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
+        println!("{:?}", val);
+        assert!(val[0].starts_with("cookie2=; HttpOnly; Max-Age=0;"));
         assert_eq!(
             val[1],"name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400");
     }
