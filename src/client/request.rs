@@ -1,4 +1,5 @@
 use std::{fmt, mem};
+use std::fmt::Write as FmtWrite;
 use std::io::Write;
 
 use actix::{Addr, Unsync};
@@ -8,6 +9,7 @@ use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
+use percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
 
 use body::Body;
 use error::Error;
@@ -539,10 +541,14 @@ impl ClientRequestBuilder {
 
         // set cookies
         if let Some(ref mut jar) = self.cookies {
-            for cookie in jar.delta() {
-                request.headers.append(
-                    header::COOKIE, HeaderValue::from_str(&cookie.to_string()).unwrap());
+            let mut cookie = String::new();
+            for c in jar.delta() {
+                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+                let _ = write!(&mut cookie, ";{}={}", name, value);
             }
+            request.headers.insert(
+                header::COOKIE, HeaderValue::from_str(&cookie.as_str()[1..]).unwrap());
         }
         request.body = body.into();
         Ok(request)

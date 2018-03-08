@@ -335,7 +335,11 @@ impl<S> HttpRequest<S> {
             let mut cookies = Vec::new();
             for hdr in msg.headers.get_all(header::COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                cookies.push(Cookie::parse_encoded(s)?.into_owned());
+                for cookie_str in s.split(';').map(|s| s.trim()) {
+                    if !cookie_str.is_empty() {
+                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                    }
+                }
             }
             msg.cookies = Some(cookies)
         }

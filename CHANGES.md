@@ -2,6 +2,8 @@
 
 ## 0.4.6 (2018-03-xx)
 
+* Fix client cookie handling
+
 
 ## 0.4.5 (2018-03-07)
 
