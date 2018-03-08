@@ -6,6 +6,8 @@
 
 * Fix client cookie handling #111
 
+* Non-blocking processing of a `NamedFile`
+
 * Enable compression support for `NamedFile`
 
 * Better support for `NamedFile` type

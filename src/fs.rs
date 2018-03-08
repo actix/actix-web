@@ -1,8 +1,8 @@
 //! Static files support.
 
 // //! TODO: needs to re-implement actual files handling, current impl blocks
-use std::io;
-use std::io::Read;
+use std::{io, cmp};
+use std::io::{Read, Seek};
 use std::fmt::Write;
 use std::fs::{File, DirEntry, Metadata};
 use std::path::{Path, PathBuf};
@@ -12,10 +12,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use bytes::{Bytes, BytesMut, BufMut};
 use http::{Method, StatusCode};
+use futures::{Async, Poll, Future, Stream};
+use futures_cpupool::{CpuPool, CpuFuture};
 use mime_guess::get_mime_type;
 
 use header;
+use error::Error;
 use param::FromParam;
 use handler::{Handler, Responder};
 use httpmessage::HttpMessage;
@@ -31,6 +35,7 @@ pub struct NamedFile {
     file: File,
     md: Metadata,
     modified: Option<SystemTime>,
+    cpu_pool: Option<CpuPool>,
 }
 
 impl NamedFile {
@@ -48,7 +53,8 @@ impl NamedFile {
         let md = file.metadata()?;
         let path = path.as_ref().to_path_buf();
         let modified = md.modified().ok();
-        Ok(NamedFile{path, file, md, modified})
+        let cpu_pool = None;
+        Ok(NamedFile{path, file, md, modified, cpu_pool})
     }
 
     /// Returns reference to the underlying `File` object.
@@ -74,6 +80,13 @@ impl NamedFile {
     #[inline]
     pub fn path(&self) -> &Path {
         self.path.as_path()
+    }
+
+    /// Returns reference to the underlying `File` object.
+    #[inline]
+    pub fn set_cpu_pool(mut self, cpu_pool: CpuPool) -> Self {
+        self.cpu_pool = Some(cpu_pool);
+        self
     }
 
     fn etag(&self) -> Option<header::EntityTag> {
@@ -117,8 +130,8 @@ impl DerefMut for NamedFile {
 /// Returns true if `req` has no `If-Match` header or one which matches `etag`.
 fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     match req.get_header::<header::IfMatch>() {
-        Err(_) | Ok(header::IfMatch::Any) => true,
-        Ok(header::IfMatch::Items(ref items)) => {
+        None | Some(header::IfMatch::Any) => true,
+        Some(header::IfMatch::Items(ref items)) => {
             if let Some(some_etag) = etag {
                 for item in items {
                     if item.strong_eq(some_etag) {
@@ -134,8 +147,8 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 /// Returns true if `req` doesn't have an `If-None-Match` header matching `req`.
 fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     match req.get_header::<header::IfNoneMatch>() {
-        Ok(header::IfNoneMatch::Any) => false,
-        Ok(header::IfNoneMatch::Items(ref items)) => {
+        Some(header::IfNoneMatch::Any) => false,
+        Some(header::IfNoneMatch::Items(ref items)) => {
             if let Some(some_etag) = etag {
                 for item in items {
                     if item.weak_eq(some_etag) {
@@ -145,7 +158,7 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
             }
             true
         }
-        Err(_) => true,
+        None => true,
     }
 }
 
@@ -154,7 +167,7 @@ impl Responder for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn respond_to(mut self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         if *req.method() != Method::GET && *req.method() != Method::HEAD {
             return Ok(HttpMethodNotAllowed.build()
                       .header(header::http::CONTENT_TYPE, "text/plain")
@@ -168,7 +181,7 @@ impl Responder for NamedFile {
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), &req) {
             true
-        } else if let (Some(ref m), Ok(header::IfUnmodifiedSince(ref since))) =
+        } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
             m > since
@@ -179,7 +192,7 @@ impl Responder for NamedFile {
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), &req) {
             true
-        } else if let (Some(ref m), Ok(header::IfModifiedSince(ref since))) =
+        } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
             m <= since
@@ -202,14 +215,67 @@ impl Responder for NamedFile {
             return Ok(resp.status(StatusCode::NOT_MODIFIED).finish().unwrap())
         }
 
-        resp.content_length(self.md.len());
-
         if *req.method() == Method::GET {
-            let mut data = Vec::new();
-            let _ = self.file.read_to_end(&mut data);
-            Ok(resp.body(data).unwrap())
+            let reader = ChunkedReadFile {
+                size: self.md.len(),
+                offset: 0,
+                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
+                file: Some(self.file),
+                fut: None,
+            };
+            Ok(resp.streaming(reader).unwrap())
         } else {
             Ok(resp.finish().unwrap())
+        }
+    }
+}
+
+/// A helper created from a `std::fs::File` which reads the file
+/// chunk-by-chunk on a `CpuPool`.
+pub struct ChunkedReadFile {
+    size: u64,
+    offset: u64,
+    cpu_pool: CpuPool,
+    file: Option<File>,
+    fut: Option<CpuFuture<(File, Bytes), io::Error>>,
+}
+
+impl Stream for ChunkedReadFile {
+    type Item = Bytes;
+    type Error= Error;
+
+    fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.fut.is_some() {
+            return match self.fut.as_mut().unwrap().poll()? {
+                Async::Ready((file, bytes)) => {
+                    self.fut.take();
+                    self.file = Some(file);
+                    self.offset += bytes.len() as u64;
+                    Ok(Async::Ready(Some(bytes)))
+                },
+                Async::NotReady => Ok(Async::NotReady),
+            };
+        }
+
+        let size = self.size;
+        let offset = self.offset;
+
+        if size == offset {
+            Ok(Async::Ready(None))
+        } else {
+            let mut file = self.file.take().expect("Use after completion");
+            self.fut = Some(self.cpu_pool.spawn_fn(move || {
+                let max_bytes = cmp::min(size.saturating_sub(offset), 65_536) as usize;
+                let mut buf = BytesMut::with_capacity(max_bytes);
+                file.seek(io::SeekFrom::Start(offset))?;
+                let nbytes = file.read(unsafe{buf.bytes_mut()})?;
+                if nbytes == 0 {
+                    return Err(io::ErrorKind::UnexpectedEof.into())
+                }
+                unsafe{buf.advance_mut(nbytes)};
+                Ok((file, buf.freeze()))
+            }));
+            self.poll()
         }
     }
 }
@@ -329,6 +395,7 @@ pub struct StaticFiles {
     accessible: bool,
     index: Option<String>,
     show_index: bool,
+    cpu_pool: CpuPool,
     _chunk_size: usize,
     _follow_symlinks: bool,
 }
@@ -362,6 +429,7 @@ impl StaticFiles {
             accessible: access,
             index: None,
             show_index: index,
+            cpu_pool: CpuPool::new(40),
             _chunk_size: 0,
             _follow_symlinks: false,
         }
@@ -409,15 +477,17 @@ impl<S> Handler<S> for StaticFiles {
                     Ok(FilesystemElement::Redirect(
                         HttpFound
                             .build()
-                            .header::<_, &str>("LOCATION", &new_path)
+                            .header(header::http::LOCATION, new_path.as_str())
                             .finish().unwrap()))
                 } else if self.show_index {
-                    Ok(FilesystemElement::Directory(Directory::new(self.directory.clone(), path)))
+                    Ok(FilesystemElement::Directory(
+                        Directory::new(self.directory.clone(), path)))
                 } else {
                     Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
                 }
             } else {
-                Ok(FilesystemElement::File(NamedFile::open(path)?))
+                Ok(FilesystemElement::File(
+                    NamedFile::open(path)?.set_cpu_pool(self.cpu_pool.clone())))
             }
         }
     }

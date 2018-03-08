@@ -26,8 +26,12 @@ pub trait HttpMessage {
 
     #[doc(hidden)]
     /// Get a header
-    fn get_header<H: Header>(&self) -> Result<H, ParseError> where Self: Sized {
-        H::parse(self)
+    fn get_header<H: Header>(&self) -> Option<H> where Self: Sized {
+        if self.headers().contains_key(H::name()) {
+            H::parse(self).ok()
+        } else {
+            None
+        }
     }
     
     /// Read the request content type. If request does not contain

@@ -188,7 +188,7 @@ impl<S> HttpRequest<S> {
     /// Default `CpuPool`
     #[inline]
     #[doc(hidden)]
-    pub fn cpu_pool(&mut self) -> &CpuPool {
+    pub fn cpu_pool(&self) -> &CpuPool {
         self.router().expect("HttpRequest has to have Router instance")
             .server_settings().cpu_pool()
     }

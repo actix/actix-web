@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 use cookie::{Cookie, CookieJar};
 use bytes::{Bytes, BytesMut, BufMut};
+use futures::Stream;
 use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
@@ -478,6 +479,15 @@ impl HttpResponseBuilder {
         }
         response.body = body.into();
         Ok(HttpResponse(Some(response)))
+    }
+
+    /// Set a streaming body and generate `HttpResponse`.
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
+    pub fn streaming<S>(&mut self, stream: S) -> Result<HttpResponse, HttpError>
+        where S: Stream<Item=Bytes, Error=Error> + 'static,
+    {
+        self.body(Body::Streaming(Box::new(stream)))
     }
 
     /// Set a json body and generate `HttpResponse`
