@@ -38,7 +38,7 @@
 //! * Graceful server shutdown
 //! * Multipart streams
 //! * SSL support with openssl or native-tls
-//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
+//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
 //! * Built on top of [Actix actor framework](https://github.com/actix/actix).
 
 #![cfg_attr(actix_nightly, feature(
