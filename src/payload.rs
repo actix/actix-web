@@ -298,6 +298,21 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
     }
 
     #[inline]
+    pub fn get_chunk(&mut self) -> Poll<Option<&[u8]>, PayloadError> {
+        if self.items.is_empty() {
+            match self.poll_stream()? {
+                Async::Ready(true) => (),
+                Async::Ready(false) => return Ok(Async::Ready(None)),
+                Async::NotReady => return Ok(Async::NotReady),
+            }
+        }
+        match self.items.front().map(|c| c.as_ref()) {
+            Some(chunk) => Ok(Async::Ready(Some(chunk))),
+            None => Ok(Async::NotReady),
+        }
+    }
+
+    #[inline]
     pub fn readexactly(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
         if size <= self.len {
             self.len -= size;

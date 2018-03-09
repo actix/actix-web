@@ -2,11 +2,10 @@
 use std::cmp::min;
 use std::mem::uninitialized;
 use std::ptr::copy_nonoverlapping;
-use std::ptr;
 
 /// Mask/unmask a frame.
 #[inline]
-pub fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
+pub fn apply_mask(buf: &mut [u8], mask: u32) {
     apply_mask_fast32(buf, mask)
 }
 
@@ -21,9 +20,7 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
 
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
 #[inline]
-fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
-    let mask_u32: u32 = unsafe {ptr::read_unaligned(mask.as_ptr() as *const u32)};
-
+fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
     let mut ptr = buf.as_mut_ptr();
     let mut len = buf.len();
 
@@ -35,12 +32,14 @@ fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
             ptr = ptr.offset(head as isize);
         }
         len -= head;
-        let mask_u32 = if cfg!(target_endian = "big") {
+        //let mask_u32 =
+        if cfg!(target_endian = "big") {
             mask_u32.rotate_left(8 * head as u32)
         } else {
             mask_u32.rotate_right(8 * head as u32)
-        };
+        }//;
 
+        /*
         let head = min(len, (4 - (ptr as usize & 3)) & 3);
         if head > 0 {
             unsafe {
@@ -55,7 +54,7 @@ fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
             }
         } else {
             mask_u32
-        }
+        }*/
     } else {
         mask_u32
     };
@@ -106,6 +105,7 @@ unsafe fn xor_mem(ptr: *mut u8, mask: u32, len: usize) {
 
 #[cfg(test)]
 mod tests {
+    use std::ptr;
  use super::{apply_mask_fallback, apply_mask_fast32};
 
     #[test]
@@ -113,6 +113,8 @@ mod tests {
         let mask = [
             0x6d, 0xb6, 0xb2, 0x80,
         ];
+        let mask_u32: u32 = unsafe {ptr::read_unaligned(mask.as_ptr() as *const u32)};
+
         let unmasked = vec![
             0xf3, 0x00, 0x01, 0x02,  0x03, 0x80, 0x81, 0x82,
             0xff, 0xfe, 0x00, 0x17,  0x74, 0xf9, 0x12, 0x03,
@@ -124,7 +126,7 @@ mod tests {
             apply_mask_fallback(&mut masked, &mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast, &mask);
+            apply_mask_fast32(&mut masked_fast, mask_u32);
 
             assert_eq!(masked, masked_fast);
         }
@@ -135,7 +137,7 @@ mod tests {
             apply_mask_fallback(&mut masked[1..], &mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast[1..], &mask);
+            apply_mask_fast32(&mut masked_fast[1..], mask_u32);
 
             assert_eq!(masked, masked_fast);
         }

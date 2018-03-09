@@ -1,4 +1,4 @@
-use std::{fmt, mem};
+use std::{fmt, mem, ptr};
 use std::iter::FromIterator;
 use bytes::{Bytes, BytesMut, BufMut};
 use byteorder::{ByteOrder, BigEndian, NetworkEndian};
@@ -17,9 +17,6 @@ use ws::mask::apply_mask;
 #[derive(Debug)]
 pub(crate) struct Frame {
     finished: bool,
-    rsv1: bool,
-    rsv2: bool,
-    rsv3: bool,
     opcode: OpCode,
     payload: Binary,
 }
@@ -51,9 +48,9 @@ impl Frame {
         Frame::message(payload, OpCode::Close, true, genmask)
     }
 
-    /// Parse the input stream into a frame.
-    pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool, max_size: usize)
-                    -> Poll<Option<Frame>, ProtocolError>
+    fn read_copy_md<S>(
+        pl: &mut PayloadHelper<S>, server: bool, max_size: usize
+    ) -> Poll<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError>
         where S: Stream<Item=Bytes, Error=PayloadError>
     {
         let mut idx = 2;
@@ -74,12 +71,14 @@ impl Frame {
             return Err(ProtocolError::MaskedFrame)
         }
 
-        let rsv1 = first & 0x40 != 0;
-        let rsv2 = first & 0x20 != 0;
-        let rsv3 = first & 0x10 != 0;
+        // Op code
         let opcode = OpCode::from(first & 0x0F);
-        let len = second & 0x7F;
 
+        if let OpCode::Bad = opcode {
+            return Err(ProtocolError::InvalidOpcode(first & 0x0F))
+        }
+
+        let len = second & 0x7F;
         let length = if len == 126 {
             let buf = match pl.copy(4)? {
                 Async::Ready(Some(buf)) => buf,
@@ -114,12 +113,104 @@ impl Frame {
                 Async::NotReady => return Ok(Async::NotReady),
             };
 
-            let mut mask_bytes = [0u8; 4];
-            mask_bytes.copy_from_slice(&buf[idx..idx+4]);
+            let mask: &[u8] = &buf[idx..idx+4];
+            let mask_u32: u32 = unsafe {ptr::read_unaligned(mask.as_ptr() as *const u32)};
             idx += 4;
-            Some(mask_bytes)
+            Some(mask_u32)
         } else {
             None
+        };
+
+        Ok(Async::Ready(Some((idx, finished, opcode, length, mask))))
+    }
+
+    fn read_chunk_md(chunk: &[u8], server: bool, max_size: usize)
+                     -> Poll<(usize, bool, OpCode, usize, Option<u32>), ProtocolError>
+    {
+        let chunk_len = chunk.len();
+
+        let mut idx = 2;
+        if chunk_len < 2 {
+            return Ok(Async::NotReady)
+        }
+
+        let first = chunk[0];
+        let second = chunk[1];
+        let finished = first & 0x80 != 0;
+
+        // check masking
+        let masked = second & 0x80 != 0;
+        if !masked && server {
+            return Err(ProtocolError::UnmaskedFrame)
+        } else if masked && !server {
+            return Err(ProtocolError::MaskedFrame)
+        }
+
+        // Op code
+        let opcode = OpCode::from(first & 0x0F);
+
+        if let OpCode::Bad = opcode {
+            return Err(ProtocolError::InvalidOpcode(first & 0x0F))
+        }
+
+        let len = second & 0x7F;
+        let length = if len == 126 {
+            if chunk_len < 4 {
+                return Ok(Async::NotReady)
+            }
+            let len = NetworkEndian::read_uint(&chunk[idx..], 2) as usize;
+            idx += 2;
+            len
+        } else if len == 127 {
+            if chunk_len < 10 {
+                return Ok(Async::NotReady)
+            }
+            let len = NetworkEndian::read_uint(&chunk[idx..], 8) as usize;
+            idx += 8;
+            len
+        } else {
+            len as usize
+        };
+
+        // check for max allowed size
+        if length > max_size {
+            return Err(ProtocolError::Overflow)
+        }
+
+        let mask = if server {
+            if chunk_len < idx + 4 {
+                return Ok(Async::NotReady)
+            }
+
+            let mask: &[u8] = &chunk[idx..idx+4];
+            let mask_u32: u32 = unsafe {ptr::read_unaligned(mask.as_ptr() as *const u32)};
+            idx += 4;
+            Some(mask_u32)
+        } else {
+            None
+        };
+
+        Ok(Async::Ready((idx, finished, opcode, length, mask)))
+    }
+
+    /// Parse the input stream into a frame.
+    pub fn parse<S>(pl: &mut PayloadHelper<S>, server: bool, max_size: usize)
+                    -> Poll<Option<Frame>, ProtocolError>
+        where S: Stream<Item=Bytes, Error=PayloadError>
+    {
+        let result = match pl.get_chunk()? {
+            Async::NotReady => return Ok(Async::NotReady),
+            Async::Ready(Some(chunk)) => Frame::read_chunk_md(chunk, server, max_size)?,
+            Async::Ready(None) => return Ok(Async::Ready(None)),
+        };
+
+        let (idx, finished, opcode, length, mask) = match result {
+            Async::NotReady => match Frame::read_copy_md(pl, server, max_size)? {
+                Async::NotReady => return Ok(Async::NotReady),
+                Async::Ready(Some(item)) => item,
+                Async::Ready(None) => return Ok(Async::Ready(None)),
+            },
+            Async::Ready(item) => item,
         };
 
         match pl.can_read(idx + length)? {
@@ -134,7 +225,7 @@ impl Frame {
         // get body
         if length == 0 {
             return Ok(Async::Ready(Some(Frame {
-                finished, rsv1, rsv2, rsv3, opcode, payload: Binary::from("") })));
+                finished, opcode, payload: Binary::from("") })));
         }
 
         let data = match pl.readexactly(length)? {
@@ -142,11 +233,6 @@ impl Frame {
             Async::Ready(None) => return Ok(Async::Ready(None)),
             Async::NotReady => panic!(),
         };
-
-        // Disallow bad opcode
-        if let OpCode::Bad = opcode {
-            return Err(ProtocolError::InvalidOpcode(first & 0x0F))
-        }
 
         // control frames must have length <= 125
         match opcode {
@@ -161,14 +247,14 @@ impl Frame {
         }
 
         // unmask
-        if let Some(ref mask) = mask {
+        if let Some(mask) = mask {
             #[allow(mutable_transmutes)]
             let p: &mut [u8] = unsafe{let ptr: &[u8] = &data; mem::transmute(ptr)};
             apply_mask(p, mask);
         }
 
         Ok(Async::Ready(Some(Frame {
-            finished, rsv1, rsv2, rsv3, opcode, payload: data.into() })))
+            finished, opcode, payload: data.into() })))
     }
 
     /// Generate binary representation
@@ -213,13 +299,13 @@ impl Frame {
         };
 
         if genmask {
-            let mask: [u8; 4] = rand::random();
+            let mask = rand::random::<u32>();
             unsafe {
                 {
                     let buf_mut = buf.bytes_mut();
-                    buf_mut[..4].copy_from_slice(&mask);
+                    *(buf_mut as *mut _ as *mut u32) = mask;
                     buf_mut[4..payload_len+4].copy_from_slice(payload.as_ref());
-                    apply_mask(&mut buf_mut[4..], &mask);
+                    apply_mask(&mut buf_mut[4..], mask);
                 }
                 buf.advance_mut(payload_len + 4);
             }
@@ -235,9 +321,6 @@ impl Default for Frame {
     fn default() -> Frame {
         Frame {
             finished: true,
-            rsv1: false,
-            rsv2: false,
-            rsv3: false,
             opcode: OpCode::Close,
             payload: Binary::from(&b""[..]),
         }
@@ -250,15 +333,11 @@ impl fmt::Display for Frame {
             "
 <FRAME>
     final: {}
-    reserved: {} {} {}
     opcode: {}
     payload length: {}
     payload: 0x{}
 </FRAME>",
                self.finished,
-               self.rsv1,
-               self.rsv2,
-               self.rsv3,
                self.opcode,
                self.payload.len(),
                self.payload.as_ref().iter().map(
@@ -296,7 +375,6 @@ mod tests {
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
         let frame = extract(Frame::parse(&mut buf, false, 1024));
-        println!("FRAME: {}", frame);
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1"[..]);
