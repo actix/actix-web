@@ -556,21 +556,21 @@ mod tests {
             let (mut sender, payload) = Payload::new(false);
             let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.readexactly(2).ok().unwrap());
+            assert_eq!(Async::NotReady, payload.read_exact(2).ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
 
             assert_eq!(Async::Ready(Some(Bytes::from_static(b"li"))),
-                       payload.readexactly(2).ok().unwrap());
+                       payload.read_exact(2).ok().unwrap());
             assert_eq!(payload.len, 3);
 
             assert_eq!(Async::Ready(Some(Bytes::from_static(b"ne1l"))),
-                       payload.readexactly(4).ok().unwrap());
+                       payload.read_exact(4).ok().unwrap());
             assert_eq!(payload.len, 4);
 
             sender.set_error(PayloadError::Incomplete);
-            payload.readexactly(10).err().unwrap();
+            payload.read_exact(10).err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
@@ -583,21 +583,21 @@ mod tests {
             let (mut sender, payload) = Payload::new(false);
             let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.readuntil(b"ne").ok().unwrap());
+            assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
 
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
 
             assert_eq!(Async::Ready(Some(Bytes::from("line"))),
-                       payload.readuntil(b"ne").ok().unwrap());
+                       payload.read_until(b"ne").ok().unwrap());
             assert_eq!(payload.len, 1);
 
             assert_eq!(Async::Ready(Some(Bytes::from("1line2"))),
-                       payload.readuntil(b"2").ok().unwrap());
+                       payload.read_until(b"2").ok().unwrap());
             assert_eq!(payload.len, 0);
 
             sender.set_error(PayloadError::Incomplete);
-            payload.readuntil(b"b").err().unwrap();
+            payload.read_until(b"b").err().unwrap();
 
             let res: Result<(), ()> = Ok(());
             result(res)
