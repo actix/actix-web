@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::marker::PhantomData;
 
+use smallvec::SmallVec;
 use http::{Method, StatusCode};
 
 use pred;
@@ -34,7 +35,7 @@ use httpresponse::HttpResponse;
 pub struct Resource<S=()> {
     name: String,
     state: PhantomData<S>,
-    routes: Vec<Route<S>>,
+    routes: SmallVec<[Route<S>; 3]>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
@@ -43,7 +44,7 @@ impl<S> Default for Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new(),
+            routes: SmallVec::new(),
             middlewares: Rc::new(Vec::new()) }
     }
 }
@@ -54,7 +55,7 @@ impl<S> Resource<S> {
         Resource {
             name: String::new(),
             state: PhantomData,
-            routes: Vec::new(),
+            routes: SmallVec::new(),
             middlewares: Rc::new(Vec::new()) }
     }
 
