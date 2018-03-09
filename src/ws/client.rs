@@ -2,17 +2,18 @@
 use std::{fmt, io, str};
 use std::rc::Rc;
 use std::cell::UnsafeCell;
+use std::time::Duration;
 
 use base64;
 use rand;
 use bytes::Bytes;
 use cookie::Cookie;
+use byteorder::{ByteOrder, NetworkEndian};
 use http::{HttpTryFrom, StatusCode, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use sha1::Sha1;
 use futures::{Async, Future, Poll, Stream};
 use futures::unsync::mpsc::{unbounded, UnboundedSender};
-use byteorder::{ByteOrder, NetworkEndian};
 
 use actix::prelude::*;
 
@@ -299,8 +300,31 @@ impl ClientHandshake {
             request: None,
             tx: None,
             error: Some(err),
-            max_size: 0
+            max_size: 0,
         }
+    }
+
+    /// Set handshake timeout
+    ///
+    /// Handshake timeout is a total time before handshake should be completed.
+    /// Default value is 5 seconds.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        if let Some(request) = self.request.take() {
+            self.request = Some(request.timeout(timeout));
+        }
+        self
+    }
+
+    /// Set connection timeout
+    ///
+    /// Connection timeout includes resolving hostname and actual connection to
+    /// the host.
+    /// Default value is 1 second.
+    pub fn conn_timeout(mut self, timeout: Duration) -> Self {
+        if let Some(request) = self.request.take() {
+            self.request = Some(request.conn_timeout(timeout));
+        }
+        self
     }
 }
 
