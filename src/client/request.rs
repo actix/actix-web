@@ -545,10 +545,10 @@ impl ClientRequestBuilder {
             for c in jar.delta() {
                 let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
                 let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-                let _ = write!(&mut cookie, ";{}={}", name, value);
+                let _ = write!(&mut cookie, "; {}={}", name, value);
             }
             request.headers.insert(
-                header::COOKIE, HeaderValue::from_str(&cookie.as_str()[1..]).unwrap());
+                header::COOKIE, HeaderValue::from_str(&cookie.as_str()[2..]).unwrap());
         }
         request.body = body.into();
         Ok(request)
