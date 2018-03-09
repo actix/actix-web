@@ -313,7 +313,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
     }
 
     #[inline]
-    pub fn readexactly(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
+    pub fn read_exact(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
         if size <= self.len {
             self.len -= size;
             let mut chunk = self.items.pop_front().unwrap();
@@ -341,7 +341,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
             }
         } else {
             match self.poll_stream()? {
-                Async::Ready(true) => self.readexactly(size),
+                Async::Ready(true) => self.read_exact(size),
                 Async::Ready(false) => Ok(Async::Ready(None)),
                 Async::NotReady => Ok(Async::NotReady),
             }
@@ -387,7 +387,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         }
     }
 
-    pub fn readuntil(&mut self, line: &[u8]) -> Poll<Option<Bytes>, PayloadError> {
+    pub fn read_until(&mut self, line: &[u8]) -> Poll<Option<Bytes>, PayloadError> {
         let mut idx = 0;
         let mut num = 0;
         let mut offset = 0;
@@ -436,14 +436,14 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         }
 
         match self.poll_stream()? {
-            Async::Ready(true) => self.readuntil(line),
+            Async::Ready(true) => self.read_until(line),
             Async::Ready(false) => Ok(Async::Ready(None)),
             Async::NotReady => Ok(Async::NotReady),
         }
     }
 
     pub fn readline(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        self.readuntil(b"\n")
+        self.read_until(b"\n")
     }
 
     pub fn unread_data(&mut self, data: Bytes) {

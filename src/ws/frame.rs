@@ -198,6 +198,7 @@ impl Frame {
                     -> Poll<Option<Frame>, ProtocolError>
         where S: Stream<Item=Bytes, Error=PayloadError>
     {
+        // try to parse ws frame md from one chunk
         let result = match pl.get_chunk()? {
             Async::NotReady => return Ok(Async::NotReady),
             Async::Ready(Some(chunk)) => Frame::read_chunk_md(chunk, server, max_size)?,
@@ -205,6 +206,7 @@ impl Frame {
         };
 
         let (idx, finished, opcode, length, mask) = match result {
+            // we may need to join several chunks
             Async::NotReady => match Frame::read_copy_md(pl, server, max_size)? {
                 Async::NotReady => return Ok(Async::NotReady),
                 Async::Ready(Some(item)) => item,
@@ -228,7 +230,7 @@ impl Frame {
                 finished, opcode, payload: Binary::from("") })));
         }
 
-        let data = match pl.readexactly(length)? {
+        let data = match pl.read_exact(length)? {
             Async::Ready(Some(buf)) => buf,
             Async::Ready(None) => return Ok(Async::Ready(None)),
             Async::NotReady => panic!(),

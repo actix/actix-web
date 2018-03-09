@@ -130,7 +130,7 @@ impl<S> InnerMultipart<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
     fn read_headers(payload: &mut PayloadHelper<S>) -> Poll<HeaderMap, MultipartError>
     {
-        match payload.readuntil(b"\r\n\r\n")? {
+        match payload.read_until(b"\r\n\r\n")? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(bytes)) => {
@@ -469,13 +469,13 @@ impl<S> InnerField<S> where S: Stream<Item=Bytes, Error=PayloadError> {
     fn read_stream(payload: &mut PayloadHelper<S>, boundary: &str)
                    -> Poll<Option<Bytes>, MultipartError>
     {
-        match payload.readuntil(b"\r")? {
+        match payload.read_until(b"\r")? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(mut chunk)) => {
                 if chunk.len() == 1 {
                     payload.unread_data(chunk);
-                    match payload.readexactly(boundary.len() + 4)? {
+                    match payload.read_exact(boundary.len() + 4)? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(None) => Err(MultipartError::Incomplete),
                         Async::Ready(Some(chunk)) => {
