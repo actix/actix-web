@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message MyObj {
+    int32 number = 1;
+    string name = 2;
+}
