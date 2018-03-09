@@ -20,6 +20,7 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
 
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
 #[inline]
+#[cfg_attr(feature="cargo-clippy", allow(cast_lossless))]
 fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
     let mut ptr = buf.as_mut_ptr();
     let mut len = buf.len();

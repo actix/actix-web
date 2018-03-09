@@ -48,8 +48,10 @@ impl Frame {
         Frame::message(payload, OpCode::Close, true, genmask)
     }
 
-    fn read_copy_md<S>(
-        pl: &mut PayloadHelper<S>, server: bool, max_size: usize
+    #[cfg_attr(feature="cargo-clippy", allow(type_complexity))]
+    fn read_copy_md<S>(pl: &mut PayloadHelper<S>,
+                       server: bool,
+                       max_size: usize
     ) -> Poll<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError>
         where S: Stream<Item=Bytes, Error=PayloadError>
     {

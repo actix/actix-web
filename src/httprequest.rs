@@ -121,7 +121,7 @@ impl HttpRequest<()> {
     }
 
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[cfg_attr(feature="cargo-clippy", allow(inline_always))]
     pub(crate) fn from_message(msg: SharedHttpInnerMessage) -> HttpRequest {
         HttpRequest(msg, None, None)
     }
