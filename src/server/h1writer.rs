@@ -34,6 +34,7 @@ pub(crate) struct H1Writer<T: AsyncWrite> {
     written: u64,
     headers_size: u32,
     buffer: SharedBytes,
+    buffer_capacity: usize,
 }
 
 impl<T: AsyncWrite> H1Writer<T> {
@@ -45,6 +46,7 @@ impl<T: AsyncWrite> H1Writer<T> {
             written: 0,
             headers_size: 0,
             buffer: buf,
+            buffer_capacity: 0,
             stream,
         }
     }
@@ -77,7 +79,7 @@ impl<T: AsyncWrite> H1Writer<T> {
                     let _ = self.buffer.split_to(n);
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                    if self.buffer.len() > self.buffer_capacity {
                         return Ok(WriterState::Pause)
                     } else {
                         return Ok(WriterState::Done)
@@ -199,6 +201,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             self.written = bytes.len() as u64;
             self.encoder.write(bytes)?;
         } else {
+            // capacity, makes sense only for streaming or actor
+            self.buffer_capacity = msg.write_buffer_capacity();
+
             msg.replace_body(body);
         }
         Ok(WriterState::Done)

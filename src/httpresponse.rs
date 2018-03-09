@@ -18,6 +18,10 @@ use handler::Responder;
 use header::{Header, IntoHeaderValue, ContentEncoding};
 use httprequest::HttpRequest;
 
+/// max write buffer size 64k
+pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
+
+
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ConnectionType {
@@ -197,6 +201,16 @@ impl HttpResponse {
     /// Set content encoding
     pub(crate) fn set_response_size(&mut self, size: u64) {
         self.get_mut().response_size = size;
+    }
+
+    /// Set write buffer capacity
+    pub fn write_buffer_capacity(&self) -> usize {
+        self.get_ref().write_capacity
+    }
+
+    /// Set write buffer capacity
+    pub fn set_write_buffer_capacity(&mut self, cap: usize) {
+        self.get_mut().write_capacity = cap;
     }
 }
 
@@ -462,6 +476,20 @@ impl HttpResponseBuilder {
         self
     }
 
+    /// Set write buffer capacity
+    ///
+    /// This parameter makes sense only for streaming response
+    /// or actor. If write buffer reaches specified capacity, stream or actor get
+    /// paused.
+    ///
+    /// Default write buffer capacity is 64kb
+    pub fn write_buffer_capacity(&mut self, cap: usize) -> &mut Self {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.write_capacity = cap;
+        }
+        self
+    }
+
     /// Set a body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
@@ -692,6 +720,7 @@ struct InnerHttpResponse {
     chunked: Option<bool>,
     encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
+    write_capacity: usize,
     response_size: u64,
     error: Option<Error>,
 }
@@ -710,6 +739,7 @@ impl InnerHttpResponse {
             encoding: None,
             connection_type: None,
             response_size: 0,
+            write_capacity: MAX_WRITE_BUFFER_SIZE,
             error: None,
         }
     }
@@ -763,6 +793,7 @@ impl Pool {
                 inner.connection_type = None;
                 inner.response_size = 0;
                 inner.error = None;
+                inner.write_capacity = MAX_WRITE_BUFFER_SIZE;
                 v.push_front(inner);
             }
         })

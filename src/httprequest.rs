@@ -97,7 +97,8 @@ impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
     pub fn new(method: Method, uri: Uri,
-               version: Version, headers: HeaderMap, payload: Option<Payload>) -> HttpRequest
+               version: Version, headers: HeaderMap, payload: Option<Payload>)
+               -> HttpRequest
     {
         HttpRequest(
             SharedHttpInnerMessage::from_message(HttpInnerMessage {

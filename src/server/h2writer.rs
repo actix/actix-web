@@ -34,6 +34,7 @@ pub(crate) struct H2Writer {
     flags: Flags,
     written: u64,
     buffer: SharedBytes,
+    buffer_capacity: usize,
 }
 
 impl H2Writer {
@@ -46,6 +47,7 @@ impl H2Writer {
             flags: Flags::empty(),
             written: 0,
             buffer: buf,
+            buffer_capacity: 0,
         }
     }
 
@@ -71,7 +73,7 @@ impl H2Writer {
             loop {
                 match stream.poll_capacity() {
                     Ok(Async::NotReady) => {
-                        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+                        if self.buffer.len() > self.buffer_capacity {
                             return Ok(WriterState::Pause)
                         } else {
                             return Ok(WriterState::Done)
@@ -111,8 +113,11 @@ impl Writer for H2Writer {
         self.written
     }
 
-    fn start(&mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse, encoding: ContentEncoding)
-             -> io::Result<WriterState> {
+    fn start(&mut self,
+             req: &mut HttpInnerMessage,
+             msg: &mut HttpResponse,
+             encoding: ContentEncoding) -> io::Result<WriterState>
+    {
         // prepare response
         self.flags.insert(Flags::STARTED);
         self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
@@ -172,6 +177,7 @@ impl Writer for H2Writer {
             Ok(WriterState::Pause)
         } else {
             msg.replace_body(body);
+            self.buffer_capacity = msg.write_buffer_capacity();
             Ok(WriterState::Done)
         }
     }
