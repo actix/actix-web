@@ -26,36 +26,33 @@ fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
     let mut len = buf.len();
 
     // Possible first unaligned block.
-    let head = min(len, (4 - (ptr as usize & 3)) & 3);
+    let head = min(len, (8 - (ptr as usize & 0x7)) & 0x3);
     let mask_u32 = if head > 0 {
-        unsafe {
-            xor_mem(ptr, mask_u32, head);
-            ptr = ptr.offset(head as isize);
-        }
-        len -= head;
-        //let mask_u32 =
-        if cfg!(target_endian = "big") {
-            mask_u32.rotate_left(8 * head as u32)
-        } else {
-            mask_u32.rotate_right(8 * head as u32)
-        }//;
+        let n = if head > 4 { head - 4 } else { head };
 
-        /*
-        let head = min(len, (4 - (ptr as usize & 3)) & 3);
-        if head > 0 {
+        let mask_u32 = if n > 0 {
             unsafe {
-                xor_mem(ptr, mask_u32, head);
+                xor_mem(ptr, mask_u32, n);
                 ptr = ptr.offset(head as isize);
             }
-            len -= head;
+            len -= n;
             if cfg!(target_endian = "big") {
-                mask_u32.rotate_left(8 * head as u32)
+                mask_u32.rotate_left(8 * n as u32)
             } else {
-                mask_u32.rotate_right(8 * head as u32)
+                mask_u32.rotate_right(8 * n as u32)
             }
         } else {
             mask_u32
-        }*/
+        };
+
+        if head > 4 {
+            unsafe {
+                *(ptr as *mut u32) ^= mask_u32;
+                ptr = ptr.offset(4);
+                len -= 4;
+            }
+        }
+        mask_u32
     } else {
         mask_u32
     };
