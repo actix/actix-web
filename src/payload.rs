@@ -341,8 +341,8 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
             let mut len = 0;
             while len < size {
                 let mut chunk = self.items.pop_front().unwrap();
-                let rem = cmp::min(size - len, chunk.len());
-                len -= rem;
+                let rem = cmp::min(size-len, chunk.len());
+                len += rem;
                 if rem < chunk.len() {
                     chunk.split_to(rem);
                     self.items.push_front(chunk);
@@ -546,11 +546,11 @@ mod tests {
             sender.feed_data(Bytes::from("line1"));
             sender.feed_data(Bytes::from("line2"));
 
-            assert_eq!(Async::Ready(Some(BytesMut::from("li"))),
+            assert_eq!(Async::Ready(Some(Bytes::from_static(b"li"))),
                        payload.readexactly(2).ok().unwrap());
             assert_eq!(payload.len, 3);
 
-            assert_eq!(Async::Ready(Some(BytesMut::from("ne1l"))),
+            assert_eq!(Async::Ready(Some(Bytes::from_static(b"ne1l"))),
                        payload.readexactly(4).ok().unwrap());
             assert_eq!(payload.len, 4);
 

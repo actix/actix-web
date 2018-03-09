@@ -132,6 +132,11 @@ impl Frame {
         pl.drop_payload(idx);
 
         // get body
+        if length == 0 {
+            return Ok(Async::Ready(Some(Frame {
+                finished, rsv1, rsv2, rsv3, opcode, payload: Binary::from("") })));
+        }
+
         let data = match pl.readexactly(length)? {
             Async::Ready(Some(buf)) => buf,
             Async::Ready(None) => return Ok(Async::Ready(None)),
