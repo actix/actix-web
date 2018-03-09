@@ -38,9 +38,6 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 # sessions
 session = ["cookie/secure"]
 
-# protobuf
-protobuf = ["prost"]
-
 [dependencies]
 actix = "^0.5.2"
 
@@ -89,9 +86,6 @@ tokio-tls = { version="0.1", optional = true }
 # openssl
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
-
-# protobuf
-prost = { version="^0.2", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"

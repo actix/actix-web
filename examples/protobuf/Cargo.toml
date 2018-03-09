@@ -6,10 +6,11 @@ authors = ["kingxsp <jin_hb_zh@126.com>"]
 [dependencies]
 bytes = "0.4"
 futures = "0.1"
+failure = "0.1"
 env_logger = "*"
 
 prost = "0.2.0"
 prost-derive = "0.2.0"
 
 actix = "0.5"
-actix-web = { path="../../", features=["protobuf"] }
+actix-web = { path="../../" }

@@ -88,9 +88,6 @@ extern crate h2 as http2;
 extern crate trust_dns_resolver;
 #[macro_use] extern crate actix;
 
-#[cfg(feature="protobuf")]
-extern crate prost;
-
 #[cfg(test)]
 #[macro_use] extern crate serde_derive;
 
@@ -120,11 +117,6 @@ mod resource;
 mod param;
 mod payload;
 mod pipeline;
-
-#[cfg(feature="protobuf")]
-mod protobuf;
-#[cfg(feature="protobuf")]
-pub use protobuf::{ProtoBuf, ProtoBufBody};
 
 pub mod client;
 pub mod fs;

@@ -1,18 +1,17 @@
 use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
-use http::header::{CONTENT_TYPE, CONTENT_LENGTH};
 
 use bytes::IntoBuf;
 use prost::Message;
-use prost::EncodeError as ProtoBufEncodeError;
 use prost::DecodeError as ProtoBufDecodeError;
+use prost::EncodeError as ProtoBufEncodeError;
 
-use error::{Error, PayloadError, ResponseError};
-use handler::Responder;
-use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
-use httpresponse::{HttpResponse, HttpResponseBuilder};
-use httpcodes::{HttpBadRequest, HttpPayloadTooLarge};
+use actix_web::header::http::{CONTENT_TYPE, CONTENT_LENGTH};
+use actix_web::{Responder, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::dev::HttpResponseBuilder;
+use actix_web::error::{Error, PayloadError, ResponseError};
+use actix_web::httpcodes::{HttpBadRequest, HttpPayloadTooLarge};
+
 
 #[derive(Fail, Debug)]
 pub enum ProtoBufPayloadError {
@@ -22,8 +21,11 @@ pub enum ProtoBufPayloadError {
     /// Content type error
     #[fail(display="Content type error")]
     ContentType,
+    /// Serialize error
+    #[fail(display="ProtoBud serialize error: {}", _0)]
+    Serialize(#[cause] ProtoBufEncodeError),
     /// Deserialize error
-    #[fail(display="Json deserialize error: {}", _0)]
+    #[fail(display="ProtoBud deserialize error: {}", _0)]
     Deserialize(#[cause] ProtoBufDecodeError),
     /// Payload error
     #[fail(display="Error that occur during reading payload: {}", _0)]
@@ -52,10 +54,6 @@ impl From<ProtoBufDecodeError> for ProtoBufPayloadError {
     }
 }
 
-/// `InternalServerError` for `ProtoBufEncodeError` `ProtoBufDecodeError`
-impl ResponseError for ProtoBufEncodeError {}
-impl ResponseError for ProtoBufDecodeError {}
-
 #[derive(Debug)]
 pub struct ProtoBuf<T: Message>(pub T);
 
@@ -66,28 +64,28 @@ impl<T: Message> Responder for ProtoBuf<T> {
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         let mut buf = Vec::new();
         self.0.encode(&mut buf)
-              .map_err(Error::from)
-              .and_then(|()| {
+            .map_err(|e| Error::from(ProtoBufPayloadError::Serialize(e)))
+            .and_then(|()| {
                 Ok(HttpResponse::Ok()
-                    .content_type("application/protobuf")
+                   .content_type("application/protobuf")
                     .body(buf)
                     .into())
               })
     }
 }
 
-pub struct ProtoBufBody<T, U: Message + Default>{
+pub struct ProtoBufMessage<T, U: Message + Default>{
     limit: usize,
     ct: &'static str,
     req: Option<T>,
     fut: Option<Box<Future<Item=U, Error=ProtoBufPayloadError>>>,
 }
 
-impl<T, U: Message + Default> ProtoBufBody<T, U> {
+impl<T, U: Message + Default> ProtoBufMessage<T, U> {
 
-    /// Create `ProtoBufBody` for request.
+    /// Create `ProtoBufMessage` for request.
     pub fn new(req: T) -> Self {
-        ProtoBufBody{
+        ProtoBufMessage{
             limit: 262_144,
             req: Some(req),
             fut: None,
@@ -111,7 +109,7 @@ impl<T, U: Message + Default> ProtoBufBody<T, U> {
     }
 }
 
-impl<T, U: Message + Default + 'static> Future for ProtoBufBody<T, U>
+impl<T, U: Message + Default + 'static> Future for ProtoBufMessage<T, U>
     where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static
 {
     type Item = U;
@@ -154,13 +152,18 @@ impl<T, U: Message + Default + 'static> Future for ProtoBufBody<T, U>
 }
 
 
-impl HttpResponseBuilder {
+pub trait ProtoBufResponseBuilder {
 
-    pub fn protobuf<T: Message>(&mut self, value: T) -> Result<HttpResponse, Error> {
+    fn protobuf<T: Message>(&mut self, value: T) -> Result<HttpResponse, Error>;
+}
+
+impl ProtoBufResponseBuilder for HttpResponseBuilder {
+
+    fn protobuf<T: Message>(&mut self, value: T) -> Result<HttpResponse, Error> {
         self.header(CONTENT_TYPE, "application/protobuf");
 
         let mut body = Vec::new();
-        value.encode(&mut body)?;
+        value.encode(&mut body).map_err(|e| ProtoBufPayloadError::Serialize(e))?;
         Ok(self.body(body)?)
     }
 }
