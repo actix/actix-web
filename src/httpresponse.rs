@@ -11,6 +11,7 @@ use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
 use serde_json;
 use serde::Serialize;
+use prost::Message;
 
 use body::Body;
 use error::Error;
@@ -503,6 +504,22 @@ impl HttpResponseBuilder {
         };
         if !contains {
             self.header(header::CONTENT_TYPE, "application/json");
+        }
+
+        Ok(self.body(body)?)
+    }
+
+    pub fn protobuf<T: Message>(&mut self, value: T) -> Result<HttpResponse, Error> {
+        let mut body = Vec::new();
+        value.encode(&mut body)?;
+        
+        let contains = if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+        if !contains {
+            self.header(header::CONTENT_TYPE, "application/protobuf");
         }
 
         Ok(self.body(body)?)

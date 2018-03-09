@@ -60,6 +60,7 @@ rand = "0.4"
 regex = "0.2"
 serde = "1.0"
 serde_json = "1.0"
+prost = "^0.2"
 sha1 = "0.6"
 smallvec = "0.6"
 time = "0.1"
@@ -109,6 +110,7 @@ members = [
   "examples/diesel",
   "examples/r2d2",
   "examples/json",
+  "examples/protobuf",
   "examples/hello-world",
   "examples/http-proxy",
   "examples/multipart",

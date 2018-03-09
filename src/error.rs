@@ -15,6 +15,8 @@ use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUriBytes;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
+use prost::EncodeError as ProtoBufEncodeError;
+use prost::DecodeError as ProtoBufDecodeError;
 pub use url::ParseError as UrlParseError;
 
 // re-exports
@@ -106,6 +108,10 @@ impl From<failure::Error> for Error {
 
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
+
+/// `InternalServerError` for `ProtoBufEncodeError` `ProtoBufDecodeError`
+impl ResponseError for ProtoBufEncodeError {}
+impl ResponseError for ProtoBufDecodeError {}
 
 /// `InternalServerError` for `UrlParseError`
 impl ResponseError for UrlParseError {}
@@ -447,6 +453,44 @@ impl From<PayloadError> for JsonPayloadError {
 impl From<JsonError> for JsonPayloadError {
     fn from(err: JsonError) -> JsonPayloadError {
         JsonPayloadError::Deserialize(err)
+    }
+}
+
+#[derive(Fail, Debug)]
+pub enum ProtoBufPayloadError {
+    /// Payload size is bigger than 256k
+    #[fail(display="Payload size is bigger than 256k")]
+    Overflow,
+    /// Content type error
+    #[fail(display="Content type error")]
+    ContentType,
+    /// Deserialize error
+    #[fail(display="Json deserialize error: {}", _0)]
+    Deserialize(#[cause] ProtoBufDecodeError),
+    /// Payload error
+    #[fail(display="Error that occur during reading payload: {}", _0)]
+    Payload(#[cause] PayloadError),
+}
+
+impl ResponseError for ProtoBufPayloadError {
+
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            ProtoBufPayloadError::Overflow => httpcodes::HttpPayloadTooLarge.into(),
+            _ => httpcodes::HttpBadRequest.into(),
+        }
+    }
+}
+
+impl From<PayloadError> for ProtoBufPayloadError {
+    fn from(err: PayloadError) -> ProtoBufPayloadError {
+        ProtoBufPayloadError::Payload(err)
+    }
+}
+
+impl From<ProtoBufDecodeError> for ProtoBufPayloadError {
+    fn from(err: ProtoBufDecodeError) -> ProtoBufPayloadError {
+        ProtoBufPayloadError::Deserialize(err)
     }
 }
 
