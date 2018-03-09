@@ -4,6 +4,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{Future, Stream, Poll};
 use http_range::HttpRange;
 use serde::de::DeserializeOwned;
+use prost::Message;
 use mime::Mime;
 use url::form_urlencoded;
 use encoding::all::UTF_8;
@@ -12,6 +13,7 @@ use encoding::label::encoding_from_whatwg_label;
 use http::{header, HeaderMap};
 
 use json::JsonBody;
+use protobuf::ProtoBufBody;
 use header::Header;
 use multipart::Multipart;
 use error::{ParseError, ContentTypeError,
@@ -207,6 +209,12 @@ pub trait HttpMessage {
         where Self: Stream<Item=Bytes, Error=PayloadError> + Sized
     {
         JsonBody::new(self)
+    }
+
+    fn protobuf<T: Message + Default>(self) -> ProtoBufBody<Self, T>
+        where Self: Stream<Item=Bytes, Error=PayloadError> + Sized
+    {
+        ProtoBufBody::new(self)
     }
 
     /// Return stream to http payload processes as multipart.
