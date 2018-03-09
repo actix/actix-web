@@ -51,13 +51,13 @@ fn main() {
 
 * [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
 * [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
+* [Protobuf support](https://github.com/actix/actix-web/tree/master/examples/protobuf/)
 * [Multipart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
 * [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
 * [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
 * [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
 * [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)
 * [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
-* [SockJS Server](https://github.com/actix/actix-sockjs)
 * [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
 
 You may consider checking out
