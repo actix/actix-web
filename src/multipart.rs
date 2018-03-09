@@ -482,10 +482,10 @@ impl<S> InnerField<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                             if &chunk[..2] == b"\r\n" && &chunk[2..4] == b"--" &&
                                 &chunk[4..] == boundary.as_bytes()
                             {
-                                payload.unread_data(chunk.freeze());
+                                payload.unread_data(chunk);
                                 Ok(Async::Ready(None))
                             } else {
-                                Ok(Async::Ready(Some(chunk.freeze())))
+                                Ok(Async::Ready(Some(chunk)))
                             }
                         }
                     }

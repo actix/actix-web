@@ -122,14 +122,21 @@ impl Frame {
             None
         };
 
-        let mut data = match pl.readexactly(idx + length)? {
-            Async::Ready(Some(buf)) => buf,
+        match pl.can_read(idx + length)? {
+            Async::Ready(Some(true)) => (),
             Async::Ready(None) => return Ok(Async::Ready(None)),
-            Async::NotReady => return Ok(Async::NotReady),
-        };
+            Async::Ready(Some(false)) | Async::NotReady => return Ok(Async::NotReady),
+        }
+
+        // remove prefix
+        pl.drop_payload(idx);
 
         // get body
-        data.split_to(idx);
+        let data = match pl.readexactly(length)? {
+            Async::Ready(Some(buf)) => buf,
+            Async::Ready(None) => return Ok(Async::Ready(None)),
+            Async::NotReady => panic!(),
+        };
 
         // Disallow bad opcode
         if let OpCode::Bad = opcode {
@@ -150,7 +157,9 @@ impl Frame {
 
         // unmask
         if let Some(ref mask) = mask {
-            apply_mask(&mut data, mask);
+            #[allow(mutable_transmutes)]
+            let p: &mut [u8] = unsafe{let ptr: &[u8] = &data; mem::transmute(ptr)};
+            apply_mask(p, mask);
         }
 
         Ok(Async::Ready(Some(Frame {

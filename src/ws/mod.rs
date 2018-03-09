@@ -304,7 +304,7 @@ impl<S> Stream for WsStream<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                 }
 
                 match opcode {
-                    OpCode::Continue => unimplemented!(),
+                    OpCode::Continue => Err(ProtocolError::NoContinuation),
                     OpCode::Bad => {
                         self.closed = true;
                         Err(ProtocolError::BadOpCode)

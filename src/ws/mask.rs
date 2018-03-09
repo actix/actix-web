@@ -2,6 +2,7 @@
 use std::cmp::min;
 use std::mem::uninitialized;
 use std::ptr::copy_nonoverlapping;
+use std::ptr;
 
 /// Mask/unmask a frame.
 #[inline]
@@ -18,17 +19,10 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
     }
 }
 
-/// Faster version of `apply_mask()` which operates on 4-byte blocks.
+/// Faster version of `apply_mask()` which operates on 8-byte blocks.
 #[inline]
-#[allow(dead_code)]
 fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
-    // TODO replace this with read_unaligned() as it stabilizes.
-    let mask_u32 = unsafe {
-        let mut m: u32 = uninitialized();
-        #[allow(trivial_casts)]
-        copy_nonoverlapping(mask.as_ptr(), &mut m as *mut _ as *mut u8, 4);
-        m
-    };
+    let mask_u32: u32 = unsafe {ptr::read_unaligned(mask.as_ptr() as *const u32)};
 
     let mut ptr = buf.as_mut_ptr();
     let mut len = buf.len();
@@ -41,10 +35,26 @@ fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
             ptr = ptr.offset(head as isize);
         }
         len -= head;
-        if cfg!(target_endian = "big") {
+        let mask_u32 = if cfg!(target_endian = "big") {
             mask_u32.rotate_left(8 * head as u32)
         } else {
             mask_u32.rotate_right(8 * head as u32)
+        };
+
+        let head = min(len, (4 - (ptr as usize & 3)) & 3);
+        if head > 0 {
+            unsafe {
+                xor_mem(ptr, mask_u32, head);
+                ptr = ptr.offset(head as isize);
+            }
+            len -= head;
+            if cfg!(target_endian = "big") {
+                mask_u32.rotate_left(8 * head as u32)
+            } else {
+                mask_u32.rotate_right(8 * head as u32)
+            }
+        } else {
+            mask_u32
         }
     } else {
         mask_u32
@@ -55,7 +65,20 @@ fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
     }
 
     // Properly aligned middle of the data.
-    while len > 4 {
+    if len >= 8 {
+        let mut mask_u64 = mask_u32 as u64;
+        mask_u64 = mask_u64 << 32 | mask_u32 as u64;
+
+        while len >= 8 {
+            unsafe {
+                *(ptr as *mut u64) ^= mask_u64;
+                ptr = ptr.offset(8);
+                len -= 8;
+            }
+        }
+    }
+
+    while len >= 4 {
         unsafe {
             *(ptr as *mut u32) ^= mask_u32;
             ptr = ptr.offset(4);

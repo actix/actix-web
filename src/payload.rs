@@ -117,18 +117,21 @@ pub struct PayloadSender {
 
 impl PayloadWriter for PayloadSender {
 
+    #[inline]
     fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().set_error(err)
         }
     }
 
+    #[inline]
     fn feed_eof(&mut self) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_eof()
         }
     }
 
+    #[inline]
     fn feed_data(&mut self, data: Bytes) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_data(data)
@@ -172,24 +175,29 @@ impl Inner {
         }
     }
 
+    #[inline]
     fn set_error(&mut self, err: PayloadError) {
         self.err = Some(err);
     }
 
+    #[inline]
     fn feed_eof(&mut self) {
         self.eof = true;
     }
 
+    #[inline]
     fn feed_data(&mut self, data: Bytes) {
         self.len += data.len();
         self.need_read = false;
         self.items.push_back(data);
     }
 
+    #[inline]
     fn eof(&self) -> bool {
         self.items.is_empty() && self.eof
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.len
     }
@@ -247,6 +255,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         }
     }
 
+    #[inline]
     fn poll_stream(&mut self) -> Poll<bool, PayloadError> {
         self.stream.poll().map(|res| {
             match res {
@@ -261,6 +270,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         })
     }
 
+    #[inline]
     pub fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
@@ -274,25 +284,70 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         }
     }
 
-    pub fn readexactly(&mut self, size: usize) -> Poll<Option<BytesMut>, PayloadError> {
+    #[inline]
+    pub fn can_read(&mut self, size: usize) -> Poll<Option<bool>, PayloadError> {
         if size <= self.len {
-            let mut buf = BytesMut::with_capacity(size);
-            while buf.len() < size {
+            Ok(Async::Ready(Some(true)))
+        } else {
+            match self.poll_stream()? {
+                Async::Ready(true) => self.can_read(size),
+                Async::Ready(false) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            }
+        }
+    }
+
+    #[inline]
+    pub fn readexactly(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
+        if size <= self.len {
+            self.len -= size;
+            let mut chunk = self.items.pop_front().unwrap();
+            if size < chunk.len() {
+                let buf = chunk.split_to(size);
+                self.items.push_front(chunk);
+                Ok(Async::Ready(Some(buf)))
+            }
+            else if size == chunk.len() {
+                Ok(Async::Ready(Some(chunk)))
+            }
+            else {
+                let mut buf = BytesMut::with_capacity(size);
+                buf.extend_from_slice(&chunk);
+
+                while buf.len() < size {
+                    let mut chunk = self.items.pop_front().unwrap();
+                    let rem = cmp::min(size - buf.len(), chunk.len());
+                    buf.extend_from_slice(&chunk.split_to(rem));
+                    if !chunk.is_empty() {
+                        self.items.push_front(chunk);
+                    }
+                }
+                Ok(Async::Ready(Some(buf.freeze())))
+            }
+        } else {
+            match self.poll_stream()? {
+                Async::Ready(true) => self.readexactly(size),
+                Async::Ready(false) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            }
+        }
+    }
+
+    #[inline]
+    pub fn drop_payload(&mut self, size: usize) {
+        if size <= self.len {
+            self.len -= size;
+
+            let mut len = 0;
+            while len < size {
                 let mut chunk = self.items.pop_front().unwrap();
-                let rem = cmp::min(size - buf.len(), chunk.len());
-                self.len -= rem;
-                buf.extend_from_slice(&chunk.split_to(rem));
-                if !chunk.is_empty() {
+                let rem = cmp::min(size - len, chunk.len());
+                len -= rem;
+                if rem < chunk.len() {
+                    chunk.split_to(rem);
                     self.items.push_front(chunk);
                 }
             }
-            return Ok(Async::Ready(Some(buf)))
-        }
-
-        match self.poll_stream()? {
-            Async::Ready(true) => self.readexactly(size),
-            Async::Ready(false) => Ok(Async::Ready(None)),
-            Async::NotReady => Ok(Async::NotReady),
         }
     }
 

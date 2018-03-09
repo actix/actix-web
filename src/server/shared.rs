@@ -27,7 +27,7 @@ impl SharedBytesPool {
     pub fn release_bytes(&self, mut bytes: Rc<BytesMut>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            Rc::get_mut(&mut bytes).unwrap().take();
+            Rc::get_mut(&mut bytes).unwrap().clear();
             v.push_front(bytes);
         }
     }
@@ -62,7 +62,7 @@ impl SharedBytes {
     #[inline(always)]
     #[allow(mutable_transmutes)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    pub fn get_mut(&self) -> &mut BytesMut {
+    pub(crate) fn get_mut(&self) -> &mut BytesMut {
         let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
         unsafe{mem::transmute(r)}
     }
