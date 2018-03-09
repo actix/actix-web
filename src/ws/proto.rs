@@ -6,7 +6,7 @@ use base64;
 use self::OpCode::*;
 /// Operation codes as part of rfc6455.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub(crate) enum OpCode {
+pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
     Continue,
     /// Indicates a text data frame.

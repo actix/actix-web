@@ -77,7 +77,7 @@ pub enum ClientConnectorError {
     #[fail(display = "{}", _0)]
     Connector(#[cause] ConnectorError),
 
-    /// Connecting took too long
+    /// Connection took too long
     #[fail(display = "Timeout out while establishing connection")]
     Timeout,
 

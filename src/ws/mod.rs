@@ -63,8 +63,8 @@ mod context;
 mod mask;
 mod client;
 
-use self::frame::Frame;
-use self::proto::{hash_key, OpCode};
+pub use self::frame::Frame;
+pub use self::proto::OpCode;
 pub use self::proto::CloseCode;
 pub use self::context::WebsocketContext;
 pub use self::client::{Client, ClientError,
@@ -248,7 +248,7 @@ pub fn handshake<S>(req: &HttpRequest<S>) -> Result<HttpResponseBuilder, Handsha
     }
     let key = {
         let key = req.headers().get(header::SEC_WEBSOCKET_KEY).unwrap();
-        hash_key(key.as_ref())
+        proto::hash_key(key.as_ref())
     };
 
     Ok(HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)

@@ -15,7 +15,7 @@ use ws::mask::apply_mask;
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]
-pub(crate) struct Frame {
+pub struct Frame {
     finished: bool,
     opcode: OpCode,
     payload: Binary,
@@ -203,15 +203,15 @@ impl Frame {
         // try to parse ws frame md from one chunk
         let result = match pl.get_chunk()? {
             Async::NotReady => return Ok(Async::NotReady),
-            Async::Ready(Some(chunk)) => Frame::read_chunk_md(chunk, server, max_size)?,
             Async::Ready(None) => return Ok(Async::Ready(None)),
+            Async::Ready(Some(chunk)) => Frame::read_chunk_md(chunk, server, max_size)?,
         };
 
         let (idx, finished, opcode, length, mask) = match result {
             // we may need to join several chunks
             Async::NotReady => match Frame::read_copy_md(pl, server, max_size)? {
-                Async::NotReady => return Ok(Async::NotReady),
                 Async::Ready(Some(item)) => item,
+                Async::NotReady => return Ok(Async::NotReady),
                 Async::Ready(None) => return Ok(Async::Ready(None)),
             },
             Async::Ready(item) => item,
@@ -226,7 +226,7 @@ impl Frame {
         // remove prefix
         pl.drop_payload(idx);
 
-        // get body
+        // no need for body
         if length == 0 {
             return Ok(Async::Ready(Some(Frame {
                 finished, opcode, payload: Binary::from("") })));
