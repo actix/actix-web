@@ -1,16 +1,60 @@
 use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
-use http::header::CONTENT_LENGTH;
+use http::header::{CONTENT_TYPE, CONTENT_LENGTH};
 
 use bytes::IntoBuf;
 use prost::Message;
+use prost::EncodeError as ProtoBufEncodeError;
+use prost::DecodeError as ProtoBufDecodeError;
 
-use error::{Error, ProtoBufPayloadError, PayloadError};
+use error::{Error, PayloadError, ResponseError};
 use handler::Responder;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use httpresponse::{HttpResponse, HttpResponseBuilder};
+use httpcodes::{HttpBadRequest, HttpPayloadTooLarge};
 
+#[derive(Fail, Debug)]
+pub enum ProtoBufPayloadError {
+    /// Payload size is bigger than 256k
+    #[fail(display="Payload size is bigger than 256k")]
+    Overflow,
+    /// Content type error
+    #[fail(display="Content type error")]
+    ContentType,
+    /// Deserialize error
+    #[fail(display="Json deserialize error: {}", _0)]
+    Deserialize(#[cause] ProtoBufDecodeError),
+    /// Payload error
+    #[fail(display="Error that occur during reading payload: {}", _0)]
+    Payload(#[cause] PayloadError),
+}
+
+impl ResponseError for ProtoBufPayloadError {
+
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            ProtoBufPayloadError::Overflow => HttpPayloadTooLarge.into(),
+            _ => HttpBadRequest.into(),
+        }
+    }
+}
+
+impl From<PayloadError> for ProtoBufPayloadError {
+    fn from(err: PayloadError) -> ProtoBufPayloadError {
+        ProtoBufPayloadError::Payload(err)
+    }
+}
+
+impl From<ProtoBufDecodeError> for ProtoBufPayloadError {
+    fn from(err: ProtoBufDecodeError) -> ProtoBufPayloadError {
+        ProtoBufPayloadError::Deserialize(err)
+    }
+}
+
+/// `InternalServerError` for `ProtoBufEncodeError` `ProtoBufDecodeError`
+impl ResponseError for ProtoBufEncodeError {}
+impl ResponseError for ProtoBufDecodeError {}
 
 #[derive(Debug)]
 pub struct ProtoBuf<T: Message>(pub T);
@@ -31,9 +75,6 @@ impl<T: Message> Responder for ProtoBuf<T> {
               })
     }
 }
-
-
-
 
 pub struct ProtoBufBody<T, U: Message + Default>{
     limit: usize,
@@ -109,5 +150,17 @@ impl<T, U: Message + Default + 'static> Future for ProtoBufBody<T, U>
         }
 
         self.fut.as_mut().expect("ProtoBufBody could not be used second time").poll()
+    }
+}
+
+
+impl HttpResponseBuilder {
+
+    pub fn protobuf<T: Message>(&mut self, value: T) -> Result<HttpResponse, Error> {
+        self.header(CONTENT_TYPE, "application/protobuf");
+
+        let mut body = Vec::new();
+        value.encode(&mut body)?;
+        Ok(self.body(body)?)
     }
 }

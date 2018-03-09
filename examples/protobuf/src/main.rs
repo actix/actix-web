@@ -8,6 +8,7 @@ extern crate prost;
 extern crate prost_derive;
 
 use actix_web::*;
+use actix_web::ProtoBufBody;
 use futures::Future;
 
 
@@ -22,7 +23,7 @@ pub struct MyObj {
 
 /// This handler uses `HttpRequest::json()` for loading serde json object.
 fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.protobuf()
+    ProtoBufBody::new(req)
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);

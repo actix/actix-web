@@ -78,7 +78,6 @@ extern crate url;
 extern crate libc;
 extern crate serde;
 extern crate serde_json;
-extern crate prost;
 extern crate flate2;
 extern crate brotli2;
 extern crate encoding;
@@ -88,6 +87,9 @@ extern crate num_cpus;
 extern crate h2 as http2;
 extern crate trust_dns_resolver;
 #[macro_use] extern crate actix;
+
+#[cfg(feature="protobuf")]
+extern crate prost;
 
 #[cfg(test)]
 #[macro_use] extern crate serde_derive;
@@ -112,13 +114,17 @@ mod httprequest;
 mod httpresponse;
 mod info;
 mod json;
-mod protobuf;
 mod route;
 mod router;
 mod resource;
 mod param;
 mod payload;
 mod pipeline;
+
+#[cfg(feature="protobuf")]
+mod protobuf;
+#[cfg(feature="protobuf")]
+pub use protobuf::{ProtoBuf, ProtoBufBody};
 
 pub mod client;
 pub mod fs;
@@ -134,7 +140,6 @@ pub mod server;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use json::Json;
-pub use protobuf::ProtoBuf;
 pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;

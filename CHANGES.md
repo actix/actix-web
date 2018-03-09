@@ -2,7 +2,11 @@
 
 ## 0.4.6 (2018-03-xx)
 
+* Add experimental protobuf support
+
 * Fix client cookie handling
+
+* Optimize websockets stream support
 
 
 ## 0.4.5 (2018-03-07)

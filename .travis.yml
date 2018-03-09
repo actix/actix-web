@@ -59,6 +59,7 @@ script:
       cd examples/multipart && cargo check && cd ../..
       cd examples/json && cargo check && cd ../..
       cd examples/juniper && cargo check && cd ../..
+      cd examples/protobuf && cargo check && cd ../..
       cd examples/state && cargo check && cd ../..
       cd examples/template_tera && cargo check && cd ../..
       cd examples/diesel && cargo check && cd ../..
@@ -77,7 +78,7 @@ script:
 after_success:
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
-      cargo doc --features "alpn, tls" --no-deps &&
+      cargo doc --features "alpn, tls, protobuf" --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       cargo install mdbook &&
       cd guide && mdbook build -d ../target/doc/guide && cd .. &&
