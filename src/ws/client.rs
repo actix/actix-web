@@ -192,6 +192,14 @@ impl Client {
         self
     }
 
+    /// Set write buffer capacity
+    ///
+    /// Default buffer capacity is 32kb
+    pub fn write_buffer_capacity(mut self, cap: usize) -> Self {
+        self.request.write_buffer_capacity(cap);
+        self
+    }
+
     /// Set request header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
         where HeaderName: HttpTryFrom<K>, V: IntoHeaderValue

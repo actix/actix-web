@@ -24,8 +24,6 @@ use server::encoding::{ContentEncoder, TransferEncoding};
 use client::ClientRequest;
 
 
-const LOW_WATERMARK: usize = 1024;
-const HIGH_WATERMARK: usize = 8 * LOW_WATERMARK;
 const AVERAGE_HEADER_SIZE: usize = 30;
 
 bitflags! {
@@ -42,9 +40,8 @@ pub(crate) struct HttpClientWriter {
     written: u64,
     headers_size: u32,
     buffer: SharedBytes,
+    buffer_capacity: usize,
     encoder: ContentEncoder,
-    low: usize,
-    high: usize,
 }
 
 impl HttpClientWriter {
@@ -55,10 +52,9 @@ impl HttpClientWriter {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
+            buffer_capacity: 0,
             buffer,
             encoder,
-            low: LOW_WATERMARK,
-            high: HIGH_WATERMARK,
         }
     }
 
@@ -69,12 +65,6 @@ impl HttpClientWriter {
     // pub fn keepalive(&self) -> bool {
     //    self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     // }
-
-    /// Set write buffer capacity
-    pub fn set_buffer_capacity(&mut self, low_watermark: usize, high_watermark: usize) {
-        self.low = low_watermark;
-        self.high = high_watermark;
-    }
 
     fn write_to_stream<T: AsyncWrite>(&mut self, stream: &mut T) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
@@ -87,7 +77,7 @@ impl HttpClientWriter {
                     let _ = self.buffer.split_to(n);
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if self.buffer.len() > self.high {
+                    if self.buffer.len() > self.buffer_capacity {
                         return Ok(WriterState::Pause)
                     } else {
                         return Ok(WriterState::Done)
@@ -106,9 +96,6 @@ impl HttpClientWriter {
         // prepare task
         self.flags.insert(Flags::STARTED);
         self.encoder = content_encoder(self.buffer.clone(), msg);
-        if let Some(capacity) = msg.buffer_capacity() {
-            self.set_buffer_capacity(capacity.0, capacity.1);
-        }
 
         // render message
         {
@@ -153,6 +140,8 @@ impl HttpClientWriter {
                     self.written += bytes.len() as u64;
                     self.encoder.write(bytes)?;
                 }
+            } else {
+                self.buffer_capacity = msg.write_buffer_capacity();
             }
         }
         Ok(())
@@ -168,7 +157,7 @@ impl HttpClientWriter {
             }
         }
 
-        if self.buffer.len() > self.high {
+        if self.buffer.len() > self.buffer_capacity {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
