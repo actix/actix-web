@@ -1,8 +1,6 @@
 # Changes
 
-## 0.4.6 (2018-03-xx)
-
-* Add experimental protobuf support
+## 0.4.6 (2018-03-09)
 
 * Fix client cookie handling
 
