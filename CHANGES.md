@@ -6,6 +6,8 @@
 
 * Fix CORS middleware #117
 
+* Fix json content type detection
+
 * Optimize websockets stream support
 
 

@@ -2,6 +2,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
 use http::header::CONTENT_LENGTH;
 
+use mime;
 use serde_json;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -82,7 +83,6 @@ impl<T: Serialize> Responder for Json<T> {
 /// ```
 pub struct JsonBody<T, U: DeserializeOwned>{
     limit: usize,
-    ct: &'static str,
     req: Option<T>,
     fut: Option<Box<Future<Item=U, Error=JsonPayloadError>>>,
 }
@@ -95,22 +95,12 @@ impl<T, U: DeserializeOwned> JsonBody<T, U> {
             limit: 262_144,
             req: Some(req),
             fut: None,
-            ct: "application/json",
         }
     }
 
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
-        self
-    }
-
-    /// Set allowed content type.
-    ///
-    /// By default *application/json* content type is used. Set content type
-    /// to empty string if you want to disable content type check.
-    pub fn content_type(mut self, ct: &'static str) -> Self {
-        self.ct = ct;
         self
     }
 }
@@ -135,7 +125,13 @@ impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
                 }
             }
             // check content-type
-            if !self.ct.is_empty() && req.content_type() != self.ct {
+
+            let json = if let Ok(Some(mime)) = req.mime_type() {
+                mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+            } else {
+                false
+            };
+            if !json {
                 return Err(JsonPayloadError::ContentType)
             }
 
