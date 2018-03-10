@@ -124,8 +124,8 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a `Os`.
-    pub fn keep_alive(mut self, val: KeepAlive) -> Self {
-        self.keep_alive = val;
+    pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
+        self.keep_alive = val.into();
         self
     }
 
