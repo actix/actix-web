@@ -136,7 +136,7 @@ pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Reply, Responder, NormalizePath, AsyncResponder};
+pub use handler::{Either, Reply, Responder, NormalizePath, AsyncResponder};
 pub use route::Route;
 pub use resource::Resource;
 pub use context::HttpContext;

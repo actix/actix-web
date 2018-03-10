@@ -34,6 +34,36 @@ pub trait Responder {
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
+/// Combines two different responders types into a single type.
+#[derive(Debug)]
+pub enum Either<A, B> {
+    /// First branch of the type
+    A(A),
+    /// Second branch of the type
+    B(B),
+}
+
+impl<A, B> Responder for Either<A, B>
+    where A: Responder, B: Responder
+{
+    type Item = Reply;
+    type Error = Error;
+
+    fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
+        match self {
+            Either::A(a) => match a.respond_to(req) {
+                Ok(val) => Ok(val.into()),
+                Err(err) => Err(err.into()),
+            },
+            Either::B(b) => match b.respond_to(req) {
+                Ok(val) => Ok(val.into()),
+                Err(err) => Err(err.into()),
+            },
+        }
+    }
+}
+
+
 #[doc(hidden)]
 /// Convenience trait that convert `Future` object into `Boxed` future
 pub trait AsyncResponder<I, E>: Sized {
