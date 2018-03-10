@@ -31,6 +31,19 @@ use httpresponse::HttpResponse;
 /// max buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+/// Server keep-alive setting
+pub enum KeepAlive {
+    /// Keep alive in seconds
+    Timeout(usize),
+    /// Use `SO_KEEPALIVE` socket option, value in seconds
+    Tcp(usize),
+    /// Relay on OS to shutdown tcp connection
+    Os,
+    /// Disabled
+    Disabled,
+}
+
 /// Pause accepting incoming connections
 ///
 /// If socket contains some pending connection, they might be dropped.

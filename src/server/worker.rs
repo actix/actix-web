@@ -23,7 +23,7 @@ use actix::*;
 use actix::msgs::StopArbiter;
 
 use helpers;
-use server::HttpHandler;
+use server::{HttpHandler, KeepAlive};
 use server::channel::HttpChannel;
 use server::settings::WorkerSettings;
 
@@ -48,21 +48,30 @@ impl Message for StopWorker {
 /// Http worker
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests processing.
-pub(crate) struct Worker<H> where H: HttpHandler + 'static {
+pub(crate)
+struct Worker<H> where H: HttpHandler + 'static {
     settings: Rc<WorkerSettings<H>>,
     hnd: Handle,
     handler: StreamHandlerType,
+    tcp_ka: Option<time::Duration>,
 }
 
 impl<H: HttpHandler + 'static> Worker<H> {
 
-    pub(crate) fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: Option<u64>)
+    pub(crate) fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive)
                       -> Worker<H>
     {
+        let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
+            Some(time::Duration::new(val as u64, 0))
+        } else {
+            None
+        };
+
         Worker {
             settings: Rc::new(WorkerSettings::new(h, keep_alive)),
             hnd: Arbiter::handle().clone(),
             handler,
+            tcp_ka,
         }
     }
 
@@ -106,9 +115,7 @@ impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
 
     fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>)
     {
-        if !self.settings.keep_alive_enabled() &&
-            msg.io.set_keepalive(Some(time::Duration::new(75, 0))).is_err()
-        {
+        if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
             error!("Can not set socket keep-alive option");
         }
         self.handler.handle(Rc::clone(&self.settings), &self.hnd, msg);

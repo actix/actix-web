@@ -5,6 +5,7 @@ use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use futures_cpupool::{Builder, CpuPool};
 
 use helpers;
+use super::KeepAlive;
 use super::channel::Node;
 use super::shared::{SharedBytes, SharedBytesPool};
 
@@ -97,8 +98,8 @@ impl ServerSettings {
 
 pub(crate) struct WorkerSettings<H> {
     h: RefCell<Vec<H>>,
-    enabled: bool,
     keep_alive: u64,
+    ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
@@ -106,11 +107,16 @@ pub(crate) struct WorkerSettings<H> {
 }
 
 impl<H> WorkerSettings<H> {
-    pub(crate) fn new(h: Vec<H>, keep_alive: Option<u64>) -> WorkerSettings<H> {
+    pub(crate) fn new(h: Vec<H>, keep_alive: KeepAlive) -> WorkerSettings<H> {
+        let (keep_alive, ka_enabled) = match keep_alive {
+            KeepAlive::Timeout(val) => (val as u64, true),
+            KeepAlive::Os | KeepAlive::Tcp(_) => (0, true),
+            KeepAlive::Disabled => (0, false),
+        };
+
         WorkerSettings {
+            keep_alive, ka_enabled,
             h: RefCell::new(h),
-            enabled: if let Some(ka) = keep_alive { ka > 0 } else { false },
-            keep_alive: keep_alive.unwrap_or(0),
             bytes: Rc::new(SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
@@ -135,7 +141,7 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn keep_alive_enabled(&self) -> bool {
-        self.enabled
+        self.ka_enabled
     }
 
     pub fn get_shared_bytes(&self) -> SharedBytes {

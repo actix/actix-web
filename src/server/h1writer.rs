@@ -68,27 +68,22 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_to_stream(&mut self) -> io::Result<WriterState> {
-        while !self.buffer.is_empty() {
-            match self.stream.write(self.buffer.as_ref()) {
+    fn write_data(&mut self, data: &[u8]) -> io::Result<(usize, bool)> {
+        let mut written = 0;
+        while written < data.len() {
+            match self.stream.write(&data[written..]) {
                 Ok(0) => {
                     self.disconnected();
-                    return Ok(WriterState::Done);
+                    return Ok((0, true));
                 },
-                Ok(n) => {
-                    let _ = self.buffer.split_to(n);
-                },
+                Ok(n) => written += n,
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if self.buffer.len() > self.buffer_capacity {
-                        return Ok(WriterState::Pause)
-                    } else {
-                        return Ok(WriterState::Done)
-                    }
+                    return Ok((written, false))
                 }
                 Err(err) => return Err(err),
             }
         }
-        Ok(WriterState::Done)
+        Ok((written, false))
     }
 }
 
@@ -216,18 +211,12 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 // shortcut for upgraded connection
                 if self.flags.contains(Flags::UPGRADE) {
                     if self.buffer.is_empty() {
-                        match self.stream.write(payload.as_ref()) {
-                            Ok(0) => {
-                                self.disconnected();
+                        match self.write_data(payload.as_ref())? {
+                            (_, true) => return Ok(WriterState::Done),
+                            (n, false) => if payload.len() < n {
+                                self.buffer.extend_from_slice(&payload.as_ref()[n..]);
                                 return Ok(WriterState::Done);
-                            },
-                            Ok(n) => if payload.len() < n {
-                                self.buffer.extend_from_slice(&payload.as_ref()[n..])
-                            },
-                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                return Ok(WriterState::Done)
                             }
-                            Err(err) => return Err(err),
                         }
                     } else {
                         self.buffer.extend(payload);
@@ -264,16 +253,22 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
 
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
-        match self.write_to_stream() {
-            Ok(WriterState::Done) => {
-                if shutdown {
-                    self.stream.shutdown()
-                } else {
-                    Ok(Async::Ready(()))
+        if !self.buffer.is_empty() {
+            let buf: &[u8] = unsafe{mem::transmute(self.buffer.as_ref())};
+            match self.write_data(buf)? {
+                (_, true) => (),
+                (n, false) => {
+                    let _ = self.buffer.split_to(n);
+                    if self.buffer.len() > self.buffer_capacity {
+                        return Ok(Async::NotReady)
+                    }
                 }
-            },
-            Ok(WriterState::Pause) => Ok(Async::NotReady),
-            Err(err) => Err(err)
+            }
+        }
+        if shutdown {
+            self.stream.shutdown()
+        } else {
+            Ok(Async::Ready(()))
         }
     }
 }

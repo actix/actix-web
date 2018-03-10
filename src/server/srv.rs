@@ -20,12 +20,11 @@ use native_tls::TlsAcceptor;
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
 use helpers;
-use super::{IntoHttpHandler, IoStream};
+use super::{IntoHttpHandler, IoStream, KeepAlive};
 use super::{PauseServer, ResumeServer, StopServer};
 use super::channel::{HttpChannel, WrapperStream};
 use super::worker::{Conn, Worker, StreamHandlerType, StopWorker};
 use super::settings::{ServerSettings, WorkerSettings};
-
 
 /// An HTTP Server
 pub struct HttpServer<H> where H: IntoHttpHandler + 'static
@@ -34,7 +33,7 @@ pub struct HttpServer<H> where H: IntoHttpHandler + 'static
     threads: usize,
     backlog: i32,
     host: Option<String>,
-    keep_alive: Option<u64>,
+    keep_alive: KeepAlive,
     factory: Arc<Fn() -> Vec<H> + Send + Sync>,
     #[cfg_attr(feature="cargo-clippy", allow(type_complexity))]
     workers: Vec<(usize, Addr<Syn, Worker<H::Handler>>)>,
@@ -83,7 +82,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
                     threads: num_cpus::get(),
                     backlog: 2048,
                     host: None,
-                    keep_alive: None,
+                    keep_alive: KeepAlive::Os,
                     factory: Arc::new(f),
                     workers: Vec::new(),
                     sockets: HashMap::new(),
@@ -124,14 +123,8 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
 
     /// Set server keep-alive setting.
     ///
-    /// By default keep alive is enabled.
-    ///
-    ///  - `Some(75)` - enable
-    ///
-    ///  - `Some(0)` - disable
-    ///
-    ///  - `None` - use `SO_KEEPALIVE` socket option
-    pub fn keep_alive(mut self, val: Option<u64>) -> Self {
+    /// By default keep alive is set to a `Os`.
+    pub fn keep_alive(mut self, val: KeepAlive) -> Self {
         self.keep_alive = val;
         self
     }

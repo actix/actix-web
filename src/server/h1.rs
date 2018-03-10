@@ -192,134 +192,112 @@ impl<T, H> Http1<T, H>
 
         let retry = self.reader.need_read() == PayloadStatus::Read;
 
-        loop {
-            // check in-flight messages
-            let mut io = false;
-            let mut idx = 0;
-            while idx < self.tasks.len() {
-                let item = &mut self.tasks[idx];
+        // check in-flight messages
+        let mut io = false;
+        let mut idx = 0;
+        while idx < self.tasks.len() {
+            let item = &mut self.tasks[idx];
 
-                if !io && !item.flags.contains(EntryFlags::EOF) {
-                    // io is corrupted, send buffer
-                    if item.flags.contains(EntryFlags::ERROR) {
+            if !io && !item.flags.contains(EntryFlags::EOF) {
+                // io is corrupted, send buffer
+                if item.flags.contains(EntryFlags::ERROR) {
+                    if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
+                        return Ok(Async::NotReady)
+                    }
+                    return Err(())
+                }
+
+                match item.pipe.poll_io(&mut self.stream) {
+                    Ok(Async::Ready(ready)) => {
+                        // override keep-alive state
+                        if self.stream.keepalive() {
+                            self.flags.insert(Flags::KEEPALIVE);
+                        } else {
+                            self.flags.remove(Flags::KEEPALIVE);
+                        }
+                        // prepare stream for next response
+                        self.stream.reset();
+
+                        if ready {
+                            item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                        } else {
+                            item.flags.insert(EntryFlags::FINISHED);
+                        }
+                    },
+                    // no more IO for this iteration
+                    Ok(Async::NotReady) => {
+                        if self.reader.need_read() == PayloadStatus::Read && !retry {
+                            return Ok(Async::Ready(true));
+                        }
+                        io = true;
+                    }
+                    Err(err) => {
+                        // it is not possible to recover from error
+                        // during pipe handling, so just drop connection
+                        error!("Unhandled error: {}", err);
+                        item.flags.insert(EntryFlags::ERROR);
+
+                        // check stream state, we still can have valid data in buffer
                         if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
                             return Ok(Async::NotReady)
                         }
                         return Err(())
                     }
-
-                    match item.pipe.poll_io(&mut self.stream) {
-                        Ok(Async::Ready(ready)) => {
-                            // override keep-alive state
-                            if self.stream.keepalive() {
-                                self.flags.insert(Flags::KEEPALIVE);
-                            } else {
-                                self.flags.remove(Flags::KEEPALIVE);
-                            }
-                            // prepare stream for next response
-                            self.stream.reset();
-
-                            if ready {
-                                item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
-                            } else {
-                                item.flags.insert(EntryFlags::FINISHED);
-                            }
-                        },
-                        // no more IO for this iteration
-                        Ok(Async::NotReady) => {
-                            if self.reader.need_read() == PayloadStatus::Read && !retry {
-                                return Ok(Async::Ready(true));
-                            }
-                            io = true;
-                        }
-                        Err(err) => {
-                            // it is not possible to recover from error
-                            // during pipe handling, so just drop connection
-                            error!("Unhandled error: {}", err);
-                            item.flags.insert(EntryFlags::ERROR);
-
-                            // check stream state, we still can have valid data in buffer
-                            if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                                return Ok(Async::NotReady)
-                            }
-                            return Err(())
-                        }
-                    }
-                } else if !item.flags.contains(EntryFlags::FINISHED) {
-                    match item.pipe.poll() {
-                        Ok(Async::NotReady) => (),
-                        Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
-                        Err(err) => {
-                            item.flags.insert(EntryFlags::ERROR);
-                            error!("Unhandled error: {}", err);
-                        }
+                }
+            } else if !item.flags.contains(EntryFlags::FINISHED) {
+                match item.pipe.poll() {
+                    Ok(Async::NotReady) => (),
+                    Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
+                    Err(err) => {
+                        item.flags.insert(EntryFlags::ERROR);
+                        error!("Unhandled error: {}", err);
                     }
                 }
-                idx += 1;
             }
+            idx += 1;
+        }
 
-            // cleanup finished tasks
-            let mut popped = false;
-            while !self.tasks.is_empty() {
-                if self.tasks[0].flags.contains(EntryFlags::EOF | EntryFlags::FINISHED) {
-                    popped = true;
-                    self.tasks.pop_front();
-                } else {
-                    break
-                }
+        // cleanup finished tasks
+        let mut popped = false;
+        while !self.tasks.is_empty() {
+            if self.tasks[0].flags.contains(EntryFlags::EOF | EntryFlags::FINISHED) {
+                popped = true;
+                self.tasks.pop_front();
+            } else {
+                break
             }
-            if need_read && popped {
-                return self.poll_io()
-            }
+        }
+        if need_read && popped {
+            return self.poll_io()
+        }
 
-            // no keep-alive
-            if !self.flags.contains(Flags::KEEPALIVE) && self.tasks.is_empty() {
-                // check stream state
-                if !self.poll_completed(true)? {
-                    return Ok(Async::NotReady)
-                }
+        // check stream state
+        if !self.poll_completed(true)? {
+            return Ok(Async::NotReady)
+        }
+
+        // deal with keep-alive
+        if self.tasks.is_empty() {
+            // no keep-alive situations
+            if self.flags.contains(Flags::ERROR)
+                || !self.flags.contains(Flags::KEEPALIVE)
+                || !self.settings.keep_alive_enabled()
+            {
                 return Ok(Async::Ready(false))
             }
 
-            // start keep-alive timer, this also is slow request timeout
-            if self.tasks.is_empty() {
-                // check stream state
-                if self.flags.contains(Flags::ERROR) {
-                    return Ok(Async::Ready(false))
-                }
-
-                if self.settings.keep_alive_enabled() {
-                    let keep_alive = self.settings.keep_alive();
-                    if keep_alive > 0 && self.flags.contains(Flags::KEEPALIVE) {
-                        if self.keepalive_timer.is_none() {
-                            trace!("Start keep-alive timer");
-                            let mut to = Timeout::new(
-                                Duration::new(keep_alive, 0), Arbiter::handle()).unwrap();
-                            // register timeout
-                            let _ = to.poll();
-                            self.keepalive_timer = Some(to);
-                        }
-                    } else {
-                        // check stream state
-                        if !self.poll_completed(true)? {
-                            return Ok(Async::NotReady)
-                        }
-                        // keep-alive is disabled, drop connection
-                        return Ok(Async::Ready(false))
-                    }
-                } else if !self.poll_completed(false)? ||
-                    self.flags.contains(Flags::KEEPALIVE) {
-                        // check stream state or
-                        // if keep-alive unset, rely on operating system
-                        return Ok(Async::NotReady)
-                    } else {
-                        return Ok(Async::Ready(false))
-                    }
-            } else {
-                self.poll_completed(false)?;
-                return Ok(Async::NotReady)
+            // start keep-alive timer
+            let keep_alive = self.settings.keep_alive();
+            if self.keepalive_timer.is_none() && keep_alive > 0 {
+                trace!("Start keep-alive timer");
+                let mut timer = Timeout::new(
+                    Duration::new(keep_alive, 0), Arbiter::handle()).unwrap();
+                // register timer
+                let _ = timer.poll();
+                self.keepalive_timer = Some(timer);
             }
         }
+        Ok(Async::NotReady)
     }
 }
 
@@ -868,7 +846,7 @@ mod tests {
     use httpmessage::HttpMessage;
     use application::HttpApplication;
     use server::settings::WorkerSettings;
-    use server::IoStream;
+    use server::{IoStream, KeepAlive};
 
     struct Buffer {
         buf: Bytes,
@@ -939,7 +917,8 @@ mod tests {
 
     macro_rules! parse_ready {
         ($e:expr) => ({
-            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+            let settings = WorkerSettings::<HttpApplication>::new(
+                Vec::new(), KeepAlive::Os);
             match Reader::new().parse($e, &mut BytesMut::new(), &settings) {
                 Ok(Async::Ready(req)) => req,
                 Ok(_) => panic!("Eof during parsing http request"),
@@ -961,7 +940,8 @@ mod tests {
     macro_rules! expect_parse_err {
         ($e:expr) => ({
             let mut buf = BytesMut::new();
-            let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+            let settings = WorkerSettings::<HttpApplication>::new(
+                Vec::new(), KeepAlive::Os);
 
             match Reader::new().parse($e, &mut buf, &settings) {
                 Err(err) => match err {
@@ -979,7 +959,8 @@ mod tests {
     fn test_parse() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -996,7 +977,8 @@ mod tests {
     fn test_parse_partial() {
         let mut buf = Buffer::new("PUT /test HTTP/1");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1019,7 +1001,8 @@ mod tests {
     fn test_parse_post() {
         let mut buf = Buffer::new("POST /test2 HTTP/1.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1036,7 +1019,8 @@ mod tests {
     fn test_parse_body() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1055,7 +1039,8 @@ mod tests {
         let mut buf = Buffer::new(
             "\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1073,7 +1058,8 @@ mod tests {
     fn test_parse_partial_eof() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
@@ -1093,7 +1079,8 @@ mod tests {
     fn test_headers_split_field() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
@@ -1123,7 +1110,8 @@ mod tests {
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1358,7 +1346,8 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
@@ -1379,7 +1368,8 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
 
@@ -1408,7 +1398,8 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
@@ -1458,7 +1449,8 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), None);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
