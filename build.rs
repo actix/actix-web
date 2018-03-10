@@ -6,6 +6,7 @@ use std::{env, fs};
 
 #[cfg(unix)]
 fn main() {
+    println!("cargo:rerun-if-env-changed=USE_SKEPTIC");
     let f = env::var("OUT_DIR").unwrap() + "/skeptic-tests.rs";
     if env::var("USE_SKEPTIC").is_ok() {
         let _ = fs::remove_file(f);
