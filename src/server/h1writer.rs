@@ -68,22 +68,22 @@ impl<T: AsyncWrite> H1Writer<T> {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_data(&mut self, data: &[u8]) -> io::Result<(usize, bool)> {
+    fn write_data(&mut self, data: &[u8]) -> io::Result<usize> {
         let mut written = 0;
         while written < data.len() {
             match self.stream.write(&data[written..]) {
                 Ok(0) => {
                     self.disconnected();
-                    return Ok((0, true));
+                    return Err(io::Error::new(io::ErrorKind::WriteZero, ""))
                 },
                 Ok(n) => written += n,
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    return Ok((written, false))
+                    return Ok(written)
                 }
                 Err(err) => return Err(err),
             }
         }
-        Ok((written, false))
+        Ok(written)
     }
 }
 
@@ -211,12 +211,10 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
                 // shortcut for upgraded connection
                 if self.flags.contains(Flags::UPGRADE) {
                     if self.buffer.is_empty() {
-                        match self.write_data(payload.as_ref())? {
-                            (_, true) => return Ok(WriterState::Done),
-                            (n, false) => if payload.len() < n {
-                                self.buffer.extend_from_slice(&payload.as_ref()[n..]);
-                                return Ok(WriterState::Done);
-                            }
+                        let n = self.write_data(payload.as_ref())?;
+                        if payload.len() < n {
+                            self.buffer.extend_from_slice(&payload.as_ref()[n..]);
+                            return Ok(WriterState::Done);
                         }
                     } else {
                         self.buffer.extend(payload);
@@ -255,14 +253,10 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
             let buf: &[u8] = unsafe{mem::transmute(self.buffer.as_ref())};
-            match self.write_data(buf)? {
-                (_, true) => (),
-                (n, false) => {
-                    let _ = self.buffer.split_to(n);
-                    if self.buffer.len() > self.buffer_capacity {
-                        return Ok(Async::NotReady)
-                    }
-                }
+            let written = self.write_data(buf)?;
+            let _ = self.buffer.split_to(written);
+            if self.buffer.len() > self.buffer_capacity {
+                return Ok(Async::NotReady)
             }
         }
         if shutdown {

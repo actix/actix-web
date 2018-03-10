@@ -1,12 +1,12 @@
 # Changes
 
-## 0.4.6 (2018-03-09)
+## 0.4.6 (2018-03-10)
 
 * Fix client cookie handling
 
-* Fix CORS middleware #117
-
 * Fix json content type detection
+
+* Fix CORS middleware #117
 
 * Optimize websockets stream support
 

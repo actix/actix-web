@@ -196,8 +196,8 @@ mod tests {
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
-                                 header::HeaderValue::from_static("application/json"));
-        let mut json = req.json::<MyObject>().content_type("text/json");
+                                 header::HeaderValue::from_static("application/text"));
+        let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
         let mut req = HttpRequest::default();
