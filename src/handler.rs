@@ -34,7 +34,32 @@ pub trait Responder {
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
-/// Combines two different responders types into a single type.
+/// Combines two different responders types into a single type
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// # use futures::future::Future;
+/// use actix_web::AsyncResponder;
+/// use futures::future::result;
+/// use actix_web::{Either, Error, HttpRequest, HttpResponse, httpcodes};
+///
+/// type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
+///
+/// fn index(req: HttpRequest) -> RegisterResult {
+///     if true {          // <- choose variant A
+///         Either::A(
+///             httpcodes::HttpBadRequest.with_body("Bad data"))
+///     } else {
+///         Either::B(     // <- variant B
+///             result(HttpResponse::Ok()
+///                    .content_type("text/html")
+///                    .body(format!("Hello!"))
+///                    .map_err(|e| e.into())).responder())
+///     }
+/// }
+/// # fn main() {}
+/// ```
 #[derive(Debug)]
 pub enum Either<A, B> {
     /// First branch of the type
