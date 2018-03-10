@@ -44,6 +44,22 @@ pub enum KeepAlive {
     Disabled,
 }
 
+impl From<usize> for KeepAlive {
+    fn from(keepalive: usize) -> Self {
+        KeepAlive::Timeout(keepalive)
+    }
+}
+
+impl From<Option<usize>> for KeepAlive {
+    fn from(keepalive: Option<usize>) -> Self {
+        if let Some(keepalive) = keepalive {
+            KeepAlive::Timeout(keepalive)
+        } else {
+            KeepAlive::Disabled
+        }
+    }
+}
+
 /// Pause accepting incoming connections
 ///
 /// If socket contains some pending connection, they might be dropped.
