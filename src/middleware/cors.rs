@@ -349,8 +349,7 @@ impl<S> Middleware<S> for Cors {
                 if self.send_wildcard {
                     resp.headers_mut().insert(
                         header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
-                } else {
-                    let origin = req.headers().get(header::ORIGIN).unwrap();
+                } else if let Some(origin) = req.headers().get(header::ORIGIN) {
                     resp.headers_mut().insert(
                         header::ACCESS_CONTROL_ALLOW_ORIGIN, origin.clone());
                 }
@@ -805,6 +804,25 @@ mod tests {
             .finish();
 
         assert!(cors.start(&mut req).unwrap().is_done());
+    }
+
+    #[test]
+    fn test_no_origin_response() {
+        let cors = Cors::build().finish().unwrap();
+
+        let mut req = TestRequest::default().method(Method::GET).finish();
+        let resp: HttpResponse = HttpOk.into();
+        let resp = cors.response(&mut req, resp).unwrap().response();
+        assert!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+
+        let mut req = TestRequest::with_header(
+            "Origin", "https://www.example.com")
+            .method(Method::OPTIONS)
+            .finish();
+        let resp = cors.response(&mut req, resp).unwrap().response();
+        assert_eq!(
+            &b"https://www.example.com"[..],
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes());
     }
 
     #[test]

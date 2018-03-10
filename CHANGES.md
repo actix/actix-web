@@ -4,6 +4,8 @@
 
 * Fix client cookie handling
 
+* Fix CORS middleware #117
+
 * Optimize websockets stream support
 
 
