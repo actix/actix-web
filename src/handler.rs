@@ -46,8 +46,9 @@ pub trait Responder {
 ///
 /// type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
 ///
+///
 /// fn index(req: HttpRequest) -> RegisterResult {
-///     if true {          // <- choose variant A
+///     if is_a_variant() { // <- choose variant A
 ///         Either::A(
 ///             httpcodes::HttpBadRequest.with_body("Bad data"))
 ///     } else {
@@ -58,6 +59,7 @@ pub trait Responder {
 ///                    .map_err(|e| e.into())).responder())
 ///     }
 /// }
+/// # fn is_a_variant() -> bool { true }
 /// # fn main() {}
 /// ```
 #[derive(Debug)]

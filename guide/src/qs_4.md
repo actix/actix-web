@@ -253,23 +253,23 @@ use actix_web::{Either, Error, HttpResponse, httpcodes};
 type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
 
 fn index(req: HttpRequest) -> RegisterResult {
-    if true {          // <- choose variant A
+    if is_a_variant() { // <- choose variant A
         Either::A(
             httpcodes::HttpBadRequest.with_body("Bad data"))
     } else {
-        Either::B(     // <- variant B
+        Either::B(      // <- variant B
             result(HttpResponse::Ok()
                    .content_type("text/html")
                    .body(format!("Hello!"))
                    .map_err(|e| e.into())).responder())
     }
 }
-
-fn main() {
-    Application::new()
-        .resource("/register", |r| r.f(index))
-        .finish();
-}
+# fn is_a_variant() -> bool { true }
+# fn main() {
+#    Application::new()
+#        .resource("/register", |r| r.f(index))
+#        .finish();
+# }
 ```
 
 ## Tokio core handle
