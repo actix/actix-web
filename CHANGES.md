@@ -4,6 +4,8 @@
 
 * Fix panic on unknown content encoding
 
+* Fix connection get closed too early
+
 ## 0.4.6 (2018-03-10)
 
 * Fix client cookie handling

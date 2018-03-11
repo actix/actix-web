@@ -110,18 +110,6 @@ impl<T, H> Http1<T, H>
         }
     }
 
-    fn poll_completed(&mut self, shutdown: bool) -> Result<bool, ()> {
-        // check stream state
-        match self.stream.poll_completed(shutdown) {
-            Ok(Async::Ready(_)) => Ok(true),
-            Ok(Async::NotReady) => Ok(false),
-            Err(err) => {
-                debug!("Error sending data: {}", err);
-                Err(())
-            }
-        }
-    }
-
     // TODO: refactor
     pub fn poll_io(&mut self) -> Poll<bool, ()> {
         // read incoming data
@@ -272,8 +260,13 @@ impl<T, H> Http1<T, H>
         }
 
         // check stream state
-        if !self.poll_completed(true)? {
-            return Ok(Async::NotReady)
+        match self.stream.poll_completed(self.tasks.is_empty()) {
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Err(err) => {
+                debug!("Error sending data: {}", err);
+                return Err(())
+            }
+            _ => (),
         }
 
         // deal with keep-alive
