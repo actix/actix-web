@@ -21,11 +21,11 @@ use mime_guess::get_mime_type;
 use header;
 use error::Error;
 use param::FromParam;
-use handler::{Handler, Responder};
+use handler::{Handler, RouteHandler, WrapHandler, Responder, Reply};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HttpOk, HttpFound, HttpMethodNotAllowed};
+use httpcodes::{HttpOk, HttpFound, HttpNotFound, HttpMethodNotAllowed};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -362,27 +362,6 @@ impl Responder for Directory {
     }
 }
 
-/// This enum represents all filesystem elements.
-pub enum FilesystemElement {
-    File(NamedFile),
-    Directory(Directory),
-    Redirect(HttpResponse),
-}
-
-impl Responder for FilesystemElement {
-    type Item = HttpResponse;
-    type Error = io::Error;
-
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
-        match self {
-            FilesystemElement::File(file) => file.respond_to(req),
-            FilesystemElement::Directory(dir) => dir.respond_to(req),
-            FilesystemElement::Redirect(resp) => Ok(resp),
-        }
-    }
-}
-
-
 /// Static files handling
 ///
 /// `StaticFile` handler must be registered with `Application::handler()` method,
@@ -398,23 +377,24 @@ impl Responder for FilesystemElement {
 ///         .finish();
 /// }
 /// ```
-pub struct StaticFiles {
+pub struct StaticFiles<S> {
     directory: PathBuf,
     accessible: bool,
     index: Option<String>,
     show_index: bool,
     cpu_pool: CpuPool,
+    default: Box<RouteHandler<S>>,
     _chunk_size: usize,
     _follow_symlinks: bool,
 }
 
-impl StaticFiles {
+impl<S: 'static> StaticFiles<S> {
     /// Create new `StaticFiles` instance
     ///
     /// `dir` - base directory
     ///
     /// `index` - show index for directory
-    pub fn new<T: Into<PathBuf>>(dir: T, index: bool) -> StaticFiles {
+    pub fn new<T: Into<PathBuf>>(dir: T, index: bool) -> StaticFiles<S> {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -438,6 +418,7 @@ impl StaticFiles {
             index: None,
             show_index: index,
             cpu_pool: CpuPool::new(40),
+            default: Box::new(WrapHandler::new(|_| HttpNotFound)),
             _chunk_size: 0,
             _follow_symlinks: false,
         }
@@ -447,27 +428,29 @@ impl StaticFiles {
     ///
     /// Redirects to specific index file for directory "/" instead of
     /// showing files listing.
-    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles {
+    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S> {
         self.index = Some(index.into());
+        self
+    }
+
+    /// Sets default resource which is used when no matched file could be found.
+    pub fn default_handler<H: Handler<S>>(mut self, handler: H) -> StaticFiles<S> {
+        self.default = Box::new(WrapHandler::new(handler));
         self
     }
 }
 
-impl<S> Handler<S> for StaticFiles {
-    type Result = Result<FilesystemElement, io::Error>;
+impl<S: 'static> Handler<S> for StaticFiles<S> {
+    type Result = Result<Reply, Error>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
-            Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
+            return Ok(self.default.handle(req))
         } else {
-            let path = if let Some(path) = req.match_info().get("tail") {
-                path
-            } else {
-                return Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
+            let relpath = match req.match_info().get("tail").map(PathBuf::from_param) {
+                Some(Ok(path)) => path,
+                _ => return Ok(self.default.handle(req))
             };
-
-            let relpath = PathBuf::from_param(path)
-                .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "not found"))?;
 
             // full filepath
             let path = self.directory.join(&relpath).canonicalize()?;
@@ -482,21 +465,22 @@ impl<S> Handler<S> for StaticFiles {
                         new_path.push('/');
                     }
                     new_path.push_str(redir_index);
-                    Ok(FilesystemElement::Redirect(
-                        HttpFound
-                            .build()
-                            .header(header::http::LOCATION, new_path.as_str())
-                            .finish().unwrap()))
+                    HttpFound.build()
+                             .header(header::http::LOCATION, new_path.as_str())
+                             .finish().unwrap()
+                             .respond_to(req.without_state())
                 } else if self.show_index {
-                    Ok(FilesystemElement::Directory(
-                        Directory::new(self.directory.clone(), path)))
+                    Directory::new(self.directory.clone(), path).respond_to(req.without_state())
+                                                                .map_err(|error| Error::from(error))?
+                                                                .respond_to(req.without_state())
                 } else {
-                    Err(io::Error::new(io::ErrorKind::NotFound, "not found"))
+                    Ok(self.default.handle(req))
                 }
             } else {
-                Ok(FilesystemElement::File(
-                    NamedFile::open(path)?
-                    .set_cpu_pool(self.cpu_pool.clone()).only_get()))
+                NamedFile::open(path)?.set_cpu_pool(self.cpu_pool.clone())
+                                      .respond_to(req.without_state())
+                                      .map_err(|error| Error::from(error))?
+                                      .respond_to(req.without_state())
             }
         }
     }
@@ -542,17 +526,22 @@ mod tests {
     fn test_static_files() {
         let mut st = StaticFiles::new(".", true);
         st.accessible = false;
-        assert!(st.handle(HttpRequest::default()).is_err());
+        let resp = st.handle(HttpRequest::default()).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         st.accessible = true;
         st.show_index = false;
-        assert!(st.handle(HttpRequest::default()).is_err());
+        let resp = st.handle(HttpRequest::default()).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "");
 
         st.show_index = true;
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/html; charset=utf-8");
         assert!(resp.body().is_binary());
         assert!(format!("{:?}", resp.body()).contains("README.md"));
@@ -565,6 +554,7 @@ mod tests {
         req.match_info_mut().add("tail", "guide");
 
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/guide/index.html");
 
@@ -572,6 +562,7 @@ mod tests {
         req.match_info_mut().add("tail", "guide/");
 
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/guide/index.html");
     }
@@ -583,6 +574,7 @@ mod tests {
         req.match_info_mut().add("tail", "examples/basics");
 
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/examples/basics/Cargo.toml");
     }

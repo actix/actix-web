@@ -10,6 +10,8 @@
 
 * Move brotli encoding to a feature
 
+* Add option of default handler for `StaticFiles` middleware
+
 
 ## 0.4.8 (2018-03-12)
 
@@ -53,7 +55,7 @@
 * Better support for `NamedFile` type
 
 * Add `ResponseError` impl for `SendRequestError`. This improves ergonomics of the client.
-  
+
 * Add native-tls support for client
 
 * Allow client connection timeout to be set #108
