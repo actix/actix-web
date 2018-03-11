@@ -1,8 +1,8 @@
 //! Actix web diesel example
 //!
 //! Diesel does not support tokio, so we have to run it in separate threads.
-//! Actix supports sync actors by default, so we going to create sync actor that will
-//! use diesel. Technically sync actors are worker style actors, multiple of them
+//! Actix supports sync actors by default, so we going to create sync actor that use diesel.
+//! Technically sync actors are worker style actors, multiple of them
 //! can run in parallel and process messages from same queue.
 extern crate serde;
 extern crate serde_json;
@@ -38,6 +38,7 @@ struct State {
 fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
     let name = &req.match_info()["name"];
 
+    // send async `CreateUser` message to a `DbExecutor`
     req.state().db.send(CreateUser{name: name.to_owned()})
         .from_err()
         .and_then(|res| {
@@ -54,7 +55,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("diesel-example");
 
-    // Start db executor actors
+    // Start 3 db executor actors
     let addr = SyncArbiter::start(3, || {
         DbExecutor(SqliteConnection::establish("test.db").unwrap())
     });
