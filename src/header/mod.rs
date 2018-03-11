@@ -165,8 +165,7 @@ impl<'a> From<&'a str> for ContentEncoding {
             "br" => ContentEncoding::Br,
             "gzip" => ContentEncoding::Gzip,
             "deflate" => ContentEncoding::Deflate,
-            "identity" => ContentEncoding::Identity,
-            _ => ContentEncoding::Auto,
+            _ => ContentEncoding::Identity,
         }
     }
 }

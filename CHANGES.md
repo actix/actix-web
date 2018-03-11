@@ -1,5 +1,9 @@
 # Changes
 
+## 0.4.7 (2018-03-xx)
+
+* Fix panic on unknown content encoding
+
 ## 0.4.6 (2018-03-10)
 
 * Fix client cookie handling

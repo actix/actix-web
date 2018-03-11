@@ -52,7 +52,7 @@ pub trait Responder {
 ///         Either::A(
 ///             httpcodes::HttpBadRequest.with_body("Bad data"))
 ///     } else {
-///         Either::B(     // <- variant B
+///         Either::B(      // <- variant B
 ///             result(HttpResponse::Ok()
 ///                    .content_type("text/html")
 ///                    .body(format!("Hello!"))
