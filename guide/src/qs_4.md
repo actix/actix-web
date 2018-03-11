@@ -238,9 +238,10 @@ Both methods could be combined. (i.e Async response with streaming body)
 ## Different return types (Either)
 
 Sometimes you need to return different types of responses. For example
-you can do error check and return error, otherwise return async response.
+you can do error check and return error and return async response otherwise.
 Or any result that requires two different types.
 For this case [*Either*](../actix_web/enum.Either.html) type can be used.
+*Either* allows to combine two different responder types into a single type.
 
 ```rust
 # extern crate actix_web;

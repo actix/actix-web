@@ -34,7 +34,7 @@ pub trait Responder {
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
-/// Combines two different responders types into a single type
+/// Combines two different responder types into a single type
 ///
 /// ```rust
 /// # extern crate actix_web;
