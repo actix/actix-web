@@ -24,6 +24,7 @@ bitflags! {
         const STARTED = 0b0000_0001;
         const DISCONNECTED = 0b0000_0010;
         const EOF = 0b0000_0100;
+        const RESERVED = 0b0000_1000;
     }
 }
 
@@ -55,55 +56,6 @@ impl H2Writer {
         if let Some(mut stream) = self.stream.take() {
             stream.send_reset(reason)
         }
-    }
-
-    fn write_to_stream(&mut self) -> io::Result<WriterState> {
-        if !self.flags.contains(Flags::STARTED) {
-            return Ok(WriterState::Done)
-        }
-
-        if let Some(ref mut stream) = self.stream {
-            if self.buffer.is_empty() {
-                if self.flags.contains(Flags::EOF) {
-                    let _ = stream.send_data(Bytes::new(), true);
-                }
-                return Ok(WriterState::Done)
-            }
-
-            loop {
-                match stream.poll_capacity() {
-                    Ok(Async::NotReady) => {
-                        if self.buffer.len() > self.buffer_capacity {
-                            return Ok(WriterState::Pause)
-                        } else {
-                            return Ok(WriterState::Done)
-                        }
-                    }
-                    Ok(Async::Ready(None)) => {
-                        return Ok(WriterState::Done)
-                    }
-                    Ok(Async::Ready(Some(cap))) => {
-                        let len = self.buffer.len();
-                        let bytes = self.buffer.split_to(cmp::min(cap, len));
-                        let eof = self.buffer.is_empty() && self.flags.contains(Flags::EOF);
-                        self.written += bytes.len() as u64;
-
-                        if let Err(err) = stream.send_data(bytes.freeze(), eof) {
-                            return Err(io::Error::new(io::ErrorKind::Other, err))
-                        } else if !self.buffer.is_empty() {
-                            let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
-                            stream.reserve_capacity(cap);
-                        } else {
-                            return Ok(WriterState::Pause)
-                        }
-                    }
-                    Err(_) => {
-                        return Err(io::Error::new(io::ErrorKind::Other, ""))
-                    }
-                }
-            }
-        }
-        Ok(WriterState::Done)
     }
 }
 
@@ -172,6 +124,7 @@ impl Writer for H2Writer {
             self.written = bytes.len() as u64;
             self.encoder.write(bytes)?;
             if let Some(ref mut stream) = self.stream {
+                self.flags.insert(Flags::RESERVED);
                 stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
             }
             Ok(WriterState::Pause)
@@ -195,7 +148,7 @@ impl Writer for H2Writer {
             }
         }
 
-        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.len() > self.buffer_capacity {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
@@ -217,10 +170,40 @@ impl Writer for H2Writer {
     }
 
     fn poll_completed(&mut self, _shutdown: bool) -> Poll<(), io::Error> {
-        match self.write_to_stream() {
-            Ok(WriterState::Done) => Ok(Async::Ready(())),
-            Ok(WriterState::Pause) => Ok(Async::NotReady),
-            Err(err) => Err(err)
+        if !self.flags.contains(Flags::STARTED) {
+            return Ok(Async::NotReady);
         }
+
+        if let Some(ref mut stream) = self.stream {
+            // reserve capacity
+            if !self.flags.contains(Flags::RESERVED) && !self.buffer.is_empty() {
+                self.flags.insert(Flags::RESERVED);
+                stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
+            }
+
+            loop {
+                match stream.poll_capacity() {
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
+                    Ok(Async::Ready(Some(cap))) => {
+                        let len = self.buffer.len();
+                        let bytes = self.buffer.split_to(cmp::min(cap, len));
+                        let eof = self.buffer.is_empty() && self.flags.contains(Flags::EOF);
+                        self.written += bytes.len() as u64;
+
+                        if let Err(e) = stream.send_data(bytes.freeze(), eof) {
+                            return Err(io::Error::new(io::ErrorKind::Other, e))
+                        } else if !self.buffer.is_empty() {
+                            let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
+                            stream.reserve_capacity(cap);
+                        } else {
+                            return Ok(Async::NotReady)
+                        }
+                    }
+                    Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+                }
+            }
+        }
+        return Ok(Async::NotReady)
     }
 }
