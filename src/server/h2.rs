@@ -26,7 +26,7 @@ use payload::{Payload, PayloadWriter, PayloadStatus};
 use super::h2writer::H2Writer;
 use super::encoding::PayloadType;
 use super::settings::WorkerSettings;
-use super::{HttpHandler, HttpHandlerTask};
+use super::{HttpHandler, HttpHandlerTask, Writer};
 
 bitflags! {
     struct Flags: u8 {
@@ -109,22 +109,27 @@ impl<T, H> Http2<T, H>
                         loop {
                             match item.task.poll_io(&mut item.stream) {
                                 Ok(Async::Ready(ready)) => {
-                                    item.flags.insert(EntryFlags::EOF);
                                     if ready {
-                                        item.flags.insert(EntryFlags::FINISHED);
+                                        item.flags.insert(
+                                            EntryFlags::EOF | EntryFlags::FINISHED);
+                                    } else {
+                                        item.flags.insert(EntryFlags::EOF);
                                     }
                                     not_ready = false;
                                 },
                                 Ok(Async::NotReady) => {
-                                    if item.payload.need_read() == PayloadStatus::Read && !retry
+                                    if item.payload.need_read() == PayloadStatus::Read
+                                        && !retry
                                     {
                                         continue
                                     }
                                 },
                                 Err(err) => {
                                     error!("Unhandled error: {}", err);
-                                    item.flags.insert(EntryFlags::EOF);
-                                    item.flags.insert(EntryFlags::ERROR);
+                                    item.flags.insert(
+                                        EntryFlags::EOF |
+                                        EntryFlags::ERROR |
+                                        EntryFlags::WRITE_DONE);
                                     item.stream.reset(Reason::INTERNAL_ERROR);
                                 }
                             }
@@ -138,9 +143,23 @@ impl<T, H> Http2<T, H>
                                 item.flags.insert(EntryFlags::FINISHED);
                             },
                             Err(err) => {
-                                item.flags.insert(EntryFlags::ERROR);
-                                item.flags.insert(EntryFlags::FINISHED);
+                                item.flags.insert(
+                                    EntryFlags::ERROR | EntryFlags::WRITE_DONE |
+                                    EntryFlags::FINISHED);
                                 error!("Unhandled error: {}", err);
+                            }
+                        }
+                    }
+
+                    if !item.flags.contains(EntryFlags::WRITE_DONE) {
+                        match item.stream.poll_completed(false) {
+                            Ok(Async::NotReady) => (),
+                            Ok(Async::Ready(_)) => {
+                                not_ready = false;
+                                item.flags.insert(EntryFlags::WRITE_DONE);
+                            }
+                            Err(_err) => {
+                                item.flags.insert(EntryFlags::ERROR);
                             }
                         }
                     }
@@ -149,7 +168,7 @@ impl<T, H> Http2<T, H>
                 // cleanup finished tasks
                 while !self.tasks.is_empty() {
                     if self.tasks[0].flags.contains(EntryFlags::EOF) &&
-                        self.tasks[0].flags.contains(EntryFlags::FINISHED) ||
+                        self.tasks[0].flags.contains(EntryFlags::WRITE_DONE) ||
                         self.tasks[0].flags.contains(EntryFlags::ERROR)
                     {
                         self.tasks.pop_front();
@@ -251,6 +270,7 @@ bitflags! {
         const REOF = 0b0000_0010;
         const ERROR = 0b0000_0100;
         const FINISHED = 0b0000_1000;
+        const WRITE_DONE = 0b0001_0000;
     }
 }
 

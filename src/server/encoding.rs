@@ -466,8 +466,8 @@ impl ContentEncoder {
                 GzEncoder::new(transfer, Compression::default())),
             ContentEncoding::Br => ContentEncoder::Br(
                 BrotliEncoder::new(transfer, 5)),
-            ContentEncoding::Identity => ContentEncoder::Identity(transfer),
-            ContentEncoding::Auto => unreachable!()
+            ContentEncoding::Identity | ContentEncoding::Auto =>
+                ContentEncoder::Identity(transfer),
         }
     }
 
