@@ -2,7 +2,6 @@ use std::{io, net, thread};
 use std::rc::Rc;
 use std::sync::{Arc, mpsc as sync_mpsc};
 use std::time::Duration;
-use std::collections::HashMap;
 
 use actix::prelude::*;
 use actix::actors::signal;
@@ -37,7 +36,7 @@ pub struct HttpServer<H> where H: IntoHttpHandler + 'static
     factory: Arc<Fn() -> Vec<H> + Send + Sync>,
     #[cfg_attr(feature="cargo-clippy", allow(type_complexity))]
     workers: Vec<(usize, Addr<Syn, Worker<H::Handler>>)>,
-    sockets: HashMap<net::SocketAddr, net::TcpListener>,
+    sockets: Vec<(net::SocketAddr, net::TcpListener)>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
     shutdown_timeout: u16,
@@ -77,7 +76,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
         let f = move || {
             (factory)().into_iter().collect()
         };
-        
+
         HttpServer{ h: None,
                     threads: num_cpus::get(),
                     backlog: 2048,
@@ -85,7 +84,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
                     keep_alive: KeepAlive::Os,
                     factory: Arc::new(f),
                     workers: Vec::new(),
-                    sockets: HashMap::new(),
+                    sockets: Vec::new(),
                     accept: Vec::new(),
                     exit: false,
                     shutdown_timeout: 30,
@@ -173,7 +172,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
 
     /// Get addresses of bound sockets.
     pub fn addrs(&self) -> Vec<net::SocketAddr> {
-        self.sockets.keys().cloned().collect()
+        self.sockets.iter().map(|s| s.0.clone()).collect()
     }
 
     /// Use listener for accepting incoming connection requests
@@ -181,7 +180,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     /// HttpServer does not change any configuration for TcpListener,
     /// it needs to be configured before passing it to listen() method.
     pub fn listen(mut self, lst: net::TcpListener) -> Self {
-        self.sockets.insert(lst.local_addr().unwrap(), lst);
+        self.sockets.push((lst.local_addr().unwrap(), lst));
         self
     }
 
@@ -195,7 +194,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
             match create_tcp_listener(addr, self.backlog) {
                 Ok(lst) => {
                     succ = true;
-                    self.sockets.insert(lst.local_addr().unwrap(), lst);
+                    self.sockets.push((lst.local_addr().unwrap(), lst));
                 },
                 Err(e) => err = Some(e),
             }
@@ -288,7 +287,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
         } else {
             let (tx, rx) = mpsc::unbounded();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
-                self.sockets.drain().collect();
+                self.sockets.drain(..).collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
             let info = Info{addr: addrs[0].0, handler: StreamHandlerType::Normal};
@@ -357,7 +356,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
             let (tx, rx) = mpsc::unbounded();
-            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
+            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain(..).collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(
                 &settings, &StreamHandlerType::Tls(acceptor.clone()));
@@ -409,7 +408,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
             let (tx, rx) = mpsc::unbounded();
             let acceptor = builder.build();
-            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain().collect();
+            let addrs: Vec<(net::SocketAddr, net::TcpListener)> = self.sockets.drain(..).collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(
                 &settings, &StreamHandlerType::Alpn(acceptor.clone()));
@@ -451,7 +450,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
 
         if !self.sockets.is_empty() {
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
-                self.sockets.drain().collect();
+                self.sockets.drain(..).collect();
             let settings = ServerSettings::new(Some(addrs[0].0), &self.host, false);
             let workers = self.start_workers(&settings, &StreamHandlerType::Normal);
             let info = Info{addr: addrs[0].0, handler: StreamHandlerType::Normal};
