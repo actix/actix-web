@@ -741,10 +741,9 @@ fn start_accept_thread(
                                         break
                                     }
                                 },
-                                Err(err) => {
-                                    if err.kind() != io::ErrorKind::WouldBlock {
-                                        error!("Error accepting connection: {:?}", err);
-                                    }
+                                Err(ref e) if connection_error(e) => continue,
+                                Err(e) => {
+                                    error!("Error accepting connection: {:?}", e);
                                     // sleep after error
                                     thread::sleep(sleep);
                                     break
@@ -817,4 +816,17 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: i32) -> io::Result<net::T
     builder.reuse_address(true)?;
     builder.bind(addr)?;
     Ok(builder.listen(backlog)?)
+}
+
+/// This function defines errors that are per-connection. Which basically
+/// means that if we get this error from `accept()` system call it means
+/// next connection might be ready to be accepted.
+///
+/// All other errors will incur a timeout before next `accept()` is performed.
+/// The timeout is useful to handle resource exhaustion errors like ENFILE
+/// and EMFILE. Otherwise, could enter into tight loop.
+fn connection_error(e: &io::Error) -> bool {
+    e.kind() == io::ErrorKind::ConnectionRefused ||
+        e.kind() == io::ErrorKind::ConnectionAborted ||
+        e.kind() == io::ErrorKind::ConnectionReset
 }
