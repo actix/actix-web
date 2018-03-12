@@ -1,8 +1,9 @@
 # Changes
 
-## 0.4.8 (2018-03-xx)
+## 0.4.8 (2018-03-12)
 
 * Do not log WouldBlock error from socket accept
+
 
 ## 0.4.7 (2018-03-11)
 

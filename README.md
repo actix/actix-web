@@ -31,7 +31,7 @@ Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
 
 ## Example
 
-```rust,ignore
+```rust
 extern crate actix_web;
 use actix_web::*;
 
