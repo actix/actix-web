@@ -32,8 +32,10 @@ const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
     struct Flags: u8 {
+        const STARTED = 0b0000_0001;
         const ERROR = 0b0000_0010;
         const KEEPALIVE = 0b0000_0100;
+        const SHUTDOWN = 0b0000_1000;
     }
 }
 
@@ -94,17 +96,32 @@ impl<T, H> Http1<T, H>
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Keep-alive timeout, close connection");
-                    return Ok(Async::Ready(()))
+                    self.flags.insert(Flags::SHUTDOWN);
                 }
                 Ok(Async::NotReady) => (),
                 Err(_) => unreachable!(),
             }
         }
 
+        // shutdown
+        if self.flags.contains(Flags::SHUTDOWN) {
+            match self.stream.poll_completed(true) {
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
+                Err(err) => {
+                    debug!("Error sending data: {}", err);
+                    return Err(())
+                }
+            }
+        }
+
         loop {
             match self.poll_io()? {
                 Async::Ready(true) => (),
-                Async::Ready(false) => return Ok(Async::Ready(())),
+                Async::Ready(false) => {
+                    self.flags.insert(Flags::SHUTDOWN);
+                    return self.poll()
+                },
                 Async::NotReady => return Ok(Async::NotReady),
             }
         }
@@ -120,6 +137,8 @@ impl<T, H> Http1<T, H>
                 match self.reader.parse(self.stream.get_mut(),
                                         &mut self.read_buf, &self.settings) {
                     Ok(Async::Ready(mut req)) => {
+                        self.flags.insert(Flags::STARTED);
+
                         // set remote addr
                         req.set_peer_addr(self.addr);
 
@@ -260,21 +279,24 @@ impl<T, H> Http1<T, H>
         }
 
         // check stream state
-        match self.stream.poll_completed(self.tasks.is_empty()) {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(err) => {
-                debug!("Error sending data: {}", err);
-                return Err(())
+        if self.flags.contains(Flags::STARTED) {
+            match self.stream.poll_completed(false) {
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(err) => {
+                    debug!("Error sending data: {}", err);
+                    return Err(())
+                }
+                _ => (),
             }
-            _ => (),
         }
 
         // deal with keep-alive
         if self.tasks.is_empty() {
             // no keep-alive situations
-            if self.flags.contains(Flags::ERROR)
+            if (self.flags.contains(Flags::ERROR)
                 || !self.flags.contains(Flags::KEEPALIVE)
-                || !self.settings.keep_alive_enabled()
+                || !self.settings.keep_alive_enabled()) &&
+                self.flags.contains(Flags::STARTED)
             {
                 return Ok(Async::Ready(false))
             }

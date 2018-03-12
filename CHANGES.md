@@ -1,5 +1,9 @@
 # Changes
 
+## 0.4.9 (2018-03-xx)
+
+* Fix server keep-alive handling
+
 ## 0.4.8 (2018-03-12)
 
 * Allow to set read buffer capacity for server request
