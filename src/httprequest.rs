@@ -389,6 +389,15 @@ impl<S> HttpRequest<S> {
         self.as_ref().method == Method::CONNECT
     }
 
+    /// Set read buffer capacity
+    ///
+    /// Default buffer capacity is 32Kb.
+    pub fn set_read_buffer_capacity(&mut self, cap: usize) {
+        if let Some(ref mut payload) = self.as_mut().payload {
+            payload.set_read_buffer_capacity(cap)
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn payload(&self) -> &Payload {
         let msg = self.as_mut();

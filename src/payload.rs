@@ -8,6 +8,10 @@ use futures::{Async, Poll, Stream};
 
 use error::PayloadError;
 
+/// max buffer size 32k
+pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
+
+
 #[derive(Debug, PartialEq)]
 pub(crate) enum PayloadStatus {
     Read,
@@ -75,6 +79,14 @@ impl Payload {
     #[cfg(test)]
     pub(crate) fn readall(&self) -> Option<Bytes> {
         self.inner.borrow_mut().readall()
+    }
+
+    #[inline]
+    /// Set read buffer capacity
+    ///
+    /// Default buffer capacity is 32Kb.
+    pub fn set_read_buffer_capacity(&mut self, cap: usize) {
+        self.inner.borrow_mut().capacity = cap;
     }
 }
 
@@ -161,6 +173,7 @@ struct Inner {
     err: Option<PayloadError>,
     need_read: bool,
     items: VecDeque<Bytes>,
+    capacity: usize,
 }
 
 impl Inner {
@@ -172,6 +185,7 @@ impl Inner {
             err: None,
             items: VecDeque::new(),
             need_read: true,
+            capacity: MAX_BUFFER_SIZE,
         }
     }
 
@@ -188,8 +202,8 @@ impl Inner {
     #[inline]
     fn feed_data(&mut self, data: Bytes) {
         self.len += data.len();
-        self.need_read = false;
         self.items.push_back(data);
+        self.need_read = self.len < self.capacity;
     }
 
     #[inline]
@@ -222,6 +236,7 @@ impl Inner {
     fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
+            self.need_read = self.len < self.capacity;
             Ok(Async::Ready(Some(data)))
         } else if let Some(err) = self.err.take() {
             Err(err)

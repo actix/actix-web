@@ -205,6 +205,6 @@ impl Writer for H2Writer {
                 }
             }
         }
-        return Ok(Async::NotReady)
+        Ok(Async::NotReady)
     }
 }

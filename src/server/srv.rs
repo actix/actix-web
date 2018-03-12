@@ -172,7 +172,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
 
     /// Get addresses of bound sockets.
     pub fn addrs(&self) -> Vec<net::SocketAddr> {
-        self.sockets.iter().map(|s| s.0.clone()).collect()
+        self.sockets.iter().map(|s| s.0).collect()
     }
 
     /// Use listener for accepting incoming connection requests

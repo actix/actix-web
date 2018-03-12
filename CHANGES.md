@@ -2,7 +2,9 @@
 
 ## 0.4.8 (2018-03-12)
 
-* Do not log WouldBlock error from socket accept
+* Allow to set read buffer capacity for server request
+
+* Handle WouldBlock error for socket accept call
 
 
 ## 0.4.7 (2018-03-11)

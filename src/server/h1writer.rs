@@ -229,7 +229,7 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             }
         }
 
-        if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
+        if self.buffer.len() > self.buffer_capacity {
             Ok(WriterState::Pause)
         } else {
             Ok(WriterState::Done)
