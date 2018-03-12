@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
+use futures::task::{Task, current as current_task};
 
 use error::PayloadError;
 
@@ -174,6 +175,7 @@ struct Inner {
     need_read: bool,
     items: VecDeque<Bytes>,
     capacity: usize,
+    task: Option<Task>,
 }
 
 impl Inner {
@@ -186,6 +188,7 @@ impl Inner {
             items: VecDeque::new(),
             need_read: true,
             capacity: MAX_BUFFER_SIZE,
+            task: None,
         }
     }
 
@@ -204,6 +207,9 @@ impl Inner {
         self.len += data.len();
         self.items.push_back(data);
         self.need_read = self.len < self.capacity;
+        if let Some(task) = self.task.take() {
+            task.notify()
+        }
     }
 
     #[inline]
@@ -237,6 +243,12 @@ impl Inner {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             self.need_read = self.len < self.capacity;
+            #[cfg(not(test))]
+            {
+                if self.need_read && self.task.is_none() {
+                    self.task = Some(current_task());
+                }
+            }
             Ok(Async::Ready(Some(data)))
         } else if let Some(err) = self.err.take() {
             Err(err)
@@ -244,6 +256,12 @@ impl Inner {
             Ok(Async::Ready(None))
         } else {
             self.need_read = true;
+            #[cfg(not(test))]
+            {
+                if self.task.is_none() {
+                    self.task = Some(current_task());
+                }
+            }
             Ok(Async::NotReady)
         }
     }
