@@ -741,9 +741,12 @@ fn start_accept_thread(
                                         break
                                     }
                                 },
-                                Err(ref e) if connection_error(e) => continue,
+                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock =>
+                                    break,
+                                Err(ref e) if connection_error(e) =>
+                                    continue,
                                 Err(e) => {
-                                    error!("Error accepting connection: {:?}", e);
+                                    error!("Error accepting connection: {}", e);
                                     // sleep after error
                                     thread::sleep(sleep);
                                     break
