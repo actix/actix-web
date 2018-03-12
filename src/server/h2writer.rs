@@ -197,6 +197,7 @@ impl Writer for H2Writer {
                             let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
+                            self.flags.remove(Flags::RESERVED);
                             return Ok(Async::NotReady)
                         }
                     }
