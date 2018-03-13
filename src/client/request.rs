@@ -599,3 +599,19 @@ fn parts<'a>(parts: &'a mut Option<ClientRequest>, err: &Option<HttpError>)
     }
     parts.as_mut()
 }
+
+impl fmt::Debug for ClientRequestBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(ref parts) = self.request {
+            let res = write!(f, "\nClientRequestBuilder {:?} {}:{}\n",
+                             parts.version, parts.method, parts.uri);
+            let _ = write!(f, "  headers:\n");
+            for (key, val) in parts.headers.iter() {
+                let _ = write!(f, "    {:?}: {:?}\n", key, val);
+            }
+            res
+        } else {
+            write!(f, "ClientRequestBuilder(Consumed)")
+        }
+    }
+}
