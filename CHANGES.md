@@ -6,6 +6,8 @@
 
 * Fix server keep-alive handling
 
+* Send Query Parameters in client requests #120
+
 
 ## 0.4.8 (2018-03-12)
 
