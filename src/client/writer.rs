@@ -110,10 +110,11 @@ impl HttpClientWriter {
                 self.flags.insert(Flags::UPGRADE);
             }
 
-            let path = msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("");
             // status line
             let _ = write!(buffer, "{} {} {:?}\r\n",
-                           msg.method(), path, msg.version());
+                           msg.method(), 
+                           msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or(""), 
+                           msg.version());
 
             // write headers
             for (key, value) in msg.headers() {
