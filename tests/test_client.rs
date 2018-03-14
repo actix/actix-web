@@ -67,6 +67,21 @@ fn test_simple() {
 }
 
 #[test]
+fn test_with_query_parameter() {
+    let mut srv = test::TestServer::new(
+        |app| app.handler(|req: HttpRequest| match req.query().get("qp") {
+            Some(_) => httpcodes::HTTPOk.build().finish(),
+            None => httpcodes::HTTPBadRequest.build().finish(),
+        }));
+
+    let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
+
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+
+#[test]
 fn test_no_decompress() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| httpcodes::HTTPOk.build().body(STR)));
