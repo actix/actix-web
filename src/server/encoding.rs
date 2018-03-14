@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
+use bytes::{Bytes, BytesMut, BufMut};
 use http::{Version, Method, HttpTryFrom};
 use http::header::{HeaderMap, HeaderValue,
                    ACCEPT_ENCODING, CONNECTION,
@@ -10,8 +11,8 @@ use http::header::{HeaderMap, HeaderValue,
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, DeflateDecoder, DeflateEncoder};
+#[cfg(feature="brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
-use bytes::{Bytes, BytesMut, BufMut};
 
 use header::ContentEncoding;
 use body::{Body, Binary};
@@ -144,6 +145,7 @@ impl PayloadWriter for EncodedPayload {
 pub(crate) enum Decoder {
     Deflate(Box<DeflateDecoder<Writer>>),
     Gzip(Option<Box<GzDecoder<Wrapper>>>),
+    #[cfg(feature="brotli")]
     Br(Box<BrotliDecoder<Writer>>),
     Identity,
 }
@@ -214,6 +216,7 @@ pub(crate) struct PayloadStream {
 impl PayloadStream {
     pub fn new(enc: ContentEncoding) -> PayloadStream {
         let dec = match enc {
+            #[cfg(feature="brotli")]
             ContentEncoding::Br => Decoder::Br(
                 Box::new(BrotliDecoder::new(Writer::new()))),
             ContentEncoding::Deflate => Decoder::Deflate(
@@ -229,6 +232,7 @@ impl PayloadStream {
 
     pub fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self.decoder {
+            #[cfg(feature="brotli")]
             Decoder::Br(ref mut decoder) => {
                 match decoder.finish() {
                     Ok(mut writer) => {
@@ -278,6 +282,7 @@ impl PayloadStream {
 
     pub fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self.decoder {
+            #[cfg(feature="brotli")]
             Decoder::Br(ref mut decoder) => {
                 match decoder.write_all(&data) {
                     Ok(_) => {
@@ -346,6 +351,7 @@ impl PayloadStream {
 pub(crate) enum ContentEncoder {
     Deflate(DeflateEncoder<TransferEncoding>),
     Gzip(GzEncoder<TransferEncoding>),
+    #[cfg(feature="brotli")]
     Br(BrotliEncoder<TransferEncoding>),
     Identity(TransferEncoding),
 }
@@ -412,6 +418,7 @@ impl ContentEncoder {
                             DeflateEncoder::new(transfer, Compression::default())),
                         ContentEncoding::Gzip => ContentEncoder::Gzip(
                             GzEncoder::new(transfer, Compression::default())),
+                        #[cfg(feature="brotli")]
                         ContentEncoding::Br => ContentEncoder::Br(
                             BrotliEncoder::new(transfer, 5)),
                         ContentEncoding::Identity => ContentEncoder::Identity(transfer),
@@ -464,6 +471,7 @@ impl ContentEncoder {
                 DeflateEncoder::new(transfer, Compression::default())),
             ContentEncoding::Gzip => ContentEncoder::Gzip(
                 GzEncoder::new(transfer, Compression::default())),
+            #[cfg(feature="brotli")]
             ContentEncoding::Br => ContentEncoder::Br(
                 BrotliEncoder::new(transfer, 5)),
             ContentEncoding::Identity | ContentEncoding::Auto =>
@@ -538,6 +546,7 @@ impl ContentEncoder {
     #[inline]
     pub fn is_eof(&self) -> bool {
         match *self {
+            #[cfg(feature="brotli")]
             ContentEncoder::Br(ref encoder) => encoder.get_ref().is_eof(),
             ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_eof(),
             ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_eof(),
@@ -552,6 +561,7 @@ impl ContentEncoder {
             self, ContentEncoder::Identity(TransferEncoding::eof(SharedBytes::empty())));
 
         match encoder {
+            #[cfg(feature="brotli")]
             ContentEncoder::Br(encoder) => {
                 match encoder.finish() {
                     Ok(mut writer) => {
@@ -594,6 +604,7 @@ impl ContentEncoder {
     #[inline(always)]
     pub fn write(&mut self, data: Binary) -> Result<(), io::Error> {
         match *self {
+            #[cfg(feature="brotli")]
             ContentEncoder::Br(ref mut encoder) => {
                 match encoder.write_all(data.as_ref()) {
                     Ok(_) => Ok(()),

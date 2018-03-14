@@ -119,6 +119,7 @@ pub enum ContentEncoding {
     /// Automatically select encoding based on encoding negotiation
     Auto,
     /// A format using the Brotli algorithm
+    #[cfg(feature="brotli")]
     Br,
     /// A format using the zlib structure with deflate algorithm
     Deflate,
@@ -141,6 +142,7 @@ impl ContentEncoding {
     #[inline]
     pub fn as_str(&self) -> &'static str {
         match *self {
+            #[cfg(feature="brotli")]
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",
             ContentEncoding::Deflate => "deflate",
@@ -150,6 +152,7 @@ impl ContentEncoding {
     /// default quality value
     pub fn quality(&self) -> f64 {
         match *self {
+            #[cfg(feature="brotli")]
             ContentEncoding::Br => 1.1,
             ContentEncoding::Gzip => 1.0,
             ContentEncoding::Deflate => 0.9,
@@ -162,6 +165,7 @@ impl ContentEncoding {
 impl<'a> From<&'a str> for ContentEncoding {
     fn from(s: &'a str) -> ContentEncoding {
         match s.trim().to_lowercase().as_ref() {
+            #[cfg(feature="brotli")]
             "br" => ContentEncoding::Br,
             "gzip" => ContentEncoding::Gzip,
             "deflate" => ContentEncoding::Deflate,

@@ -13,10 +13,11 @@ use http::header::{HeaderValue, DATE,
                    CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
 use flate2::Compression;
 use flate2::write::{GzEncoder, DeflateEncoder};
+#[cfg(feature="brotli")]
 use brotli2::write::BrotliEncoder;
 
 use body::{Body, Binary};
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use server::WriterState;
 use server::shared::SharedBytes;
 use server::encoding::{ContentEncoder, TransferEncoding};
@@ -215,6 +216,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                         DeflateEncoder::new(transfer, Compression::default())),
                     ContentEncoding::Gzip => ContentEncoder::Gzip(
                         GzEncoder::new(transfer, Compression::default())),
+                    #[cfg(feature="brotli")]
                     ContentEncoding::Br => ContentEncoder::Br(
                         BrotliEncoder::new(transfer, 5)),
                     ContentEncoding::Identity => ContentEncoder::Identity(transfer),
@@ -264,6 +266,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             DeflateEncoder::new(transfer, Compression::default())),
         ContentEncoding::Gzip => ContentEncoder::Gzip(
             GzEncoder::new(transfer, Compression::default())),
+        #[cfg(feature="brotli")]
         ContentEncoding::Br => ContentEncoder::Br(
             BrotliEncoder::new(transfer, 5)),
         ContentEncoding::Identity | ContentEncoding::Auto => ContentEncoder::Identity(transfer),

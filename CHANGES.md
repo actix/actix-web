@@ -8,6 +8,8 @@
 
 * Send Query Parameters in client requests #120
 
+* Move brotli encoding to a feature
+
 
 ## 0.4.8 (2018-03-12)
 

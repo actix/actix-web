@@ -79,6 +79,7 @@ extern crate libc;
 extern crate serde;
 extern crate serde_json;
 extern crate flate2;
+#[cfg(feature="brotli")]
 extern crate brotli2;
 extern crate encoding;
 extern crate percent_encoding;

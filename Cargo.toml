@@ -27,7 +27,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["session"]
+default = ["session", "brotli"]
 
 # tls
 tls = ["native-tls", "tokio-tls"]
@@ -38,12 +38,14 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 # sessions
 session = ["cookie/secure"]
 
+# brotli
+brotli = ["brotli2"]
+
 [dependencies]
 actix = "^0.5.2"
 
 base64 = "0.9"
 bitflags = "1.0"
-brotli2 = "^0.3.2"
 failure = "0.1.1"
 flate2 = "1.0"
 h2 = "0.1"
@@ -67,6 +69,7 @@ encoding = "0.2"
 language-tags = "0.2"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode"] }
+brotli2 = { version="^0.3.2", optional = true }
 
 # io
 mio = "^0.6.13"
