@@ -192,7 +192,7 @@ impl ClientConnector {
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
-        ClientConnector { connector }
+        ClientConnector { connector, pool: Rc::new(Pool::new()) }
     }
 
     fn collect(&mut self, ctx: &mut Context<Self>) {
@@ -254,7 +254,7 @@ impl Handler<Connect> for ClientConnector {
                         Ok(stream) => {
                             if proto.is_secure() {
                                 fut::Either::A(
-                                    _act.connector.connect_async(&host, stream)
+                                    _act.connector.connect_async(&key.host, stream)
                                         .map_err(ClientConnectorError::SslError)
                                         .map(|stream| Connection::new(
                                             key, pool, Box::new(stream)))
@@ -272,7 +272,7 @@ impl Handler<Connect> for ClientConnector {
                         Ok(stream) => {
                             if proto.is_secure() {
                                 fut::Either::A(
-                                    _act.connector.connect_async(&host, stream)
+                                    _act.connector.connect_async(&key.host, stream)
                                         .map_err(ClientConnectorError::SslError)
                                         .map(|stream| Connection::new(
                                             key, pool, Box::new(stream)))
