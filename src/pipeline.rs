@@ -482,10 +482,14 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                         }
 
                         match self.resp.replace_body(Body::Empty) {
-                            Body::Streaming(stream) =>
-                                self.iostate = IOState::Payload(stream),
-                            Body::Actor(ctx) =>
-                                self.iostate = IOState::Actor(ctx),
+                            Body::Streaming(stream) => {
+                                self.iostate = IOState::Payload(stream);
+                                continue
+                            },
+                            Body::Actor(ctx) => {
+                                self.iostate = IOState::Actor(ctx);
+                                continue
+                            },
                             _ => (),
                         }
 
