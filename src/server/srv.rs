@@ -744,6 +744,11 @@ fn start_accept_thread(
                                                         workers[next].0, info.clone()));
                                                 msg = err.into_inner();
                                                 workers.swap_remove(next);
+                                                if workers.is_empty() {
+                                                    break
+                                                } else if workers.len() <= next {
+                                                    next = 0;
+                                                }
                                                 continue
                                             }
                                         }
