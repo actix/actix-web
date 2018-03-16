@@ -481,6 +481,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             }
                         }
 
+                        // always poll stream or actor for the first time
                         match self.resp.replace_body(Body::Empty) {
                             Body::Streaming(stream) => {
                                 self.iostate = IOState::Payload(stream);
