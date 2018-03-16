@@ -204,8 +204,9 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
             mem::transmute(self as &mut WebsocketContext<A, S>)
         };
 
-        if self.inner.started() && self.inner.alive() && self.inner.poll(ctx).is_err() {
-            return Err(ErrorInternalServerError("error").into())
+        if (!self.inner.started() || self.inner.started() && self.inner.alive())
+            && self.inner.poll(ctx).is_err() {
+                return Err(ErrorInternalServerError("error").into())
         }
 
         // frames

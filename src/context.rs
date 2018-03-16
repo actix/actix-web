@@ -188,7 +188,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
             mem::transmute(self as &mut HttpContext<A, S>)
         };
 
-        if self.inner.started() && self.inner.alive() {
+        if !self.inner.started() || self.inner.started() && self.inner.alive() {
             match self.inner.poll(ctx) {
                 Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
                 Err(_) => return Err(ErrorInternalServerError("error").into()),
