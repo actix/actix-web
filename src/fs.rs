@@ -445,7 +445,7 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
-            return Ok(self.default.handle(req))
+            Ok(self.default.handle(req))
         } else {
             let relpath = match req.match_info().get("tail").map(PathBuf::from_param) {
                 Some(Ok(path)) => path,
@@ -466,21 +466,20 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     }
                     new_path.push_str(redir_index);
                     HttpFound.build()
-                             .header(header::http::LOCATION, new_path.as_str())
-                             .finish().unwrap()
-                             .respond_to(req.without_state())
+                        .header(header::http::LOCATION, new_path.as_str())
+                        .finish().unwrap()
+                        .respond_to(req.without_state())
                 } else if self.show_index {
-                    Directory::new(self.directory.clone(), path).respond_to(req.without_state())
-                                                                .map_err(|error| Error::from(error))?
-                                                                .respond_to(req.without_state())
+                    Directory::new(self.directory.clone(), path)
+                        .respond_to(req.without_state())?
+                    .respond_to(req.without_state())
                 } else {
                     Ok(self.default.handle(req))
                 }
             } else {
                 NamedFile::open(path)?.set_cpu_pool(self.cpu_pool.clone())
-                                      .respond_to(req.without_state())
-                                      .map_err(|error| Error::from(error))?
-                                      .respond_to(req.without_state())
+                    .respond_to(req.without_state())?
+                .respond_to(req.without_state())
             }
         }
     }
