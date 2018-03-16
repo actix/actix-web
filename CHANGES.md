@@ -12,7 +12,9 @@
 
 * Move brotli encoding to a feature
 
-* Add option of default handler for `StaticFiles` middleware
+* Add option of default handler for `StaticFiles` handler #57
+
+* Add basic client connection pooling
 
 
 ## 0.4.8 (2018-03-12)

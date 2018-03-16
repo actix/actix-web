@@ -38,7 +38,7 @@ alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
 # sessions
 session = ["cookie/secure"]
 
-# brotli
+# brotli encoding
 brotli = ["brotli2"]
 
 [dependencies]

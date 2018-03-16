@@ -1,15 +1,18 @@
-use std::{io, time};
+use std::{fmt, io, time};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::net::Shutdown;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use std::collections::{HashMap, VecDeque};
 
-use actix::{fut, Actor, ActorFuture, Context,
+use actix::{fut, Actor, ActorFuture, Context, AsyncContext,
             Handler, Message, ActorResponse, Supervised};
 use actix::registry::ArbiterService;
 use actix::fut::WrapFuture;
 use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
 
 use http::{Uri, HttpTryFrom, Error as HttpError};
-use futures::Poll;
+use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature="alpn")]
@@ -104,10 +107,15 @@ pub struct ClientConnector {
     connector: SslConnector,
     #[cfg(all(feature="tls", not(feature="alpn")))]
     connector: TlsConnector,
+    pool: Rc<Pool>,
 }
 
 impl Actor for ClientConnector {
     type Context = Context<ClientConnector>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.collect(ctx);
+    }
 }
 
 impl Supervised for ClientConnector {}
@@ -120,19 +128,21 @@ impl Default for ClientConnector {
         {
             let builder = SslConnector::builder(SslMethod::tls()).unwrap();
             ClientConnector {
-                connector: builder.build()
+                connector: builder.build(),
+                pool: Rc::new(Pool::new()),
             }
         }
         #[cfg(all(feature="tls", not(feature="alpn")))]
         {
             let builder = TlsConnector::builder().unwrap();
             ClientConnector {
-                connector: builder.build().unwrap()
+                connector: builder.build().unwrap(),
+                pool: Rc::new(Pool::new()),
             }
         }
 
         #[cfg(not(any(feature="alpn", feature="tls")))]
-        ClientConnector {}
+        ClientConnector {pool: Rc::new(Pool::new())}
     }
 }
 
@@ -184,6 +194,11 @@ impl ClientConnector {
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
         ClientConnector { connector }
     }
+
+    fn collect(&mut self, ctx: &mut Context<Self>) {
+        self.pool.collect();
+        ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect(ctx));
+    }
 }
 
 impl Handler<Connect> for ClientConnector {
@@ -214,10 +229,21 @@ impl Handler<Connect> for ClientConnector {
 
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
+        let key = Key {host, port, ssl: proto.is_secure()};
+
+        let pool = if proto.is_http() {
+            if let Some(conn) = self.pool.query(&key) {
+                return ActorResponse::async(fut::ok(conn))
+            } else {
+                Some(Rc::clone(&self.pool))
+            }
+        } else {
+            None
+        };
 
         ActorResponse::async(
             Connector::from_registry()
-                .send(ResolveConnect::host_and_port(&host, port)
+                .send(ResolveConnect::host_and_port(&key.host, port)
                       .timeout(conn_timeout))
                 .into_actor(self)
                 .map_err(|_, _, _| ClientConnectorError::Disconnected)
@@ -230,10 +256,12 @@ impl Handler<Connect> for ClientConnector {
                                 fut::Either::A(
                                     _act.connector.connect_async(&host, stream)
                                         .map_err(ClientConnectorError::SslError)
-                                        .map(|stream| Connection{stream: Box::new(stream)})
+                                        .map(|stream| Connection::new(
+                                            key, pool, Box::new(stream)))
                                         .into_actor(_act))
                             } else {
-                                fut::Either::B(fut::ok(Connection{stream: Box::new(stream)}))
+                                fut::Either::B(fut::ok(
+                                    Connection::new(key, pool, Box::new(stream))))
                             }
                         }
                     }
@@ -246,10 +274,12 @@ impl Handler<Connect> for ClientConnector {
                                 fut::Either::A(
                                     _act.connector.connect_async(&host, stream)
                                         .map_err(ClientConnectorError::SslError)
-                                        .map(|stream| Connection{stream: Box::new(stream)})
+                                        .map(|stream| Connection::new(
+                                            key, pool, Box::new(stream)))
                                         .into_actor(_act))
                             } else {
-                                fut::Either::B(fut::ok(Connection{stream: Box::new(stream)}))
+                                fut::Either::B(fut::ok(
+                                    Connection::new(key, pool, Box::new(stream))))
                             }
                         }
                     }
@@ -261,7 +291,7 @@ impl Handler<Connect> for ClientConnector {
                             if proto.is_secure() {
                                 fut::err(ClientConnectorError::SslIsNotSupported)
                             } else {
-                                fut::ok(Connection{stream: Box::new(stream)})
+                                fut::ok(Connection::new(key, pool, Box::new(stream)))
                             }
                         }
                     }
@@ -288,6 +318,13 @@ impl Protocol {
         }
     }
 
+    fn is_http(&self) -> bool {
+        match *self {
+            Protocol::Https | Protocol::Http => true,
+            _ => false,
+        }
+    }
+
     fn is_secure(&self) -> bool {
         match *self {
             Protocol::Https | Protocol::Wss => true,
@@ -303,18 +340,156 @@ impl Protocol {
     }
 }
 
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+struct Key {
+    host: String,
+    port: u16,
+    ssl: bool,
+}
+
+impl Key {
+    fn empty() -> Key {
+        Key{host: String::new(), port: 0, ssl: false}
+    }
+}
+
+#[derive(Debug)]
+struct Conn(Instant, Connection);
+
+pub struct Pool {
+    max_size: usize,
+    keep_alive: Duration,
+    max_lifetime: Duration,
+    pool: RefCell<HashMap<Key, VecDeque<Conn>>>,
+    to_close: RefCell<Vec<Connection>>,
+}
+
+impl Pool {
+    fn new() -> Pool {
+        Pool {
+            max_size: 128,
+            keep_alive: Duration::from_secs(15),
+            max_lifetime: Duration::from_secs(75),
+            pool: RefCell::new(HashMap::new()),
+            to_close: RefCell::new(Vec::new()),
+        }
+    }
+
+    fn collect(&self) {
+        let mut pool = self.pool.borrow_mut();
+        let mut to_close = self.to_close.borrow_mut();
+
+        // check keep-alive
+        let now = Instant::now();
+        for conns in pool.values_mut() {
+            while !conns.is_empty() {
+                if (now - conns[0].0) > self.keep_alive
+                    || (now - conns[0].1.ts) > self.max_lifetime
+                {
+                    let conn = conns.pop_front().unwrap().1;
+                    to_close.push(conn);
+                } else {
+                    break
+                }
+            }
+        }
+
+        // check connections for shutdown
+        let mut idx = 0;
+        while idx < to_close.len() {
+            match AsyncWrite::shutdown(&mut to_close[idx]) {
+                Ok(Async::NotReady) => idx += 1,
+                _ => {
+                    to_close.swap_remove(idx);
+                },
+            }
+        }
+    }
+
+    fn query(&self, key: &Key) -> Option<Connection> {
+        let mut pool = self.pool.borrow_mut();
+        let mut to_close = self.to_close.borrow_mut();
+
+        if let Some(ref mut connections) = pool.get_mut(key) {
+            let now = Instant::now();
+            while let Some(conn) = connections.pop_back() {
+                // check if it still usable
+                if (now - conn.0) > self.keep_alive
+                    || (now - conn.1.ts) > self.max_lifetime
+                {
+                    to_close.push(conn.1);
+                } else {
+                    let mut conn = conn.1;
+                    let mut buf = [0; 2];
+                    match conn.stream().read(&mut buf) {
+                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
+                        Ok(n) if n > 0 => {
+                            to_close.push(conn);
+                            continue
+                        },
+                        Ok(_) | Err(_) => continue,
+                    }
+                    return Some(conn)
+                }
+            }
+        }
+        None
+    }
+
+    fn release(&self, conn: Connection) {
+        if (Instant::now() - conn.ts) < self.max_lifetime {
+            let mut pool = self.pool.borrow_mut();
+            if !pool.contains_key(&conn.key) {
+                let key = conn.key.clone();
+                let mut vec = VecDeque::new();
+                vec.push_back(Conn(Instant::now(), conn));
+                pool.insert(key, vec);
+            } else {
+                let vec = pool.get_mut(&conn.key).unwrap();
+                vec.push_back(Conn(Instant::now(), conn));
+                if vec.len() > self.max_size {
+                    let conn = vec.pop_front().unwrap();
+                    self.to_close.borrow_mut().push(conn.1);
+                }
+            }
+        }
+    }
+}
+
 
 pub struct Connection {
+    key: Key,
     stream: Box<IoStream>,
+    pool: Option<Rc<Pool>>,
+    ts: Instant,
+}
+
+impl fmt::Debug for Connection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Connection {}:{}", self.key.host, self.key.port)
+    }
 }
 
 impl Connection {
+    fn new(key: Key, pool: Option<Rc<Pool>>, stream: Box<IoStream>) -> Self {
+        Connection {
+            key, pool, stream,
+            ts: Instant::now(),
+        }
+    }
+
     pub fn stream(&mut self) -> &mut IoStream {
         &mut *self.stream
     }
 
     pub fn from_stream<T: IoStream>(io: T) -> Connection {
-        Connection{stream: Box::new(io)}
+        Connection::new(Key::empty(), None, Box::new(io))
+    }
+
+    pub fn release(mut self) {
+        if let Some(pool) = self.pool.take() {
+            pool.release(self)
+        }
     }
 }
 
