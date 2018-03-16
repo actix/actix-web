@@ -742,8 +742,8 @@ fn test_h2() {
             })
         })
     });
-    let _res = core.run(tcp);
-    // assert_eq!(_res.unwrap(), Bytes::from_static(STR.as_ref()));
+    let res = core.run(tcp);
+    assert_eq!(res.unwrap(), Bytes::from_static(STR.as_ref()));
 }
 
 #[test]

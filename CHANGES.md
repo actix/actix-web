@@ -1,6 +1,8 @@
 # Changes
 
-## 0.4.9 (2018-03-xx)
+## 0.4.9 (2018-03-16)
+
+* Allow to disable http/2 support
 
 * Wake payload reading task when data is available
 
