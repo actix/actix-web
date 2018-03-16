@@ -204,7 +204,8 @@ impl StreamHandlerType {
                                 } else {
                                     false
                                 };
-                                Arbiter::handle().spawn(HttpChannel::new(h, io, peer, http2));
+                                Arbiter::handle().spawn(
+                                    HttpChannel::new(h, io, peer, http2));
                             },
                             Err(err) =>
                                 trace!("Error during handling tls connection: {}", err),

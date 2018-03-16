@@ -87,9 +87,12 @@ impl TestServer {
             let sys = System::new("actix-test-server");
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
-            let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
+            let tcp = TcpListener::from_listener(
+                tcp, &local_addr, Arbiter::handle()).unwrap();
 
-            HttpServer::new(factory).disable_signals().start_incoming(tcp.incoming(), false);
+            HttpServer::new(factory)
+                .disable_signals()
+                .start_incoming(tcp.incoming(), false);
 
             tx.send((Arbiter::system(), local_addr)).unwrap();
             let _ = sys.run();

@@ -41,6 +41,7 @@ pub struct HttpServer<H> where H: IntoHttpHandler + 'static
     exit: bool,
     shutdown_timeout: u16,
     signals: Option<Addr<Syn, signal::ProcessSignals>>,
+    no_http2: bool,
     no_signals: bool,
 }
 
@@ -89,6 +90,7 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
                     exit: false,
                     shutdown_timeout: 30,
                     signals: None,
+                    no_http2: false,
                     no_signals: false,
         }
     }
@@ -167,6 +169,12 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
     /// By default shutdown timeout sets to 30 seconds.
     pub fn shutdown_timeout(mut self, sec: u16) -> Self {
         self.shutdown_timeout = sec;
+        self
+    }
+
+    /// Disable `HTTP/2` support
+    pub fn no_http2(mut self) -> Self {
+        self.no_http2 = true;
         self
     }
 
@@ -396,15 +404,17 @@ impl<H: IntoHttpHandler> HttpServer<H>
             Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
         } else {
             // alpn support
-            builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
-            builder.set_alpn_select_callback(|_, protos| {
-                const H2: &[u8] = b"\x02h2";
-                if protos.windows(3).any(|window| window == H2) {
-                    Ok(b"h2")
-                } else {
-                    Err(AlpnError::NOACK)
-                }
-            });
+            if !self.no_http2 {
+                builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
+                builder.set_alpn_select_callback(|_, protos| {
+                    const H2: &[u8] = b"\x02h2";
+                    if protos.windows(3).any(|window| window == H2) {
+                        Ok(b"h2")
+                    } else {
+                        Err(AlpnError::NOACK)
+                    }
+                });
+            }
 
             let (tx, rx) = mpsc::unbounded();
             let acceptor = builder.build();
