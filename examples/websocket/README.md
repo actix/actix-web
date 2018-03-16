@@ -1,4 +1,4 @@
-# websockect
+# websocket
 
 Simple echo websocket server.
 
