@@ -522,28 +522,34 @@ impl Reader {
 
             // convert headers
             let msg = settings.get_http_message();
-            for header in headers[..headers_len].iter() {
-                if let Ok(name) = HeaderName::try_from(header.name) {
-                    let v_start = header.value.as_ptr() as usize - bytes_ptr;
-                    let v_end = v_start + header.value.len();
-                    let value = unsafe {
-                        HeaderValue::from_shared_unchecked(slice.slice(v_start, v_end)) };
-                    msg.get_mut().headers.append(name, value);
-                } else {
-                    return Err(ParseError::Header)
+            {
+                let msg_mut = msg.get_mut();
+                for header in headers[..headers_len].iter() {
+                    let n_start = header.name.as_ptr() as usize - bytes_ptr;
+                    let n_end = n_start + header.name.len();
+                    if let Ok(name) = HeaderName::try_from(slice.slice(n_start, n_end)) {
+                        let v_start = header.value.as_ptr() as usize - bytes_ptr;
+                        let v_end = v_start + header.value.len();
+                        let value = unsafe {
+                            HeaderValue::from_shared_unchecked(
+                                slice.slice(v_start, v_end)) };
+                        msg_mut.headers.append(name, value);
+                    } else {
+                        return Err(ParseError::Header)
+                    }
                 }
+
+                msg_mut.uri = Uri::from_shared(
+                    slice.slice(path.0, path.1)).map_err(ParseError::Uri)?;
+                msg_mut.method = method;
+                msg_mut.version = version;
             }
-
-            let path = slice.slice(path.0, path.1);
-            let uri = Uri::from_shared(path).map_err(ParseError::Uri)?;
-
-            msg.get_mut().uri = uri;
-            msg.get_mut().method = method;
-            msg.get_mut().version = version;
             msg
         };
 
-        let decoder = if let Some(len) = msg.get_ref().headers.get(header::CONTENT_LENGTH) {
+        let decoder = if let Some(len) =
+            msg.get_ref().headers.get(header::CONTENT_LENGTH)
+        {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
@@ -570,7 +576,7 @@ impl Reader {
         if let Some(decoder) = decoder {
             let (psender, payload) = Payload::new(false);
             let info = PayloadInfo {
-                tx: PayloadType::new(&msg.get_mut().headers, psender),
+                tx: PayloadType::new(&msg.get_ref().headers, psender),
                 decoder,
             };
             msg.get_mut().payload = Some(payload);

@@ -145,7 +145,9 @@ impl HttpResponseParser {
         // convert headers
         let mut hdrs = HeaderMap::new();
         for header in headers[..headers_len].iter() {
-            if let Ok(name) = HeaderName::try_from(header.name) {
+            let n_start = header.name.as_ptr() as usize - bytes_ptr;
+            let n_end = n_start + header.name.len();
+            if let Ok(name) = HeaderName::try_from(slice.slice(n_start, n_end)) {
                 let v_start = header.value.as_ptr() as usize - bytes_ptr;
                 let v_end = v_start + header.value.len();
                 let value = unsafe {
