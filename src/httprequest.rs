@@ -203,11 +203,10 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn uri(&self) -> &Uri { &self.as_ref().uri }
 
-    #[doc(hidden)]
-    #[inline]
-    /// Modify the Request Uri.
+    /// Returns mutable the Request Uri.
     ///
-    /// This might be useful for middlewares, i.e. path normalization
+    /// This might be useful for middlewares, e.g. path normalization.
+    #[inline]
     pub fn uri_mut(&mut self) -> &mut Uri {
         &mut self.as_mut().uri
     }
@@ -222,7 +221,9 @@ impl<S> HttpRequest<S> {
         self.as_ref().version
     }
 
-    #[doc(hidden)]
+    ///Returns mutable Request's headers.
+    ///
+    ///This is intended to be used by middleware.
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.as_mut().headers
