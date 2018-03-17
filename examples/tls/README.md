@@ -6,7 +6,7 @@
 
 ```bash
 cd actix-web/examples/tls
-cargo run (or ``cargo watch -x run``)
+cargo run (or see examples/catflap for rebuilding and redeploying on file change)
 # Started http server: 127.0.0.1:8443
 ```
 
