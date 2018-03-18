@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::slice::Iter;
 use std::borrow::Cow;
+use http::StatusCode;
 use smallvec::SmallVec;
 
-use error::{ResponseError, UriSegmentError, InternalError, ErrorBadRequest};
+use error::{ResponseError, UriSegmentError, InternalError};
 
 
 /// A trait to abstract the idea of creating a new instance of a type from a path parameter.
@@ -144,7 +145,8 @@ macro_rules! FROM_STR {
             type Err = InternalError<<$type as FromStr>::Err>;
 
             fn from_param(val: &str) -> Result<Self, Self::Err> {
-                <$type as FromStr>::from_str(val).map_err(ErrorBadRequest)
+                <$type as FromStr>::from_str(val)
+                    .map_err(|e| InternalError::new(e, StatusCode::BAD_REQUEST))
             }
         }
     }

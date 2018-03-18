@@ -191,7 +191,7 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
         if self.inner.alive() {
             match self.inner.poll(ctx) {
                 Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
-                Err(_) => return Err(ErrorInternalServerError("error").into()),
+                Err(_) => return Err(ErrorInternalServerError("error")),
             }
         }
 

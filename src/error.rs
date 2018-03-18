@@ -575,68 +575,91 @@ impl<T> Responder for InternalError<T>
 
 /// Helper function that creates wrapper of any error and generate *BAD REQUEST* response.
 #[allow(non_snake_case)]
-pub fn ErrorBadRequest<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::BAD_REQUEST)
+pub fn ErrorBadRequest<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::BAD_REQUEST).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *UNAUTHORIZED* response.
 #[allow(non_snake_case)]
-pub fn ErrorUnauthorized<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::UNAUTHORIZED)
+pub fn ErrorUnauthorized<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::UNAUTHORIZED).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *FORBIDDEN* response.
 #[allow(non_snake_case)]
-pub fn ErrorForbidden<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::FORBIDDEN)
+pub fn ErrorForbidden<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::FORBIDDEN).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *NOT FOUND* response.
 #[allow(non_snake_case)]
-pub fn ErrorNotFound<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::NOT_FOUND)
+pub fn ErrorNotFound<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::NOT_FOUND).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *METHOD NOT ALLOWED* response.
 #[allow(non_snake_case)]
-pub fn ErrorMethodNotAllowed<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED)
+pub fn ErrorMethodNotAllowed<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *REQUEST TIMEOUT* response.
 #[allow(non_snake_case)]
-pub fn ErrorRequestTimeout<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::REQUEST_TIMEOUT)
+pub fn ErrorRequestTimeout<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::REQUEST_TIMEOUT).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *CONFLICT* response.
 #[allow(non_snake_case)]
-pub fn ErrorConflict<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::CONFLICT)
+pub fn ErrorConflict<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::CONFLICT).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *GONE* response.
 #[allow(non_snake_case)]
-pub fn ErrorGone<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::GONE)
+pub fn ErrorGone<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::GONE).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *PRECONDITION FAILED* response.
 #[allow(non_snake_case)]
-pub fn ErrorPreconditionFailed<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::PRECONDITION_FAILED)
+pub fn ErrorPreconditionFailed<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::PRECONDITION_FAILED).into()
 }
 
 ///  Helper function that creates wrapper of any error and generate *EXPECTATION FAILED* response.
 #[allow(non_snake_case)]
-pub fn ErrorExpectationFailed<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::EXPECTATION_FAILED)
+pub fn ErrorExpectationFailed<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
 }
 
-///  Helper function that creates wrapper of any error and generate *INTERNAL SERVER ERROR* response.
+/// Helper function that creates wrapper of any error and
+/// generate *INTERNAL SERVER ERROR* response.
 #[allow(non_snake_case)]
-pub fn ErrorInternalServerError<T>(err: T) -> InternalError<T> {
-    InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR)
+pub fn ErrorInternalServerError<T>(err: T) -> Error
+    where T: Send + Sync + fmt::Debug + 'static
+{
+    InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }
 
 #[cfg(test)]

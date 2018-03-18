@@ -205,7 +205,7 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
         };
 
         if self.inner.alive() && self.inner.poll(ctx).is_err() {
-            return Err(ErrorInternalServerError("error").into())
+            return Err(ErrorInternalServerError("error"))
         }
 
         // frames

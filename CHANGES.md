@@ -2,7 +2,7 @@
 
 ## 0.4.10 (2018-03-xx)
 
-..
+* Use `Error` instead of `InternalError` for `error::ErrorXXXX` methods
 
 
 ## 0.4.9 (2018-03-16)
