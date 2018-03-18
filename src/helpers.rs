@@ -1,70 +1,12 @@
-use std::{str, mem, ptr, slice};
+use std::{mem, ptr, slice};
 use std::cell::RefCell;
-use std::fmt::{self, Write};
 use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
-use time;
 use bytes::{BufMut, BytesMut};
 use http::Version;
 
 use httprequest::HttpInnerMessage;
-
-// "Sun, 06 Nov 1994 08:49:37 GMT".len()
-pub(crate) const DATE_VALUE_LENGTH: usize = 29;
-
-pub(crate) fn date(dst: &mut BytesMut) {
-    CACHED.with(|cache| {
-        let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
-        buf[..6].copy_from_slice(b"date: ");
-        buf[6..35].copy_from_slice(cache.borrow().buffer());
-        buf[35..].copy_from_slice(b"\r\n\r\n");
-        dst.extend_from_slice(&buf);
-    })
-}
-
-pub(crate) fn date_value(dst: &mut BytesMut) {
-    CACHED.with(|cache| {
-        dst.extend_from_slice(cache.borrow().buffer());
-    })
-}
-
-pub(crate) fn update_date() {
-    CACHED.with(|cache| {
-        cache.borrow_mut().update();
-    });
-}
-
-struct CachedDate {
-    bytes: [u8; DATE_VALUE_LENGTH],
-    pos: usize,
-}
-
-thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate {
-    bytes: [0; DATE_VALUE_LENGTH],
-    pos: 0,
-}));
-
-impl CachedDate {
-    fn buffer(&self) -> &[u8] {
-        &self.bytes[..]
-    }
-
-    fn update(&mut self) {
-        self.pos = 0;
-        write!(self, "{}", time::at_utc(time::get_time()).rfc822()).unwrap();
-        assert_eq!(self.pos, DATE_VALUE_LENGTH);
-    }
-}
-
-impl fmt::Write for CachedDate {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let len = s.len();
-        self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
-        self.pos += len;
-        Ok(())
-    }
-}
 
 /// Internal use only! unsafe
 pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpInnerMessage>>>);
@@ -202,7 +144,7 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
         }
     }
 
-    bytes.extend_from_slice(&buf);
+    bytes.put_slice(&buf);
     if four {
         bytes.put(b' ');
     }
@@ -214,7 +156,7 @@ pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
                                  b'n',b't',b'-',b'l',b'e',b'n',b'g',
                                  b't',b'h',b':',b' ',b'0',b'\r',b'\n'];
         buf[18] = (n as u8) + b'0';
-        bytes.extend_from_slice(&buf);
+        bytes.put_slice(&buf);
     } else if n < 100 {
         let mut buf: [u8; 22] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
                                  b'n',b't',b'-',b'l',b'e',b'n',b'g',
@@ -224,7 +166,7 @@ pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
             ptr::copy_nonoverlapping(
                 DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(18), 2);
         }
-        bytes.extend_from_slice(&buf);
+        bytes.put_slice(&buf);
     } else if n < 1000 {
         let mut buf: [u8; 23] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
                                  b'n',b't',b'-',b'l',b'e',b'n',b'g',
@@ -238,9 +180,9 @@ pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
         // decode last 1
         buf[18] = (n as u8) + b'0';
 
-        bytes.extend_from_slice(&buf);
+        bytes.put_slice(&buf);
     } else {
-        bytes.extend_from_slice(b"\r\ncontent-length: ");
+        bytes.put_slice(b"\r\ncontent-length: ");
         convert_usize(n, bytes);
     }
 }
@@ -298,20 +240,6 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_date_len() {
-        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
-    }
-
-    #[test]
-    fn test_date() {
-        let mut buf1 = BytesMut::new();
-        date(&mut buf1);
-        let mut buf2 = BytesMut::new();
-        date(&mut buf2);
-        assert_eq!(buf1, buf2);
-    }
 
     #[test]
     fn test_write_content_length() {

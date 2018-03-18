@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
 use std::{io, cmp};
+use std::rc::Rc;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::{Reason, SendStream};
@@ -15,6 +16,7 @@ use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use super::encoding::ContentEncoder;
 use super::shared::SharedBytes;
+use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const CHUNK_SIZE: usize = 16_384;
@@ -28,7 +30,7 @@ bitflags! {
     }
 }
 
-pub(crate) struct H2Writer {
+pub(crate) struct H2Writer<H: 'static> {
     respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
     encoder: ContentEncoder,
@@ -36,13 +38,17 @@ pub(crate) struct H2Writer {
     written: u64,
     buffer: SharedBytes,
     buffer_capacity: usize,
+    settings: Rc<WorkerSettings<H>>,
 }
 
-impl H2Writer {
+impl<H: 'static> H2Writer<H> {
 
-    pub fn new(respond: SendResponse<Bytes>, buf: SharedBytes) -> H2Writer {
+    pub fn new(respond: SendResponse<Bytes>,
+               buf: SharedBytes, settings: Rc<WorkerSettings<H>>) -> H2Writer<H>
+    {
         H2Writer {
             respond,
+            settings,
             stream: None,
             encoder: ContentEncoder::empty(buf.clone()),
             flags: Flags::empty(),
@@ -59,7 +65,7 @@ impl H2Writer {
     }
 }
 
-impl Writer for H2Writer {
+impl<H: 'static> Writer for H2Writer<H> {
 
     fn written(&self) -> u64 {
         self.written
@@ -84,7 +90,7 @@ impl Writer for H2Writer {
         // using helpers::date is quite a lot faster
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
-            helpers::date_value(&mut bytes);
+            self.settings.set_date(&mut bytes);
             msg.headers_mut().insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
         }
 
@@ -95,7 +101,8 @@ impl Writer for H2Writer {
                 helpers::convert_usize(bytes.len(), &mut val);
                 let l = val.len();
                 msg.headers_mut().insert(
-                    CONTENT_LENGTH, HeaderValue::try_from(val.split_to(l-2).freeze()).unwrap());
+                    CONTENT_LENGTH,
+                    HeaderValue::try_from(val.split_to(l-2).freeze()).unwrap());
             }
             Body::Empty => {
                 msg.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));

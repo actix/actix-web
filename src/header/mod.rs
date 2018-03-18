@@ -149,6 +149,8 @@ impl ContentEncoding {
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
     }
+
+    #[inline]
     /// default quality value
     pub fn quality(&self) -> f64 {
         match *self {

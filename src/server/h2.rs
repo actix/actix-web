@@ -43,7 +43,7 @@ struct Http2<T, H>
     settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
-    tasks: VecDeque<Entry>,
+    tasks: VecDeque<Entry<H>>,
     keepalive_timer: Option<Timeout>,
 }
 
@@ -274,20 +274,20 @@ bitflags! {
     }
 }
 
-struct Entry {
+struct Entry<H: 'static> {
     task: Box<HttpHandlerTask>,
     payload: PayloadType,
     recv: RecvStream,
-    stream: H2Writer,
+    stream: H2Writer<H>,
     flags: EntryFlags,
 }
 
-impl Entry {
-    fn new<H>(parts: Parts,
-              recv: RecvStream,
-              resp: SendResponse<Bytes>,
-              addr: Option<SocketAddr>,
-              settings: &Rc<WorkerSettings<H>>) -> Entry
+impl<H: 'static> Entry<H> {
+    fn new(parts: Parts,
+           recv: RecvStream,
+           resp: SendResponse<Bytes>,
+           addr: Option<SocketAddr>,
+           settings: &Rc<WorkerSettings<H>>) -> Entry<H>
         where H: HttpHandler + 'static
     {
         // Payload and Content-Encoding
@@ -320,7 +320,8 @@ impl Entry {
 
         Entry {task: task.unwrap_or_else(|| Pipeline::error(HttpNotFound)),
                payload: psender,
-               stream: H2Writer::new(resp, settings.get_shared_bytes()),
+               stream: H2Writer::new(
+                   resp, settings.get_shared_bytes(), Rc::clone(settings)),
                flags: EntryFlags::empty(),
                recv,
         }

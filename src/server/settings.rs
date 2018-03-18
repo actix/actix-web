@@ -1,7 +1,10 @@
-use std::{fmt, net};
+use std::{fmt, mem, net};
+use std::fmt::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
+use time;
+use bytes::BytesMut;
 use futures_cpupool::{Builder, CpuPool};
 
 use helpers;
@@ -95,6 +98,8 @@ impl ServerSettings {
     }
 }
 
+// "Sun, 06 Nov 1994 08:49:37 GMT".len()
+const DATE_VALUE_LENGTH: usize = 29;
 
 pub(crate) struct WorkerSettings<H> {
     h: RefCell<Vec<H>>,
@@ -104,6 +109,7 @@ pub(crate) struct WorkerSettings<H> {
     messages: Rc<helpers::SharedMessagePool>,
     channels: Cell<usize>,
     node: Box<Node<()>>,
+    date: UnsafeCell<Date>,
 }
 
 impl<H> WorkerSettings<H> {
@@ -121,6 +127,7 @@ impl<H> WorkerSettings<H> {
             messages: Rc::new(helpers::SharedMessagePool::new()),
             channels: Cell::new(0),
             node: Box::new(Node::head()),
+            date: UnsafeCell::new(Date::new()),
         }
     }
 
@@ -163,5 +170,64 @@ impl<H> WorkerSettings<H> {
         } else {
             error!("Number of removed channels is bigger than added channel. Bug in actix-web");
         }
+    }
+
+    pub fn update_date(&self) {
+        unsafe{&mut *self.date.get()}.update();
+    }
+
+    pub fn set_date(&self, dst: &mut BytesMut) {
+        let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
+        buf[..6].copy_from_slice(b"date: ");
+        buf[6..35].copy_from_slice(&(unsafe{&*self.date.get()}.bytes));
+        buf[35..].copy_from_slice(b"\r\n\r\n");
+        dst.extend_from_slice(&buf);
+    }
+}
+
+struct Date {
+    bytes: [u8; DATE_VALUE_LENGTH],
+    pos: usize,
+}
+
+impl Date {
+    fn new() -> Date {
+        let mut date = Date{bytes: [0; DATE_VALUE_LENGTH], pos: 0};
+        date.update();
+        date
+    }
+    fn update(&mut self) {
+        self.pos = 0;
+        write!(self, "{}", time::at_utc(time::get_time()).rfc822()).unwrap();
+    }
+}
+
+impl fmt::Write for Date {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let len = s.len();
+        self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
+        self.pos += len;
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_date_len() {
+        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
+    }
+
+    #[test]
+    fn test_date() {
+        let settings = WorkerSettings::<()>::new(Vec::new(), KeepAlive::Os);
+        let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf1);
+        let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf2);
+        assert_eq!(buf1, buf2);
     }
 }

@@ -22,7 +22,6 @@ use tokio_openssl::SslAcceptorExt;
 use actix::*;
 use actix::msgs::StopArbiter;
 
-use helpers;
 use server::{HttpHandler, KeepAlive};
 use server::channel::HttpChannel;
 use server::settings::WorkerSettings;
@@ -76,7 +75,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
     }
 
     fn update_time(&self, ctx: &mut Context<Self>) {
-        helpers::update_date();
+        self.settings.update_date();
         ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 

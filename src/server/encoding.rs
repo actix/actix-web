@@ -368,6 +368,7 @@ impl ContentEncoder {
                       response_encoding: ContentEncoding) -> ContentEncoder
     {
         let version = resp.version().unwrap_or_else(|| req.version);
+        let is_head = req.method == Method::HEAD;
         let mut body = resp.replace_body(Body::Empty);
         let has_body = match body {
             Body::Empty => false,
@@ -410,7 +411,9 @@ impl ContentEncoder {
                 TransferEncoding::length(0, buf)
             },
             Body::Binary(ref mut bytes) => {
-                if encoding.is_compression() {
+                if !(encoding == ContentEncoding::Identity
+                     || encoding == ContentEncoding::Auto)
+                {
                     let tmp = SharedBytes::default();
                     let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
@@ -431,13 +434,13 @@ impl ContentEncoder {
                     *bytes = Binary::from(tmp.take());
                     encoding = ContentEncoding::Identity;
                 }
-                if req.method == Method::HEAD {
+                if is_head {
                     let mut b = BytesMut::new();
                     let _ = write!(b, "{}", bytes.len());
                     resp.headers_mut().insert(
                         CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
                 } else {
-                    resp.headers_mut().remove(CONTENT_LENGTH);
+                    // resp.headers_mut().remove(CONTENT_LENGTH);
                 }
                 TransferEncoding::eof(buf)
             }
@@ -460,7 +463,7 @@ impl ContentEncoder {
             }
         };
         //
-        if req.method == Method::HEAD {
+        if is_head {
             transfer.kind = TransferEncodingKind::Length(0);
         } else {
             resp.replace_body(body);

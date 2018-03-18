@@ -18,7 +18,6 @@ use native_tls::TlsAcceptor;
 #[cfg(feature="alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
-use helpers;
 use super::{IntoHttpHandler, IoStream, KeepAlive};
 use super::{PauseServer, ResumeServer, StopServer};
 use super::channel::{HttpChannel, WrapperStream};
@@ -58,13 +57,8 @@ enum ServerCommand {
     WorkerDied(usize, Info),
 }
 
-impl<H> Actor for HttpServer<H> where H: IntoHttpHandler
-{
+impl<H> Actor for HttpServer<H> where H: IntoHttpHandler {
     type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.update_time(ctx);
-    }
 }
 
 impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
@@ -93,11 +87,6 @@ impl<H> HttpServer<H> where H: IntoHttpHandler + 'static
                     no_http2: false,
                     no_signals: false,
         }
-    }
-
-    fn update_time(&self, ctx: &mut Context<Self>) {
-        helpers::update_date();
-        ctx.run_later(Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 
     /// Set number of workers to start.

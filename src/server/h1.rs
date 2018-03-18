@@ -51,7 +51,7 @@ pub(crate) struct Http1<T: IoStream, H: 'static> {
     flags: Flags,
     settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
-    stream: H1Writer<T>,
+    stream: H1Writer<T, H>,
     reader: Reader,
     read_buf: BytesMut,
     tasks: VecDeque<Entry>,
@@ -72,7 +72,7 @@ impl<T, H> Http1<T, H>
     {
         let bytes = settings.get_shared_bytes();
         Http1{ flags: Flags::KEEPALIVE,
-               stream: H1Writer::new(stream, bytes),
+               stream: H1Writer::new(stream, bytes, Rc::clone(&settings)),
                reader: Reader::new(),
                tasks: VecDeque::new(),
                keepalive_timer: None,
@@ -353,7 +353,7 @@ impl Reader {
             PayloadStatus::Read
         }
     }
-    
+
     #[inline]
     fn decode(&mut self, buf: &mut BytesMut, payload: &mut PayloadInfo)
               -> Result<Decoding, ReaderError>
@@ -502,10 +502,12 @@ impl Reader {
                     httparse::Status::Complete(len) => {
                         let method = Method::try_from(req.method.unwrap())
                             .map_err(|_| ParseError::Method)?;
-                        let path = req.path.unwrap();
-                        let path_start = path.as_ptr() as usize - bytes_ptr;
-                        let path_end = path_start + path.len();
-                        let path = (path_start, path_end);
+                        //let path = req.path.unwrap();
+                        //let path_start = path.as_ptr() as usize - bytes_ptr;
+                        //let path_end = path_start + path.len();
+                        //let path = (path_start, path_end);
+                        let path = Uri::try_from(req.path.unwrap()).unwrap();
+                            //.map_err(|_| ParseError::Uri)?;
 
                         let version = if req.version.unwrap() == 1 {
                             Version::HTTP_11
@@ -525,9 +527,7 @@ impl Reader {
             {
                 let msg_mut = msg.get_mut();
                 for header in headers[..headers_len].iter() {
-                    let n_start = header.name.as_ptr() as usize - bytes_ptr;
-                    let n_end = n_start + header.name.len();
-                    if let Ok(name) = HeaderName::try_from(slice.slice(n_start, n_end)) {
+                    if let Ok(name) = HeaderName::try_from(header.name) {
                         let v_start = header.value.as_ptr() as usize - bytes_ptr;
                         let v_end = v_start + header.value.len();
                         let value = unsafe {
@@ -539,8 +539,9 @@ impl Reader {
                     }
                 }
 
-                msg_mut.uri = Uri::from_shared(
-                    slice.slice(path.0, path.1)).map_err(ParseError::Uri)?;
+                msg_mut.uri = path;
+                //msg_mut.uri = Uri::from_shared(
+                //slice.slice(path.0, path.1)).map_err(ParseError::Uri)?;
                 msg_mut.method = method;
                 msg_mut.version = version;
             }

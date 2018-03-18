@@ -1,11 +1,12 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
 use std::{io, mem};
+use std::rc::Rc;
 use bytes::BufMut;
 use futures::{Async, Poll};
 use tokio_io::AsyncWrite;
 use http::{Method, Version};
-use http::header::{HeaderValue, CONNECTION, DATE};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
 
 use helpers;
 use body::{Body, Binary};
@@ -15,6 +16,7 @@ use httpresponse::HttpResponse;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use super::shared::SharedBytes;
 use super::encoding::ContentEncoder;
+use super::settings::WorkerSettings;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
@@ -27,7 +29,7 @@ bitflags! {
     }
 }
 
-pub(crate) struct H1Writer<T: AsyncWrite> {
+pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     flags: Flags,
     stream: T,
     encoder: ContentEncoder,
@@ -35,11 +37,14 @@ pub(crate) struct H1Writer<T: AsyncWrite> {
     headers_size: u32,
     buffer: SharedBytes,
     buffer_capacity: usize,
+    settings: Rc<WorkerSettings<H>>,
 }
 
-impl<T: AsyncWrite> H1Writer<T> {
+impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
 
-    pub fn new(stream: T, buf: SharedBytes) -> H1Writer<T> {
+    pub fn new(stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>)
+               -> H1Writer<T, H>
+    {
         H1Writer {
             flags: Flags::empty(),
             encoder: ContentEncoder::empty(buf.clone()),
@@ -48,6 +53,7 @@ impl<T: AsyncWrite> H1Writer<T> {
             buffer: buf,
             buffer_capacity: 0,
             stream,
+            settings,
         }
     }
 
@@ -87,7 +93,7 @@ impl<T: AsyncWrite> H1Writer<T> {
     }
 }
 
-impl<T: AsyncWrite> Writer for H1Writer<T> {
+impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn written(&self) -> u64 {
@@ -126,11 +132,14 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
         // render message
         {
             let mut buffer = self.buffer.get_mut();
-            if let Body::Binary(ref bytes) = body {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+            let mut is_bin = if let Body::Binary(ref bytes) = body {
+                buffer.reserve(
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                true
             } else {
                 buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
-            }
+                false
+            };
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
@@ -139,21 +148,28 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             match body {
                 Body::Empty =>
                     if req.method != Method::HEAD {
-                        SharedBytes::extend_from_slice_(buffer, b"\r\ncontent-length: 0\r\n");
+                        SharedBytes::put_slice(
+                            buffer, b"\r\ncontent-length: 0\r\n");
                     } else {
-                        SharedBytes::extend_from_slice_(buffer, b"\r\n");
+                        SharedBytes::put_slice(buffer, b"\r\n");
                     },
                 Body::Binary(ref bytes) =>
                     helpers::write_content_length(bytes.len(), &mut buffer),
                 _ =>
-                    SharedBytes::extend_from_slice_(buffer, b"\r\n"),
+                    SharedBytes::put_slice(buffer, b"\r\n"),
             }
 
             // write headers
             let mut pos = 0;
+            let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
             let mut buf: &mut [u8] = unsafe{ mem::transmute(buffer.bytes_mut()) };
             for (key, value) in msg.headers() {
+                if is_bin && key == CONTENT_LENGTH {
+                    is_bin = false;
+                    continue
+                }
+                has_date = has_date || key == DATE;
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
                 let len = k.len() + v.len() + 4;
@@ -182,9 +198,9 @@ impl<T: AsyncWrite> Writer for H1Writer<T> {
             }
             unsafe{buffer.advance_mut(pos)};
 
-            // using helpers::date is quite a lot faster
-            if !msg.headers().contains_key(DATE) {
-                helpers::date(&mut buffer);
+            // optimized date header
+            if !has_date {
+                self.settings.set_date(&mut buffer);
             } else {
                 // msg eof
                 SharedBytes::extend_from_slice_(buffer, b"\r\n");
