@@ -124,7 +124,8 @@ fn main() {
                 }
             }))
             .resource("/error.html", |r| r.f(|req| {
-                error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "test"))
+                error::InternalError::new(
+                    io::Error::new(io::ErrorKind::Other, "test"), StatusCode::OK)
             }))
             // static files
             .handler("/static/", fs::StaticFiles::new("../static/", true))
