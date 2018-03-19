@@ -227,9 +227,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 // shortcut for upgraded connection
                 if self.flags.contains(Flags::UPGRADE) {
                     if self.buffer.is_empty() {
-                        let n = self.write_data(payload.as_ref())?;
-                        if payload.len() < n {
-                            self.buffer.extend_from_slice(&payload.as_ref()[n..]);
+                        let pl: &[u8] = payload.as_ref();
+                        let n = self.write_data(pl)?;
+                        if pl.len() < n {
+                            self.buffer.extend_from_slice(&pl[n..]);
                             return Ok(WriterState::Done);
                         }
                     } else {

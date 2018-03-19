@@ -3,9 +3,11 @@ extern crate actix_web;
 extern crate futures;
 extern crate http;
 extern crate bytes;
+extern crate rand;
 
 use bytes::Bytes;
 use futures::Stream;
+use rand::Rng;
 
 use actix_web::*;
 use actix::prelude::*;
@@ -50,4 +52,42 @@ fn test_simple() {
     writer.close(ws::CloseCode::Normal, "");
     let (item, _) = srv.execute(reader.into_future()).unwrap();
     assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Normal)));
+}
+
+#[test]
+fn test_large_text() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(65_536)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(
+        |app| app.handler(|req| ws::start(req, Ws)));
+    let (mut reader, mut writer) = srv.ws().unwrap();
+
+    for _ in 0..100 {
+        writer.text(data.clone());
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, Some(ws::Message::Text(data.clone())));
+    }
+}
+
+#[test]
+fn test_large_bin() {
+    let data = rand::thread_rng()
+        .gen_ascii_chars()
+        .take(65_536)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(
+        |app| app.handler(|req| ws::start(req, Ws)));
+    let (mut reader, mut writer) = srv.ws().unwrap();
+
+    for _ in 0..100 {
+        writer.binary(data.clone());
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
+    }
 }

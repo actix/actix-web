@@ -238,7 +238,7 @@ impl AsRef<[u8]> for Binary {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         match *self {
-            Binary::Bytes(ref bytes) => &bytes[..],
+            Binary::Bytes(ref bytes) => bytes.as_ref(),
             Binary::Slice(slice) => slice,
             Binary::SharedString(ref s) => s.as_bytes(),
             Binary::ArcSharedString(ref s) => s.as_bytes(),
