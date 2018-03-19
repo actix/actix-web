@@ -557,8 +557,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                 Ok(result) => res = Some(result),
                                             }
                                         },
-                                        Frame::Drain(fut) =>
-                                            self.drain = Some(fut),
+                                        Frame::Drain(fut) => self.drain = Some(fut),
                                     }
                                 }
                                 self.iostate = IOState::Actor(ctx);

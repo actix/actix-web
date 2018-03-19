@@ -241,7 +241,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     self.encoder.write(payload)?;
                 }
             } else {
-                // might be response to EXCEPT
+                // could be response to EXCEPT header
                 self.buffer.extend_from_slice(payload.as_ref())
             }
         }

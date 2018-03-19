@@ -42,7 +42,7 @@ session = ["cookie/secure"]
 brotli = ["brotli2"]
 
 [dependencies]
-actix = "^0.5.4"
+actix = "^0.5.5"
 
 base64 = "0.9"
 bitflags = "1.0"

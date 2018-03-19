@@ -456,14 +456,12 @@ impl Stream for ClientReader {
             Ok(Async::Ready(Some(frame))) => {
                 let (finished, opcode, payload) = frame.unpack();
 
-                // continuation is not supported
-                if !finished {
-                    inner.closed = true;
-                    return Err(ProtocolError::NoContinuation)
-                }
-
                 match opcode {
-                    OpCode::Continue => unimplemented!(),
+                    // continuation is not supported
+                    OpCode::Continue => {
+                        inner.closed = true;
+                        return Err(ProtocolError::NoContinuation)
+                    },
                     OpCode::Bad => {
                         inner.closed = true;
                         Err(ProtocolError::BadOpCode)
