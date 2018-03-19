@@ -209,6 +209,15 @@ impl Client {
         self
     }
 
+    /// Set websocket handshake timeout
+    ///
+    /// Handshake timeout is a total time for successful handshake.
+    /// Default value is 5 seconds.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.request.timeout(timeout);
+        self
+    }
+
     /// Connect to websocket server and do ws handshake
     pub fn connect(&mut self) -> ClientHandshake {
         if let Some(e) = self.err.take() {

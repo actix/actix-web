@@ -1,6 +1,7 @@
 use std::{fmt, mem};
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
+use std::time::Duration;
 
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
@@ -26,6 +27,7 @@ pub struct ClientRequest {
     body: Body,
     chunked: bool,
     upgrade: bool,
+    timeout: Option<Duration>,
     encoding: ContentEncoding,
     response_decompress: bool,
     buffer_capacity: usize,
@@ -49,6 +51,7 @@ impl Default for ClientRequest {
             body: Body::Empty,
             chunked: false,
             upgrade: false,
+            timeout: None,
             encoding: ContentEncoding::Auto,
             response_decompress: true,
             buffer_capacity: 32_768,
@@ -204,10 +207,16 @@ impl ClientRequest {
     ///
     /// This method returns future that resolves to a ClientResponse
     pub fn send(mut self) -> SendRequest {
-        match mem::replace(&mut self.conn, ConnectionType::Default) {
+        let timeout = self.timeout.take();
+        let send = match mem::replace(&mut self.conn, ConnectionType::Default) {
             ConnectionType::Default => SendRequest::new(self),
             ConnectionType::Connector(conn) => SendRequest::with_connector(self, conn),
             ConnectionType::Connection(conn) => SendRequest::with_connection(self, conn),
+        };
+        if let Some(timeout) = timeout {
+            send.timeout(timeout)
+        } else {
+            send
         }
     }
 }
@@ -472,6 +481,17 @@ impl ClientRequestBuilder {
     pub fn write_buffer_capacity(&mut self, cap: usize) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.buffer_capacity = cap;
+        }
+        self
+    }
+
+    /// Set request timeout
+    ///
+    /// Request timeout is a total time before response should be received.
+    /// Default value is 5 seconds.
+    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.timeout = Some(timeout);
         }
         self
     }

@@ -4,6 +4,10 @@
 
 * Use `Error` instead of `InternalError` for `error::ErrorXXXX` methods
 
+* Allow to set client request timeout
+
+* Allow to set client websocket handshake timeout
+
 
 ## 0.4.9 (2018-03-16)
 
