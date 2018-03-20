@@ -8,6 +8,8 @@
 
 * Allow to set client websocket handshake timeout
 
+* Fix server websockets big payloads support
+
 
 ## 0.4.9 (2018-03-16)
 

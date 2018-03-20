@@ -93,7 +93,8 @@ fn test_large_bin() {
 }
 
 struct Ws2 {
-    count: usize
+    count: usize,
+    bin: bool,
 }
 
 impl Actor for Ws2 {
@@ -106,10 +107,14 @@ impl Actor for Ws2 {
 
 impl Ws2 {
     fn send(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.text("0".repeat(65_536));
+        if self.bin {
+            ctx.binary(Vec::from("0".repeat(65_536)));
+        } else {
+            ctx.text("0".repeat(65_536));
+        }
         ctx.drain().and_then(|_, act, ctx| {
             act.count += 1;
-            if act.count != 100 {
+            if act.count != 10_000 {
                 act.send(ctx);
             }
             actix::fut::ok(())
@@ -135,10 +140,25 @@ fn test_server_send_text() {
     let data = Some(ws::Message::Text("0".repeat(65_536)));
 
     let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws2{count:0})));
+        |app| app.handler(|req| ws::start(req, Ws2{count:0, bin: false})));
     let (mut reader, _writer) = srv.ws().unwrap();
 
-    for _ in 0..100 {
+    for _ in 0..10_000 {
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, data);
+    }
+}
+
+#[test]
+fn test_server_send_bin() {
+    let data = Some(ws::Message::Binary(Binary::from("0".repeat(65_536))));
+
+    let mut srv = test::TestServer::new(
+        |app| app.handler(|req| ws::start(req, Ws2{count:0, bin: true})));
+    let (mut reader, _writer) = srv.ws().unwrap();
+
+    for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, data);

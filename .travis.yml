@@ -12,9 +12,6 @@ matrix:
     - rust: stable
     - rust: beta
     - rust: nightly
-  allow_failures:
-    - rust: nightly
-    - rust: beta
 
 #rust:
 #  - 1.21.0

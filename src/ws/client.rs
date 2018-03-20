@@ -454,13 +454,13 @@ impl Stream for ClientReader {
         // read
         match Frame::parse(&mut inner.rx, false, max_size) {
             Ok(Async::Ready(Some(frame))) => {
-                let (finished, opcode, payload) = frame.unpack();
+                let (_finished, opcode, payload) = frame.unpack();
 
                 match opcode {
                     // continuation is not supported
                     OpCode::Continue => {
                         inner.closed = true;
-                        return Err(ProtocolError::NoContinuation)
+                        Err(ProtocolError::NoContinuation)
                     },
                     OpCode::Bad => {
                         inner.closed = true;

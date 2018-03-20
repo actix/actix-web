@@ -82,7 +82,9 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
                     self.disconnected();
                     return Err(io::Error::new(io::ErrorKind::WriteZero, ""))
                 },
-                Ok(n) => written += n,
+                Ok(n) => {
+                    written += n;
+                },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     return Ok(written)
                 }
@@ -229,7 +231,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     if self.buffer.is_empty() {
                         let pl: &[u8] = payload.as_ref();
                         let n = self.write_data(pl)?;
-                        if pl.len() < n {
+                        if n < pl.len() {
                             self.buffer.extend_from_slice(&pl[n..]);
                             return Ok(WriterState::Done);
                         }

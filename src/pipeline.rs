@@ -453,167 +453,171 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     fn poll_io(mut self, io: &mut Writer, info: &mut PipelineInfo<S>)
                -> Result<PipelineState<S, H>, PipelineState<S, H>>
     {
-        if self.drain.is_none() && self.running != RunningState::Paused {
-            // if task is paused, write buffer is probably full
-            'outter: loop {
-                let result = match mem::replace(&mut self.iostate, IOState::Done) {
-                    IOState::Response => {
-                        let encoding = self.resp.content_encoding().unwrap_or(info.encoding);
+        loop {
+            if self.drain.is_none() && self.running != RunningState::Paused {
+                // if task is paused, write buffer is probably full
+                'inner: loop {
+                    let result = match mem::replace(&mut self.iostate, IOState::Done) {
+                        IOState::Response => {
+                            let encoding = self.resp.content_encoding().unwrap_or(info.encoding);
 
-                        let result = match io.start(info.req_mut().get_inner(),
-                                                    &mut self.resp, encoding)
-                        {
-                            Ok(res) => res,
-                            Err(err) => {
-                                info.error = Some(err.into());
-                                return Ok(FinishingMiddlewares::init(info, self.resp))
-                            }
-                        };
-
-                        if let Some(err) = self.resp.error() {
-                            if self.resp.status().is_server_error() {
-                                error!("Error occured during request handling: {}", err);
-                            } else {
-                                warn!("Error occured during request handling: {}", err);
-                            }
-                            if log_enabled!(Debug) {
-                                debug!("{:?}", err);
-                            }
-                        }
-
-                        // always poll stream or actor for the first time
-                        match self.resp.replace_body(Body::Empty) {
-                            Body::Streaming(stream) => {
-                                self.iostate = IOState::Payload(stream);
-                                continue
-                            },
-                            Body::Actor(ctx) => {
-                                self.iostate = IOState::Actor(ctx);
-                                continue
-                            },
-                            _ => (),
-                        }
-
-                        result
-                    },
-                    IOState::Payload(mut body) => {
-                        match body.poll() {
-                            Ok(Async::Ready(None)) => {
-                                if let Err(err) = io.write_eof() {
+                            let result = match io.start(info.req_mut().get_inner(),
+                                                        &mut self.resp, encoding)
+                            {
+                                Ok(res) => res,
+                                Err(err) => {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(info, self.resp))
                                 }
-                                break
+                            };
+
+                            if let Some(err) = self.resp.error() {
+                                if self.resp.status().is_server_error() {
+                                    error!("Error occured during request handling: {}", err);
+                                } else {
+                                    warn!("Error occured during request handling: {}", err);
+                                }
+                                if log_enabled!(Debug) {
+                                    debug!("{:?}", err);
+                                }
+                            }
+
+                            // always poll stream or actor for the first time
+                            match self.resp.replace_body(Body::Empty) {
+                                Body::Streaming(stream) => {
+                                    self.iostate = IOState::Payload(stream);
+                                    continue 'inner
+                                },
+                            Body::Actor(ctx) => {
+                                self.iostate = IOState::Actor(ctx);
+                                continue 'inner
                             },
-                            Ok(Async::Ready(Some(chunk))) => {
-                                self.iostate = IOState::Payload(body);
-                                match io.write(chunk.into()) {
-                                    Err(err) => {
+                                _ => (),
+                            }
+
+                            result
+                        },
+                        IOState::Payload(mut body) => {
+                            match body.poll() {
+                                Ok(Async::Ready(None)) => {
+                                    if let Err(err) = io.write_eof() {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(info, self.resp))
-                                    },
-                                    Ok(result) => result
-                                }
-                            }
-                            Ok(Async::NotReady) => {
-                                self.iostate = IOState::Payload(body);
-                                break
-                            },
-                            Err(err) => {
-                                info.error = Some(err);
-                                return Ok(FinishingMiddlewares::init(info, self.resp))
-                            }
-                        }
-                    },
-                    IOState::Actor(mut ctx) => {
-                        if info.disconnected.take().is_some() {
-                            ctx.disconnected();
-                        }
-                        match ctx.poll() {
-                            Ok(Async::Ready(Some(vec))) => {
-                                if vec.is_empty() {
-                                    self.iostate = IOState::Actor(ctx);
+                                    }
                                     break
-                                }
-                                let mut res = None;
-                                for frame in vec {
-                                    match frame {
-                                        Frame::Chunk(None) => {
-                                            info.context = Some(ctx);
-                                            if let Err(err) = io.write_eof() {
-                                                info.error = Some(err.into());
-                                                return Ok(
-                                                    FinishingMiddlewares::init(info, self.resp))
-                                            }
-                                            break 'outter
+                                },
+                                Ok(Async::Ready(Some(chunk))) => {
+                                    self.iostate = IOState::Payload(body);
+                                    match io.write(chunk.into()) {
+                                        Err(err) => {
+                                            info.error = Some(err.into());
+                                            return Ok(FinishingMiddlewares::init(info, self.resp))
                                         },
-                                        Frame::Chunk(Some(chunk)) => {
-                                            match io.write(chunk) {
-                                                Err(err) => {
+                                        Ok(result) => result
+                                    }
+                                }
+                                Ok(Async::NotReady) => {
+                                    self.iostate = IOState::Payload(body);
+                                    break
+                                },
+                                Err(err) => {
+                                    info.error = Some(err);
+                                    return Ok(FinishingMiddlewares::init(info, self.resp))
+                                }
+                            }
+                        },
+                        IOState::Actor(mut ctx) => {
+                            if info.disconnected.take().is_some() {
+                                ctx.disconnected();
+                            }
+                            match ctx.poll() {
+                                Ok(Async::Ready(Some(vec))) => {
+                                    if vec.is_empty() {
+                                        self.iostate = IOState::Actor(ctx);
+                                        break
+                                    }
+                                    let mut res = None;
+                                    for frame in vec {
+                                        match frame {
+                                            Frame::Chunk(None) => {
+                                                info.context = Some(ctx);
+                                                if let Err(err) = io.write_eof() {
                                                     info.error = Some(err.into());
                                                     return Ok(
                                                         FinishingMiddlewares::init(info, self.resp))
-                                                },
-                                                Ok(result) => res = Some(result),
-                                            }
-                                        },
-                                        Frame::Drain(fut) => self.drain = Some(fut),
+                                                }
+                                                break 'inner
+                                            },
+                                            Frame::Chunk(Some(chunk)) => {
+                                                match io.write(chunk) {
+                                                    Err(err) => {
+                                                        info.error = Some(err.into());
+                                                        return Ok(
+                                                            FinishingMiddlewares::init(info, self.resp))
+                                                    },
+                                                    Ok(result) => res = Some(result),
+                                                }
+                                            },
+                                            Frame::Drain(fut) => self.drain = Some(fut),
+                                        }
                                     }
+                                    self.iostate = IOState::Actor(ctx);
+                                    if self.drain.is_some() {
+                                        self.running.resume();
+                                        break 'inner
+                                    }
+                                    res.unwrap()
+                                },
+                                Ok(Async::Ready(None)) => {
+                                    break
                                 }
-                                self.iostate = IOState::Actor(ctx);
-                                if self.drain.is_some() {
-                                    self.running.resume();
-                                    break 'outter
+                                Ok(Async::NotReady) => {
+                                    self.iostate = IOState::Actor(ctx);
+                                    break
                                 }
-                                res.unwrap()
-                            },
-                            Ok(Async::Ready(None)) => {
-                                break
-                            }
-                            Ok(Async::NotReady) => {
-                                self.iostate = IOState::Actor(ctx);
-                                break
-                            }
-                            Err(err) => {
-                                info.error = Some(err);
-                                return Ok(FinishingMiddlewares::init(info, self.resp))
+                                Err(err) => {
+                                    info.error = Some(err);
+                                    return Ok(FinishingMiddlewares::init(info, self.resp))
+                                }
                             }
                         }
-                    }
-                    IOState::Done => break,
-                };
+                        IOState::Done => break,
+                    };
 
-                match result {
-                    WriterState::Pause => {
-                        self.running.pause();
-                        break
+                    match result {
+                        WriterState::Pause => {
+                            self.running.pause();
+                            break
+                        }
+                        WriterState::Done => {
+                            self.running.resume()
+                        },
                     }
-                    WriterState::Done => {
-                        self.running.resume()
+                }
+            }
+
+            // flush io but only if we need to
+            if self.running == RunningState::Paused || self.drain.is_some() {
+                match io.poll_completed(false) {
+                    Ok(Async::Ready(_)) => {
+                        self.running.resume();
+
+                        // resolve drain futures
+                        if let Some(tx) = self.drain.take() {
+                            let _ = tx.send(());
+                        }
+                        // restart io processing
+                        continue
                     },
-                }
-            }
-        }
-
-        // flush io but only if we need to
-        if self.running == RunningState::Paused || self.drain.is_some() {
-            match io.poll_completed(false) {
-                Ok(Async::Ready(_)) => {
-                    self.running.resume();
-
-                    // resolve drain futures
-                    if let Some(tx) = self.drain.take() {
-                        let _ = tx.send(());
+                    Ok(Async::NotReady) =>
+                        return Err(PipelineState::Response(self)),
+                    Err(err) => {
+                        info.error = Some(err.into());
+                        return Ok(FinishingMiddlewares::init(info, self.resp))
                     }
-                    // restart io processing
-                    return self.poll_io(io, info);
-                },
-                Ok(Async::NotReady) => return Err(PipelineState::Response(self)),
-                Err(err) => {
-                    info.error = Some(err.into());
-                    return Ok(FinishingMiddlewares::init(info, self.resp))
                 }
             }
+            break
         }
 
         // response is completed
