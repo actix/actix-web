@@ -329,8 +329,7 @@ impl<S> Stream for WsStream<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                         match String::from_utf8(tmp) {
                             Ok(s) =>
                                 Ok(Async::Ready(Some(Message::Text(s)))),
-                            Err(e) => {
-                                println!("ENC: {:?}", e);
+                            Err(_) => {
                                 self.closed = true;
                                 Err(ProtocolError::BadEncoding)
                             }

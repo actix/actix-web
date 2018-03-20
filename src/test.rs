@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::sync::mpsc;
 use std::str::FromStr;
 
-use actix::{Arbiter, Addr, Syn, System, SystemRunner, msgs};
+use actix::{Actor, Arbiter, Addr, Syn, System, SystemRunner, Unsync, msgs};
 use cookie::Cookie;
 use http::{Uri, Method, Version, HeaderMap, HttpTryFrom};
 use http::header::HeaderName;
@@ -13,6 +13,9 @@ use futures::Future;
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use net2::TcpBuilder;
+
+#[cfg(feature="alpn")]
+use openssl::ssl::SslAcceptor;
 
 use ws;
 use body::Binary;
@@ -27,7 +30,7 @@ use payload::Payload;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
-use client::{ClientRequest, ClientRequestBuilder};
+use client::{ClientRequest, ClientRequestBuilder, ClientConnector};
 
 /// The `TestServer` type.
 ///
@@ -60,6 +63,8 @@ pub struct TestServer {
     thread: Option<thread::JoinHandle<()>>,
     system: SystemRunner,
     server_sys: Addr<Syn, System>,
+    ssl: bool,
+    conn: Addr<Unsync, ClientConnector>,
 }
 
 impl TestServer {
@@ -69,9 +74,26 @@ impl TestServer {
     /// This method accepts configuration method. You can add
     /// middlewares or set handlers for test application.
     pub fn new<F>(config: F) -> Self
-        where F: Sync + Send + 'static + Fn(&mut TestApp<()>),
+        where F: Sync + Send + 'static + Fn(&mut TestApp<()>)
     {
-        TestServer::with_state(||(), config)
+        TestServerBuilder::new(||()).start(config)
+    }
+
+    /// Create test server builder
+    pub fn build() -> TestServerBuilder<()> {
+        TestServerBuilder::new(||())
+    }
+
+    /// Create test server builder with specific state factory
+    ///
+    /// This method can be used for constructing application state.
+    /// Also it can be used for external dependecy initialization,
+    /// like creating sync actors for diesel integration.
+    pub fn build_with_state<F, S>(state: F) -> TestServerBuilder<S>
+        where F: Fn() -> S + Sync + Send + 'static,
+              S: 'static,
+    {
+        TestServerBuilder::new(state)
     }
 
     /// Start new test server with application factory
@@ -98,15 +120,20 @@ impl TestServer {
             let _ = sys.run();
         });
 
+        let sys = System::new("actix-test");
         let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
             addr,
-            thread: Some(join),
-            system: System::new("actix-test"),
             server_sys,
+            ssl: false,
+            conn: TestServer::get_conn(),
+            thread: Some(join),
+            system: sys,
         }
     }
 
+    #[deprecated(since="0.4.10",
+                 note="please use `TestServer::build_with_state()` instead")]
     /// Start new test server with custom application state
     ///
     /// This method accepts state factory and configuration method.
@@ -135,12 +162,30 @@ impl TestServer {
             let _ = sys.run();
         });
 
+        let system = System::new("actix-test");
         let (server_sys, addr) = rx.recv().unwrap();
         TestServer {
             addr,
             server_sys,
+            system,
+            ssl: false,
+            conn: TestServer::get_conn(),
             thread: Some(join),
-            system: System::new("actix-test"),
+        }
+    }
+
+    fn get_conn() -> Addr<Unsync, ClientConnector> {
+        #[cfg(feature="alpn")]
+        {
+            use openssl::ssl::{SslMethod, SslConnector, SslVerifyMode};
+
+            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+            builder.set_verify(SslVerifyMode::NONE);
+            ClientConnector::with_connector(builder.build()).start()
+        }
+        #[cfg(not(feature="alpn"))]
+        {
+            ClientConnector::default().start()
         }
     }
 
@@ -162,9 +207,9 @@ impl TestServer {
     /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("http://{}{}", self.addr, uri)
+            format!("{}://{}{}", if self.ssl {"https"} else {"http"}, self.addr, uri)
         } else {
-            format!("http://{}/{}", self.addr, uri)
+            format!("{}://{}/{}", if self.ssl {"https"} else {"http"}, self.addr, uri)
         }
     }
 
@@ -186,7 +231,8 @@ impl TestServer {
     /// Connect to websocket server
     pub fn ws(&mut self) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url("/");
-        self.system.run_until_complete(ws::Client::new(url).connect())
+        self.system.run_until_complete(
+            ws::Client::with_connector(url, self.conn.clone()).connect())
     }
 
     /// Create `GET` request
@@ -208,7 +254,9 @@ impl TestServer {
     pub fn client(&self, meth: Method, path: &str) -> ClientRequestBuilder {
         ClientRequest::build()
             .method(meth)
-            .uri(self.url(path).as_str()).take()
+            .uri(self.url(path).as_str())
+            .with_connector(self.conn.clone())
+            .take()
     }
 }
 
@@ -218,6 +266,101 @@ impl Drop for TestServer {
     }
 }
 
+pub struct TestServerBuilder<S> {
+    state: Box<Fn() -> S + Sync + Send + 'static>,
+    #[cfg(feature="alpn")]
+    ssl: Option<SslAcceptor>,
+}
+
+impl<S: 'static> TestServerBuilder<S> {
+
+    pub fn new<F>(state: F) -> TestServerBuilder<S>
+        where F: Fn() -> S + Sync + Send + 'static
+    {
+        TestServerBuilder {
+            state: Box::new(state),
+            #[cfg(feature="alpn")]
+            ssl: None,
+        }
+    }
+
+    #[cfg(feature="alpn")]
+    /// Create ssl server
+    pub fn ssl(mut self, ssl: SslAcceptor) -> Self {
+        self.ssl = Some(ssl);
+        self
+    }
+
+    #[allow(unused_mut)]
+    /// Configure test application and run test server
+    pub fn start<F>(mut self, config: F) -> TestServer
+        where F: Sync + Send + 'static + Fn(&mut TestApp<S>),
+    {
+        let (tx, rx) = mpsc::channel();
+
+        #[cfg(feature="alpn")]
+        let ssl = self.ssl.is_some();
+        #[cfg(not(feature="alpn"))]
+        let ssl = false;
+
+        // run server in separate thread
+        let join = thread::spawn(move || {
+            let sys = System::new("actix-test-server");
+
+            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let local_addr = tcp.local_addr().unwrap();
+            let tcp = TcpListener::from_listener(
+                tcp, &local_addr, Arbiter::handle()).unwrap();
+
+            let state = self.state;
+
+            let srv = HttpServer::new(move || {
+                let mut app = TestApp::new(state());
+                config(&mut app);
+                vec![app]})
+                .disable_signals();
+
+            #[cfg(feature="alpn")]
+            {
+                use std::io;
+                use futures::Stream;
+                use tokio_openssl::SslAcceptorExt;
+
+                let ssl = self.ssl.take();
+                if let Some(ssl) = ssl {
+                    srv.start_incoming(
+                        tcp.incoming()
+                            .and_then(move |(sock, addr)| {
+                                ssl.accept_async(sock)
+                                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                                    .map(move |s| (s, addr))
+                            }),
+                        false);
+                } else {
+                    srv.start_incoming(tcp.incoming(), false);
+                }
+            }
+            #[cfg(not(feature="alpn"))]
+            {
+                srv.start_incoming(tcp.incoming(), false);
+            }
+
+            tx.send((Arbiter::system(), local_addr)).unwrap();
+            let _ = sys.run();
+        });
+
+        let system = System::new("actix-test");
+        let (server_sys, addr) = rx.recv().unwrap();
+        TestServer {
+            addr,
+            server_sys,
+            ssl,
+            system,
+            conn: TestServer::get_conn(),
+            thread: Some(join),
+        }
+    }
+}
 
 /// Test application helper for testing request handlers.
 pub struct TestApp<S=()> {

@@ -10,6 +10,8 @@
 
 * Fix server websockets big payloads support
 
+* Refactor `TestServer` configuration
+
 
 ## 0.4.9 (2018-03-16)
 

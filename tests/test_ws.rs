@@ -9,6 +9,9 @@ use bytes::Bytes;
 use futures::Stream;
 use rand::Rng;
 
+#[cfg(feature="alpn")]
+extern crate openssl;
+
 use actix_web::*;
 use actix::prelude::*;
 
@@ -158,6 +161,30 @@ fn test_server_send_bin() {
         |app| app.handler(|req| ws::start(req, Ws2{count:0, bin: true})));
     let (mut reader, _writer) = srv.ws().unwrap();
 
+    for _ in 0..10_000 {
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, data);
+    }
+}
+
+#[test]
+#[cfg(feature="alpn")]
+fn test_ws_server_ssl() {
+    extern crate openssl;
+    use openssl::ssl::{SslMethod, SslAcceptor, SslFiletype};
+
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder.set_private_key_file("tests/key.pem", SslFiletype::PEM).unwrap();
+    builder.set_certificate_chain_file("tests/cert.pem").unwrap();
+
+    let mut srv = test::TestServer::build()
+        .ssl(builder.build())
+        .start(|app| app.handler(|req| ws::start(req, Ws2{count:0, bin: false})));
+    let (mut reader, _writer) = srv.ws().unwrap();
+
+    let data = Some(ws::Message::Text("0".repeat(65_536)));
     for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;

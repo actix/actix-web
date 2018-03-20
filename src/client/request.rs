@@ -233,7 +233,6 @@ impl fmt::Debug for ClientRequest {
     }
 }
 
-
 /// An HTTP Client request builder
 ///
 /// This type can be used to construct an instance of `ClientRequest` through a
