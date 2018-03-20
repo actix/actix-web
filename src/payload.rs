@@ -159,6 +159,12 @@ impl PayloadWriter for PayloadSender {
             if shared.borrow().need_read {
                 PayloadStatus::Read
             } else {
+                #[cfg(not(test))]
+                {
+                    if shared.borrow_mut().io_task.is_none() {
+                        shared.borrow_mut().io_task = Some(current_task());
+                    }
+                }
                 PayloadStatus::Pause
             }
         } else {
@@ -176,6 +182,7 @@ struct Inner {
     items: VecDeque<Bytes>,
     capacity: usize,
     task: Option<Task>,
+    io_task: Option<Task>,
 }
 
 impl Inner {
@@ -189,6 +196,7 @@ impl Inner {
             need_read: true,
             capacity: MAX_BUFFER_SIZE,
             task: None,
+            io_task: None,
         }
     }
 
@@ -248,6 +256,9 @@ impl Inner {
                 if self.need_read && self.task.is_none() {
                     self.task = Some(current_task());
                 }
+                if let Some(task) = self.io_task.take() {
+                    task.notify()
+                }
             }
             Ok(Async::Ready(Some(data)))
         } else if let Some(err) = self.err.take() {
@@ -260,6 +271,9 @@ impl Inner {
             {
                 if self.task.is_none() {
                     self.task = Some(current_task());
+                }
+                if let Some(task) = self.io_task.take() {
+                    task.notify()
                 }
             }
             Ok(Async::NotReady)
