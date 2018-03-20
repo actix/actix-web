@@ -183,6 +183,10 @@ impl<H> WorkerSettings<H> {
         buf[35..].copy_from_slice(b"\r\n\r\n");
         dst.extend_from_slice(&buf);
     }
+
+    pub fn set_date_simple(&self, dst: &mut BytesMut) {
+        dst.extend_from_slice(&(unsafe{&*self.date.get()}.bytes));
+    }
 }
 
 struct Date {

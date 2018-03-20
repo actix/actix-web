@@ -8,9 +8,11 @@
 
 * Allow to set client websocket handshake timeout
 
+* Refactor `TestServer` configuration
+
 * Fix server websockets big payloads support
 
-* Refactor `TestServer` configuration
+* Fix http/2 date header generation
 
 
 ## 0.4.9 (2018-03-16)
