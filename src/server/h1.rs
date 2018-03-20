@@ -504,13 +504,7 @@ impl Reader {
                     httparse::Status::Complete(len) => {
                         let method = Method::from_bytes(req.method.unwrap().as_bytes())
                             .map_err(|_| ParseError::Method)?;
-                        //let path = req.path.unwrap();
-                        //let path_start = path.as_ptr() as usize - bytes_ptr;
-                        //let path_end = path_start + path.len();
-                        //let path = (path_start, path_end);
                         let path = Uri::try_from(req.path.unwrap()).unwrap();
-                            //.map_err(|_| ParseError::Uri)?;
-
                         let version = if req.version.unwrap() == 1 {
                             Version::HTTP_11
                         } else {

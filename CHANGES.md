@@ -1,6 +1,6 @@
 # Changes
 
-## 0.4.10 (2018-03-xx)
+## 0.4.10 (2018-03-20)
 
 * Use `Error` instead of `InternalError` for `error::ErrorXXXX` methods
 
