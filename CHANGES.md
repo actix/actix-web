@@ -1,5 +1,10 @@
 # Changes
 
+## 0.4.11 
+
+* Fix client connection pooling
+
+
 ## 0.4.10 (2018-03-20)
 
 * Use `Error` instead of `InternalError` for `error::ErrorXXXX` methods

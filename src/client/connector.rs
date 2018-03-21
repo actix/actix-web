@@ -232,7 +232,8 @@ impl Handler<Connect> for ClientConnector {
         let key = Key {host, port, ssl: proto.is_secure()};
 
         let pool = if proto.is_http() {
-            if let Some(conn) = self.pool.query(&key) {
+            if let Some(mut conn) = self.pool.query(&key) {
+                conn.pool = Some(self.pool.clone());
                 return ActorResponse::async(fut::ok(conn))
             } else {
                 Some(Rc::clone(&self.pool))
@@ -452,6 +453,8 @@ impl Pool {
                     self.to_close.borrow_mut().push(conn.1);
                 }
             }
+        } else {
+            self.to_close.borrow_mut().push(conn);
         }
     }
 }
