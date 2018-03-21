@@ -420,7 +420,7 @@ impl ContentEncoder {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
                             DeflateEncoder::new(transfer, Compression::fast())),
                         ContentEncoding::Gzip => ContentEncoder::Gzip(
-                            GzEncoder::new(transfer, Compression::fasr())),
+                            GzEncoder::new(transfer, Compression::fast())),
                         #[cfg(feature="brotli")]
                         ContentEncoding::Br => ContentEncoder::Br(
                             BrotliEncoder::new(transfer, 3)),
@@ -471,12 +471,12 @@ impl ContentEncoder {
 
         match encoding {
             ContentEncoding::Deflate => ContentEncoder::Deflate(
-                DeflateEncoder::new(transfer, Compression::default())),
+                DeflateEncoder::new(transfer, Compression::fast())),
             ContentEncoding::Gzip => ContentEncoder::Gzip(
-                GzEncoder::new(transfer, Compression::default())),
+                GzEncoder::new(transfer, Compression::fast())),
             #[cfg(feature="brotli")]
             ContentEncoding::Br => ContentEncoder::Br(
-                BrotliEncoder::new(transfer, 5)),
+                BrotliEncoder::new(transfer, 3)),
             ContentEncoding::Identity | ContentEncoding::Auto =>
                 ContentEncoder::Identity(transfer),
         }
