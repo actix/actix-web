@@ -6,8 +6,10 @@ extern crate h2;
 extern crate http;
 extern crate bytes;
 extern crate flate2;
-extern crate brotli2;
 extern crate rand;
+
+#[cfg(feature="brotli")]
+extern crate brotli2;
 
 use std::{net, thread, time};
 use std::io::{Read, Write};
@@ -16,6 +18,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, DeflateEncoder, DeflateDecoder};
+#[cfg(feature="brotli")]
 use brotli2::write::{BrotliEncoder, BrotliDecoder};
 use futures::{Future, Stream};
 use futures::stream::once;
@@ -291,6 +294,7 @@ fn test_body_chunked_implicit() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_body_br_streaming() {
     let mut srv = test::TestServer::new(
@@ -443,6 +447,7 @@ fn test_body_deflate() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_body_brotli() {
     let mut srv = test::TestServer::new(
@@ -649,6 +654,7 @@ fn test_reading_deflate_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
@@ -677,6 +683,7 @@ fn test_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_brotli_encoding_large() {
     let data = STR.repeat(10);

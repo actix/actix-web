@@ -418,12 +418,12 @@ impl ContentEncoder {
                     let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
-                            DeflateEncoder::new(transfer, Compression::default())),
+                            DeflateEncoder::new(transfer, Compression::fast())),
                         ContentEncoding::Gzip => ContentEncoder::Gzip(
-                            GzEncoder::new(transfer, Compression::default())),
+                            GzEncoder::new(transfer, Compression::fasr())),
                         #[cfg(feature="brotli")]
                         ContentEncoding::Br => ContentEncoder::Br(
-                            BrotliEncoder::new(transfer, 5)),
+                            BrotliEncoder::new(transfer, 3)),
                         ContentEncoding::Identity => ContentEncoder::Identity(transfer),
                         ContentEncoding::Auto => unreachable!()
                     };

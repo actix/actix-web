@@ -894,9 +894,16 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
         assert_eq!(resp.content_encoding(), None);
 
+        #[cfg(feature="brotli")]
+        {
+            let resp = HttpResponse::build(StatusCode::OK)
+                .content_encoding(ContentEncoding::Br).finish().unwrap();
+            assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
+        }
+
         let resp = HttpResponse::build(StatusCode::OK)
-            .content_encoding(ContentEncoding::Br).finish().unwrap();
-        assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
+            .content_encoding(ContentEncoding::Gzip).finish().unwrap();
+        assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
     }
 
     #[test]

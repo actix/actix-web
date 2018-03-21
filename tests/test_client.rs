@@ -188,6 +188,7 @@ fn test_client_gzip_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_client_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
@@ -212,6 +213,7 @@ fn test_client_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
@@ -242,6 +244,7 @@ fn test_client_brotli_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_client_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
@@ -266,6 +269,7 @@ fn test_client_deflate_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature="brotli")]
 #[test]
 fn test_client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
