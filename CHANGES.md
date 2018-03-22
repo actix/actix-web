@@ -4,6 +4,8 @@
 
 * Fix client connection pooling
 
+* Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
+
 
 ## 0.4.10 (2018-03-20)
 

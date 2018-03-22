@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use regex::Regex;
 use futures::future::{Future, ok, err};
-use http::{header, StatusCode, Error as HttpError};
+use http::{header, StatusCode};
 
 use body::Body;
 use error::Error;
@@ -412,7 +412,7 @@ impl NormalizePath {
 }
 
 impl<S> Handler<S> for NormalizePath {
-    type Result = Result<HttpResponse, HttpError>;
+    type Result = Result<HttpResponse, Error>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if let Some(router) = req.router() {

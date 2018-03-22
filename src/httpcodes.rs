@@ -1,8 +1,9 @@
 //! Basic http responses
 #![allow(non_upper_case_globals)]
-use http::{StatusCode, Error as HttpError};
+use http::StatusCode;
 
 use body::Body;
+use error::Error;
 use handler::{Reply, Handler, RouteHandler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
@@ -211,9 +212,9 @@ impl<S> RouteHandler<S> for StaticResponse {
 
 impl Responder for StaticResponse {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         self.build().body(Body::Empty)
     }
 }

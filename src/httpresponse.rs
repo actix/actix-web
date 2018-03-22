@@ -505,9 +505,9 @@ impl HttpResponseBuilder {
     /// Set a body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, HttpError> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {
         if let Some(e) = self.err.take() {
-            return Err(e)
+            return Err(e.into())
         }
         let mut response = self.response.take().expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
@@ -524,7 +524,7 @@ impl HttpResponseBuilder {
     /// Set a streaming body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn streaming<S, E>(&mut self, stream: S) -> Result<HttpResponse, HttpError>
+    pub fn streaming<S, E>(&mut self, stream: S) -> Result<HttpResponse, Error>
         where S: Stream<Item=Bytes, Error=E> + 'static,
               E: Into<Error>,
     {
@@ -552,7 +552,7 @@ impl HttpResponseBuilder {
     /// Set an empty body and generate `HttpResponse`
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn finish(&mut self) -> Result<HttpResponse, HttpError> {
+    pub fn finish(&mut self) -> Result<HttpResponse, Error> {
         self.body(Body::Empty)
     }
 
@@ -596,10 +596,10 @@ impl From<HttpResponseBuilder> for HttpResponse {
 
 impl Responder for HttpResponseBuilder {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
     #[inline]
-    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, Error> {
         self.finish()
     }
 }
@@ -615,9 +615,9 @@ impl From<&'static str> for HttpResponse {
 
 impl Responder for &'static str {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -635,9 +635,9 @@ impl From<&'static [u8]> for HttpResponse {
 
 impl Responder for &'static [u8] {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
@@ -655,9 +655,9 @@ impl From<String> for HttpResponse {
 
 impl Responder for String {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -675,9 +675,9 @@ impl<'a> From<&'a String> for HttpResponse {
 
 impl<'a> Responder for &'a String {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self)
@@ -695,9 +695,9 @@ impl From<Bytes> for HttpResponse {
 
 impl Responder for Bytes {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
@@ -715,9 +715,9 @@ impl From<BytesMut> for HttpResponse {
 
 impl Responder for BytesMut {
     type Item = HttpResponse;
-    type Error = HttpError;
+    type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
