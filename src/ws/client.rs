@@ -18,7 +18,7 @@ use futures::unsync::mpsc::{unbounded, UnboundedSender};
 use actix::prelude::*;
 
 use body::{Body, Binary};
-use error::UrlParseError;
+use error::{Error, UrlParseError};
 use header::IntoHeaderValue;
 use payload::PayloadHelper;
 use httpmessage::HttpMessage;
@@ -68,7 +68,7 @@ pub enum ClientError {
     #[fail(display="Invalid challenge response")]
     InvalidChallengeResponse(String, HeaderValue),
     #[fail(display="Http parsing error")]
-    Http(HttpError),
+    Http(Error),
     #[fail(display="Url parsing error")]
     Url(UrlParseError),
     #[fail(display="Response parsing error")]
@@ -83,8 +83,8 @@ pub enum ClientError {
     Disconnected,
 }
 
-impl From<HttpError> for ClientError {
-    fn from(err: HttpError) -> ClientError {
+impl From<Error> for ClientError {
+    fn from(err: Error) -> ClientError {
         ClientError::Http(err)
     }
 }
@@ -224,7 +224,7 @@ impl Client {
             ClientHandshake::error(e)
         }
         else if let Some(e) = self.http_err.take() {
-            ClientHandshake::error(e.into())
+            ClientHandshake::error(Error::from(e).into())
         } else {
             // origin
             if let Some(origin) = self.origin.take() {

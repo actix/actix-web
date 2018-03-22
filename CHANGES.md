@@ -6,6 +6,8 @@
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
 
+* Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
+
 
 ## 0.4.10 (2018-03-20)
 

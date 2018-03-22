@@ -542,9 +542,9 @@ impl ClientRequestBuilder {
     /// Set a body and generate `ClientRequest`.
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<ClientRequest, HttpError> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<ClientRequest, Error> {
         if let Some(e) = self.err.take() {
-            return Err(e)
+            return Err(e.into())
         }
 
         if self.default_headers {
@@ -596,13 +596,13 @@ impl ClientRequestBuilder {
             self.header(header::CONTENT_TYPE, "application/json");
         }
 
-        Ok(self.body(body)?)
+        self.body(body)
     }
 
     /// Set a streaming body and generate `ClientRequest`.
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn streaming<S, E>(&mut self, stream: S) -> Result<ClientRequest, HttpError>
+    pub fn streaming<S, E>(&mut self, stream: S) -> Result<ClientRequest, Error>
         where S: Stream<Item=Bytes, Error=E> + 'static,
               E: Into<Error>,
     {
@@ -612,7 +612,7 @@ impl ClientRequestBuilder {
     /// Set an empty body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn finish(&mut self) -> Result<ClientRequest, HttpError> {
+    pub fn finish(&mut self) -> Result<ClientRequest, Error> {
         self.body(Body::Empty)
     }
 
