@@ -18,6 +18,8 @@ use error::Error;
 use handler::Responder;
 use header::{Header, IntoHeaderValue, ContentEncoding};
 use httprequest::HttpRequest;
+use httpmessage::HttpMessage;
+use client::ClientResponse;
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -719,6 +721,20 @@ impl Responder for BytesMut {
         HttpResponse::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self)
+    }
+}
+
+/// Create `HttpResponseBuilder` from `ClientResponse`
+///
+/// It is useful for proxy response. This implementation
+/// copies all responses's headers and status.
+impl<'a> From<&'a ClientResponse> for HttpResponseBuilder {
+    fn from(resp: &'a ClientResponse) -> HttpResponseBuilder {
+        let mut builder = HttpResponse::build(resp.status());
+        for (key, value) in resp.headers() {
+            builder.header(key.clone(), value.clone());
+        }
+        builder
     }
 }
 
