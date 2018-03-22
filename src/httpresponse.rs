@@ -516,10 +516,11 @@ impl HttpResponseBuilder {
     /// Set a streaming body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn streaming<S>(&mut self, stream: S) -> Result<HttpResponse, HttpError>
-        where S: Stream<Item=Bytes, Error=Error> + 'static,
+    pub fn streaming<S, E>(&mut self, stream: S) -> Result<HttpResponse, HttpError>
+        where S: Stream<Item=Bytes, Error=E> + 'static,
+              E: Into<Error>,
     {
-        self.body(Body::Streaming(Box::new(stream)))
+        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
     /// Set a json body and generate `HttpResponse`

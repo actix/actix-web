@@ -5,9 +5,10 @@ use std::time::Duration;
 
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
-use bytes::{BytesMut, BufMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
+use futures::Stream;
 use serde_json;
 use serde::Serialize;
 use percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
@@ -589,6 +590,16 @@ impl ClientRequestBuilder {
         }
 
         Ok(self.body(body)?)
+    }
+
+    /// Set a streaming body and generate `ClientRequest`.
+    ///
+    /// `ClientRequestBuilder` can not be used after this call.
+    pub fn streaming<S, E>(&mut self, stream: S) -> Result<ClientRequest, HttpError>
+        where S: Stream<Item=Bytes, Error=E> + 'static,
+              E: Into<Error>,
+    {
+        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
     /// Set an empty body and generate `ClientRequest`
