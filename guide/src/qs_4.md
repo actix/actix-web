@@ -256,8 +256,7 @@ fn index(req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>
        Ok(Box::new(
            result(HttpResponse::Ok()
                   .content_type("text/html")
-                  .body(format!("Hello!"))))
-                  .responder())
+                  .body(format!("Hello!")))))
     }
 }
 #
