@@ -187,17 +187,19 @@ return `Future` object that resolves to *Responder* type, i.e:
 # use actix_web::*;
 # use bytes::Bytes;
 # use futures::stream::once;
-# use futures::future::{FutureResult, result};
-fn index(req: HttpRequest) -> FutureResult<HttpResponse, Error> {
+# use futures::future::{Future, result};
+fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
     result(HttpResponse::Ok()
            .content_type("text/html")
            .body(format!("Hello!"))
            .map_err(|e| e.into()))
+           .responder()
 }
 
-fn index2(req: HttpRequest) -> FutureResult<&'static str, Error> {
+fn index2(req: HttpRequest) -> Box<Future<Item=&'static str, Error=Error>> {
     result(Ok("Welcome!"))
+        .responder()
 }
 
 fn main() {
@@ -234,6 +236,38 @@ fn main() {
 ```
 
 Both methods could be combined. (i.e Async response with streaming body)
+
+It is possible return `Result` which `Result::Item` type could be `Future`. 
+In this example `index` handler can return error immediately or return
+future that resolves to a `HttpResponse`.
+
+```rust
+# extern crate actix_web;
+# extern crate futures;
+# extern crate bytes;
+# use actix_web::*;
+# use bytes::Bytes;
+# use futures::stream::once;
+# use futures::future::{Future, result};
+fn index(req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>, Error> {
+    if is_error() {
+       Err(error::ErrorBadRequest("bad request"))
+    } else {
+       Ok(Box::new(
+           result(HttpResponse::Ok()
+                  .content_type("text/html")
+                  .body(format!("Hello!"))))
+                  .responder())
+    }
+}
+#
+# fn is_error() -> bool { true }
+# fn main() {
+#     Application::new()
+#        .resource("/async", |r| r.route().f(index))
+#        .finish();
+# }
+```
 
 ## Different return types (Either)
 
