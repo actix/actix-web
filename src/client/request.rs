@@ -16,6 +16,8 @@ use percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
 use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
+use httpmessage::HttpMessage;
+use httprequest::HttpRequest;
 use super::pipeline::SendRequest;
 use super::connector::{Connection, ClientConnector};
 
@@ -109,6 +111,11 @@ impl ClientRequest {
             cookies: None,
             default_headers: true
         }
+    }
+
+    /// Create client request builder
+    pub fn build_from<T: Into<ClientRequestBuilder>>(source: T) -> ClientRequestBuilder {
+        source.into()
     }
 
     /// Get the request uri
@@ -643,5 +650,20 @@ impl fmt::Debug for ClientRequestBuilder {
         } else {
             write!(f, "ClientRequestBuilder(Consumed)")
         }
+    }
+}
+
+/// Create `ClientRequestBuilder` from `HttpRequest`
+///
+/// It is useful for proxy requests. This implementation
+/// copies all request's headers and method.
+impl<'a, S: 'static> From<&'a HttpRequest<S>> for ClientRequestBuilder {
+    fn from(req: &'a HttpRequest<S>) -> ClientRequestBuilder {
+        let mut builder = ClientRequest::build();
+        for (key, value) in req.headers() {
+            builder.header(key.clone(), value.clone());
+        }
+        builder.method(req.method().clone());
+        builder
     }
 }

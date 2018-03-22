@@ -71,6 +71,12 @@ impl HttpResponse {
         }
     }
 
+    /// Create http response builder
+    #[inline]
+    pub fn build_from<T: Into<HttpResponseBuilder>>(source: T) -> HttpResponseBuilder {
+        source.into()
+    }
+
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
