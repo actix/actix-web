@@ -1,4 +1,4 @@
-use std::mem;
+use std::{io, mem};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::VecDeque;
@@ -136,5 +136,15 @@ impl Default for SharedBytes {
 impl Clone for SharedBytes {
     fn clone(&self) -> SharedBytes {
         SharedBytes(self.0.clone(), self.1.clone())
+    }
+}
+
+impl io::Write for SharedBytes {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }

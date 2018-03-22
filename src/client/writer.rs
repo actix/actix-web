@@ -98,26 +98,26 @@ impl HttpClientWriter {
         self.flags.insert(Flags::STARTED);
         self.encoder = content_encoder(self.buffer.clone(), msg);
 
+        if msg.upgrade() {
+            self.flags.insert(Flags::UPGRADE);
+        }
+
         // render message
         {
-            let mut buffer = self.buffer.get_mut();
-            if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
-            } else {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
-            }
-
-            if msg.upgrade() {
-                self.flags.insert(Flags::UPGRADE);
-            }
-
             // status line
-            let _ = write!(buffer, "{} {} {:?}\r\n",
-                           msg.method(), 
-                           msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"), 
-                           msg.version());
+            write!(self.buffer, "{} {} {:?}\r\n",
+                   msg.method(),
+                   msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+                   msg.version())?;
 
             // write headers
+            let mut buffer = self.buffer.get_mut();
+            if let Body::Binary(ref bytes) = *msg.body() {
+                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+            } else {
+                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
+            }
+
             for (key, value) in msg.headers() {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();

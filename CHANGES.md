@@ -2,6 +2,8 @@
 
 ## 0.4.11 
 
+* Fix long client urls #129
+
 * Fix client connection pooling
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
