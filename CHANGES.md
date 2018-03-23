@@ -4,6 +4,8 @@
 
 * Fix long client urls #129
 
+* Fix panic on invalid URL characters #130
+
 * Fix client connection pooling
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`

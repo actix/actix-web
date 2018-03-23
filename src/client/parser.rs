@@ -126,7 +126,7 @@ impl HttpResponseParser {
             let mut resp = httparse::Response::new(&mut headers);
             match resp.parse(b)? {
                 httparse::Status::Complete(len) => {
-                    let version = if resp.version.unwrap() == 1 {
+                    let version = if resp.version.unwrap_or(1) == 1 {
                         Version::HTTP_11
                     } else {
                         Version::HTTP_10

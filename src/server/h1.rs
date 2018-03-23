@@ -164,6 +164,8 @@ impl<T, H> Http1<T, H>
                     },
                     Ok(Async::NotReady) => (),
                     Err(err) => {
+                        trace!("Parse error: {:?}", err);
+
                         // notify all tasks
                         self.stream.disconnected();
                         for entry in &mut self.tasks {
@@ -293,9 +295,9 @@ impl<T, H> Http1<T, H>
         // deal with keep-alive
         if self.tasks.is_empty() {
             // no keep-alive situations
-            if (self.flags.contains(Flags::ERROR)
-                || !self.flags.contains(Flags::KEEPALIVE)
-                || !self.settings.keep_alive_enabled()) &&
+            if self.flags.contains(Flags::ERROR) ||
+                (!self.flags.contains(Flags::KEEPALIVE)
+                 || !self.settings.keep_alive_enabled()) &&
                 self.flags.contains(Flags::STARTED)
             {
                 return Ok(Async::Ready(false))
@@ -502,10 +504,11 @@ impl Reader {
                 let mut req = httparse::Request::new(&mut headers);
                 match req.parse(b)? {
                     httparse::Status::Complete(len) => {
-                        let method = Method::from_bytes(req.method.unwrap().as_bytes())
+                        let method = Method::from_bytes(
+                            req.method.unwrap_or("").as_bytes())
                             .map_err(|_| ParseError::Method)?;
-                        let path = Uri::try_from(req.path.unwrap()).unwrap();
-                        let version = if req.version.unwrap() == 1 {
+                        let path = Uri::try_from(req.path.unwrap())?;
+                        let version = if req.version.unwrap_or(1) == 1 {
                             Version::HTTP_11
                         } else {
                             Version::HTTP_10

@@ -8,11 +8,10 @@ use cookie;
 use httparse;
 use actix::MailboxError;
 use futures::Canceled;
-use failure;
-use failure::{Fail, Backtrace};
+use failure::{self, Fail, Backtrace};
 use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
-use http::uri::InvalidUriBytes;
+use http::uri::InvalidUri;
 use http_range::HttpRangeParseError;
 use serde_json::error::Error as JsonError;
 pub use url::ParseError as UrlParseError;
@@ -157,7 +156,7 @@ pub enum ParseError {
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
     #[fail(display="Uri error: {}", _0)]
-    Uri(InvalidUriBytes),
+    Uri(InvalidUri),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     #[fail(display="Invalid HTTP version specified")]
     Version,
@@ -195,6 +194,12 @@ impl ResponseError for ParseError {
 impl From<IoError> for ParseError {
     fn from(err: IoError) -> ParseError {
         ParseError::Io(err)
+    }
+}
+
+impl From<InvalidUri> for ParseError {
+    fn from(err: InvalidUri) -> ParseError {
+        ParseError::Uri(err)
     }
 }
 
