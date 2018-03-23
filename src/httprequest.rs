@@ -8,14 +8,16 @@ use futures::{Async, Stream, Poll};
 use futures_cpupool::CpuPool;
 use failure;
 use url::{Url, form_urlencoded};
-use http::{header, Uri, Method, Version, HeaderMap, Extensions};
+use http::{header, Uri, Method, Version, HeaderMap, Extensions, StatusCode};
 use tokio_io::AsyncRead;
 
+use body::Body;
 use info::ConnectionInfo;
 use param::Params;
 use router::Router;
 use payload::Payload;
 use httpmessage::HttpMessage;
+use httpresponse::{HttpResponse, HttpResponseBuilder};
 use helpers::SharedHttpInnerMessage;
 use error::{UrlGenerationError, CookieParseError, PayloadError};
 
@@ -192,6 +194,24 @@ impl<S> HttpRequest<S> {
     pub fn cpu_pool(&self) -> &CpuPool {
         self.router().expect("HttpRequest has to have Router instance")
             .server_settings().cpu_pool()
+    }
+
+    /// Create http response
+    pub fn response(&self, status: StatusCode, body: Body) -> HttpResponse {
+        if let Some(router) = self.router() {
+            router.server_settings().get_response(status, body)
+        } else {
+            HttpResponse::new(status, body)
+        }
+    }
+
+    /// Create http response builder
+    pub fn build_response(&self, status: StatusCode) -> HttpResponseBuilder {
+        if let Some(router) = self.router() {
+            router.server_settings().get_response_builder(status)
+        } else {
+            HttpResponse::build(status)
+        }
     }
 
     #[doc(hidden)]

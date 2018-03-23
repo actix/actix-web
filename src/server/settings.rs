@@ -5,21 +5,28 @@ use std::sync::Arc;
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use time;
 use bytes::BytesMut;
+use http::StatusCode;
 use futures_cpupool::{Builder, CpuPool};
 
 use helpers;
 use super::KeepAlive;
 use super::channel::Node;
 use super::shared::{SharedBytes, SharedBytesPool};
+use body::Body;
+use httpresponse::{HttpResponse, HttpResponsePool, HttpResponseBuilder};
 
 /// Various server settings
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
     host: String,
     cpu_pool: Arc<InnerCpuPool>,
+    responses: Rc<UnsafeCell<HttpResponsePool>>,
 }
+
+unsafe impl Sync for ServerSettings {}
+unsafe impl Send for ServerSettings {}
 
 struct InnerCpuPool {
     cpu_pool: UnsafeCell<Option<CpuPool>>,
@@ -56,6 +63,7 @@ impl Default for ServerSettings {
             addr: None,
             secure: false,
             host: "localhost:8080".to_owned(),
+            responses: HttpResponsePool::pool(),
             cpu_pool: Arc::new(InnerCpuPool::new()),
         }
     }
@@ -74,7 +82,8 @@ impl ServerSettings {
             "localhost".to_owned()
         };
         let cpu_pool = Arc::new(InnerCpuPool::new());
-        ServerSettings { addr, secure, host, cpu_pool }
+        let responses = HttpResponsePool::pool();
+        ServerSettings { addr, secure, host, cpu_pool, responses }
     }
 
     /// Returns the socket address of the local half of this TCP connection
@@ -96,7 +105,18 @@ impl ServerSettings {
     pub fn cpu_pool(&self) -> &CpuPool {
         self.cpu_pool.cpu_pool()
     }
+
+    #[inline]
+    pub(crate) fn get_response(&self, status: StatusCode, body: Body) -> HttpResponse {
+        HttpResponsePool::get_response(&self.responses, status, body)
+    }
+
+    #[inline]
+    pub(crate) fn get_response_builder(&self, status: StatusCode) -> HttpResponseBuilder {
+        HttpResponsePool::get_builder(&self.responses, status)
+    }
 }
+
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;

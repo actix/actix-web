@@ -37,12 +37,12 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct HttpResponse(Option<Box<InnerHttpResponse>>, Rc<UnsafeCell<Pool>>);
+pub struct HttpResponse(Option<Box<InnerHttpResponse>>, Rc<UnsafeCell<HttpResponsePool>>);
 
 impl Drop for HttpResponse {
     fn drop(&mut self) {
         if let Some(inner) = self.0.take() {
-            Pool::release(&self.1, inner)
+            HttpResponsePool::release(&self.1, inner)
         }
     }
 }
@@ -64,13 +64,7 @@ impl HttpResponse {
     /// Create http response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        let (msg, pool) = Pool::get(status);
-        HttpResponseBuilder {
-            response: Some(msg),
-            pool: Some(pool),
-            err: None,
-            cookies: None,
-        }
+        HttpResponsePool::get(status)
     }
 
     /// Create http response builder
@@ -82,8 +76,7 @@ impl HttpResponse {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode, body: Body) -> HttpResponse {
-        let (msg, pool) = Pool::with_body(status, body);
-        HttpResponse(Some(msg), pool)
+        HttpResponsePool::with_body(status, body)
     }
 
     /// Constructs a error response
@@ -246,7 +239,7 @@ impl fmt::Debug for HttpResponse {
 /// builder-like pattern.
 pub struct HttpResponseBuilder {
     response: Option<Box<InnerHttpResponse>>,
-    pool: Option<Rc<UnsafeCell<Pool>>>,
+    pool: Option<Rc<UnsafeCell<HttpResponsePool>>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
 }
@@ -738,6 +731,16 @@ impl<'a> From<&'a ClientResponse> for HttpResponseBuilder {
     }
 }
 
+impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
+    fn from(req: &'a HttpRequest<S>) -> HttpResponseBuilder {
+        if let Some(router) = req.router() {
+            router.server_settings().get_response_builder(StatusCode::OK)
+        } else {
+            HttpResponse::build(StatusCode::OK)
+        }
+    }
+}
+
 #[derive(Debug)]
 struct InnerHttpResponse {
     version: Option<Version>,
@@ -774,45 +777,67 @@ impl InnerHttpResponse {
 }
 
 /// Internal use only! unsafe
-struct Pool(VecDeque<Box<InnerHttpResponse>>);
+pub(crate) struct HttpResponsePool(VecDeque<Box<InnerHttpResponse>>);
 
-thread_local!(static POOL: Rc<UnsafeCell<Pool>> =
-              Rc::new(UnsafeCell::new(Pool(VecDeque::with_capacity(128)))));
+thread_local!(static POOL: Rc<UnsafeCell<HttpResponsePool>> = HttpResponsePool::pool());
 
-impl Pool {
+impl HttpResponsePool {
 
-    #[inline]
-    fn get(status: StatusCode) -> (Box<InnerHttpResponse>, Rc<UnsafeCell<Pool>>) {
-        POOL.with(|pool| {
-            let p = unsafe{&mut *pool.as_ref().get()};
-            if let Some(mut resp) = p.0.pop_front() {
-                resp.body = Body::Empty;
-                resp.status = status;
-                (resp, Rc::clone(pool))
-            } else {
-                (Box::new(InnerHttpResponse::new(status, Body::Empty)), Rc::clone(pool))
-            }
-        })
+    pub fn pool() -> Rc<UnsafeCell<HttpResponsePool>> {
+        Rc::new(UnsafeCell::new(HttpResponsePool(VecDeque::with_capacity(128))))
     }
 
     #[inline]
-    fn with_body(status: StatusCode, body: Body)
-                 -> (Box<InnerHttpResponse>, Rc<UnsafeCell<Pool>>) {
-        POOL.with(|pool| {
-            let p = unsafe{&mut *pool.as_ref().get()};
-            if let Some(mut resp) = p.0.pop_front() {
-                resp.status = status;
-                resp.body = body;
-                (resp, Rc::clone(pool))
-            } else {
-                (Box::new(InnerHttpResponse::new(status, body)), Rc::clone(pool))
-            }
-        })
+    pub fn get_builder(pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode)
+                       -> HttpResponseBuilder
+    {
+        let p = unsafe{&mut *pool.as_ref().get()};
+        if let Some(mut msg) = p.0.pop_front() {
+            msg.status = status;
+            HttpResponseBuilder {
+                response: Some(msg),
+                pool: Some(Rc::clone(pool)),
+                err: None,
+                cookies: None }
+        } else {
+            let msg = Box::new(InnerHttpResponse::new(status, Body::Empty));
+            HttpResponseBuilder {
+                response: Some(msg),
+                pool: Some(Rc::clone(pool)),
+                err: None,
+                cookies: None }
+        }
+    }
+
+    #[inline]
+    pub fn get_response(pool: &Rc<UnsafeCell<HttpResponsePool>>,
+                        status: StatusCode, body: Body) -> HttpResponse
+    {
+        let p = unsafe{&mut *pool.as_ref().get()};
+        if let Some(mut msg) = p.0.pop_front() {
+            msg.status = status;
+            msg.body = body;
+            HttpResponse(Some(msg), Rc::clone(pool))
+        } else {
+            let msg = Box::new(InnerHttpResponse::new(status, body));
+            HttpResponse(Some(msg), Rc::clone(pool))
+        }
+    }
+
+    #[inline]
+    fn get(status: StatusCode) -> HttpResponseBuilder {
+        POOL.with(|pool| HttpResponsePool::get_builder(pool, status))
+    }
+
+    #[inline]
+    fn with_body(status: StatusCode, body: Body) -> HttpResponse {
+        POOL.with(|pool| HttpResponsePool::get_response(pool, status, body))
     }
 
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
-    fn release(pool: &Rc<UnsafeCell<Pool>>, mut inner: Box<InnerHttpResponse>) {
+    fn release(pool: &Rc<UnsafeCell<HttpResponsePool>>, mut inner: Box<InnerHttpResponse>)
+    {
         let pool = unsafe{&mut *pool.as_ref().get()};
         if pool.0.len() < 128 {
             inner.headers.clear();

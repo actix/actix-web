@@ -186,6 +186,9 @@ impl StaticResponse {
     pub fn build(&self) -> HttpResponseBuilder {
         HttpResponse::build(self.0)
     }
+    pub fn build_from<S>(&self, req: &HttpRequest<S>) -> HttpResponseBuilder {
+        req.build_response(self.0)
+    }
     pub fn with_reason(self, reason: &'static str) -> HttpResponse {
         let mut resp = HttpResponse::new(self.0, Body::Empty);
         resp.set_reason(reason);
