@@ -630,19 +630,22 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         };
         for worker in &self.workers {
             let tx2 = tx.clone();
-            let fut = worker.1.send(StopWorker{graceful: dur}).into_actor(self);
-            ActorFuture::then(fut, move |_, slf, _| {
-                slf.workers.pop();
-                if slf.workers.is_empty() {
-                    let _ = tx2.send(());
+            worker.1.send(StopWorker{graceful: dur})
+                .into_actor(self)
+                .then(move |_, slf, ctx| {
+                    slf.workers.pop();
+                    if slf.workers.is_empty() {
+                        let _ = tx2.send(());
 
-                    // we need to stop system if server was spawned
-                    if slf.exit {
-                        Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                        // we need to stop system if server was spawned
+                        if slf.exit {
+                            ctx.run_later(Duration::from_millis(500), |_, _| {
+                                Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                            });
+                        }
                     }
-                }
-                actix::fut::ok(())
-            }).spawn(ctx);
+                    actix::fut::ok(())
+                }).spawn(ctx);
         }
 
         if !self.workers.is_empty() {
@@ -651,7 +654,9 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         } else {
             // we need to stop system if server was spawned
             if self.exit {
-                Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                ctx.run_later(Duration::from_millis(500), |_, _| {
+                    Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                });
             }
             Response::reply(Ok(()))
         }
