@@ -147,7 +147,7 @@ impl<'a> ConnectionInfo<'a> {
     ///
     /// - Forwarded
     /// - X-Forwarded-For
-    /// - peername of opened socket
+    /// - peer name of opened socket
     #[inline]
     pub fn remote(&self) -> Option<&str> {
         if let Some(r) = self.remote {

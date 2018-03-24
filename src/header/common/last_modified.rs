@@ -33,6 +33,6 @@ header! {
     (LastModified, http::LAST_MODIFIED) => [HttpDate]
 
         test_last_modified {
-            // Testcase from RFC
+            // Test case from RFC
             test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);}
 }

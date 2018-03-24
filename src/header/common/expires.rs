@@ -33,7 +33,7 @@ header! {
     (Expires, http::EXPIRES) => [HttpDate]
 
     test_expires {
-        // Testcase from RFC
+        // Test case from RFC
         test_header!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
     }
 }

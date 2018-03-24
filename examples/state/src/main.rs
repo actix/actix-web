@@ -17,7 +17,7 @@ struct AppState {
     counter: Cell<usize>,
 }
 
-/// somple handle
+/// simple handle
 fn index(req: HttpRequest<AppState>) -> HttpResponse {
     println!("{:?}", req);
     req.state().counter.set(req.state().counter.get() + 1);

@@ -103,8 +103,8 @@ pub enum ProtocolError {
     /// A payload reached size limit.
     #[fail(display="A payload reached size limit.")]
     Overflow,
-    /// Continuation is not supproted
-    #[fail(display="Continuation is not supproted.")]
+    /// Continuation is not supported
+    #[fail(display="Continuation is not supported.")]
     NoContinuation,
     /// Bad utf-8 encoding
     #[fail(display="Bad utf-8 encoding.")]
