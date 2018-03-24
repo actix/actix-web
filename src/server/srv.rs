@@ -639,7 +639,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
 
                         // we need to stop system if server was spawned
                         if slf.exit {
-                            ctx.run_later(Duration::from_millis(500), |_, _| {
+                            ctx.run_later(Duration::from_millis(300), |_, _| {
                                 Arbiter::system().do_send(actix::msgs::SystemExit(0))
                             });
                         }
@@ -654,7 +654,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H>
         } else {
             // we need to stop system if server was spawned
             if self.exit {
-                ctx.run_later(Duration::from_millis(500), |_, _| {
+                ctx.run_later(Duration::from_millis(300), |_, _| {
                     Arbiter::system().do_send(actix::msgs::SystemExit(0))
                 });
             }

@@ -494,6 +494,7 @@ impl Reader {
         // Parse http message
         let mut has_te = false;
         let mut has_upgrade = false;
+        let mut has_length = false;
         let msg = {
             let bytes_ptr = buf.as_ref().as_ptr() as usize;
             let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -505,10 +506,10 @@ impl Reader {
                 match req.parse(b)? {
                     httparse::Status::Complete(len) => {
                         let method = Method::from_bytes(
-                            req.method.unwrap_or("").as_bytes())
+                            req.method.unwrap().as_bytes())
                             .map_err(|_| ParseError::Method)?;
                         let path = Uri::try_from(req.path.unwrap())?;
-                        let version = if req.version.unwrap_or(1) == 1 {
+                        let version = if req.version.unwrap() == 1 {
                             Version::HTTP_11
                         } else {
                             Version::HTTP_10
@@ -528,6 +529,7 @@ impl Reader {
                 for header in headers[..headers_len].iter() {
                     if let Ok(name) = HeaderName::from_bytes(header.name.as_bytes()) {
                         has_te = has_te || name == header::TRANSFER_ENCODING;
+                        has_length = has_length || name == header::CONTENT_LENGTH;
                         has_upgrade = has_upgrade || name == header::UPGRADE;
                         let v_start = header.value.as_ptr() as usize - bytes_ptr;
                         let v_end = v_start + header.value.len();
@@ -547,10 +549,12 @@ impl Reader {
             msg
         };
 
-        let decoder = if let Some(len) =
-            msg.get_ref().headers.get(header::CONTENT_LENGTH)
-        {
+        let decoder = if has_te && chunked(&msg.get_mut().headers)? {
+            // Chunked encoding
+            Some(Decoder::chunked())
+        } else if has_length {
             // Content-Length
+            let len = msg.get_ref().headers.get(header::CONTENT_LENGTH).unwrap();
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
                     Some(Decoder::length(len))
@@ -562,10 +566,8 @@ impl Reader {
                 debug!("illegal Content-Length: {:?}", len);
                 return Err(ParseError::Header)
             }
-        } else if has_te && chunked(&msg.get_mut().headers)? {
-            // Chunked encoding
-            Some(Decoder::chunked())
         } else if has_upgrade || msg.get_ref().method == Method::CONNECT {
+            // upgrade(websocket) or connect
             Some(Decoder::eof())
         } else {
             None

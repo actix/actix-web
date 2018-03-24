@@ -134,24 +134,26 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         // render message
         {
             let mut buffer = self.buffer.get_mut();
+            let reason = msg.reason().as_bytes();
             let mut is_bin = if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE
+                        + bytes.len() + reason.len());
                 true
             } else {
-                buffer.reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len());
                 false
             };
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
-            SharedBytes::extend_from_slice_(buffer, msg.reason().as_bytes());
+            SharedBytes::extend_from_slice_(buffer, reason);
 
             match body {
                 Body::Empty =>
                     if req.method != Method::HEAD {
-                        SharedBytes::put_slice(
-                            buffer, b"\r\ncontent-length: 0\r\n");
+                        SharedBytes::put_slice(buffer, b"\r\ncontent-length: 0\r\n");
                     } else {
                         SharedBytes::put_slice(buffer, b"\r\n");
                     },
@@ -192,15 +194,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 buf[pos..pos+2].copy_from_slice(b"\r\n");
                 pos += 2;
                 remaining -= len;
-
-                //buffer.put_slice(k);
-                //buffer.put_slice(b": ");
-                //buffer.put_slice(v);
-                //buffer.put_slice(b"\r\n");
             }
             unsafe{buffer.advance_mut(pos)};
 
-            // optimized date header
+            // optimized date header, set_date writes \r\n
             if !has_date {
                 self.settings.set_date(&mut buffer);
             } else {

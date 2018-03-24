@@ -150,6 +150,7 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
     }
 }
 
+/// NOTE: bytes object has to contain enough space
 pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
     if n < 10 {
         let mut buf: [u8; 21] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
@@ -244,24 +245,34 @@ mod tests {
     #[test]
     fn test_write_content_length() {
         let mut bytes = BytesMut::new();
+        bytes.reserve(50);
         write_content_length(0, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(9, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(10, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(99, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(100, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(101, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(998, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(1000, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(1001, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(5909, &mut bytes);
         assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
     }
