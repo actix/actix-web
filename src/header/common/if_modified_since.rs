@@ -33,7 +33,7 @@ header! {
     (IfModifiedSince, http::IF_MODIFIED_SINCE) => [HttpDate]
 
     test_if_modified_since {
-        // Testcase from RFC
+        // Test case from RFC
         test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }
 }
