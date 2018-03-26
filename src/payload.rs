@@ -302,6 +302,11 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
         }
     }
 
+    /// Get mutable reference to an inner stream.
+    pub fn get_mut(&mut self) -> &mut S {
+        &mut self.stream
+    }
+
     #[inline]
     fn poll_stream(&mut self) -> Poll<bool, PayloadError> {
         self.stream.poll().map(|res| {

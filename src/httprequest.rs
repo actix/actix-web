@@ -10,6 +10,7 @@ use failure;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions, StatusCode};
 use tokio_io::AsyncRead;
+use serde::de;
 
 use body::Body;
 use info::ConnectionInfo;
@@ -19,7 +20,8 @@ use payload::Payload;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 use helpers::SharedHttpInnerMessage;
-use error::{UrlGenerationError, CookieParseError, PayloadError};
+use extractor::HttpRequestExtractor;
+use error::{Error, UrlGenerationError, CookieParseError, PayloadError};
 
 
 pub struct HttpInnerMessage {
@@ -393,6 +395,42 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Params {
         unsafe{ mem::transmute(&mut self.as_mut().params) }
+    }
+
+    /// Extract typed information from path.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::*;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// fn index(mut req: HttpRequest) -> Result<String> {
+    ///     let info: Info = req.extract(Path)?;      // <- extract path info using serde
+    ///     let info: Info = req.extract(Query)?;     // <- extract query info
+    ///     Ok(format!("Welcome {}!", info.username))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .resource("/{username}/index.html",    // <- define path parameters
+    ///                   |r| r.method(Method::GET).f(index));
+    /// }
+    /// ```
+    pub fn extract<'a, T, D>(&'a self, ds: D) -> Result<T, Error>
+        where S: 'static,
+              T: de::Deserialize<'a>,
+              D: HttpRequestExtractor<'a>
+    {
+        ds.extract(self)
     }
 
     /// Checks if a connection should be kept alive.

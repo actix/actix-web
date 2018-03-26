@@ -1,7 +1,6 @@
 #![allow(unused)]
 use std::fmt::{self, Display};
 use std::str::FromStr;
-use std::ascii::AsciiExt;
 
 use self::Charset::*;
 

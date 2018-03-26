@@ -227,6 +227,9 @@ impl From<Box<Future<Item=HttpResponse, Error=Error>>> for Reply {
     }
 }
 
+/// Convenience type alias
+pub type FutureResponse<I, E=Error> = Box<Future<Item=I, Error=E>>;
+
 impl<I, E> Responder for Box<Future<Item=I, Error=E>>
     where I: Responder + 'static,
           E: Into<Error> + 'static

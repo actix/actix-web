@@ -78,6 +78,7 @@ extern crate url;
 extern crate libc;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_urlencoded;
 extern crate flate2;
 #[cfg(feature="brotli")]
 extern crate brotli2;
@@ -118,6 +119,7 @@ mod resource;
 mod param;
 mod payload;
 mod pipeline;
+mod extractor;
 
 pub mod client;
 pub mod fs;
@@ -137,11 +139,12 @@ pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Either, Reply, Responder, NormalizePath, AsyncResponder};
+pub use handler::{Either, Reply, Responder, NormalizePath, AsyncResponder, FutureResponse};
 pub use route::Route;
 pub use resource::Resource;
 pub use context::HttpContext;
 pub use server::HttpServer;
+pub use extractor::{Path, Query};
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
@@ -187,4 +190,5 @@ pub mod dev {
     pub use param::{FromParam, Params};
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
+    pub use extractor::HttpRequestExtractor;
 }

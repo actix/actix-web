@@ -549,6 +549,7 @@ impl Reader {
             msg
         };
 
+        // https://tools.ietf.org/html/rfc7230#section-3.3.3
         let decoder = if has_te && chunked(&msg.get_mut().headers)? {
             // Chunked encoding
             Some(Decoder::chunked())

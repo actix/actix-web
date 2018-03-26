@@ -46,6 +46,11 @@ impl<'a> Params<'a> {
         self.0.is_empty()
     }
 
+    /// Check number of extracted parameters
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Get matched parameter by name without type conversion
     pub fn get(&'a self, key: &str) -> Option<&'a str> {
         for item in self.0.iter() {
