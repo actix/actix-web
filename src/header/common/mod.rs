@@ -73,7 +73,7 @@ macro_rules! test_header {
     ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
-            #[allow(unused)]
+            #[allow(unused, deprecated)]
             use std::ascii::AsciiExt;
             use test;
             let raw = $raw;
