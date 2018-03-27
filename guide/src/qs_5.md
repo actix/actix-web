@@ -337,7 +337,6 @@ from *serde* libary.
 # extern crate futures;
 #[macro_use] extern crate serde_derive;
 use actix_web::*;
-use actix_web::dev::{Path, HttpRequestExtractor};
 
 #[derive(Deserialize)]
 struct Info {
@@ -345,7 +344,7 @@ struct Info {
 }
 
 fn index(mut req: HttpRequest) -> Result<String> {
-    let info: Info = Path.extract(&req)?;      // <- extract path info using serde
+    let info: Info = req.extract_path()?;      // <- extract path info using serde
     Ok(format!("Welcome {}!", info.username))
 }
 
