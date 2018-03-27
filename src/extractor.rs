@@ -33,7 +33,7 @@ pub trait HttpRequestExtractor<T>: Sized where T: DeserializeOwned
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(req: &HttpRequest, info: Path<Info>) -> Result<String> {
+/// fn index(req: HttpRequest, info: Path<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -90,7 +90,7 @@ impl<T> HttpRequestExtractor<T> for Path<T> where T: DeserializeOwned
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(req: &HttpRequest, info: Query<Info>) -> Result<String> {
+/// fn index(req: HttpRequest, info: Query<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///

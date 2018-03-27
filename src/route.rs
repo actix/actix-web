@@ -127,7 +127,7 @@ impl<S: 'static> Route<S> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(req: &HttpRequest, info: Path<Info>) -> Result<String> {
+    /// fn index(req: HttpRequest, info: Path<Info>) -> Result<String> {
     ///     Ok(format!("Welcome {}!", info.username))
     /// }
     ///

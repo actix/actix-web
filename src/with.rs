@@ -20,19 +20,19 @@ pub trait WithHandler<T, D, S>: 'static
     type Result: Responder;
 
     /// Handle request
-    fn handle(&mut self, req: &HttpRequest<S>, data: D) -> Self::Result;
+    fn handle(&mut self, req: HttpRequest<S>, data: D) -> Self::Result;
 }
 
 /// WithHandler<D, T, S> for Fn()
 impl<T, D, S, F, R> WithHandler<T, D, S> for F
-    where F: Fn(&HttpRequest<S>, D) -> R + 'static,
+    where F: Fn(HttpRequest<S>, D) -> R + 'static,
           R: Responder + 'static,
           D: HttpRequestExtractor<T>,
           T: DeserializeOwned,
 {
     type Result = R;
 
-    fn handle(&mut self, req: &HttpRequest<S>, item: D) -> R {
+    fn handle(&mut self, req: HttpRequest<S>, item: D) -> R {
         (self)(req, item)
     }
 }
@@ -114,7 +114,8 @@ impl<T, D, S, H> Future for WithHandlerFut<T, D, S, H>
         };
 
         let hnd: &mut H = unsafe{&mut *self.hnd.get()};
-        let item = match hnd.handle(&self.req, item).respond_to(self.req.without_state())
+        let item = match hnd.handle(self.req.clone(), item)
+            .respond_to(self.req.without_state())
         {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),

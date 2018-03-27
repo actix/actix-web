@@ -31,7 +31,7 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 }
 
 /// This handler uses `With` helper for loading serde json object.
-fn extract_item(_: &HttpRequest, item: Json<MyObj>) -> Result<HttpResponse> {
+fn extract_item(_: HttpRequest, item: Json<MyObj>) -> Result<HttpResponse> {
     println!("model: {:?}", &item);
     httpcodes::HTTPOk.build().json(item.0)  // <- send response
 }

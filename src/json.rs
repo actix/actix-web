@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_with_json() {
-        let mut handler = with(|_: &_, data: Json<MyObject>| data);
+        let mut handler = with(|_: _, data: Json<MyObject>| data);
 
         let req = HttpRequest::default();
         let mut json = handler.handle(req).into_future();
