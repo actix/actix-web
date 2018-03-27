@@ -119,7 +119,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
     /// use actix_web::*;
-    /// use actix_web::{with, Path, HttpRequestExtractor};
+    /// use actix_web::Path;
     ///
     /// #[derive(Deserialize)]
     /// struct Info {

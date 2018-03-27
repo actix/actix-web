@@ -24,7 +24,7 @@
 //! }
 //!
 //! // Handler for ws::Message messages
-//! impl StreamHandler<ws::Message, ws::WsError> for Ws {
+//! impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 //!
 //!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
 //!         match msg {

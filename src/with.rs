@@ -37,7 +37,7 @@ impl<T, D, S, F, R> WithHandler<T, D, S> for F
     }
 }
 
-pub fn with<T, D, S, H>(h: H) -> With<T, D, S, H>
+pub(crate) fn with<T, D, S, H>(h: H) -> With<T, D, S, H>
     where H: WithHandler<T, D, S>,
           D: HttpRequestExtractor<T>,
           T: DeserializeOwned,
