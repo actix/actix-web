@@ -344,6 +344,38 @@ impl<S> Application<S> where S: 'static {
         self
     }
 
+    /// Run external configuration as part of application building process
+    ///
+    /// This function is useful for moving part of configuration to a different
+    /// module or event library. For example we can move some of the resources
+    /// configuration to different module.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    ///
+    /// // this function could be located in different module
+    /// fn config(app: Application) -> Application {
+    ///     app
+    ///         .resource("/test", |r| {
+    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+    ///         })
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new()
+    ///         .middleware(middleware::Logger::default())
+    ///         .configure(config)  // <- register resources
+    ///         .handler("/static", fs::StaticFiles::new(".", true));
+    /// }
+    /// ```
+    pub fn configure<F>(self, cfg: F) -> Application<S>
+        where F: Fn(Application<S>) -> Application<S>
+    {
+        cfg(self)
+    }
+
     /// Finish application configuration and create HttpHandler object
     pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
