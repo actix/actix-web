@@ -20,7 +20,7 @@ use payload::Payload;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 use helpers::SharedHttpInnerMessage;
-use extractor::HttpRequestExtractor;
+use extractor::{Path, Query, HttpRequestExtractor};
 use error::{Error, UrlGenerationError, CookieParseError, PayloadError};
 
 
@@ -383,6 +383,7 @@ impl<S> HttpRequest<S> {
     }
 
     /// Get a reference to the Params object.
+    ///
     /// Params is a container for url parameters.
     /// Route supports glob patterns: * for a single wildcard segment and :param
     /// for matching storing that segment of the request url in the Params object.
@@ -397,14 +398,15 @@ impl<S> HttpRequest<S> {
         unsafe{ mem::transmute(&mut self.as_mut().params) }
     }
 
-    /// Extract typed information from path.
+    /// Extract typed information from request's path.
+    ///
+    /// By default, in case of error `BAD_REQUEST` response get returned to peer.
+    /// If you need to return different response use `map_err()` method.
     ///
     /// ## Example
     ///
     /// ```rust
-    /// # extern crate bytes;
     /// # extern crate actix_web;
-    /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
     /// use actix_web::*;
     ///
@@ -414,8 +416,7 @@ impl<S> HttpRequest<S> {
     /// }
     ///
     /// fn index(mut req: HttpRequest) -> Result<String> {
-    ///     let info: Info = req.extract(Path)?;      // <- extract path info using serde
-    ///     let info: Info = req.extract(Query)?;     // <- extract query info
+    ///     let info: Info = req.extract_path()?;      // <- extract path info using serde
     ///     Ok(format!("Welcome {}!", info.username))
     /// }
     ///
@@ -425,12 +426,60 @@ impl<S> HttpRequest<S> {
     ///                   |r| r.method(Method::GET).f(index));
     /// }
     /// ```
-    pub fn extract<'a, T, D>(&'a self, ds: D) -> Result<T, Error>
+    pub fn extract_path<'a, T>(&'a self) -> Result<T, Error>
         where S: 'static,
               T: de::Deserialize<'a>,
-              D: HttpRequestExtractor<'a>
     {
-        ds.extract(self)
+        Ok(Path.extract(self)?)
+    }
+
+    /// Extract typed information from request's query string.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{HttpRequest, Result};
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// fn index(mut req: HttpRequest) -> Result<String> {
+    ///     let info: Info = req.extract_query()?;  // <- extract query info, i.e: /?id=username
+    ///     Ok(format!("Welcome {}!", info.username))
+    /// }
+    /// # fn main() {}
+    /// ```
+    ///
+    /// By default, in case of error, `BAD_REQUEST` response get returned to peer.
+    /// If you need to return different response use `map_err()` method.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{HttpRequest, Result, error};
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// fn index(mut req: HttpRequest) -> Result<String> {
+    ///     let info: Info = req.extract_query()   // <- extract query information
+    ///          .map_err(error::ErrorInternalServerError)?; // <- return 500 in case of error
+    ///     Ok(format!("Welcome {}!", info.username))
+    /// }
+    /// # fn main() {}
+    /// ```
+    ///
+    pub fn extract_query<'a, T>(&'a self) -> Result<T, Error>
+        where S: 'static,
+              T: de::Deserialize<'a>,
+    {
+        Ok(Query.extract(self)?)
     }
 
     /// Checks if a connection should be kept alive.

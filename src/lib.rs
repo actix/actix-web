@@ -144,7 +144,6 @@ pub use route::Route;
 pub use resource::Resource;
 pub use context::HttpContext;
 pub use server::HttpServer;
-pub use extractor::{Path, Query};
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
@@ -190,5 +189,5 @@ pub mod dev {
     pub use param::{FromParam, Params};
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
-    pub use extractor::HttpRequestExtractor;
+    pub use extractor::{Path, Query, HttpRequestExtractor};
 }

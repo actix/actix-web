@@ -1,11 +1,10 @@
 use serde_urlencoded;
 use serde::de::{self, Deserializer, Visitor, Error as DeError};
 
-use error::{Error, ErrorBadRequest};
 use httprequest::HttpRequest;
 
 pub trait HttpRequestExtractor<'de> {
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, Error>
+    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
         where T: de::Deserialize<'de>, S: 'static;
 }
 
@@ -19,6 +18,7 @@ pub trait HttpRequestExtractor<'de> {
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::*;
+/// use actix_web::dev::{Path, HttpRequestExtractor};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -26,7 +26,7 @@ pub trait HttpRequestExtractor<'de> {
 /// }
 ///
 /// fn index(mut req: HttpRequest) -> Result<String> {
-///     let info: Info = req.extract(Path)?;      // <- extract path info using serde
+///     let info: Info = Path.extract(&req)?;      // <- extract path info using serde
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -40,11 +40,10 @@ pub struct Path;
 
 impl<'de> HttpRequestExtractor<'de> for Path {
     #[inline]
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, Error>
+    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
         where T: de::Deserialize<'de>, S: 'static,
     {
-        Ok(de::Deserialize::deserialize(PathExtractor{req: req})
-           .map_err(ErrorBadRequest)?)
+        de::Deserialize::deserialize(PathExtractor{req: req})
     }
 }
 
@@ -58,6 +57,7 @@ impl<'de> HttpRequestExtractor<'de> for Path {
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::*;
+/// use actix_web::dev::{Query, HttpRequestExtractor};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -65,7 +65,7 @@ impl<'de> HttpRequestExtractor<'de> for Path {
 /// }
 ///
 /// fn index(mut req: HttpRequest) -> Result<String> {
-///     let info: Info = req.extract(Query)?;      // <- extract query info using serde
+///     let info: Info = Query.extract(&req)?;      // <- extract query info using serde
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -75,11 +75,10 @@ pub struct Query;
 
 impl<'de> HttpRequestExtractor<'de> for Query {
     #[inline]
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, Error>
+    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
         where T: de::Deserialize<'de>, S: 'static,
     {
-        Ok(serde_urlencoded::from_str::<T>(req.query_string())
-           .map_err(ErrorBadRequest)?)
+        serde_urlencoded::from_str::<T>(req.query_string())
     }
 }
 
@@ -189,7 +188,6 @@ impl<'de, S: 'static> Deserializer<'de> for PathExtractor<'de, S>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use router::{Router, Pattern};
     use resource::Resource;
     use test::TestRequest;
@@ -217,15 +215,15 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        let s: MyStruct = req.extract(Path).unwrap();
+        let s: MyStruct = req.extract_path().unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
 
-        let s: (String, String) = req.extract(Path).unwrap();
+        let s: (String, String) = req.extract_path().unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
-        let s: Id = req.extract(Query).unwrap();
+        let s: Id = req.extract_query().unwrap();
         assert_eq!(s.id, "test");
     }
 }

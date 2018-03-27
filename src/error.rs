@@ -13,6 +13,7 @@ use http2::Error as Http2Error;
 use http::{header, StatusCode, Error as HttpError};
 use http::uri::InvalidUri;
 use http_range::HttpRangeParseError;
+use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 pub use url::ParseError as UrlParseError;
 
@@ -108,6 +109,13 @@ impl ResponseError for JsonError {}
 
 /// `InternalServerError` for `UrlParseError`
 impl ResponseError for UrlParseError {}
+
+/// Return `BAD_REQUEST` for `de::value::Error`
+impl ResponseError for DeError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST, Body::Empty)
+    }
+}
 
 /// Return `InternalServerError` for `HttpError`,
 /// Response generation can return `HttpError`, so it is internal error
