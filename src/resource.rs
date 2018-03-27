@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use http::{Method, StatusCode};
+use serde::de::DeserializeOwned;
 
 use pred;
 use body::Body;
@@ -11,6 +12,8 @@ use handler::{Reply, Handler, Responder};
 use middleware::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use with::WithHandler;
+use extractor::HttpRequestExtractor;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -130,6 +133,22 @@ impl<S: 'static> Resource<S> {
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)
+    }
+
+    /// Register a new route and add handler.
+    ///
+    /// This is shortcut for:
+    ///
+    /// ```rust,ignore
+    /// Resource::resource("/", |r| r.route().with(index)
+    /// ```
+    pub fn with<T, D, H>(&mut self, handler: H)
+        where H: WithHandler<T, D, S>,
+              D: HttpRequestExtractor<T> + 'static,
+              T: DeserializeOwned + 'static,
+    {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().with(handler)
     }
 
     /// Register a middleware

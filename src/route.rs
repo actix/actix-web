@@ -1,6 +1,7 @@
 use std::mem;
 use std::rc::Rc;
 use std::marker::PhantomData;
+use serde::de::DeserializeOwned;
 use futures::{Async, Future, Poll};
 
 use error::Error;
@@ -11,6 +12,8 @@ use middleware::{Middleware, Response as MiddlewareResponse, Started as Middlewa
 use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use with::{with, WithHandler};
+use extractor::HttpRequestExtractor;
 
 /// Resource route definition
 ///
@@ -106,6 +109,40 @@ impl<S: 'static> Route<S> {
               E: Into<Error> + 'static
     {
         self.handler = InnerHandler::async(handler);
+    }
+
+    /// Set handler function with http request extractor.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::*;
+    /// use actix_web::{with, Path, HttpRequestExtractor};
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(req: &HttpRequest, info: Path<Info>) -> Result<String> {
+    ///     Ok(format!("Welcome {}!", info.username))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new().resource(
+    ///        "/{username}/index.html",                // <- define path parameters
+    ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
+    /// }
+    /// ```
+    pub fn with<T, D, H>(&mut self, handler: H)
+        where H: WithHandler<T, D, S>,
+              D: HttpRequestExtractor<T> + 'static,
+              T: DeserializeOwned + 'static,
+    {
+        self.h(with(handler))
     }
 }
 

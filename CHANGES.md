@@ -2,7 +2,9 @@
 
 ## 0.4.11 
 
-* Added `HttpReuqest::extract_xxx()`, type safe path/query information extractor.
+* Added `Route::with()` handler, uses request extractor
+
+* Added `HttpReuqest::extract_xxx()`, type safe path/query information extractor
 
 * Fix long client urls #129
 

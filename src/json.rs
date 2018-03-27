@@ -1,3 +1,4 @@
+use std::fmt;
 use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
 use http::header::CONTENT_LENGTH;
@@ -12,6 +13,7 @@ use handler::Responder;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use extractor::HttpRequestExtractor;
 
 /// Json response helper
 ///
@@ -34,7 +36,19 @@ use httpresponse::HttpResponse;
 /// }
 /// # fn main() {}
 /// ```
-pub struct Json<T: Serialize> (pub T);
+pub struct Json<T>(pub T);
+
+impl<T> fmt::Debug for Json<T> where T: fmt::Debug {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Json: {:?}", self.0)
+    }
+}
+
+impl<T> fmt::Display for Json<T> where T: fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
 
 impl<T: Serialize> Responder for Json<T> {
     type Item = HttpResponse;
@@ -46,6 +60,19 @@ impl<T: Serialize> Responder for Json<T> {
         Ok(HttpResponse::Ok()
            .content_type("application/json")
            .body(body)?)
+    }
+}
+
+impl<T> HttpRequestExtractor<T> for Json<T> where T: DeserializeOwned + 'static
+{
+    type Result = Box<Future<Item=Self, Error=Error>>;
+
+    #[inline]
+    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
+        Box::new(
+            JsonBody::new(req.clone())
+                .from_err()
+                .map(Json))
     }
 }
 
@@ -160,6 +187,9 @@ mod tests {
     use http::header;
     use futures::Async;
 
+    use with::with;
+    use handler::Handler;
+
     impl PartialEq for JsonPayloadError {
         fn eq(&self, other: &JsonPayloadError) -> bool {
             match *self {
@@ -215,6 +245,25 @@ mod tests {
                                  header::HeaderValue::from_static("16"));
         req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().ok().unwrap(), Async::Ready(MyObject{name: "test".to_owned()}));
+        assert_eq!(json.poll().ok().unwrap(),
+                   Async::Ready(MyObject{name: "test".to_owned()}));
+    }
+
+    #[test]
+    fn test_with_json() {
+        let mut handler = with(|_: &_, data: Json<MyObject>| data);
+
+        let req = HttpRequest::default();
+        let mut json = handler.handle(req).into_future();
+        assert!(json.poll().is_err());
+
+        let mut req = HttpRequest::default();
+        req.headers_mut().insert(header::CONTENT_TYPE,
+                                 header::HeaderValue::from_static("application/json"));
+        req.headers_mut().insert(header::CONTENT_LENGTH,
+                                 header::HeaderValue::from_static("16"));
+        req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        let mut json = handler.handle(req).into_future();
+        assert!(json.poll().is_ok())
     }
 }

@@ -1,11 +1,18 @@
-use serde_urlencoded;
-use serde::de::{self, Deserializer, Visitor, Error as DeError};
+use std::ops::{Deref, DerefMut};
 
+use serde_urlencoded;
+use serde::de::{self, Deserializer, DeserializeOwned, Visitor, Error as DeError};
+use futures::future::{Future, FutureResult, result};
+
+use error::Error;
 use httprequest::HttpRequest;
 
-pub trait HttpRequestExtractor<'de> {
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
-        where T: de::Deserialize<'de>, S: 'static;
+
+pub trait HttpRequestExtractor<T>: Sized where T: DeserializeOwned
+{
+    type Result: Future<Item=Self, Error=Error>;
+
+    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result;
 }
 
 /// Extract typed information from the request's path.
@@ -18,32 +25,49 @@ pub trait HttpRequestExtractor<'de> {
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::*;
-/// use actix_web::dev::{Path, HttpRequestExtractor};
+/// use actix_web::Path;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
 ///
-/// fn index(mut req: HttpRequest) -> Result<String> {
-///     let info: Info = Path.extract(&req)?;      // <- extract path info using serde
+/// /// extract path info using serde
+/// fn index(req: &HttpRequest, info: Path<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
-///     let app = Application::new()
-///         .resource("/{username}/index.html",    // <- define path parameters
-///                   |r| r.method(Method::GET).f(index));
+///     let app = Application::new().resource(
+///        "/{username}/index.html",                // <- define path parameters
+///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
-pub struct Path;
+pub struct Path<T>(pub T);
 
-impl<'de> HttpRequestExtractor<'de> for Path {
+impl<T> Deref for Path<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Path<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> HttpRequestExtractor<T> for Path<T> where T: DeserializeOwned
+{
+    type Result = FutureResult<Self, Error>;
+
     #[inline]
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
-        where T: de::Deserialize<'de>, S: 'static,
-    {
-        de::Deserialize::deserialize(PathExtractor{req: req})
+    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
+        result(de::Deserialize::deserialize(PathExtractor{req})
+               .map_err(|e| e.into())
+               .map(Path))
     }
 }
 
@@ -57,28 +81,50 @@ impl<'de> HttpRequestExtractor<'de> for Path {
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::*;
-/// use actix_web::dev::{Query, HttpRequestExtractor};
+/// use actix_web::Query;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
 ///
-/// fn index(mut req: HttpRequest) -> Result<String> {
-///     let info: Info = Query.extract(&req)?;      // <- extract query info using serde
+/// // use `with` extractor for query info
+/// // this handler get called only if request's query contains `username` field
+/// fn index(req: &HttpRequest, info: Query<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
-/// # fn main() {}
+/// fn main() {
+///     let app = Application::new().resource(
+///        "/index.html",
+///        |r| r.method(Method::GET).with(index)); // <- use `with` extractor
+/// }
 /// ```
-pub struct Query;
+pub struct Query<T>(pub T);
 
-impl<'de> HttpRequestExtractor<'de> for Query {
+impl<T> Deref for Query<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Query<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> HttpRequestExtractor<T> for Query<T> where T: de::DeserializeOwned
+{
+    type Result = FutureResult<Self, Error>;
+
     #[inline]
-    fn extract<T, S>(&self, req: &'de HttpRequest<S>) -> Result<T, de::value::Error>
-        where T: de::Deserialize<'de>, S: 'static,
-    {
-        serde_urlencoded::from_str::<T>(req.query_string())
+    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
+        result(serde_urlencoded::from_str::<T>(req.query_string())
+               .map_err(|e| e.into())
+               .map(Query))
     }
 }
 
@@ -92,11 +138,11 @@ macro_rules! unsupported_type {
     };
 }
 
-pub struct PathExtractor<'de, S: 'static> {
+pub struct PathExtractor<'de, S: 'de> {
     req: &'de HttpRequest<S>
 }
 
-impl<'de, S: 'static> Deserializer<'de> for PathExtractor<'de, S>
+impl<'de, S: 'de> Deserializer<'de> for PathExtractor<'de, S>
 {
     type Error = de::value::Error;
 

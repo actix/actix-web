@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::net::SocketAddr;
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::{Async, Stream, Poll};
+use futures::{Async, Future, Stream, Poll};
 use futures_cpupool::CpuPool;
 use failure;
 use url::{Url, form_urlencoded};
@@ -426,11 +426,14 @@ impl<S> HttpRequest<S> {
     ///                   |r| r.method(Method::GET).f(index));
     /// }
     /// ```
-    pub fn extract_path<'a, T>(&'a self) -> Result<T, Error>
+    pub fn extract_path<T>(&self) -> Result<T, Error>
         where S: 'static,
-              T: de::Deserialize<'a>,
+              T: de::DeserializeOwned,
     {
-        Ok(Path.extract(self)?)
+        match Path::<T>::extract(self).poll()? {
+            Async::Ready(val) => Ok(val.0),
+            _ => unreachable!()
+        }
     }
 
     /// Extract typed information from request's query string.
@@ -475,11 +478,14 @@ impl<S> HttpRequest<S> {
     /// # fn main() {}
     /// ```
     ///
-    pub fn extract_query<'a, T>(&'a self) -> Result<T, Error>
+    pub fn extract_query<T>(&self) -> Result<T, Error>
         where S: 'static,
-              T: de::Deserialize<'a>,
+              T: de::DeserializeOwned,
     {
-        Ok(Query.extract(self)?)
+        match Query::<T>::extract(self).poll()? {
+            Async::Ready(val) => Ok(val.0),
+            _ => unreachable!()
+        }
     }
 
     /// Checks if a connection should be kept alive.

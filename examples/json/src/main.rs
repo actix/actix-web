@@ -30,6 +30,11 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .responder()
 }
 
+/// This handler uses `With` helper for loading serde json object.
+fn extract_item(_: &HttpRequest, item: Json<MyObj>) -> Result<HttpResponse> {
+    println!("model: {:?}", &item);
+    httpcodes::HTTPOk.build().json(item.0)  // <- send response
+}
 
 const MAX_SIZE: usize = 262_144;  // max payload size is 256k
 
@@ -73,7 +78,6 @@ fn index_mjsonrust(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Erro
             Ok(HttpResponse::build(StatusCode::OK)
                 .content_type("application/json")
                 .body(injson.dump()).unwrap())
-
         })
         .responder()
 }
@@ -87,6 +91,8 @@ fn main() {
         Application::new()
             // enable logger
             .middleware(middleware::Logger::default())
+            .resource("/extractor/{name}/{number}/",
+                      |r| r.method(Method::GET).with(extract_item))
             .resource("/manual", |r| r.method(Method::POST).f(index_manual))
             .resource("/mjsonrust", |r| r.method(Method::POST).f(index_mjsonrust))
             .resource("/", |r| r.method(Method::POST).f(index))})

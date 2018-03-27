@@ -233,14 +233,14 @@ impl FormatText {
             FormatText::Time => {
                 let response_time = time::now() - entry_time;
                 let response_time = response_time.num_seconds() as f64 +
-                    (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000000.0;
+                    (response_time.num_nanoseconds().unwrap_or(0) as f64)/1_000_000_000.0;
 
                 fmt.write_fmt(format_args!("{:.6}", response_time))
             },
             FormatText::TimeMillis => {
                 let response_time = time::now() - entry_time;
                 let response_time_ms = (response_time.num_seconds() * 1000) as f64 +
-                    (response_time.num_nanoseconds().unwrap_or(0) as f64) / 1000000.0;
+                    (response_time.num_nanoseconds().unwrap_or(0) as f64)/1_000_000.0;
 
                 fmt.write_fmt(format_args!("{:.6}", response_time_ms))
             },
