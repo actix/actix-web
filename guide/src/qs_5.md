@@ -323,6 +323,43 @@ fn main() {
 List of `FromParam` implementation could be found in
 [api docs](../actix_web/dev/trait.FromParam.html#foreign-impls)
 
+## Path information extractor
+
+Actix provides functionality for type safe request's path information extraction.
+It uses *serde* package as a deserialization library.
+[HttpRequest::extract_path()](../actix_web/struct.HttpRequest.html#method.extract_path)
+method extracts information, destination type has to implements `Deserialize` trait
+from *serde* libary.
+
+```rust
+# extern crate bytes;
+# extern crate actix_web;
+# extern crate futures;
+#[macro_use] extern crate serde_derive;
+use actix_web::*;
+use actix_web::dev::{Path, HttpRequestExtractor};
+
+#[derive(Deserialize)]
+struct Info {
+    username: String,
+}
+
+fn index(mut req: HttpRequest) -> Result<String> {
+    let info: Info = Path.extract(&req)?;      // <- extract path info using serde
+    Ok(format!("Welcome {}!", info.username))
+}
+
+fn main() {
+    let app = Application::new()
+        .resource("/{username}/index.html",    // <- define path parameters
+                  |r| r.method(Method::GET).f(index));
+}
+```
+
+[HttpRequest::extract_query()](../actix_web/struct.HttpRequest.html#method.extract_query)
+method provides similar functionality for request's query parameters.
+
+
 ## Generating resource URLs
 
 Use the [HttpRequest.url_for()](../actix_web/struct.HttpRequest.html#method.url_for)
