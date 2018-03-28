@@ -145,7 +145,7 @@ pub use route::Route;
 pub use resource::Resource;
 pub use context::HttpContext;
 pub use server::HttpServer;
-pub use extractor::{Path, Query, HttpRequestExtractor};
+pub use extractor::{Path, Query};
 
 // re-exports
 pub use http::{Method, StatusCode, Version};
@@ -186,10 +186,11 @@ pub mod dev {
     pub use context::Drain;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
-    pub use with::With;
+    pub use with::{With, WithHandler};
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
+    pub use extractor::HttpRequestExtractor;
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }

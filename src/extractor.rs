@@ -17,6 +17,8 @@ pub trait HttpRequestExtractor<T, S>: Sized where T: DeserializeOwned, S: 'stati
 
 /// Extract typed information from the request's path.
 ///
+/// `S` - application state type
+///
 /// ## Example
 ///
 /// ```rust
@@ -98,6 +100,8 @@ impl<T, S> HttpRequestExtractor<T, S> for Path<T, S>
 }
 
 /// Extract typed information from from the request's query.
+///
+/// `S` - application state type
 ///
 /// ## Example
 ///
