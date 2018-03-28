@@ -29,18 +29,21 @@ pub trait HttpRequestExtractor<T, S>: Sized where T: DeserializeOwned, S: 'stati
 /// use actix_web::*;
 /// use actix_web::Path;
 ///
+/// /// Application state
+/// struct State {}
+///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(info: Path<Info>) -> Result<String> {
+/// fn index(info: Path<Info, State>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
-///     let app = Application::new().resource(
+///     let app = Application::with_state(State{}).resource(
 ///        "/{username}/index.html",                // <- define path parameters
 ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
 /// }
@@ -113,6 +116,9 @@ impl<T, S> HttpRequestExtractor<T, S> for Path<T, S>
 /// use actix_web::*;
 /// use actix_web::Query;
 ///
+/// /// Application state
+/// struct State {}
+///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
@@ -120,12 +126,12 @@ impl<T, S> HttpRequestExtractor<T, S> for Path<T, S>
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(info: Query<Info>) -> Result<String> {
+/// fn index(info: Query<Info, State>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
-///     let app = Application::new().resource(
+///     let app = Application::with_state(State{}).resource(
 ///        "/index.html",
 ///        |r| r.method(Method::GET).with(index)); // <- use `with` extractor
 /// }
