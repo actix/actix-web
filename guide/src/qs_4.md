@@ -1,16 +1,16 @@
 # Handler
 
-A request handler can by any object that implements 
+A request handler can be any object that implements
 [*Handler trait*](../actix_web/dev/trait.Handler.html).
-Request handling happen in two stages. First handler object get called. 
-Handle can return any object that implements 
+Request handling happens in two stages. First the handler object is called.
+Handler can return any object that implements
 [*Responder trait*](../actix_web/trait.Responder.html#foreign-impls).
-Then `respond_to()` get called on returned object. And finally
-result of the `respond_to()` call get converted to `Reply` object.
+Then `respond_to()` is called on the returned object. And finally
+result of the `respond_to()` call is converted to a `Reply` object.
 
-By default actix provides `Responder` implementations for some standard types, 
+By default actix provides `Responder` implementations for some standard types,
 like `&'static str`, `String`, etc.
-For complete list of implementations check 
+For a complete list of implementations, check
 [*Responder documentation*](../actix_web/trait.Responder.html#foreign-impls).
 
 Examples of valid handlers:
@@ -41,15 +41,15 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
 Some notes on shared application state and handler state. If you noticed
 *Handler* trait is generic over *S*, which defines application state type. So
-application state is accessible from handler with `HttpRequest::state()` method. 
-But state is accessible as a read-only reference, if you need mutable access to state
-you have to implement it yourself. On other hand handler can mutable access it's own state
-as `handle` method takes mutable reference to *self*. Beware, actix creates multiple copies
+application state is accessible from handler with the `HttpRequest::state()` method.
+But state is accessible as a read-only reference - if you need mutable access to state
+you have to implement it yourself. On other hand, handler can mutably access its own state
+as the `handle` method takes a mutable reference to *self*. Beware, actix creates multiple copies
 of application state and handlers, unique for each thread, so if you run your
-application in several threads actix will create same amount as number of threads 
+application in several threads, actix will create the same amount as number of threads
 of application state objects and handler objects.
 
-Here is example of handler that stores number of processed requests:
+Here is an example of a handler that stores the number of processed requests:
 
 ```rust
 # extern crate actix;
@@ -71,8 +71,8 @@ impl<S> Handler<S> for MyHandler {
 # fn main() {}
 ```
 
-This handler will work, but `self.0` value will be different depends on number of threads and
-number of requests processed per thread. Proper implementation would use `Arc` and `AtomicUsize`
+This handler will work, but `self.0` will be different depending on the number of threads and
+number of requests processed per thread. A proper implementation would use `Arc` and `AtomicUsize`
 
 ```rust
 # extern crate actix;
@@ -100,7 +100,7 @@ fn main() {
     let inc = Arc::new(AtomicUsize::new(0));
 
     HttpServer::new(
-        move || { 
+        move || {
             let cloned = inc.clone();
             Application::new()
                 .resource("/", move |r| r.h(MyHandler(cloned)))
@@ -115,14 +115,14 @@ fn main() {
 ```
 
 Be careful with synchronization primitives like *Mutex* or *RwLock*. Actix web framework
-handles request asynchronously, by blocking thread execution all concurrent
-request handling processes would block. If you need to share or update some state 
-from multiple threads consider using [actix](https://actix.github.io/actix/actix/)  actor system.
+handles requests asynchronously; by blocking thread execution all concurrent
+request handling processes would block. If you need to share or update some state
+from multiple threads consider using the [actix](https://actix.github.io/actix/actix/) actor system.
 
 ## Response with custom type
 
-To return custom type directly from handler function, type needs to implement `Responder` trait.
-Let's create response for custom type that serializes to `application/json` response:
+To return a custom type directly from a handler function, the type needs to implement  the `Responder` trait.
+Let's create a response for a custom type that serializes to an `application/json` response:
 
 ```rust
 # extern crate actix;
@@ -174,11 +174,10 @@ fn main() {
 
 ## Async handlers
 
-There are two different types of async handlers. 
+There are two different types of async handlers.
 
-Response object could be generated asynchronously or more precisely, any type
-that implements [*Responder*](../actix_web/trait.Responder.html) trait. In this case handle must
-return `Future` object that resolves to *Responder* type, i.e:
+Response objects can be generated asynchronously or more precisely, any type
+that implements the [*Responder*](../actix_web/trait.Responder.html) trait. In this case the handler must return a `Future` object that resolves to the *Responder* type, i.e:
 
 ```rust
 # extern crate actix_web;
@@ -210,7 +209,7 @@ fn main() {
 }
 ```
 
-Or response body can be generated asynchronously. In this case body
+Or the response body can be generated asynchronously. In this case body
 must implement stream trait `Stream<Item=Bytes, Error=Error>`, i.e:
 
 ```rust
@@ -235,10 +234,10 @@ fn main() {
 }
 ```
 
-Both methods could be combined. (i.e Async response with streaming body)
+Both methods can be combined. (i.e Async response with streaming body)
 
-It is possible return `Result` which `Result::Item` type could be `Future`. 
-In this example `index` handler can return error immediately or return
+It is possible to return a `Result` where the `Result::Item` type can be `Future`.
+In this example the `index` handler can return an error immediately or return a
 future that resolves to a `HttpResponse`.
 
 ```rust
@@ -273,8 +272,8 @@ fn index(req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>
 Sometimes you need to return different types of responses. For example
 you can do error check and return error and return async response otherwise.
 Or any result that requires two different types.
-For this case [*Either*](../actix_web/enum.Either.html) type can be used.
-*Either* allows to combine two different responder types into a single type.
+For this case the [*Either*](../actix_web/enum.Either.html) type can be used.
+*Either* allows combining two different responder types into a single type.
 
 ```rust
 # extern crate actix_web;
@@ -308,9 +307,9 @@ fn index(req: HttpRequest) -> RegisterResult {
 
 ## Tokio core handle
 
-Any actix web handler runs within properly configured
+Any actix web handler runs within a properly configured
 [actix system](https://actix.github.io/actix/actix/struct.System.html)
 and [arbiter](https://actix.github.io/actix/actix/struct.Arbiter.html).
-You can always get access to tokio handle via
+You can always get access to the tokio handle via the
 [Arbiter::handle()](https://actix.github.io/actix/actix/struct.Arbiter.html#method.handle)
 method.

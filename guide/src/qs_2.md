@@ -3,9 +3,9 @@
 Let’s create and run our first actix web application. We’ll create a new Cargo project
 that depends on actix web and then run the application.
 
-In previous section we already installed required rust version. Now let's create new cargo projects.
+In the previous section we already installed the required rust version. Now let's create new cargo projects.
 
-## Hello, world! 
+## Hello, world!
 
 Let’s write our first actix web application! Start by creating a new binary-based
 Cargo project and changing into the new directory:
@@ -15,7 +15,7 @@ cargo new hello-world --bin
 cd hello-world
 ```
 
-Now, add actix and actix web as dependencies of your project by ensuring your Cargo.toml 
+Now, add actix and actix web as dependencies of your project by ensuring your Cargo.toml
 contains the following:
 
 ```toml
@@ -26,7 +26,7 @@ actix-web = "0.4"
 
 In order to implement a web server, first we need to create a request handler.
 
-A request handler is a function that accepts a `HttpRequest` instance as its only parameter 
+A request handler is a function that accepts an `HttpRequest` instance as its only parameter
 and returns a type that can be converted into `HttpResponse`:
 
 ```rust
@@ -53,8 +53,8 @@ request handler with the application's `resource` on a particular *HTTP method* 
 # }
 ```
 
-After that, application instance can be used with `HttpServer` to listen for incoming
-connections. Server accepts function that should return `HttpHandler` instance:
+After that, the application instance can be used with `HttpServer` to listen for incoming
+connections. The server accepts a function that should return an `HttpHandler` instance:
 
 ```rust,ignore
    HttpServer::new(
@@ -64,7 +64,7 @@ connections. Server accepts function that should return `HttpHandler` instance:
        .run();
 ```
 
-That's it. Now, compile and run the program with cargo run. 
+That's it. Now, compile and run the program with `cargo run`.
 Head over to ``http://localhost:8088/`` to see the results.
 
 Here is full source of main.rs file:
@@ -92,7 +92,7 @@ fn main() {
 }
 ```
 
-Note on `actix` crate. Actix web framework is built on top of actix actor library. 
-`actix::System` initializes actor system, `HttpServer` is an actor and must run within
+Note on the `actix` crate. Actix web framework is built on top of actix actor library.
+`actix::System` initializes actor system, `HttpServer` is an actor and must run within a
 properly configured actix system. For more information please check
 [actix documentation](https://actix.github.io/actix/actix/)

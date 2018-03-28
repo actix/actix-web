@@ -1,12 +1,12 @@
 # WebSockets
 
-Actix supports WebSockets out-of-the-box. It is possible to convert request's `Payload`
-to a stream of [*ws::Message*](../actix_web/ws/enum.Message.html) with 
+Actix supports WebSockets out-of-the-box. It is possible to convert a request's `Payload`
+to a stream of [*ws::Message*](../actix_web/ws/enum.Message.html) with
 a [*ws::WsStream*](../actix_web/ws/struct.WsStream.html) and then use stream
 combinators to handle actual messages. But it is simpler to handle websocket communications
-with http actor.
+with an http actor.
 
-This is example of simple websocket echo server:
+This is example of a simple websocket echo server:
 
 ```rust
 # extern crate actix;
@@ -41,8 +41,8 @@ fn main() {
 }
 ```
 
-Simple websocket echo server example is available in 
+A simple websocket echo server example is available in the
 [examples directory](https://github.com/actix/actix-web/blob/master/examples/websocket).
 
-Example chat server with ability to chat over websocket connection or tcp connection
+An example chat server with the ability to chat over a websocket or tcp connection
 is available in [websocket-chat directory](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
