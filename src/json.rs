@@ -63,7 +63,7 @@ impl<T: Serialize> Responder for Json<T> {
     }
 }
 
-impl<T, S> HttpRequestExtractor<T, S> for Json<T>
+impl<T, S> HttpRequestExtractor<S> for Json<T>
     where T: DeserializeOwned + 'static, S: 'static
 {
     type Result = Box<Future<Item=Self, Error=Error>>;

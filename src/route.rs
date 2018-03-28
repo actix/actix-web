@@ -1,7 +1,6 @@
 use std::mem;
 use std::rc::Rc;
 use std::marker::PhantomData;
-use serde::de::DeserializeOwned;
 use futures::{Async, Future, Poll};
 
 use error::Error;
@@ -12,7 +11,7 @@ use middleware::{Middleware, Response as MiddlewareResponse, Started as Middlewa
 use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use with::{with, WithHandler};
+use with::{with, with2, with3, WithHandler};
 use extractor::HttpRequestExtractor;
 
 /// Resource route definition
@@ -137,12 +136,61 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
     /// }
     /// ```
-    pub fn with<T, D, H>(&mut self, handler: H)
-        where H: WithHandler<T, D, S>,
-              D: HttpRequestExtractor<T, S> + 'static,
-              T: DeserializeOwned + 'static,
+    pub fn with<T, H>(&mut self, handler: H)
+        where H: WithHandler<T, S>,
+              T: HttpRequestExtractor<S> + 'static,
     {
         self.h(with(handler))
+    }
+
+    /// Set handler function, function has to accept two request extractors.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::*;
+    /// use actix_web::Path;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct PParam {
+    ///     username: String,
+    /// }
+    ///
+    /// #[derive(Deserialize)]
+    /// struct QParam {
+    ///     count: u32,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(p: Path<PParam>, q: Query<QParam>) -> Result<String> {
+    ///     Ok(format!("Welcome {}!", p.username))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = Application::new().resource(
+    ///        "/{username}/index.html",                // <- define path parameters
+    ///        |r| r.method(Method::GET).with2(index));  // <- use `with` extractor
+    /// }
+    /// ```
+    pub fn with2<T1, T2, F, R>(&mut self, handler: F)
+        where F: Fn(T1, T2) -> R + 'static,
+              R: Responder + 'static,
+              T1: HttpRequestExtractor<S> + 'static,
+              T2: HttpRequestExtractor<S> + 'static,
+    {
+        self.h(with2(handler))
+    }
+
+    pub fn with3<T1, T2, T3, F, R>(&mut self, handler: F)
+        where F: Fn(T1, T2, T3) -> R + 'static,
+              R: Responder + 'static,
+              T1: HttpRequestExtractor<S> + 'static,
+              T2: HttpRequestExtractor<S> + 'static,
+              T3: HttpRequestExtractor<S> + 'static,
+    {
+        self.h(with3(handler))
     }
 }
 

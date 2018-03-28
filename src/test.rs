@@ -27,6 +27,7 @@ use application::{Application, HttpApplication};
 use param::Params;
 use router::Router;
 use payload::Payload;
+use resource::Resource;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
@@ -393,6 +394,15 @@ impl<S: 'static> TestApp<S> {
         where T: Middleware<S> + 'static
     {
         self.app = Some(self.app.take().unwrap().middleware(mw));
+        self
+    }
+
+    /// Register resource. This method is similar
+    /// to `Application::resource()` method.
+    pub fn resource<F>(&mut self, path: &str, f: F) -> &mut TestApp<S>
+        where F: FnOnce(&mut Resource<S>) + 'static
+    {
+        self.app = Some(self.app.take().unwrap().resource(path, f));
         self
     }
 }

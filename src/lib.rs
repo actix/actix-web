@@ -186,7 +186,7 @@ pub mod dev {
     pub use context::Drain;
     pub use info::ConnectionInfo;
     pub use handler::Handler;
-    pub use with::{With, WithHandler};
+    pub use with::WithHandler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};

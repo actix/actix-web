@@ -8,7 +8,7 @@ use error::Error;
 use httprequest::HttpRequest;
 
 
-pub trait HttpRequestExtractor<T, S>: Sized where T: DeserializeOwned, S: 'static
+pub trait HttpRequestExtractor<S>: Sized where S: 'static
 {
     type Result: Future<Item=Self, Error=Error>;
 
@@ -88,7 +88,7 @@ impl<T, S> Path<T, S> {
 
 }
 
-impl<T, S> HttpRequestExtractor<T, S> for Path<T, S>
+impl<T, S> HttpRequestExtractor<S> for Path<T, S>
     where T: DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
@@ -175,7 +175,7 @@ impl<T, S> Query<T, S> {
     }
 }
 
-impl<T, S> HttpRequestExtractor<T, S> for Query<T, S>
+impl<T, S> HttpRequestExtractor<S> for Query<T, S>
     where T: de::DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;

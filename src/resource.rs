@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use http::{Method, StatusCode};
-use serde::de::DeserializeOwned;
 
 use pred;
 use body::Body;
@@ -142,10 +141,9 @@ impl<S: 'static> Resource<S> {
     /// ```rust,ignore
     /// Resource::resource("/", |r| r.route().with(index)
     /// ```
-    pub fn with<T, D, H>(&mut self, handler: H)
-        where H: WithHandler<T, D, S>,
-              D: HttpRequestExtractor<T, S> + 'static,
-              T: DeserializeOwned + 'static,
+    pub fn with<T, H>(&mut self, handler: H)
+        where H: WithHandler<T, S>,
+              T: HttpRequestExtractor<S> + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().with(handler)
