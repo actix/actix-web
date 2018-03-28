@@ -144,7 +144,7 @@ impl<S: 'static> Resource<S> {
     /// ```
     pub fn with<T, D, H>(&mut self, handler: H)
         where H: WithHandler<T, D, S>,
-              D: HttpRequestExtractor<T> + 'static,
+              D: HttpRequestExtractor<T, S> + 'static,
               T: DeserializeOwned + 'static,
     {
         self.routes.push(Route::default());

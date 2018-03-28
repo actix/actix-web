@@ -8,11 +8,11 @@ use error::Error;
 use httprequest::HttpRequest;
 
 
-pub trait HttpRequestExtractor<T>: Sized where T: DeserializeOwned
+pub trait HttpRequestExtractor<T, S>: Sized where T: DeserializeOwned, S: 'static
 {
     type Result: Future<Item=Self, Error=Error>;
 
-    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result;
+    fn extract(req: &HttpRequest<S>) -> Self::Result;
 }
 
 /// Extract typed information from the request's path.
@@ -33,7 +33,7 @@ pub trait HttpRequestExtractor<T>: Sized where T: DeserializeOwned
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(req: HttpRequest, info: Path<Info>) -> Result<String> {
+/// fn index(info: Path<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -43,31 +43,57 @@ pub trait HttpRequestExtractor<T>: Sized where T: DeserializeOwned
 ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
-pub struct Path<T>(pub T);
+pub struct Path<T, S=()>{
+    item: T,
+    req: HttpRequest<S>,
+}
 
-impl<T> Deref for Path<T> {
+impl<T, S> Deref for Path<T, S> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.0
+        &self.item
     }
 }
 
-impl<T> DerefMut for Path<T> {
+impl<T, S> DerefMut for Path<T, S> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.item
     }
 }
 
-impl<T> HttpRequestExtractor<T> for Path<T> where T: DeserializeOwned
+impl<T, S> Path<T, S> {
+
+    /// Shared application state
+    #[inline]
+    pub fn state(&self) -> &S {
+        self.req.state()
+    }
+
+    /// Incoming request
+    #[inline]
+    pub fn request(&self) -> &HttpRequest<S> {
+        &self.req
+    }
+
+    /// Deconstruct instance into a parts
+    pub fn into(self) -> (T, HttpRequest<S>) {
+        (self.item, self.req)
+    }
+
+}
+
+impl<T, S> HttpRequestExtractor<T, S> for Path<T, S>
+    where T: DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
-        result(de::Deserialize::deserialize(PathExtractor{req})
+    fn extract(req: &HttpRequest<S>) -> Self::Result {
+        let req = req.clone();
+        result(de::Deserialize::deserialize(PathExtractor{req: &req})
                .map_err(|e| e.into())
-               .map(Path))
+               .map(|item| Path{item, req}))
     }
 }
 
@@ -90,7 +116,7 @@ impl<T> HttpRequestExtractor<T> for Path<T> where T: DeserializeOwned
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(req: HttpRequest, info: Query<Info>) -> Result<String> {
+/// fn index(info: Query<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -100,31 +126,56 @@ impl<T> HttpRequestExtractor<T> for Path<T> where T: DeserializeOwned
 ///        |r| r.method(Method::GET).with(index)); // <- use `with` extractor
 /// }
 /// ```
-pub struct Query<T>(pub T);
+pub struct Query<T, S=()>{
+    item: T,
+    req: HttpRequest<S>,
+}
 
-impl<T> Deref for Query<T> {
+impl<T, S> Deref for Query<T, S> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.0
+        &self.item
     }
 }
 
-impl<T> DerefMut for Query<T> {
+impl<T, S> DerefMut for Query<T, S> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.item
     }
 }
 
-impl<T> HttpRequestExtractor<T> for Query<T> where T: de::DeserializeOwned
+impl<T, S> Query<T, S> {
+
+    /// Shared application state
+    #[inline]
+    pub fn state(&self) -> &S {
+        self.req.state()
+    }
+
+    /// Incoming request
+    #[inline]
+    pub fn request(&self) -> &HttpRequest<S> {
+        &self.req
+    }
+
+    /// Deconstruct instance into a parts
+    pub fn into(self) -> (T, HttpRequest<S>) {
+        (self.item, self.req)
+    }
+}
+
+impl<T, S> HttpRequestExtractor<T, S> for Query<T, S>
+    where T: de::DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
+    fn extract(req: &HttpRequest<S>) -> Self::Result {
+        let req = req.clone();
         result(serde_urlencoded::from_str::<T>(req.query_string())
                .map_err(|e| e.into())
-               .map(Query))
+               .map(|item| Query{ item, req}))
     }
 }
 

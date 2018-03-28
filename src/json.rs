@@ -63,12 +63,13 @@ impl<T: Serialize> Responder for Json<T> {
     }
 }
 
-impl<T> HttpRequestExtractor<T> for Json<T> where T: DeserializeOwned + 'static
+impl<T, S> HttpRequestExtractor<T, S> for Json<T>
+    where T: DeserializeOwned + 'static, S: 'static
 {
     type Result = Box<Future<Item=Self, Error=Error>>;
 
     #[inline]
-    fn extract<S: 'static>(req: &HttpRequest<S>) -> Self::Result {
+    fn extract(req: &HttpRequest<S>) -> Self::Result {
         Box::new(
             JsonBody::new(req.clone())
                 .from_err()
@@ -251,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_with_json() {
-        let mut handler = with(|_: _, data: Json<MyObject>| data);
+        let mut handler = with(|data: Json<MyObject>| data);
 
         let req = HttpRequest::default();
         let mut json = handler.handle(req).into_future();

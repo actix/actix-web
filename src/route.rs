@@ -127,7 +127,7 @@ impl<S: 'static> Route<S> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(req: HttpRequest, info: Path<Info>) -> Result<String> {
+    /// fn index(info: Path<Info>) -> Result<String> {
     ///     Ok(format!("Welcome {}!", info.username))
     /// }
     ///
@@ -139,7 +139,7 @@ impl<S: 'static> Route<S> {
     /// ```
     pub fn with<T, D, H>(&mut self, handler: H)
         where H: WithHandler<T, D, S>,
-              D: HttpRequestExtractor<T> + 'static,
+              D: HttpRequestExtractor<T, S> + 'static,
               T: DeserializeOwned + 'static,
     {
         self.h(with(handler))

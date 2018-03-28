@@ -14,32 +14,33 @@ use extractor::HttpRequestExtractor;
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
 pub trait WithHandler<T, D, S>: 'static
-    where D: HttpRequestExtractor<T>, T: DeserializeOwned
+    where D: HttpRequestExtractor<T, S>, T: DeserializeOwned, S: 'static
 {
     /// The type of value that handler will return.
     type Result: Responder;
 
     /// Handle request
-    fn handle(&mut self, req: HttpRequest<S>, data: D) -> Self::Result;
+    fn handle(&mut self, data: D) -> Self::Result;
 }
 
 /// WithHandler<D, T, S> for Fn()
 impl<T, D, S, F, R> WithHandler<T, D, S> for F
-    where F: Fn(HttpRequest<S>, D) -> R + 'static,
+    where F: Fn(D) -> R + 'static,
           R: Responder + 'static,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
+          S: 'static,
 {
     type Result = R;
 
-    fn handle(&mut self, req: HttpRequest<S>, item: D) -> R {
-        (self)(req, item)
+    fn handle(&mut self, item: D) -> R {
+        (self)(item)
     }
 }
 
 pub(crate) fn with<T, D, S, H>(h: H) -> With<T, D, S, H>
     where H: WithHandler<T, D, S>,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
 {
     With{hnd: Rc::new(UnsafeCell::new(h)),
@@ -48,8 +49,9 @@ pub(crate) fn with<T, D, S, H>(h: H) -> With<T, D, S, H>
 
 pub struct With<T, D, S, H>
     where H: WithHandler<T, D, S>,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
+          S: 'static,
 {
     hnd: Rc<UnsafeCell<H>>,
     _t: PhantomData<T>,
@@ -59,9 +61,9 @@ pub struct With<T, D, S, H>
 
 impl<T, D, S, H> Handler<S> for With<T, D, S, H>
     where H: WithHandler<T, D, S>,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
-          T: 'static, D: 'static, S: 'static
+          T: 'static, D: 'static, S: 'static, H: 'static
 {
     type Result = Reply;
 
@@ -82,7 +84,7 @@ impl<T, D, S, H> Handler<S> for With<T, D, S, H>
 
 struct WithHandlerFut<T, D, S, H>
     where H: WithHandler<T, D, S>,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
           T: 'static, D: 'static, S: 'static
 {
@@ -96,7 +98,7 @@ struct WithHandlerFut<T, D, S, H>
 
 impl<T, D, S, H> Future for WithHandlerFut<T, D, S, H>
     where H: WithHandler<T, D, S>,
-          D: HttpRequestExtractor<T>,
+          D: HttpRequestExtractor<T, S>,
           T: DeserializeOwned,
           T: 'static, D: 'static, S: 'static
 {
@@ -114,7 +116,7 @@ impl<T, D, S, H> Future for WithHandlerFut<T, D, S, H>
         };
 
         let hnd: &mut H = unsafe{&mut *self.hnd.get()};
-        let item = match hnd.handle(self.req.clone(), item)
+        let item = match hnd.handle(item)
             .respond_to(self.req.without_state())
         {
             Ok(item) => item.into(),

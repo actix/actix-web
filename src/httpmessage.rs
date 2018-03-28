@@ -136,7 +136,7 @@ pub trait HttpMessage {
         MessageBody::new(self)
     }
 
-    /// Parse `application/x-www-form-urlencoded` encoded body.
+    /// Parse `application/x-www-form-urlencoded` encoded request's body.
     /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>` which
     /// contains decoded parameters.
     ///
@@ -151,15 +151,15 @@ pub trait HttpMessage {
     /// ```rust
     /// # extern crate actix_web;
     /// # extern crate futures;
+    /// # use futures::Future;
     /// use actix_web::*;
-    /// use futures::future::{Future, ok};
     ///
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
     ///     req.urlencoded()         // <- get UrlEncoded future
     ///        .from_err()
     ///        .and_then(|params| {  // <- url encoded parameters
     ///             println!("==== BODY ==== {:?}", params);
-    ///             ok(httpcodes::HttpOk.into())
+    ///             Ok(httpcodes::HttpOk.into())
     ///        })
     ///        .responder()
     /// }

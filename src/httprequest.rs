@@ -430,8 +430,8 @@ impl<S> HttpRequest<S> {
         where S: 'static,
               T: de::DeserializeOwned,
     {
-        match Path::<T>::extract(self).poll()? {
-            Async::Ready(val) => Ok(val.0),
+        match Path::<T, _>::extract(self).poll()? {
+            Async::Ready(val) => Ok(val.into().0),
             _ => unreachable!()
         }
     }
@@ -482,8 +482,8 @@ impl<S> HttpRequest<S> {
         where S: 'static,
               T: de::DeserializeOwned,
     {
-        match Query::<T>::extract(self).poll()? {
-            Async::Ready(val) => Ok(val.0),
+        match Query::<T, _>::extract(self).poll()? {
+            Async::Ready(val) => Ok(val.into().0),
             _ => unreachable!()
         }
     }
