@@ -6,6 +6,8 @@
 
 * Added `HttpReuqest::extract_xxx()`, type safe path/query information extractor
 
+* Router cannot parse Non-ASCII characters in URL #137
+
 * Fix long client urls #129
 
 * Fix panic on invalid URL characters #130

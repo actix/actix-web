@@ -61,3 +61,20 @@ fn test_query_extractor() {
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[test]
+fn test_non_ascii_route() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/中文/index.html", |r| r.f(|_| "success"));
+    });
+
+    // client request
+    let request = srv.get().uri(srv.url("/中文/index.html"))
+        .finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"success"));
+}

@@ -2,6 +2,7 @@
 use std::{io, cmp, str, fmt, mem};
 use std::rc::Rc;
 use std::net::SocketAddr;
+use std::borrow::Cow;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures::{Async, Future, Stream, Poll};
@@ -11,6 +12,7 @@ use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions, StatusCode};
 use tokio_io::AsyncRead;
 use serde::de;
+use percent_encoding::percent_decode;
 
 use body::Body;
 use info::ConnectionInfo;
@@ -255,6 +257,12 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn path(&self) -> &str {
         self.uri().path()
+    }
+
+    /// Percent decoded path of this Request.
+    #[inline]
+    pub fn path_decoded(&self) -> Cow<str> {
+        percent_decode(self.uri().path().as_bytes()).decode_utf8().unwrap()
     }
 
     /// Get *ConnectionInfo* for correct request.
@@ -598,7 +606,7 @@ impl<S> AsyncRead for HttpRequest<S> {}
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
-                         self.as_ref().version, self.as_ref().method, self.as_ref().uri);
+                         self.as_ref().version, self.as_ref().method, self.path_decoded());
         if !self.query_string().is_empty() {
             let _ = write!(f, "  query: ?{:?}\n", self.query_string());
         }

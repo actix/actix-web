@@ -11,6 +11,7 @@ use http::header::{self, HeaderName, HeaderValue};
 use futures::Stream;
 use serde_json;
 use serde::Serialize;
+use url::Url;
 use percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
 
 use body::Body;
@@ -66,35 +67,35 @@ impl Default for ClientRequest {
 impl ClientRequest {
 
     /// Create request builder for `GET` request
-    pub fn get<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+    pub fn get<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
         builder.method(Method::GET).uri(uri);
         builder
     }
 
     /// Create request builder for `HEAD` request
-    pub fn head<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+    pub fn head<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
         builder.method(Method::HEAD).uri(uri);
         builder
     }
 
     /// Create request builder for `POST` request
-    pub fn post<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+    pub fn post<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
         builder.method(Method::POST).uri(uri);
         builder
     }
 
     /// Create request builder for `PUT` request
-    pub fn put<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+    pub fn put<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
         builder.method(Method::PUT).uri(uri);
         builder
     }
 
     /// Create request builder for `DELETE` request
-    pub fn delete<U>(uri: U) -> ClientRequestBuilder where Uri: HttpTryFrom<U> {
+    pub fn delete<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
         builder.method(Method::DELETE).uri(uri);
         builder
@@ -255,8 +256,15 @@ pub struct ClientRequestBuilder {
 impl ClientRequestBuilder {
     /// Set HTTP uri of request.
     #[inline]
-    pub fn uri<U>(&mut self, uri: U) -> &mut Self where Uri: HttpTryFrom<U> {
-        match Uri::try_from(uri) {
+    pub fn uri<U: AsRef<str>>(&mut self, uri: U) -> &mut Self {
+        match Url::parse(uri.as_ref()) {
+            Ok(url) => self._uri(url.as_str()),
+            Err(_) => self._uri(uri.as_ref()),
+        }
+    }
+
+    fn _uri(&mut self, url: &str) -> &mut Self {
+        match Uri::try_from(url) {
             Ok(uri) => {
                 // set request host header
                 if let Some(host) = uri.host() {
