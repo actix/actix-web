@@ -76,7 +76,7 @@ extern crate language_tags;
 extern crate rand;
 extern crate url;
 extern crate libc;
-extern crate serde;
+#[macro_use] extern crate serde;
 extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate flate2;
