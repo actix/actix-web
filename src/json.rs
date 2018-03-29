@@ -10,11 +10,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use error::{Error, JsonPayloadError, PayloadError};
-use handler::Responder;
+use handler::{Responder, FromRequest};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use extractor::HttpRequestExtractor;
 
 /// Json helper
 ///
@@ -112,13 +111,13 @@ impl<T: Serialize> Responder for Json<T> {
     }
 }
 
-impl<T, S> HttpRequestExtractor<S> for Json<T>
+impl<T, S> FromRequest<S> for Json<T>
     where T: DeserializeOwned + 'static, S: 'static
 {
     type Result = Box<Future<Item=Self, Error=Error>>;
 
     #[inline]
-    fn extract(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
         Box::new(
             JsonBody::new(req.clone())
                 .from_err()

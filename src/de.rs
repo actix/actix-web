@@ -2,28 +2,11 @@ use std::ops::{Deref, DerefMut};
 
 use serde_urlencoded;
 use serde::de::{self, Deserializer, DeserializeOwned, Visitor, Error as DeError};
-use futures::future::{Future, FutureResult, result};
+use futures::future::{FutureResult, result};
 
 use error::Error;
+use handler::FromRequest;
 use httprequest::HttpRequest;
-
-
-pub trait HttpRequestExtractor<S>: Sized where S: 'static
-{
-    type Result: Future<Item=Self, Error=Error>;
-
-    fn extract(req: &HttpRequest<S>) -> Self::Result;
-}
-
-impl<S: 'static> HttpRequestExtractor<S> for HttpRequest<S>
-{
-    type Result = FutureResult<Self, Error>;
-
-    #[inline]
-    fn extract(req: &HttpRequest<S>) -> Self::Result {
-        result(Ok(req.clone()))
-    }
-}
 
 /// Extract typed information from the request's path.
 ///
@@ -98,15 +81,15 @@ impl<T, S> Path<T, S> {
 
 }
 
-impl<T, S> HttpRequestExtractor<S> for Path<T, S>
+impl<T, S> FromRequest<S> for Path<T, S>
     where T: DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn extract(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
         let req = req.clone();
-        result(de::Deserialize::deserialize(PathExtractor{req: &req})
+        result(de::Deserialize::deserialize(PathDeserializer{req: &req})
                .map_err(|e| e.into())
                .map(|item| Path{item, req}))
     }
@@ -185,13 +168,13 @@ impl<T, S> Query<T, S> {
     }
 }
 
-impl<T, S> HttpRequestExtractor<S> for Query<T, S>
+impl<T, S> FromRequest<S> for Query<T, S>
     where T: de::DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn extract(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
         let req = req.clone();
         result(serde_urlencoded::from_str::<T>(req.query_string())
                .map_err(|e| e.into())
@@ -209,11 +192,11 @@ macro_rules! unsupported_type {
     };
 }
 
-pub struct PathExtractor<'de, S: 'de> {
+pub struct PathDeserializer<'de, S: 'de> {
     req: &'de HttpRequest<S>
 }
 
-impl<'de, S: 'de> Deserializer<'de> for PathExtractor<'de, S>
+impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S>
 {
     type Error = de::value::Error;
 
@@ -305,7 +288,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathExtractor<'de, S>
 
 #[cfg(test)]
 mod tests {
-    use futures::Async;
+    use futures::{Async, Future};
     use super::*;
     use router::{Router, Pattern};
     use resource::Resource;
@@ -334,7 +317,7 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<MyStruct, _>::extract(&req).poll().unwrap() {
+        match Path::<MyStruct, _>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.key, "name");
                 assert_eq!(s.value, "user1");
@@ -342,7 +325,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<(String, String), _>::extract(&req).poll().unwrap() {
+        match Path::<(String, String), _>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, "user1");
@@ -350,7 +333,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Query::<Id, _>::extract(&req).poll().unwrap() {
+        match Query::<Id, _>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.id, "test");
             },

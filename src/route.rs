@@ -5,14 +5,13 @@ use futures::{Async, Future, Poll};
 
 use error::Error;
 use pred::Predicate;
-use handler::{Reply, ReplyItem, Handler,
+use handler::{Reply, ReplyItem, Handler, FromRequest,
               Responder, RouteHandler, AsyncHandler, WrapHandler};
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
 use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use with::{with, with2, with3, WithHandler};
-use extractor::HttpRequestExtractor;
 
 /// Resource route definition
 ///
@@ -132,7 +131,7 @@ impl<S: 'static> Route<S> {
     /// ```
     pub fn with<T, H>(&mut self, handler: H)
         where H: WithHandler<T, S>,
-              T: HttpRequestExtractor<S> + 'static,
+              T: FromRequest<S> + 'static,
     {
         self.h(with(handler))
     }
@@ -171,8 +170,8 @@ impl<S: 'static> Route<S> {
     pub fn with2<T1, T2, F, R>(&mut self, handler: F)
         where F: Fn(T1, T2) -> R + 'static,
               R: Responder + 'static,
-              T1: HttpRequestExtractor<S> + 'static,
-              T2: HttpRequestExtractor<S> + 'static,
+              T1: FromRequest<S> + 'static,
+              T2: FromRequest<S> + 'static,
     {
         self.h(with2(handler))
     }
@@ -181,9 +180,9 @@ impl<S: 'static> Route<S> {
     pub fn with3<T1, T2, T3, F, R>(&mut self, handler: F)
         where F: Fn(T1, T2, T3) -> R + 'static,
               R: Responder + 'static,
-              T1: HttpRequestExtractor<S> + 'static,
-              T2: HttpRequestExtractor<S> + 'static,
-              T3: HttpRequestExtractor<S> + 'static,
+              T1: FromRequest<S> + 'static,
+              T2: FromRequest<S> + 'static,
+              T3: FromRequest<S> + 'static,
     {
         self.h(with3(handler))
     }

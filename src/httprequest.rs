@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures::{Async, Stream, Poll};
+use futures::future::{FutureResult, result};
 use futures_cpupool::CpuPool;
 use failure;
 use url::{Url, form_urlencoded};
@@ -18,10 +19,11 @@ use info::ConnectionInfo;
 use param::Params;
 use router::Router;
 use payload::Payload;
+use handler::FromRequest;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 use server::helpers::SharedHttpInnerMessage;
-use error::{UrlGenerationError, CookieParseError, PayloadError};
+use error::{Error, UrlGenerationError, CookieParseError, PayloadError};
 
 
 pub struct HttpInnerMessage {
@@ -458,6 +460,16 @@ impl Default for HttpRequest<()> {
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
         HttpRequest(self.0.clone(), self.1.clone(), self.2.clone())
+    }
+}
+
+impl<S: 'static> FromRequest<S> for HttpRequest<S>
+{
+    type Result = FutureResult<Self, Error>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+        result(Ok(req.clone()))
     }
 }
 

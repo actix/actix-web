@@ -106,6 +106,7 @@ extern crate tokio_openssl;
 mod application;
 mod body;
 mod context;
+mod de;
 mod handler;
 mod httpmessage;
 mod httprequest;
@@ -119,7 +120,6 @@ mod param;
 mod payload;
 mod pipeline;
 mod with;
-mod extractor;
 
 pub mod client;
 pub mod fs;
@@ -136,6 +136,7 @@ pub mod server;
 pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use json::Json;
+pub use de::{Path, Query};
 pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
@@ -143,7 +144,6 @@ pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, AsyncResponder, FutureResponse};
 pub use context::HttpContext;
 pub use server::HttpServer;
-pub use extractor::{Path, Query};
 
 // re-exports
 pub use http::{Method, StatusCode};
@@ -172,14 +172,13 @@ pub mod dev {
     pub use body::BodyStream;
     pub use context::Drain;
     pub use info::ConnectionInfo;
-    pub use handler::{Handler, Reply};
+    pub use handler::{Handler, Reply, FromRequest};
     pub use route::Route;
     pub use resource::Resource;
     pub use with::WithHandler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
-    pub use extractor::HttpRequestExtractor;
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }

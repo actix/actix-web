@@ -4,16 +4,15 @@ use std::marker::PhantomData;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{Handler, Reply, ReplyItem, Responder};
+use handler::{Handler, FromRequest, Reply, ReplyItem, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use extractor::HttpRequestExtractor;
 
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
 pub trait WithHandler<T, S>: 'static
-    where T: HttpRequestExtractor<S>, S: 'static
+    where T: FromRequest<S>, S: 'static
 {
     /// The type of value that handler will return.
     type Result: Responder;
@@ -26,7 +25,7 @@ pub trait WithHandler<T, S>: 'static
 impl<T, S, F, R> WithHandler<T, S> for F
     where F: Fn(T) -> R + 'static,
           R: Responder + 'static,
-          T: HttpRequestExtractor<S>,
+          T: FromRequest<S>,
           S: 'static,
 {
     type Result = R;
@@ -39,14 +38,14 @@ impl<T, S, F, R> WithHandler<T, S> for F
 pub(crate)
 fn with<T, S, H>(h: H) -> With<T, S, H>
     where H: WithHandler<T, S>,
-          T: HttpRequestExtractor<S>,
+          T: FromRequest<S>,
 {
     With{hnd: Rc::new(UnsafeCell::new(h)), _t: PhantomData, _s: PhantomData}
 }
 
 pub struct With<T, S, H>
     where H: WithHandler<T, S> + 'static,
-          T: HttpRequestExtractor<S>,
+          T: FromRequest<S>,
           S: 'static,
 {
     hnd: Rc<UnsafeCell<H>>,
@@ -56,7 +55,7 @@ pub struct With<T, S, H>
 
 impl<T, S, H> Handler<S> for With<T, S, H>
     where H: WithHandler<T, S>,
-          T: HttpRequestExtractor<S> + 'static,
+          T: FromRequest<S> + 'static,
           S: 'static, H: 'static
 {
     type Result = Reply;
@@ -80,7 +79,7 @@ impl<T, S, H> Handler<S> for With<T, S, H>
 
 struct WithHandlerFut<T, S, H>
     where H: WithHandler<T, S>,
-          T: HttpRequestExtractor<S>,
+          T: FromRequest<S>,
           T: 'static, S: 'static
 {
     started: bool,
@@ -92,7 +91,7 @@ struct WithHandlerFut<T, S, H>
 
 impl<T, S, H> Future for WithHandlerFut<T, S, H>
     where H: WithHandler<T, S>,
-          T: HttpRequestExtractor<S> + 'static,
+          T: FromRequest<S> + 'static,
           S: 'static
 {
     type Item = HttpResponse;
@@ -105,7 +104,7 @@ impl<T, S, H> Future for WithHandlerFut<T, S, H>
 
         let item = if !self.started {
             self.started = true;
-            let mut fut = T::extract(&self.req);
+            let mut fut = T::from_request(&self.req);
             match fut.poll() {
                 Ok(Async::Ready(item)) => item,
                 Ok(Async::NotReady) => {
@@ -140,8 +139,8 @@ pub(crate)
 fn with2<T1, T2, S, F, R>(h: F) -> With2<T1, T2, S, F, R>
     where F: Fn(T1, T2) -> R,
           R: Responder,
-          T1: HttpRequestExtractor<S>,
-          T2: HttpRequestExtractor<S>,
+          T1: FromRequest<S>,
+          T2: FromRequest<S>,
 {
     With2{hnd: Rc::new(UnsafeCell::new(h)),
           _t1: PhantomData, _t2: PhantomData, _s: PhantomData}
@@ -150,8 +149,8 @@ fn with2<T1, T2, S, F, R>(h: F) -> With2<T1, T2, S, F, R>
 pub struct With2<T1, T2, S, F, R>
     where F: Fn(T1, T2) -> R,
           R: Responder,
-          T1: HttpRequestExtractor<S>,
-          T2: HttpRequestExtractor<S>,
+          T1: FromRequest<S>,
+          T2: FromRequest<S>,
           S: 'static,
 {
     hnd: Rc<UnsafeCell<F>>,
@@ -163,8 +162,8 @@ pub struct With2<T1, T2, S, F, R>
 impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
     where F: Fn(T1, T2) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S> + 'static,
-          T2: HttpRequestExtractor<S> + 'static,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
           S: 'static
 {
     type Result = Reply;
@@ -190,8 +189,8 @@ impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
 struct WithHandlerFut2<T1, T2, S, F, R>
     where F: Fn(T1, T2) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S> + 'static,
-          T2: HttpRequestExtractor<S> + 'static,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
           S: 'static
 {
     started: bool,
@@ -206,8 +205,8 @@ struct WithHandlerFut2<T1, T2, S, F, R>
 impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
     where F: Fn(T1, T2) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S> + 'static,
-          T2: HttpRequestExtractor<S> + 'static,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
           S: 'static
 {
     type Item = HttpResponse;
@@ -220,10 +219,10 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
 
         if !self.started {
             self.started = true;
-            let mut fut = T1::extract(&self.req);
+            let mut fut = T1::from_request(&self.req);
             match fut.poll() {
                 Ok(Async::Ready(item1)) => {
-                    let mut fut = T2::extract(&self.req);
+                    let mut fut = T2::from_request(&self.req);
                     match fut.poll() {
                         Ok(Async::Ready(item2)) => {
                             let hnd: &mut F = unsafe{&mut *self.hnd.get()};
@@ -262,7 +261,7 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
                 Async::Ready(item) => {
                     self.item = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::extract(&self.req)));
+                    self.fut2 = Some(Box::new(T2::from_request(&self.req)));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -294,9 +293,9 @@ pub(crate)
 fn with3<T1, T2, T3, S, F, R>(h: F) -> With3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R + 'static,
           R: Responder,
-          T1: HttpRequestExtractor<S>,
-          T2: HttpRequestExtractor<S>,
-          T3: HttpRequestExtractor<S>,
+          T1: FromRequest<S>,
+          T2: FromRequest<S>,
+          T3: FromRequest<S>,
 {
     With3{hnd: Rc::new(UnsafeCell::new(h)),
           _s: PhantomData, _t1: PhantomData, _t2: PhantomData, _t3: PhantomData}
@@ -305,9 +304,9 @@ fn with3<T1, T2, T3, S, F, R>(h: F) -> With3<T1, T2, T3, S, F, R>
 pub struct With3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S>,
-          T2: HttpRequestExtractor<S>,
-          T3: HttpRequestExtractor<S>,
+          T1: FromRequest<S>,
+          T2: FromRequest<S>,
+          T3: FromRequest<S>,
           S: 'static,
 {
     hnd: Rc<UnsafeCell<F>>,
@@ -320,9 +319,9 @@ pub struct With3<T1, T2, T3, S, F, R>
 impl<T1, T2, T3, S, F, R> Handler<S> for With3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S>,
-          T2: HttpRequestExtractor<S>,
-          T3: HttpRequestExtractor<S>,
+          T1: FromRequest<S>,
+          T2: FromRequest<S>,
+          T3: FromRequest<S>,
           T1: 'static, T2: 'static, T3: 'static, S: 'static
 {
     type Result = Reply;
@@ -350,9 +349,9 @@ impl<T1, T2, T3, S, F, R> Handler<S> for With3<T1, T2, T3, S, F, R>
 struct WithHandlerFut3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S> + 'static,
-          T2: HttpRequestExtractor<S> + 'static,
-          T3: HttpRequestExtractor<S> + 'static,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
+          T3: FromRequest<S> + 'static,
           S: 'static
 {
     hnd: Rc<UnsafeCell<F>>,
@@ -369,9 +368,9 @@ struct WithHandlerFut3<T1, T2, T3, S, F, R>
 impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R + 'static,
           R: Responder + 'static,
-          T1: HttpRequestExtractor<S> + 'static,
-          T2: HttpRequestExtractor<S> + 'static,
-          T3: HttpRequestExtractor<S> + 'static,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
+          T3: FromRequest<S> + 'static,
           S: 'static
 {
     type Item = HttpResponse;
@@ -384,13 +383,13 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
 
         if !self.started {
             self.started = true;
-            let mut fut = T1::extract(&self.req);
+            let mut fut = T1::from_request(&self.req);
             match fut.poll() {
                 Ok(Async::Ready(item1)) => {
-                    let mut fut = T2::extract(&self.req);
+                    let mut fut = T2::from_request(&self.req);
                     match fut.poll() {
                         Ok(Async::Ready(item2)) => {
-                            let mut fut = T3::extract(&self.req);
+                            let mut fut = T3::from_request(&self.req);
                             match fut.poll() {
                                 Ok(Async::Ready(item3)) => {
                                     let hnd: &mut F = unsafe{&mut *self.hnd.get()};
@@ -438,7 +437,7 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
                 Async::Ready(item) => {
                     self.item1 = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::extract(&self.req)));
+                    self.fut2 = Some(Box::new(T2::from_request(&self.req)));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -449,7 +448,7 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
                 Async::Ready(item) => {
                     self.item2 = Some(item);
                     self.fut2.take();
-                    self.fut3 = Some(Box::new(T3::extract(&self.req)));
+                    self.fut3 = Some(Box::new(T3::from_request(&self.req)));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }

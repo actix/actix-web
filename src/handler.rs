@@ -30,6 +30,16 @@ pub trait Responder {
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
+/// Trait implemented by types that can be extracted from request.
+///
+/// Types that implement this trait can be used with `Route::with()` method.
+pub trait FromRequest<S>: Sized where S: 'static
+{
+    type Result: Future<Item=Self, Error=Error>;
+
+    fn from_request(req: &HttpRequest<S>) -> Self::Result;
+}
+
 /// Combines two different responder types into a single type
 ///
 /// ```rust

@@ -7,12 +7,11 @@ use http::{Method, StatusCode};
 use pred;
 use body::Body;
 use route::Route;
-use handler::{Reply, Handler, Responder};
+use handler::{Reply, Handler, Responder, FromRequest};
 use middleware::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use with::WithHandler;
-use extractor::HttpRequestExtractor;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -143,7 +142,7 @@ impl<S: 'static> Resource<S> {
     /// ```
     pub fn with<T, H>(&mut self, handler: H)
         where H: WithHandler<T, S>,
-              T: HttpRequestExtractor<S> + 'static,
+              T: FromRequest<S> + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().with(handler)
