@@ -148,7 +148,7 @@ pub use server::HttpServer;
 pub use extractor::{Path, Query};
 
 // re-exports
-pub use http::{Method, StatusCode, Version};
+pub use http::{Method, StatusCode};
 
 #[cfg(feature="openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;
