@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use handler::Reply;
 use router::{Router, Pattern};
 use resource::Resource;
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
 use pipeline::{Pipeline, PipelineHandler};

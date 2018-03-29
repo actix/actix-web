@@ -1,6 +1,6 @@
 # Changes
 
-## 0.4.11 
+## 0.5.0
 
 * Type-safe path/query parameter handling, using serde #70
 

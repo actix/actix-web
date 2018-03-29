@@ -9,7 +9,7 @@ use http::{Method, Version};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
 
 use body::{Body, Binary};
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use super::helpers;

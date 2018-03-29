@@ -32,24 +32,6 @@ use super::frame::Frame;
 use super::proto::{CloseCode, OpCode};
 
 
-/// Backward compatibility
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::Client` instead")]
-pub type WsClient = Client;
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::ClientError` instead")]
-pub type WsClientError = ClientError;
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::ClientReader` instead")]
-pub type WsClientReader = ClientReader;
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::ClientWriter` instead")]
-pub type WsClientWriter = ClientWriter;
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::ClientHandshake` instead")]
-pub type WsClientHandshake = ClientHandshake;
-
-
 /// Websocket client error
 #[derive(Fail, Debug)]
 pub enum ClientError {

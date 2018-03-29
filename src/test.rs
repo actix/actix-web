@@ -133,48 +133,6 @@ impl TestServer {
         }
     }
 
-    #[deprecated(since="0.4.10",
-                 note="please use `TestServer::build_with_state()` instead")]
-    /// Start new test server with custom application state
-    ///
-    /// This method accepts state factory and configuration method.
-    pub fn with_state<S, FS, F>(state: FS, config: F) -> Self
-        where S: 'static,
-              FS: Sync + Send + 'static + Fn() -> S,
-              F: Sync + Send + 'static + Fn(&mut TestApp<S>),
-    {
-        let (tx, rx) = mpsc::channel();
-
-        // run server in separate thread
-        let join = thread::spawn(move || {
-            let sys = System::new("actix-test-server");
-
-            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let local_addr = tcp.local_addr().unwrap();
-            let tcp = TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
-
-            HttpServer::new(move || {
-                let mut app = TestApp::new(state());
-                config(&mut app);
-                vec![app]}
-            ).disable_signals().start_incoming(tcp.incoming(), false);
-
-            tx.send((Arbiter::system(), local_addr)).unwrap();
-            let _ = sys.run();
-        });
-
-        let system = System::new("actix-test");
-        let (server_sys, addr) = rx.recv().unwrap();
-        TestServer {
-            addr,
-            server_sys,
-            system,
-            ssl: false,
-            conn: TestServer::get_conn(),
-            thread: Some(join),
-        }
-    }
-
     fn get_conn() -> Addr<Unsync, ClientConnector> {
         #[cfg(feature="alpn")]
         {

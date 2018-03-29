@@ -449,7 +449,7 @@ impl ClientRequestBuilder {
     /// # use actix_web::*;
     /// # use actix_web::httpcodes::*;
     /// #
-    /// use actix_web::headers::Cookie;
+    /// use actix_web::header::Cookie;
     /// use actix_web::client::ClientRequest;
     ///
     /// fn main() {

@@ -10,7 +10,7 @@ use futures::unsync::oneshot;
 use body::{Body, BodyStream};
 use context::{Frame, ActorHttpContext};
 use error::Error;
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use handler::{Reply, ReplyItem};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;

@@ -79,12 +79,6 @@ impl<S: 'static> Route<S> {
         self
     }
 
-    #[doc(hidden)]
-    #[deprecated(since="0.4.1", note="please use `.filter()` instead")]
-    pub fn p<T: Predicate<S> + 'static>(&mut self, p: T) -> &mut Self {
-        self.filter(p)
-    }
-
     /// Set handler object. Usually call to this method is last call
     /// during route configuration, so it does not return reference to self.
     pub fn h<H: Handler<S>>(&mut self, handler: H) {

@@ -421,7 +421,7 @@ impl HttpResponseBuilder {
     /// # use actix_web::*;
     /// # use actix_web::httpcodes::*;
     /// #
-    /// use actix_web::headers::Cookie;
+    /// use actix_web::header::Cookie;
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
     ///     Ok(HttpOk.build()

@@ -70,18 +70,6 @@ pub use self::context::WebsocketContext;
 pub use self::client::{Client, ClientError,
                        ClientReader, ClientWriter, ClientHandshake};
 
-#[allow(deprecated)]
-pub use self::client::{WsClient, WsClientError,
-                       WsClientReader, WsClientWriter, WsClientHandshake};
-
-/// Backward compatibility
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::ProtocolError` instead")]
-pub type WsError = ProtocolError;
-#[doc(hidden)]
-#[deprecated(since="0.4.2", note="please use `ws::HandshakeError` instead")]
-pub type WsHandshakeError = HandshakeError;
-
 /// Websocket protocol errors
 #[derive(Fail, Debug)]
 pub enum ProtocolError {

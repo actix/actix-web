@@ -24,7 +24,7 @@ use futures::{Future, Stream};
 use futures::stream::once;
 use h2::client as h2client;
 use bytes::{Bytes, BytesMut};
-use http::{header, Request};
+use http::Request;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use rand::Rng;
@@ -196,7 +196,7 @@ fn test_body_gzip() {
     let mut srv = test::TestServer::new(
         |app| app.handler(
             |_| httpcodes::HTTPOk.build()
-                .content_encoding(headers::ContentEncoding::Gzip)
+                .content_encoding(header::ContentEncoding::Gzip)
                 .body(STR)));
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -223,7 +223,7 @@ fn test_body_gzip_large() {
             let data = srv_data.clone();
             app.handler(
                 move |_| httpcodes::HTTPOk.build()
-                    .content_encoding(headers::ContentEncoding::Gzip)
+                    .content_encoding(header::ContentEncoding::Gzip)
                     .body(data.as_ref()))});
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -253,7 +253,7 @@ fn test_body_gzip_large_random() {
             let data = srv_data.clone();
             app.handler(
                 move |_| httpcodes::HTTPOk.build()
-                    .content_encoding(headers::ContentEncoding::Gzip)
+                    .content_encoding(header::ContentEncoding::Gzip)
                     .body(data.as_ref()))});
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -277,7 +277,7 @@ fn test_body_chunked_implicit() {
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             httpcodes::HTTPOk.build()
-                .content_encoding(headers::ContentEncoding::Gzip)
+                .content_encoding(header::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -301,7 +301,7 @@ fn test_body_br_streaming() {
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             httpcodes::HTTPOk.build()
-                .content_encoding(headers::ContentEncoding::Br)
+                .content_encoding(header::ContentEncoding::Br)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -330,7 +330,7 @@ fn test_head_empty() {
     assert!(response.status().is_success());
 
     {
-        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        let len = response.headers().get(header::http::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 
@@ -344,7 +344,7 @@ fn test_head_binary() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             httpcodes::HTTPOk.build()
-                .content_encoding(headers::ContentEncoding::Identity)
+                .content_encoding(header::ContentEncoding::Identity)
                 .content_length(100).body(STR)}));
 
     let request = srv.head().finish().unwrap();
@@ -352,7 +352,7 @@ fn test_head_binary() {
     assert!(response.status().is_success());
 
     {
-        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        let len = response.headers().get(header::http::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 
@@ -366,7 +366,7 @@ fn test_head_binary2() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             httpcodes::HTTPOk.build()
-                .content_encoding(headers::ContentEncoding::Identity)
+                .content_encoding(header::ContentEncoding::Identity)
                 .body(STR)
         }));
 
@@ -375,7 +375,7 @@ fn test_head_binary2() {
     assert!(response.status().is_success());
 
     {
-        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        let len = response.headers().get(header::http::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 }
@@ -387,7 +387,7 @@ fn test_body_length() {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             httpcodes::HTTPOk.build()
                 .content_length(STR.len() as u64)
-                .content_encoding(headers::ContentEncoding::Identity)
+                .content_encoding(header::ContentEncoding::Identity)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().finish().unwrap();
@@ -406,7 +406,7 @@ fn test_body_chunked_explicit() {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             httpcodes::HTTPOk.build()
                 .chunked()
-                .content_encoding(headers::ContentEncoding::Gzip)
+                .content_encoding(header::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().disable_decompress().finish().unwrap();
@@ -429,7 +429,7 @@ fn test_body_deflate() {
         |app| app.handler(
             |_| httpcodes::HTTPOk
                 .build()
-                .content_encoding(headers::ContentEncoding::Deflate)
+                .content_encoding(header::ContentEncoding::Deflate)
                 .body(STR)));
 
     // client request
@@ -454,7 +454,7 @@ fn test_body_brotli() {
         |app| app.handler(
             |_| httpcodes::HTTPOk
                 .build()
-                .content_encoding(headers::ContentEncoding::Br)
+                .content_encoding(header::ContentEncoding::Br)
                 .body(STR)));
 
     // client request
@@ -479,7 +479,7 @@ fn test_gzip_encoding() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -490,7 +490,7 @@ fn test_gzip_encoding() {
     let enc = e.finish().unwrap();
 
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "gzip")
+        .header(header::http::CONTENT_ENCODING, "gzip")
         .body(enc.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -508,7 +508,7 @@ fn test_gzip_encoding_large() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -519,7 +519,7 @@ fn test_gzip_encoding_large() {
     let enc = e.finish().unwrap();
 
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "gzip")
+        .header(header::http::CONTENT_ENCODING, "gzip")
         .body(enc.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -541,7 +541,7 @@ fn test_reading_gzip_encoding_large_random() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -552,7 +552,7 @@ fn test_reading_gzip_encoding_large_random() {
     let enc = e.finish().unwrap();
 
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "gzip")
+        .header(header::http::CONTENT_ENCODING, "gzip")
         .body(enc.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -570,7 +570,7 @@ fn test_reading_deflate_encoding() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -581,7 +581,7 @@ fn test_reading_deflate_encoding() {
 
     // client request
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "deflate")
+        .header(header::http::CONTENT_ENCODING, "deflate")
         .body(enc).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -599,7 +599,7 @@ fn test_reading_deflate_encoding_large() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -610,7 +610,7 @@ fn test_reading_deflate_encoding_large() {
 
     // client request
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "deflate")
+        .header(header::http::CONTENT_ENCODING, "deflate")
         .body(enc).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -632,7 +632,7 @@ fn test_reading_deflate_encoding_large_random() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -643,7 +643,7 @@ fn test_reading_deflate_encoding_large_random() {
 
     // client request
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "deflate")
+        .header(header::http::CONTENT_ENCODING, "deflate")
         .body(enc).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -662,7 +662,7 @@ fn test_brotli_encoding() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -673,7 +673,7 @@ fn test_brotli_encoding() {
 
     // client request
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "br")
+        .header(header::http::CONTENT_ENCODING, "br")
         .body(enc).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -692,7 +692,7 @@ fn test_brotli_encoding_large() {
             .and_then(|bytes: Bytes| {
                 Ok(httpcodes::HTTPOk
                    .build()
-                   .content_encoding(headers::ContentEncoding::Identity)
+                   .content_encoding(header::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
     ));
@@ -703,7 +703,7 @@ fn test_brotli_encoding_large() {
 
     // client request
     let request = srv.post()
-        .header(header::CONTENT_ENCODING, "br")
+        .header(header::http::CONTENT_ENCODING, "br")
         .body(enc).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());

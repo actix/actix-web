@@ -25,7 +25,7 @@ pub use self::settings::ServerSettings;
 
 use body::Binary;
 use error::Error;
-use headers::ContentEncoding;
+use header::ContentEncoding;
 use httprequest::{HttpInnerMessage, HttpRequest};
 use httpresponse::HttpResponse;
 
