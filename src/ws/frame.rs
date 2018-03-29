@@ -364,7 +364,7 @@ mod tests {
     fn extract(frm: Poll<Option<Frame>, ProtocolError>) -> Frame {
         match frm {
             Ok(Async::Ready(Some(frame))) => frame,
-            _ => panic!("error"),
+            _ => unreachable!("error"),
         }
     }
 
@@ -468,7 +468,7 @@ mod tests {
 
         if let Err(ProtocolError::Overflow) = Frame::parse(&mut buf, false, 0) {
         } else {
-            panic!("error");
+            unreachable!("error");
         }
     }
 

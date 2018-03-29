@@ -932,8 +932,8 @@ mod tests {
     macro_rules! not_ready {
         ($e:expr) => (match $e {
             Ok(Async::NotReady) => (),
-            Err(err) => panic!("Unexpected error: {:?}", err),
-            _ => panic!("Should not be ready"),
+            Err(err) => unreachable!("Unexpected error: {:?}", err),
+            _ => unreachable!("Should not be ready"),
         })
     }
 
@@ -943,8 +943,8 @@ mod tests {
                 Vec::new(), KeepAlive::Os);
             match Reader::new().parse($e, &mut BytesMut::new(), &settings) {
                 Ok(Async::Ready(req)) => req,
-                Ok(_) => panic!("Eof during parsing http request"),
-                Err(err) => panic!("Error during parsing http request: {:?}", err),
+                Ok(_) => unreachable!("Eof during parsing http request"),
+                Err(err) => unreachable!("Error during parsing http request: {:?}", err),
             }
         })
     }
@@ -953,8 +953,8 @@ mod tests {
         ($e:expr) => (
             match $e {
                 Ok(Async::Ready(req)) => req,
-                Ok(_) => panic!("Eof during parsing http request"),
-                Err(err) => panic!("Error during parsing http request: {:?}", err),
+                Ok(_) => unreachable!("Eof during parsing http request"),
+                Err(err) => unreachable!("Error during parsing http request: {:?}", err),
             }
         )
     }
@@ -968,10 +968,10 @@ mod tests {
             match Reader::new().parse($e, &mut buf, &settings) {
                 Err(err) => match err {
                     ReaderError::Error(_) => (),
-                    _ => panic!("Parse error expected"),
+                    _ => unreachable!("Parse error expected"),
                 },
                 _ => {
-                    panic!("Error expected")
+                    unreachable!("Error expected")
                 }
             }}
         )
@@ -991,7 +991,7 @@ mod tests {
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1005,7 +1005,7 @@ mod tests {
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::NotReady) => (),
-            _ => panic!("Error"),
+            _ => unreachable!("Error"),
         }
 
         buf.feed_data(".1\r\n\r\n");
@@ -1015,7 +1015,7 @@ mod tests {
                 assert_eq!(*req.method(), Method::PUT);
                 assert_eq!(req.path(), "/test");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1033,7 +1033,7 @@ mod tests {
                 assert_eq!(*req.method(), Method::POST);
                 assert_eq!(req.path(), "/test2");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1052,7 +1052,7 @@ mod tests {
                 assert_eq!(req.path(), "/test");
                 assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"body");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1072,7 +1072,7 @@ mod tests {
                 assert_eq!(req.path(), "/test");
                 assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"body");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1093,7 +1093,7 @@ mod tests {
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1121,7 +1121,7 @@ mod tests {
                 assert_eq!(req.path(), "/test");
                 assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1143,7 +1143,7 @@ mod tests {
                 assert_eq!(val[0], "c1=cookie1");
                 assert_eq!(val[1], "c2=cookie2");
             }
-            Ok(_) | Err(_) => panic!("Error during parsing http request"),
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
     }
 
@@ -1256,7 +1256,7 @@ mod tests {
         if let Ok(val) = req.chunked() {
             assert!(val);
         } else {
-            panic!("Error");
+            unreachable!("Error");
         }
 
         // type in chunked
@@ -1268,7 +1268,7 @@ mod tests {
         if let Ok(val) = req.chunked() {
             assert!(!val);
         } else {
-            panic!("Error");
+            unreachable!("Error");
         }
     }
 
@@ -1501,7 +1501,7 @@ mod tests {
         let mut reader = Reader::new();
         match reader.parse(&mut buf) {
             Ok(res) => (),
-            Err(err) => panic!("{:?}", err),
+            Err(err) => unreachable!("{:?}", err),
         }
     }*/
 }

@@ -766,7 +766,7 @@ mod tests {
                 e @ $error => {
                     assert!(format!("{}", e).len() >= 5);
                 } ,
-                e => panic!("{:?}", e)
+                e => unreachable!("{:?}", e)
             }
         }
     }
@@ -778,7 +778,7 @@ mod tests {
                     let desc = format!("{}", e.cause().unwrap());
                     assert_eq!(desc, $from.description().to_owned());
                 },
-                _ => panic!("{:?}", $from)
+                _ => unreachable!("{:?}", $from)
             }
         }
     }

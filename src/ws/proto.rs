@@ -210,7 +210,7 @@ mod test {
         ($from:expr => $opcode:pat) => {
             match OpCode::from($from) {
                 e @ $opcode => (),
-                e => panic!("{:?}", e)
+                e => unreachable!("{:?}", e)
             }
         }
     }
@@ -220,7 +220,7 @@ mod test {
             let res: u8 = $from.into();
             match res {
                 e @ $opcode => (),
-                e => panic!("{:?}", e)
+                e => unreachable!("{:?}", e)
             }
         }
     }

@@ -632,7 +632,7 @@ mod tests {
         let headers = HeaderMap::new();
         match Multipart::boundary(&headers) {
             Err(MultipartError::NoContentType) => (),
-            _ => panic!("should not happen"),
+            _ => unreachable!("should not happen"),
         }
 
         let mut headers = HeaderMap::new();
@@ -641,7 +641,7 @@ mod tests {
 
         match Multipart::boundary(&headers) {
             Err(MultipartError::ParseContentType) => (),
-            _ => panic!("should not happen"),
+            _ => unreachable!("should not happen"),
         }
 
         let mut headers = HeaderMap::new();
@@ -650,7 +650,7 @@ mod tests {
             header::HeaderValue::from_static("multipart/mixed"));
         match Multipart::boundary(&headers) {
             Err(MultipartError::Boundary) => (),
-            _ => panic!("should not happen"),
+            _ => unreachable!("should not happen"),
         }
 
         let mut headers = HeaderMap::new();

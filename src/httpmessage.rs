@@ -581,27 +581,27 @@ mod tests {
         let req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::UnknownLength => (),
-            _ => panic!("error"),
+            _ => unreachable!("error"),
         }
 
         let req = TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::Overflow => (),
-            _ => panic!("error"),
+            _ => unreachable!("error"),
         }
 
         let mut req = HttpRequest::default();
         req.payload_mut().unread_data(Bytes::from_static(b"test"));
         match req.body().poll().ok().unwrap() {
             Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
-            _ => panic!("error"),
+            _ => unreachable!("error"),
         }
 
         let mut req = HttpRequest::default();
         req.payload_mut().unread_data(Bytes::from_static(b"11111111111111"));
         match req.body().limit(5).poll().err().unwrap() {
             PayloadError::Overflow => (),
-            _ => panic!("error"),
+            _ => unreachable!("error"),
         }
     }
 }
