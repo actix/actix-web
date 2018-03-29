@@ -327,8 +327,8 @@ List of `FromParam` implementations can be found in
 
 Actix provides functionality for type safe request path information extraction.
 It uses *serde* package as a deserialization library.
-[HttpRequest::extract_path()](../actix_web/struct.HttpRequest.html#method.extract_path)
- extracts information, the destination type has to implement *serde's *`Deserialize` trait.
+[Path](../actix_web/struct.Path.html) extracts information, the destination type
+has to implement *serde's *`Deserialize` trait.
 
 ```rust
 # extern crate bytes;
@@ -342,20 +342,20 @@ struct Info {
     username: String,
 }
 
-fn index(mut req: HttpRequest) -> Result<String> {
-    let info: Info = req.extract_path()?;      // <- extract path info using serde
+// extract path info using serde
+fn index(info: Path<Info>) -> Result<String> {
     Ok(format!("Welcome {}!", info.username))
 }
 
 fn main() {
     let app = Application::new()
         .resource("/{username}/index.html",    // <- define path parameters
-                  |r| r.method(Method::GET).f(index));
+                  |r| r.method(Method::GET).with(index));
 }
 ```
 
-[HttpRequest::extract_query()](../actix_web/struct.HttpRequest.html#method.extract_query)
- provides similar functionality for request query parameters.
+[Query](../actix_web/struct.Query.html) provides similar functionality for
+request query parameters.
 
 
 ## Generating resource URLs

@@ -91,7 +91,7 @@ impl<T, S> Path<T, S> {
         &self.req
     }
 
-    /// Deconstruct instance into a parts
+    /// Deconstruct instance into parts
     pub fn into(self) -> (T, HttpRequest<S>) {
         (self.item, self.req)
     }
@@ -179,7 +179,7 @@ impl<T, S> Query<T, S> {
         &self.req
     }
 
-    /// Deconstruct instance into a parts
+    /// Deconstruct instance into parts
     pub fn into(self) -> (T, HttpRequest<S>) {
         (self.item, self.req)
     }
