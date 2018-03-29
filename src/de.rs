@@ -24,16 +24,15 @@ use httprequest::HttpRequest;
 /// # use actix_web::*;
 /// use actix_web::Path;
 ///
-/// /// Application state
-/// struct State {}
-///
-/// /// extract path info using serde
-/// fn index(info: Path<(String, u32), State>) -> Result<String> {
+/// /// extract path info from "/{username}/{count}/?index.html" url
+/// /// {username} - deserializes to a String
+/// /// {count} -  - deserializes to a u32
+/// fn index(info: Path<(String, u32)>) -> Result<String> {
 ///     Ok(format!("Welcome {}! {}", info.0, info.1))
 /// }
 ///
 /// fn main() {
-///     let app = Application::with_state(State{}).resource(
+///     let app = Application::new().resource(
 ///        "/{username}/{count}/?index.html",       // <- define path parameters
 ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
 /// }

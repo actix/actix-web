@@ -35,7 +35,7 @@ impl Frame {
     }
 }
 
-/// Http actor execution context
+/// Execution context for http actors
 pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
 {
     inner: ContextImpl<A>,
