@@ -107,7 +107,6 @@ mod application;
 mod body;
 mod context;
 mod handler;
-mod helpers;
 mod httpmessage;
 mod httprequest;
 mod httpresponse;
@@ -141,8 +140,6 @@ pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, NormalizePath, AsyncResponder, FutureResponse};
-pub use route::Route;
-pub use resource::Resource;
 pub use context::HttpContext;
 pub use server::HttpServer;
 pub use extractor::{Path, Query};
@@ -163,12 +160,17 @@ pub(crate) const HAS_TLS: bool = false;
 #[doc(hidden)]
 #[deprecated(since="0.4.4", note="please use `actix::header` module")]
 pub mod headers {
-//! Headers implementation
-
+    //! Headers implementation
     pub use httpresponse::ConnectionType;
     pub use cookie::{Cookie, CookieBuilder};
     pub use http_range::HttpRange;
     pub use header::ContentEncoding;
+}
+
+pub mod helpers {
+    //! Various helpers
+
+    pub use handler::{NormalizePath};
 }
 
 pub mod dev {
@@ -186,6 +188,8 @@ pub mod dev {
     pub use context::Drain;
     pub use info::ConnectionInfo;
     pub use handler::{Handler, Reply};
+    pub use route::Route;
+    pub use resource::Resource;
     pub use with::WithHandler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};

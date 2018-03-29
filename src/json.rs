@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 use bytes::{Bytes, BytesMut};
 use futures::{Poll, Future, Stream};
 use http::header::CONTENT_LENGTH;
@@ -15,11 +16,15 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use extractor::HttpRequestExtractor;
 
-/// Json response helper
+/// Json helper
 ///
-/// The `Json` type allows you to respond with well-formed JSON data: simply return a value of
-/// type Json<T> where T is the type of a structure to serialize into *JSON*. The
-/// type `T` must implement the `Serialize` trait from *serde*.
+/// Json can be used for two different purpose. First is for json response generation
+/// and second is for extracting typed information from request's payload.
+///
+/// The `Json` type allows you to respond with well-formed JSON data: simply
+/// return a value of type Json<T> where T is the type of a structure
+/// to serialize into *JSON*. The type `T` must implement the `Serialize`
+/// trait from *serde*.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -36,7 +41,51 @@ use extractor::HttpRequestExtractor;
 /// }
 /// # fn main() {}
 /// ```
+///
+/// To extract typed information from request's body, the type `T` must implement the
+/// `Deserialize` trait from *serde*.
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate bytes;
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// #[macro_use] extern crate serde_derive;
+/// # use actix_web::*;
+/// use actix_web::Json;
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// extract `Info` using serde
+/// fn index(info: Json<Info>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.username))
+/// }
+///
+/// fn main() {
+///     let app = Application::new().resource(
+///        "/index.html",
+///        |r| r.method(Method::POST).with(index));  // <- use `with` extractor
+/// }
+/// ```
 pub struct Json<T>(pub T);
+
+impl<T> Deref for Json<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Json<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
 
 impl<T> fmt::Debug for Json<T> where T: fmt::Debug {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

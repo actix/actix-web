@@ -433,7 +433,7 @@ impl<S: 'static> StaticFiles<S> {
         self
     }
 
-    /// Sets default resource which is used when no matched file could be found.
+    /// Sets default handler which is used when no matched file could be found.
     pub fn default_handler<H: Handler<S>>(mut self, handler: H) -> StaticFiles<S> {
         self.default = Box::new(WrapHandler::new(handler));
         self

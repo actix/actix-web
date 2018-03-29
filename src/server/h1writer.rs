@@ -8,11 +8,11 @@ use tokio_io::AsyncWrite;
 use http::{Method, Version};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
 
-use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
+use super::helpers;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use super::shared::SharedBytes;
 use super::encoding::ContentEncoder;

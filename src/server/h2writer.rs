@@ -9,11 +9,11 @@ use http2::server::SendResponse;
 use http::{Version, HttpTryFrom, Response};
 use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
-use helpers;
 use body::{Body, Binary};
 use headers::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
+use super::helpers;
 use super::encoding::ContentEncoder;
 use super::shared::SharedBytes;
 use super::settings::WorkerSettings;

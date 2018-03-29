@@ -82,7 +82,7 @@ pub type WsError = ProtocolError;
 #[deprecated(since="0.4.2", note="please use `ws::HandshakeError` instead")]
 pub type WsHandshakeError = HandshakeError;
 
-/// Websocket errors
+/// Websocket protocol errors
 #[derive(Fail, Debug)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client

@@ -20,7 +20,7 @@ use router::Router;
 use payload::Payload;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
-use helpers::SharedHttpInnerMessage;
+use server::helpers::SharedHttpInnerMessage;
 use error::{UrlGenerationError, CookieParseError, PayloadError};
 
 

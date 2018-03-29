@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use http::StatusCode;
 use futures_cpupool::{Builder, CpuPool};
 
-use helpers;
+use super::helpers;
 use super::KeepAlive;
 use super::channel::Node;
 use super::shared::{SharedBytes, SharedBytesPool};
