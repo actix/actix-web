@@ -33,7 +33,7 @@ Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
 
 ```rust
 extern crate actix_web;
-use actix_web::*;
+use actix_web::{Application, HttpServer, Path};
 
 fn index(info: Path<(String, u32)>) -> String {
     format!("Hello {}! id:{}", info.0, info.1)

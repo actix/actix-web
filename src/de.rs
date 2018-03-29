@@ -12,8 +12,6 @@ use httprequest::HttpRequest;
 
 /// Extract typed information from the request's path.
 ///
-/// `S` - application state type
-///
 /// ## Example
 ///
 /// ```rust
@@ -49,66 +47,48 @@ use httprequest::HttpRequest;
 /// # use actix_web::*;
 /// use actix_web::Path;
 ///
-/// /// Application state
-/// struct State {}
-///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(info: Path<Info, State>) -> Result<String> {
+/// fn index(info: Path<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
-///     let app = Application::with_state(State{}).resource(
+///     let app = Application::new().resource(
 ///        "/{username}/index.html",                // <- define path parameters
 ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
-pub struct Path<T, S=()>{
-    item: T,
-    req: HttpRequest<S>,
+pub struct Path<T>{
+    inner: T
 }
 
-impl<T, S> Deref for Path<T, S> {
+impl<T> Deref for Path<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.item
+        &self.inner
     }
 }
 
-impl<T, S> DerefMut for Path<T, S> {
+impl<T> DerefMut for Path<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.item
+        &mut self.inner
     }
 }
 
-impl<T, S> Path<T, S> {
-
-    /// Shared application state
-    #[inline]
-    pub fn state(&self) -> &S {
-        self.req.state()
+impl<T> Path<T> {
+    /// Deconstruct to a inner value
+    pub fn into_inner(self) -> T {
+        self.inner
     }
-
-    /// Incoming request
-    #[inline]
-    pub fn request(&self) -> &HttpRequest<S> {
-        &self.req
-    }
-
-    /// Deconstruct instance into parts
-    pub fn into(self) -> (T, HttpRequest<S>) {
-        (self.item, self.req)
-    }
-
 }
 
-impl<T, S> FromRequest<S> for Path<T, S>
+impl<T, S> FromRequest<S> for Path<T>
     where T: DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
@@ -118,13 +98,11 @@ impl<T, S> FromRequest<S> for Path<T, S>
         let req = req.clone();
         result(de::Deserialize::deserialize(PathDeserializer{req: &req})
                .map_err(|e| e.into())
-               .map(|item| Path{item, req}))
+               .map(|inner| Path{inner}))
     }
 }
 
 /// Extract typed information from from the request's query.
-///
-/// `S` - application state type
 ///
 /// ## Example
 ///
@@ -136,9 +114,6 @@ impl<T, S> FromRequest<S> for Path<T, S>
 /// # use actix_web::*;
 /// use actix_web::Query;
 ///
-/// /// Application state
-/// struct State {}
-///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
@@ -146,56 +121,40 @@ impl<T, S> FromRequest<S> for Path<T, S>
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(info: Query<Info, State>) -> Result<String> {
+/// fn index(info: Query<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
-///     let app = Application::with_state(State{}).resource(
+///     let app = Application::new().resource(
 ///        "/index.html",
 ///        |r| r.method(Method::GET).with(index)); // <- use `with` extractor
 /// }
 /// ```
-pub struct Query<T, S=()>{
-    item: T,
-    req: HttpRequest<S>,
-}
+pub struct Query<T>(T);
 
-impl<T, S> Deref for Query<T, S> {
+impl<T> Deref for Query<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.item
+        &self.0
     }
 }
 
-impl<T, S> DerefMut for Query<T, S> {
+impl<T> DerefMut for Query<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.item
+        &mut self.0
     }
 }
 
-impl<T, S> Query<T, S> {
-
-    /// Shared application state
-    #[inline]
-    pub fn state(&self) -> &S {
-        self.req.state()
-    }
-
-    /// Incoming request
-    #[inline]
-    pub fn request(&self) -> &HttpRequest<S> {
-        &self.req
-    }
-
-    /// Deconstruct instance into parts
-    pub fn into(self) -> (T, HttpRequest<S>) {
-        (self.item, self.req)
+impl<T> Query<T> {
+    /// Deconstruct to a inner value
+    pub fn into_inner(self) -> T {
+        self.0
     }
 }
 
-impl<T, S> FromRequest<S> for Query<T, S>
+impl<T, S> FromRequest<S> for Query<T>
     where T: de::DeserializeOwned, S: 'static
 {
     type Result = FutureResult<Self, Error>;
@@ -205,7 +164,7 @@ impl<T, S> FromRequest<S> for Query<T, S>
         let req = req.clone();
         result(serde_urlencoded::from_str::<T>(req.query_string())
                .map_err(|e| e.into())
-               .map(|item| Query{ item, req}))
+               .map(Query))
     }
 }
 
@@ -581,7 +540,7 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<MyStruct, _>::from_request(&req).poll().unwrap() {
+        match Path::<MyStruct>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.key, "name");
                 assert_eq!(s.value, "user1");
@@ -589,7 +548,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<(String, String), _>::from_request(&req).poll().unwrap() {
+        match Path::<(String, String)>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, "user1");
@@ -597,7 +556,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Query::<Id, _>::from_request(&req).poll().unwrap() {
+        match Query::<Id>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.id, "test");
             },
@@ -607,7 +566,7 @@ mod tests {
         let mut req = TestRequest::with_uri("/name/32/").finish();
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<Test2, _>::from_request(&req).poll().unwrap() {
+        match Path::<Test2>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.key, "name");
                 assert_eq!(s.value, 32);
@@ -615,7 +574,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<(String, u8), _>::from_request(&req).poll().unwrap() {
+        match Path::<(String, u8)>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, 32);

@@ -141,7 +141,7 @@ pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Either, Responder, AsyncResponder, FutureResponse};
+pub use handler::{Either, Responder, AsyncResponder, FutureResponse, State};
 pub use context::HttpContext;
 pub use server::HttpServer;
 

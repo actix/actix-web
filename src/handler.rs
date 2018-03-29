@@ -1,5 +1,6 @@
+use std::ops::Deref;
 use std::marker::PhantomData;
-use futures::future::{Future, ok, err};
+use futures::future::{Future, FutureResult, ok, err};
 
 use error::Error;
 use httprequest::HttpRequest;
@@ -345,5 +346,59 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
                 }
             });
         Reply::async(fut)
+    }
+}
+
+
+/// Access to an application state
+///
+/// `S` - application state type
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate bytes;
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// # use actix_web::*;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::State;
+///
+/// /// Application state
+/// struct App {msg: &'static str}
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// extract path info using serde
+/// fn index(state: State<App>, info: Path<Info>) -> Result<String> {
+///     Ok(format!("{} {}!", state.msg, info.username))
+/// }
+///
+/// fn main() {
+///     let app = Application::with_state(App{msg: "Welcome"}).resource(
+///        "/{username}/index.html",                // <- define path parameters
+///        |r| r.method(Method::GET).with2(index)); // <- use `with` extractor
+/// }
+/// ```
+pub struct State<S> (HttpRequest<S>);
+
+impl<S> Deref for State<S> {
+    type Target = S;
+
+    fn deref(&self) -> &S {
+        self.0.state()
+    }
+}
+
+impl<S: 'static> FromRequest<S> for State<S>
+{
+    type Result = FutureResult<Self, Error>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+        ok(State(req.clone()))
     }
 }
