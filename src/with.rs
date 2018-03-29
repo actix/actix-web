@@ -45,7 +45,7 @@ fn with<T, S, H>(h: H) -> With<T, S, H>
 }
 
 pub struct With<T, S, H>
-    where H: WithHandler<T, S>,
+    where H: WithHandler<T, S> + 'static,
           T: HttpRequestExtractor<S>,
           S: 'static,
 {
@@ -62,15 +62,33 @@ impl<T, S, H> Handler<S> for With<T, S, H>
     type Result = Reply;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let fut = Box::new(T::extract(&req));
-
-        Reply::async(
-            WithHandlerFut{
-                req,
-                hnd: Rc::clone(&self.hnd),
-                fut1: Some(fut),
-                fut2: None,
-            })
+        let mut fut = T::extract(&req);
+        match fut.poll() {
+            Ok(Async::Ready(item)) => {
+                let hnd: &mut H = unsafe{&mut *self.hnd.get()};
+                match hnd.handle(item).respond_to(req.without_state()) {
+                    Ok(item) => match item.into().into() {
+                        ReplyItem::Message(resp) => Reply::response(resp),
+                        ReplyItem::Future(fut) => Reply::async(
+                            WithHandlerFut{
+                                req,
+                                hnd: Rc::clone(&self.hnd),
+                                fut1: None,
+                                fut2: Some(fut),
+                            })
+                    },
+                    Err(e) => Reply::response(e.into()),
+                }
+            }
+            Ok(Async::NotReady) => Reply::async(
+                WithHandlerFut{
+                    req,
+                    hnd: Rc::clone(&self.hnd),
+                    fut1: Some(Box::new(fut)),
+                    fut2: None,
+                }),
+            Err(e) => Reply::response(e),
+        }
     }
 }
 
@@ -154,17 +172,52 @@ impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
     type Result = Reply;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let fut = Box::new(T1::extract(&req));
-
-        Reply::async(
-            WithHandlerFut2{
-                req,
-                hnd: Rc::clone(&self.hnd),
-                item: None,
-                fut1: Some(fut),
-                fut2: None,
-                fut3: None,
-            })
+        let mut fut = T1::extract(&req);
+        match fut.poll() {
+            Ok(Async::Ready(item1)) => {
+                let mut fut = T2::extract(&req);
+                match fut.poll() {
+                    Ok(Async::Ready(item2)) => {
+                        let hnd: &mut F = unsafe{&mut *self.hnd.get()};
+                        match (*hnd)(item1, item2).respond_to(req.without_state()) {
+                            Ok(item) => match item.into().into() {
+                                ReplyItem::Message(resp) => Reply::response(resp),
+                                ReplyItem::Future(fut) => Reply::async(
+                                    WithHandlerFut2{
+                                        req,
+                                        item: None,
+                                        hnd: Rc::clone(&self.hnd),
+                                        fut1: None,
+                                        fut2: None,
+                                        fut3: Some(fut),
+                                    })
+                            },
+                            Err(e) => Reply::response(e.into()),
+                        }
+                    },
+                    Ok(Async::NotReady) => Reply::async(
+                        WithHandlerFut2{
+                            req,
+                            hnd: Rc::clone(&self.hnd),
+                            item: Some(item1),
+                            fut1: None,
+                            fut2: Some(Box::new(fut)),
+                            fut3: None,
+                        }),
+                    Err(e) => Reply::response(e),
+                }
+            },
+            Ok(Async::NotReady) => Reply::async(
+                WithHandlerFut2{
+                    req,
+                    hnd: Rc::clone(&self.hnd),
+                    item: None,
+                    fut1: Some(Box::new(fut)),
+                    fut2: None,
+                    fut3: None,
+                }),
+            Err(e) => Reply::response(e),
+        }
     }
 }
 

@@ -15,6 +15,16 @@ pub trait HttpRequestExtractor<S>: Sized where S: 'static
     fn extract(req: &HttpRequest<S>) -> Self::Result;
 }
 
+impl<S: 'static> HttpRequestExtractor<S> for HttpRequest<S>
+{
+    type Result = FutureResult<Self, Error>;
+
+    #[inline]
+    fn extract(req: &HttpRequest<S>) -> Self::Result {
+        result(Ok(req.clone()))
+    }
+}
+
 /// Extract typed information from the request's path.
 ///
 /// `S` - application state type

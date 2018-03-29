@@ -255,8 +255,8 @@ mod tests {
         let mut handler = with(|data: Json<MyObject>| data);
 
         let req = HttpRequest::default();
-        let mut json = handler.handle(req).into_future();
-        assert!(json.poll().is_err());
+        let err = handler.handle(req).as_response().unwrap().error().is_some();
+        assert!(err);
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(header::CONTENT_TYPE,
@@ -264,7 +264,7 @@ mod tests {
         req.headers_mut().insert(header::CONTENT_LENGTH,
                                  header::HeaderValue::from_static("16"));
         req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
-        let mut json = handler.handle(req).into_future();
-        assert!(json.poll().is_ok())
+        let ok = handler.handle(req).as_response().unwrap().error().is_none();
+        assert!(ok)
     }
 }
