@@ -5,13 +5,12 @@ use std::net::SocketAddr;
 use std::borrow::Cow;
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::{Async, Future, Stream, Poll};
+use futures::{Async, Stream, Poll};
 use futures_cpupool::CpuPool;
 use failure;
 use url::{Url, form_urlencoded};
 use http::{header, Uri, Method, Version, HeaderMap, Extensions, StatusCode};
 use tokio_io::AsyncRead;
-use serde::de;
 use percent_encoding::percent_decode;
 
 use body::Body;
@@ -22,8 +21,7 @@ use payload::Payload;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
 use helpers::SharedHttpInnerMessage;
-use extractor::{Path, Query, HttpRequestExtractor};
-use error::{Error, UrlGenerationError, CookieParseError, PayloadError};
+use error::{UrlGenerationError, CookieParseError, PayloadError};
 
 
 pub struct HttpInnerMessage {
@@ -404,96 +402,6 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Params {
         unsafe{ mem::transmute(&mut self.as_mut().params) }
-    }
-
-    /// Extract typed information from request's path.
-    ///
-    /// By default, in case of error `BAD_REQUEST` response get returned to peer.
-    /// If you need to return different response use `map_err()` method.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::*;
-    ///
-    /// #[derive(Deserialize)]
-    /// struct Info {
-    ///     username: String,
-    /// }
-    ///
-    /// fn index(mut req: HttpRequest) -> Result<String> {
-    ///     let info: Info = req.extract_path()?;      // <- extract path info using serde
-    ///     Ok(format!("Welcome {}!", info.username))
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = Application::new()
-    ///         .resource("/{username}/index.html",    // <- define path parameters
-    ///                   |r| r.method(Method::GET).f(index));
-    /// }
-    /// ```
-    pub fn extract_path<T>(&self) -> Result<T, Error>
-        where S: 'static,
-              T: de::DeserializeOwned,
-    {
-        match Path::<T, _>::extract(self).poll()? {
-            Async::Ready(val) => Ok(val.into().0),
-            _ => unreachable!()
-        }
-    }
-
-    /// Extract typed information from request's query string.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{HttpRequest, Result};
-    ///
-    /// #[derive(Deserialize)]
-    /// struct Info {
-    ///     username: String,
-    /// }
-    ///
-    /// fn index(mut req: HttpRequest) -> Result<String> {
-    ///     let info: Info = req.extract_query()?;  // <- extract query info, i.e: /?id=username
-    ///     Ok(format!("Welcome {}!", info.username))
-    /// }
-    /// # fn main() {}
-    /// ```
-    ///
-    /// By default, in case of error, `BAD_REQUEST` response get returned to peer.
-    /// If you need to return different response use `map_err()` method.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{HttpRequest, Result, error};
-    ///
-    /// #[derive(Deserialize)]
-    /// struct Info {
-    ///     username: String,
-    /// }
-    ///
-    /// fn index(mut req: HttpRequest) -> Result<String> {
-    ///     let info: Info = req.extract_query()   // <- extract query information
-    ///          .map_err(error::ErrorInternalServerError)?; // <- return 500 in case of error
-    ///     Ok(format!("Welcome {}!", info.username))
-    /// }
-    /// # fn main() {}
-    /// ```
-    ///
-    pub fn extract_query<T>(&self) -> Result<T, Error>
-        where S: 'static,
-              T: de::DeserializeOwned,
-    {
-        match Query::<T, _>::extract(self).poll()? {
-            Async::Ready(val) => Ok(val.into().0),
-            _ => unreachable!()
-        }
     }
 
     /// Checks if a connection should be kept alive.

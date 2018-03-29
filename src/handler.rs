@@ -155,14 +155,6 @@ impl Reply {
             _ => None,
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn into_future(self) -> Box<Future<Item=HttpResponse, Error=Error>> {
-        match self.0 {
-            ReplyItem::Future(fut) => fut,
-            _ => panic!(),
-        }
-    }
 }
 
 impl Responder for Reply {

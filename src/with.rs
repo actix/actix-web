@@ -62,31 +62,17 @@ impl<T, S, H> Handler<S> for With<T, S, H>
     type Result = Reply;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let mut fut = T::extract(&req);
+        let mut fut = WithHandlerFut{
+            req,
+            started: false,
+            hnd: Rc::clone(&self.hnd),
+            fut1: None,
+            fut2: None,
+        };
+
         match fut.poll() {
-            Ok(Async::Ready(item)) => {
-                let hnd: &mut H = unsafe{&mut *self.hnd.get()};
-                match hnd.handle(item).respond_to(req.without_state()) {
-                    Ok(item) => match item.into().into() {
-                        ReplyItem::Message(resp) => Reply::response(resp),
-                        ReplyItem::Future(fut) => Reply::async(
-                            WithHandlerFut{
-                                req,
-                                hnd: Rc::clone(&self.hnd),
-                                fut1: None,
-                                fut2: Some(fut),
-                            })
-                    },
-                    Err(e) => Reply::response(e.into()),
-                }
-            }
-            Ok(Async::NotReady) => Reply::async(
-                WithHandlerFut{
-                    req,
-                    hnd: Rc::clone(&self.hnd),
-                    fut1: Some(Box::new(fut)),
-                    fut2: None,
-                }),
+            Ok(Async::Ready(resp)) => Reply::response(resp),
+            Ok(Async::NotReady) => Reply::async(fut),
             Err(e) => Reply::response(e),
         }
     }
@@ -97,6 +83,7 @@ struct WithHandlerFut<T, S, H>
           T: HttpRequestExtractor<S>,
           T: 'static, S: 'static
 {
+    started: bool,
     hnd: Rc<UnsafeCell<H>>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item=T, Error=Error>>>,
@@ -116,15 +103,26 @@ impl<T, S, H> Future for WithHandlerFut<T, S, H>
             return fut.poll()
         }
 
-        let item = match self.fut1.as_mut().unwrap().poll()? {
-            Async::Ready(item) => item,
-            Async::NotReady => return Ok(Async::NotReady),
+        let item = if !self.started {
+            self.started = true;
+            let mut fut = T::extract(&self.req);
+            match fut.poll() {
+                Ok(Async::Ready(item)) => item,
+                Ok(Async::NotReady) => {
+                    self.fut1 = Some(Box::new(fut));
+                    return Ok(Async::NotReady)
+                },
+                Err(e) => return Err(e),
+            }
+        } else {
+            match self.fut1.as_mut().unwrap().poll()? {
+                Async::Ready(item) => item,
+                Async::NotReady => return Ok(Async::NotReady),
+            }
         };
 
         let hnd: &mut H = unsafe{&mut *self.hnd.get()};
-        let item = match hnd.handle(item)
-            .respond_to(self.req.without_state())
-        {
+        let item = match hnd.handle(item).respond_to(self.req.without_state()) {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),
         };
@@ -172,50 +170,18 @@ impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
     type Result = Reply;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let mut fut = T1::extract(&req);
+        let mut fut = WithHandlerFut2{
+            req,
+            started: false,
+            hnd: Rc::clone(&self.hnd),
+            item: None,
+            fut1: None,
+            fut2: None,
+            fut3: None,
+        };
         match fut.poll() {
-            Ok(Async::Ready(item1)) => {
-                let mut fut = T2::extract(&req);
-                match fut.poll() {
-                    Ok(Async::Ready(item2)) => {
-                        let hnd: &mut F = unsafe{&mut *self.hnd.get()};
-                        match (*hnd)(item1, item2).respond_to(req.without_state()) {
-                            Ok(item) => match item.into().into() {
-                                ReplyItem::Message(resp) => Reply::response(resp),
-                                ReplyItem::Future(fut) => Reply::async(
-                                    WithHandlerFut2{
-                                        req,
-                                        item: None,
-                                        hnd: Rc::clone(&self.hnd),
-                                        fut1: None,
-                                        fut2: None,
-                                        fut3: Some(fut),
-                                    })
-                            },
-                            Err(e) => Reply::response(e.into()),
-                        }
-                    },
-                    Ok(Async::NotReady) => Reply::async(
-                        WithHandlerFut2{
-                            req,
-                            hnd: Rc::clone(&self.hnd),
-                            item: Some(item1),
-                            fut1: None,
-                            fut2: Some(Box::new(fut)),
-                            fut3: None,
-                        }),
-                    Err(e) => Reply::response(e),
-                }
-            },
-            Ok(Async::NotReady) => Reply::async(
-                WithHandlerFut2{
-                    req,
-                    hnd: Rc::clone(&self.hnd),
-                    item: None,
-                    fut1: Some(Box::new(fut)),
-                    fut2: None,
-                    fut3: None,
-                }),
+            Ok(Async::Ready(resp)) => Reply::response(resp),
+            Ok(Async::NotReady) => Reply::async(fut),
             Err(e) => Reply::response(e),
         }
     }
@@ -228,6 +194,7 @@ struct WithHandlerFut2<T1, T2, S, F, R>
           T2: HttpRequestExtractor<S> + 'static,
           S: 'static
 {
+    started: bool,
     hnd: Rc<UnsafeCell<F>>,
     req: HttpRequest<S>,
     item: Option<T1>,
@@ -249,6 +216,45 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut3 {
             return fut.poll()
+        }
+
+        if !self.started {
+            self.started = true;
+            let mut fut = T1::extract(&self.req);
+            match fut.poll() {
+                Ok(Async::Ready(item1)) => {
+                    let mut fut = T2::extract(&self.req);
+                    match fut.poll() {
+                        Ok(Async::Ready(item2)) => {
+                            let hnd: &mut F = unsafe{&mut *self.hnd.get()};
+                            match (*hnd)(item1, item2)
+                                .respond_to(self.req.without_state())
+                            {
+                                Ok(item) => match item.into().into() {
+                                    ReplyItem::Message(resp) =>
+                                        return Ok(Async::Ready(resp)),
+                                    ReplyItem::Future(fut) => {
+                                        self.fut3 = Some(fut);
+                                        return self.poll()
+                                    }
+                                },
+                                Err(e) => return Err(e.into()),
+                            }
+                        },
+                        Ok(Async::NotReady) => {
+                            self.item = Some(item1);
+                            self.fut2 = Some(Box::new(fut));
+                            return Ok(Async::NotReady);
+                        },
+                        Err(e) => return Err(e),
+                    }
+                },
+                Ok(Async::NotReady) => {
+                    self.fut1 = Some(Box::new(fut));
+                    return Ok(Async::NotReady);
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         if self.fut1.is_some() {
@@ -322,19 +328,22 @@ impl<T1, T2, T3, S, F, R> Handler<S> for With3<T1, T2, T3, S, F, R>
     type Result = Reply;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
-        let fut = Box::new(T1::extract(&req));
-
-        Reply::async(
-            WithHandlerFut3{
-                req,
-                hnd: Rc::clone(&self.hnd),
-                item1: None,
-                item2: None,
-                fut1: Some(fut),
-                fut2: None,
-                fut3: None,
-                fut4: None,
-            })
+        let mut fut = WithHandlerFut3{
+            req,
+            hnd: Rc::clone(&self.hnd),
+            started: false,
+            item1: None,
+            item2: None,
+            fut1: None,
+            fut2: None,
+            fut3: None,
+            fut4: None,
+        };
+        match fut.poll() {
+            Ok(Async::Ready(resp)) => Reply::response(resp),
+            Ok(Async::NotReady) => Reply::async(fut),
+            Err(e) => Reply::response(e),
+        }
     }
 }
 
@@ -348,6 +357,7 @@ struct WithHandlerFut3<T1, T2, T3, S, F, R>
 {
     hnd: Rc<UnsafeCell<F>>,
     req: HttpRequest<S>,
+    started: bool,
     item1: Option<T1>,
     item2: Option<T2>,
     fut1: Option<Box<Future<Item=T1, Error=Error>>>,
@@ -370,6 +380,57 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut4 {
             return fut.poll()
+        }
+
+        if !self.started {
+            self.started = true;
+            let mut fut = T1::extract(&self.req);
+            match fut.poll() {
+                Ok(Async::Ready(item1)) => {
+                    let mut fut = T2::extract(&self.req);
+                    match fut.poll() {
+                        Ok(Async::Ready(item2)) => {
+                            let mut fut = T3::extract(&self.req);
+                            match fut.poll() {
+                                Ok(Async::Ready(item3)) => {
+                                    let hnd: &mut F = unsafe{&mut *self.hnd.get()};
+                                    match (*hnd)(item1, item2, item3)
+                                        .respond_to(self.req.without_state())
+                                    {
+                                        Ok(item) => match item.into().into() {
+                                            ReplyItem::Message(resp) =>
+                                                return Ok(Async::Ready(resp)),
+                                            ReplyItem::Future(fut) => {
+                                                self.fut4 = Some(fut);
+                                                return self.poll()
+                                            }
+                                        },
+                                        Err(e) => return Err(e.into()),
+                                    }
+                                },
+                                Ok(Async::NotReady) => {
+                                    self.item1 = Some(item1);
+                                    self.item2 = Some(item2);
+                                    self.fut3 = Some(Box::new(fut));
+                                    return Ok(Async::NotReady);
+                                },
+                                Err(e) => return Err(e),
+                            }
+                        },
+                        Ok(Async::NotReady) => {
+                            self.item1 = Some(item1);
+                            self.fut2 = Some(Box::new(fut));
+                            return Ok(Async::NotReady);
+                        },
+                        Err(e) => return Err(e),
+                    }
+                },
+                Ok(Async::NotReady) => {
+                    self.fut1 = Some(Box::new(fut));
+                    return Ok(Async::NotReady);
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         if self.fut1.is_some() {

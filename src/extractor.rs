@@ -305,6 +305,8 @@ impl<'de, S: 'de> Deserializer<'de> for PathExtractor<'de, S>
 
 #[cfg(test)]
 mod tests {
+    use futures::Async;
+    use super::*;
     use router::{Router, Pattern};
     use resource::Resource;
     use test::TestRequest;
@@ -332,15 +334,27 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        let s: MyStruct = req.extract_path().unwrap();
-        assert_eq!(s.key, "name");
-        assert_eq!(s.value, "user1");
+        match Path::<MyStruct, _>::extract(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s.key, "name");
+                assert_eq!(s.value, "user1");
+            },
+            _ => unreachable!(),
+        }
 
-        let s: (String, String) = req.extract_path().unwrap();
-        assert_eq!(s.0, "name");
-        assert_eq!(s.1, "user1");
+        match Path::<(String, String), _>::extract(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s.0, "name");
+                assert_eq!(s.1, "user1");
+            },
+            _ => unreachable!(),
+        }
 
-        let s: Id = req.extract_query().unwrap();
-        assert_eq!(s.id, "test");
+        match Query::<Id, _>::extract(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s.id, "test");
+            },
+            _ => unreachable!(),
+        }
     }
 }

@@ -2,9 +2,7 @@
 
 ## 0.4.11 
 
-* Added `Route::with()` handler, uses request extractor
-
-* Added `HttpReuqest::extract_xxx()`, type safe path/query information extractor
+* Type-safe path/query parameter handling, using serde #70
 
 * Router cannot parse Non-ASCII characters in URL #137
 
