@@ -140,7 +140,7 @@ pub use application::Application;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Either, Reply, Responder, NormalizePath, AsyncResponder, FutureResponse};
+pub use handler::{Either, Responder, NormalizePath, AsyncResponder, FutureResponse};
 pub use route::Route;
 pub use resource::Resource;
 pub use context::HttpContext;
@@ -185,12 +185,12 @@ pub mod dev {
     pub use body::BodyStream;
     pub use context::Drain;
     pub use info::ConnectionInfo;
-    pub use handler::Handler;
+    pub use handler::{Handler, Reply};
     pub use with::WithHandler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
     pub use extractor::HttpRequestExtractor;
-    pub use httpmessage::{UrlEncoded, MessageBody};
+    pub use httpmessage::{UrlEncodedFut, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }

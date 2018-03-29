@@ -163,7 +163,7 @@ impl<S: 'static> Route<S> {
     ///     count: u32,
     /// }
     ///
-    /// /// extract path info using serde
+    /// /// extract path and query information using serde
     /// fn index(p: Path<PParam>, q: Query<QParam>) -> Result<String> {
     ///     Ok(format!("Welcome {}!", p.username))
     /// }
@@ -183,6 +183,7 @@ impl<S: 'static> Route<S> {
         self.h(with2(handler))
     }
 
+    /// Set handler function, function has to accept three request extractors.
     pub fn with3<T1, T2, T3, F, R>(&mut self, handler: F)
         where F: Fn(T1, T2, T3) -> R + 'static,
               R: Responder + 'static,

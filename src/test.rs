@@ -267,6 +267,10 @@ impl Drop for TestServer {
     }
 }
 
+/// An `TestServer` builder
+///
+/// This type can be used to construct an instance of `TestServer` through a
+/// builder-like pattern.
 pub struct TestServerBuilder<S> {
     state: Box<Fn() -> S + Sync + Send + 'static>,
     #[cfg(feature="alpn")]
