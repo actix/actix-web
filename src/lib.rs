@@ -191,6 +191,6 @@ pub mod dev {
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
     pub use extractor::HttpRequestExtractor;
-    pub use httpmessage::{UrlEncodedFut, MessageBody};
+    pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
 }
