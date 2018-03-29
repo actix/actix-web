@@ -437,6 +437,7 @@ This handler designed to be use as a handler for application's *default resource
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
 # use actix_web::*;
+use actix_web::helpers::NormalizePath;
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
 #    httpcodes::HttpOk
@@ -462,6 +463,7 @@ It is possible to register path normalization only for *GET* requests only:
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
 # use actix_web::*;
+use actix_web::helpers::NormalizePath;
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
 #    httpcodes::HttpOk

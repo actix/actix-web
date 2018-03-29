@@ -126,6 +126,7 @@ pub mod fs;
 pub mod ws;
 pub mod error;
 pub mod header;
+pub mod helpers;
 pub mod httpcodes;
 pub mod multipart;
 pub mod middleware;
@@ -156,12 +157,6 @@ pub(crate) const HAS_OPENSSL: bool = false;
 pub(crate) const HAS_TLS: bool = true;
 #[cfg(not(feature="tls"))]
 pub(crate) const HAS_TLS: bool = false;
-
-pub mod helpers {
-    //! Various helpers
-
-    pub use handler::{NormalizePath};
-}
 
 pub mod dev {
 //! The `actix-web` prelude for library developers

@@ -4,6 +4,10 @@
 
 * Type-safe path/query parameter handling, using serde #70
 
+* Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
+
+* Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
+
 * Router cannot parse Non-ASCII characters in URL #137
 
 * Fix long client urls #129
@@ -11,10 +15,6 @@
 * Fix panic on invalid URL characters #130
 
 * Fix client connection pooling
-
-* Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
-
-* Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
 
 
 ## 0.4.10 (2018-03-20)
