@@ -103,6 +103,33 @@ fn main() {
 }
 ```
 
+If you need more complex application configuration, for example you may need to
+initialize application state or start `SyncActor`'s for diesel interation, you
+can use `TestServer::build_with_state()` method. This method accepts closure
+that has to construct application state. This closure runs when actix system is
+configured already, so you can initialize any additional actors.
+
+```rust,ignore
+#[test]
+fn test() {
+    let srv = TestServer::build_with_state(|| { // <- construct builder with config closure
+        // we can start diesel actors
+        let addr = SyncArbiter::start(3, || {
+            DbExecutor(SqliteConnection::establish("test.db").unwrap())
+        });
+        // then we can construct custom state, or it could be `()`
+        MyState{addr: addr}
+   })
+   .start(|app| {      // <- register server handlers and start test server
+        app.resource(
+            "/{username}/index.html", |r| r.with(
+                |p: Path<PParam>| format!("Welcome {}!", p.username)));
+    });
+    
+    // now we can run our test code
+);
+```
+
 ## WebSocket server tests
 
 It is possible to register a *handler* with `TestApp::handler()` that
