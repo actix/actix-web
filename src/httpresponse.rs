@@ -87,6 +87,20 @@ impl HttpResponse {
         resp
     }
 
+    /// Convert `HttpResponse` to a `HttpResponseBuilder`
+    #[inline]
+    pub fn into_builder(mut self) -> HttpResponseBuilder {
+        let response = self.0.take();
+        let pool = Some(Rc::clone(&self.1));
+
+        HttpResponseBuilder {
+            response,
+            pool,
+            err: None,
+            cookies: None,  // TODO: convert set-cookie headers
+        }
+    }
+
     /// The source `error` for this response
     #[inline]
     pub fn error(&self) -> Option<&Error> {
@@ -1073,5 +1087,15 @@ mod tests {
                    HeaderValue::from_static("application/octet-stream"));
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
+    }
+
+    #[test]
+    fn test_into_builder() {
+        let resp: HttpResponse = "test".into();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let mut builder = resp.into_builder();
+        let resp = builder.status(StatusCode::BAD_REQUEST).finish().unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }
