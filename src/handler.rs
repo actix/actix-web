@@ -97,9 +97,33 @@ impl<A, B> Responder for Either<A, B>
     }
 }
 
-
-#[doc(hidden)]
 /// Convenience trait that convert `Future` object into `Boxed` future
+///
+/// For example loading json from request's body is async operation.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// # #[macro_use] extern crate serde_derive;
+/// use actix_web::*;
+/// use futures::future::Future;
+///
+/// #[derive(Deserialize, Debug)]
+/// struct MyObj {
+///     name: String,
+/// }
+///
+/// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+///     req.json()                   // <- get JsonBody future
+///        .from_err()
+///        .and_then(|val: MyObj| {  // <- deserialized value
+///            Ok(httpcodes::HttpOk.into())
+///        })
+///     // Construct boxed future by using `AsyncResponder::responder()` method
+///     .responder()
+/// }
+/// # fn main() {}
+/// ```
 pub trait AsyncResponder<I, E>: Sized {
     fn responder(self) -> Box<Future<Item=I, Error=E>>;
 }

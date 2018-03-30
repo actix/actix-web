@@ -1,7 +1,6 @@
 use std::{mem, ptr, slice};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
 use bytes::{BufMut, BytesMut};
 use http::Version;
@@ -47,21 +46,6 @@ impl Drop for SharedHttpInnerMessage {
                 }
             }
         }
-    }
-}
-
-impl Deref for SharedHttpInnerMessage {
-    type Target = HttpInnerMessage;
-
-    fn deref(&self) -> &HttpInnerMessage {
-        self.get_ref()
-    }
-}
-
-impl DerefMut for SharedHttpInnerMessage {
-
-    fn deref_mut(&mut self) -> &mut HttpInnerMessage {
-        self.get_mut()
     }
 }
 
