@@ -10,7 +10,6 @@ use handler::{Reply, Handler, Responder, FromRequest};
 use middleware::Middleware;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use with::WithHandler;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -139,8 +138,9 @@ impl<S: 'static> Resource<S> {
     /// ```rust,ignore
     /// Resource::resource("/", |r| r.route().with(index)
     /// ```
-    pub fn with<T, H>(&mut self, handler: H)
-        where H: WithHandler<T, S>,
+    pub fn with<T, F, R>(&mut self, handler: F)
+        where F: Fn(T) -> R + 'static,
+              R: Responder + 'static,
               T: FromRequest<S> + 'static,
     {
         self.routes.push(Route::default());

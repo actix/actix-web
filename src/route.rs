@@ -11,7 +11,7 @@ use handler::{Reply, ReplyItem, Handler, FromRequest,
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use with::{with, with2, with3, WithHandler};
+use with::{With, With2, With3};
 
 /// Resource route definition
 ///
@@ -127,11 +127,12 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
     /// }
     /// ```
-    pub fn with<T, H>(&mut self, handler: H)
-        where H: WithHandler<T, S>,
+    pub fn with<T, F, R>(&mut self, handler: F)
+        where F: Fn(T) -> R + 'static,
+              R: Responder + 'static,
               T: FromRequest<S> + 'static,
     {
-        self.h(with(handler))
+        self.h(With::new(handler))
     }
 
     /// Set handler function, function has to accept two request extractors.
@@ -170,7 +171,7 @@ impl<S: 'static> Route<S> {
               T1: FromRequest<S> + 'static,
               T2: FromRequest<S> + 'static,
     {
-        self.h(with2(handler))
+        self.h(With2::new(handler))
     }
 
     /// Set handler function, function has to accept three request extractors.
@@ -181,7 +182,7 @@ impl<S: 'static> Route<S> {
               T2: FromRequest<S> + 'static,
               T3: FromRequest<S> + 'static,
     {
-        self.h(with3(handler))
+        self.h(With3::new(handler))
     }
 }
 

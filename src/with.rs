@@ -8,55 +8,27 @@ use handler::{Handler, FromRequest, Reply, ReplyItem, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-
-/// Trait defines object that could be registered as route handler
-#[allow(unused_variables)]
-pub trait WithHandler<T, S>: 'static
-    where T: FromRequest<S>, S: 'static
+pub struct With<T, S, F, R>
+    where F: Fn(T) -> R
 {
-    /// The type of value that handler will return.
-    type Result: Responder;
-
-    /// Handle request
-    fn handle(&mut self, data: T) -> Self::Result;
-}
-
-/// WithHandler<D, T, S> for Fn()
-impl<T, S, F, R> WithHandler<T, S> for F
-    where F: Fn(T) -> R + 'static,
-          R: Responder + 'static,
-          T: FromRequest<S>,
-          S: 'static,
-{
-    type Result = R;
-
-    fn handle(&mut self, item: T) -> R {
-        (self)(item)
-    }
-}
-
-pub(crate)
-fn with<T, S, H>(h: H) -> With<T, S, H>
-    where H: WithHandler<T, S>,
-          T: FromRequest<S>,
-{
-    With{hnd: Rc::new(UnsafeCell::new(h)), _t: PhantomData, _s: PhantomData}
-}
-
-pub struct With<T, S, H>
-    where H: WithHandler<T, S> + 'static,
-          T: FromRequest<S>,
-          S: 'static,
-{
-    hnd: Rc<UnsafeCell<H>>,
+    hnd: Rc<UnsafeCell<F>>,
     _t: PhantomData<T>,
     _s: PhantomData<S>,
 }
 
-impl<T, S, H> Handler<S> for With<T, S, H>
-    where H: WithHandler<T, S>,
+impl<T, S, F, R> With<T, S, F, R>
+    where F: Fn(T) -> R,
+{
+    pub fn new(f: F) -> Self {
+        With{hnd: Rc::new(UnsafeCell::new(f)), _t: PhantomData, _s: PhantomData}
+    }
+}
+
+impl<T, S, F, R> Handler<S> for With<T, S, F, R>
+    where F: Fn(T) -> R + 'static,
+          R: Responder + 'static,
           T: FromRequest<S> + 'static,
-          S: 'static, H: 'static
+          S: 'static
 {
     type Result = Reply;
 
@@ -77,20 +49,22 @@ impl<T, S, H> Handler<S> for With<T, S, H>
     }
 }
 
-struct WithHandlerFut<T, S, H>
-    where H: WithHandler<T, S>,
-          T: FromRequest<S>,
-          T: 'static, S: 'static
+struct WithHandlerFut<T, S, F, R>
+    where F: Fn(T) -> R,
+          R: Responder,
+          T: FromRequest<S> + 'static,
+          S: 'static
 {
     started: bool,
-    hnd: Rc<UnsafeCell<H>>,
+    hnd: Rc<UnsafeCell<F>>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item=T, Error=Error>>>,
     fut2: Option<Box<Future<Item=HttpResponse, Error=Error>>>,
 }
 
-impl<T, S, H> Future for WithHandlerFut<T, S, H>
-    where H: WithHandler<T, S>,
+impl<T, S, F, R> Future for WithHandlerFut<T, S, F, R>
+    where F: Fn(T) -> R,
+          R: Responder + 'static,
           T: FromRequest<S> + 'static,
           S: 'static
 {
@@ -120,43 +94,36 @@ impl<T, S, H> Future for WithHandlerFut<T, S, H>
             }
         };
 
-        let hnd: &mut H = unsafe{&mut *self.hnd.get()};
-        let item = match hnd.handle(item).respond_to(self.req.without_state()) {
+        let hnd: &mut F = unsafe{&mut *self.hnd.get()};
+        let item = match (*hnd)(item).respond_to(self.req.without_state()) {
             Ok(item) => item.into(),
-            Err(err) => return Err(err.into()),
+            Err(e) => return Err(e.into()),
         };
 
         match item.into() {
-            ReplyItem::Message(resp) => return Ok(Async::Ready(resp)),
-            ReplyItem::Future(fut) => self.fut2 = Some(fut),
+            ReplyItem::Message(resp) => Ok(Async::Ready(resp)),
+            ReplyItem::Future(fut) => {
+                self.fut2 = Some(fut);
+                self.poll()
+            }
         }
-
-        self.poll()
     }
 }
 
-pub(crate)
-fn with2<T1, T2, S, F, R>(h: F) -> With2<T1, T2, S, F, R>
-    where F: Fn(T1, T2) -> R,
-          R: Responder,
-          T1: FromRequest<S>,
-          T2: FromRequest<S>,
-{
-    With2{hnd: Rc::new(UnsafeCell::new(h)),
-          _t1: PhantomData, _t2: PhantomData, _s: PhantomData}
-}
-
-pub struct With2<T1, T2, S, F, R>
-    where F: Fn(T1, T2) -> R,
-          R: Responder,
-          T1: FromRequest<S>,
-          T2: FromRequest<S>,
-          S: 'static,
+pub struct With2<T1, T2, S, F, R> where F: Fn(T1, T2) -> R
 {
     hnd: Rc<UnsafeCell<F>>,
     _t1: PhantomData<T1>,
     _t2: PhantomData<T2>,
     _s: PhantomData<S>,
+}
+
+impl<T1, T2, S, F, R> With2<T1, T2, S, F, R> where F: Fn(T1, T2) -> R
+{
+    pub fn new(f: F) -> Self {
+        With2{hnd: Rc::new(UnsafeCell::new(f)),
+              _t1: PhantomData, _t2: PhantomData, _s: PhantomData}
+    }
 }
 
 impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
@@ -289,31 +256,22 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
     }
 }
 
-pub(crate)
-fn with3<T1, T2, T3, S, F, R>(h: F) -> With3<T1, T2, T3, S, F, R>
-    where F: Fn(T1, T2, T3) -> R + 'static,
-          R: Responder,
-          T1: FromRequest<S>,
-          T2: FromRequest<S>,
-          T3: FromRequest<S>,
-{
-    With3{hnd: Rc::new(UnsafeCell::new(h)),
-          _s: PhantomData, _t1: PhantomData, _t2: PhantomData, _t3: PhantomData}
-}
-
-pub struct With3<T1, T2, T3, S, F, R>
-    where F: Fn(T1, T2, T3) -> R + 'static,
-          R: Responder + 'static,
-          T1: FromRequest<S>,
-          T2: FromRequest<S>,
-          T3: FromRequest<S>,
-          S: 'static,
-{
+pub struct With3<T1, T2, T3, S, F, R> where F: Fn(T1, T2, T3) -> R {
     hnd: Rc<UnsafeCell<F>>,
     _t1: PhantomData<T1>,
     _t2: PhantomData<T2>,
     _t3: PhantomData<T3>,
     _s: PhantomData<S>,
+}
+
+
+impl<T1, T2, T3, S, F, R> With3<T1, T2, T3, S, F, R>
+    where F: Fn(T1, T2, T3) -> R,
+{
+    pub fn new(f: F) -> Self {
+        With3{hnd: Rc::new(UnsafeCell::new(f)),
+              _s: PhantomData, _t1: PhantomData, _t2: PhantomData, _t3: PhantomData}
+    }
 }
 
 impl<T1, T2, T3, S, F, R> Handler<S> for With3<T1, T2, T3, S, F, R>

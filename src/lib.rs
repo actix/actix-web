@@ -178,7 +178,6 @@ pub mod dev {
     pub use handler::{Handler, Reply, FromRequest};
     pub use route::Route;
     pub use resource::Resource;
-    pub use with::WithHandler;
     pub use json::JsonBody;
     pub use router::{Router, Pattern};
     pub use param::{FromParam, Params};
