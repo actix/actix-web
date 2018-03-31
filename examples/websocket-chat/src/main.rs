@@ -17,7 +17,9 @@ extern crate actix_web;
 use std::time::Instant;
 
 use actix::*;
-use actix_web::*;
+use actix_web::{
+    http, fs, ws,
+    Application, HttpRequest, HttpResponse, HttpServer, Error};
 
 mod codec;
 mod server;
@@ -30,7 +32,7 @@ struct WsChatSessionState {
 }
 
 /// Entry point for our route
-fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<HttpResponse> {
+fn chat_route(req: HttpRequest<WsChatSessionState>) -> Result<HttpResponse, Error> {
     ws::start(
         req,
         WsChatSession {
@@ -190,9 +192,8 @@ fn main() {
 
             Application::with_state(state)
                 // redirect to websocket.html
-                .resource("/", |r| r.method(Method::GET).f(|_| {
-                    httpcodes::HTTPFound
-                        .build()
+                .resource("/", |r| r.method(http::Method::GET).f(|_| {
+                    HttpResponse::Found()
                         .header("LOCATION", "/static/websocket.html")
                         .finish()
                 }))

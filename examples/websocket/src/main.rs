@@ -8,11 +8,14 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-use actix::*;
-use actix_web::*;
+use actix::prelude::*;
+use actix_web::{
+    http, middleware, server, fs, ws,
+    Application, HttpRequest, HttpResponse, Error,
+};
 
 /// do websocket handshake and start `MyWebSocket` actor
-fn ws_index(r: HttpRequest) -> Result<HttpResponse> {
+fn ws_index(r: HttpRequest) -> Result<HttpResponse, Error> {
     ws::start(r, MyWebSocket)
 }
 
@@ -47,12 +50,12 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    let _addr = HttpServer::new(
+    server::new(
         || Application::new()
             // enable logger
             .middleware(middleware::Logger::default())
             // websocket route
-            .resource("/ws/", |r| r.method(Method::GET).f(ws_index))
+            .resource("/ws/", |r| r.method(http::Method::GET).f(ws_index))
             // static files
             .handler("/", fs::StaticFiles::new("../static/", true)
                      .index_file("index.html")))

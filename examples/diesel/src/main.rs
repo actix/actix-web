@@ -16,8 +16,9 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-use actix::*;
-use actix_web::*;
+use actix::prelude::*;
+use actix_web::{http, middleware,
+                Application, HttpServer, HttpRequest, HttpResponse, Error, AsyncResponder};
 
 use diesel::prelude::*;
 use futures::future::Future;
@@ -43,8 +44,8 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
         .from_err()
         .and_then(|res| {
             match res {
-                Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
-                Err(_) => Ok(httpcodes::HTTPInternalServerError.into())
+                Ok(user) => Ok(HttpResponse::Ok().json(user)?),
+                Err(_) => Ok(HttpResponse::InternalServerError().into())
             }
         })
         .responder()
@@ -65,7 +66,7 @@ fn main() {
         Application::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/{name}", |r| r.method(Method::GET).a(index))})
+            .resource("/{name}", |r| r.method(http::Method::GET).a(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
 

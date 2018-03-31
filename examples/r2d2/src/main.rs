@@ -10,8 +10,10 @@ extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
 
-use actix::*;
-use actix_web::*;
+use actix::prelude::*;
+use actix_web::{
+    middleware, http, server,
+    Application, AsyncResponder, HttpRequest, HttpResponse, Error};
 use futures::future::Future;
 use r2d2_sqlite::SqliteConnectionManager;
 
@@ -32,8 +34,8 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
         .from_err()
         .and_then(|res| {
             match res {
-                Ok(user) => Ok(httpcodes::HTTPOk.build().json(user)?),
-                Err(_) => Ok(httpcodes::HTTPInternalServerError.into())
+                Ok(user) => Ok(HttpResponse::Ok().json(user)?),
+                Err(_) => Ok(HttpResponse::InternalServerError().into())
             }
         })
         .responder()
@@ -41,7 +43,7 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=debug");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("r2d2-example");
 
     // r2d2 pool
@@ -52,11 +54,11 @@ fn main() {
     let addr = SyncArbiter::start(3, move || DbExecutor(pool.clone()));
 
     // Start http server
-    let _addr = HttpServer::new(move || {
+    let _ = server::new(move || {
         Application::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/{name}", |r| r.method(Method::GET).a(index))})
+            .resource("/{name}", |r| r.method(http::Method::GET).a(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
 

@@ -7,7 +7,9 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate json;
 
-use actix_web::*;
+use actix_web::{middleware, http, error, server,
+                Application, AsyncResponder,
+                HttpRequest, HttpResponse, HttpMessage, Error, Json};
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
@@ -25,15 +27,15 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(httpcodes::HTTPOk.build().json(val)?)  // <- send response
+            Ok(HttpResponse::Ok().json(val)?)  // <- send response
         })
         .responder()
 }
 
 /// This handler uses `With` helper for loading serde json object.
-fn extract_item(item: Json<MyObj>) -> Result<HttpResponse> {
+fn extract_item(item: Json<MyObj>) -> Result<HttpResponse, Error> {
     println!("model: {:?}", &item);
-    httpcodes::HTTPOk.build().json(item.0)  // <- send response
+    HttpResponse::Ok().json(item.0)  // <- send response
 }
 
 const MAX_SIZE: usize = 262_144;  // max payload size is 256k
@@ -62,7 +64,7 @@ fn index_manual(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
         .and_then(|body| {
             // body is loaded, now we can deserialize serde-json
             let obj = serde_json::from_slice::<MyObj>(&body)?;
-            Ok(httpcodes::HTTPOk.build().json(obj)?) // <- send response
+            Ok(HttpResponse::Ok().json(obj)?) // <- send response
         })
         .responder()
 }
@@ -75,7 +77,7 @@ fn index_mjsonrust(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Erro
             // body is loaded, now we can deserialize json-rust
             let result = json::parse(std::str::from_utf8(&body).unwrap()); // return Result
             let injson: JsonValue = match result { Ok(v) => v, Err(e) => object!{"err" => e.to_string() } };
-            Ok(HttpResponse::build(StatusCode::OK)
+            Ok(HttpResponse::Ok()
                 .content_type("application/json")
                 .body(injson.dump()).unwrap())
         })
@@ -87,15 +89,15 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("json-example");
 
-    let addr = HttpServer::new(|| {
+    let _ = server::new(|| {
         Application::new()
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/extractor/{name}/{number}/",
-                      |r| r.method(Method::GET).with(extract_item))
-            .resource("/manual", |r| r.method(Method::POST).f(index_manual))
-            .resource("/mjsonrust", |r| r.method(Method::POST).f(index_mjsonrust))
-            .resource("/", |r| r.method(Method::POST).f(index))})
+                      |r| r.method(http::Method::GET).with(extract_item))
+            .resource("/manual", |r| r.method(http::Method::POST).f(index_manual))
+            .resource("/mjsonrust", |r| r.method(http::Method::POST).f(index_mjsonrust))
+            .resource("/", |r| r.method(http::Method::POST).f(index))})
         .bind("127.0.0.1:8080").unwrap()
         .shutdown_timeout(1)
         .start();

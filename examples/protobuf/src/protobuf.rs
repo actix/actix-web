@@ -6,7 +6,7 @@ use prost::Message;
 use prost::DecodeError as ProtoBufDecodeError;
 use prost::EncodeError as ProtoBufEncodeError;
 
-use actix_web::header::http::{CONTENT_TYPE, CONTENT_LENGTH};
+use actix_web::http::header::{CONTENT_TYPE, CONTENT_LENGTH};
 use actix_web::{Responder, HttpMessage, HttpRequest, HttpResponse};
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError, ResponseError};

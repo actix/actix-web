@@ -35,7 +35,7 @@ use httpresponse::HttpResponse;
 /// # #[macro_use] extern crate serde_derive;
 /// # use actix_web::*;
 /// use actix_web::http::NormalizePath;
-/// #
+///
 /// # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
 /// #     httpcodes::HttpOk
 /// # }

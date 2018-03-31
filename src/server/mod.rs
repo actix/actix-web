@@ -32,6 +32,15 @@ use httpresponse::HttpResponse;
 /// max buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
+/// Create new http server with application factory
+pub fn new<F, U, H>(factory: F) -> HttpServer<H>
+    where F: Fn() -> U + Sync + Send + 'static,
+          U: IntoIterator<Item=H> + 'static,
+          H: IntoHttpHandler + 'static
+{
+    HttpServer::new(factory)
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting
 pub enum KeepAlive {

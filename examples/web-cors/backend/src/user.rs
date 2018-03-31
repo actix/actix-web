@@ -11,9 +11,9 @@ struct Info {
 }
 
 pub fn info(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.json()                   
+    req.json()
         .from_err()
         .and_then(|res: Info| {
-            Ok(httpcodes::HTTPOk.build().json(res)?)
+            Ok(httpcodes::HttpOk.build().json(res)?)
         }).responder()
 }

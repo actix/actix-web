@@ -12,8 +12,10 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-use actix::*;
-use actix_web::*;
+use actix::prelude::*;
+use actix_web::{middleware, http, server,
+                Application, AsyncResponder,
+                HttpRequest, HttpResponse, HttpMessage, Error};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
@@ -61,9 +63,9 @@ impl Handler<GraphQLData> for GraphQLExecutor {
     }
 }
 
-fn graphiql(_req: HttpRequest<State>) -> Result<HttpResponse>  {
+fn graphiql(_req: HttpRequest<State>) -> Result<HttpResponse, Error>  {
     let html = graphiql_source("http://127.0.0.1:8080/graphql");
-    Ok(HttpResponse::build(StatusCode::OK)
+    Ok(HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html).unwrap())
 }
@@ -77,8 +79,8 @@ fn graphql(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error
                 .from_err()
                 .and_then(|res| {
                     match res {
-                        Ok(user) => Ok(httpcodes::HTTPOk.build().body(user)?),
-                        Err(_) => Ok(httpcodes::HTTPInternalServerError.into())
+                        Ok(user) => Ok(HttpResponse::Ok().body(user)?),
+                        Err(_) => Ok(HttpResponse::InternalServerError().into())
                     }
                 })
         })
@@ -96,12 +98,12 @@ fn main() {
     });
 
     // Start http server
-    let _addr = HttpServer::new(move || {
+    let _ = server::new(move || {
         Application::with_state(State{executor: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/graphql", |r| r.method(Method::POST).a(graphql))
-            .resource("/graphiql", |r| r.method(Method::GET).f(graphiql))})
+            .resource("/graphql", |r| r.method(http::Method::POST).h(graphql))
+            .resource("/graphiql", |r| r.method(http::Method::GET).h(graphiql))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
 

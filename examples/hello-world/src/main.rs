@@ -2,7 +2,7 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 
-use actix_web::*;
+use actix_web::{Application, HttpRequest, server, middleware};
 
 
 fn index(_req: HttpRequest) -> &'static str {
@@ -14,7 +14,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    let _addr = HttpServer::new(
+    let _addr = server::new(
         || Application::new()
             // enable logger
             .middleware(middleware::Logger::default())

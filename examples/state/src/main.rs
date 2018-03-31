@@ -9,8 +9,10 @@ extern crate env_logger;
 
 use std::cell::Cell;
 
-use actix::*;
-use actix_web::*;
+use actix::prelude::*;
+use actix_web::{
+    http, server, ws, middleware,
+    Application, HttpRequest, HttpResponse, Error};
 
 /// Application state
 struct AppState {
@@ -18,12 +20,11 @@ struct AppState {
 }
 
 /// simple handle
-fn index(req: HttpRequest<AppState>) -> HttpResponse {
+fn index(req: HttpRequest<AppState>) -> Result<HttpResponse, Error> {
     println!("{:?}", req);
     req.state().counter.set(req.state().counter.get() + 1);
 
-    httpcodes::HTTPOk.with_body(
-        format!("Num of requests: {}", req.state().counter.get()))
+    HttpResponse::Ok().body(format!("Num of requests: {}", req.state().counter.get()))
 }
 
 /// `MyWebSocket` counts how many messages it receives from peer,
@@ -58,14 +59,15 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("ws-example");
 
-    let addr = HttpServer::new(
+    let _ = server::new(
         || Application::with_state(AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middleware::Logger::default())
             // websocket route
             .resource(
                 "/ws/", |r|
-                r.method(Method::GET).f(|req| ws::start(req, MyWebSocket{counter: 0})))
+                r.method(http::Method::GET).f(
+                    |req| ws::start(req, MyWebSocket{counter: 0})))
             // register simple handler, handle all methods
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8080").unwrap()

@@ -8,8 +8,10 @@ extern crate futures;
 use futures::Stream;
 
 use std::{io, env};
-use actix_web::*;
-use actix_web::middleware::RequestSession;
+use actix_web::{error, fs, pred,
+                Application, HttpRequest, HttpResponse, HttpServer, Result, Error};
+use actix_web::http::{Method, StatusCode};
+use actix_web::middleware::{self, RequestSession};
 use futures::future::{FutureResult, result};
 
 /// favicon handler
@@ -118,9 +120,9 @@ fn main() {
             .resource("/async/{name}", |r| r.method(Method::GET).a(index_async))
             .resource("/test", |r| r.f(|req| {
                 match *req.method() {
-                    Method::GET => httpcodes::HTTPOk,
-                    Method::POST => httpcodes::HTTPMethodNotAllowed,
-                    _ => httpcodes::HTTPNotFound,
+                    Method::GET => HttpResponse::Ok(),
+                    Method::POST => HttpResponse::MethodNotAllowed(),
+                    _ => HttpResponse::NotFound(),
                 }
             }))
             .resource("/error.html", |r| r.f(|req| {
@@ -140,7 +142,8 @@ fn main() {
             // default
             .default_resource(|r| {
                 r.method(Method::GET).f(p404);
-                r.route().filter(pred::Not(pred::Get())).f(|req| httpcodes::HTTPMethodNotAllowed);
+                r.route().filter(pred::Not(pred::Get())).f(
+                    |req| HttpResponse::MethodNotAllowed());
             }))
 
         .bind("127.0.0.1:8080").expect("Can not bind to 127.0.0.1:8080")

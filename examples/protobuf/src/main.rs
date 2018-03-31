@@ -9,8 +9,10 @@ extern crate prost;
 #[macro_use]
 extern crate prost_derive;
 
-use actix_web::*;
 use futures::Future;
+use actix_web::{
+    http, middleware, server,
+    Application, AsyncResponder, HttpRequest, HttpResponse, Error};
 
 mod protobuf;
 use protobuf::ProtoBufResponseBuilder;
@@ -31,7 +33,7 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(httpcodes::HTTPOk.build().protobuf(val)?)  // <- send response
+            Ok(HttpResponse::Ok().protobuf(val)?)  // <- send response
         })
         .responder()
 }
@@ -39,13 +41,13 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("protobuf-example");
 
-    let addr = HttpServer::new(|| {
+    let _ = server::new(|| {
         Application::new()
             .middleware(middleware::Logger::default())
-            .resource("/", |r| r.method(Method::POST).f(index))})
+            .resource("/", |r| r.method(http::Method::POST).f(index))})
         .bind("127.0.0.1:8080").unwrap()
         .shutdown_timeout(1)
         .start();
