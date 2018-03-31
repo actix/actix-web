@@ -268,7 +268,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///     let sys = actix::System::new("example");  // <- create Actix system
     ///
     ///     HttpServer::new(
-    ///         || Application::new()
+    ///         || App::new()
     ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .start();
@@ -326,7 +326,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///
     /// fn main() {
     ///     HttpServer::new(
-    ///         || Application::new()
+    ///         || App::new()
     ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .run();

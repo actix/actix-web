@@ -13,6 +13,9 @@ use pipeline::{Pipeline, PipelineHandler};
 use middleware::Middleware;
 use server::{HttpHandler, IntoHttpHandler, HttpHandlerTask, ServerSettings};
 
+#[deprecated(since="0.5.0", note="please use `actix_web::App` instead")]
+pub type Application<S> = App<S>;
+
 /// Application
 pub struct HttpApplication<S=()> {
     state: Rc<S>,
@@ -108,17 +111,17 @@ struct ApplicationParts<S> {
     middlewares: Vec<Box<Middleware<S>>>,
 }
 
-/// Structure that follows the builder pattern for building `Application` structs.
-pub struct Application<S=()> {
+/// Structure that follows the builder pattern for building application instances.
+pub struct App<S=()> {
     parts: Option<ApplicationParts<S>>,
 }
 
-impl Application<()> {
+impl App<()> {
 
     /// Create application with empty state. Application can
     /// be configured with builder-like pattern.
-    pub fn new() -> Application<()> {
-        Application {
+    pub fn new() -> App<()> {
+        App {
             parts: Some(ApplicationParts {
                 state: (),
                 prefix: "/".to_owned(),
@@ -134,21 +137,21 @@ impl Application<()> {
     }
 }
 
-impl Default for Application<()> {
+impl Default for App<()> {
     fn default() -> Self {
-        Application::new()
+        App::new()
     }
 }
 
-impl<S> Application<S> where S: 'static {
+impl<S> App<S> where S: 'static {
 
     /// Create application with specific state. Application can be
     /// configured with builder-like pattern.
     ///
     /// State is shared with all resources within same application and could be
     /// accessed with `HttpRequest::state()` method.
-    pub fn with_state(state: S) -> Application<S> {
-        Application {
+    pub fn with_state(state: S) -> App<S> {
+        App {
             parts: Some(ApplicationParts {
                 state,
                 prefix: "/".to_owned(),
@@ -178,10 +181,10 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, Application, HttpResponse};
+    /// use actix_web::{http, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
     ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
@@ -190,7 +193,7 @@ impl<S> Application<S> where S: 'static {
     ///         .finish();
     /// }
     /// ```
-    pub fn prefix<P: Into<String>>(mut self, prefix: P) -> Application<S> {
+    pub fn prefix<P: Into<String>>(mut self, prefix: P) -> App<S> {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
             let mut prefix = prefix.into();
@@ -222,17 +225,17 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, Application, HttpResponse};
+    /// use actix_web::{http, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .resource("/test", |r| {
     ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
     ///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
     ///         });
     /// }
     /// ```
-    pub fn resource<F>(mut self, path: &str, f: F) -> Application<S>
+    pub fn resource<F>(mut self, path: &str, f: F) -> App<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
@@ -249,7 +252,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Default resource is used if no matched route could be found.
-    pub fn default_resource<F>(mut self, f: F) -> Application<S>
+    pub fn default_resource<F>(mut self, f: F) -> App<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {
         {
@@ -260,7 +263,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Set default content encoding. `ContentEncoding::Auto` is set by default.
-    pub fn default_encoding<F>(mut self, encoding: ContentEncoding) -> Application<S>
+    pub fn default_encoding<F>(mut self, encoding: ContentEncoding) -> App<S>
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -277,7 +280,7 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{Application, HttpRequest, HttpResponse, Result};
+    /// use actix_web::{App, HttpRequest, HttpResponse, Result};
     ///
     /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
@@ -286,13 +289,13 @@ impl<S> Application<S> where S: 'static {
     /// }
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .resource("/index.html", |r| r.f(index))
     ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
     ///         .finish();
     /// }
     /// ```
-    pub fn external_resource<T, U>(mut self, name: T, url: U) -> Application<S>
+    pub fn external_resource<T, U>(mut self, name: T, url: U) -> App<S>
         where T: AsRef<str>, U: AsRef<str>
     {
         {
@@ -315,10 +318,10 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, Application, HttpRequest, HttpResponse};
+    /// use actix_web::{http, App, HttpRequest, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .handler("/app", |req: HttpRequest| {
     ///             match *req.method() {
     ///                 http::Method::GET => HttpResponse::Ok(),
@@ -327,7 +330,7 @@ impl<S> Application<S> where S: 'static {
     ///         }});
     /// }
     /// ```
-    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Application<S>
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S>
     {
         {
             let path = path.trim().trim_right_matches('/').to_owned();
@@ -338,7 +341,7 @@ impl<S> Application<S> where S: 'static {
     }
 
     /// Register a middleware
-    pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Application<S> {
+    pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
         self
@@ -352,10 +355,10 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{Application, HttpResponse, http, fs, middleware};
+    /// use actix_web::{App, HttpResponse, http, fs, middleware};
     ///
     /// // this function could be located in different module
-    /// fn config(app: Application) -> Application {
+    /// fn config(app: App) -> App {
     ///     app
     ///         .resource("/test", |r| {
     ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
@@ -364,14 +367,14 @@ impl<S> Application<S> where S: 'static {
     /// }
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .middleware(middleware::Logger::default())
     ///         .configure(config)  // <- register resources
     ///         .handler("/static", fs::StaticFiles::new(".", true));
     /// }
     /// ```
-    pub fn configure<F>(self, cfg: F) -> Application<S>
-        where F: Fn(Application<S>) -> Application<S>
+    pub fn configure<F>(self, cfg: F) -> App<S>
+        where F: Fn(App<S>) -> App<S>
     {
         cfg(self)
     }
@@ -410,7 +413,7 @@ impl<S> Application<S> where S: 'static {
 
     /// Convenience method for creating `Box<HttpHandler>` instance.
     ///
-    /// This method is useful if you need to register several application instances
+    /// This method is useful if you need to register multiple application instances
     /// with different state.
     ///
     /// ```rust
@@ -425,11 +428,11 @@ impl<S> Application<S> where S: 'static {
     /// fn main() {
     /// # thread::spawn(|| {
     ///     HttpServer::new(|| { vec![
-    ///         Application::with_state(State1)
+    ///         App::with_state(State1)
     ///              .prefix("/app1")
     ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
     ///              .boxed(),
-    ///         Application::with_state(State2)
+    ///         App::with_state(State2)
     ///              .prefix("/app2")
     ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
     ///              .boxed() ]})
@@ -443,7 +446,7 @@ impl<S> Application<S> where S: 'static {
     }
 }
 
-impl<S: 'static> IntoHttpHandler for Application<S> {
+impl<S: 'static> IntoHttpHandler for App<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
@@ -455,7 +458,7 @@ impl<S: 'static> IntoHttpHandler for Application<S> {
     }
 }
 
-impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
+impl<'a, S: 'static> IntoHttpHandler for &'a mut App<S> {
     type Handler = HttpApplication<S>;
 
     fn into_handler(self, settings: ServerSettings) -> HttpApplication<S> {
@@ -468,7 +471,7 @@ impl<'a, S: 'static> IntoHttpHandler for &'a mut Application<S> {
 }
 
 #[doc(hidden)]
-impl<S: 'static> Iterator for Application<S> {
+impl<S: 'static> Iterator for App<S> {
     type Item = HttpApplication<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -491,7 +494,7 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
 
@@ -503,7 +506,7 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
-        let mut app = Application::new()
+        let mut app = App::new()
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
@@ -513,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_unhandled_prefix() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .prefix("/test")
             .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
@@ -522,7 +525,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let mut app = Application::with_state(10)
+        let mut app = App::with_state(10)
             .resource("/", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
         let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
@@ -532,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_prefix() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .prefix("/test")
             .resource("/blah", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
@@ -555,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .handler("/test", |_| HttpResponse::Ok())
             .finish();
 
@@ -582,7 +585,7 @@ mod tests {
 
     #[test]
     fn test_handler_prefix() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .prefix("/app")
             .handler("/test", |_| HttpResponse::Ok())
             .finish();

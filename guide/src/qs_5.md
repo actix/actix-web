@@ -15,20 +15,20 @@ A resource also has a pattern, meant to match against the *PATH* portion of a *U
 it does not match against the *QUERY* portion (the portion following the scheme and
 port, e.g., */foo/bar* in the *URL* *http://localhost:8080/foo/bar?q=value*).
 
-The [Application::resource](../actix_web/struct.Application.html#method.resource) methods
+The [App::resource](../actix_web/struct.App.html#method.resource) methods
 add a single resource to application routing table. This method accepts a *path pattern*
 and a resource configuration function.
 
 ```rust
 # extern crate actix_web;
-# use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
+# use actix_web::{App, HttpRequest, HttpResponse, http::Method};
 #
 # fn index(req: HttpRequest) -> HttpResponse {
 #   unimplemented!()
 # }
 #
 fn main() {
-    Application::new()
+    App::new()
         .resource("/prefix", |r| r.f(index))
         .resource("/user/{name}",
              |r| r.method(Method::GET).f(|req| HttpResponse::Ok()))
@@ -63,7 +63,7 @@ any number of *predicates* but only one handler.
 # use actix_web::*;
 
 fn main() {
-    Application::new()
+    App::new()
         .resource("/path", |resource|
             resource.route()
               .filter(pred::Get())
@@ -108,7 +108,7 @@ against a URL path pattern. `path` represents the path portion of the URL that w
 The way that *actix* does this is very simple. When a request enters the system,
 for each resource configuration declaration present in the system, actix checks
 the request's path against the pattern declared. This checking happens in the order that
-the routes were declared via `Application::resource()` method. If resource can not be found,
+the routes were declared via `App::resource()` method. If resource can not be found,
 the *default resource* is used as the matched resource.
 
 When a route configuration is declared, it may contain route predicate arguments. All route
@@ -277,7 +277,7 @@ fn index(req: HttpRequest) -> Result<String> {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource(r"/a/{v1}/{v2}/", |r| r.f(index))
         .finish();
 }
@@ -304,7 +304,7 @@ safe to interpolate within, or use as a suffix of, a path without additional che
 ```rust
 # extern crate actix_web;
 use std::path::PathBuf;
-use actix_web::{Application, HttpRequest, Result, http::Method};
+use actix_web::{App, HttpRequest, Result, http::Method};
 
 fn index(req: HttpRequest) -> Result<String> {
     let path: PathBuf = req.match_info().query("tail")?;
@@ -312,7 +312,7 @@ fn index(req: HttpRequest) -> Result<String> {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource(r"/a/{tail:.*}", |r| r.method(Method::GET).f(index))
         .finish();
 }
@@ -333,7 +333,7 @@ has to implement *serde's *`Deserialize` trait.
 # extern crate actix_web;
 # extern crate futures;
 #[macro_use] extern crate serde_derive;
-use actix_web::{Application, Path, Result, http::Method};
+use actix_web::{App, Path, Result, http::Method};
 
 #[derive(Deserialize)]
 struct Info {
@@ -346,7 +346,7 @@ fn index(info: Path<Info>) -> Result<String> {
 }
 
 fn main() {
-    let app = Application::new()
+    let app = App::new()
         .resource("/{username}/index.html",    // <- define path parameters
                   |r| r.method(Method::GET).with(index));
 }
@@ -364,7 +364,7 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this:
 
 ```rust
 # extern crate actix_web;
-# use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
+# use actix_web::{App, HttpRequest, HttpResponse, http::Method};
 #
 fn index(req: HttpRequest) -> HttpResponse {
     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
@@ -372,7 +372,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    let app = Application::new()
+    let app = App::new()
         .resource("/test/{a}/{b}/{c}", |r| {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
              r.method(Method::GET).f(|_| HttpResponse::Ok());
@@ -394,7 +394,7 @@ for URL generation purposes only and are never considered for matching at reques
 
 ```rust
 # extern crate actix_web;
-use actix_web::{Application, HttpRequest, HttpResponse, Error};
+use actix_web::{App, HttpRequest, HttpResponse, Error};
 
 fn index(mut req: HttpRequest) -> Result<HttpResponse, Error> {
     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
@@ -403,7 +403,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse, Error> {
 }
 
 fn main() {
-    let app = Application::new()
+    let app = App::new()
         .resource("/index.html", |r| r.f(index))
         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
         .finish();
@@ -440,7 +440,7 @@ use actix_web::http::NormalizePath;
 #    HttpResponse::Ok().into()
 # }
 fn main() {
-    let app = Application::new()
+    let app = App::new()
         .resource("/resource/", |r| r.f(index))
         .default_resource(|r| r.h(NormalizePath::default()))
         .finish();
@@ -459,13 +459,13 @@ It is possible to register path normalization only for *GET* requests only:
 ```rust
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
-use actix_web::{Application, HttpRequest, http::Method, http::NormalizePath};
+use actix_web::{App, HttpRequest, http::Method, http::NormalizePath};
 #
 # fn index(req: HttpRequest) -> &'static str {
 #    "test"
 # }
 fn main() {
-    let app = Application::new()
+    let app = App::new()
         .resource("/resource/", |r| r.f(index))
         .default_resource(|r| r.method(Method::GET).h(NormalizePath::default()))
         .finish();
@@ -474,7 +474,7 @@ fn main() {
 
 ## Using an Application Prefix to Compose Applications
 
-The `Application::prefix()`" method allows to set a specific application prefix.
+The `App::prefix()`" method allows to set a specific application prefix.
 This prefix represents a resource prefix that will be prepended to all resource patterns added
 by the resource configuration. This can be used to help mount a set of routes at a different
 location than the included callable's author intended while still maintaining the same
@@ -491,7 +491,7 @@ fn show_users(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .prefix("/users")
         .resource("/show", |r| r.f(show_users))
         .finish();
@@ -517,7 +517,7 @@ Here is a simple predicate that check that a request contains a specific *header
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
-use actix_web::{http, pred::Predicate, Application, HttpRequest};
+use actix_web::{http, pred::Predicate, App, HttpRequest};
 
 struct ContentTypeHeader;
 
@@ -529,7 +529,7 @@ impl<S: 'static> Predicate<S> for ContentTypeHeader {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource("/index.html", |r|
            r.route()
               .filter(ContentTypeHeader)
@@ -553,10 +553,10 @@ except "GET":
 # extern crate actix_web;
 # extern crate http;
 # use actix_web::*;
-use actix_web::{pred, Application, HttpResponse};
+use actix_web::{pred, App, HttpResponse};
 
 fn main() {
-    Application::new()
+    App::new()
         .resource("/index.html", |r|
            r.route()
               .filter(pred::Not(pred::Get()))
@@ -583,16 +583,16 @@ predicates match. i.e:
 
 If the path pattern can not be found in the routing table or a resource can not find matching
 route, the default resource is used. The default response is *NOT FOUND*.
-It is possible to override the *NOT FOUND* response with `Application::default_resource()`.
+It is possible to override the *NOT FOUND* response with `App::default_resource()`.
 This method accepts a *configuration function* same as normal resource configuration
-with `Application::resource()` method.
+with `App::resource()` method.
 
 ```rust
 # extern crate actix_web;
-use actix_web::{Application, HttpResponse, http::Method, pred};
+use actix_web::{App, HttpResponse, http::Method, pred};
 
 fn main() {
-    Application::new()
+    App::new()
         .default_resource(|r| {
               r.method(Method::GET).f(|req| HttpResponse::NotFound());
               r.route().filter(pred::Not(pred::Get()))

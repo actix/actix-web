@@ -5,7 +5,7 @@ extern crate env_logger;
 
 use futures::{Future, Stream};
 use actix_web::{client, server, middleware,
-                Application, AsyncResponder, Body,
+                App, AsyncResponder, Body,
                 HttpRequest, HttpResponse, HttpMessage, Error};
 
 /// Stream client request response and then send body to a server response
@@ -45,7 +45,7 @@ fn main() {
     let sys = actix::System::new("http-proxy");
 
     let _addr = server::new(
-        || Application::new()
+        || App::new()
             .middleware(middleware::Logger::default())
             .resource("/streaming", |r| r.f(streaming))
             .resource("/", |r| r.f(index)))

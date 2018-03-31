@@ -48,7 +48,7 @@ request handler with the application's `resource` on a particular *HTTP method* 
 #    "Hello world!"
 # }
 # fn main() {
-   Application::new()
+   App::new()
        .resource("/", |r| r.f(index));
 # }
 ```
@@ -58,7 +58,7 @@ connections. The server accepts a function that should return an `HttpHandler` i
 
 ```rust,ignore
    HttpServer::new(
-       || Application::new()
+       || App::new()
            .resource("/", |r| r.f(index)))
        .bind("127.0.0.1:8088")?
        .run();
@@ -72,7 +72,7 @@ Here is full source of main.rs file:
 ```rust
 # use std::thread;
 extern crate actix_web;
-use actix_web::{Application, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
 
 fn index(req: HttpRequest) -> &'static str {
     "Hello world!"
@@ -84,7 +84,7 @@ fn main() {
 #  // call.
 #  thread::spawn(|| {
     HttpServer::new(
-        || Application::new()
+        || App::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
         .run();

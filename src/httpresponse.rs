@@ -314,7 +314,7 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, Application, HttpRequest, HttpResponse};
+    /// use actix_web::{http, HttpRequest, HttpResponse};
     ///
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     HttpResponse::Ok()

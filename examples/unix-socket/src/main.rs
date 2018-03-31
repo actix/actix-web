@@ -14,12 +14,13 @@ fn index(_req: HttpRequest) -> &'static str {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("unix-socket");
 
-    let listener = UnixListener::bind("/tmp/actix-uds.socket", Arbiter::handle()).expect("bind failed");
-    let _addr = HttpServer::new(
-        || Application::new()
+    let listener = UnixListener::bind(
+        "/tmp/actix-uds.socket", Arbiter::handle()).expect("bind failed");
+    HttpServer::new(
+        || App::new()
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/index.html", |r| r.f(|_| "Hello world!"))

@@ -9,7 +9,7 @@
 //!   2. Use any of the builder methods to set fields in the backend.
 //!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
 //!
-//! Cors middleware could be used as parameter for `Application::middleware()` or
+//! Cors middleware could be used as parameter for `App::middleware()` or
 //! `Resource::middleware()` methods. But you have to use `Cors::register()` method to
 //! support *preflight* OPTIONS request.
 //!
@@ -18,7 +18,7 @@
 //!
 //! ```rust
 //! # extern crate actix_web;
-//! use actix_web::{http, Application, HttpRequest, HttpResponse};
+//! use actix_web::{http, App, HttpRequest, HttpResponse};
 //! use actix_web::middleware::cors;
 //!
 //! fn index(mut req: HttpRequest) -> &'static str {
@@ -26,7 +26,7 @@
 //! }
 //!
 //! fn main() {
-//!     let app = Application::new()
+//!     let app = App::new()
 //!         .resource("/index.html", |r| {
 //!              cors::Cors::build()                   // <- Construct CORS middleware
 //!                  .allowed_origin("https://www.rust-lang.org/")

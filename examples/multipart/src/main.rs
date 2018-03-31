@@ -7,7 +7,7 @@ extern crate futures;
 use actix::*;
 use actix_web::{
     http, middleware, multipart, server,
-    Application, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
+    App, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
 
 use futures::{Future, Stream};
 use futures::future::{result, Either};
@@ -50,7 +50,7 @@ fn main() {
     let sys = actix::System::new("multipart-example");
 
     let _ = server::new(
-        || Application::new()
+        || App::new()
             .middleware(middleware::Logger::default()) // <- logger
             .resource("/multipart", |r| r.method(http::Method::POST).a(index)))
         .bind("127.0.0.1:8080").unwrap()

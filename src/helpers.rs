@@ -38,7 +38,7 @@ use httpresponse::HttpResponse;
 /// #     HttpResponse::Ok().into()
 /// # }
 /// fn main() {
-///     let app = Application::new()
+///     let app = App::new()
 ///         .resource("/test/", |r| r.f(index))
 ///         .default_resource(|r| r.h(NormalizePath::default()))
 ///         .finish();
@@ -155,7 +155,7 @@ mod tests {
     use super::*;
     use http::{header, Method};
     use test::TestRequest;
-    use application::Application;
+    use application::App;
 
     fn index(_req: HttpRequest) -> HttpResponse {
         HttpResponse::new(StatusCode::OK)
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes_disabled() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_slashes() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_and_append_slashes() {
-        let mut app = Application::new()
+        let mut app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))

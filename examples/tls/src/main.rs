@@ -6,8 +6,7 @@ extern crate openssl;
 
 use openssl::ssl::{SslMethod, SslAcceptor, SslFiletype};
 use actix_web::{
-    http, middleware, server,
-    Application, HttpRequest, HttpResponse, Error};
+    http, middleware, server, App, HttpRequest, HttpResponse, Error};
 
 
 /// simple handle
@@ -31,7 +30,7 @@ fn main() {
     builder.set_certificate_chain_file("cert.pem").unwrap();
 
     let _ = server::new(
-        || Application::new()
+        || App::new()
             // enable logger
             .middleware(middleware::Logger::default())
             // register simple handler, handle all methods

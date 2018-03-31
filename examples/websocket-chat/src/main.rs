@@ -17,9 +17,7 @@ extern crate actix_web;
 use std::time::Instant;
 
 use actix::*;
-use actix_web::{
-    http, fs, ws,
-    Application, HttpRequest, HttpResponse, HttpServer, Error};
+use actix_web::{http, fs, ws, App, HttpRequest, HttpResponse, HttpServer, Error};
 
 mod codec;
 mod server;
@@ -190,7 +188,7 @@ fn main() {
             // Websocket sessions state
             let state = WsChatSessionState { addr: server.clone() };
 
-            Application::with_state(state)
+            App::with_state(state)
                 // redirect to websocket.html
                 .resource("/", |r| r.method(http::Method::GET).f(|_| {
                     HttpResponse::Found()

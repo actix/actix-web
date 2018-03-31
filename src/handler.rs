@@ -96,7 +96,7 @@ impl<A, B> Responder for Either<A, B>
     }
 }
 
-/// Convenience trait that convert `Future` object into `Boxed` future
+/// Convenience trait that converts `Future` object to a `Boxed` future
 ///
 /// For example loading json from request's body is async operation.
 ///
@@ -106,7 +106,7 @@ impl<A, B> Responder for Either<A, B>
 /// # #[macro_use] extern crate serde_derive;
 /// use futures::future::Future;
 /// use actix_web::{
-///     Application, HttpRequest, HttpResponse, HttpMessage, Error, AsyncResponder};
+///     App, HttpRequest, HttpResponse, HttpMessage, Error, AsyncResponder};
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {
@@ -384,10 +384,10 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{Application, Path, State, http};
+/// use actix_web::{App, Path, State, http};
 ///
 /// /// Application state
-/// struct App {msg: &'static str}
+/// struct MyApp {msg: &'static str}
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -395,12 +395,12 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(state: State<App>, info: Path<Info>) -> String {
+/// fn index(state: State<MyApp>, info: Path<Info>) -> String {
 ///     format!("{} {}!", state.msg, info.username)
 /// }
 ///
 /// fn main() {
-///     let app = Application::with_state(App{msg: "Welcome"}).resource(
+///     let app = App::with_state(MyApp{msg: "Welcome"}).resource(
 ///        "/{username}/index.html",                      // <- define path parameters
 ///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
 /// }

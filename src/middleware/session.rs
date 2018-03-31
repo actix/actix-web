@@ -114,11 +114,11 @@ unsafe impl Sync for SessionImplBox {}
 /// ```rust
 /// # extern crate actix;
 /// # extern crate actix_web;
-/// # use actix_web::middleware::{SessionStorage, CookieSessionBackend};
-/// use actix_web::*;
+/// use actix_web::App;
+/// use actix_web::middleware::{SessionStorage, CookieSessionBackend};
 ///
 /// fn main() {
-///    let app = Application::new().middleware(
+///    let app = App::new().middleware(
 ///        SessionStorage::new(                      // <- create session middleware
 ///            CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
 ///               .secure(false)

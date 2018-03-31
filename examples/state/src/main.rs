@@ -11,7 +11,7 @@ use std::cell::Cell;
 
 use actix::prelude::*;
 use actix_web::{
-    http, server, ws, middleware, Application, HttpRequest, HttpResponse};
+    http, server, ws, middleware, App, HttpRequest, HttpResponse};
 
 /// Application state
 struct AppState {
@@ -59,7 +59,7 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     let _ = server::new(
-        || Application::with_state(AppState{counter: Cell::new(0)})
+        || App::with_state(AppState{counter: Cell::new(0)})
             // enable logger
             .middleware(middleware::Logger::default())
             // websocket route

@@ -13,10 +13,10 @@ use middleware::{Response, Middleware};
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{http, middleware, Application, HttpResponse};
+/// use actix_web::{http, middleware, App, HttpResponse};
 ///
 /// fn main() {
-///     let app = Application::new()
+///     let app = App::new()
 ///         .middleware(
 ///             middleware::DefaultHeaders::build()
 ///                 .header("X-Version", "0.2")

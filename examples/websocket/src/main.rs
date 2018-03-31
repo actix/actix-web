@@ -10,9 +10,7 @@ extern crate env_logger;
 
 use actix::prelude::*;
 use actix_web::{
-    http, middleware, server, fs, ws,
-    Application, HttpRequest, HttpResponse, Error,
-};
+    http, middleware, server, fs, ws, App, HttpRequest, HttpResponse, Error};
 
 /// do websocket handshake and start `MyWebSocket` actor
 fn ws_index(r: HttpRequest) -> Result<HttpResponse, Error> {
@@ -51,7 +49,7 @@ fn main() {
     let sys = actix::System::new("ws-example");
 
     server::new(
-        || Application::new()
+        || App::new()
             // enable logger
             .middleware(middleware::Logger::default())
             // websocket route

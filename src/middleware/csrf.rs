@@ -22,7 +22,7 @@
 //!
 //! ```
 //! # extern crate actix_web;
-//! use actix_web::{http, Application, HttpRequest, HttpResponse};
+//! use actix_web::{http, App, HttpRequest, HttpResponse};
 //! use actix_web::middleware::csrf;
 //!
 //! fn handle_post(_: HttpRequest) -> &'static str {
@@ -30,7 +30,7 @@
 //! }
 //!
 //! fn main() {
-//!     let app = Application::new()
+//!     let app = App::new()
 //!         .middleware(
 //!             csrf::CsrfFilter::build()
 //!                 .allowed_origin("https://www.example.com")

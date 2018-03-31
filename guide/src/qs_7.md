@@ -135,7 +135,7 @@ type `T` must implement the `Serialize` trait from *serde*.
 ```rust
 # extern crate actix_web;
 #[macro_use] extern crate serde_derive;
-use actix_web::{Application, HttpRequest, Json, Result, http::Method};
+use actix_web::{App, HttpRequest, Json, Result, http::Method};
 
 #[derive(Serialize)]
 struct MyObj {
@@ -147,7 +147,7 @@ fn index(req: HttpRequest) -> Result<Json<MyObj>> {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource(r"/a/{name}", |r| r.method(Method::GET).f(index))
         .finish();
 }

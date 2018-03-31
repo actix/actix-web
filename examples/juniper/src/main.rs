@@ -13,9 +13,9 @@ extern crate actix_web;
 extern crate env_logger;
 
 use actix::prelude::*;
-use actix_web::{middleware, http, server,
-                Application, AsyncResponder,
-                HttpRequest, HttpResponse, HttpMessage, Error};
+use actix_web::{
+    middleware, http, server,
+    App, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
@@ -99,7 +99,7 @@ fn main() {
 
     // Start http server
     let _ = server::new(move || {
-        Application::with_state(State{executor: addr.clone()})
+        App::with_state(State{executor: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/graphql", |r| r.method(http::Method::POST).h(graphql))

@@ -9,7 +9,7 @@ use futures::Stream;
 
 use std::{io, env};
 use actix_web::{error, fs, pred,
-                Application, HttpRequest, HttpResponse, HttpServer, Result, Error};
+                App, HttpRequest, HttpResponse, HttpServer, Result, Error};
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::{self, RequestSession};
 use futures::future::{FutureResult, result};
@@ -100,7 +100,7 @@ fn main() {
     let sys = actix::System::new("basic-example");
 
     let addr = HttpServer::new(
-        || Application::new()
+        || App::new()
             // enable logger
             .middleware(middleware::Logger::default())
             // cookie session middleware

@@ -35,7 +35,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 }
 
 fn main() {
-    Application::new()
+    App::new()
       .resource("/ws/", |r| r.f(|req| ws::start(req, Ws)))  // <- register websocket route
       .finish();
 }

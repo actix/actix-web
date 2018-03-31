@@ -363,15 +363,15 @@ impl Responder for Directory {
 
 /// Static files handling
 ///
-/// `StaticFile` handler must be registered with `Application::handler()` method,
+/// `StaticFile` handler must be registered with `App::handler()` method,
 /// because `StaticFile` handler requires access sub-path information.
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{fs, Application};
+/// use actix_web::{fs, App};
 ///
 /// fn main() {
-///     let app = Application::new()
+///     let app = App::new()
 ///         .handler("/static", fs::StaticFiles::new(".", true))
 ///         .finish();
 /// }

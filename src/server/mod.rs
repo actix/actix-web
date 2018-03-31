@@ -38,13 +38,13 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// use actix::*;
-/// use actix_web::{server, Application, HttpResponse};
+/// use actix_web::{server, App, HttpResponse};
 ///
 /// fn main() {
 ///     let sys = actix::System::new("guide");
 ///
 ///     server::new(
-///         || Application::new()
+///         || App::new()
 ///             .resource("/", |r| r.f(|_| HttpResponse::Ok())))
 ///         .bind("127.0.0.1:59080").unwrap()
 ///         .start();

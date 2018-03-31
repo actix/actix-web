@@ -37,7 +37,7 @@
 //! }
 //! #
 //! # fn main() {
-//! #    Application::new()
+//! #    App::new()
 //! #      .resource("/ws/", |r| r.f(ws_index))  // <- register websocket route
 //! #      .finish();
 //! # }

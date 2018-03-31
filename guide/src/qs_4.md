@@ -53,7 +53,7 @@ Here is an example of a handler that stores the number of processed requests:
 
 ```rust
 # extern crate actix_web;
-use actix_web::{Application, HttpRequest, HttpResponse, dev::Handler};
+use actix_web::{App, HttpRequest, HttpResponse, dev::Handler};
 
 struct MyHandler(usize);
 
@@ -75,7 +75,7 @@ number of requests processed per thread. A proper implementation would use `Arc`
 ```rust
 # extern crate actix;
 # extern crate actix_web;
-use actix_web::{server, Application, HttpRequest, HttpResponse, dev::Handler};
+use actix_web::{server, App, HttpRequest, HttpResponse, dev::Handler};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -99,7 +99,7 @@ fn main() {
     server::new(
         move || {
             let cloned = inc.clone();
-            Application::new()
+            App::new()
                 .resource("/", move |r| r.h(MyHandler(cloned)))
         })
         .bind("127.0.0.1:8088").unwrap()
@@ -127,7 +127,7 @@ Let's create a response for a custom type that serializes to an `application/jso
 extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
-use actix_web::{Application, HttpServer, HttpRequest, HttpResponse, Error, Responder, http};
+use actix_web::{App, HttpServer, HttpRequest, HttpResponse, Error, Responder, http};
 
 #[derive(Serialize)]
 struct MyObj {
@@ -158,7 +158,7 @@ fn main() {
     let sys = actix::System::new("example");
 
     HttpServer::new(
-        || Application::new()
+        || App::new()
             .resource("/", |r| r.method(http::Method::GET).f(index)))
         .bind("127.0.0.1:8088").unwrap()
         .start();
@@ -198,7 +198,7 @@ fn index2(req: HttpRequest) -> Box<Future<Item=&'static str, Error=Error>> {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource("/async", |r| r.route().a(index))
         .resource("/", |r| r.route().a(index2))
         .finish();
@@ -224,7 +224,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() {
-    Application::new()
+    App::new()
         .resource("/async", |r| r.f(index))
         .finish();
 }
@@ -257,7 +257,7 @@ fn index(req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>
 #
 # fn is_error() -> bool { true }
 # fn main() {
-#     Application::new()
+#     App::new()
 #        .resource("/async", |r| r.route().f(index))
 #        .finish();
 # }
@@ -294,7 +294,7 @@ fn index(req: HttpRequest) -> RegisterResult {
 }
 # fn is_a_variant() -> bool { true }
 # fn main() {
-#    Application::new()
+#    App::new()
 #        .resource("/register", |r| r.f(index))
 #        .finish();
 # }

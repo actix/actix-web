@@ -64,7 +64,7 @@ fn test_start() {
     thread::spawn(move || {
         let sys = System::new("test");
         let srv = HttpServer::new(
-            || vec![Application::new()
+            || vec![App::new()
                     .resource(
                         "/", |r| r.method(http::Method::GET)
                             .f(|_|HttpResponse::Ok()))]);
@@ -109,7 +109,7 @@ fn test_shutdown() {
     thread::spawn(move || {
         let sys = System::new("test");
         let srv = HttpServer::new(
-            || vec![Application::new()
+            || vec![App::new()
                     .resource(
                         "/", |r| r.method(http::Method::GET).f(|_| HttpResponse::Ok()))]);
 
@@ -749,7 +749,7 @@ fn test_h2() {
 #[test]
 fn test_application() {
     let mut srv = test::TestServer::with_factory(
-        || Application::new().resource("/", |r| r.f(|_| HttpResponse::Ok())));
+        || App::new().resource("/", |r| r.f(|_| HttpResponse::Ok())));
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();

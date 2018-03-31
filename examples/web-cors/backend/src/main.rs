@@ -7,7 +7,7 @@ extern crate actix_web;
 extern crate env_logger;
 
 use std::env;
-use actix_web::{http, middleware, server, Application};
+use actix_web::{http, middleware, server, App};
 
 mod user;
 use user::info;
@@ -20,7 +20,7 @@ fn main() {
     let sys = actix::System::new("Actix-web-CORS");
 
     server::new(
-        || Application::new()
+        || App::new()
             .middleware(middleware::Logger::default())
             .resource("/user/info", |r| {
                 middleware::cors::Cors::build()

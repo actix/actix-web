@@ -24,10 +24,10 @@ use with::WithHandler;
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{Application, HttpResponse, http};
+/// use actix_web::{App, HttpResponse, http};
 ///
 /// fn main() {
-///     let app = Application::new()
+///     let app = App::new()
 ///         .resource(
 ///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
@@ -79,7 +79,7 @@ impl<S: 'static> Resource<S> {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = Application::new()
+    ///     let app = App::new()
     ///         .resource(
     ///             "/", |r| r.route()
     ///                  .filter(pred::Any(pred::Get()).or(pred::Put()))
@@ -149,7 +149,7 @@ impl<S: 'static> Resource<S> {
 
     /// Register a middleware
     ///
-    /// This is similar to `Application's` middlewares, but
+    /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
     pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
         Rc::get_mut(&mut self.middlewares).unwrap().push(Box::new(mw));

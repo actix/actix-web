@@ -7,9 +7,9 @@ extern crate serde_json;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate json;
 
-use actix_web::{middleware, http, error, server,
-                Application, AsyncResponder,
-                HttpRequest, HttpResponse, HttpMessage, Error, Json};
+use actix_web::{
+    middleware, http, error, server,
+    App, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error, Json};
 
 use bytes::BytesMut;
 use futures::{Future, Stream};
@@ -90,7 +90,7 @@ fn main() {
     let sys = actix::System::new("json-example");
 
     let _ = server::new(|| {
-        Application::new()
+        App::new()
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/extractor/{name}/{number}/",

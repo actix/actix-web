@@ -5,9 +5,7 @@ extern crate env_logger;
 extern crate tera;
 
 use actix_web::{
-    http, error, middleware, server,
-    Application, HttpRequest, HttpResponse, Error,
-};
+    http, error, middleware, server, App, HttpRequest, HttpResponse, Error};
 
 
 struct State {
@@ -38,7 +36,7 @@ fn main() {
     let _ = server::new(|| {
         let tera = compile_templates!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"));
 
-        Application::with_state(State{template: tera})
+        App::with_state(State{template: tera})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/", |r| r.method(http::Method::GET).f(index))})

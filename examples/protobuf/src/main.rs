@@ -12,7 +12,7 @@ extern crate prost_derive;
 use futures::Future;
 use actix_web::{
     http, middleware, server,
-    Application, AsyncResponder, HttpRequest, HttpResponse, Error};
+    App, AsyncResponder, HttpRequest, HttpResponse, Error};
 
 mod protobuf;
 use protobuf::ProtoBufResponseBuilder;
@@ -45,7 +45,7 @@ fn main() {
     let sys = actix::System::new("protobuf-example");
 
     let _ = server::new(|| {
-        Application::new()
+        App::new()
             .middleware(middleware::Logger::default())
             .resource("/", |r| r.method(http::Method::POST).f(index))})
         .bind("127.0.0.1:8080").unwrap()

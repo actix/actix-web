@@ -29,14 +29,14 @@ use middleware::{Middleware, Started, Finished};
 /// ```rust
 /// # extern crate actix_web;
 /// extern crate env_logger;
-/// use actix_web::Application;
+/// use actix_web::App;
 /// use actix_web::middleware::Logger;
 ///
 /// fn main() {
 ///     std::env::set_var("RUST_LOG", "actix_web=info");
 ///     env_logger::init();
 ///
-///     let app = Application::new()
+///     let app = App::new()
 ///         .middleware(Logger::default())
 ///         .middleware(Logger::new("%a %{User-Agent}i"))
 ///         .finish();

@@ -1,7 +1,7 @@
 //! Actix web is a small, pragmatic, extremely fast, web framework for Rust.
 //!
 //! ```rust
-//! use actix_web::{Application, HttpServer, Path};
+//! use actix_web::{App, HttpServer, Path};
 //! # use std::thread;
 //!
 //! fn index(info: Path<(String, u32)>) -> String {
@@ -11,7 +11,7 @@
 //! fn main() {
 //! # thread::spawn(|| {
 //!     HttpServer::new(
-//!         || Application::new()
+//!         || App::new()
 //!             .resource("/{name}/{id}/index.html", |r| r.with(index)))
 //!         .bind("127.0.0.1:8080").unwrap()
 //!         .run();
@@ -136,7 +136,7 @@ pub use error::{Error, Result, ResponseError};
 pub use body::{Body, Binary};
 pub use json::Json;
 pub use de::{Path, Query};
-pub use application::Application;
+pub use application::App;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
@@ -146,6 +146,10 @@ pub use server::HttpServer;
 
 #[doc(hidden)]
 pub mod httpcodes;
+
+#[doc(hidden)]
+#[allow(deprecated)]
+pub use application::Application;
 
 #[cfg(feature="openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;

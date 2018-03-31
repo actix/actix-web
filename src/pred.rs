@@ -20,10 +20,10 @@ pub trait Predicate<S> {
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{pred, Application, HttpResponse};
+/// use actix_web::{pred, App, HttpResponse};
 ///
 /// fn main() {
-///     Application::new()
+///     App::new()
 ///         .resource("/index.html", |r| r.route()
 ///             .filter(pred::Any(pred::Get()).or(pred::Post()))
 ///             .f(|r| HttpResponse::MethodNotAllowed()));

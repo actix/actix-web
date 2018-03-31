@@ -4,7 +4,7 @@ Actix web provides some primitives to build web servers and applications with Ru
 It provides routing, middlewares, pre-processing of requests, and post-processing of responses,
 websocket protocol handling, multipart streams, etc.
 
-All actix web servers are built around the `Application` instance.
+All actix web servers are built around the `App` instance.
 It is used for registering routes for resources, and middlewares.
 It also stores application specific state that is shared across all handlers
 within same application.
@@ -24,7 +24,7 @@ but path `/application` would not match.
 #    "Hello world!"
 # }
 # fn main() {
-   let app = Application::new()
+   let app = App::new()
        .prefix("/app")
        .resource("/index.html", |r| r.method(Method::GET).f(index))
        .finish()
@@ -43,17 +43,17 @@ Multiple applications can be served with one server:
 # extern crate tokio_core;
 # use tokio_core::net::TcpStream;
 # use std::net::SocketAddr;
-use actix_web::{Application, HttpResponse, HttpServer};
+use actix_web::{App, HttpResponse, HttpServer};
 
 fn main() {
     HttpServer::new(|| vec![
-        Application::new()
+        App::new()
             .prefix("/app1")
             .resource("/", |r| r.f(|r| HttpResponse::Ok())),
-        Application::new()
+        App::new()
             .prefix("/app2")
             .resource("/", |r| r.f(|r| HttpResponse::Ok())),
-        Application::new()
+        App::new()
             .resource("/", |r| r.f(|r| HttpResponse::Ok())),
     ]);
 }
@@ -81,7 +81,7 @@ in the state:
 # extern crate actix_web;
 #
 use std::cell::Cell;
-use actix_web::{Application, HttpRequest, http};
+use actix_web::{App, HttpRequest, http};
 
 // This struct represents state
 struct AppState {
@@ -96,7 +96,7 @@ fn index(req: HttpRequest<AppState>) -> String {
 }
 
 fn main() {
-    Application::with_state(AppState{counter: Cell::new(0)})
+    App::with_state(AppState{counter: Cell::new(0)})
         .resource("/", |r| r.method(http::Method::GET).f(index))
         .finish();
 }

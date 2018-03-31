@@ -18,7 +18,7 @@ extern crate env_logger;
 
 use actix::prelude::*;
 use actix_web::{http, middleware,
-                Application, HttpServer, HttpRequest, HttpResponse, Error, AsyncResponder};
+                App, HttpServer, HttpRequest, HttpResponse, Error, AsyncResponder};
 
 use diesel::prelude::*;
 use futures::future::Future;
@@ -63,7 +63,7 @@ fn main() {
 
     // Start http server
     let _addr = HttpServer::new(move || {
-        Application::with_state(State{db: addr.clone()})
+        App::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/{name}", |r| r.method(http::Method::GET).a(index))})

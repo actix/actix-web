@@ -19,7 +19,7 @@ use httprequest::HttpRequest;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{Application, Path, Result, http};
+/// use actix_web::{App, Path, Result, http};
 ///
 /// /// extract path info from "/{username}/{count}/?index.html" url
 /// /// {username} - deserializes to a String
@@ -29,7 +29,7 @@ use httprequest::HttpRequest;
 /// }
 ///
 /// fn main() {
-///     let app = Application::new().resource(
+///     let app = App::new().resource(
 ///        "/{username}/{count}/?index.html",       // <- define path parameters
 ///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
@@ -43,7 +43,7 @@ use httprequest::HttpRequest;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{Application, Path, Result, http};
+/// use actix_web::{App, Path, Result, http};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -56,7 +56,7 @@ use httprequest::HttpRequest;
 /// }
 ///
 /// fn main() {
-///     let app = Application::new().resource(
+///     let app = App::new().resource(
 ///        "/{username}/index.html",                // <- define path parameters
 ///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
@@ -109,7 +109,7 @@ impl<T, S> FromRequest<S> for Path<T>
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{Application, Query, http};
+/// use actix_web::{App, Query, http};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -123,7 +123,7 @@ impl<T, S> FromRequest<S> for Path<T>
 /// }
 ///
 /// fn main() {
-///     let app = Application::new().resource(
+///     let app = App::new().resource(
 ///        "/index.html",
 ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
 /// }

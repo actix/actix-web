@@ -23,7 +23,7 @@ use error::Error;
 use header::{Header, IntoHeaderValue};
 use handler::{Handler, Responder, ReplyItem};
 use middleware::Middleware;
-use application::{Application, HttpApplication};
+use application::{App, HttpApplication};
 use param::Params;
 use router::Router;
 use payload::Payload;
@@ -327,12 +327,12 @@ impl<S: 'static> TestServerBuilder<S> {
 
 /// Test application helper for testing request handlers.
 pub struct TestApp<S=()> {
-    app: Option<Application<S>>,
+    app: Option<App<S>>,
 }
 
 impl<S: 'static> TestApp<S> {
     fn new(state: S) -> TestApp<S> {
-        let app = Application::with_state(state);
+        let app = App::with_state(state);
         TestApp{app: Some(app)}
     }
 
@@ -350,7 +350,7 @@ impl<S: 'static> TestApp<S> {
     }
 
     /// Register resource. This method is similar
-    /// to `Application::resource()` method.
+    /// to `App::resource()` method.
     pub fn resource<F>(&mut self, path: &str, f: F) -> &mut TestApp<S>
         where F: FnOnce(&mut Resource<S>) + 'static
     {

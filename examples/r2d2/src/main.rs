@@ -12,8 +12,7 @@ extern crate rusqlite;
 
 use actix::prelude::*;
 use actix_web::{
-    middleware, http, server,
-    Application, AsyncResponder, HttpRequest, HttpResponse, Error};
+    middleware, http, server, App, AsyncResponder, HttpRequest, HttpResponse, Error};
 use futures::future::Future;
 use r2d2_sqlite::SqliteConnectionManager;
 
@@ -55,7 +54,7 @@ fn main() {
 
     // Start http server
     let _ = server::new(move || {
-        Application::with_state(State{db: addr.clone()})
+        App::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/{name}", |r| r.method(http::Method::GET).a(index))})

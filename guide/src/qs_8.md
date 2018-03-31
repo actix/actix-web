@@ -75,15 +75,15 @@ function same way as you would for real http server configuration.
 
 ```rust
 # extern crate actix_web;
-use actix_web::{http, test, Application, HttpRequest, HttpResponse};
+use actix_web::{http, test, App, HttpRequest, HttpResponse};
 
 fn index(req: HttpRequest) -> HttpResponse {
      HttpResponse::Ok().into()
 }
 
 /// This function get called by http server.
-fn create_app() -> Application {
-    Application::new()
+fn create_app() -> App {
+    App::new()
         .resource("/test", |r| r.h(index))
 }
 
