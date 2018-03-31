@@ -27,7 +27,7 @@ fn index(req: HttpRequest<State>) -> Result<HttpResponse, Error> {
     };
     Ok(HttpResponse::Ok()
        .content_type("text/html")
-       .body(s)?)
+       .body(s))
 }
 
 fn main() {

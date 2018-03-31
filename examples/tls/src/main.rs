@@ -15,7 +15,7 @@ fn index(req: HttpRequest) -> Result<HttpResponse, Error> {
     println!("{:?}", req);
     Ok(HttpResponse::Ok()
        .content_type("text/plain")
-       .body("Welcome!")?)
+       .body("Welcome!"))
 }
 
 fn main() {

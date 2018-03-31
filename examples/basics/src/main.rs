@@ -51,7 +51,7 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     // response
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body(&html).unwrap())
+        .body(&html))
 
 }
 
@@ -69,7 +69,7 @@ fn p404(req: HttpRequest) -> Result<HttpResponse> {
     // response
     Ok(HttpResponse::build(StatusCode::NOT_FOUND)
         .content_type("text/html; charset=utf-8")
-        .body(html).unwrap())
+        .body(html))
 }
 
 
@@ -78,20 +78,19 @@ fn index_async(req: HttpRequest) -> FutureResult<HttpResponse, Error>
 {
     println!("{:?}", req);
 
-    result(HttpResponse::Ok()
-           .content_type("text/html")
-           .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
-           .map_err(|e| e.into()))
+    result(Ok(HttpResponse::Ok()
+              .content_type("text/html")
+              .body(format!("Hello {}!", req.match_info().get("name").unwrap()))))
 }
 
 /// handler with path parameters like `/user/{name}/`
-fn with_param(req: HttpRequest) -> Result<HttpResponse>
+fn with_param(req: HttpRequest) -> HttpResponse
 {
     println!("{:?}", req);
 
-    Ok(HttpResponse::Ok()
-       .content_type("test/plain")
-       .body(format!("Hello {}!", req.match_info().get("name").unwrap()))?)
+    HttpResponse::Ok()
+        .content_type("test/plain")
+        .body(format!("Hello {}!", req.match_info().get("name").unwrap()))
 }
 
 fn main() {

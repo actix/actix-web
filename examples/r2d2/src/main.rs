@@ -34,7 +34,7 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
         .from_err()
         .and_then(|res| {
             match res {
-                Ok(user) => Ok(HttpResponse::Ok().json(user)?),
+                Ok(user) => Ok(HttpResponse::Ok().json(user)),
                 Err(_) => Ok(HttpResponse::InternalServerError().into())
             }
         })

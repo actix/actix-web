@@ -11,8 +11,7 @@ use std::cell::Cell;
 
 use actix::prelude::*;
 use actix_web::{
-    http, server, ws, middleware,
-    Application, HttpRequest, HttpResponse, Error};
+    http, server, ws, middleware, Application, HttpRequest, HttpResponse};
 
 /// Application state
 struct AppState {
@@ -20,7 +19,7 @@ struct AppState {
 }
 
 /// simple handle
-fn index(req: HttpRequest<AppState>) -> Result<HttpResponse, Error> {
+fn index(req: HttpRequest<AppState>) -> HttpResponse {
     println!("{:?}", req);
     req.state().counter.set(req.state().counter.get() + 1);
 

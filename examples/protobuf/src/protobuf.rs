@@ -163,6 +163,6 @@ impl ProtoBufResponseBuilder for HttpResponseBuilder {
 
         let mut body = Vec::new();
         value.encode(&mut body).map_err(|e| ProtoBufPayloadError::Serialize(e))?;
-        Ok(self.body(body)?)
+        Ok(self.body(body))
     }
 }

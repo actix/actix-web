@@ -18,9 +18,7 @@ fn index(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
             |resp| resp.body()         // <- this is MessageBody type, resolves to complete body
                 .from_err()            // <- convert PayloadError to a Error
                 .and_then(|body| {     // <- we got complete body, now send as server response
-                    HttpResponse::Ok()
-                        .body(body)
-                        .map_err(Error::from)
+                    Ok(HttpResponse::Ok().body(body))
                 }))
         .responder()
 }
@@ -33,11 +31,10 @@ fn streaming(_req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .send()                         // <- connect to host and send request
         .map_err(Error::from)    // <- convert SendRequestError to an Error
         .and_then(|resp| {              // <- we received client response
-            HttpResponse::Ok()
-                // read one chunk from client response and send this chunk to a server response
-                // .from_err() converts PayloadError to a Error
-                .body(Body::Streaming(Box::new(resp.from_err())))
-                .map_err(|e| e.into()) // HttpOk::build() maybe return HttpError, we need to convert it to a Error
+            Ok(HttpResponse::Ok()
+               // read one chunk from client response and send this chunk to a server response
+               // .from_err() converts PayloadError to a Error
+               .body(Body::Streaming(Box::new(resp.from_err()))))
         })
         .responder()
 }

@@ -67,7 +67,7 @@ fn graphiql(_req: HttpRequest<State>) -> Result<HttpResponse, Error>  {
     let html = graphiql_source("http://127.0.0.1:8080/graphql");
     Ok(HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
-        .body(html).unwrap())
+        .body(html))
 }
 
 fn graphql(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
@@ -79,7 +79,7 @@ fn graphql(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error
                 .from_err()
                 .and_then(|res| {
                     match res {
-                        Ok(user) => Ok(HttpResponse::Ok().body(user)?),
+                        Ok(user) => Ok(HttpResponse::Ok().body(user)),
                         Err(_) => Ok(HttpResponse::InternalServerError().into())
                     }
                 })

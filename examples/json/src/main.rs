@@ -27,13 +27,13 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .from_err()  // convert all errors into `Error`
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(HttpResponse::Ok().json(val)?)  // <- send response
+            Ok(HttpResponse::Ok().json(val))  // <- send response
         })
         .responder()
 }
 
 /// This handler uses `With` helper for loading serde json object.
-fn extract_item(item: Json<MyObj>) -> Result<HttpResponse, Error> {
+fn extract_item(item: Json<MyObj>) -> HttpResponse {
     println!("model: {:?}", &item);
     HttpResponse::Ok().json(item.0)  // <- send response
 }
@@ -64,7 +64,7 @@ fn index_manual(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>>
         .and_then(|body| {
             // body is loaded, now we can deserialize serde-json
             let obj = serde_json::from_slice::<MyObj>(&body)?;
-            Ok(HttpResponse::Ok().json(obj)?) // <- send response
+            Ok(HttpResponse::Ok().json(obj)) // <- send response
         })
         .responder()
 }
@@ -79,7 +79,7 @@ fn index_mjsonrust(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Erro
             let injson: JsonValue = match result { Ok(v) => v, Err(e) => object!{"err" => e.to_string() } };
             Ok(HttpResponse::Ok()
                 .content_type("application/json")
-                .body(injson.dump()).unwrap())
+                .body(injson.dump()))
         })
         .responder()
 }
