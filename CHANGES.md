@@ -4,6 +4,9 @@
 
 * Type-safe path/query parameter handling, using serde #70
 
+* HttpResponse builder's methods  `.body()`, `.finish()`, `.json()`
+  return `HttpResponse` instead of `Result`
+
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`

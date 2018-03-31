@@ -47,9 +47,7 @@ use httpresponse::HttpResponse;
 /// ## Example
 ///
 /// ```rust
-/// # extern crate bytes;
 /// # extern crate actix_web;
-/// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Json, Result, http};
 ///

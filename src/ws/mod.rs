@@ -10,7 +10,7 @@
 //! # extern crate actix_web;
 //! # use actix::*;
 //! # use actix_web::*;
-//! use actix_web::ws;
+//! use actix_web::{ws, HttpRequest, HttpResponse};
 //!
 //! // do websocket handshake and start actor
 //! fn ws_index(req: HttpRequest) -> Result<HttpResponse> {

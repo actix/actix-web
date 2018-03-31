@@ -58,9 +58,36 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## JSON Request
 
-There are two options for json body deserialization.
+There are several options for json body deserialization.
 
-The first option is to use *HttpResponse::json()*. This method returns a
+The first option is to use *Json* extractor. You define handler function
+that accepts `Json<T>` as a parameter and use `.with()` method for registering
+this handler. It is also possible to accept arbitrary valid json object by
+using `serde_json::Value` as a type `T`
+
+```rust
+# extern crate actix_web;
+#[macro_use] extern crate serde_derive;
+use actix_web::{App, Json, Result, http};
+
+#[derive(Deserialize)]
+struct Info {
+    username: String,
+}
+
+/// extract `Info` using serde
+fn index(info: Json<Info>) -> Result<String> {
+    Ok(format!("Welcome {}!", info.username))
+}
+
+fn main() {
+    let app = App::new().resource(
+       "/index.html",
+       |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
+}
+```
+
+The second option is to use *HttpResponse::json()*. This method returns a
 [*JsonBody*](../actix_web/dev/struct.JsonBody.html) object which resolves into
 the deserialized value.
 
@@ -128,7 +155,7 @@ A complete example for both options is available in
 
 ## JSON Response
 
-The `Json` type allows you to respond with well-formed JSON data: simply return a value of
+The `Json` type allows to respond with well-formed JSON data: simply return a value of
 type Json<T> where T is the type of a structure to serialize into *JSON*. The
 type `T` must implement the `Serialize` trait from *serde*.
 

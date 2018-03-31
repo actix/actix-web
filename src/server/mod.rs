@@ -126,12 +126,16 @@ impl HttpHandler for Box<HttpHandler> {
     }
 }
 
+#[doc(hidden)]
 pub trait HttpHandlerTask {
 
+    /// Poll task, this method is used before or after *io* object is available
     fn poll(&mut self) -> Poll<(), Error>;
 
+    /// Poll task when *io* object is available
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
 
+    /// Connection is disconnected
     fn disconnected(&mut self);
 }
 
@@ -152,12 +156,14 @@ impl<T: HttpHandler> IntoHttpHandler for T {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub enum WriterState {
     Done,
     Pause,
 }
 
+#[doc(hidden)]
 /// Stream writer
 pub trait Writer {
     fn written(&self) -> u64;
@@ -172,6 +178,7 @@ pub trait Writer {
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
 }
 
+#[doc(hidden)]
 /// Low-level io stream operations
 pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;

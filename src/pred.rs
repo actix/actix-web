@@ -8,7 +8,8 @@ use httprequest::HttpRequest;
 
 /// Trait defines resource route predicate.
 /// Predicate can modify request object. It is also possible to
-/// to store extra attributes on request by using `.extensions()` method.
+/// to store extra attributes on request by using `Extensions` container,
+/// Extensions container available via `HttpRequest::extensions()` method.
 pub trait Predicate<S> {
 
     /// Check if request matches predicate

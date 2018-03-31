@@ -329,9 +329,7 @@ It uses *serde* package as a deserialization library.
 has to implement *serde's *`Deserialize` trait.
 
 ```rust
-# extern crate bytes;
 # extern crate actix_web;
-# extern crate futures;
 #[macro_use] extern crate serde_derive;
 use actix_web::{App, Path, Result, http::Method};
 
@@ -348,6 +346,27 @@ fn index(info: Path<Info>) -> Result<String> {
 fn main() {
     let app = App::new()
         .resource("/{username}/index.html",    // <- define path parameters
+                  |r| r.method(Method::GET).with(index));
+}
+```
+
+It also possible to extract path information to a tuple, in this case you don't need
+to define extra type, just use tuple for as a `Path` generic type.
+
+Here is previous example re-written using tuple instead of specific type.
+
+```rust
+# extern crate actix_web;
+use actix_web::{App, Path, Result, http::Method};
+
+// extract path info using serde
+fn index(info: Path<(String, u32)>) -> Result<String> {
+    Ok(format!("Welcome {}! id: {}", info.0, info.1))
+}
+
+fn main() {
+    let app = App::new()
+        .resource("/{username}/{id}/index.html",    // <- define path parameters
                   |r| r.method(Method::GET).with(index));
 }
 ```
