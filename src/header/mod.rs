@@ -9,7 +9,6 @@ use modhttp::{Error as HttpError};
 use modhttp::header::GetAll;
 use mime::Mime;
 
-#[doc(hidden)]
 pub use modhttp::header::*;
 
 use error::ParseError;

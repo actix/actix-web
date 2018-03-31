@@ -32,11 +32,11 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::ContentType;
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     ContentType::json()
     /// );
@@ -47,11 +47,11 @@ header! {
     /// # extern crate mime;
     /// # extern crate actix_web;
     /// use mime::TEXT_HTML;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::ContentType;
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     ContentType(TEXT_HTML)
     /// );

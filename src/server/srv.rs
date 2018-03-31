@@ -269,7 +269,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     ///
     ///     HttpServer::new(
     ///         || Application::new()
-    ///              .resource("/", |r| r.h(httpcodes::HttpOk)))
+    ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .start();
     /// #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
@@ -327,7 +327,7 @@ impl<H: IntoHttpHandler> HttpServer<H>
     /// fn main() {
     ///     HttpServer::new(
     ///         || Application::new()
-    ///              .resource("/", |r| r.h(httpcodes::HttpOk)))
+    ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
     ///         .run();
     /// }

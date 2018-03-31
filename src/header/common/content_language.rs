@@ -1,7 +1,6 @@
 use language_tags::LanguageTag;
 use header::{CONTENT_LANGUAGE, QualityItem};
 
-
 header! {
     /// `Content-Language` header, defined in
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
@@ -27,11 +26,11 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// # #[macro_use] extern crate language_tags;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// # use actix_web::http::header::{ContentLanguage, qitem};
     /// # 
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(en)),
@@ -43,12 +42,12 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// # #[macro_use] extern crate language_tags;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// # use actix_web::http::header::{ContentLanguage, qitem};
     /// #
     /// # fn main() {
     /// 
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(da)),

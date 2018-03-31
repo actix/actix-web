@@ -18,7 +18,7 @@
 //!
 //! ```rust
 //! # extern crate actix_web;
-//! use actix_web::{Application, HttpRequest, http, httpcodes};
+//! use actix_web::{http, Application, HttpRequest, HttpResponse};
 //! use actix_web::middleware::cors;
 //!
 //! fn index(mut req: HttpRequest) -> &'static str {
@@ -36,8 +36,8 @@
 //!                  .max_age(3600)
 //!                  .finish().expect("Can not create CORS middleware")
 //!                  .register(r);                     // <- Register CORS middleware
-//!              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
-//!              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+//!              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+//!              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
 //!         })
 //!         .finish();
 //! }
@@ -48,7 +48,7 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
 
-use http::{self, Method, HttpTryFrom, Uri};
+use http::{self, Method, HttpTryFrom, Uri, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
 
 use error::{Result, ResponseError};
@@ -56,7 +56,6 @@ use resource::Resource;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HttpOk, HttpBadRequest};
 use middleware::{Middleware, Response, Started};
 
 /// A set of errors that can occur during processing CORS
@@ -108,7 +107,7 @@ pub enum CorsBuilderError {
 impl ResponseError for CorsError {
 
     fn error_response(&self) -> HttpResponse {
-        HttpBadRequest.build().body(format!("{}", self)).unwrap()
+        HttpResponse::with_body(StatusCode::BAD_REQUEST, format!("{}", self))
     }
 }
 
@@ -217,7 +216,7 @@ impl Cors {
     /// method, but in that case *Cors* middleware wont be able to handle *OPTIONS*
     /// requests.
     pub fn register<S: 'static>(self, resource: &mut Resource<S>) {
-        resource.method(Method::OPTIONS).h(HttpOk);
+        resource.method(Method::OPTIONS).h(|_| HttpResponse::Ok());
         resource.middleware(self);
     }
 
@@ -305,7 +304,7 @@ impl<S> Middleware<S> for Cors {
             };
 
             Ok(Started::Response(
-                HttpOk.build()
+                HttpResponse::Ok()
                     .if_some(self.max_age.as_ref(), |max_age, resp| {
                         let _ = resp.header(
                             header::ACCESS_CONTROL_MAX_AGE, format!("{}", max_age).as_str());})
@@ -332,8 +331,7 @@ impl<S> Middleware<S> for Cors {
                         header::ACCESS_CONTROL_ALLOW_METHODS,
                         &self.methods.iter().fold(
                             String::new(), |s, v| s + "," + v.as_str()).as_str()[1..])
-                    .finish()
-                    .unwrap()))
+                    .finish()))
         } else {
             self.validate_origin(req)?;
 
@@ -809,7 +807,7 @@ mod tests {
         let cors = Cors::build().finish().unwrap();
 
         let mut req = TestRequest::default().method(Method::GET).finish();
-        let resp: HttpResponse = HttpOk.into();
+        let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
 
@@ -839,7 +837,7 @@ mod tests {
             .method(Method::OPTIONS)
             .finish();
 
-        let resp: HttpResponse = HttpOk.into();
+        let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"*"[..],
@@ -848,9 +846,9 @@ mod tests {
             &b"Origin"[..],
             resp.headers().get(header::VARY).unwrap().as_bytes());
 
-        let resp: HttpResponse = HttpOk.build()
+        let resp: HttpResponse = HttpResponse::Ok()
             .header(header::VARY, "Accept")
-            .finish().unwrap();
+            .finish();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"Accept, Origin"[..],
@@ -860,7 +858,7 @@ mod tests {
             .disable_vary_header()
             .allowed_origin("https://www.example.com")
             .finish().unwrap();
-        let resp: HttpResponse = HttpOk.into();
+        let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"https://www.example.com"[..],

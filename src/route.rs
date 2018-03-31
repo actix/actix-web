@@ -5,10 +5,10 @@ use futures::{Async, Future, Poll};
 
 use error::Error;
 use pred::Predicate;
+use http::StatusCode;
 use handler::{Reply, ReplyItem, Handler, FromRequest,
               Responder, RouteHandler, AsyncHandler, WrapHandler};
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
-use httpcodes::HttpNotFound;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use with::{with, with2, with3, WithHandler};
@@ -27,7 +27,7 @@ impl<S: 'static> Default for Route<S> {
     fn default() -> Route<S> {
         Route {
             preds: Vec::new(),
-            handler: InnerHandler::new(|_| HttpNotFound),
+            handler: InnerHandler::new(|_| HttpResponse::new(StatusCode::NOT_FOUND)),
         }
     }
 }
@@ -61,14 +61,13 @@ impl<S: 'static> Route<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
     /// # fn main() {
     /// Application::new()
     ///    .resource("/path", |r|
     ///       r.route()
     ///          .filter(pred::Get())
     ///          .filter(pred::Header("content-type", "text/plain"))
-    ///          .f(|req| HttpOk)
+    ///          .f(|req| HttpResponse::Ok())
     ///       )
     /// #      .finish();
     /// # }

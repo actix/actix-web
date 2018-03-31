@@ -19,7 +19,7 @@ but path `/application` would not match.
 ```rust,ignore
 # extern crate actix_web;
 # extern crate tokio_core;
-# use actix_web::*;
+# use actix_web::{*, http::Method};
 # fn index(req: HttpRequest) -> &'static str {
 #    "Hello world!"
 # }
@@ -43,18 +43,18 @@ Multiple applications can be served with one server:
 # extern crate tokio_core;
 # use tokio_core::net::TcpStream;
 # use std::net::SocketAddr;
-use actix_web::*;
+use actix_web::{Application, HttpResponse, HttpServer};
 
 fn main() {
     HttpServer::new(|| vec![
         Application::new()
             .prefix("/app1")
-            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
+            .resource("/", |r| r.f(|r| HttpResponse::Ok())),
         Application::new()
             .prefix("/app2")
-            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
+            .resource("/", |r| r.f(|r| HttpResponse::Ok())),
         Application::new()
-            .resource("/", |r| r.f(|r| httpcodes::HttpOk)),
+            .resource("/", |r| r.f(|r| HttpResponse::Ok())),
     ]);
 }
 ```

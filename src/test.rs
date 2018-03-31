@@ -46,7 +46,7 @@ use client::{ClientRequest, ClientRequestBuilder, ClientConnector};
 /// # use actix_web::*;
 /// #
 /// # fn my_handler(req: HttpRequest) -> HttpResponse {
-/// #     httpcodes::HttpOk.into()
+/// #     HttpResponse::Ok().into()
 /// # }
 /// #
 /// # fn main() {
@@ -341,16 +341,6 @@ impl<S: 'static> TestApp<S> {
         self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
     }
 
-    /// Register handler for "/" with resource middleware
-    pub fn handler2<H, M>(&mut self, handler: H, mw: M)
-        where H: Handler<S>, M: Middleware<S>
-    {
-        self.app = Some(self.app.take().unwrap()
-                        .resource("/", |r| {
-                            r.middleware(mw);
-                            r.h(handler)}));
-    }
-
     /// Register middleware
     pub fn middleware<T>(&mut self, mw: T) -> &mut TestApp<S>
         where T: Middleware<S> + 'static
@@ -401,9 +391,9 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         httpcodes::HttpOk.into()
+///         HttpResponse::Ok().into()
 ///     } else {
-///         httpcodes::HttpBadRequest.into()
+///         HttpResponse::BadRequest().into()
 ///     }
 /// }
 ///

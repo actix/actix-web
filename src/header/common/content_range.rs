@@ -4,7 +4,6 @@ use error::ParseError;
 use header::{IntoHeaderValue, Writer,
              HeaderValue, InvalidHeaderValueBytes, CONTENT_RANGE};
 
-
 header! {
     /// `Content-Range` header, defined in
     /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)

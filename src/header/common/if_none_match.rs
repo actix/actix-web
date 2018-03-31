@@ -32,18 +32,18 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::IfNoneMatch;
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(IfNoneMatch::Any);
     /// ```
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{IfNoneMatch, EntityTag};
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     IfNoneMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),

@@ -75,8 +75,14 @@ impl HttpResponse {
 
     /// Constructs a response
     #[inline]
-    pub fn new(status: StatusCode, body: Body) -> HttpResponse {
-        HttpResponsePool::with_body(status, body)
+    pub fn new(status: StatusCode) -> HttpResponse {
+        HttpResponsePool::with_body(status, Body::Empty)
+    }
+
+    /// Constructs a response with body
+    #[inline]
+    pub fn with_body<B: Into<Body>>(status: StatusCode, body: B) -> HttpResponse {
+        HttpResponsePool::with_body(status, body.into())
     }
 
     /// Constructs a error response
@@ -283,12 +289,12 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{HttpRequest, HttpResponse, Result, http, httpcodes};
+    /// use actix_web::{HttpRequest, HttpResponse, Result, http};
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(httpcodes::HttpOk.build()
+    ///     Ok(HttpResponse::Ok()
     ///         .set(http::header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
-    ///         .finish()?)
+    ///         .finish())
     /// }
     /// fn main() {}
     /// ```
@@ -307,18 +313,14 @@ impl HttpResponseBuilder {
     /// Set a header.
     ///
     /// ```rust
-    /// # extern crate http;
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
-    /// #
-    /// use http::header;
+    /// use actix_web::{http, Application, HttpRequest, HttpResponse};
     ///
-    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HttpOk.build()
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     HttpResponse::Ok()
     ///         .header("X-TEST", "value")
-    ///         .header(header::CONTENT_TYPE, "application/json")
-    ///         .finish()?)
+    ///         .header(http::header::CONTENT_TYPE, "application/json")
+    ///         .finish()
     /// }
     /// fn main() {}
     /// ```
@@ -429,10 +431,10 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{HttpRequest, HttpResponse, Result, http, httpcodes};
+    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
     ///
-    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(httpcodes::HttpOk.build()
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     HttpResponse::Ok()
     ///         .cookie(
     ///             http::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
@@ -440,7 +442,7 @@ impl HttpResponseBuilder {
     ///                 .secure(true)
     ///                 .http_only(true)
     ///                 .finish())
-    ///         .finish()?)
+    ///         .finish()
     /// }
     /// fn main() {}
     /// ```
@@ -506,26 +508,28 @@ impl HttpResponseBuilder {
     /// Set a body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<HttpResponse, Error> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
         if let Some(e) = self.err.take() {
-            return Err(e.into())
+            return Error::from(e).into()
         }
         let mut response = self.response.take().expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
-                response.headers.append(
-                    header::SET_COOKIE,
-                    HeaderValue::from_str(&cookie.to_string())?);
+                match HeaderValue::from_str(&cookie.to_string()) {
+                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
+                    Err(e) => return Error::from(e).into(),
+                };
             }
         }
         response.body = body.into();
-        Ok(HttpResponse(Some(response), self.pool.take().unwrap()))
+        HttpResponse(Some(response), self.pool.take().unwrap())
     }
 
+    #[inline]
     /// Set a streaming body and generate `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn streaming<S, E>(&mut self, stream: S) -> Result<HttpResponse, Error>
+    pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
         where S: Stream<Item=Bytes, Error=E> + 'static,
               E: Into<Error>,
     {
@@ -535,25 +539,30 @@ impl HttpResponseBuilder {
     /// Set a json body and generate `HttpResponse`
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn json<T: Serialize>(&mut self, value: T) -> Result<HttpResponse, Error> {
-        let body = serde_json::to_string(&value)?;
+    pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
+        match serde_json::to_string(&value) {
+            Ok(body) => {
+                let contains =
+                    if let Some(parts) = parts(&mut self.response, &self.err) {
+                        parts.headers.contains_key(header::CONTENT_TYPE)
+                    } else {
+                        true
+                    };
+                if !contains {
+                    self.header(header::CONTENT_TYPE, "application/json");
+                }
 
-        let contains = if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.headers.contains_key(header::CONTENT_TYPE)
-        } else {
-            true
-        };
-        if !contains {
-            self.header(header::CONTENT_TYPE, "application/json");
+                self.body(body)
+            },
+            Err(e) => Error::from(e).into()
         }
-
-        Ok(self.body(body)?)
     }
 
+    #[inline]
     /// Set an empty body and generate `HttpResponse`
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn finish(&mut self) -> Result<HttpResponse, Error> {
+    pub fn finish(&mut self) -> HttpResponse {
         self.body(Body::Empty)
     }
 
@@ -591,7 +600,7 @@ impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse 
 
 impl From<HttpResponseBuilder> for HttpResponse {
     fn from(mut builder: HttpResponseBuilder) -> Self {
-        builder.finish().into()
+        builder.finish()
     }
 }
 
@@ -601,16 +610,15 @@ impl Responder for HttpResponseBuilder {
 
     #[inline]
     fn respond_to(mut self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        self.finish()
+        Ok(self.finish())
     }
 }
 
 impl From<&'static str> for HttpResponse {
     fn from(val: &'static str) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
-            .into()
     }
 }
 
@@ -619,18 +627,17 @@ impl Responder for &'static str {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("text/plain; charset=utf-8")
+           .body(self))
     }
 }
 
 impl From<&'static [u8]> for HttpResponse {
     fn from(val: &'static [u8]) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        HttpResponse::Ok()
             .content_type("application/octet-stream")
             .body(val)
-            .into()
     }
 }
 
@@ -639,18 +646,17 @@ impl Responder for &'static [u8] {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("application/octet-stream")
+           .body(self))
     }
 }
 
 impl From<String> for HttpResponse {
     fn from(val: String) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
-            .into()
     }
 }
 
@@ -659,9 +665,9 @@ impl Responder for String {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("text/plain; charset=utf-8")
+           .body(self))
     }
 }
 
@@ -670,7 +676,6 @@ impl<'a> From<&'a String> for HttpResponse {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
-            .into()
     }
 }
 
@@ -679,18 +684,17 @@ impl<'a> Responder for &'a String {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("text/plain; charset=utf-8")
+           .body(self))
     }
 }
 
 impl From<Bytes> for HttpResponse {
     fn from(val: Bytes) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        HttpResponse::Ok()
             .content_type("application/octet-stream")
             .body(val)
-            .into()
     }
 }
 
@@ -699,18 +703,17 @@ impl Responder for Bytes {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("application/octet-stream")
+           .body(self))
     }
 }
 
 impl From<BytesMut> for HttpResponse {
     fn from(val: BytesMut) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        HttpResponse::Ok()
             .content_type("application/octet-stream")
             .body(val)
-            .into()
     }
 }
 
@@ -719,9 +722,9 @@ impl Responder for BytesMut {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        HttpResponse::build(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self)
+        Ok(HttpResponse::Ok()
+           .content_type("application/octet-stream")
+           .body(self))
     }
 }
 
@@ -744,7 +747,7 @@ impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
         if let Some(router) = req.router() {
             router.server_settings().get_response_builder(StatusCode::OK)
         } else {
-            HttpResponse::build(StatusCode::OK)
+            HttpResponse::Ok()
         }
     }
 }
@@ -870,14 +873,14 @@ mod tests {
     use http::{Method, Uri};
     use http::header::{COOKIE, CONTENT_TYPE, HeaderValue};
     use body::Binary;
-    use {http, httpcodes};
+    use http;
 
     #[test]
     fn test_debug() {
         let resp = HttpResponse::Ok()
             .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
             .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
-            .finish().unwrap();
+            .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("HttpResponse"));
     }
@@ -892,8 +895,7 @@ mod tests {
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
         let cookies = req.cookies().unwrap();
 
-        let resp = httpcodes::HttpOk
-            .build()
+        let resp = HttpResponse::Ok()
             .cookie(http::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
                     .path("/test")
@@ -901,10 +903,7 @@ mod tests {
                     .max_age(Duration::days(1))
                     .finish())
             .del_cookie(&cookies[0])
-            .body(Body::Empty);
-
-        assert!(resp.is_ok());
-        let resp = resp.unwrap();
+            .finish();
 
         let mut val: Vec<_> = resp.headers().get_all("Set-Cookie")
             .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
@@ -919,53 +918,51 @@ mod tests {
         let resp = HttpResponse::Ok()
             .header("X-TEST", "value")
             .version(Version::HTTP_10)
-            .finish().unwrap();
+            .finish();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_upgrade() {
-        let resp = HttpResponse::build(StatusCode::OK)
-            .upgrade().body(Body::Empty).unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).upgrade().finish();
         assert!(resp.upgrade())
     }
 
     #[test]
     fn test_force_close() {
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close().body(Body::Empty).unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive().unwrap())
     }
 
     #[test]
     fn test_content_type() {
         let resp = HttpResponse::build(StatusCode::OK)
-            .content_type("text/plain").body(Body::Empty).unwrap();
+            .content_type("text/plain").body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
     fn test_content_encoding() {
-        let resp = HttpResponse::build(StatusCode::OK).finish().unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).finish();
         assert_eq!(resp.content_encoding(), None);
 
         #[cfg(feature="brotli")]
         {
             let resp = HttpResponse::build(StatusCode::OK)
-                .content_encoding(ContentEncoding::Br).finish().unwrap();
+                .content_encoding(ContentEncoding::Br).finish();
             assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
         }
 
         let resp = HttpResponse::build(StatusCode::OK)
-            .content_encoding(ContentEncoding::Gzip).finish().unwrap();
+            .content_encoding(ContentEncoding::Gzip).finish();
         assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
     }
 
     #[test]
     fn test_json() {
         let resp = HttpResponse::build(StatusCode::OK)
-            .json(vec!["v1", "v2", "v3"]).unwrap();
+            .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
@@ -975,7 +972,7 @@ mod tests {
     fn test_json_ct() {
         let resp = HttpResponse::build(StatusCode::OK)
             .header(CONTENT_TYPE, "text/json")
-            .json(vec!["v1", "v2", "v3"]).unwrap();
+            .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
@@ -1089,7 +1086,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut builder = resp.into_builder();
-        let resp = builder.status(StatusCode::BAD_REQUEST).finish().unwrap();
+        let resp = builder.status(StatusCode::BAD_REQUEST).finish();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

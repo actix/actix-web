@@ -125,7 +125,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|bytes: Bytes| {  // <- complete body
     ///            println!("==== BODY ==== {:?}", bytes);
-    ///            Ok(httpcodes::HttpOk.into())
+    ///            Ok(HttpResponse::Ok().into())
     ///        }).responder()
     /// }
     /// # fn main() {}
@@ -159,7 +159,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|params| {  // <- url encoded parameters
     ///             println!("==== BODY ==== {:?}", params);
-    ///             Ok(httpcodes::HttpOk.into())
+    ///             Ok(HttpResponse::Ok().into())
     ///        })
     ///        .responder()
     /// }
@@ -198,7 +198,7 @@ pub trait HttpMessage {
     ///        .from_err()
     ///        .and_then(|val: MyObj| {  // <- deserialized value
     ///            println!("==== BODY ==== {:?}", val);
-    ///            Ok(httpcodes::HttpOk.into())
+    ///            Ok(HttpResponse::Ok().into())
     ///        }).responder()
     /// }
     /// # fn main() {}
@@ -240,7 +240,7 @@ pub trait HttpMessage {
     ///             }
     ///         })
     ///         .finish()  // <- Stream::finish() combinator from actix
-    ///         .map(|_| httpcodes::HttpOk.into())
+    ///         .map(|_| HttpResponse::Ok().into())
     ///         .responder()
     /// }
     /// # fn main() {}

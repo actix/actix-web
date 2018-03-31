@@ -13,7 +13,7 @@ use middleware::{Response, Middleware};
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{Application, http, httpcodes, middleware};
+/// use actix_web::{http, middleware, Application, HttpResponse};
 ///
 /// fn main() {
 ///     let app = Application::new()
@@ -22,8 +22,8 @@ use middleware::{Response, Middleware};
 ///                 .header("X-Version", "0.2")
 ///                 .finish())
 ///         .resource("/test", |r| {
-///              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
-///              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
 ///         })
 ///         .finish();
 /// }
@@ -112,14 +112,14 @@ mod tests {
 
         let mut req = HttpRequest::default();
 
-        let resp = HttpResponse::Ok().finish().unwrap();
+        let resp = HttpResponse::Ok().finish();
         let resp = match mw.response(&mut req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish().unwrap();
+        let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish();
         let resp = match mw.response(&mut req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),

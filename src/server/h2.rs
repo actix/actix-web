@@ -18,9 +18,9 @@ use tokio_core::reactor::Timeout;
 
 use pipeline::Pipeline;
 use error::PayloadError;
-use httpcodes::HttpNotFound;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 use payload::{Payload, PayloadWriter, PayloadStatus};
 
 use super::h2writer::H2Writer;
@@ -318,7 +318,7 @@ impl<H: 'static> Entry<H> {
             }
         }
 
-        Entry {task: task.unwrap_or_else(|| Pipeline::error(HttpNotFound)),
+        Entry {task: task.unwrap_or_else(|| Pipeline::error(HttpResponse::NotFound())),
                payload: psender,
                stream: H2Writer::new(
                    resp, settings.get_shared_bytes(), Rc::clone(settings)),

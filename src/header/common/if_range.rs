@@ -35,19 +35,19 @@ use header::{IntoHeaderValue, Header, HeaderName, HeaderValue,
 /// # Examples
 ///
 /// ```rust
-/// use actix_web::httpcodes;
+/// use actix_web::HttpResponse;
 /// use actix_web::http::header::{IfRange, EntityTag};
 ///
-/// let mut builder = httpcodes::HttpOk.build();
+/// let mut builder = HttpResponse::Ok();
 /// builder.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
 /// ```
 ///
 /// ```rust
-/// use actix_web::httpcodes;
+/// use actix_web::HttpResponse;
 /// use actix_web::http::header::IfRange;
 /// use std::time::{SystemTime, Duration};
 ///
-/// let mut builder = httpcodes::HttpOk.build();
+/// let mut builder = HttpResponse::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
 /// builder.set(IfRange::Date(fetched.into()));
 /// ```

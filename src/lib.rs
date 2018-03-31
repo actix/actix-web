@@ -127,7 +127,6 @@ pub mod client;
 pub mod fs;
 pub mod ws;
 pub mod error;
-pub mod httpcodes;
 pub mod multipart;
 pub mod middleware;
 pub mod pred;
@@ -144,6 +143,9 @@ pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, AsyncResponder, FutureResponse, State};
 pub use context::HttpContext;
 pub use server::HttpServer;
+
+#[doc(hidden)]
+pub mod httpcodes;
 
 #[cfg(feature="openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;

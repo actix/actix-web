@@ -22,11 +22,11 @@ header! {
     /// # Example
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::LastModified;
     /// use std::time::{SystemTime, Duration};
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.set(LastModified(modified.into()));
     /// ```

@@ -47,9 +47,8 @@ pub trait FromRequest<S>: Sized where S: 'static
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # use futures::future::Future;
-/// use actix_web::AsyncResponder;
 /// use futures::future::result;
-/// use actix_web::{Either, Error, HttpRequest, HttpResponse, httpcodes};
+/// use actix_web::{Either, Error, HttpRequest, HttpResponse, AsyncResponder};
 ///
 /// type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
 ///
@@ -57,13 +56,13 @@ pub trait FromRequest<S>: Sized where S: 'static
 /// fn index(req: HttpRequest) -> RegisterResult {
 ///     if is_a_variant() { // <- choose variant A
 ///         Either::A(
-///             httpcodes::HttpBadRequest.with_body("Bad data"))
+///             HttpResponse::BadRequest().body("Bad data"))
 ///     } else {
 ///         Either::B(      // <- variant B
-///             result(HttpResponse::Ok()
+///             result(Ok(HttpResponse::Ok()
 ///                    .content_type("text/html")
-///                    .body(format!("Hello!"))
-///                    .map_err(|e| e.into())).responder())
+///                    .body("Hello!")))
+///                    .responder())
 ///     }
 /// }
 /// # fn is_a_variant() -> bool { true }
@@ -105,8 +104,9 @@ impl<A, B> Responder for Either<A, B>
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::*;
 /// use futures::future::Future;
+/// use actix_web::{
+///     Application, HttpRequest, HttpResponse, HttpMessage, Error, AsyncResponder};
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {
@@ -117,7 +117,7 @@ impl<A, B> Responder for Either<A, B>
 ///     req.json()                   // <- get JsonBody future
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
-///            Ok(httpcodes::HttpOk.into())
+///            Ok(HttpResponse::Ok().into())
 ///        })
 ///     // Construct boxed future by using `AsyncResponder::responder()` method
 ///     .responder()

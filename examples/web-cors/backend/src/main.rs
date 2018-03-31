@@ -7,9 +7,7 @@ extern crate actix_web;
 extern crate env_logger;
 
 use std::env;
-use actix_web::{
-    http, middleware, server,
-    Application};
+use actix_web::{http, middleware, server, Application};
 
 mod user;
 use user::info;

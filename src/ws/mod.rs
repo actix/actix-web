@@ -55,7 +55,6 @@ use error::{Error, PayloadError, ResponseError};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
-use httpcodes::{HttpBadRequest, HttpMethodNotAllowed};
 
 mod frame;
 mod proto;
@@ -138,22 +137,18 @@ impl ResponseError for HandshakeError {
     fn error_response(&self) -> HttpResponse {
         match *self {
             HandshakeError::GetMethodRequired => {
-                HttpMethodNotAllowed
-                    .build()
-                    .header(header::ALLOW, "GET")
-                    .finish()
-                    .unwrap()
+                HttpResponse::MethodNotAllowed().header(header::ALLOW, "GET").finish()
             }
-            HandshakeError::NoWebsocketUpgrade =>
-                HttpBadRequest.with_reason("No WebSocket UPGRADE header found"),
-            HandshakeError::NoConnectionUpgrade =>
-                HttpBadRequest.with_reason("No CONNECTION upgrade"),
-            HandshakeError::NoVersionHeader =>
-                HttpBadRequest.with_reason("Websocket version header is required"),
-            HandshakeError::UnsupportedVersion =>
-                HttpBadRequest.with_reason("Unsupported version"),
-            HandshakeError::BadWebsocketKey =>
-                HttpBadRequest.with_reason("Handshake error"),
+            HandshakeError::NoWebsocketUpgrade => HttpResponse::BadRequest()
+                .reason("No WebSocket UPGRADE header found").finish(),
+            HandshakeError::NoConnectionUpgrade => HttpResponse::BadRequest()
+                .reason("No CONNECTION upgrade").finish(),
+            HandshakeError::NoVersionHeader => HttpResponse::BadRequest()
+                .reason("Websocket version header is required").finish(),
+            HandshakeError::UnsupportedVersion => HttpResponse::BadRequest()
+                .reason("Unsupported version").finish(),
+            HandshakeError::BadWebsocketKey => HttpResponse::BadRequest()
+                .reason("Handshake error").finish(),
         }
     }
 }
@@ -179,7 +174,7 @@ pub fn start<A, S>(req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
     let mut ctx = WebsocketContext::new(req, actor);
     ctx.add_stream(stream);
 
-    Ok(resp.body(ctx)?)
+    Ok(resp.body(ctx))
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -408,7 +403,7 @@ mod tests {
         let req = HttpRequest::new(Method::GET, Uri::from_str("/").unwrap(),
                                    Version::HTTP_11, headers, None);
         assert_eq!(StatusCode::SWITCHING_PROTOCOLS,
-                   handshake(&req).unwrap().finish().unwrap().status());
+                   handshake(&req).unwrap().finish().status());
     }
 
     #[test]

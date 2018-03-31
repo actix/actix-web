@@ -22,7 +22,6 @@ and a resource configuration function.
 ```rust
 # extern crate actix_web;
 # use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
-# use actix_web::httpcodes::HttpOk;
 #
 # fn index(req: HttpRequest) -> HttpResponse {
 #   unimplemented!()
@@ -32,7 +31,7 @@ fn main() {
     Application::new()
         .resource("/prefix", |r| r.f(index))
         .resource("/user/{name}",
-             |r| r.method(Method::GET).f(|req| HttpOk))
+             |r| r.method(Method::GET).f(|req| HttpResponse::Ok()))
         .finish();
 }
 ```
@@ -62,7 +61,6 @@ any number of *predicates* but only one handler.
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
-# use actix_web::httpcodes::*;
 
 fn main() {
     Application::new()
@@ -70,13 +68,13 @@ fn main() {
             resource.route()
               .filter(pred::Get())
               .filter(pred::Header("content-type", "text/plain"))
-              .f(|req| HttpOk)
+              .f(|req| HttpResponse::Ok())
         )
         .finish();
 }
 ```
 
-In this example `HttpOk` is returned for *GET* requests,
+In this example `HttpResponse::Ok()` is returned for *GET* requests,
 if request contains `Content-Type` header and value of this header is *text/plain*
 and path equals to `/path`. Resource calls handle of the first matching route.
 If a resource can not match any route a "NOT FOUND" response is returned.
@@ -367,18 +365,17 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this:
 ```rust
 # extern crate actix_web;
 # use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
-# use actix_web::httpcodes::HttpOk;
 #
 fn index(req: HttpRequest) -> HttpResponse {
     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
-    HttpOk.into()
+    HttpResponse::Ok().into()
 }
 
 fn main() {
     let app = Application::new()
         .resource("/test/{a}/{b}/{c}", |r| {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-             r.method(Method::GET).f(|_| HttpOk);
+             r.method(Method::GET).f(|_| HttpResponse::Ok());
         })
         .finish();
 }
@@ -397,12 +394,12 @@ for URL generation purposes only and are never considered for matching at reques
 
 ```rust
 # extern crate actix_web;
-use actix_web::*;
+use actix_web::{Application, HttpRequest, HttpResponse, Error};
 
-fn index(mut req: HttpRequest) -> Result<HttpResponse> {
+fn index(mut req: HttpRequest) -> Result<HttpResponse, Error> {
     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    Ok(httpcodes::HttpOk.into())
+    Ok(HttpResponse::Ok().into())
 }
 
 fn main() {
@@ -439,8 +436,8 @@ This handler designed to be use as a handler for application's *default resource
 # use actix_web::*;
 use actix_web::http::NormalizePath;
 #
-# fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-#    httpcodes::HttpOk
+# fn index(req: HttpRequest) -> HttpResponse {
+#    HttpResponse::Ok().into()
 # }
 fn main() {
     let app = Application::new()
@@ -462,10 +459,10 @@ It is possible to register path normalization only for *GET* requests only:
 ```rust
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
-use actix_web::{Application, HttpRequest, http::Method, http::NormalizePath, httpcodes};
+use actix_web::{Application, HttpRequest, http::Method, http::NormalizePath};
 #
-# fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-#    httpcodes::HttpOk
+# fn index(req: HttpRequest) -> &'static str {
+#    "test"
 # }
 fn main() {
     let app = Application::new()
@@ -519,18 +516,15 @@ Here is a simple predicate that check that a request contains a specific *header
 
 ```rust
 # extern crate actix_web;
-# extern crate http;
 # use actix_web::*;
-# use actix_web::httpcodes::*;
-use http::header::CONTENT_TYPE;
-use actix_web::pred::Predicate;
+use actix_web::{http, pred::Predicate, Application, HttpRequest};
 
 struct ContentTypeHeader;
 
 impl<S: 'static> Predicate<S> for ContentTypeHeader {
 
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
-       req.headers().contains_key(CONTENT_TYPE)
+       req.headers().contains_key(http::header::CONTENT_TYPE)
     }
 }
 
@@ -539,7 +533,7 @@ fn main() {
         .resource("/index.html", |r|
            r.route()
               .filter(ContentTypeHeader)
-              .h(HttpOk));
+              .f(|_| HttpResponse::Ok()));
 }
 ```
 
@@ -559,15 +553,14 @@ except "GET":
 # extern crate actix_web;
 # extern crate http;
 # use actix_web::*;
-# use actix_web::httpcodes::*;
-use actix_web::pred;
+use actix_web::{pred, Application, HttpResponse};
 
 fn main() {
     Application::new()
         .resource("/index.html", |r|
            r.route()
               .filter(pred::Not(pred::Get()))
-              .f(|req| HttpMethodNotAllowed))
+              .f(|req| HttpResponse::MethodNotAllowed()))
         .finish();
 }
 ```
@@ -596,14 +589,14 @@ with `Application::resource()` method.
 
 ```rust
 # extern crate actix_web;
-use actix_web::{Application, http::Method, pred};
-use actix_web::httpcodes::{HttpNotFound, HttpMethodNotAllowed};
+use actix_web::{Application, HttpResponse, http::Method, pred};
 
 fn main() {
     Application::new()
         .default_resource(|r| {
-              r.method(Method::GET).f(|req| HttpNotFound);
-              r.route().filter(pred::Not(pred::Get())).f(|req| HttpMethodNotAllowed);
+              r.method(Method::GET).f(|req| HttpResponse::NotFound());
+              r.route().filter(pred::Not(pred::Get()))
+                  .f(|req| HttpResponse::MethodNotAllowed());
          })
 #        .finish();
 }

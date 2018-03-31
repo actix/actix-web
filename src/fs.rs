@@ -13,7 +13,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::os::unix::fs::MetadataExt;
 
 use bytes::{Bytes, BytesMut, BufMut};
-use http::{Method, StatusCode};
 use futures::{Async, Poll, Future, Stream};
 use futures_cpupool::{CpuPool, CpuFuture};
 use mime_guess::get_mime_type;
@@ -22,10 +21,10 @@ use header;
 use error::Error;
 use param::FromParam;
 use handler::{Handler, RouteHandler, WrapHandler, Responder, Reply};
+use http::{Method, StatusCode};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpcodes::{HttpOk, HttpFound, HttpNotFound, HttpMethodNotAllowed};
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -177,10 +176,10 @@ impl Responder for NamedFile {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         if self.only_get && *req.method() != Method::GET && *req.method() != Method::HEAD {
-            return Ok(HttpMethodNotAllowed.build()
+            return Ok(HttpResponse::MethodNotAllowed()
                       .header(header::CONTENT_TYPE, "text/plain")
                       .header(header::ALLOW, "GET, HEAD")
-                      .body("This resource only supports GET and HEAD.").unwrap())
+                      .body("This resource only supports GET and HEAD."))
         }
 
         let etag = self.etag();
@@ -208,7 +207,7 @@ impl Responder for NamedFile {
             false
         };
 
-        let mut resp = HttpOk.build();
+        let mut resp = HttpResponse::Ok();
 
         resp
             .if_some(self.path().extension(), |ext, resp| {
@@ -218,13 +217,13 @@ impl Responder for NamedFile {
             .if_some(etag, |etag, resp| {resp.set(header::ETag(etag));});
 
         if precondition_failed {
-            return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish().unwrap())
+            return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish())
         } else if not_modified {
-            return Ok(resp.status(StatusCode::NOT_MODIFIED).finish().unwrap())
+            return Ok(resp.status(StatusCode::NOT_MODIFIED).finish())
         }
 
         if *req.method() == Method::HEAD {
-            Ok(resp.finish().unwrap())
+            Ok(resp.finish())
         } else {
             let reader = ChunkedReadFile {
                 size: self.md.len(),
@@ -233,7 +232,7 @@ impl Responder for NamedFile {
                 file: Some(self.file),
                 fut: None,
             };
-            Ok(resp.streaming(reader).unwrap())
+            Ok(resp.streaming(reader))
         }
     }
 }
@@ -356,9 +355,9 @@ impl Responder for Directory {
                             <ul>\
                             {}\
                             </ul></body>\n</html>", index_of, index_of, body);
-        Ok(HttpOk.build()
+        Ok(HttpResponse::Ok()
            .content_type("text/html; charset=utf-8")
-           .body(html).unwrap())
+           .body(html))
     }
 }
 
@@ -418,7 +417,8 @@ impl<S: 'static> StaticFiles<S> {
             index: None,
             show_index: index,
             cpu_pool: CpuPool::new(40),
-            default: Box::new(WrapHandler::new(|_| HttpNotFound)),
+            default: Box::new(WrapHandler::new(
+                |_| HttpResponse::new(StatusCode::NOT_FOUND))),
             _chunk_size: 0,
             _follow_symlinks: false,
         }
@@ -465,9 +465,9 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                         new_path.push('/');
                     }
                     new_path.push_str(redir_index);
-                    HttpFound.build()
+                    HttpResponse::Found()
                         .header(header::LOCATION, new_path.as_str())
-                        .finish().unwrap()
+                        .finish()
                         .respond_to(req.without_state())
                 } else if self.show_index {
                     Directory::new(self.directory.clone(), path)

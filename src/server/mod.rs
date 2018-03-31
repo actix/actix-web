@@ -33,6 +33,26 @@ use httpresponse::HttpResponse;
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
 /// Create new http server with application factory
+///
+/// ```rust
+/// # extern crate actix;
+/// # extern crate actix_web;
+/// use actix::*;
+/// use actix_web::{server, Application, HttpResponse};
+///
+/// fn main() {
+///     let sys = actix::System::new("guide");
+///
+///     server::new(
+///         || Application::new()
+///             .resource("/", |r| r.f(|_| HttpResponse::Ok())))
+///         .bind("127.0.0.1:59080").unwrap()
+///         .start();
+///
+///     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+///     let _ = sys.run();
+/// }
+/// ```
 pub fn new<F, U, H>(factory: F) -> HttpServer<H>
     where F: Fn() -> U + Sync + Send + 'static,
           U: IntoIterator<Item=H> + 'static,

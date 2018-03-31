@@ -3,8 +3,6 @@
 use regex::Regex;
 use http::{header, StatusCode};
 
-use body::Body;
-use error::Error;
 use handler::Handler;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -36,8 +34,8 @@ use httpresponse::HttpResponse;
 /// # use actix_web::*;
 /// use actix_web::http::NormalizePath;
 ///
-/// # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
-/// #     httpcodes::HttpOk
+/// # fn index(req: HttpRequest) -> HttpResponse {
+/// #     HttpResponse::Ok().into()
 /// # }
 /// fn main() {
 ///     let app = Application::new()
@@ -83,7 +81,7 @@ impl NormalizePath {
 }
 
 impl<S> Handler<S> for NormalizePath {
-    type Result = Result<HttpResponse, Error>;
+    type Result = HttpResponse;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if let Some(router) = req.router() {
@@ -96,7 +94,7 @@ impl<S> Handler<S> for NormalizePath {
                         let p = if !query.is_empty() { p + "?" + query } else { p };
                         return HttpResponse::build(self.redirect)
                             .header(header::LOCATION, p.as_ref())
-                            .body(Body::Empty);
+                            .finish();
                     }
                     // merge slashes and append trailing slash
                     if self.append && !p.ends_with('/') {
@@ -105,7 +103,7 @@ impl<S> Handler<S> for NormalizePath {
                             let p = if !query.is_empty() { p + "?" + query } else { p };
                             return HttpResponse::build(self.redirect)
                                 .header(header::LOCATION, p.as_str())
-                                .body(Body::Empty);
+                                .finish()
                         }
                     }
 
@@ -119,7 +117,7 @@ impl<S> Handler<S> for NormalizePath {
                             } else {
                                 req.header(header::LOCATION, p)
                             }
-                            .body(Body::Empty);
+                            .finish();
                         }
                     }
                 } else if p.ends_with('/') {
@@ -128,11 +126,12 @@ impl<S> Handler<S> for NormalizePath {
                     if router.has_route(p) {
                         let mut req = HttpResponse::build(self.redirect);
                         return if !query.is_empty() {
-                            req.header(header::LOCATION, (p.to_owned() + "?" + query).as_str())
+                            req.header(header::LOCATION,
+                                       (p.to_owned() + "?" + query).as_str())
                         } else {
                             req.header(header::LOCATION, p)
                         }
-                        .body(Body::Empty);
+                        .finish();
                     }
                 }
             }
@@ -143,11 +142,11 @@ impl<S> Handler<S> for NormalizePath {
                     let p = if !query.is_empty() { p + "?" + query } else { p };
                     return HttpResponse::build(self.redirect)
                         .header(header::LOCATION, p.as_str())
-                        .body(Body::Empty);
+                        .finish();
                 }
             }
         }
-        Ok(HttpResponse::new(self.not_found, Body::Empty))
+        HttpResponse::new(self.not_found)
     }
 }
 
@@ -159,7 +158,7 @@ mod tests {
     use application::Application;
 
     fn index(_req: HttpRequest) -> HttpResponse {
-        HttpResponse::new(StatusCode::OK, Body::Empty)
+        HttpResponse::new(StatusCode::OK)
     }
 
     #[test]

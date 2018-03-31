@@ -5,7 +5,6 @@ use smallvec::SmallVec;
 use http::{Method, StatusCode};
 
 use pred;
-use body::Body;
 use route::Route;
 use handler::{Reply, Handler, Responder, FromRequest};
 use middleware::Middleware;
@@ -172,7 +171,7 @@ impl<S: 'static> Resource<S> {
         if let Some(resource) = default {
             resource.handle(req, None)
         } else {
-            Reply::response(HttpResponse::new(StatusCode::NOT_FOUND, Body::Empty))
+            Reply::response(HttpResponse::new(StatusCode::NOT_FOUND))
         }
     }
 }

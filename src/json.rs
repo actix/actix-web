@@ -106,7 +106,7 @@ impl<T: Serialize> Responder for Json<T> {
 
         Ok(HttpResponse::Ok()
            .content_type("application/json")
-           .body(body)?)
+           .body(body))
     }
 }
 
@@ -140,7 +140,7 @@ impl<T, S> FromRequest<S> for Json<T>
 /// # #[macro_use] extern crate serde_derive;
 /// use futures::future::Future;
 /// use actix_web::{Application, AsyncResponder,
-///                 HttpRequest, HttpResponse, HttpMessage, Error, httpcodes};
+///                 HttpRequest, HttpResponse, HttpMessage, Error};
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {
@@ -152,7 +152,7 @@ impl<T, S> FromRequest<S> for Json<T>
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
 ///            println!("==== BODY ==== {:?}", val);
-///            Ok(httpcodes::HttpOk.into())
+///            Ok(HttpResponse::Ok().into())
 ///        }).responder()
 /// }
 /// # fn main() {}

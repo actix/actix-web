@@ -72,7 +72,7 @@ Here is full source of main.rs file:
 ```rust
 # use std::thread;
 extern crate actix_web;
-use actix_web::*;
+use actix_web::{Application, HttpRequest, HttpResponse, HttpServer};
 
 fn index(req: HttpRequest) -> &'static str {
     "Hello world!"

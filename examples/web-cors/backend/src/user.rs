@@ -1,4 +1,4 @@
-use actix_web::*;
+use actix_web::{Error, HttpMessage, HttpResponse, HttpRequest};
 use futures::Future;
 
 
@@ -14,6 +14,6 @@ pub fn info(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json()
         .from_err()
         .and_then(|res: Info| {
-            Ok(httpcodes::HttpOk.build().json(res)?)
+            Ok(HttpResponse::Ok().json(res))
         }).responder()
 }

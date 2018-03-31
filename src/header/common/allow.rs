@@ -25,12 +25,12 @@ header! {
     /// ```rust
     /// # extern crate http;
     /// # extern crate actix_web;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::Allow;
     /// use http::Method;
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     Allow(vec![Method::GET])
     /// );
@@ -40,12 +40,12 @@ header! {
     /// ```rust
     /// # extern crate http;
     /// # extern crate actix_web;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::Allow;
     /// use http::Method;
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     Allow(vec![
     ///         Method::GET,

@@ -19,7 +19,7 @@ fn index(req: HttpRequest) -> HttpResponse {
         .content_encoding(ContentEncoding::Br)
         .content_type("plain/text")
         .header("X-Hdr", "sample")
-        .body("data").unwrap()
+        .body("data")
 }
 # fn main() {}
 ```
@@ -50,7 +50,7 @@ use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding};
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .content_encoding(ContentEncoding::Br)
-        .body("data").unwrap()
+        .body("data")
 }
 # fn main() {}
 ```
@@ -82,7 +82,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json().from_err()
         .and_then(|val: MyObj| {
             println!("model: {:?}", val);
-            Ok(httpcodes::HttpOk.build().json(val)?)  // <- send response
+            Ok(HttpResponse::Ok().json(val))  // <- send response
         })
         .responder()
 }
@@ -115,7 +115,7 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
       // synchronous workflow
       .and_then(|body| {                           // <- body is loaded, now we can deserialize json
           let obj = serde_json::from_slice::<MyObj>(&body)?;
-          Ok(httpcodes::HttpOk.build().json(obj)?) // <- send response
+          Ok(HttpResponse::Ok().json(obj))        // <- send response
       })
       .responder()
 }
@@ -178,7 +178,7 @@ use futures::stream::once;
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
         .chunked()
-        .body(Body::Streaming(Box::new(once(Ok(Bytes::from_static(b"data")))))).unwrap()
+        .body(Body::Streaming(Box::new(once(Ok(Bytes::from_static(b"data"))))))
 }
 # fn main() {}
 ```
@@ -249,7 +249,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
        .from_err()
        .and_then(|params| {  // <- url encoded parameters
              println!("==== BODY ==== {:?}", params);
-             ok(httpcodes::HttpOk.into())
+             ok(HttpResponse::Ok().into())
        })
        .responder()
 }
@@ -278,7 +278,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
             println!("Chunk: {:?}", chunk);
             result::<_, error::PayloadError>(Ok(()))
         })
-       .map(|_| HttpResponse::Ok().finish().unwrap())
+       .map(|_| HttpResponse::Ok().finish())
        .responder()
 }
 # fn main() {}

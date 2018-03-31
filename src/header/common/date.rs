@@ -21,11 +21,11 @@ header! {
     /// # Example
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::Date;
     /// use std::time::SystemTime;
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(Date(SystemTime::now().into()));
     /// ```
     (Date, DATE) => [HttpDate]

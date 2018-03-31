@@ -65,7 +65,9 @@ fn test_start() {
         let sys = System::new("test");
         let srv = HttpServer::new(
             || vec![Application::new()
-                    .resource("/", |r| r.method(http::Method::GET).h(httpcodes::HttpOk))]);
+                    .resource(
+                        "/", |r| r.method(http::Method::GET)
+                            .f(|_|HttpResponse::Ok()))]);
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
         let addr = srv.addrs()[0];
@@ -108,7 +110,8 @@ fn test_shutdown() {
         let sys = System::new("test");
         let srv = HttpServer::new(
             || vec![Application::new()
-                    .resource("/", |r| r.method(http::Method::GET).h(httpcodes::HttpOk))]);
+                    .resource(
+                        "/", |r| r.method(http::Method::GET).f(|_| HttpResponse::Ok()))]);
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
         let addr = srv.addrs()[0];
@@ -133,7 +136,7 @@ fn test_shutdown() {
 
 #[test]
 fn test_simple() {
-    let mut srv = test::TestServer::new(|app| app.handler(httpcodes::HttpOk));
+    let mut srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok()));
     let req = srv.get().finish().unwrap();
     let response = srv.execute(req.send()).unwrap();
     assert!(response.status().is_success());
@@ -147,7 +150,7 @@ fn test_headers() {
         move |app| {
             let data = srv_data.clone();
             app.handler(move |_| {
-                let mut builder = httpcodes::HttpOk.build();
+                let mut builder = HttpResponse::Ok();
                 for idx in 0..90 {
                     builder.header(
                         format!("X-TEST-{}", idx).as_str(),
@@ -180,7 +183,7 @@ fn test_headers() {
 #[test]
 fn test_body() {
     let mut srv = test::TestServer::new(
-        |app| app.handler(|_| httpcodes::HttpOk.build().body(STR)));
+        |app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -195,7 +198,7 @@ fn test_body() {
 fn test_body_gzip() {
     let mut srv = test::TestServer::new(
         |app| app.handler(
-            |_| httpcodes::HttpOk.build()
+            |_| HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Gzip)
                 .body(STR)));
 
@@ -222,7 +225,7 @@ fn test_body_gzip_large() {
         move |app| {
             let data = srv_data.clone();
             app.handler(
-                move |_| httpcodes::HttpOk.build()
+                move |_| HttpResponse::Ok()
                     .content_encoding(http::ContentEncoding::Gzip)
                     .body(data.as_ref()))});
 
@@ -252,7 +255,7 @@ fn test_body_gzip_large_random() {
         move |app| {
             let data = srv_data.clone();
             app.handler(
-                move |_| httpcodes::HttpOk.build()
+                move |_| HttpResponse::Ok()
                     .content_encoding(http::ContentEncoding::Gzip)
                     .body(data.as_ref()))});
 
@@ -276,7 +279,7 @@ fn test_body_chunked_implicit() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
@@ -300,7 +303,7 @@ fn test_body_br_streaming() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Br)
                 .body(Body::Streaming(Box::new(body)))}));
 
@@ -322,7 +325,7 @@ fn test_body_br_streaming() {
 fn test_head_empty() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_length(STR.len() as u64).finish()}));
 
     let request = srv.head().finish().unwrap();
@@ -343,7 +346,7 @@ fn test_head_empty() {
 fn test_head_binary() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Identity)
                 .content_length(100).body(STR)}));
 
@@ -365,7 +368,7 @@ fn test_head_binary() {
 fn test_head_binary2() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Identity)
                 .body(STR)
         }));
@@ -385,7 +388,7 @@ fn test_body_length() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .content_length(STR.len() as u64)
                 .content_encoding(http::ContentEncoding::Identity)
                 .body(Body::Streaming(Box::new(body)))}));
@@ -404,7 +407,7 @@ fn test_body_chunked_explicit() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-            httpcodes::HttpOk.build()
+            HttpResponse::Ok()
                 .chunked()
                 .content_encoding(http::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
@@ -427,8 +430,7 @@ fn test_body_chunked_explicit() {
 fn test_body_deflate() {
     let mut srv = test::TestServer::new(
         |app| app.handler(
-            |_| httpcodes::HttpOk
-                .build()
+            |_| HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Deflate)
                 .body(STR)));
 
@@ -452,8 +454,7 @@ fn test_body_deflate() {
 fn test_body_brotli() {
     let mut srv = test::TestServer::new(
         |app| app.handler(
-            |_| httpcodes::HttpOk
-                .build()
+            |_| HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Br)
                 .body(STR)));
 
@@ -477,8 +478,7 @@ fn test_gzip_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -506,8 +506,7 @@ fn test_gzip_encoding_large() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -539,8 +538,7 @@ fn test_reading_gzip_encoding_large_random() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -568,8 +566,7 @@ fn test_reading_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -597,8 +594,7 @@ fn test_reading_deflate_encoding_large() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -630,8 +626,7 @@ fn test_reading_deflate_encoding_large_random() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -660,8 +655,7 @@ fn test_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -690,8 +684,7 @@ fn test_brotli_encoding_large() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HttpOk
-                   .build()
+                Ok(HttpResponse::Ok()
                    .content_encoding(http::ContentEncoding::Identity)
                    .body(bytes))
             }).responder()}
@@ -716,7 +709,7 @@ fn test_brotli_encoding_large() {
 #[test]
 fn test_h2() {
     let srv = test::TestServer::new(|app| app.handler(|_|{
-        httpcodes::HttpOk.build().body(STR)
+        HttpResponse::Ok().body(STR)
     }));
     let addr = srv.addr();
 
@@ -756,7 +749,7 @@ fn test_h2() {
 #[test]
 fn test_application() {
     let mut srv = test::TestServer::with_factory(
-        || Application::new().resource("/", |r| r.h(httpcodes::HttpOk)));
+        || Application::new().resource("/", |r| r.f(|_| HttpResponse::Ok())));
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -800,7 +793,7 @@ fn test_middlewares() {
         move |app| app.middleware(MiddlewareTest{start: Arc::clone(&act_num1),
                                                  response: Arc::clone(&act_num2),
                                                  finish: Arc::clone(&act_num3)})
-            .handler(httpcodes::HttpOk)
+            .handler(|_| HttpResponse::Ok())
     );
 
     let request = srv.get().finish().unwrap();
@@ -824,11 +817,11 @@ fn test_resource_middlewares() {
     let act_num3 = Arc::clone(&num3);
 
     let mut srv = test::TestServer::new(
-        move |app| app.handler2(
-            httpcodes::HttpOk,
-            MiddlewareTest{start: Arc::clone(&act_num1),
-                           response: Arc::clone(&act_num2),
-                           finish: Arc::clone(&act_num3)})
+        move |app| app
+            .middleware(MiddlewareTest{start: Arc::clone(&act_num1),
+                                       response: Arc::clone(&act_num2),
+                                       finish: Arc::clone(&act_num3)})
+            .handler(|_| HttpResponse::Ok())
     );
 
     let request = srv.get().finish().unwrap();

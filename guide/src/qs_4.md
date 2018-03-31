@@ -52,10 +52,8 @@ of application state objects and handler objects.
 Here is an example of a handler that stores the number of processed requests:
 
 ```rust
-# extern crate actix;
 # extern crate actix_web;
-use actix_web::*;
-use actix_web::dev::Handler;
+use actix_web::{Application, HttpRequest, HttpResponse, dev::Handler};
 
 struct MyHandler(usize);
 
@@ -65,7 +63,7 @@ impl<S> Handler<S> for MyHandler {
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         self.0 += 1;
-        httpcodes::HttpOk.into()
+        HttpResponse::Ok().into()
     }
 }
 # fn main() {}
@@ -77,8 +75,7 @@ number of requests processed per thread. A proper implementation would use `Arc`
 ```rust
 # extern crate actix;
 # extern crate actix_web;
-use actix_web::*;
-use actix_web::dev::Handler;
+use actix_web::{server, Application, HttpRequest, HttpResponse, dev::Handler};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -90,7 +87,7 @@ impl<S> Handler<S> for MyHandler {
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         self.0.fetch_add(1, Ordering::Relaxed);
-        httpcodes::HttpOk.into()
+        HttpResponse::Ok().into()
     }
 }
 
@@ -99,7 +96,7 @@ fn main() {
 
     let inc = Arc::new(AtomicUsize::new(0));
 
-    HttpServer::new(
+    server::new(
         move || {
             let cloned = inc.clone();
             Application::new()
@@ -148,7 +145,7 @@ impl Responder for MyObj {
         // Create response and set content type
         Ok(HttpResponse::Ok()
             .content_type("application/json")
-            .body(body)?)
+            .body(body))
     }
 }
 
@@ -189,10 +186,9 @@ that implements the [*Responder*](../actix_web/trait.Responder.html) trait. In t
 # use futures::future::{Future, result};
 fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 
-    result(HttpResponse::Ok()
-           .content_type("text/html")
-           .body(format!("Hello!"))
-           .map_err(|e| e.into()))
+    result(Ok(HttpResponse::Ok()
+              .content_type("text/html")
+              .body(format!("Hello!"))))
            .responder()
 }
 
@@ -224,7 +220,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
     HttpResponse::Ok()
        .content_type("application/json")
-       .body(Body::Streaming(Box::new(body))).unwrap()
+       .body(Body::Streaming(Box::new(body)))
 }
 
 fn main() {
@@ -253,9 +249,9 @@ fn index(req: HttpRequest) -> Result<Box<Future<Item=HttpResponse, Error=Error>>
        Err(error::ErrorBadRequest("bad request"))
     } else {
        Ok(Box::new(
-           result(HttpResponse::Ok()
+           result(Ok(HttpResponse::Ok()
                   .content_type("text/html")
-                  .body(format!("Hello!")))))
+                  .body(format!("Hello!"))))))
     }
 }
 #
@@ -281,20 +277,19 @@ For this case the [*Either*](../actix_web/enum.Either.html) type can be used.
 # use actix_web::*;
 # use futures::future::Future;
 use futures::future::result;
-use actix_web::{Either, Error, HttpResponse, httpcodes};
+use actix_web::{Either, Error, HttpResponse};
 
 type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
 
 fn index(req: HttpRequest) -> RegisterResult {
     if is_a_variant() { // <- choose variant A
         Either::A(
-            httpcodes::HttpBadRequest.with_body("Bad data"))
+            HttpResponse::BadRequest().body("Bad data"))
     } else {
         Either::B(      // <- variant B
-            result(HttpResponse::Ok()
+            result(Ok(HttpResponse::Ok()
                    .content_type("text/html")
-                   .body(format!("Hello!"))
-                   .map_err(|e| e.into())).responder())
+                   .body(format!("Hello!")))).responder())
     }
 }
 # fn is_a_variant() -> bool { true }

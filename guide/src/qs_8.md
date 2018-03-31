@@ -11,31 +11,28 @@ You can generate a `HttpRequest` instance with `finish()` or you can
 run your handler with `run()` or `run_async()`.
 
 ```rust
-# extern crate http;
 # extern crate actix_web;
-use http::{header, StatusCode};
-use actix_web::*;
-use actix_web::test::TestRequest;
+use actix_web::{http, test, HttpRequest, HttpResponse, HttpMessage};
 
 fn index(req: HttpRequest) -> HttpResponse {
-     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
+     if let Some(hdr) = req.headers().get(http::header::CONTENT_TYPE) {
         if let Ok(s) = hdr.to_str() {
-            return httpcodes::HttpOk.into()
+            return HttpResponse::Ok().into()
         }
      }
-     httpcodes::HttpBadRequest.into()
+     HttpResponse::BadRequest().into()
 }
 
 fn main() {
-    let resp = TestRequest::with_header("content-type", "text/plain")
+    let resp = test::TestRequest::with_header("content-type", "text/plain")
         .run(index)
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), http::StatusCode::OK);
 
-    let resp = TestRequest::default()
+    let resp = test::TestRequest::default()
         .run(index)
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(resp.status(), http::StatusCode::BAD_REQUEST);
 }
 ```
 
@@ -55,11 +52,11 @@ for more information.
 
 ```rust
 # extern crate actix_web;
-use actix_web::*;
+use actix_web::{HttpRequest, HttpResponse, HttpMessage};
 use actix_web::test::TestServer;
 
 fn index(req: HttpRequest) -> HttpResponse {
-     httpcodes::HttpOk.into()
+     HttpResponse::Ok().into()
 }
 
 fn main() {
@@ -77,14 +74,11 @@ The other option is to use an application factory. In this case you need to pass
 function same way as you would for real http server configuration.
 
 ```rust
-# extern crate http;
 # extern crate actix_web;
-use http::Method;
-use actix_web::*;
-use actix_web::test::TestServer;
+use actix_web::{http, test, Application, HttpRequest, HttpResponse};
 
 fn index(req: HttpRequest) -> HttpResponse {
-     httpcodes::HttpOk.into()
+     HttpResponse::Ok().into()
 }
 
 /// This function get called by http server.
@@ -94,12 +88,13 @@ fn create_app() -> Application {
 }
 
 fn main() {
-    let mut srv = TestServer::with_factory(create_app);         // <- Start new test server
+    let mut srv = test::TestServer::with_factory(create_app); // <- Start new test server
 
-    let request = srv.client(Method::GET, "/test").finish().unwrap(); // <- create client request
-    let response = srv.execute(request.send()).unwrap();        // <- send request to the server
+    let request = srv.client(
+         http::Method::GET, "/test").finish().unwrap();       // <- create client request
+    let response = srv.execute(request.send()).unwrap();      // <- send request to the server
 
-    assert!(response.status().is_success());                    // <- check response
+    assert!(response.status().is_success());                  // <- check response
 }
 ```
 

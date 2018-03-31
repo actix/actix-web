@@ -23,11 +23,11 @@ header! {
     /// # Examples
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     AcceptCharset(vec![qitem(Charset::Us_Ascii)])
     /// );
@@ -35,11 +35,11 @@ header! {
     /// ```
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptCharset, Charset, q, QualityItem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     AcceptCharset(vec![
     ///         QualityItem::new(Charset::Us_Ascii, q(900)),
@@ -50,11 +50,11 @@ header! {
     /// ```
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(
     ///     AcceptCharset(vec![qitem(Charset::Ext("utf-8".to_owned()))])
     /// );

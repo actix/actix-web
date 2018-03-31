@@ -26,20 +26,20 @@ use header::{from_comma_delimited, fmt_comma_delimited};
 ///
 /// # Examples
 /// ```rust
-/// use actix_web::httpcodes::HttpOk;
+/// use actix_web::HttpResponse;
 /// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = HttpOk.build();
+/// let mut builder = HttpResponse::Ok();
 /// builder.set(
 ///     CacheControl(vec![CacheDirective::MaxAge(86400u32)])
 /// );
 /// ```
 ///
 /// ```rust
-/// use actix_web::httpcodes::HttpOk;
+/// use actix_web::HttpResponse;
 /// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = HttpOk.build();
+/// let mut builder = HttpResponse::Ok();
 /// builder.set(
 ///     CacheControl(vec![
 ///         CacheDirective::NoCache,

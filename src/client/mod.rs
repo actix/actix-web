@@ -13,10 +13,8 @@ pub use self::connector::{Connect, Connection, ClientConnector, ClientConnectorE
 pub(crate) use self::writer::HttpClientWriter;
 pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
 
-
-use httpcodes;
-use httpresponse::HttpResponse;
 use error::ResponseError;
+use httpresponse::HttpResponse;
 
 
 /// Convert `SendRequestError` to a `HttpResponse`
@@ -24,8 +22,9 @@ impl ResponseError for SendRequestError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            SendRequestError::Connector(_) => httpcodes::HttpBadGateway.into(),
-            _ => httpcodes::HttpInternalServerError.into(),
+            SendRequestError::Connector(_) => HttpResponse::BadGateway(),
+            _ => HttpResponse::InternalServerError(),
         }
+        .into()
     }
 }

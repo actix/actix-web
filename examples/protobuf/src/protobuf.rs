@@ -10,7 +10,6 @@ use actix_web::http::header::{CONTENT_TYPE, CONTENT_LENGTH};
 use actix_web::{Responder, HttpMessage, HttpRequest, HttpResponse};
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError, ResponseError};
-use actix_web::httpcodes::{HttpBadRequest, HttpPayloadTooLarge};
 
 
 #[derive(Fail, Debug)]
@@ -36,8 +35,8 @@ impl ResponseError for ProtoBufPayloadError {
 
     fn error_response(&self) -> HttpResponse {
         match *self {
-            ProtoBufPayloadError::Overflow => HttpPayloadTooLarge.into(),
-            _ => HttpBadRequest.into(),
+            ProtoBufPayloadError::Overflow => HttpResponse::PayloadTooLarge().into(),
+            _ => HttpResponse::BadRequest().into(),
         }
     }
 }

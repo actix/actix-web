@@ -32,11 +32,11 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// extern crate mime;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{Accept, qitem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     ///
     /// builder.set(
     ///     Accept(vec![
@@ -49,11 +49,11 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// extern crate mime;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{Accept, qitem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     ///
     /// builder.set(
     ///     Accept(vec![
@@ -66,11 +66,11 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// extern crate mime;
-    /// use actix_web::httpcodes::HttpOk;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{Accept, QualityItem, q, qitem};
     ///
     /// # fn main() {
-    /// let mut builder = HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     ///
     /// builder.set(
     ///     Accept(vec![

@@ -294,7 +294,6 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use Body;
     use super::*;
     use std::str::FromStr;
     use time;
@@ -311,7 +310,8 @@ mod tests {
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
         let resp = HttpResponse::build(StatusCode::OK)
             .header("X-Test", "ttt")
-            .force_close().body(Body::Empty).unwrap();
+            .force_close()
+            .finish();
 
         match logger.start(&mut req) {
             Ok(Started::Done) => (),
@@ -340,8 +340,7 @@ mod tests {
         headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close().body(Body::Empty).unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
@@ -358,8 +357,7 @@ mod tests {
         let req = HttpRequest::new(
             Method::GET, Uri::from_str("/?test").unwrap(),
             Version::HTTP_11, HeaderMap::new(), None);
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close().body(Body::Empty).unwrap();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {

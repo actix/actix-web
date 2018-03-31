@@ -22,7 +22,7 @@
 //!
 //! ```
 //! # extern crate actix_web;
-//! use actix_web::{Application, HttpRequest, http, httpcodes};
+//! use actix_web::{http, Application, HttpRequest, HttpResponse};
 //! use actix_web::middleware::csrf;
 //!
 //! fn handle_post(_: HttpRequest) -> &'static str {
@@ -36,7 +36,7 @@
 //!                 .allowed_origin("https://www.example.com")
 //!                 .finish())
 //!         .resource("/", |r| {
-//!             r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+//!             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
 //!             r.method(http::Method::POST).f(handle_post);
 //!         })
 //!         .finish();
@@ -51,10 +51,9 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use error::{Result, ResponseError};
 use http::{HeaderMap, HttpTryFrom, Uri, header};
+use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use httpmessage::HttpMessage;
-use httpcodes::HttpForbidden;
 use middleware::{Middleware, Started};
 
 /// Potential cross-site request forgery detected.
@@ -73,7 +72,7 @@ pub enum CsrfError {
 
 impl ResponseError for CsrfError {
     fn error_response(&self) -> HttpResponse {
-        HttpForbidden.build().body(self.to_string()).unwrap()
+        HttpResponse::Forbidden().body(self.to_string())
     }
 }
 

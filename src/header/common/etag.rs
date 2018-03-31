@@ -28,18 +28,18 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(ETag(EntityTag::new(false, "xyzzy".to_owned())));
     /// ```
     ///
     /// ```rust
-    /// use actix_web::httpcodes;
+    /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = httpcodes::HttpOk.build();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.set(ETag(EntityTag::new(true, "xyzzy".to_owned())));
     /// ```
     (ETag, ETAG) => [EntityTag]
