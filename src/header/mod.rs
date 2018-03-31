@@ -5,21 +5,15 @@ use std::fmt;
 use std::str::FromStr;
 
 use bytes::{Bytes, BytesMut};
-use http::{Error as HttpError};
-use http::header::GetAll;
+use modhttp::{Error as HttpError};
+use modhttp::header::GetAll;
 use mime::Mime;
 
-pub use cookie::{Cookie, CookieBuilder};
-pub use http_range::HttpRange;
-
 #[doc(hidden)]
-pub mod http {
-    pub use http::header::*;
-}
+pub use modhttp::header::*;
 
 use error::ParseError;
 use httpmessage::HttpMessage;
-pub use httpresponse::ConnectionType;
 
 mod common;
 mod shared;
@@ -34,7 +28,7 @@ pub use self::shared::*;
 pub trait Header where Self: IntoHeaderValue {
 
     /// Returns the name of the header field
-    fn name() -> http::HeaderName;
+    fn name() -> HeaderName;
 
     /// Parse a header
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
@@ -47,69 +41,69 @@ pub trait IntoHeaderValue: Sized {
     type Error: Into<HttpError>;
 
     /// Cast from PyObject to a concrete Python object type.
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error>;
+    fn try_into(self) -> Result<HeaderValue, Self::Error>;
 }
 
-impl IntoHeaderValue for http::HeaderValue {
-    type Error = http::InvalidHeaderValue;
+impl IntoHeaderValue for HeaderValue {
+    type Error = InvalidHeaderValue;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
         Ok(self)
     }
 }
 
 impl<'a> IntoHeaderValue for &'a str {
-    type Error = http::InvalidHeaderValue;
+    type Error = InvalidHeaderValue;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
         self.parse()
     }
 }
 
 impl<'a> IntoHeaderValue for &'a [u8] {
-    type Error = http::InvalidHeaderValue;
+    type Error = InvalidHeaderValue;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
-        http::HeaderValue::from_bytes(self)
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_bytes(self)
     }
 }
 
 impl IntoHeaderValue for Bytes {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
-        http::HeaderValue::from_shared(self)
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_shared(self)
     }
 }
 
 impl IntoHeaderValue for Vec<u8> {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
-        http::HeaderValue::from_shared(Bytes::from(self))
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_shared(Bytes::from(self))
     }
 }
 
 impl IntoHeaderValue for String {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
-        http::HeaderValue::from_shared(Bytes::from(self))
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_shared(Bytes::from(self))
     }
 }
 
 impl IntoHeaderValue for Mime {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
     #[inline]
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
-        http::HeaderValue::from_shared(Bytes::from(format!("{}", self)))
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::from_shared(Bytes::from(format!("{}", self)))
     }
 }
 
@@ -206,7 +200,7 @@ impl fmt::Write for Writer {
 #[inline]
 #[doc(hidden)]
 /// Reads a comma-delimited raw header into a Vec.
-pub fn from_comma_delimited<T: FromStr>(all: GetAll<http::HeaderValue>)
+pub fn from_comma_delimited<T: FromStr>(all: GetAll<HeaderValue>)
                                         -> Result<Vec<T>, ParseError>
 {
     let mut result = Vec::new();
@@ -225,7 +219,7 @@ pub fn from_comma_delimited<T: FromStr>(all: GetAll<http::HeaderValue>)
 #[inline]
 #[doc(hidden)]
 /// Reads a single string when parsing a header.
-pub fn from_one_raw_str<T: FromStr>(val: Option<&http::HeaderValue>)
+pub fn from_one_raw_str<T: FromStr>(val: Option<&HeaderValue>)
                                     -> Result<T, ParseError>
 {
     if let Some(line) = val {

@@ -144,7 +144,7 @@ macro_rules! header {
         __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             #[inline]
-            fn name() -> $crate::header::http::HeaderName {
+            fn name() -> $crate::header::HeaderName {
                 $name
             }
             #[inline]
@@ -162,13 +162,13 @@ macro_rules! header {
             }
         }
         impl $crate::header::IntoHeaderValue for $id {
-            type Error = $crate::header::http::InvalidHeaderValueBytes;
+            type Error = $crate::header::InvalidHeaderValueBytes;
 
-            fn try_into(self) -> Result<$crate::header::http::HeaderValue, Self::Error> {
+            fn try_into(self) -> Result<$crate::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::header::http::HeaderValue::from_shared(writer.take())
+                $crate::header::HeaderValue::from_shared(writer.take())
             }
         }
     };
@@ -180,7 +180,7 @@ macro_rules! header {
         __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             #[inline]
-            fn name() -> $crate::header::http::HeaderName {
+            fn name() -> $crate::header::HeaderName {
                 $name
             }
             #[inline]
@@ -198,13 +198,13 @@ macro_rules! header {
             }
         }
         impl $crate::header::IntoHeaderValue for $id {
-            type Error = $crate::header::http::InvalidHeaderValueBytes;
+            type Error = $crate::header::InvalidHeaderValueBytes;
 
-            fn try_into(self) -> Result<$crate::header::http::HeaderValue, Self::Error> {
+            fn try_into(self) -> Result<$crate::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::header::http::HeaderValue::from_shared(writer.take())
+                $crate::header::HeaderValue::from_shared(writer.take())
             }
         }
     };
@@ -216,7 +216,7 @@ macro_rules! header {
         __hyper__deref!($id => $value);
         impl $crate::header::Header for $id {
             #[inline]
-            fn name() -> $crate::header::http::HeaderName {
+            fn name() -> $crate::header::HeaderName {
                 $name
             }
             #[inline]
@@ -234,9 +234,9 @@ macro_rules! header {
             }
         }
         impl $crate::header::IntoHeaderValue for $id {
-            type Error = $crate::header::http::InvalidHeaderValueBytes;
+            type Error = $crate::header::InvalidHeaderValueBytes;
 
-            fn try_into(self) -> Result<$crate::header::http::HeaderValue, Self::Error> {
+            fn try_into(self) -> Result<$crate::header::HeaderValue, Self::Error> {
                 self.0.try_into()
             }
         }
@@ -253,12 +253,12 @@ macro_rules! header {
         }
         impl $crate::header::Header for $id {
             #[inline]
-            fn name() -> $crate::header::http::HeaderName {
+            fn name() -> $crate::header::HeaderName {
                 $name
             }
             #[inline]
             fn parse<T>(msg: &T) -> Result<Self, $crate::error::ParseError>
-                where T: $crate::header::HttpMessage
+                where T: $crate::HttpMessage
             {
                 let any = msg.headers().get(Self::name()).and_then(|hdr| {
                     hdr.to_str().ok().and_then(|hdr| Some(hdr.trim() == "*"))});
@@ -283,13 +283,13 @@ macro_rules! header {
             }
         }
         impl $crate::header::IntoHeaderValue for $id {
-            type Error = $crate::header::http::InvalidHeaderValueBytes;
+            type Error = $crate::header::InvalidHeaderValueBytes;
 
-            fn try_into(self) -> Result<$crate::header::http::HeaderValue, Self::Error> {
+            fn try_into(self) -> Result<$crate::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::header::http::HeaderValue::from_shared(writer.take())
+                $crate::header::HeaderValue::from_shared(writer.take())
             }
         }
     };

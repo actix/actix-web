@@ -43,7 +43,7 @@ const STR: &str =
 #[test]
 fn test_simple() {
     let mut srv = test::TestServer::new(
-        |app| app.handler(|_| httpcodes::HTTPOk.build().body(STR)));
+        |app| app.handler(|_| httpcodes::HttpOk.build().body(STR)));
 
     let request = srv.get().header("x-test", "111").finish().unwrap();
     let repr = format!("{:?}", request);
@@ -70,8 +70,8 @@ fn test_simple() {
 fn test_with_query_parameter() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|req: HttpRequest| match req.query().get("qp") {
-            Some(_) => httpcodes::HTTPOk.build().finish(),
-            None => httpcodes::HTTPBadRequest.build().finish(),
+            Some(_) => httpcodes::HttpOk.build().finish(),
+            None => httpcodes::HttpBadRequest.build().finish(),
         }));
 
     let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
@@ -84,7 +84,7 @@ fn test_with_query_parameter() {
 #[test]
 fn test_no_decompress() {
     let mut srv = test::TestServer::new(
-        |app| app.handler(|_| httpcodes::HTTPOk.build().body(STR)));
+        |app| app.handler(|_| httpcodes::HttpOk.build().body(STR)));
 
     let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -114,16 +114,16 @@ fn test_client_gzip_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Deflate)
+                   .content_encoding(http::ContentEncoding::Deflate)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
     let request = srv.post()
-        .content_encoding(header::ContentEncoding::Gzip)
+        .content_encoding(http::ContentEncoding::Gzip)
         .body(STR).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -140,16 +140,16 @@ fn test_client_gzip_encoding_large() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Deflate)
+                   .content_encoding(http::ContentEncoding::Deflate)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
     let request = srv.post()
-        .content_encoding(header::ContentEncoding::Gzip)
+        .content_encoding(http::ContentEncoding::Gzip)
         .body(data.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -169,16 +169,16 @@ fn test_client_gzip_encoding_large_random() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Deflate)
+                   .content_encoding(http::ContentEncoding::Deflate)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
     let request = srv.post()
-        .content_encoding(header::ContentEncoding::Gzip)
+        .content_encoding(http::ContentEncoding::Gzip)
         .body(data.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -194,16 +194,16 @@ fn test_client_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Gzip)
+                   .content_encoding(http::ContentEncoding::Gzip)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
-    let request = srv.client(Method::POST, "/")
-        .content_encoding(header::ContentEncoding::Br)
+    let request = srv.client(http::Method::POST, "/")
+        .content_encoding(http::ContentEncoding::Br)
         .body(STR).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -224,16 +224,16 @@ fn test_client_brotli_encoding_large_random() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(move |bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Gzip)
+                   .content_encoding(http::ContentEncoding::Gzip)
                    .body(bytes))
             }).responder()}
         ));
 
     // client request
-    let request = srv.client(Method::POST, "/")
-        .content_encoding(header::ContentEncoding::Br)
+    let request = srv.client(http::Method::POST, "/")
+        .content_encoding(http::ContentEncoding::Br)
         .body(data.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -250,16 +250,16 @@ fn test_client_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Br)
+                   .content_encoding(http::ContentEncoding::Br)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
     let request = srv.post()
-        .content_encoding(header::ContentEncoding::Deflate)
+        .content_encoding(http::ContentEncoding::Deflate)
         .body(STR).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -280,16 +280,16 @@ fn test_client_deflate_encoding_large_random() {
     let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
         req.body()
             .and_then(|bytes: Bytes| {
-                Ok(httpcodes::HTTPOk
+                Ok(httpcodes::HttpOk
                    .build()
-                   .content_encoding(header::ContentEncoding::Br)
+                   .content_encoding(http::ContentEncoding::Br)
                    .body(bytes))
             }).responder()}
     ));
 
     // client request
     let request = srv.post()
-        .content_encoding(header::ContentEncoding::Deflate)
+        .content_encoding(http::ContentEncoding::Deflate)
         .body(data.clone()).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -306,9 +306,9 @@ fn test_client_streaming_explicit() {
             |req: HttpRequest| req.body()
                 .map_err(Error::from)
                 .and_then(|body| {
-                    Ok(httpcodes::HTTPOk.build()
+                    Ok(httpcodes::HttpOk.build()
                        .chunked()
-                       .content_encoding(header::ContentEncoding::Identity)
+                       .content_encoding(http::ContentEncoding::Identity)
                        .body(body)?)})
                 .responder()));
 
@@ -328,8 +328,8 @@ fn test_body_streaming_implicit() {
     let mut srv = test::TestServer::new(
         |app| app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-            httpcodes::HTTPOk.build()
-                .content_encoding(header::ContentEncoding::Gzip)
+            httpcodes::HttpOk.build()
+                .content_encoding(http::ContentEncoding::Gzip)
                 .body(Body::Streaming(Box::new(body)))}));
 
     let request = srv.get().finish().unwrap();
@@ -343,7 +343,7 @@ fn test_body_streaming_implicit() {
 
 #[test]
 fn test_client_cookie_handling() {
-    use actix_web::header::Cookie;
+    use actix_web::http::Cookie;
     fn err() -> Error {
         use std::io::{ErrorKind, Error as IoError};
         // stub some generic error
@@ -379,7 +379,7 @@ fn test_client_cookie_handling() {
                     })
                     // Send some cookies back
                     .map(|_|
-                         httpcodes::HTTPOk.build()
+                         httpcodes::HttpOk.build()
                          .cookie(cookie1.clone())
                          .cookie(cookie2.clone())
                          .finish()

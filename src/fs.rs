@@ -178,8 +178,8 @@ impl Responder for NamedFile {
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
         if self.only_get && *req.method() != Method::GET && *req.method() != Method::HEAD {
             return Ok(HttpMethodNotAllowed.build()
-                      .header(header::http::CONTENT_TYPE, "text/plain")
-                      .header(header::http::ALLOW, "GET, HEAD")
+                      .header(header::CONTENT_TYPE, "text/plain")
+                      .header(header::ALLOW, "GET, HEAD")
                       .body("This resource only supports GET and HEAD.").unwrap())
         }
 
@@ -466,7 +466,7 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     }
                     new_path.push_str(redir_index);
                     HttpFound.build()
-                        .header(header::http::LOCATION, new_path.as_str())
+                        .header(header::LOCATION, new_path.as_str())
                         .finish().unwrap()
                         .respond_to(req.without_state())
                 } else if self.show_index {

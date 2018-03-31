@@ -1,4 +1,4 @@
-use header::{http, HttpDate};
+use header::{EXPIRES, HttpDate};
 
 header! {
     /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
@@ -23,14 +23,14 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::Expires;
+    /// use actix_web::http::header::Expires;
     /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// let expiration = SystemTime::now() + Duration::from_secs(60 * 60 * 24);
     /// builder.set(Expires(expiration.into()));
     /// ```
-    (Expires, http::EXPIRES) => [HttpDate]
+    (Expires, EXPIRES) => [HttpDate]
 
     test_expires {
         // Test case from RFC

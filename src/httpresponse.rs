@@ -283,14 +283,11 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
-    /// #
-    /// use actix_web::header;
+    /// use actix_web::{HttpRequest, HttpResponse, Result, http, httpcodes};
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HttpOk.build()
-    ///         .set(header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
+    ///     Ok(httpcodes::HttpOk.build()
+    ///         .set(http::header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
     ///         .finish()?)
     /// }
     /// fn main() {}
@@ -432,15 +429,12 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
-    /// #
-    /// use actix_web::header::Cookie;
+    /// use actix_web::{HttpRequest, HttpResponse, Result, http, httpcodes};
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HttpOk.build()
+    ///     Ok(httpcodes::HttpOk.build()
     ///         .cookie(
-    ///             Cookie::build("name", "value")
+    ///             http::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
     ///                 .path("/")
     ///                 .secure(true)
@@ -876,7 +870,7 @@ mod tests {
     use http::{Method, Uri};
     use http::header::{COOKIE, CONTENT_TYPE, HeaderValue};
     use body::Binary;
-    use {header, httpcodes};
+    use {http, httpcodes};
 
     #[test]
     fn test_debug() {
@@ -900,7 +894,7 @@ mod tests {
 
         let resp = httpcodes::HttpOk
             .build()
-            .cookie(header::Cookie::build("name", "value")
+            .cookie(http::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
                     .path("/test")
                     .http_only(true)

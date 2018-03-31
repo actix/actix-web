@@ -1,13 +1,14 @@
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
-use header::{http, IntoHeaderValue, Writer};
 use error::ParseError;
+use header::{IntoHeaderValue, Writer,
+             HeaderValue, InvalidHeaderValueBytes, CONTENT_RANGE};
 
 
 header! {
     /// `Content-Range` header, defined in
     /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)
-    (ContentRange, http::CONTENT_RANGE) => [ContentRangeSpec]
+    (ContentRange, CONTENT_RANGE) => [ContentRangeSpec]
 
     test_content_range {
         test_header!(test_bytes,
@@ -195,11 +196,11 @@ impl Display for ContentRangeSpec {
 }
 
 impl IntoHeaderValue for ContentRangeSpec {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        http::HeaderValue::from_shared(writer.take())
+        HeaderValue::from_shared(writer.take())
     }
 }

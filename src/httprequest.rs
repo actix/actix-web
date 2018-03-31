@@ -279,8 +279,8 @@ impl<S> HttpRequest<S> {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
+    /// # use actix_web::{Application, HttpRequest, HttpResponse, http};
+    /// # use actix_web::httpcodes::HttpOk;
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
@@ -291,7 +291,7 @@ impl<S> HttpRequest<S> {
     ///     let app = Application::new()
     ///         .resource("/test/{one}/{two}/{three}", |r| {
     ///              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(http::Method::GET).f(|_| HttpOk);
     ///         })
     ///         .finish();
     /// }

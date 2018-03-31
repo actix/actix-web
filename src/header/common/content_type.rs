@@ -1,5 +1,5 @@
 use mime::{self, Mime};
-use header::http;
+use header::CONTENT_TYPE;
 
 
 header! {
@@ -33,7 +33,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::ContentType;
+    /// use actix_web::http::header::ContentType;
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -48,7 +48,7 @@ header! {
     /// # extern crate actix_web;
     /// use mime::TEXT_HTML;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::ContentType;
+    /// use actix_web::http::header::ContentType;
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -57,7 +57,7 @@ header! {
     /// );
     /// # }
     /// ```
-    (ContentType, http::CONTENT_TYPE) => [Mime]
+    (ContentType, CONTENT_TYPE) => [Mime]
 
     test_content_type {
         test_header!(

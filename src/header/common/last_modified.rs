@@ -1,4 +1,4 @@
-use header::{http, HttpDate};
+use header::{LAST_MODIFIED, HttpDate};
 
 header! {
     /// `Last-Modified` header, defined in
@@ -23,14 +23,14 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::LastModified;
+    /// use actix_web::http::header::LastModified;
     /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.set(LastModified(modified.into()));
     /// ```
-    (LastModified, http::LAST_MODIFIED) => [HttpDate]
+    (LastModified, LAST_MODIFIED) => [HttpDate]
 
         test_last_modified {
             // Test case from RFC

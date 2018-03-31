@@ -17,10 +17,8 @@
 //! # Example
 //!
 //! ```rust
-//! # extern crate http;
 //! # extern crate actix_web;
-//! # use actix_web::*;
-//! use http::header;
+//! use actix_web::{Application, HttpRequest, http, httpcodes};
 //! use actix_web::middleware::cors;
 //!
 //! fn index(mut req: HttpRequest) -> &'static str {
@@ -33,13 +31,13 @@
 //!              cors::Cors::build()                   // <- Construct CORS middleware
 //!                  .allowed_origin("https://www.rust-lang.org/")
 //!                  .allowed_methods(vec!["GET", "POST"])
-//!                  .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
-//!                  .allowed_header(header::CONTENT_TYPE)
+//!                  .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+//!                  .allowed_header(http::header::CONTENT_TYPE)
 //!                  .max_age(3600)
 //!                  .finish().expect("Can not create CORS middleware")
 //!                  .register(r);                     // <- Register CORS middleware
-//!              r.method(Method::GET).f(|_| httpcodes::HttpOk);
-//!              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+//!              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+//!              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
 //!         })
 //!         .finish();
 //! }

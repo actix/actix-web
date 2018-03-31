@@ -67,7 +67,7 @@ extern crate tokio_core;
 extern crate mio;
 extern crate net2;
 extern crate cookie;
-extern crate http;
+extern crate http as modhttp;
 extern crate httparse;
 extern crate http_range;
 extern crate mime;
@@ -108,6 +108,8 @@ mod body;
 mod context;
 mod de;
 mod handler;
+mod header;
+mod helpers;
 mod httpmessage;
 mod httprequest;
 mod httpresponse;
@@ -125,8 +127,6 @@ pub mod client;
 pub mod fs;
 pub mod ws;
 pub mod error;
-pub mod header;
-pub mod helpers;
 pub mod httpcodes;
 pub mod multipart;
 pub mod middleware;
@@ -144,9 +144,6 @@ pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, AsyncResponder, FutureResponse, State};
 pub use context::HttpContext;
 pub use server::HttpServer;
-
-// re-exports
-pub use http::{Method, StatusCode};
 
 #[cfg(feature="openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;
@@ -181,4 +178,25 @@ pub mod dev {
     pub use param::{FromParam, Params};
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;
+}
+
+pub mod http {
+    //! Various http related types
+
+    // re-exports
+    pub use modhttp::{Method, StatusCode, Version};
+
+    #[doc(hidden)]
+    pub use modhttp::{uri, Uri, Error, Extensions, HeaderMap, HttpTryFrom};
+
+    pub use http_range::HttpRange;
+    pub use cookie::{Cookie, CookieBuilder};
+
+    pub use helpers::NormalizePath;
+
+    pub mod header {
+        pub use ::header::*;
+    }
+    pub use header::ContentEncoding;
+    pub use httpresponse::ConnectionType;
 }

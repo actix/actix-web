@@ -1,4 +1,4 @@
-use header::{http, EntityTag};
+use header::{ETAG, EntityTag};
 
 header! {
     /// `ETag` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.3)
@@ -29,7 +29,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::{ETag, EntityTag};
+    /// use actix_web::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(ETag(EntityTag::new(false, "xyzzy".to_owned())));
@@ -37,12 +37,12 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::{ETag, EntityTag};
+    /// use actix_web::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(ETag(EntityTag::new(true, "xyzzy".to_owned())));
     /// ```
-    (ETag, http::ETAG) => [EntityTag]
+    (ETag, ETAG) => [EntityTag]
 
     test_etag {
         // From the RFC

@@ -373,7 +373,6 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
     }
 }
 
-
 /// Access to an application state
 ///
 /// `S` - application state type
@@ -384,9 +383,8 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// # extern crate bytes;
 /// # extern crate actix_web;
 /// # extern crate futures;
-/// # use actix_web::*;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::State;
+/// use actix_web::{Application, Path, State, http};
 ///
 /// /// Application state
 /// struct App {msg: &'static str}
@@ -397,14 +395,14 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(state: State<App>, info: Path<Info>) -> Result<String> {
-///     Ok(format!("{} {}!", state.msg, info.username))
+/// fn index(state: State<App>, info: Path<Info>) -> String {
+///     format!("{} {}!", state.msg, info.username)
 /// }
 ///
 /// fn main() {
 ///     let app = Application::with_state(App{msg: "Welcome"}).resource(
-///        "/{username}/index.html",                // <- define path parameters
-///        |r| r.method(Method::GET).with2(index)); // <- use `with` extractor
+///        "/{username}/index.html",                      // <- define path parameters
+///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
 /// }
 /// ```
 pub struct State<S> (HttpRequest<S>);

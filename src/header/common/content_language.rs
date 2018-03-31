@@ -1,5 +1,5 @@
 use language_tags::LanguageTag;
-use header::{http, QualityItem};
+use header::{CONTENT_LANGUAGE, QualityItem};
 
 
 header! {
@@ -28,7 +28,7 @@ header! {
     /// # extern crate actix_web;
     /// # #[macro_use] extern crate language_tags;
     /// use actix_web::httpcodes::HttpOk;
-    /// # use actix_web::header::{ContentLanguage, qitem};
+    /// # use actix_web::http::header::{ContentLanguage, qitem};
     /// # 
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -44,7 +44,7 @@ header! {
     /// # extern crate actix_web;
     /// # #[macro_use] extern crate language_tags;
     /// use actix_web::httpcodes::HttpOk;
-    /// # use actix_web::header::{ContentLanguage, qitem};
+    /// # use actix_web::http::header::{ContentLanguage, qitem};
     /// #
     /// # fn main() {
     /// 
@@ -57,7 +57,7 @@ header! {
     /// );
     /// # }
     /// ```
-    (ContentLanguage, http::CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
+    (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
     test_content_language {
         test_header!(test1, vec![b"da"]);

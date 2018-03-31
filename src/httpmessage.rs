@@ -240,7 +240,7 @@ pub trait HttpMessage {
     ///             }
     ///         })
     ///         .finish()  // <- Stream::finish() combinator from actix
-    ///         .map(|_| httpcodes::HTTPOk.into())
+    ///         .map(|_| httpcodes::HttpOk.into())
     ///         .responder()
     /// }
     /// # fn main() {}

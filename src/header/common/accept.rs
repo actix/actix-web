@@ -1,5 +1,6 @@
 use mime::{self, Mime};
-use header::{QualityItem, qitem, http};
+use header::{QualityItem, qitem};
+use http::header as http;
 
 header! {
     /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
@@ -32,7 +33,7 @@ header! {
     /// # extern crate actix_web;
     /// extern crate mime;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{Accept, qitem};
+    /// use actix_web::http::header::{Accept, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -49,7 +50,7 @@ header! {
     /// # extern crate actix_web;
     /// extern crate mime;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{Accept, qitem};
+    /// use actix_web::http::header::{Accept, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -66,7 +67,7 @@ header! {
     /// # extern crate actix_web;
     /// extern crate mime;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{Accept, QualityItem, q, qitem};
+    /// use actix_web::http::header::{Accept, QualityItem, q, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -128,7 +129,7 @@ header! {
         #[test]
         fn test_fuzzing1() {
             use test::TestRequest;
-            let req = TestRequest::with_header(http::ACCEPT, "chunk#;e").finish();
+            let req = TestRequest::with_header(super::http::ACCEPT, "chunk#;e").finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }

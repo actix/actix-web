@@ -80,8 +80,8 @@ in the state:
 # extern crate actix;
 # extern crate actix_web;
 #
-use actix_web::*;
 use std::cell::Cell;
+use actix_web::{Application, HttpRequest, http};
 
 // This struct represents state
 struct AppState {
@@ -97,7 +97,7 @@ fn index(req: HttpRequest<AppState>) -> String {
 
 fn main() {
     Application::with_state(AppState{counter: Cell::new(0)})
-        .resource("/", |r| r.method(Method::GET).f(index))
+        .resource("/", |r| r.method(http::Method::GET).f(index))
         .finish();
 }
 ```

@@ -12,7 +12,7 @@ builder instance multiple times, the builder will panic.
 
 ```rust
 # extern crate actix_web;
-use actix_web::{HttpRequest, HttpResponse, header::ContentEncoding};
+use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding};
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
@@ -45,7 +45,7 @@ to enable `brotli` use `ContentEncoding::Br`:
 
 ```rust
 # extern crate actix_web;
-use actix_web::{HttpRequest, HttpResponse, header::ContentEncoding};
+use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding};
 
 fn index(req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok()
@@ -135,7 +135,7 @@ type `T` must implement the `Serialize` trait from *serde*.
 ```rust
 # extern crate actix_web;
 #[macro_use] extern crate serde_derive;
-use actix_web::*;
+use actix_web::{Application, HttpRequest, Json, Result, http::Method};
 
 #[derive(Serialize)]
 struct MyObj {

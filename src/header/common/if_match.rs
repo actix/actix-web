@@ -1,4 +1,4 @@
-use header::{http, EntityTag};
+use header::{IF_MATCH, EntityTag};
 
 header! {
     /// `If-Match` header, defined in
@@ -31,7 +31,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::IfMatch;
+    /// use actix_web::http::header::IfMatch;
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(IfMatch::Any);
@@ -39,7 +39,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::{IfMatch, EntityTag};
+    /// use actix_web::http::header::{IfMatch, EntityTag};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(
@@ -50,7 +50,7 @@ header! {
     ///     ])
     /// );
     /// ```
-    (IfMatch, http::IF_MATCH) => {Any / (EntityTag)+}
+    (IfMatch, IF_MATCH) => {Any / (EntityTag)+}
 
     test_if_match {
         test_header!(

@@ -1,5 +1,5 @@
 use language_tags::LanguageTag;
-use header::{http, QualityItem};
+use header::{ACCEPT_LANGUAGE, QualityItem};
 
 
 header! {
@@ -27,7 +27,7 @@ header! {
     /// # extern crate actix_web;
     /// # extern crate language_tags;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{AcceptLanguage, LanguageTag, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -46,7 +46,7 @@ header! {
     /// # extern crate actix_web;
     /// # #[macro_use] extern crate language_tags;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{AcceptLanguage, QualityItem, q, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
     /// #
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -59,7 +59,7 @@ header! {
     /// );
     /// # }
     /// ```
-    (AcceptLanguage, http::ACCEPT_LANGUAGE) => (QualityItem<LanguageTag>)+
+    (AcceptLanguage, ACCEPT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
     test_accept_language {
         // From the RFC

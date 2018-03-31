@@ -13,7 +13,7 @@ use middleware::{Response, Middleware};
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::*;
+/// use actix_web::{Application, http, httpcodes, middleware};
 ///
 /// fn main() {
 ///     let app = Application::new()
@@ -22,8 +22,8 @@ use middleware::{Response, Middleware};
 ///                 .header("X-Version", "0.2")
 ///                 .finish())
 ///         .resource("/test", |r| {
-///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
-///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+///              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+///              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
 ///         })
 ///         .finish();
 /// }

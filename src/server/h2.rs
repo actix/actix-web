@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::collections::VecDeque;
 
 use actix::Arbiter;
-use http::request::Parts;
+use modhttp::request::Parts;
 use http2::{Reason, RecvStream};
 use http2::server::{self, Connection, Handshake, SendResponse};
 use bytes::{Buf, Bytes};

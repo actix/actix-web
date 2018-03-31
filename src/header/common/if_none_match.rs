@@ -1,4 +1,4 @@
-use header::{http, EntityTag};
+use header::{IF_NONE_MATCH, EntityTag};
 
 header! {
     /// `If-None-Match` header, defined in
@@ -33,7 +33,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::IfNoneMatch;
+    /// use actix_web::http::header::IfNoneMatch;
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(IfNoneMatch::Any);
@@ -41,7 +41,7 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::{IfNoneMatch, EntityTag};
+    /// use actix_web::http::header::{IfNoneMatch, EntityTag};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(
@@ -52,7 +52,7 @@ header! {
     ///     ])
     /// );
     /// ```
-    (IfNoneMatch, http::IF_NONE_MATCH) => {Any / (EntityTag)+}
+    (IfNoneMatch, IF_NONE_MATCH) => {Any / (EntityTag)+}
 
     test_if_none_match {
         test_header!(test1, vec![b"\"xyzzy\""]);
@@ -67,18 +67,18 @@ header! {
 mod tests {
     use super::IfNoneMatch;
     use test::TestRequest;
-    use header::{http, Header, EntityTag};
+    use header::{IF_NONE_MATCH, Header, EntityTag};
 
     #[test]
     fn test_if_none_match() {
         let mut if_none_match: Result<IfNoneMatch, _>;
 
-        let req = TestRequest::with_header(http::IF_NONE_MATCH, "*").finish();
+        let req = TestRequest::with_header(IF_NONE_MATCH, "*").finish();
         if_none_match = Header::parse(&req);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
         let req = TestRequest::with_header(
-            http::IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..]).finish();
+            IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..]).finish();
 
         if_none_match = Header::parse(&req);
         let mut entities: Vec<EntityTag> = Vec::new();

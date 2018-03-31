@@ -312,16 +312,14 @@ impl ClientRequestBuilder {
     /// ```rust
     /// # extern crate mime;
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
     /// # use actix_web::client::*;
     /// #
-    /// use actix_web::header;
+    /// use actix_web::{client, http};
     ///
     /// fn main() {
-    ///     let req = ClientRequest::build()
-    ///         .set(header::Date::now())
-    ///         .set(header::ContentType(mime::TEXT_HTML))
+    ///     let req = client::ClientRequest::build()
+    ///         .set(http::header::Date::now())
+    ///         .set(http::header::ContentType(mime::TEXT_HTML))
     ///         .finish().unwrap();
     /// }
     /// ```
@@ -446,16 +444,12 @@ impl ClientRequestBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # use actix_web::httpcodes::*;
-    /// #
-    /// use actix_web::header::Cookie;
-    /// use actix_web::client::ClientRequest;
+    /// use actix_web::{client, http};
     ///
     /// fn main() {
-    ///     let req = ClientRequest::build()
+    ///     let req = client::ClientRequest::build()
     ///         .cookie(
-    ///             Cookie::build("name", "value")
+    ///             http::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
     ///                 .path("/")
     ///                 .secure(true)

@@ -22,11 +22,10 @@
 //!
 //! ```
 //! # extern crate actix_web;
-//! # use actix_web::*;
-//!
+//! use actix_web::{Application, HttpRequest, http, httpcodes};
 //! use actix_web::middleware::csrf;
 //!
-//! fn handle_post(_req: HttpRequest) -> &'static str {
+//! fn handle_post(_: HttpRequest) -> &'static str {
 //!     "This action should only be triggered with requests from the same site"
 //! }
 //!
@@ -37,8 +36,8 @@
 //!                 .allowed_origin("https://www.example.com")
 //!                 .finish())
 //!         .resource("/", |r| {
-//!             r.method(Method::GET).f(|_| httpcodes::HttpOk);
-//!             r.method(Method::POST).f(handle_post);
+//!             r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+//!             r.method(http::Method::POST).f(handle_post);
 //!         })
 //!         .finish();
 //! }

@@ -110,8 +110,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::*;
-    /// use actix_web::Path;
+    /// use actix_web::{Application, Path, Result, http};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -125,8 +124,8 @@ impl<S: 'static> Route<S> {
     ///
     /// fn main() {
     ///     let app = Application::new().resource(
-    ///        "/{username}/index.html",                // <- define path parameters
-    ///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
+    ///        "/{username}/index.html",                     // <- define path parameters
+    ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
     /// }
     /// ```
     pub fn with<T, H>(&mut self, handler: H)
@@ -143,8 +142,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::*;
-    /// use actix_web::Path;
+    /// use actix_web::{Application, Query, Path, Result, http};
     ///
     /// #[derive(Deserialize)]
     /// struct PParam {
@@ -163,8 +161,8 @@ impl<S: 'static> Route<S> {
     ///
     /// fn main() {
     ///     let app = Application::new().resource(
-    ///        "/{username}/index.html",                // <- define path parameters
-    ///        |r| r.method(Method::GET).with2(index));  // <- use `with` extractor
+    ///        "/{username}/index.html",                      // <- define path parameters
+    ///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(&mut self, handler: F)

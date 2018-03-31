@@ -178,14 +178,14 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{Application, http, httpcodes};
     ///
     /// fn main() {
     ///     let app = Application::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
-    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+    ///              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
     ///         })
     ///         .finish();
     /// }
@@ -222,13 +222,13 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{Application, http, httpcodes};
     ///
     /// fn main() {
     ///     let app = Application::new()
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
-    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+    ///              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
     ///         });
     /// }
     /// ```
@@ -277,7 +277,7 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{Application, HttpRequest, HttpResponse, Result, httpcodes};
     ///
     /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
     ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
@@ -315,14 +315,14 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{Application, HttpRequest, http, httpcodes};
     ///
     /// fn main() {
     ///     let app = Application::new()
     ///         .handler("/app", |req: HttpRequest| {
     ///             match *req.method() {
-    ///                 Method::GET => httpcodes::HttpOk,
-    ///                 Method::POST => httpcodes::HttpMethodNotAllowed,
+    ///                 http::Method::GET => httpcodes::HttpOk,
+    ///                 http::Method::POST => httpcodes::HttpMethodNotAllowed,
     ///                 _ => httpcodes::HttpNotFound,
     ///         }});
     /// }
@@ -352,14 +352,14 @@ impl<S> Application<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{Application, http, httpcodes, fs, middleware};
     ///
     /// // this function could be located in different module
     /// fn config(app: Application) -> Application {
     ///     app
     ///         .resource("/test", |r| {
-    ///              r.method(Method::GET).f(|_| httpcodes::HttpOk);
-    ///              r.method(Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
+    ///              r.method(http::Method::GET).f(|_| httpcodes::HttpOk);
+    ///              r.method(http::Method::HEAD).f(|_| httpcodes::HttpMethodNotAllowed);
     ///         })
     /// }
     ///

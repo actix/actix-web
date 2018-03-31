@@ -1,8 +1,10 @@
 use std::fmt::{self, Display, Write};
 use error::ParseError;
 use httpmessage::HttpMessage;
-use header::{http, from_one_raw_str};
-use header::{IntoHeaderValue, Header, EntityTag, HttpDate, Writer};
+use http::header;
+use header::from_one_raw_str;
+use header::{IntoHeaderValue, Header, HeaderName, HeaderValue,
+             EntityTag, HttpDate, Writer, InvalidHeaderValueBytes};
 
 /// `If-Range` header, defined in [RFC7233](http://tools.ietf.org/html/rfc7233#section-3.2)
 ///
@@ -34,7 +36,7 @@ use header::{IntoHeaderValue, Header, EntityTag, HttpDate, Writer};
 ///
 /// ```rust
 /// use actix_web::httpcodes;
-/// use actix_web::header::{IfRange, EntityTag};
+/// use actix_web::http::header::{IfRange, EntityTag};
 ///
 /// let mut builder = httpcodes::HttpOk.build();
 /// builder.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
@@ -42,7 +44,7 @@ use header::{IntoHeaderValue, Header, EntityTag, HttpDate, Writer};
 ///
 /// ```rust
 /// use actix_web::httpcodes;
-/// use actix_web::header::IfRange;
+/// use actix_web::http::header::IfRange;
 /// use std::time::{SystemTime, Duration};
 ///
 /// let mut builder = httpcodes::HttpOk.build();
@@ -58,17 +60,19 @@ pub enum IfRange {
 }
 
 impl Header for IfRange {
-    fn name() -> http::HeaderName {
-        http::IF_RANGE
+    fn name() -> HeaderName {
+        header::IF_RANGE
     }
     #[inline]
     fn parse<T>(msg: &T) -> Result<Self, ParseError> where T: HttpMessage
     {
-        let etag: Result<EntityTag, _> = from_one_raw_str(msg.headers().get(http::IF_RANGE));
+        let etag: Result<EntityTag, _> =
+            from_one_raw_str(msg.headers().get(header::IF_RANGE));
         if let Ok(etag) = etag {
             return Ok(IfRange::EntityTag(etag));
         }
-        let date: Result<HttpDate, _> = from_one_raw_str(msg.headers().get(http::IF_RANGE));
+        let date: Result<HttpDate, _> =
+            from_one_raw_str(msg.headers().get(header::IF_RANGE));
         if let Ok(date) = date {
             return Ok(IfRange::Date(date));
         }
@@ -86,12 +90,12 @@ impl Display for IfRange {
 }
 
 impl IntoHeaderValue for IfRange {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        http::HeaderValue::from_shared(writer.take())
+        HeaderValue::from_shared(writer.take())
     }
 }
 

@@ -1,5 +1,5 @@
 use http::Method;
-use header::http;
+use http::header;
 
 header! {
     /// `Allow` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.4.1)
@@ -26,7 +26,7 @@ header! {
     /// # extern crate http;
     /// # extern crate actix_web;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::Allow;
+    /// use actix_web::http::header::Allow;
     /// use http::Method;
     ///
     /// # fn main() {
@@ -41,7 +41,7 @@ header! {
     /// # extern crate http;
     /// # extern crate actix_web;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::Allow;
+    /// use actix_web::http::header::Allow;
     /// use http::Method;
     ///
     /// # fn main() {
@@ -55,7 +55,7 @@ header! {
     /// );
     /// # }
     /// ```
-    (Allow, http::ALLOW) => (Method)*
+    (Allow, header::ALLOW) => (Method)*
 
     test_allow {
         // From the RFC

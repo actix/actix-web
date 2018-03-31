@@ -130,7 +130,7 @@ Let's create a response for a custom type that serializes to an `application/jso
 extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
-use actix_web::*;
+use actix_web::{Application, HttpServer, HttpRequest, HttpResponse, Error, Responder, http};
 
 #[derive(Serialize)]
 struct MyObj {
@@ -142,7 +142,7 @@ impl Responder for MyObj {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&self)?;
 
         // Create response and set content type
@@ -162,7 +162,7 @@ fn main() {
 
     HttpServer::new(
         || Application::new()
-            .resource("/", |r| r.method(Method::GET).f(index)))
+            .resource("/", |r| r.method(http::Method::GET).f(index)))
         .bind("127.0.0.1:8088").unwrap()
         .start();
 

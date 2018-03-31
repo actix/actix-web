@@ -25,12 +25,12 @@ use with::WithHandler;
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::*;
+/// use actix_web::{Application, HttpResponse, http};
 ///
 /// fn main() {
 ///     let app = Application::new()
 ///         .resource(
-///             "/", |r| r.method(Method::GET).f(|r| HttpResponse::Ok()))
+///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
 pub struct Resource<S=()> {

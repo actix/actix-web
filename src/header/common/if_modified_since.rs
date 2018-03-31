@@ -1,4 +1,4 @@
-use header::{http, HttpDate};
+use header::{IF_MODIFIED_SINCE, HttpDate};
 
 header! {
     /// `If-Modified-Since` header, defined in
@@ -23,14 +23,14 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::IfModifiedSince;
+    /// use actix_web::http::header::IfModifiedSince;
     /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.set(IfModifiedSince(modified.into()));
     /// ```
-    (IfModifiedSince, http::IF_MODIFIED_SINCE) => [HttpDate]
+    (IfModifiedSince, IF_MODIFIED_SINCE) => [HttpDate]
 
     test_if_modified_since {
         // Test case from RFC

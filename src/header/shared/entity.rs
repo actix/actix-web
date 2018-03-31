@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use std::fmt::{self, Display, Write};
-use header::{http, Writer, IntoHeaderValue};
+use header::{HeaderValue, Writer, IntoHeaderValue, InvalidHeaderValueBytes};
 
 /// check that each char in the slice is either:
 /// 1. `%x21`, or
@@ -144,12 +144,12 @@ impl FromStr for EntityTag {
 }
 
 impl IntoHeaderValue for EntityTag {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValueBytes;
 
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = Writer::new();
         write!(wrt, "{}", self).unwrap();
-        unsafe{Ok(http::HeaderValue::from_shared_unchecked(wrt.take()))}
+        unsafe{Ok(HeaderValue::from_shared_unchecked(wrt.take()))}
     }
 }
 

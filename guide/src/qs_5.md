@@ -21,8 +21,8 @@ and a resource configuration function.
 
 ```rust
 # extern crate actix_web;
-# use actix_web::*;
-# use actix_web::httpcodes::*;
+# use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
+# use actix_web::httpcodes::HttpOk;
 #
 # fn index(req: HttpRequest) -> HttpResponse {
 #   unimplemented!()
@@ -305,8 +305,8 @@ safe to interpolate within, or use as a suffix of, a path without additional che
 
 ```rust
 # extern crate actix_web;
-use actix_web::*;
 use std::path::PathBuf;
+use actix_web::{Application, HttpRequest, Result, http::Method};
 
 fn index(req: HttpRequest) -> Result<String> {
     let path: PathBuf = req.match_info().query("tail")?;
@@ -335,7 +335,7 @@ has to implement *serde's *`Deserialize` trait.
 # extern crate actix_web;
 # extern crate futures;
 #[macro_use] extern crate serde_derive;
-use actix_web::*;
+use actix_web::{Application, Path, Result, http::Method};
 
 #[derive(Deserialize)]
 struct Info {
@@ -366,8 +366,8 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this:
 
 ```rust
 # extern crate actix_web;
-# use actix_web::*;
-# use actix_web::httpcodes::*;
+# use actix_web::{Application, HttpRequest, HttpResponse, http::Method};
+# use actix_web::httpcodes::HttpOk;
 #
 fn index(req: HttpRequest) -> HttpResponse {
     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
@@ -378,7 +378,7 @@ fn main() {
     let app = Application::new()
         .resource("/test/{a}/{b}/{c}", |r| {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-             r.method(Method::GET).f(|_| httpcodes::HttpOk);
+             r.method(Method::GET).f(|_| HttpOk);
         })
         .finish();
 }
@@ -437,7 +437,7 @@ This handler designed to be use as a handler for application's *default resource
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
 # use actix_web::*;
-use actix_web::helpers::NormalizePath;
+use actix_web::http::NormalizePath;
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
 #    httpcodes::HttpOk
@@ -462,8 +462,7 @@ It is possible to register path normalization only for *GET* requests only:
 ```rust
 # extern crate actix_web;
 # #[macro_use] extern crate serde_derive;
-# use actix_web::*;
-use actix_web::helpers::NormalizePath;
+use actix_web::{Application, HttpRequest, http::Method, http::NormalizePath, httpcodes};
 #
 # fn index(req: HttpRequest) -> httpcodes::StaticResponse {
 #    httpcodes::HttpOk
@@ -597,9 +596,8 @@ with `Application::resource()` method.
 
 ```rust
 # extern crate actix_web;
-# extern crate http;
-use actix_web::*;
-use actix_web::httpcodes::*;
+use actix_web::{Application, http::Method, pred};
+use actix_web::httpcodes::{HttpNotFound, HttpMethodNotAllowed};
 
 fn main() {
     Application::new()

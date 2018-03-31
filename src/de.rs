@@ -19,8 +19,7 @@ use httprequest::HttpRequest;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// use actix_web::Path;
+/// use actix_web::{Application, Path, Result, http};
 ///
 /// /// extract path info from "/{username}/{count}/?index.html" url
 /// /// {username} - deserializes to a String
@@ -32,7 +31,7 @@ use httprequest::HttpRequest;
 /// fn main() {
 ///     let app = Application::new().resource(
 ///        "/{username}/{count}/?index.html",       // <- define path parameters
-///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
+///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
 ///
@@ -44,8 +43,7 @@ use httprequest::HttpRequest;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// use actix_web::Path;
+/// use actix_web::{Application, Path, Result, http};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -60,7 +58,7 @@ use httprequest::HttpRequest;
 /// fn main() {
 ///     let app = Application::new().resource(
 ///        "/{username}/index.html",                // <- define path parameters
-///        |r| r.method(Method::GET).with(index));  // <- use `with` extractor
+///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
 pub struct Path<T>{
@@ -111,8 +109,7 @@ impl<T, S> FromRequest<S> for Path<T>
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// use actix_web::Query;
+/// use actix_web::{Application, Query, http};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -121,14 +118,14 @@ impl<T, S> FromRequest<S> for Path<T>
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(info: Query<Info>) -> Result<String> {
-///     Ok(format!("Welcome {}!", info.username))
+/// fn index(info: Query<Info>) -> String {
+///     format!("Welcome {}!", info.username)
 /// }
 ///
 /// fn main() {
 ///     let app = Application::new().resource(
 ///        "/index.html",
-///        |r| r.method(Method::GET).with(index)); // <- use `with` extractor
+///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
 /// }
 /// ```
 pub struct Query<T>(T);

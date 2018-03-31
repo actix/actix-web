@@ -1,7 +1,8 @@
 use std::fmt::{self, Write};
 use std::str::FromStr;
+use http::header;
 use header::{Header, IntoHeaderValue, Writer};
-use header::{http, from_comma_delimited, fmt_comma_delimited};
+use header::{from_comma_delimited, fmt_comma_delimited};
 
 /// `Cache-Control` header, defined in [RFC7234](https://tools.ietf.org/html/rfc7234#section-5.2)
 ///
@@ -26,7 +27,7 @@ use header::{http, from_comma_delimited, fmt_comma_delimited};
 /// # Examples
 /// ```rust
 /// use actix_web::httpcodes::HttpOk;
-/// use actix_web::header::{CacheControl, CacheDirective};
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = HttpOk.build();
 /// builder.set(
@@ -36,7 +37,7 @@ use header::{http, from_comma_delimited, fmt_comma_delimited};
 ///
 /// ```rust
 /// use actix_web::httpcodes::HttpOk;
-/// use actix_web::header::{CacheControl, CacheDirective};
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = HttpOk.build();
 /// builder.set(
@@ -56,8 +57,8 @@ __hyper__deref!(CacheControl => Vec<CacheDirective>);
 
 //TODO: this could just be the header! macro
 impl Header for CacheControl {
-    fn name() -> http::HeaderName {
-        http::CACHE_CONTROL
+    fn name() -> header::HeaderName {
+        header::CACHE_CONTROL
     }
 
     #[inline]
@@ -80,12 +81,12 @@ impl fmt::Display for CacheControl {
 }
 
 impl IntoHeaderValue for CacheControl {
-    type Error = http::InvalidHeaderValueBytes;
+    type Error = header::InvalidHeaderValueBytes;
 
-    fn try_into(self) -> Result<http::HeaderValue, Self::Error> {
+    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        http::HeaderValue::from_shared(writer.take())
+        header::HeaderValue::from_shared(writer.take())
     }
 }
 
@@ -189,7 +190,7 @@ mod tests {
     #[test]
     fn test_parse_multiple_headers() {
         let req = TestRequest::with_header(
-            http::CACHE_CONTROL, "no-cache, private").finish();
+            header::CACHE_CONTROL, "no-cache, private").finish();
         let cache = Header::parse(&req);
         assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::NoCache,
                                                       CacheDirective::Private])))
@@ -198,7 +199,7 @@ mod tests {
     #[test]
     fn test_parse_argument() {
         let req = TestRequest::with_header(
-            http::CACHE_CONTROL, "max-age=100, private").finish();
+            header::CACHE_CONTROL, "max-age=100, private").finish();
         let cache = Header::parse(&req);
         assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::MaxAge(100),
                                                       CacheDirective::Private])))
@@ -207,7 +208,7 @@ mod tests {
     #[test]
     fn test_parse_quote_form() {
         let req = TestRequest::with_header(
-            http::CACHE_CONTROL, "max-age=\"200\"").finish();
+            header::CACHE_CONTROL, "max-age=\"200\"").finish();
         let cache = Header::parse(&req);
         assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::MaxAge(200)])))
     }
@@ -215,7 +216,7 @@ mod tests {
     #[test]
     fn test_parse_extension() {
         let req = TestRequest::with_header(
-            http::CACHE_CONTROL, "foo, bar=baz").finish();
+            header::CACHE_CONTROL, "foo, bar=baz").finish();
         let cache = Header::parse(&req);
         assert_eq!(cache.ok(), Some(CacheControl(vec![
             CacheDirective::Extension("foo".to_owned(), None),
@@ -224,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_parse_bad_syntax() {
-        let req = TestRequest::with_header(http::CACHE_CONTROL, "foo=").finish();
+        let req = TestRequest::with_header(header::CACHE_CONTROL, "foo=").finish();
         let cache: Result<CacheControl, _> = Header::parse(&req);
         assert_eq!(cache.ok(), None)
     }

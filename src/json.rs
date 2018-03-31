@@ -51,8 +51,7 @@ use httpresponse::HttpResponse;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// use actix_web::Json;
+/// use actix_web::{Application, Json, Result, http};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -67,7 +66,7 @@ use httpresponse::HttpResponse;
 /// fn main() {
 ///     let app = Application::new().resource(
 ///        "/index.html",
-///        |r| r.method(Method::POST).with(index));  // <- use `with` extractor
+///        |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
 /// }
 /// ```
 pub struct Json<T>(pub T);
@@ -139,8 +138,9 @@ impl<T, S> FromRequest<S> for Json<T>
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::*;
 /// use futures::future::Future;
+/// use actix_web::{Application, AsyncResponder,
+///                 HttpRequest, HttpResponse, HttpMessage, Error, httpcodes};
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {

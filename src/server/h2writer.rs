@@ -6,7 +6,9 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::{Reason, SendStream};
 use http2::server::SendResponse;
-use http::{Version, HttpTryFrom, Response};
+use modhttp::Response;
+
+use http::{Version, HttpTryFrom};
 use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
 
 use body::{Body, Binary};

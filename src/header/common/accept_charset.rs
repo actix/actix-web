@@ -1,4 +1,4 @@
-use header::{http, Charset, QualityItem};
+use header::{ACCEPT_CHARSET, Charset, QualityItem};
 
 header! {
     /// `Accept-Charset` header, defined in
@@ -24,7 +24,7 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -36,7 +36,7 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{AcceptCharset, Charset, q, QualityItem};
+    /// use actix_web::http::header::{AcceptCharset, Charset, q, QualityItem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -51,7 +51,7 @@ header! {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::httpcodes::HttpOk;
-    /// use actix_web::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpOk.build();
@@ -60,7 +60,7 @@ header! {
     /// );
     /// # }
     /// ```
-    (AcceptCharset, http::ACCEPT_CHARSET) => (QualityItem<Charset>)+
+    (AcceptCharset, ACCEPT_CHARSET) => (QualityItem<Charset>)+
 
     test_accept_charset {
         /// Test case from RFC

@@ -1,5 +1,5 @@
 use std::time::SystemTime;
-use header::{http, HttpDate};
+use header::{DATE, HttpDate};
 
 
 header! {
@@ -22,13 +22,13 @@ header! {
     ///
     /// ```rust
     /// use actix_web::httpcodes;
-    /// use actix_web::header::Date;
+    /// use actix_web::http::header::Date;
     /// use std::time::SystemTime;
     ///
     /// let mut builder = httpcodes::HttpOk.build();
     /// builder.set(Date(SystemTime::now().into()));
     /// ```
-    (Date, http::DATE) => [HttpDate]
+    (Date, DATE) => [HttpDate]
 
     test_date {
         test_header!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
