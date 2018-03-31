@@ -233,7 +233,7 @@ mod tests {
     use http::header;
     use futures::Async;
 
-    use with::with;
+    use with::With;
     use handler::Handler;
 
     impl PartialEq for JsonPayloadError {
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_with_json() {
-        let mut handler = with(|data: Json<MyObject>| data);
+        let mut handler = With::new(|data: Json<MyObject>| data);
 
         let req = HttpRequest::default();
         let err = handler.handle(req).as_response().unwrap().error().is_some();

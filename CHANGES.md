@@ -7,8 +7,6 @@
 * HttpResponse builder's methods  `.body()`, `.finish()`, `.json()`
   return `HttpResponse` instead of `Result`
 
-* Use more ergonomic `actix_web::Error` instead of `http::Error` for `HttpResponseBuilder::body()`
-
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
 
 * Router cannot parse Non-ASCII characters in URL #137
