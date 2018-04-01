@@ -97,6 +97,14 @@ impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
     }
 }
 
+impl<'a, 'c: 'a> Index<usize> for &'c Params<'a> {
+    type Output = str;
+
+    fn index(&self, idx: usize) -> &str {
+        self.0[idx].1.as_ref()
+    }
+}
+
 /// Creates a `PathBuf` from a path parameter. The returned `PathBuf` is
 /// percent-decoded. If a segment is equal to "..", the previous segment (if
 /// any) is skipped.

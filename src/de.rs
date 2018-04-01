@@ -1,5 +1,6 @@
 use std::slice::Iter;
 use std::borrow::Cow;
+use std::convert::AsRef;
 use std::ops::{Deref, DerefMut};
 
 use serde_urlencoded;
@@ -63,6 +64,13 @@ use httprequest::HttpRequest;
 /// ```
 pub struct Path<T>{
     inner: T
+}
+
+impl<T> AsRef<T> for Path<T> {
+
+    fn as_ref(&self) -> &T {
+        &self.inner
+    }
 }
 
 impl<T> Deref for Path<T> {
@@ -175,6 +183,26 @@ macro_rules! unsupported_type {
     };
 }
 
+macro_rules! parse_single_value {
+    ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
+        fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+            where V: Visitor<'de>
+        {
+            if self.req.match_info().len() != 1 {
+                Err(de::value::Error::custom(
+                    format!("wrong number of parameters: {} expected 1",
+                            self.req.match_info().len()).as_str()))
+            } else {
+                let v = self.req.match_info()[0].parse().map_err(
+                    |_| de::value::Error::custom(
+                        format!("can not parse {:?} to a {}",
+                                &self.req.match_info()[0], $tp)))?;
+                visitor.$visit_fn(v)
+            }
+        }
+    }
+}
+
 pub struct PathDeserializer<'de, S: 'de> {
     req: &'de HttpRequest<S>
 }
@@ -200,8 +228,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S>
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-        V: Visitor<'de>,
+        where V: Visitor<'de>,
     {
         visitor.visit_unit()
     }
@@ -232,11 +259,17 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S>
         }
     }
 
-    fn deserialize_tuple_struct<V>(self, _: &'static str, _: usize, visitor: V)
+    fn deserialize_tuple_struct<V>(self, _: &'static str, len: usize, visitor: V)
                                    -> Result<V::Value, Self::Error>
         where V: Visitor<'de>
     {
-        visitor.visit_seq(ParamsSeq{params: self.req.match_info().iter()})
+        if self.req.match_info().len() < len {
+            Err(de::value::Error::custom(
+                format!("wrong number of parameters: {} expected {}",
+                        self.req.match_info().len(), len).as_str()))
+        } else {
+            visitor.visit_seq(ParamsSeq{params: self.req.match_info().iter()})
+        }
     }
 
     fn deserialize_enum<V>(self, _: &'static str, _: &'static [&'static str], _: V)
@@ -246,27 +279,44 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S>
         Err(de::value::Error::custom("unsupported type: enum"))
     }
 
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where V: Visitor<'de>,
+    {
+        if self.req.match_info().len() != 1 {
+            Err(de::value::Error::custom(
+                format!("wrong number of parameters: {} expected 1",
+                        self.req.match_info().len()).as_str()))
+        } else {
+            visitor.visit_str(&self.req.match_info()[0])
+        }
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where V: Visitor<'de>
+    {
+        visitor.visit_seq(ParamsSeq{params: self.req.match_info().iter()})
+    }
+
     unsupported_type!(deserialize_any, "'any'");
-    unsupported_type!(deserialize_bool, "bool");
-    unsupported_type!(deserialize_i8, "i8");
-    unsupported_type!(deserialize_i16, "i16");
-    unsupported_type!(deserialize_i32, "i32");
-    unsupported_type!(deserialize_i64, "i64");
-    unsupported_type!(deserialize_u8, "u8");
-    unsupported_type!(deserialize_u16, "u16");
-    unsupported_type!(deserialize_u32, "u32");
-    unsupported_type!(deserialize_u64, "u64");
-    unsupported_type!(deserialize_f32, "f32");
-    unsupported_type!(deserialize_f64, "f64");
-    unsupported_type!(deserialize_char, "char");
-    unsupported_type!(deserialize_str, "str");
-    unsupported_type!(deserialize_string, "String");
     unsupported_type!(deserialize_bytes, "bytes");
-    unsupported_type!(deserialize_byte_buf, "byte buf");
     unsupported_type!(deserialize_option, "Option<T>");
-    unsupported_type!(deserialize_seq, "sequence");
     unsupported_type!(deserialize_identifier, "identifier");
     unsupported_type!(deserialize_ignored_any, "ignored_any");
+
+    parse_single_value!(deserialize_bool, visit_bool, "bool");
+    parse_single_value!(deserialize_i8, visit_i8, "i8");
+    parse_single_value!(deserialize_i16, visit_i16, "i16");
+    parse_single_value!(deserialize_i32, visit_i32, "i16");
+    parse_single_value!(deserialize_i64, visit_i64, "i64");
+    parse_single_value!(deserialize_u8, visit_u8, "u8");
+    parse_single_value!(deserialize_u16, visit_u16, "u16");
+    parse_single_value!(deserialize_u32, visit_u32, "u32");
+    parse_single_value!(deserialize_u64, visit_u64, "u64");
+    parse_single_value!(deserialize_f32, visit_f32, "f32");
+    parse_single_value!(deserialize_f64, visit_f64, "f64");
+    parse_single_value!(deserialize_string, visit_string, "String");
+    parse_single_value!(deserialize_byte_buf, visit_string, "String");
+    parse_single_value!(deserialize_char, visit_char, "char");
 }
 
 struct ParamsDeserializer<'de> {
@@ -326,14 +376,14 @@ impl<'de> Deserializer<'de> for Key<'de> {
 }
 
 macro_rules! parse_value {
-    ($trait_fn:ident, $visitor_fn:ident, $tp:tt) => {
+    ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
             where V: Visitor<'de>
         {
             let v = self.value.parse().map_err(
                 |_| de::value::Error::custom(
                     format!("can not parse {:?} to a {}", self.value, $tp)))?;
-            visitor.$visitor_fn(v)
+            visitor.$visit_fn(v)
         }
     }
 }
@@ -432,7 +482,7 @@ impl<'de> Deserializer<'de> for Value<'de>
         Err(de::value::Error::custom("unsupported type: tuple struct"))
     }
 
-    unsupported_type!(deserialize_any, "");
+    unsupported_type!(deserialize_any, "any");
     unsupported_type!(deserialize_seq, "seq");
     unsupported_type!(deserialize_map, "map");
     unsupported_type!(deserialize_identifier, "identifier");
@@ -565,7 +615,7 @@ mod tests {
 
         match Path::<Test2>::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
-                assert_eq!(s.key, "name");
+                assert_eq!(s.as_ref().key, "name");
                 assert_eq!(s.value, 32);
             },
             _ => unreachable!(),
@@ -575,6 +625,32 @@ mod tests {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, 32);
+            },
+            _ => unreachable!(),
+        }
+
+        match Path::<Vec<String>>::from_request(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s.into_inner(), vec!["name".to_owned(), "32".to_owned()]);
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_extract_path_signle() {
+        let mut resource = Resource::<()>::default();
+        resource.name("index");
+        let mut routes = Vec::new();
+        routes.push((Pattern::new("index", "/{value}/"), Some(resource)));
+        let (router, _) = Router::new("", ServerSettings::default(), routes);
+
+        let mut req = TestRequest::with_uri("/32/").finish();
+        assert!(router.recognize(&mut req).is_some());
+
+        match Path::<i8>::from_request(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s.into_inner(), 32);
             },
             _ => unreachable!(),
         }
