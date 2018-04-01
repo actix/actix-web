@@ -10,6 +10,8 @@ extern crate serde_json;
 extern crate serde_derive;
 #[macro_use]
 extern crate diesel;
+extern crate r2d2;
+extern crate r2d2_diesel;
 extern crate uuid;
 extern crate futures;
 extern crate actix;
@@ -21,6 +23,7 @@ use actix_web::{http, middleware,
                 App, HttpServer, HttpRequest, HttpResponse, Error, AsyncResponder};
 
 use diesel::prelude::*;
+use r2d2_diesel::ConnectionManager;
 use futures::future::Future;
 
 mod db;
@@ -53,12 +56,15 @@ fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>>
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("diesel-example");
 
     // Start 3 db executor actors
-    let addr = SyncArbiter::start(3, || {
-        DbExecutor(SqliteConnection::establish("test.db").unwrap())
+    let manager = ConnectionManager::<SqliteConnection>::new("test.db");
+    let pool = r2d2::Pool::builder().build(manager).expect("Failed to create pool.");
+
+    let addr = SyncArbiter::start(3, move || {
+        DbExecutor(pool.clone())
     });
 
     // Start http server

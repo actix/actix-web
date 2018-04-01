@@ -4,12 +4,14 @@ use diesel;
 use actix_web::*;
 use actix::prelude::*;
 use diesel::prelude::*;
+use r2d2::Pool;
+use r2d2_diesel::ConnectionManager;
 
 use models;
 use schema;
 
 /// This is db executor actor. We are going to run 3 of them in parallel.
-pub struct DbExecutor(pub SqliteConnection);
+pub struct DbExecutor(pub Pool<ConnectionManager<SqliteConnection>>);
 
 /// This is only message that this actor can handle, but it is easy to extend number of
 /// messages.
@@ -37,14 +39,16 @@ impl Handler<CreateUser> for DbExecutor {
             name: &msg.name,
         };
 
+        let conn: &SqliteConnection = &self.0.get().unwrap();
+
         diesel::insert_into(users)
             .values(&new_user)
-            .execute(&self.0)
+            .execute(conn)
             .expect("Error inserting person");
 
         let mut items = users
             .filter(id.eq(&uuid))
-            .load::<models::User>(&self.0)
+            .load::<models::User>(conn)
             .expect("Error loading person");
 
         Ok(items.pop().unwrap())
