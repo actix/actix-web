@@ -1,5 +1,4 @@
 use std::str;
-use std::ops::{Deref, DerefMut};
 use bytes::{Bytes, BytesMut};
 use futures::{Future, Stream, Poll};
 use http_range::HttpRange;
@@ -14,10 +13,8 @@ use http::{header, HeaderMap};
 
 use json::JsonBody;
 use header::Header;
-use handler::FromRequest;
 use multipart::Multipart;
-use httprequest::HttpRequest;
-use error::{Error, ParseError, ContentTypeError,
+use error::{ParseError, ContentTypeError,
             HttpRangeError, PayloadError, UrlencodedError};
 
 
@@ -408,61 +405,6 @@ impl<T, U> Future for UrlEncoded<T, U>
     }
 }
 
-/// Extract typed information from the request's body.
-///
-/// To extract typed information from request's body, the type `T` must implement the
-/// `Deserialize` trait from *serde*.
-///
-/// ## Example
-///
-/// It is possible to extract path information to a specific type that implements
-/// `Deserialize` trait from *serde*.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Form, Result};
-///
-/// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
-/// }
-///
-/// /// extract form data using serde
-/// /// this handle get called only if content type is *x-www-form-urlencoded*
-/// /// and content of the request could be deserialized to a `FormData` struct
-/// fn index(form: Form<FormData>) -> Result<String> {
-///     Ok(format!("Welcome {}!", form.username))
-/// }
-/// # fn main() {}
-/// ```
-pub struct Form<T>(pub T);
-
-impl<T> Deref for Form<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for Form<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
-}
-
-impl<T, S> FromRequest<S> for Form<T>
-    where T: DeserializeOwned + 'static, S: 'static
-{
-    type Result = Box<Future<Item=Self, Error=Error>>;
-
-    #[inline]
-    fn from_request(req: &HttpRequest<S>) -> Self::Result {
-        Box::new(UrlEncoded::new(req.clone()).from_err().map(Form))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,22 +585,6 @@ mod tests {
 
         let result = req.urlencoded().poll().ok().unwrap();
         assert_eq!(result, Async::Ready(Info{hello: "world".to_owned()}));
-    }
-
-    #[test]
-    fn test_urlencoded_extractor() {
-        let mut req = TestRequest::with_header(
-            header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(header::CONTENT_LENGTH, "11")
-            .finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
-
-        match Form::<Info>::from_request(&req).poll().unwrap() {
-            Async::Ready(s) => {
-                assert_eq!(s.hello, "world");
-            },
-            _ => unreachable!(),
-        }
     }
 
     #[test]
