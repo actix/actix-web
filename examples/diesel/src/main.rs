@@ -19,8 +19,8 @@ extern crate actix_web;
 extern crate env_logger;
 
 use actix::prelude::*;
-use actix_web::{http, middleware,
-                App, HttpServer, HttpRequest, HttpResponse, Error, AsyncResponder};
+use actix_web::{http, server, middleware,
+                App, Path, State, HttpResponse, AsyncResponder, FutureResponse};
 
 use diesel::prelude::*;
 use r2d2_diesel::ConnectionManager;
@@ -34,12 +34,12 @@ use db::{CreateUser, DbExecutor};
 
 
 /// State with DbExecutor address
-struct App {
+struct AppState {
     db: Addr<Syn, DbExecutor>,
 }
 
 /// Async request handler
-fn index(name: Path<(String,)>, state: State<App>) -> FutureResponse<HttpResponse> {
+fn index(name: Path<String>, state: State<AppState>) -> FutureResponse<HttpResponse> {
     // send async `CreateUser` message to a `DbExecutor`
     state.db.send(CreateUser{name: name.into_inner()})
         .from_err()
@@ -66,8 +66,8 @@ fn main() {
     });
 
     // Start http server
-    let _addr = HttpServer::new(move || {
-        App::with_state(State{db: addr.clone()})
+    server::new(move || {
+        App::with_state(AppState{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
             .resource("/{name}", |r| r.method(http::Method::GET).with2(index))})
