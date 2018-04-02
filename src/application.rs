@@ -1,6 +1,6 @@
 use std::mem;
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
 
 use handler::Reply;
@@ -9,7 +9,7 @@ use resource::{ResourceHandler};
 use header::ContentEncoding;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
-use pipeline::{Pipeline, PipelineHandler};
+use pipeline::{Pipeline, PipelineHandler, HandlerType};
 use middleware::Middleware;
 use server::{HttpHandler, IntoHttpHandler, HttpHandlerTask, ServerSettings};
 
@@ -21,7 +21,7 @@ pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
     router: Router,
-    inner: Rc<RefCell<Inner<S>>>,
+    inner: Rc<UnsafeCell<Inner<S>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
@@ -29,7 +29,6 @@ pub(crate) struct Inner<S> {
     prefix: usize,
     default: ResourceHandler<S>,
     encoding: ContentEncoding,
-    router: Router,
     resources: Vec<ResourceHandler<S>>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
 }
@@ -40,39 +39,60 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         self.encoding
     }
 
-    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
-        if let Some(idx) = self.router.recognize(&mut req) {
-            self.resources[idx].handle(req.clone(), Some(&mut self.default))
+    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType) -> Reply {
+        match htype {
+            HandlerType::Normal(idx) =>
+                self.resources[idx].handle(req, Some(&mut self.default)),
+            HandlerType::Handler(idx) =>
+                self.handlers[idx].1.handle(req),
+            HandlerType::Default =>
+                self.default.handle(req, None)
+        }
+    }
+}
+
+impl<S: 'static> HttpApplication<S> {
+
+    #[inline]
+    fn as_ref(&self) -> &Inner<S> {
+        unsafe{&*self.inner.get()}
+    }
+
+    #[inline]
+    fn get_handler(&self, req: &mut HttpRequest<S>) -> HandlerType {
+        if let Some(idx) = self.router.recognize(req) {
+            HandlerType::Normal(idx)
         } else {
-            for &mut (ref prefix, ref mut handler) in &mut self.handlers {
+            let inner = self.as_ref();
+            for idx in 0..inner.handlers.len() {
+                let &(ref prefix, _) = &inner.handlers[idx];
                 let m = {
-                    let path = &req.path()[self.prefix..];
+                    let path = &req.path()[inner.prefix..];
                     path.starts_with(prefix) && (
                         path.len() == prefix.len() ||
                             path.split_at(prefix.len()).1.starts_with('/'))
                 };
                 if m {
                     let path: &'static str = unsafe {
-                        mem::transmute(&req.path()[self.prefix+prefix.len()..]) };
+                        mem::transmute(&req.path()[inner.prefix+prefix.len()..]) };
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "");
                     } else {
                         req.match_info_mut().add("tail", path.split_at(1).1);
                     }
-                    return handler.handle(req)
+                    return HandlerType::Handler(idx)
                 }
             }
-            self.default.handle(req, None)
+            HandlerType::Default
         }
     }
-}
 
-#[cfg(test)]
-impl<S: 'static> HttpApplication<S> {
     #[cfg(test)]
-    pub(crate) fn run(&mut self, req: HttpRequest<S>) -> Reply {
-        self.inner.borrow_mut().handle(req)
+    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
+        let tp = self.get_handler(&mut req);
+        unsafe{&mut *self.inner.get()}.handle(req, tp)
     }
+
     #[cfg(test)]
     pub(crate) fn prepare_request(&self, req: HttpRequest) -> HttpRequest<S> {
         req.with_state(Rc::clone(&self.state), self.router.clone())
@@ -89,10 +109,10 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
                     path.split_at(self.prefix.len()).1.starts_with('/'))
         };
         if m {
+            let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
+            let tp = self.get_handler(&mut req);
             let inner = Rc::clone(&self.inner);
-            let req = req.with_state(Rc::clone(&self.state), self.router.clone());
-
-            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner)))
+            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner, tp)))
         } else {
             Err(req)
         }
@@ -392,12 +412,11 @@ impl<S> App<S> where S: 'static {
 
         let (router, resources) = Router::new(prefix, parts.settings, resources);
 
-        let inner = Rc::new(RefCell::new(
+        let inner = Rc::new(UnsafeCell::new(
             Inner {
                 prefix: prefix.len(),
                 default: parts.default,
                 encoding: parts.encoding,
-                router: router.clone(),
                 handlers: parts.handlers,
                 resources,
             }
