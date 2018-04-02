@@ -1,6 +1,6 @@
 use std::{io, mem};
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 
 use log::Level::Debug;
@@ -18,11 +18,18 @@ use middleware::{Middleware, Finished, Started, Response};
 use application::Inner;
 use server::{Writer, WriterState, HttpHandlerTask};
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum HandlerType {
+    Normal(usize),
+    Handler(usize),
+    Default,
+}
+
 pub(crate) trait PipelineHandler<S> {
 
     fn encoding(&self) -> ContentEncoding;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply;
+    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType) -> Reply;
 }
 
 pub(crate) struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
@@ -105,7 +112,7 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
 
     pub fn new(req: HttpRequest<S>,
                mws: Rc<Vec<Box<Middleware<S>>>>,
-               handler: Rc<RefCell<H>>) -> Pipeline<S, H>
+               handler: Rc<UnsafeCell<H>>, htype: HandlerType) -> Pipeline<S, H>
     {
         let mut info = PipelineInfo {
             req, mws,
@@ -113,9 +120,9 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
             error: None,
             context: None,
             disconnected: None,
-            encoding: handler.borrow().encoding(),
+            encoding: unsafe{&*handler.get()}.encoding(),
         };
-        let state = StartMiddlewares::init(&mut info, handler);
+        let state = StartMiddlewares::init(&mut info, handler, htype);
 
         Pipeline(info, state)
     }
@@ -209,20 +216,23 @@ type Fut = Box<Future<Item=Option<HttpResponse>, Error=Error>>;
 
 /// Middlewares start executor
 struct StartMiddlewares<S, H> {
-    hnd: Rc<RefCell<H>>,
+    hnd: Rc<UnsafeCell<H>>,
+    htype: HandlerType,
     fut: Option<Fut>,
     _s: PhantomData<S>,
 }
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
-    fn init(info: &mut PipelineInfo<S>, handler: Rc<RefCell<H>>) -> PipelineState<S, H> {
+    fn init(info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType)
+            -> PipelineState<S, H>
+    {
         // execute middlewares, we need this stage because middlewares could be non-async
         // and we can move to next state immediately
         let len = info.mws.len() as u16;
         loop {
             if info.count == len {
-                let reply = handler.borrow_mut().handle(info.req.clone());
+                let reply = unsafe{&mut *hnd.get()}.handle(info.req.clone(), htype);
                 return WaitingResponse::init(info, reply)
             } else {
                 match info.mws[info.count as usize].start(&mut info.req) {
@@ -234,7 +244,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                         match fut.poll() {
                             Ok(Async::NotReady) =>
                                 return PipelineState::Starting(StartMiddlewares {
-                                    hnd: handler,
+                                    hnd, htype,
                                     fut: Some(fut),
                                     _s: PhantomData}),
                             Ok(Async::Ready(resp)) => {
@@ -264,7 +274,8 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                         return Some(RunMiddlewares::init(info, resp));
                     }
                     if info.count == len {
-                        let reply = (*self.hnd.borrow_mut()).handle(info.req.clone());
+                        let reply = unsafe{
+                            &mut *self.hnd.get()}.handle(info.req.clone(), self.htype);
                         return Some(WaitingResponse::init(info, reply));
                     } else {
                         loop {
