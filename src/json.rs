@@ -19,54 +19,6 @@ use httpresponse::HttpResponse;
 ///
 /// Json can be used for two different purpose. First is for json response generation
 /// and second is for extracting typed information from request's payload.
-///
-/// The `Json` type allows you to respond with well-formed JSON data: simply
-/// return a value of type Json<T> where T is the type of a structure
-/// to serialize into *JSON*. The type `T` must implement the `Serialize`
-/// trait from *serde*.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// # 
-/// #[derive(Serialize)]
-/// struct MyObj {
-///     name: String,
-/// }
-///
-/// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
-///     Ok(Json(MyObj{name: req.match_info().query("name")?}))
-/// }
-/// # fn main() {}
-/// ```
-///
-/// To extract typed information from request's body, the type `T` must implement the
-/// `Deserialize` trait from *serde*.
-///
-/// ## Example
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Json, Result, http};
-///
-/// #[derive(Deserialize)]
-/// struct Info {
-///     username: String,
-/// }
-///
-/// /// deserialize `Info` from request's body
-/// fn index(info: Json<Info>) -> Result<String> {
-///     Ok(format!("Welcome {}!", info.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource(
-///        "/index.html",
-///        |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
-/// }
-/// ```
 pub struct Json<T>(pub T);
 
 impl<T> Deref for Json<T> {
@@ -95,6 +47,26 @@ impl<T> fmt::Display for Json<T> where T: fmt::Display {
     }
 }
 
+/// The `Json` type allows you to respond with well-formed JSON data: simply
+/// return a value of type Json<T> where T is the type of a structure
+/// to serialize into *JSON*. The type `T` must implement the `Serialize`
+/// trait from *serde*.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # #[macro_use] extern crate serde_derive;
+/// # use actix_web::*;
+/// #
+/// #[derive(Serialize)]
+/// struct MyObj {
+///     name: String,
+/// }
+///
+/// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
+///     Ok(Json(MyObj{name: req.match_info().query("name")?}))
+/// }
+/// # fn main() {}
+/// ```
 impl<T: Serialize> Responder for Json<T> {
     type Item = HttpResponse;
     type Error = Error;
@@ -108,6 +80,32 @@ impl<T: Serialize> Responder for Json<T> {
     }
 }
 
+/// To extract typed information from request's body, the type `T` must implement the
+/// `Deserialize` trait from *serde*.
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{App, Json, Result, http};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's body
+/// fn index(info: Json<Info>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html",
+///        |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
+/// }
+/// ```
 impl<T, S> FromRequest<S> for Json<T>
     where T: DeserializeOwned + 'static, S: 'static
 {

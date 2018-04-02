@@ -143,7 +143,7 @@ pub use application::App;
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
-pub use handler::{Either, Responder, AsyncResponder, FutureResponse, State};
+pub use handler::{Either, Responder, AsyncResponder, FromRequest, FutureResponse, State};
 pub use context::HttpContext;
 pub use server::HttpServer;
 
@@ -179,7 +179,7 @@ pub mod dev {
     pub use context::Drain;
     pub use json::JsonBody;
     pub use info::ConnectionInfo;
-    pub use handler::{Handler, Reply, FromRequest};
+    pub use handler::{Handler, Reply};
     pub use route::Route;
     pub use router::{Router, Resource, ResourceType};
     pub use resource::ResourceHandler;

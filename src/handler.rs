@@ -1,5 +1,6 @@
 use std::ops::Deref;
 use std::marker::PhantomData;
+use futures::Poll;
 use futures::future::{Future, FutureResult, ok, err};
 
 use error::Error;
@@ -92,6 +93,21 @@ impl<A, B> Responder for Either<A, B>
                 Ok(val) => Ok(val.into()),
                 Err(err) => Err(err.into()),
             },
+        }
+    }
+}
+
+impl<A, B, I, E> Future for Either<A, B>
+    where A: Future<Item=I, Error=E>,
+          B: Future<Item=I, Error=E>,
+{
+    type Item = I;
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<I, E> {
+        match *self {
+            Either::A(ref mut fut) => fut.poll(),
+            Either::B(ref mut fut) => fut.poll(),
         }
     }
 }

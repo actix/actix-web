@@ -265,7 +265,6 @@ a error in several cases:
 * content-length is greater than 256k
 * payload terminates with error.
 
-
 ```rust
 # extern crate actix_web;
 # extern crate futures;

@@ -1,14 +1,17 @@
+use std::str;
 use std::ops::{Deref, DerefMut};
 
+use bytes::Bytes;
 use serde_urlencoded;
 use serde::de::{self, DeserializeOwned};
 use futures::future::{Future, FutureResult, result};
+use encoding::all::UTF_8;
+use encoding::types::{Encoding, DecoderTrap};
 
-use body::Binary;
-use error::Error;
-use handler::FromRequest;
+use error::{Error, ErrorBadRequest};
+use handler::{Either, FromRequest};
 use httprequest::HttpRequest;
-use httpmessage::{MessageBody, UrlEncoded};
+use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use de::PathDeserializer;
 
 /// Extract typed information from the request's path.
@@ -173,20 +176,6 @@ impl<T, S> FromRequest<S> for Query<T>
     }
 }
 
-/// Request payload extractor.
-///
-/// Loads request's payload and construct Binary instance.
-impl<S: 'static> FromRequest<S> for Binary
-{
-    type Result = Box<Future<Item=Self, Error=Error>>;
-
-    #[inline]
-    fn from_request(req: &HttpRequest<S>) -> Self::Result {
-        Box::new(
-            MessageBody::new(req.clone()).from_err().map(|b| b.into()))
-    }
-}
-
 /// Extract typed information from the request's body.
 ///
 /// To extract typed information from request's body, the type `T` must implement the
@@ -242,6 +231,79 @@ impl<T, S> FromRequest<S> for Form<T>
     }
 }
 
+/// Request payload extractor.
+///
+/// Loads request's payload and construct Bytes instance.
+///
+/// ## Example
+///
+/// ```rust
+/// extern crate bytes;
+/// # extern crate actix_web;
+/// use actix_web::{App, Result};
+///
+/// /// extract text data from request
+/// fn index(body: bytes::Bytes) -> Result<String> {
+///     Ok(format!("Body {:?}!", body))
+/// }
+/// # fn main() {}
+/// ```
+impl<S: 'static> FromRequest<S> for Bytes
+{
+    type Result = Box<Future<Item=Self, Error=Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+        Box::new(MessageBody::new(req.clone()).from_err())
+    }
+}
+
+/// Extract text information from the request's body.
+///
+/// Text extractor automatically decode body according to the request's charset.
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::{App, Result};
+///
+/// /// extract text data from request
+/// fn index(body: String) -> Result<String> {
+///     Ok(format!("Body {}!", body))
+/// }
+/// # fn main() {}
+/// ```
+impl<S: 'static> FromRequest<S> for String
+{
+    type Result = Either<FutureResult<String, Error>,
+                         Box<Future<Item=String, Error=Error>>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+        let encoding = match req.encoding() {
+            Err(_) => return Either::A(
+                result(Err(ErrorBadRequest("Unknown request charset")))),
+            Ok(encoding) => encoding,
+        };
+
+        Either::B(Box::new(
+            MessageBody::new(req.clone())
+                .from_err()
+                .and_then(move |body| {
+                    let enc: *const Encoding = encoding as *const Encoding;
+                    if enc == UTF_8 {
+                        Ok(str::from_utf8(body.as_ref())
+                           .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                           .to_owned())
+                    } else {
+                        Ok(encoding.decode(&body, DecoderTrap::Strict)
+                           .map_err(|_| ErrorBadRequest("Can not decode body"))?)
+                    }
+                })))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,13 +321,26 @@ mod tests {
     }
 
     #[test]
-    fn test_binary() {
+    fn test_bytes() {
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
         req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
 
-        match Binary::from_request(&req).poll().unwrap() {
+        match Bytes::from_request(&req).poll().unwrap() {
             Async::Ready(s) => {
-                assert_eq!(s, Binary::from(Bytes::from_static(b"hello=world")));
+                assert_eq!(s, Bytes::from_static(b"hello=world"));
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_string() {
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
+        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+
+        match String::from_request(&req).poll().unwrap() {
+            Async::Ready(s) => {
+                assert_eq!(s, "hello=world");
             },
             _ => unreachable!(),
         }
