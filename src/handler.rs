@@ -373,7 +373,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
     }
 }
 
-/// Access to an application state
+/// Access an application state
 ///
 /// `S` - application state type
 ///

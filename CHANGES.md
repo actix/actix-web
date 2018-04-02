@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-* Type-safe path/query parameter handling, using serde #70
+* Type-safe path/query/form parameter handling, using serde #70
 
 * HttpResponse builder's methods  `.body()`, `.finish()`, `.json()`
   return `HttpResponse` instead of `Result`

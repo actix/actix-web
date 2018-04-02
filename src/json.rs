@@ -56,7 +56,7 @@ use httpresponse::HttpResponse;
 ///     username: String,
 /// }
 ///
-/// /// extract `Info` using serde
+/// /// deserialize `Info` from request's body
 /// fn index(info: Json<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
@@ -128,7 +128,6 @@ impl<T, S> FromRequest<S> for Json<T>
 ///
 /// * content type is not `application/json`
 /// * content length is greater than 256k
-///
 ///
 /// # Server example
 ///

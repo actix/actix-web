@@ -139,7 +139,7 @@ pub use body::{Body, Binary};
 pub use json::Json;
 pub use de::{Path, Query};
 pub use application::App;
-pub use httpmessage::HttpMessage;
+pub use httpmessage::{HttpMessage, Form};
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, AsyncResponder, FutureResponse, State};

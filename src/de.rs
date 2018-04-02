@@ -88,7 +88,7 @@ impl<T> DerefMut for Path<T> {
 }
 
 impl<T> Path<T> {
-    /// Deconstruct to a inner value
+    /// Deconstruct to an inner value
     pub fn into_inner(self) -> T {
         self.inner
     }
