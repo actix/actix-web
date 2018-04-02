@@ -287,7 +287,6 @@ mod tests {
         }
     }
 
-
     #[derive(Deserialize)]
     struct MyStruct {
         key: String,

@@ -256,8 +256,9 @@ A full example is available in the
 Actix provides support for *application/x-www-form-urlencoded* encoded bodies.
 `HttpResponse::urlencoded()` returns a
 [*UrlEncoded*](../actix_web/dev/struct.UrlEncoded.html) future, which resolves
-into `HashMap<String, String>` which contains decoded parameters.
-The *UrlEncoded* future can resolve into a error in several cases:
+to the deserialized instance, the type of the instance must implement the
+`Deserialize` trait from *serde*. The *UrlEncoded* future can resolve into
+a error in several cases:
 
 * content type is not `application/x-www-form-urlencoded`
 * transfer encoding is `chunked`.
@@ -268,21 +269,26 @@ The *UrlEncoded* future can resolve into a error in several cases:
 ```rust
 # extern crate actix_web;
 # extern crate futures;
+#[macro_use] extern crate serde_derive;
 use actix_web::*;
 use futures::future::{Future, ok};
 
+#[derive(Deserialize)]
+struct FormData {
+    username: String,
+}
+
 fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    req.urlencoded()         // <- get UrlEncoded future
+    req.urlencoded::<FormData>() // <- get UrlEncoded future
        .from_err()
-       .and_then(|params| {  // <- url encoded parameters
-             println!("==== BODY ==== {:?}", params);
+       .and_then(|data| {        // <- deserialized instance
+             println!("USERNAME: {:?}", data.username);
              ok(HttpResponse::Ok().into())
        })
        .responder()
 }
 # fn main() {}
 ```
-
 
 ## Streaming request
 
