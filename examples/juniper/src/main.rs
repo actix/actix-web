@@ -14,7 +14,7 @@ extern crate env_logger;
 
 use actix::prelude::*;
 use actix_web::{
-    middleware, http, server,
+    middleware, http::{self, header::CONTENT_TYPE}, server,
     App, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -79,7 +79,7 @@ fn graphql(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error
                 .from_err()
                 .and_then(|res| {
                     match res {
-                        Ok(user) => Ok(HttpResponse::Ok().body(user)),
+                        Ok(user) => Ok(HttpResponse::Ok().header(CONTENT_TYPE, "application/json").body(user)),
                         Err(_) => Ok(HttpResponse::InternalServerError().into())
                     }
                 })
