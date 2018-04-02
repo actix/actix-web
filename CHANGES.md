@@ -19,6 +19,8 @@
 
 * Fix client connection pooling
 
+* Fix logger request duration calculation #152
+
 
 ## 0.4.10 (2018-03-20)
 
