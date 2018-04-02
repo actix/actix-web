@@ -180,7 +180,7 @@ pub mod dev {
     pub use info::ConnectionInfo;
     pub use handler::{Handler, Reply, FromRequest};
     pub use route::Route;
-    pub use router::{Router, Resource};
+    pub use router::{Router, Resource, ResourceType};
     pub use resource::ResourceHandler;
     pub use param::{FromParam, Params};
     pub use httpmessage::{UrlEncoded, MessageBody};
