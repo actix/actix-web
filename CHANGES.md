@@ -9,6 +9,8 @@
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
 
+* Add `HttpRequest::resource()`, returns current matched resource
+
 * Router cannot parse Non-ASCII characters in URL #137
 
 * Fix long client urls #129

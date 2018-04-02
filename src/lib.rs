@@ -60,6 +60,8 @@ extern crate bitflags;
 #[macro_use]
 extern crate failure;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tokio_io;
@@ -174,12 +176,12 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use context::Drain;
+    pub use json::JsonBody;
     pub use info::ConnectionInfo;
     pub use handler::{Handler, Reply, FromRequest};
     pub use route::Route;
-    pub use resource::Resource;
-    pub use json::JsonBody;
-    pub use router::{Router, Pattern};
+    pub use router::{Router, Resource};
+    pub use resource::ResourceHandler;
     pub use param::{FromParam, Params};
     pub use httpmessage::{UrlEncoded, MessageBody};
     pub use httpresponse::HttpResponseBuilder;

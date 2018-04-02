@@ -31,16 +31,16 @@ use httpresponse::HttpResponse;
 ///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
-pub struct Resource<S=()> {
+pub struct ResourceHandler<S=()> {
     name: String,
     state: PhantomData<S>,
     routes: SmallVec<[Route<S>; 3]>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S> Default for Resource<S> {
+impl<S> Default for ResourceHandler<S> {
     fn default() -> Self {
-        Resource {
+        ResourceHandler {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
@@ -48,10 +48,10 @@ impl<S> Default for Resource<S> {
     }
 }
 
-impl<S> Resource<S> {
+impl<S> ResourceHandler<S> {
 
     pub(crate) fn default_not_found() -> Self {
-        Resource {
+        ResourceHandler {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
@@ -68,7 +68,7 @@ impl<S> Resource<S> {
     }
 }
 
-impl<S: 'static> Resource<S> {
+impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and return mutable reference to *Route* object.
     /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.
@@ -97,7 +97,7 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().filter(pred::Get()).f(index)
+    /// Application::resource("/", |r| r.route().filter(pred::Get()).f(index)
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
@@ -109,7 +109,7 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().h(handler)
+    /// Application::resource("/", |r| r.route().h(handler)
     /// ```
     pub fn h<H: Handler<S>>(&mut self, handler: H) {
         self.routes.push(Route::default());
@@ -121,7 +121,7 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().f(index)
+    /// Application::resource("/", |r| r.route().f(index)
     /// ```
     pub fn f<F, R>(&mut self, handler: F)
         where F: Fn(HttpRequest<S>) -> R + 'static,
@@ -136,7 +136,7 @@ impl<S: 'static> Resource<S> {
     /// This is shortcut for:
     ///
     /// ```rust,ignore
-    /// Resource::resource("/", |r| r.route().with(index)
+    /// Application::resource("/", |r| r.route().with(index)
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F)
         where F: Fn(T) -> R + 'static,
@@ -147,7 +147,7 @@ impl<S: 'static> Resource<S> {
         self.routes.last_mut().unwrap().with(handler)
     }
 
-    /// Register a middleware
+    /// Register a resource middleware
     ///
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
@@ -157,7 +157,7 @@ impl<S: 'static> Resource<S> {
 
     pub(crate) fn handle(&mut self,
                          mut req: HttpRequest<S>,
-                         default: Option<&mut Resource<S>>) -> Reply
+                         default: Option<&mut ResourceHandler<S>>) -> Reply
     {
         for route in &mut self.routes {
             if route.check(&mut req) {

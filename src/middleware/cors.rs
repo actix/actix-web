@@ -10,7 +10,7 @@
 //!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
 //!
 //! Cors middleware could be used as parameter for `App::middleware()` or
-//! `Resource::middleware()` methods. But you have to use `Cors::register()` method to
+//! `ResourceHandler::middleware()` methods. But you have to use `Cors::register()` method to
 //! support *preflight* OPTIONS request.
 //!
 //!
@@ -52,7 +52,7 @@ use http::{self, Method, HttpTryFrom, Uri, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
 
 use error::{Result, ResponseError};
-use resource::Resource;
+use resource::ResourceHandler;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -212,10 +212,10 @@ impl Cors {
     /// This method register cors middleware with resource and
     /// adds route for *OPTIONS* preflight requests.
     ///
-    /// It is possible to register *Cors* middleware with `Resource::middleware()`
+    /// It is possible to register *Cors* middleware with `ResourceHandler::middleware()`
     /// method, but in that case *Cors* middleware wont be able to handle *OPTIONS*
     /// requests.
-    pub fn register<S: 'static>(self, resource: &mut Resource<S>) {
+    pub fn register<S: 'static>(self, resource: &mut ResourceHandler<S>) {
         resource.method(Method::OPTIONS).h(|_| HttpResponse::Ok());
         resource.middleware(self);
     }

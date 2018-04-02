@@ -554,8 +554,8 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
 mod tests {
     use futures::{Async, Future};
     use super::*;
-    use router::{Router, Pattern};
-    use resource::Resource;
+    use router::{Router, Resource};
+    use resource::ResourceHandler;
     use test::TestRequest;
     use server::ServerSettings;
 
@@ -580,10 +580,10 @@ mod tests {
     fn test_request_extract() {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Pattern::new("index", "/{key}/{value}/"), Some(resource)));
+        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
@@ -639,10 +639,10 @@ mod tests {
 
     #[test]
     fn test_extract_path_signle() {
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Pattern::new("index", "/{value}/"), Some(resource)));
+        routes.push((Resource::new("index", "/{value}/"), Some(resource)));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/32/").finish();

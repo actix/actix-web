@@ -17,7 +17,7 @@ use percent_encoding::percent_decode;
 use body::Body;
 use info::ConnectionInfo;
 use param::Params;
-use router::Router;
+use router::{Router, Resource};
 use payload::Payload;
 use handler::FromRequest;
 use httpmessage::HttpMessage;
@@ -39,6 +39,7 @@ pub struct HttpInnerMessage {
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
+    pub resource: i16,
 }
 
 impl Default for HttpInnerMessage {
@@ -57,6 +58,7 @@ impl Default for HttpInnerMessage {
             payload: None,
             extensions: Extensions::new(),
             info: None,
+            resource: -1,
         }
     }
 }
@@ -93,8 +95,14 @@ impl HttpInnerMessage {
         self.addr = None;
         self.info = None;
         self.payload = None;
+        self.resource = -1;
     }
 }
+
+lazy_static!{
+    static ref RESOURCE: Resource = Resource::default();
+}
+
 
 /// An HTTP Request
 pub struct HttpRequest<S=()>(SharedHttpInnerMessage, Option<Rc<S>>, Option<Router>);
@@ -120,6 +128,7 @@ impl HttpRequest<()> {
                 addr: None,
                 extensions: Extensions::new(),
                 info: None,
+                resource: -1,
             }),
             None,
             None,
@@ -316,6 +325,22 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn router(&self) -> Option<&Router> {
         self.2.as_ref()
+    }
+
+    /// This method returns reference to matched `Resource` object.
+    #[inline]
+    pub fn resource(&self) -> &Resource {
+        let idx = self.as_ref().resource;
+        if idx >= 0 {
+            if let Some(ref router) = self.2 {
+                return router.get_resource(idx as usize)
+            }
+        }
+        &*RESOURCE
+    }
+
+    pub(crate) fn set_resource(&mut self, idx: usize) {
+        self.as_mut().resource = idx as i16;
     }
 
     /// Peer socket address
@@ -544,8 +569,8 @@ impl<S> fmt::Debug for HttpRequest<S> {
 mod tests {
     use super::*;
     use http::{Uri, HttpTryFrom};
-    use router::Pattern;
-    use resource::Resource;
+    use router::Resource;
+    use resource::ResourceHandler;
     use test::TestRequest;
     use server::ServerSettings;
 
@@ -607,10 +632,10 @@ mod tests {
     fn test_request_match_info() {
         let mut req = TestRequest::with_uri("/value/?id=test").finish();
 
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Pattern::new("index", "/{key}/"), Some(resource)));
+        routes.push((Resource::new("index", "/{key}/"), Some(resource)));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
@@ -623,9 +648,9 @@ mod tests {
         assert_eq!(req2.url_for("unknown", &["test"]),
                    Err(UrlGenerationError::RouterNotAvailable));
 
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec!((Pattern::new("index", "/user/{name}.{ext}"), Some(resource)));
+        let routes = vec!((Resource::new("index", "/user/{name}.{ext}"), Some(resource)));
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -645,26 +670,27 @@ mod tests {
     fn test_url_for_with_prefix() {
         let req = TestRequest::with_header(header::HOST, "www.rust-lang.org").finish();
 
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![(Pattern::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
 
         let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("index", &["test", "html"]);
-        assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/prefix/user/test.html");
+        assert_eq!(url.ok().unwrap().as_str(),
+                   "http://www.rust-lang.org/prefix/user/test.html");
     }
 
     #[test]
     fn test_url_for_external() {
         let req = HttpRequest::default();
 
-        let mut resource = Resource::<()>::default();
+        let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let routes = vec![
-            (Pattern::new("youtube", "https://youtube.com/watch/{video_id}"), None)];
+            (Resource::external("youtube", "https://youtube.com/watch/{video_id}"), None)];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 

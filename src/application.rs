@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use handler::Reply;
-use router::{Router, Pattern};
-use resource::Resource;
+use router::{Router, Resource};
+use resource::{ResourceHandler};
 use header::ContentEncoding;
 use handler::{Handler, RouteHandler, WrapHandler};
 use httprequest::HttpRequest;
@@ -27,10 +27,10 @@ pub struct HttpApplication<S=()> {
 
 pub(crate) struct Inner<S> {
     prefix: usize,
-    default: Resource<S>,
+    default: ResourceHandler<S>,
     encoding: ContentEncoding,
     router: Router,
-    resources: Vec<Resource<S>>,
+    resources: Vec<ResourceHandler<S>>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
 }
 
@@ -103,10 +103,10 @@ struct ApplicationParts<S> {
     state: S,
     prefix: String,
     settings: ServerSettings,
-    default: Resource<S>,
-    resources: Vec<(Pattern, Option<Resource<S>>)>,
+    default: ResourceHandler<S>,
+    resources: Vec<(Resource, Option<ResourceHandler<S>>)>,
     handlers: Vec<(String, Box<RouteHandler<S>>)>,
-    external: HashMap<String, Pattern>,
+    external: HashMap<String, Resource>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
 }
@@ -126,7 +126,7 @@ impl App<()> {
                 state: (),
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
-                default: Resource::default_not_found(),
+                default: ResourceHandler::default_not_found(),
                 resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
@@ -156,7 +156,7 @@ impl<S> App<S> where S: 'static {
                 state,
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
-                default: Resource::default_not_found(),
+                default: ResourceHandler::default_not_found(),
                 resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
@@ -236,16 +236,16 @@ impl<S> App<S> where S: 'static {
     /// }
     /// ```
     pub fn resource<F>(mut self, path: &str, f: F) -> App<S>
-        where F: FnOnce(&mut Resource<S>) + 'static
+        where F: FnOnce(&mut ResourceHandler<S>) + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
             // add resource
-            let mut resource = Resource::default();
+            let mut resource = ResourceHandler::default();
             f(&mut resource);
 
-            let pattern = Pattern::new(resource.get_name(), path);
+            let pattern = Resource::new(resource.get_name(), path);
             parts.resources.push((pattern, Some(resource)));
         }
         self
@@ -253,7 +253,7 @@ impl<S> App<S> where S: 'static {
 
     /// Default resource is used if no matched route could be found.
     pub fn default_resource<F>(mut self, f: F) -> App<S>
-        where F: FnOnce(&mut Resource<S>) + 'static
+        where F: FnOnce(&mut ResourceHandler<S>) + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -305,7 +305,8 @@ impl<S> App<S> where S: 'static {
                 panic!("External resource {:?} is registered.", name.as_ref());
             }
             parts.external.insert(
-                String::from(name.as_ref()), Pattern::new(name.as_ref(), url.as_ref()));
+                String::from(name.as_ref()),
+                Resource::external(name.as_ref(), url.as_ref()));
         }
         self
     }

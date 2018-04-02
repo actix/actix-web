@@ -34,16 +34,14 @@ use db::{CreateUser, DbExecutor};
 
 
 /// State with DbExecutor address
-struct State {
+struct App {
     db: Addr<Syn, DbExecutor>,
 }
 
 /// Async request handler
-fn index(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    let name = &req.match_info()["name"];
-
+fn index(name: Path<(String,)>, state: State<App>) -> FutureResponse<HttpResponse> {
     // send async `CreateUser` message to a `DbExecutor`
-    req.state().db.send(CreateUser{name: name.to_owned()})
+    state.db.send(CreateUser{name: name.into_inner()})
         .from_err()
         .and_then(|res| {
             match res {
@@ -72,7 +70,7 @@ fn main() {
         App::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/{name}", |r| r.method(http::Method::GET).a(index))})
+            .resource("/{name}", |r| r.method(http::Method::GET).with2(index))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
 
