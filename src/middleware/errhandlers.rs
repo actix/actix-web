@@ -19,9 +19,8 @@ type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{
-///     App, HttpRequest, HttpResponse, Result,
-///     http, middleware::Response, middleware::ErrorHandlers};
+/// use actix_web::{http, App, HttpRequest, HttpResponse, Result};
+/// use actix_web::middleware::{Response, ErrorHandlers};
 ///
 /// fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
 ///    let mut builder = resp.into_builder();
