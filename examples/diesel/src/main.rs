@@ -11,7 +11,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate diesel;
 extern crate r2d2;
-extern crate r2d2_diesel;
 extern crate uuid;
 extern crate futures;
 extern crate actix;
@@ -23,7 +22,7 @@ use actix_web::{http, server, middleware,
                 App, Path, State, HttpResponse, AsyncResponder, FutureResponse};
 
 use diesel::prelude::*;
-use r2d2_diesel::ConnectionManager;
+use diesel::r2d2::{ Pool, ConnectionManager };
 use futures::future::Future;
 
 mod db;
