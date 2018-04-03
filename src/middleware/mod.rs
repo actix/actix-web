@@ -10,9 +10,11 @@ mod logger;
 #[cfg(feature = "session")]
 mod session;
 mod defaultheaders;
+mod errhandlers;
 pub mod cors;
 pub mod csrf;
 pub use self::logger::Logger;
+pub use self::errhandlers::ErrorHandlers;
 pub use self::defaultheaders::{DefaultHeaders, DefaultHeadersBuilder};
 
 #[cfg(feature = "session")]
