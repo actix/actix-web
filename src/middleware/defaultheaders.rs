@@ -18,9 +18,8 @@ use middleware::{Response, Middleware};
 /// fn main() {
 ///     let app = App::new()
 ///         .middleware(
-///             middleware::DefaultHeaders::build()
-///                 .header("X-Version", "0.2")
-///                 .finish())
+///             middleware::DefaultHeaders::new()
+///                 .header("X-Version", "0.2"))
 ///         .resource("/test", |r| {
 ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
 ///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
@@ -33,9 +32,41 @@ pub struct DefaultHeaders{
     headers: HeaderMap,
 }
 
+impl Default for DefaultHeaders {
+    fn default() -> Self {
+        DefaultHeaders{ct: false, headers: HeaderMap::new()}
+    }
+}
+
 impl DefaultHeaders {
-    pub fn build() -> DefaultHeadersBuilder {
-        DefaultHeadersBuilder{ct: false, headers: Some(HeaderMap::new())}
+    /// Construct `DefaultHeaders` middleware.
+    pub fn new() -> DefaultHeaders {
+        DefaultHeaders::default()
+    }
+
+    /// Set a header.
+    #[inline]
+    #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
+    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+        where HeaderName: HttpTryFrom<K>,
+              HeaderValue: HttpTryFrom<V>
+    {
+        match HeaderName::try_from(key) {
+            Ok(key) => {
+                match HeaderValue::try_from(value) {
+                    Ok(value) => { self.headers.append(key, value); }
+                    Err(_) => panic!("Can not create header value"),
+                }
+            },
+            Err(_) => panic!("Can not create header name"),
+        }
+        self
+    }
+
+    /// Set *CONTENT-TYPE* header if response does not contain this header.
+    pub fn content_type(mut self) -> Self {
+        self.ct = true;
+        self
     }
 }
 
@@ -56,49 +87,6 @@ impl<S> Middleware<S> for DefaultHeaders {
     }
 }
 
-/// Structure that follows the builder pattern for building `DefaultHeaders` middleware.
-#[derive(Debug)]
-pub struct DefaultHeadersBuilder {
-    ct: bool,
-    headers: Option<HeaderMap>,
-}
-
-impl DefaultHeadersBuilder {
-
-    /// Set a header.
-    #[inline]
-    #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-        where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
-    {
-        if let Some(ref mut headers) = self.headers {
-            match HeaderName::try_from(key) {
-                Ok(key) => {
-                    match HeaderValue::try_from(value) {
-                        Ok(value) => { headers.append(key, value); }
-                        Err(_) => panic!("Can not create header value"),
-                    }
-                },
-                Err(_) => panic!("Can not create header name"),
-            };
-        }
-        self
-    }
-
-    /// Set *CONTENT-TYPE* header if response does not contain this header.
-    pub fn content_type(&mut self) -> &mut Self {
-        self.ct = true;
-        self
-    }
-
-    /// Finishes building and returns the built `DefaultHeaders` middleware.
-    pub fn finish(&mut self) -> DefaultHeaders {
-        let headers = self.headers.take().expect("cannot reuse middleware builder");
-        DefaultHeaders{ ct: self.ct, headers }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,9 +94,8 @@ mod tests {
 
     #[test]
     fn test_default_headers() {
-        let mw = DefaultHeaders::build()
-            .header(CONTENT_TYPE, "0001")
-            .finish();
+        let mw = DefaultHeaders::new()
+            .header(CONTENT_TYPE, "0001");
 
         let mut req = HttpRequest::default();
 

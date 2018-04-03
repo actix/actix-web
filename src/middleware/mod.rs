@@ -15,7 +15,7 @@ pub mod cors;
 pub mod csrf;
 pub use self::logger::Logger;
 pub use self::errhandlers::ErrorHandlers;
-pub use self::defaultheaders::{DefaultHeaders, DefaultHeadersBuilder};
+pub use self::defaultheaders::DefaultHeaders;
 
 #[cfg(feature = "session")]
 pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
