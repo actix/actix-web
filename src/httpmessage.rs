@@ -1,13 +1,13 @@
 use std::str;
-use std::collections::HashMap;
 use bytes::{Bytes, BytesMut};
 use futures::{Future, Stream, Poll};
 use http_range::HttpRange;
 use serde::de::DeserializeOwned;
 use mime::Mime;
-use url::form_urlencoded;
+use serde_urlencoded;
 use encoding::all::UTF_8;
 use encoding::EncodingRef;
+use encoding::types::{Encoding, DecoderTrap};
 use encoding::label::encoding_from_whatwg_label;
 use http::{header, HeaderMap};
 
@@ -137,8 +137,8 @@ pub trait HttpMessage {
     }
 
     /// Parse `application/x-www-form-urlencoded` encoded request's body.
-    /// Return `UrlEncoded` future. It resolves to a `HashMap<String, String>` which
-    /// contains decoded parameters.
+    /// Return `UrlEncoded` future. Form can be deserialized to any type that implements
+    /// `Deserialize` trait from *serde*.
     ///
     /// Returns error:
     ///
@@ -152,20 +152,21 @@ pub trait HttpMessage {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # use futures::Future;
-    /// use actix_web::*;
+    /// # use std::collections::HashMap;
+    /// use actix_web::{HttpMessage, HttpRequest, HttpResponse, FutureResponse};
     ///
     /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
-    ///     req.urlencoded()         // <- get UrlEncoded future
-    ///        .from_err()
-    ///        .and_then(|params| {  // <- url encoded parameters
-    ///             println!("==== BODY ==== {:?}", params);
-    ///             Ok(HttpResponse::Ok().into())
-    ///        })
-    ///        .responder()
+    ///     Box::new(
+    ///         req.urlencoded::<HashMap<String, String>>()  // <- get UrlEncoded future
+    ///            .from_err()
+    ///            .and_then(|params| {  // <- url encoded parameters
+    ///                println!("==== BODY ==== {:?}", params);
+    ///                Ok(HttpResponse::Ok().into())
+    ///           }))
     /// }
     /// # fn main() {}
     /// ```
-    fn urlencoded(self) -> UrlEncoded<Self>
+    fn urlencoded<T: DeserializeOwned>(self) -> UrlEncoded<Self, T>
         where Self: Stream<Item=Bytes, Error=PayloadError> + Sized
     {
         UrlEncoded::new(self)
@@ -321,14 +322,14 @@ impl<T> Future for MessageBody<T>
 }
 
 /// Future that resolves to a parsed urlencoded values.
-pub struct UrlEncoded<T> {
+pub struct UrlEncoded<T, U> {
     req: Option<T>,
     limit: usize,
-    fut: Option<Box<Future<Item=HashMap<String, String>, Error=UrlencodedError>>>,
+    fut: Option<Box<Future<Item=U, Error=UrlencodedError>>>,
 }
 
-impl<T> UrlEncoded<T> {
-    pub fn new(req: T) -> UrlEncoded<T> {
+impl<T, U> UrlEncoded<T, U> {
+    pub fn new(req: T) -> UrlEncoded<T, U> {
         UrlEncoded {
             req: Some(req),
             limit: 262_144,
@@ -343,10 +344,11 @@ impl<T> UrlEncoded<T> {
     }
 }
 
-impl<T> Future for UrlEncoded<T>
-    where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static
+impl<T, U> Future for UrlEncoded<T, U>
+    where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static,
+          U: DeserializeOwned + 'static
 {
-    type Item = HashMap<String, String>;
+    type Item = U;
     type Error = UrlencodedError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -385,13 +387,16 @@ impl<T> Future for UrlEncoded<T>
                     }
                 })
                 .and_then(move |body| {
-                    let mut m = HashMap::new();
-                    let parsed = form_urlencoded::parse_with_encoding(
-                        &body, Some(encoding), false).map_err(|_| UrlencodedError::Parse)?;
-                    for (k, v) in parsed {
-                        m.insert(k.into(), v.into());
+                    let enc: *const Encoding = encoding as *const Encoding;
+                    if enc == UTF_8 {
+                        serde_urlencoded::from_bytes::<U>(&body)
+                            .map_err(|_| UrlencodedError::Parse)
+                    } else {
+                        let body = encoding.decode(&body, DecoderTrap::Strict)
+                            .map_err(|_| UrlencodedError::Parse)?;
+                        serde_urlencoded::from_str::<U>(&body)
+                            .map_err(|_| UrlencodedError::Parse)
                     }
-                    Ok(m)
                 });
             self.fut = Some(Box::new(fut));
         }
@@ -410,7 +415,6 @@ mod tests {
     use http::{Method, Version, Uri};
     use httprequest::HttpRequest;
     use std::str::FromStr;
-    use std::iter::FromIterator;
     use test::TestRequest;
 
     #[test]
@@ -529,28 +533,37 @@ mod tests {
         }
     }
 
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct Info {
+        hello: String,
+    }
+
     #[test]
     fn test_urlencoded_error() {
         let req = TestRequest::with_header(header::TRANSFER_ENCODING, "chunked").finish();
-        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::Chunked);
+        assert_eq!(req.urlencoded::<Info>()
+                   .poll().err().unwrap(), UrlencodedError::Chunked);
 
         let req = TestRequest::with_header(
             header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(header::CONTENT_LENGTH, "xxxx")
             .finish();
-        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::UnknownLength);
+        assert_eq!(req.urlencoded::<Info>()
+                   .poll().err().unwrap(), UrlencodedError::UnknownLength);
 
         let req = TestRequest::with_header(
             header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(header::CONTENT_LENGTH, "1000000")
             .finish();
-        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::Overflow);
+        assert_eq!(req.urlencoded::<Info>()
+                   .poll().err().unwrap(), UrlencodedError::Overflow);
 
         let req = TestRequest::with_header(
             header::CONTENT_TYPE, "text/plain")
             .header(header::CONTENT_LENGTH, "10")
             .finish();
-        assert_eq!(req.urlencoded().poll().err().unwrap(), UrlencodedError::ContentType);
+        assert_eq!(req.urlencoded::<Info>()
+                   .poll().err().unwrap(), UrlencodedError::ContentType);
     }
 
     #[test]
@@ -561,9 +574,8 @@ mod tests {
             .finish();
         req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
 
-        let result = req.urlencoded().poll().ok().unwrap();
-        assert_eq!(result, Async::Ready(
-            HashMap::from_iter(vec![("hello".to_owned(), "world".to_owned())])));
+        let result = req.urlencoded::<Info>().poll().ok().unwrap();
+        assert_eq!(result, Async::Ready(Info{hello: "world".to_owned()}));
 
         let mut req = TestRequest::with_header(
             header::CONTENT_TYPE, "application/x-www-form-urlencoded; charset=utf-8")
@@ -572,8 +584,7 @@ mod tests {
         req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
 
         let result = req.urlencoded().poll().ok().unwrap();
-        assert_eq!(result, Async::Ready(
-            HashMap::from_iter(vec![("hello".to_owned(), "world".to_owned())])));
+        assert_eq!(result, Async::Ready(Info{hello: "world".to_owned()}));
     }
 
     #[test]

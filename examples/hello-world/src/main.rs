@@ -11,10 +11,10 @@ fn index(_req: HttpRequest) -> &'static str {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
-    let sys = actix::System::new("ws-example");
+    env_logger::init();
+    let sys = actix::System::new("hello-world");
 
-    let _addr = server::new(
+    server::new(
         || App::new()
             // enable logger
             .middleware(middleware::Logger::default())

@@ -115,6 +115,13 @@ impl ResponseError for DeError {
     }
 }
 
+/// Return `BAD_REQUEST` for `Utf8Error`
+impl ResponseError for Utf8Error {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::BAD_REQUEST)
+    }
+}
+
 /// Return `InternalServerError` for `HttpError`,
 /// Response generation can return `HttpError`, so it is internal error
 impl ResponseError for HttpError {}

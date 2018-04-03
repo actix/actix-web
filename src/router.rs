@@ -12,7 +12,6 @@ use resource::ResourceHandler;
 use httprequest::HttpRequest;
 use server::ServerSettings;
 
-
 /// Interface for application router.
 pub struct Router(Rc<Inner>);
 
@@ -68,7 +67,7 @@ impl Router {
     pub(crate) fn get_resource(&self, idx: usize) -> &Resource {
         &self.0.patterns[idx]
     }
-    
+
     /// Query for matched resource
     pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
         if self.0.prefix_len > req.path().len() {
@@ -127,7 +126,6 @@ impl Clone for Router {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 enum PatternElement {
     Str(String),
@@ -140,26 +138,27 @@ enum PatternType {
     Dynamic(Regex, Vec<String>),
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+/// Resource type
+pub enum ResourceType {
+    /// Normal resource
+    Normal,
+    /// Resource for applicaiton default handler
+    Default,
+    /// External resource
+    External,
+    /// Unknown resource type
+    Unset,
+}
+
 /// Reslource type describes an entry in resources table
 #[derive(Clone)]
 pub struct Resource {
     tp: PatternType,
+    rtp: ResourceType,
     name: String,
     pattern: String,
     elements: Vec<PatternElement>,
-    external: bool,
-}
-
-impl Default for Resource {
-    fn default() -> Resource {
-        Resource {
-            tp: PatternType::Static("".to_owned()),
-            name: "".to_owned(),
-            pattern: "".to_owned(),
-            elements: Vec::new(),
-            external: false,
-        }
-    }
 }
 
 impl Resource {
@@ -175,8 +174,19 @@ impl Resource {
     /// Panics if path pattern is wrong.
     pub fn external(name: &str, path: &str) -> Self {
         let mut resource = Resource::with_prefix(name, path, "/");
-        resource.external = true;
+        resource.rtp = ResourceType::External;
         resource
+    }
+
+    /// Unset resource type
+    pub(crate) fn unset() -> Resource {
+        Resource {
+            tp: PatternType::Static("".to_owned()),
+            rtp: ResourceType::Unset,
+            name: "".to_owned(),
+            pattern: "".to_owned(),
+            elements: Vec::new(),
+        }
     }
 
     /// Parse path pattern and create new `Resource` instance with custom prefix
@@ -200,14 +210,19 @@ impl Resource {
             tp,
             elements,
             name: name.into(),
+            rtp: ResourceType::Normal,
             pattern: path.to_owned(),
-            external: false,
         }
     }
 
     /// Name of the resource
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Resource type
+    pub fn rtype(&self) -> ResourceType {
+        self.rtp
     }
 
     /// Path pattern of the resource
@@ -253,7 +268,7 @@ impl Resource {
               I: AsRef<str>,
     {
         let mut iter = elements.into_iter();
-        let mut path = if !self.external {
+        let mut path = if self.rtp != ResourceType::External {
             format!("{}/", router.prefix())
         } else {
             String::new()

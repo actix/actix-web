@@ -231,18 +231,14 @@ impl FormatText {
             FormatText::ResponseSize => resp.response_size().fmt(fmt),
             FormatText::Pid => unsafe{libc::getpid().fmt(fmt)},
             FormatText::Time => {
-                let response_time = time::now() - entry_time;
-                let response_time = response_time.num_seconds() as f64 +
-                    (response_time.num_nanoseconds().unwrap_or(0) as f64)/1_000_000_000.0;
-
-                fmt.write_fmt(format_args!("{:.6}", response_time))
+                let rt = time::now() - entry_time;
+                let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000_000.0;
+                fmt.write_fmt(format_args!("{:.6}", rt))
             },
             FormatText::TimeMillis => {
-                let response_time = time::now() - entry_time;
-                let response_time_ms = (response_time.num_seconds() * 1000) as f64 +
-                    (response_time.num_nanoseconds().unwrap_or(0) as f64)/1_000_000.0;
-
-                fmt.write_fmt(format_args!("{:.6}", response_time_ms))
+                let rt = time::now() - entry_time;
+                let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000.0;
+                fmt.write_fmt(format_args!("{:.6}", rt))
             },
             FormatText::RemoteAddr => {
                 if let Some(remote) = req.connection_info().remote() {

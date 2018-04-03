@@ -39,7 +39,13 @@ pub struct HttpInnerMessage {
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
-    pub resource: i16,
+    resource: RouterResource,
+}
+
+#[derive(Debug, Copy, Clone,PartialEq)]
+enum RouterResource {
+    Notset,
+    Normal(u16),
 }
 
 impl Default for HttpInnerMessage {
@@ -58,7 +64,7 @@ impl Default for HttpInnerMessage {
             payload: None,
             extensions: Extensions::new(),
             info: None,
-            resource: -1,
+            resource: RouterResource::Notset,
         }
     }
 }
@@ -95,12 +101,12 @@ impl HttpInnerMessage {
         self.addr = None;
         self.info = None;
         self.payload = None;
-        self.resource = -1;
+        self.resource = RouterResource::Notset;
     }
 }
 
 lazy_static!{
-    static ref RESOURCE: Resource = Resource::default();
+    static ref RESOURCE: Resource = Resource::unset();
 }
 
 
@@ -128,7 +134,7 @@ impl HttpRequest<()> {
                 addr: None,
                 extensions: Extensions::new(),
                 info: None,
-                resource: -1,
+                resource: RouterResource::Notset,
             }),
             None,
             None,
@@ -330,17 +336,16 @@ impl<S> HttpRequest<S> {
     /// This method returns reference to matched `Resource` object.
     #[inline]
     pub fn resource(&self) -> &Resource {
-        let idx = self.as_ref().resource;
-        if idx >= 0 {
-            if let Some(ref router) = self.2 {
+        if let Some(ref router) = self.2 {
+            if let RouterResource::Normal(idx) = self.as_ref().resource {
                 return router.get_resource(idx as usize)
             }
         }
         &*RESOURCE
     }
 
-    pub(crate) fn set_resource(&mut self, idx: usize) {
-        self.as_mut().resource = idx as i16;
+    pub(crate) fn set_resource(&mut self, res: usize) {
+        self.as_mut().resource = RouterResource::Normal(res as u16);
     }
 
     /// Peer socket address

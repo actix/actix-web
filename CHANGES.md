@@ -2,14 +2,16 @@
 
 ## 0.5.0
 
-* Type-safe path/query parameter handling, using serde #70
+* Type-safe path/query/form parameter handling, using serde #70
 
 * HttpResponse builder's methods  `.body()`, `.finish()`, `.json()`
   return `HttpResponse` instead of `Result`
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
 
-* Add `HttpRequest::resource()`, returns current matched resource
+* Added `HttpRequest::resource()`, returns current matched resource
+
+* Added `ErrorHandlers` middleware
 
 * Router cannot parse Non-ASCII characters in URL #137
 
@@ -18,6 +20,8 @@
 * Fix panic on invalid URL characters #130
 
 * Fix client connection pooling
+
+* Fix logger request duration calculation #152
 
 
 ## 0.4.10 (2018-03-20)

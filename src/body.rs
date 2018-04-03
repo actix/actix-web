@@ -6,6 +6,10 @@ use futures::Stream;
 
 use error::Error;
 use context::ActorHttpContext;
+use handler::Responder;
+use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
+
 
 /// Type represent streaming body
 pub type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
@@ -244,6 +248,17 @@ impl AsRef<[u8]> for Binary {
             Binary::ArcSharedString(ref s) => s.as_bytes(),
             Binary::SharedVec(ref s) => s.as_ref().as_ref(),
         }
+    }
+}
+
+impl Responder for Binary {
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(HttpResponse::Ok()
+           .content_type("application/octet-stream")
+           .body(self))
     }
 }
 
