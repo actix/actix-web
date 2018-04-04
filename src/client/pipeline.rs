@@ -458,3 +458,11 @@ impl Pipeline {
         }
     }
 }
+
+impl Drop for Pipeline {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            conn.close()
+        }
+    }
+}
