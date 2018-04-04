@@ -144,7 +144,7 @@ impl<S: 'static> ResourceHandler<S> {
               T: FromRequest<S> + 'static,
     {
         self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().with(handler)
+        self.routes.last_mut().unwrap().with(handler);
     }
 
     /// Register a resource middleware

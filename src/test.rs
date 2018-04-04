@@ -351,8 +351,8 @@ impl<S: 'static> TestApp<S> {
 
     /// Register resource. This method is similar
     /// to `App::resource()` method.
-    pub fn resource<F>(&mut self, path: &str, f: F) -> &mut TestApp<S>
-        where F: FnOnce(&mut ResourceHandler<S>) + 'static
+    pub fn resource<F, R>(&mut self, path: &str, f: F) -> &mut TestApp<S>
+        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
     {
         self.app = Some(self.app.take().unwrap().resource(path, f));
         self

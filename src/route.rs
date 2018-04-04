@@ -11,7 +11,7 @@ use handler::{Reply, ReplyItem, Handler, FromRequest,
 use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use with::{With, With2, With3};
+use with::{With, With2, With3, ExtractorConfig};
 
 /// Resource route definition
 ///
@@ -127,12 +127,14 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
     /// }
     /// ```
-    pub fn with<T, F, R>(&mut self, handler: F)
+    pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
         where F: Fn(T) -> R + 'static,
               R: Responder + 'static,
               T: FromRequest<S> + 'static,
     {
-        self.h(With::new(handler))
+        let cfg = ExtractorConfig::default();
+        self.h(With::new(handler, Clone::clone(&cfg)));
+        cfg
     }
 
     /// Set handler function, function has to accept two request extractors.
@@ -166,23 +168,33 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(&mut self, handler: F)
+                               -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
         where F: Fn(T1, T2) -> R + 'static,
               R: Responder + 'static,
               T1: FromRequest<S> + 'static,
               T2: FromRequest<S> + 'static,
     {
-        self.h(With2::new(handler))
+        let cfg1 = ExtractorConfig::default();
+        let cfg2 = ExtractorConfig::default();
+        self.h(With2::new(handler, Clone::clone(&cfg1), Clone::clone(&cfg2)));
+        (cfg1, cfg2)
     }
 
     /// Set handler function, function has to accept three request extractors.
     pub fn with3<T1, T2, T3, F, R>(&mut self, handler: F)
+        -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>, ExtractorConfig<S, T3>)
         where F: Fn(T1, T2, T3) -> R + 'static,
               R: Responder + 'static,
               T1: FromRequest<S> + 'static,
               T2: FromRequest<S> + 'static,
               T3: FromRequest<S> + 'static,
     {
-        self.h(With3::new(handler))
+        let cfg1 = ExtractorConfig::default();
+        let cfg2 = ExtractorConfig::default();
+        let cfg3 = ExtractorConfig::default();
+        self.h(With3::new(
+            handler, Clone::clone(&cfg1), Clone::clone(&cfg2), Clone::clone(&cfg3)));
+        (cfg1, cfg2, cfg3)
     }
 }
 

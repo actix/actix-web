@@ -37,9 +37,14 @@ pub trait Responder {
 /// Types that implement this trait can be used with `Route::with()` method.
 pub trait FromRequest<S>: Sized where S: 'static
 {
+    /// Configuration for conversion process
+    type Config: Default;
+
+    /// Future that resolves to a Self
     type Result: Future<Item=Self, Error=Error>;
 
-    fn from_request(req: &HttpRequest<S>) -> Self::Result;
+    /// Convert request to a Self
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
 }
 
 /// Combines two different responder types into a single type
@@ -433,10 +438,11 @@ impl<S> Deref for State<S> {
 
 impl<S: 'static> FromRequest<S> for State<S>
 {
+    type Config = ();
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         ok(State(req.clone()))
     }
 }

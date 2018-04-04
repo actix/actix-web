@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use futures::{Async, Future, Poll};
 
 use error::Error;
@@ -8,19 +9,55 @@ use handler::{Handler, FromRequest, Reply, ReplyItem, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
+pub struct ExtractorConfig<S: 'static, T: FromRequest<S>> {
+    cfg: Rc<UnsafeCell<T::Config>>
+}
+
+impl<S: 'static, T: FromRequest<S>> Default for ExtractorConfig<S, T> {
+    fn default() -> Self {
+        ExtractorConfig { cfg: Rc::new(UnsafeCell::new(T::Config::default())) }
+    }
+}
+
+impl<S: 'static, T: FromRequest<S>> Clone for ExtractorConfig<S, T> {
+    fn clone(&self) -> Self {
+        ExtractorConfig { cfg: Rc::clone(&self.cfg) }
+    }
+}
+
+impl<S: 'static, T: FromRequest<S>> AsRef<T::Config> for ExtractorConfig<S, T> {
+    fn as_ref(&self) -> &T::Config {
+        unsafe{&*self.cfg.get()}
+    }
+}
+
+impl<S: 'static, T: FromRequest<S>> Deref for ExtractorConfig<S, T> {
+    type Target = T::Config;
+
+    fn deref(&self) -> &T::Config {
+        unsafe{&*self.cfg.get()}
+    }
+}
+
+impl<S: 'static, T: FromRequest<S>> DerefMut for ExtractorConfig<S, T> {
+    fn deref_mut(&mut self) -> &mut T::Config {
+        unsafe{&mut *self.cfg.get()}
+    }
+}
+
 pub struct With<T, S, F, R>
-    where F: Fn(T) -> R
+    where F: Fn(T) -> R, T: FromRequest<S>, S: 'static,
 {
     hnd: Rc<UnsafeCell<F>>,
-    _t: PhantomData<T>,
+    cfg: ExtractorConfig<S, T>,
     _s: PhantomData<S>,
 }
 
 impl<T, S, F, R> With<T, S, F, R>
-    where F: Fn(T) -> R,
+    where F: Fn(T) -> R, T: FromRequest<S>, S: 'static,
 {
-    pub fn new(f: F) -> Self {
-        With{hnd: Rc::new(UnsafeCell::new(f)), _t: PhantomData, _s: PhantomData}
+    pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
+        With{cfg, hnd: Rc::new(UnsafeCell::new(f)), _s: PhantomData}
     }
 }
 
@@ -37,6 +74,7 @@ impl<T, S, F, R> Handler<S> for With<T, S, F, R>
             req,
             started: false,
             hnd: Rc::clone(&self.hnd),
+            cfg: self.cfg.clone(),
             fut1: None,
             fut2: None,
         };
@@ -57,6 +95,7 @@ struct WithHandlerFut<T, S, F, R>
 {
     started: bool,
     hnd: Rc<UnsafeCell<F>>,
+    cfg: ExtractorConfig<S, T>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item=T, Error=Error>>>,
     fut2: Option<Box<Future<Item=HttpResponse, Error=Error>>>,
@@ -78,7 +117,7 @@ impl<T, S, F, R> Future for WithHandlerFut<T, S, F, R>
 
         let item = if !self.started {
             self.started = true;
-            let mut fut = T::from_request(&self.req);
+            let mut fut = T::from_request(&self.req, self.cfg.as_ref());
             match fut.poll() {
                 Ok(Async::Ready(item)) => item,
                 Ok(Async::NotReady) => {
@@ -110,19 +149,23 @@ impl<T, S, F, R> Future for WithHandlerFut<T, S, F, R>
     }
 }
 
-pub struct With2<T1, T2, S, F, R> where F: Fn(T1, T2) -> R
+pub struct With2<T1, T2, S, F, R>
+    where F: Fn(T1, T2) -> R,
+          T1: FromRequest<S> + 'static, T2: FromRequest<S> + 'static, S: 'static
 {
     hnd: Rc<UnsafeCell<F>>,
-    _t1: PhantomData<T1>,
-    _t2: PhantomData<T2>,
+    cfg1: ExtractorConfig<S, T1>,
+    cfg2: ExtractorConfig<S, T2>,
     _s: PhantomData<S>,
 }
 
-impl<T1, T2, S, F, R> With2<T1, T2, S, F, R> where F: Fn(T1, T2) -> R
+impl<T1, T2, S, F, R> With2<T1, T2, S, F, R>
+    where F: Fn(T1, T2) -> R,
+          T1: FromRequest<S> + 'static, T2: FromRequest<S> + 'static, S: 'static
 {
-    pub fn new(f: F) -> Self {
+    pub fn new(f: F, cfg1: ExtractorConfig<S, T1>, cfg2: ExtractorConfig<S, T2>) -> Self {
         With2{hnd: Rc::new(UnsafeCell::new(f)),
-              _t1: PhantomData, _t2: PhantomData, _s: PhantomData}
+              cfg1, cfg2, _s: PhantomData}
     }
 }
 
@@ -140,6 +183,8 @@ impl<T1, T2, S, F, R> Handler<S> for With2<T1, T2, S, F, R>
             req,
             started: false,
             hnd: Rc::clone(&self.hnd),
+            cfg1: self.cfg1.clone(),
+            cfg2: self.cfg2.clone(),
             item: None,
             fut1: None,
             fut2: None,
@@ -162,6 +207,8 @@ struct WithHandlerFut2<T1, T2, S, F, R>
 {
     started: bool,
     hnd: Rc<UnsafeCell<F>>,
+    cfg1: ExtractorConfig<S, T1>,
+    cfg2: ExtractorConfig<S, T2>,
     req: HttpRequest<S>,
     item: Option<T1>,
     fut1: Option<Box<Future<Item=T1, Error=Error>>>,
@@ -186,10 +233,10 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
 
         if !self.started {
             self.started = true;
-            let mut fut = T1::from_request(&self.req);
+            let mut fut = T1::from_request(&self.req, self.cfg1.as_ref());
             match fut.poll() {
                 Ok(Async::Ready(item1)) => {
-                    let mut fut = T2::from_request(&self.req);
+                    let mut fut = T2::from_request(&self.req,self.cfg2.as_ref());
                     match fut.poll() {
                         Ok(Async::Ready(item2)) => {
                             let hnd: &mut F = unsafe{&mut *self.hnd.get()};
@@ -228,7 +275,8 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
                 Async::Ready(item) => {
                     self.item = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::from_request(&self.req)));
+                    self.fut2 = Some(Box::new(
+                        T2::from_request(&self.req, self.cfg2.as_ref())));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -256,21 +304,32 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
     }
 }
 
-pub struct With3<T1, T2, T3, S, F, R> where F: Fn(T1, T2, T3) -> R {
+pub struct With3<T1, T2, T3, S, F, R>
+    where F: Fn(T1, T2, T3) -> R,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
+          T3: FromRequest<S> + 'static,
+          S: 'static
+{
     hnd: Rc<UnsafeCell<F>>,
-    _t1: PhantomData<T1>,
-    _t2: PhantomData<T2>,
-    _t3: PhantomData<T3>,
+    cfg1: ExtractorConfig<S, T1>,
+    cfg2: ExtractorConfig<S, T2>,
+    cfg3: ExtractorConfig<S, T3>,
     _s: PhantomData<S>,
 }
 
 
 impl<T1, T2, T3, S, F, R> With3<T1, T2, T3, S, F, R>
     where F: Fn(T1, T2, T3) -> R,
+          T1: FromRequest<S> + 'static,
+          T2: FromRequest<S> + 'static,
+          T3: FromRequest<S> + 'static,
+          S: 'static
 {
-    pub fn new(f: F) -> Self {
-        With3{hnd: Rc::new(UnsafeCell::new(f)),
-              _s: PhantomData, _t1: PhantomData, _t2: PhantomData, _t3: PhantomData}
+    pub fn new(f: F, cfg1: ExtractorConfig<S, T1>,
+               cfg2: ExtractorConfig<S, T2>, cfg3: ExtractorConfig<S, T3>) -> Self
+    {
+        With3{hnd: Rc::new(UnsafeCell::new(f)), cfg1, cfg2, cfg3,  _s: PhantomData}
     }
 }
 
@@ -288,6 +347,9 @@ impl<T1, T2, T3, S, F, R> Handler<S> for With3<T1, T2, T3, S, F, R>
         let mut fut = WithHandlerFut3{
             req,
             hnd: Rc::clone(&self.hnd),
+            cfg1: self.cfg1.clone(),
+            cfg2: self.cfg2.clone(),
+            cfg3: self.cfg3.clone(),
             started: false,
             item1: None,
             item2: None,
@@ -314,6 +376,9 @@ struct WithHandlerFut3<T1, T2, T3, S, F, R>
 {
     hnd: Rc<UnsafeCell<F>>,
     req: HttpRequest<S>,
+    cfg1: ExtractorConfig<S, T1>,
+    cfg2: ExtractorConfig<S, T2>,
+    cfg3: ExtractorConfig<S, T3>,
     started: bool,
     item1: Option<T1>,
     item2: Option<T2>,
@@ -341,13 +406,13 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
 
         if !self.started {
             self.started = true;
-            let mut fut = T1::from_request(&self.req);
+            let mut fut = T1::from_request(&self.req, self.cfg1.as_ref());
             match fut.poll() {
                 Ok(Async::Ready(item1)) => {
-                    let mut fut = T2::from_request(&self.req);
+                    let mut fut = T2::from_request(&self.req, self.cfg2.as_ref());
                     match fut.poll() {
                         Ok(Async::Ready(item2)) => {
-                            let mut fut = T3::from_request(&self.req);
+                            let mut fut = T3::from_request(&self.req, self.cfg3.as_ref());
                             match fut.poll() {
                                 Ok(Async::Ready(item3)) => {
                                     let hnd: &mut F = unsafe{&mut *self.hnd.get()};
@@ -395,7 +460,8 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
                 Async::Ready(item) => {
                     self.item1 = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::from_request(&self.req)));
+                    self.fut2 = Some(Box::new(
+                        T2::from_request(&self.req, self.cfg2.as_ref())));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -406,7 +472,8 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
                 Async::Ready(item) => {
                     self.item2 = Some(item);
                     self.fut2.take();
-                    self.fut3 = Some(Box::new(T3::from_request(&self.req)));
+                    self.fut3 = Some(Box::new(
+                        T3::from_request(&self.req, self.cfg3.as_ref())));
                 },
                 Async::NotReady => return Ok(Async::NotReady),
             }

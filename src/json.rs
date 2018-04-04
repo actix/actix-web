@@ -110,14 +110,61 @@ impl<T: Serialize> Responder for Json<T> {
 impl<T, S> FromRequest<S> for Json<T>
     where T: DeserializeOwned + 'static, S: 'static
 {
+    type Config = JsonConfig;
     type Result = Box<Future<Item=Self, Error=Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         Box::new(
             JsonBody::new(req.clone())
+                .limit(cfg.limit)
                 .from_err()
                 .map(Json))
+    }
+}
+
+/// Json extractor configuration
+///
+/// ```rust
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{App, Json, Result, http};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// fn index(info: Json<Info>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html", |r| {
+///            r.method(http::Method::POST)
+///               .with(index)
+///               .limit(4096);} // <- change json extractor configuration
+///     );
+/// }
+/// ```
+pub struct JsonConfig {
+    limit: usize,
+}
+
+impl JsonConfig {
+
+    /// Change max size of payload. By default max size is 256Kb
+    pub fn limit(&mut self, limit: usize) -> &mut Self {
+        self.limit = limit;
+        self
+    }
+}
+
+impl Default for JsonConfig {
+    fn default() -> Self {
+        JsonConfig{limit: 262_144}
     }
 }
 
@@ -231,7 +278,7 @@ mod tests {
     use http::header;
     use futures::Async;
 
-    use with::With;
+    use with::{With, ExtractorConfig};
     use handler::Handler;
 
     impl PartialEq for JsonPayloadError {
@@ -295,7 +342,9 @@ mod tests {
 
     #[test]
     fn test_with_json() {
-        let mut handler = With::new(|data: Json<MyObject>| data);
+        let mut cfg = ExtractorConfig::<_, Json<MyObject>>::default();
+        cfg.limit(4096);
+        let mut handler = With::new(|data: Json<MyObject>| {data}, cfg);
 
         let req = HttpRequest::default();
         let err = handler.handle(req).as_response().unwrap().error().is_some();

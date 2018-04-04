@@ -255,8 +255,8 @@ impl<S> App<S> where S: 'static {
     ///         });
     /// }
     /// ```
-    pub fn resource<F>(mut self, path: &str, f: F) -> App<S>
-        where F: FnOnce(&mut ResourceHandler<S>) + 'static
+    pub fn resource<F, R>(mut self, path: &str, f: F) -> App<S>
+        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -272,8 +272,8 @@ impl<S> App<S> where S: 'static {
     }
 
     /// Default resource is used if no matched route could be found.
-    pub fn default_resource<F>(mut self, f: F) -> App<S>
-        where F: FnOnce(&mut ResourceHandler<S>) + 'static
+    pub fn default_resource<F, R>(mut self, f: F) -> App<S>
+        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");

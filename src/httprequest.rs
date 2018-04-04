@@ -494,10 +494,11 @@ impl<S> Clone for HttpRequest<S> {
 
 impl<S: 'static> FromRequest<S> for HttpRequest<S>
 {
+    type Config = ();
     type Result = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         result(Ok(req.clone()))
     }
 }

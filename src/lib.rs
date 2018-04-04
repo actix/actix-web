@@ -177,9 +177,10 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use context::Drain;
-    pub use json::JsonBody;
+    pub use json::{JsonBody, JsonConfig};
     pub use info::ConnectionInfo;
     pub use handler::{Handler, Reply};
+    pub use extractor::{FormConfig};
     pub use route::Route;
     pub use router::{Router, Resource, ResourceType};
     pub use resource::ResourceHandler;
