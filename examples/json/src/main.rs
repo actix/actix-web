@@ -21,7 +21,7 @@ struct MyObj {
     number: i32,
 }
 
-/// This handler uses `HttpRequest::json()` for loading serde json object.
+/// This handler uses `HttpRequest::json()` for loading json object.
 fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     req.json()
         .from_err()  // convert all errors into `Error`
@@ -32,7 +32,7 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
         .responder()
 }
 
-/// This handler uses `With` helper for loading serde json object.
+/// This handler uses json extractor
 fn extract_item(item: Json<MyObj>) -> HttpResponse {
     println!("model: {:?}", &item);
     HttpResponse::Ok().json(item.0)  // <- send response
@@ -40,7 +40,7 @@ fn extract_item(item: Json<MyObj>) -> HttpResponse {
 
 const MAX_SIZE: usize = 262_144;  // max payload size is 256k
 
-/// This handler manually load request payload and parse serde json
+/// This handler manually load request payload and parse json object
 fn index_manual(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     // HttpRequest is stream of Bytes objects
     req
@@ -86,15 +86,18 @@ fn index_mjsonrust(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Erro
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("json-example");
 
     let _ = server::new(|| {
         App::new()
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/extractor/{name}/{number}/",
-                      |r| r.method(http::Method::GET).with(extract_item))
+            .resource("/extractor", |r| {
+                r.method(http::Method::POST)
+                    .with(extract_item)
+                    .limit(4096); // <- limit size of the payload
+            })
             .resource("/manual", |r| r.method(http::Method::POST).f(index_manual))
             .resource("/mjsonrust", |r| r.method(http::Method::POST).f(index_mjsonrust))
             .resource("/", |r| r.method(http::Method::POST).f(index))})
