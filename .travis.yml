@@ -87,7 +87,7 @@ after_success:
     fi
 
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
       bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
       USE_SKEPTIC=1 cargo tarpaulin --out Xml
       bash <(curl -s https://codecov.io/bash)
