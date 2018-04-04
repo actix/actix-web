@@ -626,8 +626,8 @@ impl Responder for &'static str {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("text/plain; charset=utf-8")
            .body(self))
     }
@@ -645,8 +645,8 @@ impl Responder for &'static [u8] {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("application/octet-stream")
            .body(self))
     }
@@ -664,8 +664,8 @@ impl Responder for String {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("text/plain; charset=utf-8")
            .body(self))
     }
@@ -683,8 +683,8 @@ impl<'a> Responder for &'a String {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("text/plain; charset=utf-8")
            .body(self))
     }
@@ -702,8 +702,8 @@ impl Responder for Bytes {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("application/octet-stream")
            .body(self))
     }
@@ -721,8 +721,8 @@ impl Responder for BytesMut {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(req.build_response(StatusCode::OK)
            .content_type("application/octet-stream")
            .body(self))
     }

@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 
 use error::{Error, JsonPayloadError, PayloadError};
 use handler::{Responder, FromRequest};
+use http::StatusCode;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -71,10 +72,10 @@ impl<T: Serialize> Responder for Json<T> {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&self.0)?;
 
-        Ok(HttpResponse::Ok()
+        Ok(req.build_response(StatusCode::OK)
            .content_type("application/json")
            .body(body))
     }
