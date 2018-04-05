@@ -1,8 +1,5 @@
 # Quick start
 
-Before you can start writing a actix web applications, you’ll need a version of Rust installed.
-We recommend you use rustup to install or configure such a version.
-
 ## Install Rust
 
 Before we begin, we need to install Rust using the [rustup](https://www.rustup.rs/) installer:
