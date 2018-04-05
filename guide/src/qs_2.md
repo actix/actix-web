@@ -1,14 +1,10 @@
 # Getting Started
 
-Let’s create and run our first actix web application. We’ll create a new Cargo project
-that depends on actix web and then run the application.
-
-In the previous section we already installed the required rust version. Now let's create a new cargo project.
+Let’s write our first actix web application!
 
 ## Hello, world!
 
-Let’s write our first actix web application! Start by creating a new binary-based
-Cargo project and changing into the new directory:
+Start by creating a new binary-based Cargo project and changing into the new directory:
 
 ```bash
 cargo new hello-world --bin
@@ -29,6 +25,7 @@ In order to implement a web server, we first need to create a request handler.
 A request handler is a function that accepts an `HttpRequest` instance as its only parameter
 and returns a type that can be converted into `HttpResponse`:
 
+Filename: src/main.rs
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
@@ -67,7 +64,7 @@ connections. The server accepts a function that should return an `HttpHandler` i
 That's it! Now, compile and run the program with `cargo run`.
 Head over to ``http://localhost:8088/`` to see the results.
 
-Here is full source of main.rs file:
+The full source of src/main.rs is listed below:
 
 ```rust
 # use std::thread;
