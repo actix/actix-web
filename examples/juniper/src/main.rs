@@ -14,11 +14,10 @@ extern crate env_logger;
 
 use actix::prelude::*;
 use actix_web::{
-    middleware, http::{self, header::CONTENT_TYPE}, server,
-    App, AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
+    middleware, http, server,
+    App, AsyncResponder, HttpRequest, HttpResponse, FutureResponse, Error, State, Json};
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-
 use futures::future::Future;
 
 mod schema;
@@ -26,7 +25,7 @@ mod schema;
 use schema::Schema;
 use schema::create_schema;
 
-struct State {
+struct AppState {
     executor: Addr<Syn, GraphQLExecutor>,
 }
 
@@ -63,33 +62,30 @@ impl Handler<GraphQLData> for GraphQLExecutor {
     }
 }
 
-fn graphiql(_req: HttpRequest<State>) -> Result<HttpResponse, Error>  {
+fn graphiql(_req: HttpRequest<AppState>) -> Result<HttpResponse, Error>  {
     let html = graphiql_source("http://127.0.0.1:8080/graphql");
     Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html))
+       .content_type("text/html; charset=utf-8")
+       .body(html))
 }
 
-fn graphql(req: HttpRequest<State>) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    let executor = req.state().executor.clone();
-    req.json()
+fn graphql(st: State<AppState>, data: Json<GraphQLData>) -> FutureResponse<HttpResponse> {
+    st.executor.send(data.0)
         .from_err()
-        .and_then(move |val: GraphQLData| {
-            executor.send(val)
-                .from_err()
-                .and_then(|res| {
-                    match res {
-                        Ok(user) => Ok(HttpResponse::Ok().header(CONTENT_TYPE, "application/json").body(user)),
-                        Err(_) => Ok(HttpResponse::InternalServerError().into())
-                    }
-                })
+        .and_then(|res| {
+            match res {
+                Ok(user) => Ok(HttpResponse::Ok()
+                               .content_type("application/json")
+                               .body(user)),
+                Err(_) => Ok(HttpResponse::InternalServerError().into())
+            }
         })
         .responder()
 }
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("juniper-example");
 
     let schema = std::sync::Arc::new(create_schema());
@@ -99,10 +95,10 @@ fn main() {
 
     // Start http server
     let _ = server::new(move || {
-        App::with_state(State{executor: addr.clone()})
+        App::with_state(AppState{executor: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())
-            .resource("/graphql", |r| r.method(http::Method::POST).h(graphql))
+            .resource("/graphql", |r| r.method(http::Method::POST).with2(graphql))
             .resource("/graphiql", |r| r.method(http::Method::GET).h(graphiql))})
         .bind("127.0.0.1:8080").unwrap()
         .start();
