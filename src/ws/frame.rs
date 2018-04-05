@@ -354,8 +354,8 @@ mod tests {
     use super::*;
     use futures::stream::once;
 
-    fn is_none(frm: Poll<Option<Frame>, ProtocolError>) -> bool {
-        match frm {
+    fn is_none(frm: &Poll<Option<Frame>, ProtocolError>) -> bool {
+        match *frm {
             Ok(Async::Ready(None)) => true,
             _ => false,
         }
@@ -371,10 +371,10 @@ mod tests {
     #[test]
     fn test_parse() {
         let mut buf = PayloadHelper::new(
-            once(Ok(BytesMut::from(&[0b00000001u8, 0b00000001u8][..]).freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+            once(Ok(BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]).freeze())));
+        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
 
-        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000001u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
         buf.extend(b"1");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_parse_length0() {
-        let buf = BytesMut::from(&[0b00000001u8, 0b00000000u8][..]);
+        let buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0000u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
         let frame = extract(Frame::parse(&mut buf, false, 1024));
@@ -397,11 +397,11 @@ mod tests {
 
     #[test]
     fn test_parse_length2() {
-        let buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
+        let buf = BytesMut::from(&[0b0000_0001u8, 126u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
 
-        let mut buf = BytesMut::from(&[0b00000001u8, 126u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 126u8][..]);
         buf.extend(&[0u8, 4u8][..]);
         buf.extend(b"1234");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
@@ -414,11 +414,11 @@ mod tests {
 
     #[test]
     fn test_parse_length4() {
-        let buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
+        let buf = BytesMut::from(&[0b0000_0001u8, 127u8][..]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
-        assert!(is_none(Frame::parse(&mut buf, false, 1024)));
+        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
 
-        let mut buf = BytesMut::from(&[0b00000001u8, 127u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 127u8][..]);
         buf.extend(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 4u8][..]);
         buf.extend(b"1234");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_parse_frame_mask() {
-        let mut buf = BytesMut::from(&[0b00000001u8, 0b10000001u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 0b1000_0001u8][..]);
         buf.extend(b"0001");
         buf.extend(b"1");
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_parse_frame_no_mask() {
-        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000001u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
         buf.extend(&[1u8]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 
@@ -460,7 +460,7 @@ mod tests {
 
     #[test]
     fn test_parse_frame_max_size() {
-        let mut buf = BytesMut::from(&[0b00000001u8, 0b00000010u8][..]);
+        let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8][..]);
         buf.extend(&[1u8, 1u8]);
         let mut buf = PayloadHelper::new(once(Ok(buf.freeze())));
 

@@ -319,7 +319,7 @@ mod tests {
         }
         let entry_time = time::now();
         let render = |fmt: &mut Formatter| {
-            for unit in logger.format.0.iter() {
+            for unit in &logger.format.0 {
                 unit.render(fmt, &req, &resp, entry_time)?;
             }
             Ok(())
@@ -340,7 +340,7 @@ mod tests {
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
-            for unit in format.0.iter() {
+            for unit in &format.0 {
                 unit.render(fmt, &req, &resp, entry_time)?;
             }
             Ok(())
@@ -357,7 +357,7 @@ mod tests {
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
-            for unit in format.0.iter() {
+            for unit in &format.0 {
                 unit.render(fmt, &req, &resp, entry_time)?;
             }
             Ok(())

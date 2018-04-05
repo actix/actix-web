@@ -1425,7 +1425,7 @@ mod tests {
 
         let mut reader = Reader::new();
         let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
-        let _ = req.payload_mut().set_read_buffer_capacity(0);
+        req.payload_mut().set_read_buffer_capacity(0);
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 

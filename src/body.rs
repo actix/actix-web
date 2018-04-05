@@ -281,61 +281,61 @@ mod tests {
     #[test]
     fn test_static_str() {
         assert_eq!(Binary::from("test").len(), 4);
-        assert_eq!(Binary::from("test").as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from("test").as_ref(), b"test");
     }
 
     #[test]
     fn test_static_bytes() {
         assert_eq!(Binary::from(b"test".as_ref()).len(), 4);
-        assert_eq!(Binary::from(b"test".as_ref()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(b"test".as_ref()).as_ref(), b"test");
         assert_eq!(Binary::from_slice(b"test".as_ref()).len(), 4);
-        assert_eq!(Binary::from_slice(b"test".as_ref()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from_slice(b"test".as_ref()).as_ref(), b"test");
     }
 
     #[test]
     fn test_vec() {
         assert_eq!(Binary::from(Vec::from("test")).len(), 4);
-        assert_eq!(Binary::from(Vec::from("test")).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(Vec::from("test")).as_ref(), b"test");
     }
 
     #[test]
     fn test_bytes() {
         assert_eq!(Binary::from(Bytes::from("test")).len(), 4);
-        assert_eq!(Binary::from(Bytes::from("test")).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(Bytes::from("test")).as_ref(), b"test");
     }
 
     #[test]
     fn test_ref_string() {
         let b = Rc::new("test".to_owned());
         assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(&b).as_ref(), b"test");
     }
 
     #[test]
     fn test_rc_string() {
         let b = Rc::new("test".to_owned());
         assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(b.clone()).as_ref(), b"test");
         assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(&b).as_ref(), b"test");
     }
 
     #[test]
     fn test_arc_string() {
         let b = Arc::new("test".to_owned());
         assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(b.clone()).as_ref(), b"test");
         assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(&b).as_ref(), b"test");
     }
 
     #[test]
     fn test_string() {
         let b = "test".to_owned();
         assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(b.clone()).as_ref(), b"test");
         assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(&b).as_ref(), b"test");
     }
 
     #[test]
@@ -351,7 +351,7 @@ mod tests {
     fn test_bytes_mut() {
         let b =  BytesMut::from("test");
         assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b).as_ref(), "test".as_bytes());
+        assert_eq!(Binary::from(b).as_ref(), b"test");
     }
 
     #[test]
