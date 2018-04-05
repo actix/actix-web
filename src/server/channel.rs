@@ -69,7 +69,7 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if !self.node.is_none() {
+        if self.node.is_some() {
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
