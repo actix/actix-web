@@ -2,17 +2,19 @@
 
 URL dispatch provides a simple way for mapping URLs to `Handler` code using a simple pattern
 matching language. If one of the patterns matches the path information associated with a request,
-a particular handler object is invoked. A handler is a specific object that implements the
-`Handler` trait, defined in your application, that receives the request and returns
-a response object. More information is available in the [handler section](../qs_4.html).
+a particular handler object is invoked.
+
+> A handler is a specific object that implements the
+> `Handler` trait, defined in your application, that receives the request and returns
+> a response object. More information is available in the [handler section](../qs_4.html).
 
 ## Resource configuration
 
 Resource configuration is the act of adding a new resources to an application.
 A resource has a name, which acts as an identifier to be used for URL generation.
 The name also allows developers to add routes to existing resources.
-A resource also has a pattern, meant to match against the *PATH* portion of a *URL*,
-it does not match against the *QUERY* portion (the portion following the scheme and
+A resource also has a pattern, meant to match against the *PATH* portion of a *URL*.
+It does not match against the *QUERY* portion (the portion following the scheme and
 port, e.g., */foo/bar* in the *URL* *http://localhost:8080/foo/bar?q=value*).
 
 The [App::resource](../actix_web/struct.App.html#method.resource) methods
@@ -43,7 +45,7 @@ The *Configuration function* has the following type:
 ```
 
 The *Configuration function* can set a name and register specific routes.
-If a resource does not contain any route or does not have any matching routes it
+If a resource does not contain any route or does not have any matching routes, it
 returns *NOT FOUND* http response.
 
 ## Configuring a Route
@@ -55,8 +57,9 @@ all requests and the default handler is `HttpNotFound`.
 
 The application routes incoming requests based on route criteria which are defined during
 resource registration and route registration. Resource matches all routes it contains in
-the order the routes were registered via `Resource::route()`. A *Route* can contain
-any number of *predicates* but only one handler.
+the order the routes were registered via `Resource::route()`.
+
+> A *Route* can contain any number of *predicates* but only one handler.
 
 ```rust
 # extern crate actix_web;
@@ -74,10 +77,11 @@ fn main() {
 }
 ```
 
-In this example `HttpResponse::Ok()` is returned for *GET* requests,
-if request contains `Content-Type` header and value of this header is *text/plain*
-and path equals to `/path`. Resource calls handle of the first matching route.
-If a resource can not match any route a "NOT FOUND" response is returned.
+In this example, `HttpResponse::Ok()` is returned for *GET* requests.
+If a request contains `Content-Type` header, the value of this header is *text/plain*,
+and path equals to `/path`, Resource calls handle of the first matching route.
+
+If a resource can not match any route, a "NOT FOUND" response is returned.
 
 [*Resource::route()*](../actix_web/struct.Resource.html#method.route) returns a
 [*Route*](../actix_web/struct.Route.html) object. Route can be configured with a
@@ -118,9 +122,7 @@ arguments provided to a route configuration returns `false` during a check, that
 skipped and route matching continues through the ordered set of routes.
 
 If any route matches, the route matching process stops and the handler associated with
-the route is invoked.
-
-If no route matches after all route patterns are exhausted, a *NOT FOUND* response get returned.
+the route is invoked. If no route matches after all route patterns are exhausted, a *NOT FOUND* response get returned.
 
 ## Resource pattern syntax
 
@@ -208,8 +210,9 @@ For example, for the URL */abc/*:
 * */abc/{foo}* will not match.
 * */{foo}/* will match.
 
-Note that path will be URL-unquoted and decoded into valid unicode string before
-matching pattern and values representing matched path segments will be URL-unquoted too.
+> **Note**: path will be URL-unquoted and decoded into valid unicode string before
+> matching pattern and values representing matched path segments will be URL-unquoted too.
+
 So for instance, the following pattern:
 
 ```
@@ -292,11 +295,11 @@ any) is skipped.
 For security purposes, if a segment meets any of the following conditions,
 an `Err` is returned indicating the condition met:
 
-  * Decoded segment starts with any of: `.` (except `..`), `*`
-  * Decoded segment ends with any of: `:`, `>`, `<`
-  * Decoded segment contains any of: `/`
-  * On Windows, decoded segment contains any of: '\'
-  * Percent-encoding results in invalid UTF8.
+* Decoded segment starts with any of: `.` (except `..`), `*`
+* Decoded segment ends with any of: `:`, `>`, `<`
+* Decoded segment contains any of: `/`
+* On Windows, decoded segment contains any of: '\'
+* Percent-encoding results in invalid UTF8.
 
 As a result of these conditions, a `PathBuf` parsed from request path parameter is
 safe to interpolate within, or use as a suffix of, a path without additional checks.
@@ -350,8 +353,8 @@ fn main() {
 }
 ```
 
-It also possible to extract path information to a tuple, in this case you don't need
-to define extra type, just use tuple for as a `Path` generic type.
+It also possible to extract path information to a tuple. In this case, you don't need
+to define an extra type; use a tuple as a `Path` generic type.
 
 Here is previous example re-written using tuple instead of specific type.
 
@@ -433,21 +436,21 @@ fn main() {
 
 By normalizing it means:
 
- - Add a trailing slash to the path.
- - Double slashes are replaced by one.
+* Add a trailing slash to the path.
+* Double slashes are replaced by one.
 
 The handler returns as soon as it finds a path that resolves
 correctly. The order if all enable is 1) merge, 3) both merge and append
 and 3) append. If the path resolves with
 at least one of those conditions, it will redirect to the new path.
 
-If *append* is *true* append slash when needed. If a resource is
+If *append* is *true*, append slash when needed. If a resource is
 defined with trailing slash and the request doesn't have one, it will
 be appended automatically.
 
 If *merge* is *true*, merge multiple consecutive slashes in the path into one.
 
-This handler designed to be use as a handler for application's *default resource*.
+This handler designed to be used as a handler for application's *default resource*.
 
 ```rust
 # extern crate actix_web;
@@ -468,7 +471,7 @@ fn main() {
 
 In this example `/resource`, `//resource///` will be redirected to `/resource/`.
 
-In this example path normalization handler is registered for all methods,
+In this example, the path normalization handler is registered for all methods,
 but you should not rely on this mechanism to redirect *POST* requests. The redirect of the
 slash-appending *Not Found* will turn a *POST* request into a GET, losing any
 *POST* data in the original request.
@@ -493,7 +496,7 @@ fn main() {
 
 ## Using an Application Prefix to Compose Applications
 
-The `App::prefix()`" method allows to set a specific application prefix.
+The `App::prefix()` method allows to set a specific application prefix.
 This prefix represents a resource prefix that will be prepended to all resource patterns added
 by the resource configuration. This can be used to help mount a set of routes at a different
 location than the included callable's author intended while still maintaining the same
@@ -556,7 +559,7 @@ fn main() {
 }
 ```
 
-In this example *index* handler will be called only if request contains *CONTENT-TYPE* header.
+In this example, *index* handler will be called only if request contains *CONTENT-TYPE* header.
 
 Predicates have access to the application's state via `HttpRequest::state()`.
 Also predicates can store extra information in
@@ -565,7 +568,7 @@ Also predicates can store extra information in
 ### Modifying predicate values
 
 You can invert the meaning of any predicate value by wrapping it in a `Not` predicate.
-For example if you want to return "METHOD NOT ALLOWED" response for all methods
+For example, if you want to return "METHOD NOT ALLOWED" response for all methods
 except "GET":
 
 ```rust
