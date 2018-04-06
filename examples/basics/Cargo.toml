@@ -5,7 +5,7 @@ authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 workspace = "../.."
 
 [dependencies]
-futures = "*"
+futures = "0.1"
 env_logger = "0.5"
 actix = "0.5"
 actix-web = { path="../.." }
