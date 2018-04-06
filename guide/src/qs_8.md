@@ -133,7 +133,7 @@ the websocket server and returns ws reader and writer objects. *TestServer* also
 provides an `execute()` method, which runs future objects to completion and returns
 result of the future computation.
 
-The following example shows how to test a server websocket handler:
+The following example demonstrates how to test a websocket handler:
 
 ```rust
 # extern crate actix;

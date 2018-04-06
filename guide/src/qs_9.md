@@ -6,7 +6,7 @@ a [*ws::WsStream*](../actix_web/ws/struct.WsStream.html) and then use stream
 combinators to handle actual messages, but it is simpler to handle websocket communications
 with an http actor.
 
-The following is example of a simple websocket echo server:
+The following is an example of a simple websocket echo server:
 
 ```rust
 # extern crate actix;
