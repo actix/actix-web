@@ -5,9 +5,9 @@ integration tests.
 
 ## Unit tests
 
-For unit testing actix provides a request builder type and simple handler runner.
+For unit testing, actix provides a request builder type and simple handler runner.
 [*TestRequest*](../actix_web/test/struct.TestRequest.html) implements a builder-like pattern.
-You can generate a `HttpRequest` instance with `finish()` or you can
+You can generate a `HttpRequest` instance with `finish()`, or you can
 run your handler with `run()` or `run_async()`.
 
 ```rust
@@ -36,19 +36,20 @@ fn main() {
 }
 ```
 
-
 ## Integration tests
 
-There are several methods how you can test your application. Actix provides
-[*TestServer*](../actix_web/test/struct.TestServer.html)
-server that can be used to run the whole application of just specific handlers
-in real http server. *TestServer::get()*, *TestServer::post()* or *TestServer::client()*
+There are several methods for testing your application. Actix provides
+[*TestServer*](../actix_web/test/struct.TestServer.html), which can be used
+to run the application with specific handlers in a real http server.
+
+`TestServer::get()`, `TestServer::post()`, or `TestServer::client()`
 methods can be used to send requests to the test server.
 
-In simple form *TestServer* can be configured to use handler. *TestServer::new* method
-accepts configuration function, only argument for this function is *test application*
-instance. You can check the [api documentation](../actix_web/test/struct.TestApp.html)
-for more information.
+A simple form `TestServer` can be configured to use a handler.
+`TestServer::new` method accepts a configuration function, and the only argument 
+for this function is a *test application* instance.
+
+> Check the [api documentation](../actix_web/test/struct.TestApp.html) for more information.
 
 ```rust
 # extern crate actix_web;
@@ -70,8 +71,8 @@ fn main() {
 }
 ```
 
-The other option is to use an application factory. In this case you need to pass the factory
-function same way as you would for real http server configuration.
+The other option is to use an application factory. In this case, you need to pass the factory
+function the same way as you would for real http server configuration.
 
 ```rust
 # extern crate actix_web;
@@ -98,11 +99,10 @@ fn main() {
 }
 ```
 
-If you need more complex application configuration, for example you may need to
-initialize application state or start `SyncActor`'s for diesel interation, you
-can use `TestServer::build_with_state()` method. This method accepts closure
-that has to construct application state. This closure runs when actix system is
-configured already, so you can initialize any additional actors.
+If you need more complex application configuration, use the `TestServer::build_with_state()`
+method. For example, you may need to initialize application state or start `SyncActor`'s for diesel
+interation. This method accepts a closure that constructs the application state,
+and it runs when the actix system is configured. Thus, you can initialize any additional actors.
 
 ```rust,ignore
 #[test]
@@ -127,10 +127,10 @@ fn test() {
 
 ## WebSocket server tests
 
-It is possible to register a *handler* with `TestApp::handler()` that
-initiates a web socket connection. *TestServer* provides `ws()` which connects to
+It is possible to register a *handler* with `TestApp::handler()`, which
+initiates a web socket connection. *TestServer* provides the method `ws()`, which connects to
 the websocket server and returns ws reader and writer objects. *TestServer* also
-provides an `execute()` method which runs future objects to completion and returns
+provides an `execute()` method, which runs future objects to completion and returns
 result of the future computation.
 
 Here is a simple example that shows how to test server websocket handler.
