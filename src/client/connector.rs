@@ -37,7 +37,7 @@ use server::IoStream;
 /// with connection request.
 pub struct Connect {
     pub(crate) uri: Uri,
-    pub(crate) wait_time: Duration,
+    pub(crate) wait_timeout: Duration,
     pub(crate) conn_timeout: Duration,
 }
 
@@ -46,7 +46,7 @@ impl Connect {
     pub fn new<U>(uri: U) -> Result<Connect, HttpError> where Uri: HttpTryFrom<U> {
         Ok(Connect {
             uri: Uri::try_from(uri).map_err(|e| e.into())?,
-            wait_time: Duration::from_secs(5),
+            wait_timeout: Duration::from_secs(5),
             conn_timeout: Duration::from_secs(1),
         })
     }
@@ -60,9 +60,9 @@ impl Connect {
 
     /// If connection pool limits are enabled, wait time indicates
     /// max time to wait for available connection.
-    /// By default connect timeout is 5 secconds.
-    pub fn wait_time(mut self, timeout: Duration) -> Self {
-        self.wait_time = timeout;
+    /// By default wait timeout is 5 secconds.
+    pub fn wait_timeout(mut self, timeout: Duration) -> Self {
+        self.wait_timeout = timeout;
         self
     }
 }
@@ -70,6 +70,21 @@ impl Connect {
 impl Message for Connect {
     type Result = Result<Connection, ClientConnectorError>;
 }
+
+/// Pause connection process for `ClientConnector`
+///
+/// All connect requests enter wait state during connector pause.
+pub struct Pause {
+    time: Option<Duration>,
+}
+
+impl Message for Pause {
+    type Result = ();
+}
+
+/// Resume connection process for `ClientConnector`
+#[derive(Message)]
+pub struct Resume;
 
 /// A set of errors that can occur during connecting to a http host
 #[derive(Fail, Debug)]
@@ -145,6 +160,7 @@ pub struct ClientConnector {
     to_close: Vec<Connection>,
     waiters: HashMap<Key, VecDeque<Waiter>>,
     wait_timeout: Option<(Instant, Timeout)>,
+    paused: Option<Option<(Instant, Timeout)>>,
 }
 
 impl Actor for ClientConnector {
@@ -186,6 +202,7 @@ impl Default for ClientConnector {
                 to_close: Vec::new(),
                 waiters: HashMap::new(),
                 wait_timeout: None,
+                paused: None,
             }
         }
 
@@ -202,6 +219,7 @@ impl Default for ClientConnector {
                          to_close: Vec::new(),
                          waiters: HashMap::new(),
                          wait_timeout: None,
+                         paused: None,
         }
     }
 }
@@ -267,6 +285,7 @@ impl ClientConnector {
             to_close: Vec::new(),
             waiters: HashMap::new(),
             wait_timeout: None,
+            paused: None,
         }
     }
 
@@ -494,6 +513,47 @@ impl ClientConnector {
         let _ = timeout.poll();
         self.wait_timeout = Some((time, timeout));
     }
+
+    fn wait_for(&mut self, key: Key,
+                wait: Duration, conn_timeout: Duration)
+                -> oneshot::Receiver<Result<Connection, ClientConnectorError>>
+    {
+        // connection is not available, wait
+        let (tx, rx) = oneshot::channel();
+
+        let wait = Instant::now() + wait;
+        self.install_wait_timeout(wait);
+
+        let waiter = Waiter{ tx, wait, conn_timeout };
+        self.waiters.entry(key.clone()).or_insert_with(VecDeque::new)
+            .push_back(waiter);
+        rx
+    }
+}
+
+impl Handler<Pause> for ClientConnector {
+    type Result = ();
+
+    fn handle(&mut self, msg: Pause, _: &mut Self::Context) {
+        if let Some(time) = msg.time {
+            let when = Instant::now() + time;
+            let mut timeout = Timeout::new(time, Arbiter::handle()).unwrap();
+            let _ = timeout.poll();
+            self.paused = Some(Some((when, timeout)));
+        } else {
+            if self.paused.is_none() {
+                self.paused = Some(None);
+            }
+        }
+    }
+}
+
+impl Handler<Resume> for ClientConnector {
+    type Result = ();
+
+    fn handle(&mut self, _: Resume, _: &mut Self::Context) {
+        self.paused.take();
+    }
 }
 
 impl Handler<Connect> for ClientConnector {
@@ -505,7 +565,7 @@ impl Handler<Connect> for ClientConnector {
         }
 
         let uri = &msg.uri;
-        let wait_time = msg.wait_time;
+        let wait_timeout = msg.wait_timeout;
         let conn_timeout = msg.conn_timeout;
 
         // host name is required
@@ -536,6 +596,19 @@ impl Handler<Connect> for ClientConnector {
         let port = uri.port().unwrap_or_else(|| proto.port());
         let key = Key {host, port, ssl: proto.is_secure()};
 
+        // check pause state
+        if self.paused.is_some() {
+            let rx = self.wait_for(key, wait_timeout, conn_timeout);
+            return ActorResponse::async(
+                rx.map_err(|_| ClientConnectorError::Disconnected)
+                    .into_actor(self)
+                    .and_then(|res, _, _| match res {
+                        Ok(conn) => fut::ok(conn),
+                        Err(err) => fut::err(err),
+                    }));
+
+        }
+
         // acquire connection
         let pool = if proto.is_http() {
             match self.acquire(&key) {
@@ -546,14 +619,7 @@ impl Handler<Connect> for ClientConnector {
                 },
                 Acquire::NotAvailable => {
                     // connection is not available, wait
-                    let (tx, rx) = oneshot::channel();
-
-                    let wait = Instant::now() + wait_time;
-                    self.install_wait_timeout(wait);
-
-                    let waiter = Waiter{ tx, wait, conn_timeout };
-                    self.waiters.entry(key.clone()).or_insert_with(VecDeque::new)
-                        .push_back(waiter);
+                    let rx = self.wait_for(key, wait_timeout, conn_timeout);
                     return ActorResponse::async(
                         rx.map_err(|_| ClientConnectorError::Disconnected)
                             .into_actor(self)
@@ -645,6 +711,14 @@ impl fut::ActorFuture for Maintenance
     fn poll(&mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>)
             -> Poll<Self::Item, Self::Error>
     {
+        // check pause duration
+        let done = if let Some(Some(ref pause)) = act.paused {
+            if pause.0 <= Instant::now() {true} else {false}
+        } else { false };
+        if done {
+            act.paused.take();
+        }
+
         // collect connections
         if act.pool_modified.get() {
             act.collect(false);

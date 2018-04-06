@@ -62,14 +62,14 @@ enum State {
     None,
 }
 
-/// `SendRequest` is a `Future` which represents asynchronous request sending process.
+/// `SendRequest` is a `Future` which represents asynchronous sending process.
 #[must_use = "SendRequest does nothing unless polled"]
 pub struct SendRequest {
     req: ClientRequest,
     state: State,
     conn: Addr<Unsync, ClientConnector>,
     conn_timeout: Duration,
-    wait_time: Duration,
+    wait_timeout: Duration,
     timeout: Option<Timeout>,
 }
 
@@ -84,7 +84,7 @@ impl SendRequest {
         SendRequest{req, conn,
                     state: State::New,
                     timeout: None,
-                    wait_time: Duration::from_secs(5),
+                    wait_timeout: Duration::from_secs(5),
                     conn_timeout: Duration::from_secs(1),
         }
     }
@@ -95,7 +95,7 @@ impl SendRequest {
                     state: State::Connection(conn),
                     conn: ClientConnector::from_registry(),
                     timeout: None,
-                    wait_time: Duration::from_secs(5),
+                    wait_timeout: Duration::from_secs(5),
                     conn_timeout: Duration::from_secs(1),
         }
     }
@@ -119,12 +119,12 @@ impl SendRequest {
         self
     }
 
-    /// Set wait time
+    /// Set wait timeout
     ///
     /// If connections pool limits are enabled, wait time indicates max time
     /// to wait for available connection. Default value is 5 seconds.
-    pub fn wait_time(mut self, timeout: Duration) -> Self {
-        self.wait_time = timeout;
+    pub fn wait_timeout(mut self, timeout: Duration) -> Self {
+        self.wait_timeout = timeout;
         self
     }
 }
@@ -141,7 +141,7 @@ impl Future for SendRequest {
                 State::New =>
                     self.state = State::Connect(self.conn.send(Connect {
                         uri: self.req.uri().clone(),
-                        wait_time: self.wait_time,
+                        wait_timeout: self.wait_timeout,
                         conn_timeout: self.conn_timeout,
                     })),
                 State::Connect(mut conn) => match conn.poll() {
