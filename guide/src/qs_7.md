@@ -4,13 +4,13 @@
 
 A builder-like pattern is used to construct an instance of `HttpResponse`.
 `HttpResponse` provides several methods that return a `HttpResponseBuilder` instance,
-which implements various convenience methods that helps building responses.
+which implements various convenience methods for building responses.
 
 > Check the [documentation](../actix_web/dev/struct.HttpResponseBuilder.html)
 > for type descriptions.
 
-The methods `.body`, `.finish`, `.json` finalize response creation and
-return a constructed *HttpResponse* instance. If this methods is called for the same
+The methods `.body`, `.finish`, and `.json` finalize response creation and
+return a constructed *HttpResponse* instance. If this methods is called on the same
 builder instance multiple times, the builder will panic.
 
 ```rust
@@ -29,7 +29,7 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 ## Content encoding
 
-Actix automatically *compresses*/*decompresses* payloads. Following codecs are supported:
+Actix automatically *compresses*/*decompresses* payloads. The following codecs are supported:
 
 * Brotli
 * Gzip
@@ -40,11 +40,13 @@ If request headers contain a `Content-Encoding` header, the request payload is d
 according to the header value. Multiple codecs are not supported, i.e: `Content-Encoding: br, gzip`.
 
 Response payload is compressed based on the *content_encoding* parameter.
-By default `ContentEncoding::Auto` is used. If `ContentEncoding::Auto` is selected,
-then compression depends on the request's `Accept-Encoding` header.
-`ContentEncoding::Identity` can be used to disable compression.
-If another content encoding is selected, the compression is enforced for this codec. For example,
-to enable `brotli` use `ContentEncoding::Br`:
+By default, `ContentEncoding::Auto` is used. If `ContentEncoding::Auto` is selected,
+then the compression depends on the request's `Accept-Encoding` header.
+
+> `ContentEncoding::Identity` can be used to disable compression.
+> If another content encoding is selected, the compression is enforced for that codec.
+
+For example, to enable `brotli` use `ContentEncoding::Br`:
 
 ```rust
 # extern crate actix_web;
@@ -62,10 +64,10 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 There are several options for json body deserialization.
 
-The first option is to use *Json* extractor. You define a handler function
-that accepts `Json<T>` as a parameter and use the `.with()` method for registering
+The first option is to use *Json* extractor. First, you define a handler function
+that accepts `Json<T>` as a parameter, then, you use the `.with()` method for registering
 this handler. It is also possible to accept arbitrary valid json object by
-using `serde_json::Value` as a type `T`
+using `serde_json::Value` as a type `T`.
 
 ```rust
 # extern crate actix_web;
@@ -89,7 +91,7 @@ fn main() {
 }
 ```
 
-The second option is to use *HttpResponse::json()*. This method returns a
+Another option is to use *HttpResponse::json()*. This method returns a
 [*JsonBody*](../actix_web/dev/struct.JsonBody.html) object which resolves into
 the deserialized value.
 
@@ -118,7 +120,7 @@ fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 # fn main() {}
 ```
 
-Alternatively, you can manually load the payload into memory and then deserialize it.
+You may also manually load the payload into memory and then deserialize it.
 
 In the following example, we will deserialize a *MyObj* struct. We need to load the request
 body first and then deserialize the json into an object.
@@ -158,8 +160,8 @@ fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
 ## JSON Response
 
 The `Json` type allows to respond with well-formed JSON data: simply return a value of
-type Json<T> where T is the type of a structure to serialize into *JSON*. The
-type `T` must implement the `Serialize` trait from *serde*.
+type Json<T> where `T` is the type of a structure to serialize into *JSON*.
+The type `T` must implement the `Serialize` trait from *serde*.
 
 ```rust
 # extern crate actix_web;
@@ -186,11 +188,11 @@ fn main() {
 
 Actix automatically decodes *chunked* encoding. `HttpRequest::payload()` already contains
 the decoded byte stream. If the request payload is compressed with one of the supported
-compression codecs (br, gzip, deflate) the byte stream is decompressed.
+compression codecs (br, gzip, deflate), then the byte stream is decompressed.
 
-Chunked encoding on response can be enabled with `HttpResponseBuilder::chunked()`,
-but this takes effect only for `Body::Streaming(BodyStream)` or `Body::StreamingContext` bodies.
-Also, if the response payload compression is enabled and a streaming body is used, chunked encoding
+Chunked encoding on a response can be enabled with `HttpResponseBuilder::chunked()`.
+This takes effect only for `Body::Streaming(BodyStream)` or `Body::StreamingContext` bodies.
+If the response payload compression is enabled and a streaming body is used, chunked encoding
 is enabled automatically.
 
 > Enabling chunked encoding for *HTTP/2.0* responses is forbidden.
@@ -216,11 +218,11 @@ fn index(req: HttpRequest) -> HttpResponse {
 
 Actix provides multipart stream support.
 [*Multipart*](../actix_web/multipart/struct.Multipart.html) is implemented as
-a stream of multipart items, each item can be a
+a stream of multipart items. Each item can be a
 [*Field*](../actix_web/multipart/struct.Field.html) or a nested *Multipart* stream.
 `HttpResponse::multipart()` returns the *Multipart* stream for the current request.
 
-Simple form multipart stream handling could be implemented like the following:
+The following demonstrates multipart stream handling for a simple form:
 
 ```rust,ignore
 # extern crate actix_web;
