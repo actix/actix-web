@@ -23,7 +23,6 @@ use de::PathDeserializer;
 /// # extern crate bytes;
 /// # extern crate actix_web;
 /// # extern crate futures;
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Path, Result, http};
 ///
 /// /// extract path info from "/{username}/{count}/?index.html" url

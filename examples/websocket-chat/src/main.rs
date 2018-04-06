@@ -17,7 +17,8 @@ extern crate actix_web;
 use std::time::Instant;
 
 use actix::*;
-use actix_web::{http, fs, ws, server::HttpServer, App, HttpRequest, HttpResponse, Error};
+use actix_web::server::HttpServer;
+use actix_web::{http, fs, ws, App, HttpRequest, HttpResponse, Error};
 
 mod codec;
 mod server;
