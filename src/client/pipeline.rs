@@ -69,6 +69,7 @@ pub struct SendRequest {
     state: State,
     conn: Addr<Unsync, ClientConnector>,
     conn_timeout: Duration,
+    wait_time: Duration,
     timeout: Option<Timeout>,
 }
 
@@ -83,7 +84,8 @@ impl SendRequest {
         SendRequest{req, conn,
                     state: State::New,
                     timeout: None,
-                    conn_timeout: Duration::from_secs(1)
+                    wait_time: Duration::from_secs(5),
+                    conn_timeout: Duration::from_secs(1),
         }
     }
 
@@ -93,6 +95,7 @@ impl SendRequest {
                     state: State::Connection(conn),
                     conn: ClientConnector::from_registry(),
                     timeout: None,
+                    wait_time: Duration::from_secs(5),
                     conn_timeout: Duration::from_secs(1),
         }
     }
@@ -115,6 +118,15 @@ impl SendRequest {
         self.conn_timeout = timeout;
         self
     }
+
+    /// Set wait time
+    ///
+    /// If connections pool limits are enabled, wait time indicates max time
+    /// to wait for available connection. Default value is 5 seconds.
+    pub fn wait_time(mut self, timeout: Duration) -> Self {
+        self.wait_time = timeout;
+        self
+    }
 }
 
 impl Future for SendRequest {
@@ -129,6 +141,7 @@ impl Future for SendRequest {
                 State::New =>
                     self.state = State::Connect(self.conn.send(Connect {
                         uri: self.req.uri().clone(),
+                        wait_time: self.wait_time,
                         conn_timeout: self.conn_timeout,
                     })),
                 State::Connect(mut conn) => match conn.poll() {
