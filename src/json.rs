@@ -84,6 +84,8 @@ impl<T: Serialize> Responder for Json<T> {
 /// To extract typed information from request's body, the type `T` must implement the
 /// `Deserialize` trait from *serde*.
 ///
+/// [**JsonConfig**](dev/struct.JsonConfig.html) allows to configure extraction process.
+///
 /// ## Example
 ///
 /// ```rust

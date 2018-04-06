@@ -183,6 +183,9 @@ impl<T, S> FromRequest<S> for Query<T>
 /// To extract typed information from request's body, the type `T` must implement the
 /// `Deserialize` trait from *serde*.
 ///
+/// [**FormConfig**](dev/struct.FormConfig.html) allows to configure extraction
+/// process.
+///
 /// ## Example
 ///
 /// It is possible to extract path information to a specific type that implements
@@ -199,7 +202,7 @@ impl<T, S> FromRequest<S> for Query<T>
 /// }
 ///
 /// /// extract form data using serde
-/// /// this handle get called only if content type is *x-www-form-urlencoded*
+/// /// this handler get called only if content type is *x-www-form-urlencoded*
 /// /// and content of the request could be deserialized to a `FormData` struct
 /// fn index(form: Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
@@ -249,7 +252,8 @@ impl<T, S> FromRequest<S> for Form<T>
 ///     username: String,
 /// }
 ///
-/// /// extract form data using serde, max payload size is 4k
+/// /// extract form data using serde.
+/// /// custom configuration is used for this handler, max payload size is 4k
 /// fn index(form: Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
@@ -286,6 +290,9 @@ impl Default for FormConfig {
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
+/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure extraction
+/// process.
+///
 /// ## Example
 ///
 /// ```rust
@@ -321,6 +328,9 @@ impl<S: 'static> FromRequest<S> for Bytes
 /// Extract text information from the request's body.
 ///
 /// Text extractor automatically decode body according to the request's charset.
+///
+/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure
+/// extraction process.
 ///
 /// ## Example
 ///
