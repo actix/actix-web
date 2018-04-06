@@ -31,6 +31,14 @@ Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
 
 ## Example
 
+At the moment all examples uses actix-web master.
+
+```toml
+[dependencies]
+actix = "0.5"
+actix-web = { git="https://github.com/actix/actix-web.git" }
+```
+
 ```rust
 extern crate actix_web;
 use actix_web::{server, App, Path};

@@ -78,6 +78,19 @@ pub struct Pause {
     time: Option<Duration>,
 }
 
+impl Pause {
+    /// Create message with pause duration parameter
+    pub fn new(time: Duration) -> Pause {
+        Pause{time: Some(time)}
+    }
+}
+
+impl Default for Pause {
+    fn default() -> Pause {
+        Pause{time: None}
+    }
+}
+
 impl Message for Pause {
     type Result = ();
 }
