@@ -1,14 +1,10 @@
 # Getting Started
 
-Let’s create and run our first actix web application. We’ll create a new Cargo project
-that depends on actix web and then run the application.
-
-In the previous section we already installed the required rust version. Now let's create new cargo projects.
+Let’s write our first actix web application!
 
 ## Hello, world!
 
-Let’s write our first actix web application! Start by creating a new binary-based
-Cargo project and changing into the new directory:
+Start by creating a new binary-based Cargo project and changing into the new directory:
 
 ```bash
 cargo new hello-world --bin
@@ -24,11 +20,12 @@ actix = "0.5"
 actix-web = "0.4"
 ```
 
-In order to implement a web server, first we need to create a request handler.
+In order to implement a web server, we first need to create a request handler.
 
 A request handler is a function that accepts an `HttpRequest` instance as its only parameter
 and returns a type that can be converted into `HttpResponse`:
 
+Filename: src/main.rs
 ```rust
 # extern crate actix_web;
 # use actix_web::*;
@@ -64,10 +61,10 @@ connections. The server accepts a function that should return an `HttpHandler` i
        .run();
 ```
 
-That's it. Now, compile and run the program with `cargo run`.
+That's it! Now, compile and run the program with `cargo run`.
 Head over to ``http://localhost:8088/`` to see the results.
 
-Here is full source of main.rs file:
+The full source of src/main.rs is listed below:
 
 ```rust
 # use std::thread;
@@ -80,7 +77,7 @@ fn index(req: HttpRequest) -> &'static str {
 
 fn main() {
 #  // In the doctest suite we can't run blocking code - deliberately leak a thread
-#  // If copying this example in show-all mode make sure you skip the thread spawn
+#  // If copying this example in show-all mode, make sure you skip the thread spawn
 #  // call.
 #  thread::spawn(|| {
     HttpServer::new(
@@ -92,7 +89,11 @@ fn main() {
 }
 ```
 
-Note on the `actix` crate. Actix web framework is built on top of actix actor library.
+> **Note**: actix web is built upon [actix](https://github.com/actix/actix),
+> an [actor model](https://en.wikipedia.org/wiki/Actor_model) framework in Rust.
+
 `actix::System` initializes actor system, `HttpServer` is an actor and must run within a
-properly configured actix system. For more information please check
-[actix documentation](https://actix.github.io/actix/actix/)
+properly configured actix system.
+
+> For more information, check out the [actix documentation](https://actix.github.io/actix/actix/)
+> and [actix guide](https://actix.github.io/actix/guide/).
