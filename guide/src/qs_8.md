@@ -5,7 +5,7 @@ integration tests.
 
 ## Unit tests
 
-For unit testing, actix provides a request builder type and simple handler runner.
+For unit testing, actix provides a request builder type and a simple handler runner.
 [*TestRequest*](../actix_web/test/struct.TestRequest.html) implements a builder-like pattern.
 You can generate a `HttpRequest` instance with `finish()`, or you can
 run your handler with `run()` or `run_async()`.
@@ -42,7 +42,7 @@ There are several methods for testing your application. Actix provides
 [*TestServer*](../actix_web/test/struct.TestServer.html), which can be used
 to run the application with specific handlers in a real http server.
 
-`TestServer::get()`, `TestServer::post()`, or `TestServer::client()`
+`TestServer::get()`, `TestServer::post()`, and `TestServer::client()`
 methods can be used to send requests to the test server.
 
 A simple form `TestServer` can be configured to use a handler.
@@ -133,7 +133,7 @@ the websocket server and returns ws reader and writer objects. *TestServer* also
 provides an `execute()` method, which runs future objects to completion and returns
 result of the future computation.
 
-Here is a simple example that shows how to test server websocket handler.
+The following example shows how to test a server websocket handler:
 
 ```rust
 # extern crate actix;
