@@ -80,7 +80,7 @@ pub struct Pause {
 
 impl Pause {
     /// Create message with pause duration parameter
-    fn new(time: Duration) -> Pause {
+    pub fn new(time: Duration) -> Pause {
         Pause{time: Some(time)}
     }
 }
