@@ -1,7 +1,7 @@
 //! Actix web is a small, pragmatic, extremely fast, web framework for Rust.
 //!
 //! ```rust
-//! use actix_web::{App, HttpServer, Path};
+//! use actix_web::{server, App, Path};
 //! # use std::thread;
 //!
 //! fn index(info: Path<(String, u32)>) -> String {
@@ -10,7 +10,7 @@
 //!
 //! fn main() {
 //! # thread::spawn(|| {
-//!     HttpServer::new(
+//!     server::new(
 //!         || App::new()
 //!             .resource("/{name}/{id}/index.html", |r| r.with(index)))
 //!         .bind("127.0.0.1:8080").unwrap()

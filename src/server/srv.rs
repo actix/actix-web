@@ -262,12 +262,12 @@ impl<H: IntoHttpHandler> HttpServer<H>
     /// ```rust
     /// extern crate actix;
     /// extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{server, App, HttpResponse};
     ///
     /// fn main() {
     ///     let sys = actix::System::new("example");  // <- create Actix system
     ///
-    ///     HttpServer::new(
+    ///     server::new(
     ///         || App::new()
     ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")

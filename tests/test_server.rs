@@ -63,7 +63,7 @@ fn test_start() {
 
     thread::spawn(move || {
         let sys = System::new("test");
-        let srv = HttpServer::new(
+        let srv = server::new(
             || vec![App::new()
                     .resource(
                         "/", |r| r.method(http::Method::GET)
@@ -108,7 +108,7 @@ fn test_shutdown() {
 
     thread::spawn(move || {
         let sys = System::new("test");
-        let srv = HttpServer::new(
+        let srv = server::new(
             || vec![App::new()
                     .resource(
                         "/", |r| r.method(http::Method::GET).f(|_| HttpResponse::Ok()))]);

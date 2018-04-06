@@ -439,7 +439,7 @@ impl<S> App<S> where S: 'static {
     /// ```rust
     /// # use std::thread;
     /// # extern crate actix_web;
-    /// use actix_web::*;
+    /// use actix_web::{server, App, HttpResponse};
     ///
     /// struct State1;
     ///
@@ -447,7 +447,7 @@ impl<S> App<S> where S: 'static {
     ///
     /// fn main() {
     /// # thread::spawn(|| {
-    ///     HttpServer::new(|| { vec![
+    ///     server::new(|| { vec![
     ///         App::with_state(State1)
     ///              .prefix("/app1")
     ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
