@@ -6,8 +6,6 @@ use std::time::Duration;
 use actix::{Addr, Unsync};
 use cookie::{Cookie, CookieJar};
 use bytes::{Bytes, BytesMut, BufMut};
-use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
-use http::header::{self, HeaderName, HeaderValue};
 use futures::Stream;
 use serde_json;
 use serde::Serialize;
@@ -19,10 +17,39 @@ use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
+use http::{uri, HeaderMap, Method, Version, Uri, HttpTryFrom, Error as HttpError};
+use http::header::{self, HeaderName, HeaderValue};
 use super::pipeline::SendRequest;
 use super::connector::{Connection, ClientConnector};
 
 /// An HTTP Client Request
+///
+/// ```rust
+/// # extern crate actix;
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// # use futures::Future;
+/// use actix_web::client::ClientRequest;
+///
+/// fn main() {
+///     let sys = actix::System::new("test");
+///
+///     actix::Arbiter::handle().spawn({
+///         ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
+///             .header("User-Agent", "Actix-web")
+///             .finish().unwrap()
+///             .send()                                    // <- Send http request
+///             .map_err(|_| ())
+///             .and_then(|response| {  // <- server http response
+///                 println!("Response: {:?}", response);
+/// #               actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+///                 Ok(())
+///             })
+///     });
+///
+///     sys.run();
+/// }
+/// ```
 pub struct ClientRequest {
     uri: Uri,
     method: Method,
