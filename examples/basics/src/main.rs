@@ -8,8 +8,8 @@ extern crate futures;
 use futures::Stream;
 
 use std::{io, env};
-use actix_web::{error, fs, pred,
-                App, HttpRequest, HttpResponse, HttpServer, Result, Error};
+use actix_web::{error, fs, pred, server,
+                App, HttpRequest, HttpResponse, Result, Error};
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::{self, RequestSession};
 use futures::future::{FutureResult, result};
@@ -99,7 +99,7 @@ fn main() {
     env_logger::init();
     let sys = actix::System::new("basic-example");
 
-    let addr = HttpServer::new(
+    let addr = server::new(
         || App::new()
             // enable logger
             .middleware(middleware::Logger::default())

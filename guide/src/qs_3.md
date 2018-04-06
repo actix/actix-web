@@ -45,10 +45,10 @@ Multiple applications can be served with one server:
 # extern crate tokio_core;
 # use tokio_core::net::TcpStream;
 # use std::net::SocketAddr;
-use actix_web::{App, HttpResponse, HttpServer};
+use actix_web::{server, App, HttpResponse};
 
 fn main() {
-    HttpServer::new(|| vec![
+    server::new(|| vec![
         App::new()
             .prefix("/app1")
             .resource("/", |r| r.f(|r| HttpResponse::Ok())),

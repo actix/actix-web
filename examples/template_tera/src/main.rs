@@ -30,10 +30,10 @@ fn index(req: HttpRequest<State>) -> Result<HttpResponse, Error> {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("tera-example");
 
-    let _ = server::new(|| {
+    server::new(|| {
         let tera = compile_templates!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/**/*"));
 
         App::with_state(State{template: tera})

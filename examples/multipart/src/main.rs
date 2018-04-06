@@ -49,7 +49,7 @@ fn main() {
     let _ = env_logger::init();
     let sys = actix::System::new("multipart-example");
 
-    let _ = server::new(
+    server::new(
         || App::new()
             .middleware(middleware::Logger::default()) // <- logger
             .resource("/multipart", |r| r.method(http::Method::POST).a(index)))

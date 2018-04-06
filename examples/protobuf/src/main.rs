@@ -44,7 +44,7 @@ fn main() {
     env_logger::init();
     let sys = actix::System::new("protobuf-example");
 
-    let _ = server::new(|| {
+    server::new(|| {
         App::new()
             .middleware(middleware::Logger::default())
             .resource("/", |r| r.method(http::Method::POST).f(index))})

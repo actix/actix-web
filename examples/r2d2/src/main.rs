@@ -53,7 +53,7 @@ fn main() {
     let addr = SyncArbiter::start(3, move || DbExecutor(pool.clone()));
 
     // Start http server
-    let _ = server::new(move || {
+    server::new(move || {
         App::with_state(State{db: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())

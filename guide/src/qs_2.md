@@ -69,7 +69,7 @@ The full source of src/main.rs is listed below:
 ```rust
 # use std::thread;
 extern crate actix_web;
-use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{server, App, HttpRequest, HttpResponse};
 
 fn index(req: HttpRequest) -> &'static str {
     "Hello world!"
@@ -80,7 +80,7 @@ fn main() {
 #  // If copying this example in show-all mode, make sure you skip the thread spawn
 #  // call.
 #  thread::spawn(|| {
-    HttpServer::new(
+    server::HttpServer::new(
         || App::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")

@@ -29,7 +29,7 @@ fn main() {
     builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
     builder.set_certificate_chain_file("cert.pem").unwrap();
 
-    let _ = server::new(
+    server::new(
         || App::new()
             // enable logger
             .middleware(middleware::Logger::default())

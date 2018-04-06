@@ -162,7 +162,7 @@ impl ArbiterService for ClientConnector {}
 
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
-        let modified = Rc::new(Cell::new(false));
+        let _modified = Rc::new(Cell::new(false));
 
         #[cfg(all(feature="alpn"))]
         {
@@ -173,8 +173,8 @@ impl Default for ClientConnector {
         {
             let builder = TlsConnector::builder().unwrap();
             ClientConnector {
-                pool: Rc::new(Pool::new(Rc::clone(&modified))),
-                pool_modified: modified,
+                pool: Rc::new(Pool::new(Rc::clone(&_modified))),
+                pool_modified: _modified,
                 connector: builder.build().unwrap(),
                 conn_lifetime: Duration::from_secs(15),
                 conn_keep_alive: Duration::from_secs(75),
@@ -190,8 +190,8 @@ impl Default for ClientConnector {
         }
 
         #[cfg(not(any(feature="alpn", feature="tls")))]
-        ClientConnector {pool: Rc::new(Pool::new(Rc::clone(&modified))),
-                         pool_modified: modified,
+        ClientConnector {pool: Rc::new(Pool::new(Rc::clone(&_modified))),
+                         pool_modified: _modified,
                          conn_lifetime: Duration::from_secs(15),
                          conn_keep_alive: Duration::from_secs(75),
                          limit: 100,
@@ -459,7 +459,7 @@ impl ClientConnector {
         let now = Instant::now();
         let mut next = None;
 
-        for (_, waiters) in &mut self.waiters {
+        for waiters in self.waiters.values_mut() {
             let mut idx = 0;
             while idx < waiters.len() {
                 if waiters[idx].wait <= now {

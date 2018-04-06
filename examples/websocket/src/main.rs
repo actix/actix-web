@@ -45,7 +45,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for MyWebSocket {
 
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
-    let _ = env_logger::init();
+    env_logger::init();
     let sys = actix::System::new("ws-example");
 
     server::new(

@@ -89,7 +89,7 @@ fn main() {
     env_logger::init();
     let sys = actix::System::new("json-example");
 
-    let _ = server::new(|| {
+    server::new(|| {
         App::new()
             // enable logger
             .middleware(middleware::Logger::default())

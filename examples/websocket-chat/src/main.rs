@@ -17,7 +17,7 @@ extern crate actix_web;
 use std::time::Instant;
 
 use actix::*;
-use actix_web::{http, fs, ws, App, HttpRequest, HttpResponse, HttpServer, Error};
+use actix_web::{http, fs, ws, server::HttpServer, App, HttpRequest, HttpResponse, Error};
 
 mod codec;
 mod server;
@@ -183,7 +183,7 @@ fn main() {
         }));
 
     // Create Http server with websocket support
-    let addr = HttpServer::new(
+    HttpServer::new(
         move || {
             // Websocket sessions state
             let state = WsChatSessionState { addr: server.clone() };

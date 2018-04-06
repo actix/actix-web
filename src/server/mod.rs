@@ -32,7 +32,9 @@ use httpresponse::HttpResponse;
 /// max buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
-/// Create new http server with application factory
+/// Create new http server with application factory.
+///
+/// This is shortcut for `server::HttpServer::new()` method.
 ///
 /// ```rust
 /// # extern crate actix;
@@ -46,7 +48,7 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 ///     server::new(
 ///         || App::new()
 ///             .resource("/", |r| r.f(|_| HttpResponse::Ok())))
-///         .bind("127.0.0.1:59080").unwrap()
+///         .bind("127.0.0.1:59090").unwrap()
 ///         .start();
 ///
 ///     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));

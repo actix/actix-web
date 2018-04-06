@@ -4,7 +4,7 @@ extern crate env_logger;
 extern crate tokio_uds;
 
 use actix::*;
-use actix_web::*;
+use actix_web::{middleware, server, App, HttpRequest};
 use tokio_uds::UnixListener;
 
 
@@ -19,7 +19,7 @@ fn main() {
 
     let listener = UnixListener::bind(
         "/tmp/actix-uds.socket", Arbiter::handle()).expect("bind failed");
-    HttpServer::new(
+    server::new(
         || App::new()
             // enable logger
             .middleware(middleware::Logger::default())

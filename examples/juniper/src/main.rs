@@ -94,7 +94,7 @@ fn main() {
     });
 
     // Start http server
-    let _ = server::new(move || {
+    server::new(move || {
         App::with_state(AppState{executor: addr.clone()})
             // enable logger
             .middleware(middleware::Logger::default())

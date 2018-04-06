@@ -145,7 +145,6 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use handler::{Either, Responder, AsyncResponder, FromRequest, FutureResponse, State};
 pub use context::HttpContext;
-pub use server::HttpServer;
 
 #[doc(hidden)]
 pub mod httpcodes;
