@@ -55,7 +55,7 @@ fn main() {
             // websocket route
             .resource("/ws/", |r| r.method(http::Method::GET).f(ws_index))
             // static files
-            .handler("/", fs::StaticFiles::new("../static/", true)
+            .handler("/", fs::StaticFiles::new("../static/")
                      .index_file("index.html")))
         // start http server on 127.0.0.1:8080
         .bind("127.0.0.1:8080").unwrap()

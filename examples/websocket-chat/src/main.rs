@@ -199,7 +199,7 @@ fn main() {
                 // websocket
                 .resource("/ws/", |r| r.route().f(chat_route))
                 // static resources
-                .handler("/static/", fs::StaticFiles::new("static/", true))
+                .handler("/static/", fs::StaticFiles::new("static/"))
         })
         .bind("127.0.0.1:8080").unwrap()
         .start();

@@ -372,7 +372,7 @@ impl Responder for Directory {
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .handler("/static", fs::StaticFiles::new(".", true))
+///         .handler("/static", fs::StaticFiles::new("."))
 ///         .finish();
 /// }
 /// ```
@@ -388,12 +388,9 @@ pub struct StaticFiles<S> {
 }
 
 impl<S: 'static> StaticFiles<S> {
-    /// Create new `StaticFiles` instance
-    ///
-    /// `dir` - base directory
-    ///
-    /// `index` - show index for directory
-    pub fn new<T: Into<PathBuf>>(dir: T, index: bool) -> StaticFiles<S> {
+
+    /// Create new `StaticFiles` instance for specified base directory.
+    pub fn new<T: Into<PathBuf>>(dir: T) -> StaticFiles<S> {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -415,13 +412,21 @@ impl<S: 'static> StaticFiles<S> {
             directory: dir,
             accessible: access,
             index: None,
-            show_index: index,
+            show_index: false,
             cpu_pool: CpuPool::new(40),
             default: Box::new(WrapHandler::new(
                 |_| HttpResponse::new(StatusCode::NOT_FOUND))),
             _chunk_size: 0,
             _follow_symlinks: false,
         }
+    }
+
+    /// Show files listing for directories.
+    ///
+    /// By default show files listing is disabled.
+    pub fn show_files_listing(mut self) -> Self {
+        self.show_index = true;
+        self
     }
 
     /// Set index file
@@ -523,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_static_files() {
-        let mut st = StaticFiles::new(".", true);
+        let mut st = StaticFiles::new(".").show_files_listing();
         st.accessible = false;
         let resp = st.handle(HttpRequest::default()).respond_to(HttpRequest::default()).unwrap();
         let resp = resp.as_response().expect("HTTP Response");
@@ -548,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index() {
-        let mut st = StaticFiles::new(".", false).index_file("index.html");
+        let mut st = StaticFiles::new(".").index_file("index.html");
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "guide");
 
@@ -568,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let mut st = StaticFiles::new(".", false).index_file("Cargo.toml");
+        let mut st = StaticFiles::new(".").index_file("Cargo.toml");
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "examples/basics");
 

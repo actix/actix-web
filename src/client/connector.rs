@@ -538,8 +538,7 @@ impl ClientConnector {
         self.install_wait_timeout(wait);
 
         let waiter = Waiter{ tx, wait, conn_timeout };
-        self.waiters.entry(key.clone()).or_insert_with(VecDeque::new)
-            .push_back(waiter);
+        self.waiters.entry(key).or_insert_with(VecDeque::new).push_back(waiter);
         rx
     }
 }
@@ -553,10 +552,8 @@ impl Handler<Pause> for ClientConnector {
             let mut timeout = Timeout::new(time, Arbiter::handle()).unwrap();
             let _ = timeout.poll();
             self.paused = Some(Some((when, timeout)));
-        } else {
-            if self.paused.is_none() {
-                self.paused = Some(None);
-            }
+        } else if self.paused.is_none() {
+            self.paused = Some(None);
         }
     }
 }
@@ -726,8 +723,7 @@ impl fut::ActorFuture for Maintenance
     {
         // check pause duration
         let done = if let Some(Some(ref pause)) = act.paused {
-            if pause.0 <= Instant::now() {true} else {false}
-        } else { false };
+            pause.0 <= Instant::now() } else { false };
         if done {
             act.paused.take();
         }

@@ -391,7 +391,7 @@ impl<S> App<S> where S: 'static {
     ///     let app = App::new()
     ///         .middleware(middleware::Logger::default())
     ///         .configure(config)  // <- register resources
-    ///         .handler("/static", fs::StaticFiles::new(".", true));
+    ///         .handler("/static", fs::StaticFiles::new("."));
     /// }
     /// ```
     pub fn configure<F>(self, cfg: F) -> App<S>
