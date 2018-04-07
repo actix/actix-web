@@ -22,11 +22,11 @@ use super::{Connect, Connection, ClientConnector, ClientConnectorError};
 use super::HttpClientWriter;
 use super::{HttpResponseParser, HttpResponseParserError};
 
-/// A set of errors that can occur during sending request and reading response
+/// A set of errors that can occur during request sending and response reading
 #[derive(Fail, Debug)]
 pub enum SendRequestError {
     /// Response took too long
-    #[fail(display = "Timeout out while waiting for response")]
+    #[fail(display = "Timeout while waiting for response")]
     Timeout,
     /// Failed to connect to host
     #[fail(display="Failed to connect to host: {}", _0)]
@@ -62,7 +62,8 @@ enum State {
     None,
 }
 
-/// `SendRequest` is a `Future` which represents asynchronous sending process.
+/// `SendRequest` is a `Future` which represents an asynchronous
+/// request sending process.
 #[must_use = "SendRequest does nothing unless polled"]
 pub struct SendRequest {
     req: ClientRequest,
@@ -102,7 +103,7 @@ impl SendRequest {
 
     /// Set request timeout
     ///
-    /// Request timeout is a total time before response should be received.
+    /// Request timeout is the total time before a response must be received.
     /// Default value is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(Timeout::new(timeout, Arbiter::handle()).unwrap());

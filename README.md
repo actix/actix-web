@@ -1,6 +1,6 @@
 # Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
+Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 * Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.github.io/actix-web/guide/qs_13.html) protocols
 * Streaming and pipelining
@@ -11,14 +11,14 @@ Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
 * Graceful server shutdown
 * Multipart streams
 * Static assets
-* SSL support with openssl or native-tls
+* SSL support with OpenSSL or `native-tls`
 * Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
   [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
   [Redis sessions](https://github.com/actix/actix-redis),
   [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
   [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html),
   [CSRF](https://actix.github.io/actix-web/actix_web/middleware/csrf/index.html))
-* Built on top of [Actix actor framework](https://github.com/actix/actix).
+* Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation
 
@@ -31,7 +31,7 @@ Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
 
 ## Example
 
-At the moment all examples uses actix-web master.
+At the moment all examples are based on the actix-web `master` branch.
 
 ```toml
 [dependencies]

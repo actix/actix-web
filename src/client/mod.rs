@@ -1,4 +1,4 @@
-//! Http client
+//! HTTP client
 mod connector;
 mod parser;
 mod request;
@@ -22,7 +22,6 @@ use httpresponse::HttpResponse;
 
 /// Convert `SendRequestError` to a `HttpResponse`
 impl ResponseError for SendRequestError {
-
     fn error_response(&self) -> HttpResponse {
         match *self {
             SendRequestError::Connector(_) => HttpResponse::BadGateway(),
@@ -32,7 +31,7 @@ impl ResponseError for SendRequestError {
     }
 }
 
-/// Create request builder for `GET` request
+/// Create request builder for `GET` requests
 ///
 /// ```rust
 /// # extern crate actix;
@@ -66,28 +65,28 @@ pub fn get<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     builder
 }
 
-/// Create request builder for `HEAD` request
+/// Create request builder for `HEAD` requests
 pub fn head<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     let mut builder = ClientRequest::build();
     builder.method(Method::HEAD).uri(uri);
     builder
 }
 
-/// Create request builder for `POST` request
+/// Create request builder for `POST` requests
 pub fn post<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     let mut builder = ClientRequest::build();
     builder.method(Method::POST).uri(uri);
     builder
 }
 
-/// Create request builder for `PUT` request
+/// Create request builder for `PUT` requests
 pub fn put<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     let mut builder = ClientRequest::build();
     builder.method(Method::PUT).uri(uri);
     builder
 }
 
-/// Create request builder for `DELETE` request
+/// Create request builder for `DELETE` requests
 pub fn delete<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     let mut builder = ClientRequest::build();
     builder.method(Method::DELETE).uri(uri);
