@@ -2,7 +2,7 @@
 
 ## Install Rust
 
-Before we begin, we need to install Rust using the [rustup](https://www.rustup.rs/):
+Before we begin, we need to install Rust using [rustup](https://www.rustup.rs/):
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
