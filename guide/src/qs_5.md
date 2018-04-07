@@ -17,18 +17,42 @@ A resource also has a pattern, meant to match against the *PATH* portion of a *U
 It does not match against the *QUERY* portion (the portion following the scheme and
 port, e.g., */foo/bar* in the *URL* *http://localhost:8080/foo/bar?q=value*).
 
-The [App::resource](../actix_web/struct.App.html#method.resource) methods
-add a single resource to application routing table. This method accepts a *path pattern*
+The [App::route](../actix_web/struct.App.html#method.route) method provides
+simple way of registering routes. This method adds a single route to application
+routing table. This method accepts a *path pattern*,
+*http method* and a handler function. `route()` method could be called multiple times
+for the same path, in that case, multiple routes register for the same resource path.
+
+```rust
+# extern crate actix_web;
+use actix_web::{App, HttpRequest, HttpResponse, http::Method};
+
+fn index(req: HttpRequest) -> HttpResponse {
+   unimplemented!()
+}
+
+fn main() {
+    App::new()
+        .route("/user/{name}", Method::GET, index)
+        .route("/user/{name}", Method::POST, index)
+        .finish();
+}
+```
+
+While *App::route()* provides simple way of registering routes, to access
+complete resource configuration, different method has to be used.
+The [App::resource](../actix_web/struct.App.html#method.resource) method
+adds a single resource to application routing table. This method accepts a *path pattern*
 and a resource configuration function.
 
 ```rust
 # extern crate actix_web;
-# use actix_web::{App, HttpRequest, HttpResponse, http::Method};
-#
-# fn index(req: HttpRequest) -> HttpResponse {
-#   unimplemented!()
-# }
-#
+use actix_web::{App, HttpRequest, HttpResponse, http::Method};
+
+fn index(req: HttpRequest) -> HttpResponse {
+   unimplemented!()
+}
+
 fn main() {
     App::new()
         .resource("/prefix", |r| r.f(index))

@@ -3,11 +3,12 @@ use std::rc::Rc;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
 
+use http::Method;
 use handler::Reply;
 use router::{Router, Resource};
 use resource::{ResourceHandler};
 use header::ContentEncoding;
-use handler::{Handler, RouteHandler, WrapHandler};
+use handler::{Handler, RouteHandler, WrapHandler, FromRequest, Responder};
 use httprequest::HttpRequest;
 use pipeline::{Pipeline, PipelineHandler, HandlerType};
 use middleware::Middleware;
@@ -225,6 +226,52 @@ impl<S> App<S> where S: 'static {
         self
     }
 
+    /// Configure route for specific path.
+    ///
+    /// This is simplified version of `App::resource()` method.
+    /// Handler function needs to accept one request extractor argument.
+    /// This method could be called multiple times, in that case multiple routes
+    /// would be registered for same resource path.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .route("/test", http::Method::GET,
+    ///                |_: HttpRequest| HttpResponse::Ok())
+    ///         .route("/test", http::Method::POST,
+    ///                |_: HttpRequest| HttpResponse::MethodNotAllowed());
+    /// }
+    /// ```
+    pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
+        where F: Fn(T) -> R + 'static,
+              R: Responder + 'static,
+              T: FromRequest<S> + 'static,
+    {
+        {
+            let parts: &mut ApplicationParts<S> = unsafe{
+                mem::transmute(self.parts.as_mut().expect("Use after finish"))};
+
+            // get resource handler
+            for (pattern, handler) in &mut parts.resources {
+                if let Some(ref mut handler) = handler {
+                    if pattern.pattern() == path {
+                        handler.method(method).with(f);
+                        return self
+                    }
+                }
+            }
+
+            let mut handler = ResourceHandler::default();
+            handler.method(method).with(f);
+            let pattern = Resource::new(handler.get_name(), path);
+            parts.resources.push((pattern, Some(handler)));
+        }
+        self
+    }
+
     /// Configure resource for specific path.
     ///
     /// Resource may have variable path also. For instance, a resource with
@@ -261,12 +308,12 @@ impl<S> App<S> where S: 'static {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            // add resource
-            let mut resource = ResourceHandler::default();
-            f(&mut resource);
+            // add resource handler
+            let mut handler = ResourceHandler::default();
+            f(&mut handler);
 
-            let pattern = Resource::new(resource.get_name(), path);
-            parts.resources.push((pattern, Some(resource)));
+            let pattern = Resource::new(handler.get_name(), path);
+            parts.resources.push((pattern, Some(handler)));
         }
         self
     }
@@ -599,6 +646,26 @@ mod tests {
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_route() {
+        let mut app = App::new()
+            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
+            .route("/test", Method::POST, |_: HttpRequest| HttpResponse::Created())
+            .finish();
+
+        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
     }
