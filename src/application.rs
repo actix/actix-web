@@ -255,8 +255,8 @@ impl<S> App<S> where S: 'static {
                 mem::transmute(self.parts.as_mut().expect("Use after finish"))};
 
             // get resource handler
-            for (pattern, handler) in &mut parts.resources {
-                if let Some(ref mut handler) = handler {
+            for &mut (ref pattern, ref mut handler) in &mut parts.resources {
+                if let Some(ref mut handler) = *handler {
                     if pattern.pattern() == path {
                         handler.method(method).with(f);
                         return self
