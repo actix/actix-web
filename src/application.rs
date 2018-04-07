@@ -140,7 +140,7 @@ pub struct App<S=()> {
 impl App<()> {
 
     /// Create application with empty state. Application can
-    /// be configured with builder-like pattern.
+    /// be configured with a builder-like pattern.
     pub fn new() -> App<()> {
         App {
             parts: Some(ApplicationParts {
@@ -166,11 +166,11 @@ impl Default for App<()> {
 
 impl<S> App<S> where S: 'static {
 
-    /// Create application with specific state. Application can be
-    /// configured with builder-like pattern.
+    /// Create application with specified state. Application can be
+    /// configured with a builder-like pattern.
     ///
-    /// State is shared with all resources within same application and could be
-    /// accessed with `HttpRequest::state()` method.
+    /// State is shared with all resources within same application and
+    /// could be accessed with `HttpRequest::state()` method.
     pub fn with_state(state: S) -> App<S> {
         App {
             parts: Some(ApplicationParts {
@@ -187,18 +187,24 @@ impl<S> App<S> where S: 'static {
         }
     }
 
-    /// Set application prefix
+    /// Set application prefix.
     ///
-    /// Only requests that matches application's prefix get processed by this application.
-    /// Application prefix always contains leading "/" slash. If supplied prefix
-    /// does not contain leading slash, it get inserted. Prefix should
-    /// consists valid path segments. i.e for application with
-    /// prefix `/app` any request with following paths `/app`, `/app/` or `/app/test`
-    /// would match, but path `/application` would not match.
+    /// Only requests that match the application's prefix get
+    /// processed by this application.
     ///
-    /// In the following example only requests with "/app/" path prefix
-    /// get handled. Request with path "/app/test/" would be handled,
-    /// but request with path "/application" or "/other/..." would return *NOT FOUND*
+    /// The application prefix always contains a leading slash (`/`).
+    /// If the supplied prefix does not contain leading slash, it is
+    /// inserted.
+    ///
+    /// Prefix should consist of valid path segments. i.e for an
+    /// application with the prefix `/app` any request with the paths
+    /// `/app`, `/app/` or `/app/test` would match, but the path
+    /// `/application` would not.
+    ///
+    /// In the following example only requests with an `/app/` path
+    /// prefix get handled. Requests with path `/app/test/` would be
+    /// handled, while requests with the paths `/application` or
+    /// `/other/...` would return `NOT FOUND`.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -226,12 +232,14 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Configure route for specific path.
+    /// Configure route for a specific path.
     ///
-    /// This is simplified version of `App::resource()` method.
-    /// Handler function needs to accept one request extractor argument.
-    /// This method could be called multiple times, in that case multiple routes
-    /// would be registered for same resource path.
+    /// This is a simplified version of the `App::resource()` method.
+    /// Handler functions need to accept one request extractor
+    /// argument.
+    ///
+    /// This method could be called multiple times, in that case
+    /// multiple routes would be registered for same resource path.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -272,23 +280,25 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Configure resource for specific path.
+    /// Configure resource for a specific path.
     ///
-    /// Resource may have variable path also. For instance, a resource with
-    /// the path */a/{name}/c* would match all incoming requests with paths
-    /// such as */a/b/c*, */a/1/c*, and */a/etc/c*.
+    /// Resources may have variable path segments. For example, a
+    /// resource with the path `/a/{name}/c` would match all incoming
+    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
     ///
-    /// A variable part is specified in the form `{identifier}`, where
-    /// the identifier can be used later in a request handler to access the matched
-    /// value for that part. This is done by looking up the identifier
-    /// in the `Params` object returned by `HttpRequest.match_info()` method.
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment. This is done by
+    /// looking up the identifier in the `Params` object returned by
+    /// `HttpRequest.match_info()` method.
     ///
-    /// By default, each part matches the regular expression `[^{}/]+`.
+    /// By default, each segment matches the regular expression `[^{}/]+`.
     ///
     /// You can also specify a custom regex in the form `{identifier:regex}`:
     ///
-    /// For instance, to route Get requests on any route matching `/users/{userid}/{friend}` and
-    /// store userid and friend in the exposed Params object:
+    /// For instance, to route `GET`-requests on any route matching
+    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
+    /// the exposed `Params` object:
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -318,7 +328,8 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Default resource is used if no matched route could be found.
+    /// Default resource to be used if no matching route could be
+    /// found.
     pub fn default_resource<F, R>(mut self, f: F) -> App<S>
         where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
     {
@@ -339,11 +350,11 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Register external resource.
+    /// Register an external resource.
     ///
-    /// External resources are useful for URL generation purposes only and
-    /// are never considered for matching at request time.
-    /// Call to `HttpRequest::url_for()` will work as expected.
+    /// External resources are useful for URL generation purposes only
+    /// and are never considered for matching at request time. Calls to
+    /// `HttpRequest::url_for()` will work as expected.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -380,9 +391,10 @@ impl<S> App<S> where S: 'static {
 
     /// Configure handler for specific path prefix.
     ///
-    /// Path prefix consists valid path segments. i.e for prefix `/app`
-    /// any request with following paths `/app`, `/app/` or `/app/test`
-    /// would match, but path `/application` would not match.
+    /// A path prefix consists of valid path segments, i.e for the
+    /// prefix `/app` any request with the paths `/app`, `/app/` or
+    /// `/app/test` would match, but the path `/application` would
+    /// not.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -408,18 +420,19 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Register a middleware
+    /// Register a middleware.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
         self.parts.as_mut().expect("Use after finish")
             .middlewares.push(Box::new(mw));
         self
     }
 
-    /// Run external configuration as part of application building process
+    /// Run external configuration as part of the application building
+    /// process
     ///
-    /// This function is useful for moving part of configuration to a different
-    /// module or event library. For example we can move some of the resources
-    /// configuration to different module.
+    /// This function is useful for moving parts of configuration to a
+    /// different module or event library. For example we can move
+    /// some of the resources' configuration to different module.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -447,7 +460,7 @@ impl<S> App<S> where S: 'static {
         cfg(self)
     }
 
-    /// Finish application configuration and create HttpHandler object
+    /// Finish application configuration and create `HttpHandler` object.
     pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
@@ -478,10 +491,10 @@ impl<S> App<S> where S: 'static {
         }
     }
 
-    /// Convenience method for creating `Box<HttpHandler>` instance.
+    /// Convenience method for creating `Box<HttpHandler>` instances.
     ///
-    /// This method is useful if you need to register multiple application instances
-    /// with different state.
+    /// This method is useful if you need to register multiple
+    /// application instances with different state.
     ///
     /// ```rust
     /// # use std::thread;

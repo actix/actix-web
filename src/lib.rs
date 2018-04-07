@@ -1,4 +1,5 @@
-//! Actix web is a small, pragmatic, extremely fast, web framework for Rust.
+//! Actix web is a small, pragmatic, and extremely fast web framework
+//! for Rust.
 //!
 //! ```rust
 //! use actix_web::{server, App, Path};
@@ -37,9 +38,9 @@
 //! * Configurable request routing
 //! * Graceful server shutdown
 //! * Multipart streams
-//! * SSL support with openssl or native-tls
+//! * SSL support with OpenSSL or `native-tls`
 //! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
-//! * Built on top of [Actix actor framework](https://github.com/actix/actix).
+//! * Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
@@ -189,7 +190,7 @@ pub mod dev {
 }
 
 pub mod http {
-    //! Various http related types
+    //! Various HTTP related types
 
     // re-exports
     pub use modhttp::{Method, StatusCode, Version};
