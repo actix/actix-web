@@ -33,8 +33,8 @@ use server::IoStream;
 
 
 #[derive(Debug)]
-/// `Connect` type represents message that can be send to `ClientConnector`
-/// with connection request.
+/// `Connect` type represents a message that can be sent to
+/// `ClientConnector` with a connection request.
 pub struct Connect {
     pub(crate) uri: Uri,
     pub(crate) wait_timeout: Duration,
@@ -51,16 +51,16 @@ impl Connect {
         })
     }
 
-    /// Connection timeout, max time to connect to remote host.
-    /// By default connect timeout is 1 seccond.
+    /// Connection timeout, i.e. max time to connect to remote host.
+    /// Set to 1 second by default.
     pub fn conn_timeout(mut self, timeout: Duration) -> Self {
         self.conn_timeout = timeout;
         self
     }
 
     /// If connection pool limits are enabled, wait time indicates
-    /// max time to wait for available connection.
-    /// By default wait timeout is 5 secconds.
+    /// max time to wait for a connection to become available.
+    /// Set to 5 seconds by default.
     pub fn wait_timeout(mut self, timeout: Duration) -> Self {
         self.wait_timeout = timeout;
         self
@@ -99,11 +99,11 @@ impl Message for Pause {
 #[derive(Message)]
 pub struct Resume;
 
-/// A set of errors that can occur during connecting to a http host
+/// A set of errors that can occur while connecting to an HTTP host
 #[derive(Fail, Debug)]
 pub enum ClientConnectorError {
-    /// Invalid url
-    #[fail(display="Invalid url")]
+    /// Invalid URL
+    #[fail(display="Invalid URL")]
     InvalidUrl,
 
     /// SSL feature is not enabled
@@ -125,14 +125,14 @@ pub enum ClientConnectorError {
     Connector(#[cause] ConnectorError),
 
     /// Connection took too long
-    #[fail(display = "Timeout out while establishing connection")]
+    #[fail(display = "Timeout while establishing connection")]
     Timeout,
 
     /// Connector has been disconnected
     #[fail(display = "Internal error: connector has been disconnected")]
     Disconnected,
 
-    /// Connection io error
+    /// Connection IO error
     #[fail(display = "{}", _0)]
     IoError(#[cause] io::Error),
 }
@@ -152,8 +152,8 @@ struct Waiter {
     conn_timeout: Duration,
 }
 
-/// `ClientConnector` type is responsible for transport layer of a client connection
-/// of a client connection.
+/// `ClientConnector` type is responsible for transport layer of a
+/// client connection.
 pub struct ClientConnector {
     #[cfg(all(feature="alpn"))]
     connector: SslConnector,
@@ -242,9 +242,9 @@ impl ClientConnector {
     #[cfg(feature="alpn")]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
-    /// By default `ClientConnector` uses very simple ssl configuration.
-    /// With `with_connector` method it is possible to use custom `SslConnector`
-    /// object.
+    /// By default `ClientConnector` uses very a simple SSL configuration.
+    /// With `with_connector` method it is possible to use a custom
+    /// `SslConnector` object.
     ///
     /// ```rust
     /// # #![cfg(feature="alpn")]
@@ -313,7 +313,7 @@ impl ClientConnector {
 
     /// Set total number of simultaneous connections to the same endpoint.
     ///
-    /// Endpoints are the same if they are have equal (host, port, ssl) triplet.
+    /// Endpoints are the same if they have equal (host, port, ssl) triplets.
     /// If limit is 0, the connector has no limit. The default limit size is 0.
     pub fn limit_per_host(mut self, limit: usize) -> Self {
         self.limit_per_host = limit;
@@ -322,9 +322,9 @@ impl ClientConnector {
 
     /// Set keep-alive period for opened connection.
     ///
-    /// Keep-alive period is period between connection usage.
-    /// if deley between connection usage exceeds this period
-    /// connection closes.
+    /// Keep-alive period is the period between connection usage. If
+    /// the delay between repeated usages of the same connection
+    /// exceeds this period, the connection is closed.
     pub fn conn_keep_alive(mut self, dur: Duration) -> Self {
         self.conn_keep_alive = dur;
         self
@@ -333,7 +333,7 @@ impl ClientConnector {
     /// Set max lifetime period for connection.
     ///
     /// Connection lifetime is max lifetime of any opened connection
-    /// until it get closed regardless of keep-alive period.
+    /// until it is closed regardless of keep-alive period.
     pub fn conn_lifetime(mut self, dur: Duration) -> Self {
         self.conn_lifetime = dur;
         self
@@ -514,7 +514,7 @@ impl ClientConnector {
             self.install_wait_timeout(next.unwrap());
         }
     }
-    
+
     fn install_wait_timeout(&mut self, time: Instant) {
         if let Some(ref mut wait) = self.wait_timeout {
             if wait.0 < time {
@@ -601,7 +601,7 @@ impl Handler<Connect> for ClientConnector {
         if self.pool.task.borrow().is_none() {
             *self.pool.task.borrow_mut() = Some(current_task());
         }
-        
+
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
         let key = Key {host, port, ssl: proto.is_secure()};

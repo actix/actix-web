@@ -146,13 +146,13 @@ impl ClientRequest {
         source.into()
     }
 
-    /// Get the request uri
+    /// Get the request URI
     #[inline]
     pub fn uri(&self) -> &Uri {
         &self.uri
     }
 
-    /// Set client request uri
+    /// Set client request URI
     #[inline]
     pub fn set_uri(&mut self, uri: Uri) {
         self.uri = uri
@@ -164,13 +164,13 @@ impl ClientRequest {
         &self.method
     }
 
-    /// Set http `Method` for the request
+    /// Set HTTP `Method` for the request
     #[inline]
     pub fn set_method(&mut self, method: Method) {
         self.method = method
     }
 
-    /// Get http version for the request
+    /// Get HTTP version for the request
     #[inline]
     pub fn version(&self) -> Version {
         self.version
@@ -222,8 +222,8 @@ impl ClientRequest {
     pub fn write_buffer_capacity(&self) -> usize {
         self.buffer_capacity
     }
-    
-    /// Get body os this response
+
+    /// Get body of this response
     #[inline]
     pub fn body(&self) -> &Body {
         &self.body
@@ -234,14 +234,14 @@ impl ClientRequest {
         self.body = body.into();
     }
 
-    /// Extract body, replace it with Empty
+    /// Extract body, replace it with `Empty`
     pub(crate) fn replace_body(&mut self, body: Body) -> Body {
         mem::replace(&mut self.body, body)
     }
 
     /// Send request
     ///
-    /// This method returns future that resolves to a ClientResponse
+    /// This method returns a future that resolves to a ClientResponse
     pub fn send(mut self) -> SendRequest {
         let timeout = self.timeout.take();
         let send = match mem::replace(&mut self.conn, ConnectionType::Default) {
@@ -281,7 +281,7 @@ pub struct ClientRequestBuilder {
 }
 
 impl ClientRequestBuilder {
-    /// Set HTTP uri of request.
+    /// Set HTTP URI of request.
     #[inline]
     pub fn uri<U: AsRef<str>>(&mut self, uri: U) -> &mut Self {
         match Url::parse(uri.as_ref()) {
@@ -325,7 +325,7 @@ impl ClientRequestBuilder {
 
     /// Set HTTP version of this request.
     ///
-    /// By default requests's http version depends on network stream
+    /// By default requests's HTTP version depends on network stream
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
@@ -364,7 +364,7 @@ impl ClientRequestBuilder {
 
     /// Append a header.
     ///
-    /// Header get appended to existing header.
+    /// Header gets appended to existing header.
     /// To override header use `set_header()` method.
     ///
     /// ```rust
@@ -540,7 +540,7 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// Send request using existing Connection
+    /// Send request using existing `Connection`
     pub fn with_connection(&mut self, conn: Connection) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.conn = ConnectionType::Connection(conn);
@@ -548,7 +548,8 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is true.
+    /// This method calls provided closure with builder reference if
+    /// value is `true`.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
         where F: FnOnce(&mut ClientRequestBuilder)
     {
@@ -558,7 +559,8 @@ impl ClientRequestBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is Some.
+    /// This method calls provided closure with builder reference if
+    /// value is `Some`.
     pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
         where F: FnOnce(T, &mut ClientRequestBuilder)
     {
@@ -610,7 +612,7 @@ impl ClientRequestBuilder {
         Ok(request)
     }
 
-    /// Set a json body and generate `ClientRequest`
+    /// Set a JSON body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> Result<ClientRequest, Error> {
@@ -685,7 +687,7 @@ impl fmt::Debug for ClientRequestBuilder {
 /// Create `ClientRequestBuilder` from `HttpRequest`
 ///
 /// It is useful for proxy requests. This implementation
-/// copies all request's headers and method.
+/// copies all request headers and the method.
 impl<'a, S: 'static> From<&'a HttpRequest<S>> for ClientRequestBuilder {
     fn from(req: &'a HttpRequest<S>) -> ClientRequestBuilder {
         let mut builder = ClientRequest::build();
