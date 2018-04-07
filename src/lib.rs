@@ -20,13 +20,31 @@
 //! }
 //! ```
 //!
-//! ## Documentation
+//! ## Documentation & community resources
+//!
+//! Besides the API documentation (which you are currently looking
+//! at!), several other resources are available:
 //!
 //! * [User Guide](http://actix.github.io/actix-web/guide/)
 //! * [Chat on gitter](https://gitter.im/actix/actix)
 //! * [GitHub repository](https://github.com/actix/actix-web)
 //! * [Cargo package](https://crates.io/crates/actix-web)
-//! * Supported Rust version: 1.21 or later
+//!
+//! To get started navigating the API documentation you may want to
+//! consider looking at the following pages:
+//!
+//! * [App](struct.App.html): This struct represents an actix-web
+//!   application and is used to configure routes and other common
+//!   settings.
+//!
+//! * [HttpServer](server/struct.HttpServer.html): This struct
+//!   represents an HTTP server instance and is used to instantiate and
+//!   configure servers.
+//!
+//! * [HttpRequest](struct.HttpRequest.html) and
+//!   [HttpResponse](struct.HttpResponse.html): These structs
+//!   represent HTTP requests and responses and expose various methods
+//!   for inspecting, creating and otherwise utilising them.
 //!
 //! ## Features
 //!
@@ -41,6 +59,7 @@
 //! * SSL support with OpenSSL or `native-tls`
 //! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
 //! * Built on top of [Actix actor framework](https://github.com/actix/actix)
+//! * Supported Rust version: 1.21 or later
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
