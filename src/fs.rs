@@ -36,6 +36,7 @@ pub struct NamedFile {
     modified: Option<SystemTime>,
     cpu_pool: Option<CpuPool>,
     only_get: bool,
+    status_code: StatusCode,
 }
 
 impl NamedFile {
@@ -54,7 +55,9 @@ impl NamedFile {
         let path = path.as_ref().to_path_buf();
         let modified = md.modified().ok();
         let cpu_pool = None;
-        Ok(NamedFile{path, file, md, modified, cpu_pool, only_get: false})
+        Ok(NamedFile{path, file, md, modified, cpu_pool,
+                     only_get: false,
+                     status_code: StatusCode::OK})
     }
 
     /// Allow only GET and HEAD methods
@@ -93,6 +96,12 @@ impl NamedFile {
     #[inline]
     pub fn set_cpu_pool(mut self, cpu_pool: CpuPool) -> Self {
         self.cpu_pool = Some(cpu_pool);
+        self
+    }
+
+    /// Set response **Status Code**
+    pub fn set_status_code(mut self, status: StatusCode) -> Self {
+        self.status_code = status;
         self
     }
 
@@ -207,7 +216,7 @@ impl Responder for NamedFile {
             false
         };
 
-        let mut resp = HttpResponse::Ok();
+        let mut resp = HttpResponse::build(self.status_code);
 
         resp
             .if_some(self.path().extension(), |ext, resp| {
@@ -507,6 +516,20 @@ mod tests {
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml")
+    }
+
+    #[test]
+    fn test_named_file_status_code() {
+        let mut file = NamedFile::open("Cargo.toml").unwrap()
+            .set_status_code(StatusCode::NOT_FOUND)
+            .set_cpu_pool(CpuPool::new(1));
+        { file.file();
+          let _f: &File = &file; }
+        { let _f: &mut File = &mut file; }
+
+        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
