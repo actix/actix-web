@@ -7,6 +7,7 @@ use serde_json;
 use serde_json::error::Error as JsonError;
 use serde::{Serialize, Deserialize};
 use http::header::{self, HeaderValue};
+use time::Duration;
 use cookie::{CookieJar, Cookie, Key};
 use futures::Future;
 use futures::future::{FutureResult, ok as FutOk, err as FutErr};
@@ -263,6 +264,7 @@ struct CookieSessionInner {
     path: String,
     domain: Option<String>,
     secure: bool,
+    max_age: Option<Duration>,
 }
 
 impl CookieSessionInner {
@@ -273,7 +275,8 @@ impl CookieSessionInner {
             name: "actix-session".to_owned(),
             path: "/".to_owned(),
             domain: None,
-            secure: true }
+            secure: true,
+            max_age: None }
     }
 
     fn set_cookie(&self, resp: &mut HttpResponse, state: &HashMap<String, String>) -> Result<()> {
@@ -290,6 +293,10 @@ impl CookieSessionInner {
 
         if let Some(ref domain) = self.domain {
             cookie.set_domain(domain.clone());
+        }
+
+        if let Some(max_age) = self.max_age {
+            cookie.set_max_age(max_age);
         }
 
         let mut jar = CookieJar::new();
@@ -333,6 +340,21 @@ impl CookieSessionInner {
 /// Note that whatever you write into your session is visible by the user (but not modifiable).
 ///
 /// Constructor panics if key length is less than 32 bytes.
+///
+/// # Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::middleware::CookieSessionBackend;
+///
+/// # fn main() {
+/// let backend: CookieSessionBackend = CookieSessionBackend::new(&[0; 32])
+///     .domain("www.rust-lang.org")
+///     .name("actix_session")
+///     .path("/")
+///     .secure(true);
+/// # }
+/// ```
 pub struct CookieSessionBackend(Rc<CookieSessionInner>);
 
 impl CookieSessionBackend {
@@ -345,19 +367,34 @@ impl CookieSessionBackend {
             Rc::new(CookieSessionInner::new(key)))
     }
 
-    /// Creates a new `CookieSessionBackendBuilder` instance from the given key.
-    ///
-    /// Panics if key length is less than 32 bytes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use actix_web::middleware::CookieSessionBackend;
-    ///
-    /// let backend = CookieSessionBackend::build(&[0; 32]).finish();
-    /// ```
-    pub fn build(key: &[u8]) -> CookieSessionBackendBuilder {
-        CookieSessionBackendBuilder::new(key)
+    /// Sets the `path` field in the session cookie being built.
+    pub fn path<S: Into<String>>(mut self, value: S) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().path = value.into();
+        self
+    }
+
+    /// Sets the `name` field in the session cookie being built.
+    pub fn name<S: Into<String>>(mut self, value: S) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().name = value.into();
+        self
+    }
+
+    /// Sets the `domain` field in the session cookie being built.
+    pub fn domain<S: Into<String>>(mut self, value: S) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().domain = Some(value.into());
+        self
+    }
+
+    /// Sets the `secure` field in the session cookie being built.
+    pub fn secure(mut self, value: bool) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().secure = value;
+        self
+    }
+
+    /// Sets the `max-age` field in the session cookie being built.
+    pub fn max_age(mut self, value: Duration) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
+        self
     }
 }
 
@@ -374,66 +411,5 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
                 inner: Rc::clone(&self.0),
                 state,
             })
-    }
-}
-
-/// Structure that follows the builder pattern for building `CookieSessionBackend` structs.
-///
-/// To construct a backend:
-///
-///   1. Call [`CookieSessionBackend::build`](struct.CookieSessionBackend.html#method.build) to start building.
-///   2. Use any of the builder methods to set fields in the backend.
-///   3. Call [finish](#method.finish) to retrieve the constructed backend.
-///
-/// # Example
-///
-/// ```rust
-/// # extern crate actix_web;
-/// use actix_web::middleware::CookieSessionBackend;
-///
-/// # fn main() {
-/// let backend: CookieSessionBackend = CookieSessionBackend::build(&[0; 32])
-///     .domain("www.rust-lang.org")
-///     .name("actix_session")
-///     .path("/")
-///     .secure(true)
-///     .finish();
-/// # }
-/// ```
-pub struct CookieSessionBackendBuilder(CookieSessionInner);
-
-impl CookieSessionBackendBuilder {
-    pub fn new(key: &[u8]) -> CookieSessionBackendBuilder {
-        CookieSessionBackendBuilder(
-            CookieSessionInner::new(key))
-    }
-
-    /// Sets the `path` field in the session cookie being built.
-    pub fn path<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
-        self.0.path = value.into();
-        self
-    }
-
-    /// Sets the `name` field in the session cookie being built.
-    pub fn name<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
-        self.0.name = value.into();
-        self
-    }
-
-    /// Sets the `domain` field in the session cookie being built.
-    pub fn domain<S: Into<String>>(mut self, value: S) -> CookieSessionBackendBuilder {
-        self.0.domain = Some(value.into());
-        self
-    }
-
-    /// Sets the `secure` field in the session cookie being built.
-    pub fn secure(mut self, value: bool) -> CookieSessionBackendBuilder {
-        self.0.secure = value;
-        self
-    }
-
-    /// Finishes building and returns the built `CookieSessionBackend`.
-    pub fn finish(self) -> CookieSessionBackend {
-        CookieSessionBackend(Rc::new(self.0))
     }
 }

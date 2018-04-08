@@ -19,7 +19,7 @@ pub use self::defaultheaders::DefaultHeaders;
 
 #[cfg(feature = "session")]
 pub use self::session::{RequestSession, Session, SessionImpl, SessionBackend, SessionStorage,
-                        CookieSessionError, CookieSessionBackend, CookieSessionBackendBuilder};
+                        CookieSessionError, CookieSessionBackend};
 
 /// Middleware start result
 pub enum Started {
