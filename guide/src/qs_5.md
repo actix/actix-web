@@ -350,10 +350,33 @@ List of `FromParam` implementations can be found in
 
 ## Path information extractor
 
-Actix provides functionality for type safe request path information extraction.
-It uses *serde* package as a deserialization library.
-[Path](../actix_web/struct.Path.html) extracts information, the destination type
-has to implement *serde's *`Deserialize` trait.
+Actix provides functionality for type safe path information extraction.
+[Path](../actix_web/struct.Path.html) extracts information, destination type
+could be defined in several different forms. Simplest approach is to use
+`tuple` type. Each element in tuple must correpond to one element from
+path pattern. i.e. you can match path pattern `/{id}/{username}/` against
+`Pyth<(u32, String)>` type, but `Path<(String, String, String)>` type will
+always fail.
+
+```rust
+# extern crate actix_web;
+use actix_web::{App, Path, Result, http::Method};
+
+// extract path info using serde
+fn index(info: Path<(String, u32)>) -> Result<String> {
+    Ok(format!("Welcome {}! id: {}", info.0, info.1))
+}
+
+fn main() {
+    let app = App::new()
+        .resource("/{username}/{id}/index.html",    // <- define path parameters
+                  |r| r.method(Method::GET).with(index));
+}
+```
+
+
+It also possible to extract path pattern information to a struct. In this case,
+this struct must implement *serde's *`Deserialize` trait.
 
 ```rust
 # extern crate actix_web;
@@ -377,27 +400,6 @@ fn main() {
 }
 ```
 
-It also possible to extract path information to a tuple. In this case, you don't need
-to define an extra type; use a tuple as a `Path` generic type.
-
-Here is previous example re-written using tuple instead of specific type.
-
-```rust
-# extern crate actix_web;
-use actix_web::{App, Path, Result, http::Method};
-
-// extract path info using serde
-fn index(info: Path<(String, u32)>) -> Result<String> {
-    Ok(format!("Welcome {}! id: {}", info.0, info.1))
-}
-
-fn main() {
-    let app = App::new()
-        .resource("/{username}/{id}/index.html",    // <- define path parameters
-                  |r| r.method(Method::GET).with(index));
-}
-```
-
 [Query](../actix_web/struct.Query.html) provides similar functionality for
 request query parameters.
 
@@ -410,11 +412,13 @@ resource with the name "foo" and the pattern "{a}/{b}/{c}", you might do this:
 
 ```rust
 # extern crate actix_web;
-# use actix_web::{App, HttpRequest, HttpResponse, http::Method};
+# use actix_web::{App, Result, HttpRequest, HttpResponse, http::Method, http::header};
 #
-fn index(req: HttpRequest) -> HttpResponse {
-    let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
-    HttpResponse::Ok().into()
+fn index(req: HttpRequest) -> Result<HttpResponse> {
+    let url = req.url_for("foo", &["1", "2", "3"])?; // <- generate url for "foo" resource
+    Ok(HttpResponse::Found()
+       .header(header::LOCATION, url.as_str())
+       .finish())
 }
 
 fn main() {
@@ -423,6 +427,7 @@ fn main() {
              r.name("foo");  // <- set resource name, then it could be used in `url_for`
              r.method(Method::GET).f(|_| HttpResponse::Ok());
         })
+        .route("/test/", Method::GET, index)
         .finish();
 }
 ```

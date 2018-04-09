@@ -131,6 +131,7 @@ fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
 ///            .allowed_origin("https://www.example.com"));
 /// # }
 /// ```
+#[derive(Default)]
 pub struct CsrfFilter {
     origins: HashSet<String>,
     allow_xhr: bool,
