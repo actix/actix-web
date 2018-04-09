@@ -121,9 +121,8 @@ unsafe impl Sync for SessionImplBox {}
 /// fn main() {
 ///    let app = App::new().middleware(
 ///        SessionStorage::new(                      // <- create session middleware
-///            CookieSessionBackend::build(&[0; 32]) // <- create cookie session backend
-///               .secure(false)
-///               .finish())
+///            CookieSessionBackend::new(&[0; 32]) // <- create cookie session backend
+///               .secure(false))
 ///    );
 /// }
 /// ```
