@@ -23,6 +23,8 @@
 
 * Fix logger request duration calculation #152
 
+* Add `signed` and `private` `CookieSessionBackend`s
+
 
 ## 0.4.10 (2018-03-20)
 

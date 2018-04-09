@@ -105,7 +105,7 @@ fn main() {
             .middleware(middleware::Logger::default())
             // cookie session middleware
             .middleware(middleware::SessionStorage::new(
-                middleware::CookieSessionBackend::new(&[0; 32]).secure(false)
+                middleware::CookieSessionBackend::signed(&[0; 32]).secure(false)
             ))
             // register favicon
             .resource("/favicon.ico", |r| r.f(favicon))
