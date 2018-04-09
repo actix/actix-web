@@ -14,7 +14,7 @@
 //! * There is no `Origin` header but the `Referer` header matches one of
 //!   the allowed origins.
 //!
-//! Use [`CsrfFilterBuilder::allow_xhr()`](struct.CsrfFilterBuilder.html#method.allow_xhr)
+//! Use [`CsrfFilter::allow_xhr()`](struct.CsrfFilter.html#method.allow_xhr)
 //! if you want to allow requests with unsafe methods via
 //! [CORS](../cors/struct.Cors.html).
 //!
@@ -32,9 +32,8 @@
 //! fn main() {
 //!     let app = App::new()
 //!         .middleware(
-//!             csrf::CsrfFilter::build()
-//!                 .allowed_origin("https://www.example.com")
-//!                 .finish())
+//!             csrf::CsrfFilter::new()
+//!                 .allowed_origin("https://www.example.com"))
 //!         .resource("/", |r| {
 //!             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
 //!             r.method(http::Method::POST).f(handle_post);
