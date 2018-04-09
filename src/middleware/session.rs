@@ -121,7 +121,7 @@ unsafe impl Sync for SessionImplBox {}
 /// fn main() {
 ///    let app = App::new().middleware(
 ///        SessionStorage::new(                      // <- create session middleware
-///            CookieSessionBackend::new(&[0; 32]) // <- create cookie session backend
+///            CookieSessionBackend::signed(&[0; 32]) // <- create cookie session backend
 ///               .secure(false))
 ///    );
 /// }
@@ -257,8 +257,14 @@ impl SessionImpl for CookieSession {
     }
 }
 
+enum CookieSecurity {
+    Signed,
+    Private
+}
+
 struct CookieSessionInner {
     key: Key,
+    security: CookieSecurity,
     name: String,
     path: String,
     domain: Option<String>,
@@ -268,14 +274,16 @@ struct CookieSessionInner {
 
 impl CookieSessionInner {
 
-    fn new(key: &[u8]) -> CookieSessionInner {
+    fn new(key: &[u8], security: CookieSecurity) -> CookieSessionInner {
         CookieSessionInner {
             key: Key::from_master(key),
+            security: security,
             name: "actix-session".to_owned(),
             path: "/".to_owned(),
             domain: None,
             secure: true,
-            max_age: None }
+            max_age: None,
+        }
     }
 
     fn set_cookie(&self, resp: &mut HttpResponse, state: &HashMap<String, String>) -> Result<()> {
@@ -299,7 +307,11 @@ impl CookieSessionInner {
         }
 
         let mut jar = CookieJar::new();
-        jar.signed(&self.key).add(cookie);
+
+        match self.security {
+            CookieSecurity::Signed => jar.signed(&self.key).add(cookie),
+            CookieSecurity::Private => jar.private(&self.key).add(cookie),
+        }
 
         for cookie in jar.delta() {
             let val = HeaderValue::from_str(&cookie.to_string())?;
@@ -315,7 +327,12 @@ impl CookieSessionInner {
                 if cookie.name() == self.name {
                     let mut jar = CookieJar::new();
                     jar.add_original(cookie.clone());
-                    if let Some(cookie) = jar.signed(&self.key).get(&self.name) {
+
+                    let cookie_opt = match self.security {
+                        CookieSecurity::Signed => jar.signed(&self.key).get(&self.name),
+                        CookieSecurity::Private => jar.private(&self.key).get(&self.name),
+                    };
+                    if let Some(cookie) = cookie_opt {
                         if let Ok(val) = serde_json::from_str(cookie.value()) {
                             return val;
                         }
@@ -327,18 +344,24 @@ impl CookieSessionInner {
     }
 }
 
-/// Use signed cookies as session storage.
+/// Use cookies for session storage.
 ///
 /// `CookieSessionBackend` creates sessions which are limited to storing
 /// fewer than 4000 bytes of data (as the payload must fit into a single cookie).
-/// Internal server error get generated if session contains more than 4000 bytes.
+/// An Internal Server Error is generated if the session contains more than 4000 bytes.
 ///
-/// You need to pass a random value to the constructor of `CookieSessionBackend`.
-/// This is private key for cookie session, When this value is changed, all session data is lost.
+/// A cookie may have a security policy of *signed* or *private*. Each has a respective `CookieSessionBackend` constructor.
 ///
-/// Note that whatever you write into your session is visible by the user (but not modifiable).
+/// A *signed* cookie is stored on the client as plaintext alongside
+/// a signature such that the cookie may be viewed but not modified by the client.
 ///
-/// Constructor panics if key length is less than 32 bytes.
+/// A *private* cookie is stored on the client as encrypted text
+/// such that it may neither be viewed nor modified by the client.
+///
+/// The constructors take a key as an argument.
+/// This is the private key for cookie session - when this value is changed, all session data is lost.
+/// The constructors will panic if the key is less than 32 bytes in length.
+///
 ///
 /// # Example
 ///
@@ -347,7 +370,7 @@ impl CookieSessionInner {
 /// use actix_web::middleware::CookieSessionBackend;
 ///
 /// # fn main() {
-/// let backend: CookieSessionBackend = CookieSessionBackend::new(&[0; 32])
+/// let backend: CookieSessionBackend = CookieSessionBackend::signed(&[0; 32])
 ///     .domain("www.rust-lang.org")
 ///     .name("actix_session")
 ///     .path("/")
@@ -358,12 +381,29 @@ pub struct CookieSessionBackend(Rc<CookieSessionInner>);
 
 impl CookieSessionBackend {
 
-    /// Construct new `CookieSessionBackend` instance.
+    /// Construct new signed `CookieSessionBackend` instance.
     ///
     /// Panics if key length is less than 32 bytes.
+    #[deprecated(since="0.5.0", note="use `signed` or `private` instead")]
     pub fn new(key: &[u8]) -> CookieSessionBackend {
         CookieSessionBackend(
-            Rc::new(CookieSessionInner::new(key)))
+            Rc::new(CookieSessionInner::new(key, CookieSecurity::Signed)))
+    }
+
+    /// Construct new *signed* `CookieSessionBackend` instance.
+    ///
+    /// Panics if key length is less than 32 bytes.
+    pub fn signed(key: &[u8]) -> CookieSessionBackend {
+        CookieSessionBackend(
+            Rc::new(CookieSessionInner::new(key, CookieSecurity::Signed)))
+    }
+
+    /// Construct new *private* `CookieSessionBackend` instance.
+    ///
+    /// Panics if key length is less than 32 bytes.
+    pub fn private(key: &[u8]) -> CookieSessionBackend {
+        CookieSessionBackend(
+            Rc::new(CookieSessionInner::new(key, CookieSecurity::Private)))
     }
 
     /// Sets the `path` field in the session cookie being built.
@@ -385,6 +425,9 @@ impl CookieSessionBackend {
     }
 
     /// Sets the `secure` field in the session cookie being built.
+    ///
+    /// If the `secure` field is set, a cookie will only be transmitted when the
+    /// connection is secure - i.e. `https`
     pub fn secure(mut self, value: bool) -> CookieSessionBackend {
         Rc::get_mut(&mut self.0).unwrap().secure = value;
         self
