@@ -4,7 +4,7 @@ use diesel;
 use actix_web::*;
 use actix::prelude::*;
 use diesel::prelude::*;
-use diesel::r2d2::{ Pool, ConnectionManager };
+use diesel::r2d2::{Pool, ConnectionManager};
 
 use models;
 use schema;
