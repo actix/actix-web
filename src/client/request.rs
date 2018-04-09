@@ -259,11 +259,11 @@ impl ClientRequest {
 
 impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "\nClientRequest {:?} {}:{}\n",
+        let res = writeln!(f, "\nClientRequest {:?} {}:{}",
                          self.version, self.method, self.uri);
-        let _ = write!(f, "  headers:\n");
+        let _ = writeln!(f, "  headers:");
         for (key, val) in self.headers.iter() {
-            let _ = write!(f, "    {:?}: {:?}\n", key, val);
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
     }
@@ -671,11 +671,11 @@ fn parts<'a>(parts: &'a mut Option<ClientRequest>, err: &Option<HttpError>)
 impl fmt::Debug for ClientRequestBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ref parts) = self.request {
-            let res = write!(f, "\nClientRequestBuilder {:?} {}:{}\n",
-                             parts.version, parts.method, parts.uri);
-            let _ = write!(f, "  headers:\n");
+            let res = writeln!(f, "\nClientRequestBuilder {:?} {}:{}",
+                               parts.version, parts.method, parts.uri);
+            let _ = writeln!(f, "  headers:");
             for (key, val) in parts.headers.iter() {
-                let _ = write!(f, "    {:?}: {:?}\n", key, val);
+                let _ = writeln!(f, "    {:?}: {:?}", key, val);
             }
             res
         } else {

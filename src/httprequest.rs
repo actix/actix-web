@@ -555,17 +555,17 @@ impl<S> AsyncRead for HttpRequest<S> {}
 
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "\nHttpRequest {:?} {}:{}\n",
+        let res = writeln!(f, "\nHttpRequest {:?} {}:{}",
                          self.as_ref().version, self.as_ref().method, self.path_decoded());
         if !self.query_string().is_empty() {
-            let _ = write!(f, "  query: ?{:?}\n", self.query_string());
+            let _ = writeln!(f, "  query: ?{:?}", self.query_string());
         }
         if !self.match_info().is_empty() {
-            let _ = write!(f, "  params: {:?}\n", self.as_ref().params);
+            let _ = writeln!(f, "  params: {:?}", self.as_ref().params);
         }
-        let _ = write!(f, "  headers:\n");
+        let _ = writeln!(f, "  headers:");
         for (key, val) in self.as_ref().headers.iter() {
-            let _ = write!(f, "    {:?}: {:?}\n", key, val);
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
     }

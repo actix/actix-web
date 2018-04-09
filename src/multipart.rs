@@ -396,11 +396,11 @@ impl<S> Stream for Field<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
 impl<S> fmt::Debug for Field<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "\nMultipartField: {}\n", self.ct);
-        let _ = write!(f, "  boundary: {}\n", self.inner.borrow().boundary);
-        let _ = write!(f, "  headers:\n");
+        let res = writeln!(f, "\nMultipartField: {}", self.ct);
+        let _ = writeln!(f, "  boundary: {}", self.inner.borrow().boundary);
+        let _ = writeln!(f, "  headers:");
         for (key, val) in self.headers.iter() {
-            let _ = write!(f, "    {:?}: {:?}\n", key, val);
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
     }

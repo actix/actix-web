@@ -241,13 +241,13 @@ impl HttpResponse {
 
 impl fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "\nHttpResponse {:?} {}{}\n",
+        let res = writeln!(f, "\nHttpResponse {:?} {}{}",
                          self.get_ref().version, self.get_ref().status,
                          self.get_ref().reason.unwrap_or(""));
-        let _ = write!(f, "  encoding: {:?}\n", self.get_ref().encoding);
-        let _ = write!(f, "  headers:\n");
+        let _ = writeln!(f, "  encoding: {:?}", self.get_ref().encoding);
+        let _ = writeln!(f, "  headers:");
         for (key, val) in self.get_ref().headers.iter() {
-            let _ = write!(f, "    {:?}: {:?}\n", key, val);
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
     }

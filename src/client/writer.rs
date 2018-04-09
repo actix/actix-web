@@ -105,10 +105,10 @@ impl HttpClientWriter {
         // render message
         {
             // status line
-            write!(self.buffer, "{} {} {:?}\r\n",
-                   msg.method(),
-                   msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-                   msg.version())?;
+            writeln!(self.buffer, "{} {} {:?}\r",
+                     msg.method(),
+                     msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+                     msg.version())?;
 
             // write headers
             let mut buffer = self.buffer.get_mut();

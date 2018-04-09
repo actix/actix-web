@@ -718,7 +718,7 @@ impl TransferEncoding {
                     self.buffer.extend_from_slice(b"0\r\n\r\n");
                 } else {
                     let mut buf = BytesMut::new();
-                    write!(&mut buf, "{:X}\r\n", msg.len())
+                    writeln!(&mut buf, "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                     self.buffer.reserve(buf.len() + msg.len() + 2);
                     self.buffer.extend(buf.into());
