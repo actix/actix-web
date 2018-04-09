@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.5.0-dev"
+version = "0.5.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic, extremely fast, web framework for Rust."
 readme = "README.md"
