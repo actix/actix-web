@@ -381,15 +381,6 @@ pub struct CookieSessionBackend(Rc<CookieSessionInner>);
 
 impl CookieSessionBackend {
 
-    /// Construct new signed `CookieSessionBackend` instance.
-    ///
-    /// Panics if key length is less than 32 bytes.
-    #[deprecated(since="0.5.0", note="use `signed` or `private` instead")]
-    pub fn new(key: &[u8]) -> CookieSessionBackend {
-        CookieSessionBackend(
-            Rc::new(CookieSessionInner::new(key, CookieSecurity::Signed)))
-    }
-
     /// Construct new *signed* `CookieSessionBackend` instance.
     ///
     /// Panics if key length is less than 32 bytes.
