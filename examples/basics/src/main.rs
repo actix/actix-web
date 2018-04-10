@@ -10,7 +10,7 @@ use futures::Stream;
 use std::{io, env};
 use actix_web::{error, fs, pred, server,
                 App, HttpRequest, HttpResponse, Result, Error};
-use actix_web::http::{Method, StatusCode};
+use actix_web::http::{header, Method, StatusCode};
 use actix_web::middleware::{self, RequestSession};
 use futures::future::{FutureResult, result};
 
@@ -40,36 +40,18 @@ fn index(mut req: HttpRequest) -> Result<HttpResponse> {
         req.session().set("counter", counter)?;
     }
 
-    // html
-    let html = format!(r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
-<body>
-    <h1>Welcome <img width="30px" height="30px" src="/static/actixLogo.png" /></h1>
-    session counter = {}
-</body>
-</html>"#, counter);
 
     // response
     Ok(HttpResponse::build(StatusCode::OK)
-        .content_type("text/html; charset=utf-8")
-        .body(&html))
+       .content_type("text/html; charset=utf-8")
+       .body(include_str!("../static/welcome.html")))
 
 }
 
 /// 404 handler
-fn p404(req: HttpRequest) -> Result<HttpResponse> {
-
-    // html
-    let html = r#"<!DOCTYPE html><html><head><title>actix - basics</title><link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" /></head>
-<body>
-    <a href="index.html">back to home</a>
-    <h1>404</h1>
-</body>
-</html>"#;
-
-    // response
-    Ok(HttpResponse::build(StatusCode::NOT_FOUND)
-        .content_type("text/html; charset=utf-8")
-        .body(html))
+fn p404(req: HttpRequest) -> Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("./static/404.html")?
+       .set_status_code(StatusCode::NOT_FOUND))
 }
 
 
@@ -131,14 +113,16 @@ fn main() {
             // redirect
             .resource("/", |r| r.method(Method::GET).f(|req| {
                 println!("{:?}", req);
-
                 HttpResponse::Found()
-                    .header("LOCATION", "/index.html")
+                    .header(header::LOCATION, "/index.html")
                     .finish()
             }))
             // default
             .default_resource(|r| {
+                // 404 for GET request
                 r.method(Method::GET).f(p404);
+
+                // all requests that are not `GET`
                 r.route().filter(pred::Not(pred::Get())).f(
                     |req| HttpResponse::MethodNotAllowed());
             }))
