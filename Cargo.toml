@@ -33,7 +33,7 @@ default = ["session", "brotli"]
 tls = ["native-tls", "tokio-tls"]
 
 # openssl
-alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
+alpn = ["openssl", "tokio-openssl"]
 
 # sessions
 session = ["cookie/secure"]
