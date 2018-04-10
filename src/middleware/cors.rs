@@ -793,7 +793,7 @@ impl<S: 'static> CorsBuilder<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::TestRequest;
+    use test::{self, TestRequest};
 
     impl Started {
         fn is_done(&self) -> bool {
@@ -1000,19 +1000,21 @@ mod tests {
 
     #[test]
     fn cors_resource() {
-        let mut app = App::new()
-            .configure(
-                |app| Cors::for_app(app)
-                    .allowed_origin("https://www.example.com")
-                    .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
-                    .register())
-            .finish();
+        let mut srv = test::TestServer::with_factory(
+            || App::new()
+                .configure(
+                    |app| Cors::for_app(app)
+                        .allowed_origin("https://www.example.com")
+                        .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                        .register()));
 
-        let req = TestRequest::with_uri("/test").finish();
-        let resp = app.run(req);
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-        // TODO: proper test
-        //assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
-        assert!(resp.as_response().is_none());
+        let request = srv.get().uri(srv.url("/test"))
+            .header("ORIGIN", "https://www.example.com").finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
