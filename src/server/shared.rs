@@ -39,7 +39,7 @@ pub(crate) struct SharedBytes(
 
 impl Drop for SharedBytes {
     fn drop(&mut self) {
-        if let Some(ref pool) = self.1 {
+        if let Some(pool) = self.1.take() {
             if let Some(bytes) = self.0.take() {
                 if Rc::strong_count(&bytes) == 1 {
                     pool.release_bytes(bytes);

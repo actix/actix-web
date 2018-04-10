@@ -17,7 +17,7 @@ contains the following:
 ```toml
 [dependencies]
 actix = "0.5"
-actix-web = { git="https://github.com/actix/actix-web.git" }
+actix-web = "0.5"
 ```
 
 In order to implement a web server, we first need to create a request handler.

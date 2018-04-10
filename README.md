@@ -20,7 +20,7 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
   [CSRF](https://actix.github.io/actix-web/actix_web/middleware/csrf/index.html))
 * Built on top of [Actix actor framework](https://github.com/actix/actix)
 
-## Documentation
+## Documentation & community resources
 
 * [User Guide](http://actix.github.io/actix-web/guide/)
 * [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
@@ -31,26 +31,18 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 ## Example
 
-At the moment all examples are based on the actix-web `master` branch.
-
-```toml
-[dependencies]
-actix = "0.5"
-actix-web = { git="https://github.com/actix/actix-web.git" }
-```
-
 ```rust
 extern crate actix_web;
 use actix_web::{server, App, Path};
 
-fn index(info: Path<(String, u32)>) -> String {
+fn index(info: Path<(u32, String)>) -> String {
     format!("Hello {}! id:{}", info.0, info.1)
 }
 
 fn main() {
     server::new(
         || App::new()
-            .resource("/{name}/{id}/index.html", |r| r.with(index)))
+            .resource("/{id}/{name}/index.html", |r| r.with(index)))
         .bind("127.0.0.1:8080").unwrap()
         .run();
 }
