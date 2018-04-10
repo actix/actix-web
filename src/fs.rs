@@ -1,6 +1,4 @@
-//! Static files support.
-
-// //! TODO: needs to re-implement actual files handling, current impl blocks
+//! Static files support
 use std::{io, cmp};
 use std::io::{Read, Seek};
 use std::fmt::Write;

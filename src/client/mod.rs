@@ -1,4 +1,31 @@
-//! HTTP client
+//! Http client api
+//!
+//! ```rust
+//! # extern crate actix;
+//! # extern crate actix_web;
+//! # extern crate futures;
+//! # use futures::Future;
+//! use actix_web::client;
+//!
+//! fn main() {
+//!     let sys = actix::System::new("test");
+//!
+//!     actix::Arbiter::handle().spawn({
+//!         client::get("http://www.rust-lang.org")   // <- Create request builder
+//!             .header("User-Agent", "Actix-web")
+//!             .finish().unwrap()
+//!             .send()                               // <- Send http request
+//!             .map_err(|_| ())
+//!             .and_then(|response| {                // <- server http response
+//!                 println!("Response: {:?}", response);
+//! #               actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//!                 Ok(())
+//!             })
+//!     });
+//!
+//!     sys.run();
+//! }
+//! ```
 mod connector;
 mod parser;
 mod request;
