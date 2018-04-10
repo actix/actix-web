@@ -52,6 +52,7 @@ use std::rc::Rc;
 use http::{self, Method, HttpTryFrom, Uri, StatusCode};
 use http::header::{self, HeaderName, HeaderValue};
 
+use application::App;
 use error::{Result, ResponseError};
 use resource::ResourceHandler;
 use httpmessage::HttpMessage;
@@ -183,7 +184,7 @@ impl Default for Cors {
 }
 
 impl Cors {
-    pub fn build() -> CorsBuilder {
+    pub fn build() -> CorsBuilder<()> {
         CorsBuilder {
             cors: Some(Inner {
                 origins: AllOrSome::All,
@@ -200,6 +201,48 @@ impl Cors {
             methods: false,
             error: None,
             expose_hdrs: HashSet::new(),
+            resources: Vec::new(),
+            app: None,
+        }
+    }
+
+    /// Create CorsBuilder for a specified application.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpResponse};
+    /// use actix_web::middleware::cors::Cors;
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .configure(|app| Cors::for_app(app)   // <- Construct CORS builder
+    ///             .allowed_origin("https://www.rust-lang.org/")
+    ///             .resource("/resource", |r| {       // register resource
+    ///                  r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+    ///             })
+    ///             .register()  // construct CORS and return application instance
+    ///         );
+    /// }
+    /// ```
+    pub fn for_app<S: 'static>(app: App<S>) -> CorsBuilder<S> {
+        CorsBuilder {
+            cors: Some(Inner {
+                origins: AllOrSome::All,
+                origins_str: None,
+                methods: HashSet::new(),
+                headers: AllOrSome::All,
+                expose_hdrs: None,
+                max_age: None,
+                preflight: true,
+                send_wildcard: false,
+                supports_credentials: false,
+                vary_header: true,
+            }),
+            methods: false,
+            error: None,
+            expose_hdrs: HashSet::new(),
+            resources: Vec::new(),
+            app: Some(app),
         }
     }
 
@@ -401,11 +444,13 @@ impl<S> Middleware<S> for Cors {
 ///     .finish();
 /// # }
 /// ```
-pub struct CorsBuilder {
+pub struct CorsBuilder<S=()> {
     cors: Option<Inner>,
     methods: bool,
     error: Option<http::Error>,
     expose_hdrs: HashSet<HeaderName>,
+    resources: Vec<(String, ResourceHandler<S>)>,
+    app: Option<App<S>>,
 }
 
 fn cors<'a>(parts: &'a mut Option<Inner>, err: &Option<http::Error>)
@@ -417,7 +462,7 @@ fn cors<'a>(parts: &'a mut Option<Inner>, err: &Option<http::Error>)
     parts.as_mut()
 }
 
-impl CorsBuilder {
+impl<S: 'static> CorsBuilder<S> {
 
     /// Add an origin that are allowed to make requests.
     /// Will be verified against the `Origin` request header.
@@ -435,7 +480,7 @@ impl CorsBuilder {
     /// Defaults to `All`.
     ///
     /// Builder panics if supplied origin is not valid uri.
-    pub fn allowed_origin(&mut self, origin: &str) -> &mut CorsBuilder {
+    pub fn allowed_origin(&mut self, origin: &str) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             match Uri::try_from(origin) {
                 Ok(_) => {
@@ -461,7 +506,7 @@ impl CorsBuilder {
     /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
     ///
     /// Defaults to `[GET, HEAD, POST, OPTIONS, PUT, PATCH, DELETE]`
-    pub fn allowed_methods<U, M>(&mut self, methods: U) -> &mut CorsBuilder
+    pub fn allowed_methods<U, M>(&mut self, methods: U) -> &mut CorsBuilder<S>
         where U: IntoIterator<Item=M>, Method: HttpTryFrom<M>
     {
         self.methods = true;
@@ -482,7 +527,7 @@ impl CorsBuilder {
     }
 
     /// Set an allowed header
-    pub fn allowed_header<H>(&mut self, header: H) -> &mut CorsBuilder
+    pub fn allowed_header<H>(&mut self, header: H) -> &mut CorsBuilder<S>
         where HeaderName: HttpTryFrom<H>
     {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
@@ -511,7 +556,7 @@ impl CorsBuilder {
     /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
     ///
     /// Defaults to `All`.
-    pub fn allowed_headers<U, H>(&mut self, headers: U) -> &mut CorsBuilder
+    pub fn allowed_headers<U, H>(&mut self, headers: U) -> &mut CorsBuilder<S>
         where U: IntoIterator<Item=H>, HeaderName: HttpTryFrom<H>
     {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
@@ -542,7 +587,7 @@ impl CorsBuilder {
     /// [Resource Processing Model](https://www.w3.org/TR/cors/#resource-processing-model).
     ///
     /// This defaults to an empty set.
-    pub fn expose_headers<U, H>(&mut self, headers: U) -> &mut CorsBuilder
+    pub fn expose_headers<U, H>(&mut self, headers: U) -> &mut CorsBuilder<S>
         where U: IntoIterator<Item=H>, HeaderName: HttpTryFrom<H>
     {
         for h in headers {
@@ -563,7 +608,7 @@ impl CorsBuilder {
     /// This value is set as the `Access-Control-Max-Age` header.
     ///
     /// This defaults to `None` (unset).
-    pub fn max_age(&mut self, max_age: usize) -> &mut CorsBuilder {
+    pub fn max_age(&mut self, max_age: usize) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.max_age = Some(max_age)
         }
@@ -584,7 +629,7 @@ impl CorsBuilder {
     /// in an `Error::CredentialsWithWildcardOrigin` error during actix launch or runtime.
     ///
     /// Defaults to `false`.
-    pub fn send_wildcard(&mut self) -> &mut CorsBuilder {
+    pub fn send_wildcard(&mut self) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.send_wildcard = true
         }
@@ -603,7 +648,7 @@ impl CorsBuilder {
     ///
     /// Builder panics if credentials are allowed, but the Origin is set to "*".
     /// This is not allowed by W3C
-    pub fn supports_credentials(&mut self) -> &mut CorsBuilder {
+    pub fn supports_credentials(&mut self) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.supports_credentials = true
         }
@@ -621,7 +666,7 @@ impl CorsBuilder {
     /// caches that the CORS headers are dynamic, and cannot be cached.
     ///
     /// By default `vary` header support is enabled.
-    pub fn disable_vary_header(&mut self) -> &mut CorsBuilder {
+    pub fn disable_vary_header(&mut self) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.vary_header = false
         }
@@ -634,21 +679,57 @@ impl CorsBuilder {
     /// This is useful application level middleware.
     ///
     /// By default *preflight* support is enabled.
-    pub fn disable_preflight(&mut self) -> &mut CorsBuilder {
+    pub fn disable_preflight(&mut self) -> &mut CorsBuilder<S> {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             cors.preflight = false
         }
         self
     }
 
-    /// Finishes building and returns the built `Cors` instance.
+    /// Configure resource for a specific path.
     ///
-    /// This method panics in case of any configuration error.
-    pub fn finish(&mut self) -> Cors {
+    /// This is similar to a `App::resource()` method. Except, cors middleware
+    /// get registered for the resource.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpResponse};
+    /// use actix_web::middleware::cors::Cors;
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .configure(|app| Cors::for_app(app)   // <- Construct CORS builder
+    ///             .allowed_origin("https://www.rust-lang.org/")
+    ///             .allowed_methods(vec!["GET", "POST"])
+    ///             .allowed_header(http::header::CONTENT_TYPE)
+    ///             .max_age(3600)
+    ///             .resource("/resource1", |r| {       // register resource
+    ///                  r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+    ///             })
+    ///             .resource("/resource2", |r| {       // register another resource
+    ///                  r.method(http::Method::HEAD)
+    ///                      .f(|_| HttpResponse::MethodNotAllowed());
+    ///             })
+    ///             .register()  // construct CORS and return application instance
+    ///         );
+    /// }
+    /// ```
+    pub fn resource<F, R>(&mut self, path: &str, f: F) -> &mut CorsBuilder<S>
+        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
+    {
+        // add resource handler
+        let mut handler = ResourceHandler::default();
+        f(&mut handler);
+
+        self.resources.push((path.to_owned(), handler));
+        self
+    }
+
+    fn construct(&mut self) -> Cors {
         if !self.methods {
             self.allowed_methods(vec![Method::GET, Method::HEAD,
-                                    Method::POST, Method::OPTIONS, Method::PUT,
-                                    Method::PATCH, Method::DELETE]);
+                                      Method::POST, Method::OPTIONS, Method::PUT,
+                                      Method::PATCH, Method::DELETE]);
         }
 
         if let Some(e) = self.error.take() {
@@ -672,6 +753,39 @@ impl CorsBuilder {
                     String::new(), |s, v| s + v.as_str())[1..].to_owned());
         }
         Cors{inner: Rc::new(cors)}
+    }
+
+    /// Finishes building and returns the built `Cors` instance.
+    ///
+    /// This method panics in case of any configuration error.
+    pub fn finish(&mut self) -> Cors {
+        if !self.resources.is_empty() {
+            panic!("CorsBuilder::resource() was used,
+                    to construct CORS `.register(app)` method should be used");
+        }
+        self.construct()
+    }
+
+    /// Finishes building Cors middleware and register middleware for application
+    ///
+    /// This method panics in case of any configuration error or if non of
+    /// resources are registered.
+    pub fn register(&mut self) -> App<S> {
+        if self.resources.is_empty() {
+            panic!("No resources are registered.");
+        }
+
+        let cors = self.construct();
+        let mut app = self.app.take().expect(
+            "CorsBuilder has to be constructed with Cors::for_app(app)");
+
+        // register resources
+        for (path, mut resource) in self.resources.drain(..) {
+            cors.clone().register(&mut resource);
+            app.register_resource(&path, resource);
+        }
+
+        app
     }
 }
 
@@ -711,6 +825,23 @@ mod tests {
             .supports_credentials()
             .send_wildcard()
             .finish();
+    }
+
+    #[test]
+    #[should_panic(expected = "No resources are registered")]
+    fn no_resource() {
+        Cors::build()
+            .supports_credentials()
+            .send_wildcard()
+            .register();
+    }
+
+    #[test]
+    #[should_panic(expected = "Cors::for_app(app)")]
+    fn no_resource2() {
+        Cors::build()
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+            .register();
     }
 
     #[test]
@@ -865,5 +996,23 @@ mod tests {
         assert_eq!(
             &b"https://www.example.com"[..],
             resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes());
+    }
+
+    #[test]
+    fn cors_resource() {
+        let mut app = App::new()
+            .configure(
+                |app| Cors::for_app(app)
+                    .allowed_origin("https://www.example.com")
+                    .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                    .register())
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+
+        // TODO: proper test
+        //assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert!(resp.as_response().is_none());
     }
 }

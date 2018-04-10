@@ -139,7 +139,7 @@ pub struct App<S=()> {
 
 impl App<()> {
 
-    /// Create application with empty state. Application can
+   /// Create application with empty state. Application can
     /// be configured with a builder-like pattern.
     pub fn new() -> App<()> {
         App {
@@ -328,8 +328,15 @@ impl<S> App<S> where S: 'static {
         self
     }
 
-    /// Default resource to be used if no matching route could be
-    /// found.
+    /// Configure resource for a specific path.
+    #[doc(hidden)]
+    pub fn register_resource(&mut self, path: &str, resource: ResourceHandler<S>) {
+        let pattern = Resource::new(resource.get_name(), path);
+        self.parts.as_mut().expect("Use after finish")
+            .resources.push((pattern, Some(resource)));
+    }
+
+    /// Default resource to be used if no matching route could be found.
     pub fn default_resource<F, R>(mut self, f: F) -> App<S>
         where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
     {
