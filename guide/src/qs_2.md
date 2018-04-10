@@ -51,10 +51,11 @@ request handler with the application's `resource` on a particular *HTTP method* 
 ```
 
 After that, the application instance can be used with `HttpServer` to listen for incoming
-connections. The server accepts a function that should return an `HttpHandler` instance:
+connections. The server accepts a function that should return an `HttpHandler` instance.
+For simplicity `server::new` could be used, this function is shortcut for `HttpServer::new`:
 
 ```rust,ignore
-   HttpServer::new(
+   server::new(
        || App::new()
            .resource("/", |r| r.f(index)))
        .bind("127.0.0.1:8088")?
@@ -80,7 +81,7 @@ fn main() {
 #  // If copying this example in show-all mode, make sure you skip the thread spawn
 #  // call.
 #  thread::spawn(|| {
-    server::HttpServer::new(
+    server::new(
         || App::new()
             .resource("/", |r| r.f(index)))
         .bind("127.0.0.1:8088").expect("Can not bind to 127.0.0.1:8088")
