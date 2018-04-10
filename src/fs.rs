@@ -182,6 +182,21 @@ impl Responder for NamedFile {
     type Error = io::Error;
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+        if self.status_code != StatusCode::OK {
+            let mut resp = HttpResponse::build(self.status_code);
+            resp.if_some(self.path().extension(), |ext, resp| {
+                resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
+            });
+            let reader = ChunkedReadFile {
+                size: self.md.len(),
+                offset: 0,
+                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
+                file: Some(self.file),
+                fut: None,
+            };
+            return Ok(resp.streaming(reader))
+        }
+
         if self.only_get && *req.method() != Method::GET && *req.method() != Method::HEAD {
             return Ok(HttpResponse::MethodNotAllowed()
                       .header(header::CONTENT_TYPE, "text/plain")

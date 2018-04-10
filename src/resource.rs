@@ -92,6 +92,36 @@ impl<S: 'static> ResourceHandler<S> {
         self.routes.last_mut().unwrap()
     }
 
+    /// Register a new `GET` route.
+    pub fn get(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Get())
+    }
+
+    /// Register a new `POST` route.
+    pub fn post(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Post())
+    }
+
+    /// Register a new `PUT` route.
+    pub fn put(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Put())
+    }
+
+    /// Register a new `DELETE` route.
+    pub fn delete(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Delete())
+    }
+
+    /// Register a new `HEAD` route.
+    pub fn head(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Head())
+    }
+
     /// Register a new route and add method check to route.
     ///
     /// This is shortcut for:

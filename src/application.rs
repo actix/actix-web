@@ -216,8 +216,8 @@ impl<S> App<S> where S: 'static {
     ///     let app = App::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
-    ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-    ///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+    ///              r.get().f(|_| HttpResponse::Ok());
+    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         })
     ///         .finish();
     /// }
@@ -309,8 +309,8 @@ impl<S> App<S> where S: 'static {
     /// fn main() {
     ///     let app = App::new()
     ///         .resource("/test", |r| {
-    ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-    ///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+    ///              r.get().f(|_| HttpResponse::Ok());
+    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         });
     /// }
     /// ```
@@ -377,7 +377,7 @@ impl<S> App<S> where S: 'static {
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource("/index.html", |r| r.f(index))
+    ///         .resource("/index.html", |r| r.get().f(index))
     ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
     ///         .finish();
     /// }
@@ -449,14 +449,14 @@ impl<S> App<S> where S: 'static {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{App, HttpResponse, http, fs, middleware};
+    /// use actix_web::{App, HttpResponse, fs, middleware};
     ///
     /// // this function could be located in different module
     /// fn config(app: App) -> App {
     ///     app
     ///         .resource("/test", |r| {
-    ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-    ///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+    ///              r.get().f(|_| HttpResponse::Ok());
+    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         })
     /// }
     ///
