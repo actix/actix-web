@@ -7,5 +7,5 @@ workspace = "../.."
 [dependencies]
 env_logger = "0.5"
 actix = "0.5"
-actix-web = "0.4"
-actix-redis = { version = "0.2", features = ["web"] }
+actix-web = "0.5"
+actix-redis = { version = "0.3", features = ["web"] }
