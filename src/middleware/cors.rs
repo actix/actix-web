@@ -10,8 +10,8 @@
 //!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the constructed backend.
 //!
 //! Cors middleware could be used as parameter for `App::middleware()` or
-//! `ResourceHandler::middleware()` methods. But you have to use `Cors::register()` method to
-//! support *preflight* OPTIONS request.
+//! `ResourceHandler::middleware()` methods. But you have to use
+//! `Cors::for_app()` method to support *preflight* OPTIONS request.
 //!
 //!
 //! # Example
@@ -19,7 +19,7 @@
 //! ```rust
 //! # extern crate actix_web;
 //! use actix_web::{http, App, HttpRequest, HttpResponse};
-//! use actix_web::middleware::cors;
+//! use actix_web::middleware::cors::Cors;
 //!
 //! fn index(mut req: HttpRequest) -> &'static str {
 //!    "Hello world"
@@ -27,19 +27,17 @@
 //!
 //! fn main() {
 //!     let app = App::new()
-//!         .resource("/index.html", |r| {
-//!              cors::Cors::build()                   // <- Construct CORS middleware
-//!                  .allowed_origin("https://www.rust-lang.org/")
-//!                  .allowed_methods(vec!["GET", "POST"])
-//!                  .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-//!                  .allowed_header(http::header::CONTENT_TYPE)
-//!                  .max_age(3600)
-//!                  .finish()
-//!                  .register(r);                     // <- Register CORS middleware
-//!              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-//!              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
-//!         })
-//!         .finish();
+//!         .configure(|app| Cors::for_app(app) // <- Construct CORS middleware builder
+//!             .allowed_origin("https://www.rust-lang.org/")
+//!             .allowed_methods(vec!["GET", "POST"])
+//!             .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+//!             .allowed_header(http::header::CONTENT_TYPE)
+//!             .max_age(3600)
+//!             .resource("/index.html", |r| {
+//!                 r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+//!                 r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+//!             })
+//!             .register());
 //! }
 //! ```
 //! In this example custom *CORS* middleware get registered for "/index.html" endpoint.
