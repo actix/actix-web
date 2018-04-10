@@ -476,6 +476,9 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                         new_path.push_str(&el.to_string_lossy());
                         new_path.push('/');
                     }
+                    if !new_path.ends_with('/') {
+                        new_path.push('/');
+                    }
                     new_path.push_str(redir_index);
                     HttpResponse::Found()
                         .header(header::LOCATION, new_path.as_str())
@@ -500,7 +503,8 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::TestRequest;
+    use application::App;
+    use test::{self, TestRequest};
     use http::{header, Method, StatusCode};
 
     #[test]
@@ -602,5 +606,44 @@ mod tests {
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/examples/basics/Cargo.toml");
+    }
+
+    #[test]
+    fn integration_redirect_to_index_with_prefix() {
+        let mut srv = test::TestServer::with_factory(
+            || App::new()
+                .prefix("public")
+                .handler("/", StaticFiles::new(".").index_file("Cargo.toml")));
+
+        let request = srv.get().uri(srv.url("/public")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(loc, "/public/Cargo.toml");
+
+        let request = srv.get().uri(srv.url("/public/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(loc, "/public/Cargo.toml");
+    }
+
+    #[test]
+    fn integration_redirect_to_index() {
+        let mut srv = test::TestServer::with_factory(
+            || App::new()
+                .handler("test", StaticFiles::new(".").index_file("Cargo.toml")));
+
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(loc, "/test/Cargo.toml");
+
+        let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(loc, "/test/Cargo.toml");
     }
 }

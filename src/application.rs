@@ -21,6 +21,7 @@ pub type Application<S> = App<S>;
 pub struct HttpApplication<S=()> {
     state: Rc<S>,
     prefix: String,
+    prefix_len: usize,
     router: Router,
     inner: Rc<UnsafeCell<Inner<S>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
@@ -73,6 +74,7 @@ impl<S: 'static> HttpApplication<S> {
                         path.len() == prefix.len() ||
                             path.split_at(prefix.len()).1.starts_with('/'))
                 };
+
                 if m {
                     let path: &'static str = unsafe {
                         mem::transmute(&req.path()[inner.prefix+prefix.len()..]) };
@@ -106,8 +108,8 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
         let m = {
             let path = req.path();
             path.starts_with(&self.prefix) && (
-                path.len() == self.prefix.len() ||
-                    path.split_at(self.prefix.len()).1.starts_with('/'))
+                path.len() == self.prefix_len ||
+                    path.split_at(self.prefix_len).1.starts_with('/'))
         };
         if m {
             let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
@@ -420,8 +422,12 @@ impl<S> App<S> where S: 'static {
     pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S>
     {
         {
-            let path = path.trim().trim_right_matches('/').to_owned();
+            let mut path = path.trim().trim_right_matches('/').to_owned();
+            if !path.is_empty() && !path.starts_with('/') {
+                path.insert(0, '/')
+            }
             let parts = self.parts.as_mut().expect("Use after finish");
+
             parts.handlers.push((path, Box::new(WrapHandler::new(handler))));
         }
         self
@@ -471,17 +477,22 @@ impl<S> App<S> where S: 'static {
     pub fn finish(&mut self) -> HttpApplication<S> {
         let parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
+        let (prefix, prefix_len) = if prefix.is_empty() {
+            ("/".to_owned(), 0)
+        } else {
+            (prefix.to_owned(), prefix.len())
+        };
 
         let mut resources = parts.resources;
         for (_, pattern) in parts.external {
             resources.push((pattern, None));
         }
 
-        let (router, resources) = Router::new(prefix, parts.settings, resources);
+        let (router, resources) = Router::new(&prefix, parts.settings, resources);
 
         let inner = Rc::new(UnsafeCell::new(
             Inner {
-                prefix: prefix.len(),
+                prefix: prefix_len,
                 default: parts.default,
                 encoding: parts.encoding,
                 handlers: parts.handlers,
@@ -491,9 +502,10 @@ impl<S> App<S> where S: 'static {
 
         HttpApplication {
             state: Rc::new(parts.state),
-            prefix: prefix.to_owned(),
             router: router.clone(),
             middlewares: Rc::new(parts.middlewares),
+            prefix,
+            prefix_len,
             inner,
         }
     }
@@ -666,6 +678,61 @@ mod tests {
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_handler2() {
+        let mut app = App::new()
+            .handler("test", |_| HttpResponse::Ok())
+            .finish();
+
+        let req = TestRequest::with_uri("/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/blah").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_handler_with_prefix() {
+        let mut app = App::new()
+            .prefix("prefix")
+            .handler("/test", |_| HttpResponse::Ok())
+            .finish();
+
+        let req = TestRequest::with_uri("/prefix/test").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/prefix/test/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/prefix/test/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/prefix/testapp").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/prefix/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
     }
