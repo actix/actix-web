@@ -2,28 +2,28 @@
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.github.io/actix-web/guide/qs_13.html) protocols
+* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/actix-web/guide/qs_13.html) protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
-* Client/server [WebSockets](https://actix.github.io/actix-web/guide/qs_9.html) support
+* Client/server [WebSockets](https://actix.rs/actix-web/guide/qs_9.html) support
 * Transparent content compression/decompression (br, gzip, deflate)
-* Configurable [request routing](https://actix.github.io/actix-web/guide/qs_5.html)
+* Configurable [request routing](https://actix.rs/actix-web/guide/qs_5.html)
 * Graceful server shutdown
 * Multipart streams
 * Static assets
 * SSL support with OpenSSL or `native-tls`
-* Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
-  [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
+* Middlewares ([Logger](https://actix.rs/actix-web/guide/qs_10.html#logging),
+  [Session](https://actix.rs/actix-web/guide/qs_10.html#user-sessions),
   [Redis sessions](https://github.com/actix/actix-redis),
-  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
-  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html),
-  [CSRF](https://actix.github.io/actix-web/actix_web/middleware/csrf/index.html))
+  [DefaultHeaders](https://actix.rs/actix-web/guide/qs_10.html#default-headers),
+  [CORS](https://actix.rs/actix-web/actix_web/middleware/cors/index.html),
+  [CSRF](https://actix.rs/actix-web/actix_web/middleware/csrf/index.html))
 * Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation & community resources
 
-* [User Guide](http://actix.github.io/actix-web/guide/)
-* [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
+* [User Guide](https://actix.rs/actix-web/guide/)
+* [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)

@@ -25,7 +25,7 @@
 //! Besides the API documentation (which you are currently looking
 //! at!), several other resources are available:
 //!
-//! * [User Guide](http://actix.github.io/actix-web/guide/)
+//! * [User Guide](https://actix.rs/actix-web/guide/)
 //! * [Chat on gitter](https://gitter.im/actix/actix)
 //! * [GitHub repository](https://github.com/actix/actix-web)
 //! * [Cargo package](https://crates.io/crates/actix-web)
