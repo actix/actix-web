@@ -38,7 +38,7 @@ pub use self::request::{ClientRequest, ClientRequestBuilder};
 pub use self::response::ClientResponse;
 pub use self::connector::{
     Connect, Pause, Resume,
-    Connection, ClientConnector, ClientConnectorError};
+    Connection, ClientConnector, ClientConnectorError, ClientConnectorStats};
 pub(crate) use self::writer::HttpClientWriter;
 pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
 
