@@ -172,7 +172,7 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     /// Construct new http request without state.
-    pub(crate) fn without_state(&self) -> HttpRequest {
+    pub fn drop_state(&self) -> HttpRequest {
         HttpRequest(self.0.clone(), None, self.2.clone())
     }
 

@@ -134,7 +134,7 @@ impl<T, S, F, R> Future for WithHandlerFut<T, S, F, R>
         };
 
         let hnd: &mut F = unsafe{&mut *self.hnd.get()};
-        let item = match (*hnd)(item).respond_to(self.req.without_state()) {
+        let item = match (*hnd)(item).respond_to(self.req.drop_state()) {
             Ok(item) => item.into(),
             Err(e) => return Err(e.into()),
         };
@@ -241,7 +241,7 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
                         Ok(Async::Ready(item2)) => {
                             let hnd: &mut F = unsafe{&mut *self.hnd.get()};
                             match (*hnd)(item1, item2)
-                                .respond_to(self.req.without_state())
+                                .respond_to(self.req.drop_state())
                             {
                                 Ok(item) => match item.into().into() {
                                     ReplyItem::Message(resp) =>
@@ -289,7 +289,7 @@ impl<T1, T2, S, F, R> Future for WithHandlerFut2<T1, T2, S, F, R>
 
         let hnd: &mut F = unsafe{&mut *self.hnd.get()};
         let item = match (*hnd)(self.item.take().unwrap(), item)
-            .respond_to(self.req.without_state())
+            .respond_to(self.req.drop_state())
         {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),
@@ -417,7 +417,7 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
                                 Ok(Async::Ready(item3)) => {
                                     let hnd: &mut F = unsafe{&mut *self.hnd.get()};
                                     match (*hnd)(item1, item2, item3)
-                                        .respond_to(self.req.without_state())
+                                        .respond_to(self.req.drop_state())
                                     {
                                         Ok(item) => match item.into().into() {
                                             ReplyItem::Message(resp) =>
@@ -488,7 +488,7 @@ impl<T1, T2, T3, S, F, R> Future for WithHandlerFut3<T1, T2, T3, S, F, R>
         let item = match (*hnd)(self.item1.take().unwrap(),
                                 self.item2.take().unwrap(),
                                 item)
-            .respond_to(self.req.without_state())
+            .respond_to(self.req.drop_state())
         {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),

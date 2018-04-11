@@ -559,7 +559,7 @@ impl<S> TestRequest<S> {
         let req = self.finish();
         let resp = h.handle(req.clone());
 
-        match resp.respond_to(req.without_state()) {
+        match resp.respond_to(req.drop_state()) {
             Ok(resp) => {
                 match resp.into().into() {
                     ReplyItem::Message(resp) => Ok(resp),
@@ -586,7 +586,7 @@ impl<S> TestRequest<S> {
         let mut core = Core::new().unwrap();
         match core.run(fut) {
             Ok(r) => {
-                match r.respond_to(req.without_state()) {
+                match r.respond_to(req.drop_state()) {
                     Ok(reply) => match reply.into().into() {
                         ReplyItem::Message(resp) => Ok(resp),
                         _ => panic!("Nested async replies are not supported"),

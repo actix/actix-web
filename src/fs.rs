@@ -498,18 +498,18 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     HttpResponse::Found()
                         .header(header::LOCATION, new_path.as_str())
                         .finish()
-                        .respond_to(req.without_state())
+                        .respond_to(req.drop_state())
                 } else if self.show_index {
                     Directory::new(self.directory.clone(), path)
-                        .respond_to(req.without_state())?
-                    .respond_to(req.without_state())
+                        .respond_to(req.drop_state())?
+                    .respond_to(req.drop_state())
                 } else {
                     Ok(self.default.handle(req))
                 }
             } else {
                 NamedFile::open(path)?.set_cpu_pool(self.cpu_pool.clone())
-                    .respond_to(req.without_state())?
-                .respond_to(req.without_state())
+                    .respond_to(req.drop_state())?
+                .respond_to(req.drop_state())
             }
         }
     }
