@@ -10,20 +10,20 @@
 
 * `NormalizePath` moved to `actix_web::http` module
 
-* `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new` function
-  same as `actix_web::server::HttpServer::new`
+* `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new()` function,
+  shortcut for `actix_web::server::HttpServer::new()`
 
-* `DefaultHeaders` middleware does not use seprate builder
+* `DefaultHeaders` middleware does not use separate builder, all builder methods moved to type itself
 
-* `StaticFiles::new()`'s show_index removed, use `show_files_listing` method instead.
+* `StaticFiles::new()`'s show_index parameter removed, use `show_files_listing()` method instead.
 
 * `CookieSessionBackendBuilder` removed, all methods moved to `CookieSessionBackend` type
 
-* `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()` and other fn
-   should be used instead
+* `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()`, `HttpResponse::Found()` and other `HttpResponse::XXX()`
+   functions should be used instead
 
 * `ClientRequestBuilder::body()` returns `Result<_, actix_web::Error>`
-  instead of `http::Error`
+  instead of `Result<_, http::Error>`
 
 * `Application` renamed to a `App`
 
