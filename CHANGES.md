@@ -9,6 +9,8 @@
 
 * Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
 
+* Added `signed` and `private` `CookieSessionBackend`s
+
 * Added `HttpRequest::resource()`, returns current matched resource
 
 * Added `ErrorHandlers` middleware
@@ -24,8 +26,6 @@
 * Fix logger request duration calculation #152
 
 * Fix prefix and static file serving #168
-
-* Add `signed` and `private` `CookieSessionBackend`s
 
 
 ## 0.4.10 (2018-03-20)
