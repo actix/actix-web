@@ -3,7 +3,7 @@
 * `HttpResponseBuilder::body()`, `.finish()`, `.json()`
    methods return `HttpResponse` instead of `Result<HttpResponse>`
 
-* `actix_web::Method`, `actix_web::StatusCode`, actix_web::Version`
+* `actix_web::Method`, `actix_web::StatusCode`, `actix_web::Version`
    moved to `actix_web::http` module
 
 * `actix_web::header` moved to `actix_web::http::header`
