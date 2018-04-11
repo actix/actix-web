@@ -337,7 +337,7 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
           S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
-        let req2 = req.without_state();
+        let req2 = req.drop_state();
         match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
             Err(err) => Reply::response(err.into()),
@@ -378,7 +378,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
           S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
-        let req2 = req.without_state();
+        let req2 = req.drop_state();
         let fut = (self.h)(req)
             .map_err(|e| e.into())
             .then(move |r| {
