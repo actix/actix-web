@@ -702,11 +702,11 @@ impl Handler<Connect> for ClientConnector {
                         act.stats.opened += 1;
                         if proto.is_secure() {
                             fut::Either::A(
-                                _act.connector.connect_async(&conn.0.host, stream)
+                                act.connector.connect_async(&conn.0.host, stream)
                                     .map_err(ClientConnectorError::SslError)
                                     .map(|stream| Connection::new(
                                         conn.0.clone(), Some(conn), Box::new(stream)))
-                                    .into_actor(_act))
+                                    .into_actor(act))
                         } else {
                             fut::Either::B(fut::ok(
                                 Connection::new(
@@ -725,11 +725,11 @@ impl Handler<Connect> for ClientConnector {
                         act.stats.opened += 1;
                         if proto.is_secure() {
                             fut::Either::A(
-                                _act.connector.connect_async(&conn.0.host, stream)
+                                act.connector.connect_async(&conn.0.host, stream)
                                     .map_err(ClientConnectorError::SslError)
                                     .map(|stream| Connection::new(
                                         conn.0.clone(), Some(conn), Box::new(stream)))
-                                    .into_actor(_act))
+                                    .into_actor(act))
                         } else {
                             fut::Either::B(fut::ok(
                                 Connection::new(
@@ -825,7 +825,7 @@ impl fut::ActorFuture for Maintenance
                            act.stats.opened += 1;
                            if conn.0.ssl {
                                fut::Either::A(
-                                   _act.connector.connect_async(&key.host, stream)
+                                   act.connector.connect_async(&key.host, stream)
                                        .then(move |res| {
                                            match res {
                                                Err(e) => {
@@ -861,7 +861,7 @@ impl fut::ActorFuture for Maintenance
                            act.stats.opened += 1;
                            if conn.0.ssl {
                                fut::Either::A(
-                                   _act.connector.connect_async(&conn.0.host, stream)
+                                   act.connector.connect_async(&conn.0.host, stream)
                                        .then(|res| {
                                            match res {
                                                Err(e) => {
@@ -877,7 +877,7 @@ impl fut::ActorFuture for Maintenance
                                            }
                                            Ok(())
                                        })
-                                       .into_actor(_act))
+                                       .into_actor(act))
                            } else {
                                let _ = waiter.tx.send(Ok(Connection::new(
                                    conn.0.clone(), Some(conn), Box::new(stream))));
