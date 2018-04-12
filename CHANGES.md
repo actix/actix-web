@@ -1,7 +1,7 @@
 # Changes
 
 
-## 0.5.1 (2018-04-xx)
+## 0.5.1 (2018-04-12)
 
 * Client connector provides stats, `ClientConnector::stats()`
 
