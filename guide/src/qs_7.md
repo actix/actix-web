@@ -37,7 +37,8 @@ Actix automatically *compresses*/*decompresses* payloads. The following codecs a
 * Identity
 
 If request headers contain a `Content-Encoding` header, the request payload is decompressed
-according to the header value. Multiple codecs are not supported, i.e: `Content-Encoding: br, gzip`.
+according to the header value. Multiple codecs are not supported,
+i.e: `Content-Encoding: br, gzip`.
 
 Response payload is compressed based on the *content_encoding* parameter.
 By default, `ContentEncoding::Auto` is used. If `ContentEncoding::Auto` is selected,
@@ -58,6 +59,40 @@ fn index(req: HttpRequest) -> HttpResponse {
         .body("data")
 }
 # fn main() {}
+```
+
+In this case we explicitly disable content compression
+by setting content encoding to a `Identity` value:
+
+```rust
+# extern crate actix_web;
+use actix_web::{HttpRequest, HttpResponse, http::ContentEncoding};
+
+fn index(req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .content_encoding(ContentEncoding::Identity) // <- disable compression
+        .body("data")
+}
+# fn main() {}
+```
+
+Also it is possible to set default content encoding on application level, by
+default `ContentEncoding::Auto` is used, which implies automatic content compression
+negotiation.
+
+```rust
+# extern crate actix_web;
+use actix_web::{App, HttpRequest, HttpResponse, http::ContentEncoding};
+
+fn index(req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok()
+        .body("data")
+}
+fn main() {
+    let app = App::new()
+       .default_encoding(ContentEncoding::Identity) // <- disable compression for all routes
+       .resource("/index.html", |r| r.with(index));
+}
 ```
 
 ## JSON Request

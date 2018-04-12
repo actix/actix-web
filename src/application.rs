@@ -350,7 +350,7 @@ impl<S> App<S> where S: 'static {
     }
 
     /// Set default content encoding. `ContentEncoding::Auto` is set by default.
-    pub fn default_encoding<F>(mut self, encoding: ContentEncoding) -> App<S>
+    pub fn default_encoding(mut self, encoding: ContentEncoding) -> App<S>
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");

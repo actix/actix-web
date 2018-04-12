@@ -1,9 +1,11 @@
 # Changes
 
 
-## 0.5.1 (2018-xx-xx)
+## 0.5.1 (2018-04-xx)
 
 * Client connector provides stats, `ClientConnector::stats()`
+
+* Fix end-of-stream handling in parse_payload #173
 
 
 ## 0.5.0 (2018-04-10)
