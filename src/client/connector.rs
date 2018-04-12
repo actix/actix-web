@@ -40,6 +40,7 @@ pub struct ClientConnectorStats {
     pub opened: usize,
     pub closed: usize,
     pub errors: usize,
+    pub timeouts: usize,
 }
 
 #[derive(Debug)]
@@ -307,8 +308,8 @@ impl ClientConnector {
             subscriber: None,
             pool: Rc::new(Pool::new(Rc::clone(&modified))),
             pool_modified: modified,
-            conn_lifetime: Duration::from_secs(15),
-            conn_keep_alive: Duration::from_secs(75),
+            conn_lifetime: Duration::from_secs(75),
+            conn_keep_alive: Duration::from_secs(15),
             limit: 100,
             limit_per_host: 0,
             acquired: 0,
@@ -530,6 +531,7 @@ impl ClientConnector {
             let mut idx = 0;
             while idx < waiters.len() {
                 if waiters[idx].wait <= now {
+                    self.stats.timeouts += 1;
                     let waiter = waiters.swap_remove_back(idx).unwrap();
                     let _ = waiter.tx.send(Err(ClientConnectorError::Timeout));
                 } else {
