@@ -6,6 +6,7 @@ use std::fs::{File, DirEntry, Metadata};
 use std::path::{Path, PathBuf};
 use std::ops::{Deref, DerefMut};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -409,6 +410,10 @@ pub struct StaticFiles<S> {
     _follow_symlinks: bool,
 }
 
+lazy_static!{
+    static ref DEFAULT_CPUPOOL: Mutex<CpuPool> = Mutex::new(CpuPool::new(20));
+}
+
 impl<S: 'static> StaticFiles<S> {
 
     /// Create new `StaticFiles` instance for specified base directory.
@@ -430,12 +435,17 @@ impl<S: 'static> StaticFiles<S> {
             }
         };
 
+        // use default CpuPool
+        let pool = {
+            DEFAULT_CPUPOOL.lock().unwrap().clone()
+        };
+
         StaticFiles {
             directory: dir,
             accessible: access,
             index: None,
             show_index: false,
-            cpu_pool: CpuPool::new(40),
+            cpu_pool: pool,
             default: Box::new(WrapHandler::new(
                 |_| HttpResponse::new(StatusCode::NOT_FOUND))),
             _chunk_size: 0,

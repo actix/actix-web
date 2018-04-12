@@ -7,6 +7,8 @@
 
 * Fix end-of-stream handling in parse_payload #173
 
+* Fix StaticFiles generate a lot of threads #174
+
 
 ## 0.5.0 (2018-04-10)
 
