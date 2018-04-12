@@ -1,6 +1,12 @@
 # Changes
 
-## 0.5.0
+
+## 0.5.1 (2018-xx-xx)
+
+* Client connector provides stats, `ClientConnector::stats()`
+
+
+## 0.5.0 (2018-04-10)
 
 * Type-safe path/query/form parameter handling, using serde #70
 
