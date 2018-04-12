@@ -81,16 +81,11 @@ impl HttpResponseParser {
         if self.decoder.is_some() {
             loop {
                 // read payload
-                let not_ready = match utils::read_from_io(io, buf) {
-                    Ok(Async::Ready(0)) => {
-                        if buf.is_empty() {
-                            return Err(PayloadError::Incomplete)
-                        }
-                        true
-                    }
+                let (not_ready, stream_finished) = match utils::read_from_io(io, buf) {
+                    Ok(Async::Ready(0)) => (false, true),
                     Err(err) => return Err(err.into()),
-                    Ok(Async::NotReady) => true,
-                    _ => false,
+                    Ok(Async::NotReady) => (true, false),
+                    _ => (false, false),
                 };
 
                 match self.decoder.as_mut().unwrap().decode(buf) {
@@ -103,6 +98,9 @@ impl HttpResponseParser {
                     Ok(Async::NotReady) => {
                         if not_ready {
                             return Ok(Async::NotReady)
+                        }
+                        if stream_finished {
+                            return Err(PayloadError::Incomplete)
                         }
                     }
                     Err(err) => return Err(err.into()),
