@@ -211,6 +211,13 @@ impl<T, S> FromRequest<S> for Query<T>
 /// ```
 pub struct Form<T>(pub T);
 
+impl<T> Form<T> {
+    /// Deconstruct to an inner value
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
 impl<T> Deref for Form<T> {
     type Target = T;
 

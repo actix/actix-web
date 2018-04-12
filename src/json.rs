@@ -22,6 +22,13 @@ use httpresponse::HttpResponse;
 /// and second is for extracting typed information from request's payload.
 pub struct Json<T>(pub T);
 
+impl<T> Json<T> {
+    /// Deconstruct to an inner value
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
 impl<T> Deref for Json<T> {
     type Target = T;
 
