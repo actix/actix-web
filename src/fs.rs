@@ -15,6 +15,7 @@ use bytes::{Bytes, BytesMut, BufMut};
 use futures::{Async, Poll, Future, Stream};
 use futures_cpupool::{CpuPool, CpuFuture};
 use mime_guess::get_mime_type;
+use percent_encoding::percent_decode;
 
 use header;
 use error::Error;
@@ -484,7 +485,10 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
         if !self.accessible {
             Ok(self.default.handle(req))
         } else {
-            let relpath = match req.match_info().get("tail").map(PathBuf::from_param) {
+            let relpath = match req.match_info().get("tail").map(
+                |tail| percent_decode(tail.as_bytes()).decode_utf8().unwrap())
+                .map(|tail| PathBuf::from_param(tail.as_ref()))
+            {
                 Some(Ok(path)) => path,
                 _ => return Ok(self.default.handle(req))
             };
@@ -670,5 +674,16 @@ mod tests {
         assert_eq!(response.status(), StatusCode::FOUND);
         let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
         assert_eq!(loc, "/test/Cargo.toml");
+    }
+
+    #[test]
+    fn integration_percent_encoded() {
+        let mut srv = test::TestServer::with_factory(
+            || App::new()
+                .handler("test", StaticFiles::new(".").index_file("Cargo.toml")));
+
+        let request = srv.get().uri(srv.url("/test/%43argo.toml")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

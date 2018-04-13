@@ -1,6 +1,11 @@
 # Changes
 
 
+## 0.5.2 (2018-04-xx)
+
+* Fix StaticFiles does not support percent encoded paths #177
+
+
 ## 0.5.1 (2018-04-12)
 
 * Client connector provides stats, `ClientConnector::stats()`
