@@ -24,9 +24,9 @@ The fastest way to start experimenting with actix web is to clone the
 The following set of commands runs the `basics` example:
 
 ```bash
-git clone https://github.com/actix/actix-web
-cd actix-web/examples/basics
+git clone https://github.com/actix/example
+cd examples/basics
 cargo run
 ```
 
-Check [examples/](https://github.com/actix/actix-web/tree/master/examples) directory for more examples.
+Check [examples/](https://github.com/actix/examples/tree/master/) directory for more examples.

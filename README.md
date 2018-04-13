@@ -50,19 +50,19 @@ fn main() {
 
 ### More examples
 
-* [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
-* [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
-* [Protobuf support](https://github.com/actix/actix-web/tree/master/examples/protobuf/)
-* [Multipart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
-* [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
-* [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
-* [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
-* [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)
-* [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
-* [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
+* [Basics](https://github.com/actix/examples/tree/master/basics/)
+* [Stateful](https://github.com/actix/examples/tree/master/state/)
+* [Protobuf support](https://github.com/actix/examples/tree/master/protobuf/)
+* [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
+* [Simple websocket session](https://github.com/actix/examples/tree/master/websocket/)
+* [Tera templates](https://github.com/actix/examples/tree/master/template_tera/)
+* [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
+* [SSL / HTTP/2.0](https://github.com/actix/examples/tree/master/tls/)
+* [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
+* [Json](https://github.com/actix/examples/tree/master/json/)
 
 You may consider checking out
-[this directory](https://github.com/actix/actix-web/tree/master/examples) for more examples.
+[this directory](https://github.com/actix/examples/tree/master/) for more examples.
 
 ## Benchmarks
 
