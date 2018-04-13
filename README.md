@@ -22,8 +22,8 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 ## Documentation & community resources
 
-* [User Guide](https://actix.github.io/actix-web/guide/)
-* [API Documentation (Development)](https://actix.github.io/actix-web/actix_web/)
+* [User Guide](https://actix.rs/actix-web/guide/)
+* [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
