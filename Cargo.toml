@@ -93,11 +93,9 @@ tokio-openssl = { version="0.2", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"
-skeptic = "0.13"
 serde_derive = "1.0"
 
 [build-dependencies]
-skeptic = "0.13"
 version_check = "0.1"
 
 [profile.release]
