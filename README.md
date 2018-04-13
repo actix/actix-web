@@ -12,17 +12,17 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Multipart streams
 * Static assets
 * SSL support with OpenSSL or `native-tls`
-* Middlewares ([Logger](https://actix.rs/actix-web/guide/qs_10.html#logging),
-  [Session](https://actix.rs/actix-web/guide/qs_10.html#user-sessions),
+* Middlewares ([Logger](https://actix.rs/book/actix-web/sec-9-middlewares.html#logging),
+  [Session](https://actix.rs/book/actix-web/sec-9-middlewares.html#user-sessions),
   [Redis sessions](https://github.com/actix/actix-redis),
-  [DefaultHeaders](https://actix.rs/actix-web/guide/qs_10.html#default-headers),
+  [DefaultHeaders](https://actix.rs/book/actix-web/sec-9-middlewares.html#default-headers),
   [CORS](https://actix.rs/actix-web/actix_web/middleware/cors/index.html),
   [CSRF](https://actix.rs/actix-web/actix_web/middleware/csrf/index.html))
 * Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation & community resources
 
-* [User Guide](https://actix.rs/actix-web/guide/)
+* [User Guide](https://actix.rs/book/actix-web/)
 * [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)

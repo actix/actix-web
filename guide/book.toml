@@ -1,7 +1,0 @@
-[book]
-title = "Actix web"
-description = "Actix web framework guide"
-author = "Actix Project and Contributors"
-
-[output.html]
-google-analytics = "UA-110322332-1"
