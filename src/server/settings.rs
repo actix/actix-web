@@ -1,19 +1,19 @@
-use std::{fmt, mem, net};
+use bytes::BytesMut;
+use futures_cpupool::{Builder, CpuPool};
+use http::StatusCode;
+use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::fmt::Write;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
+use std::{fmt, mem, net};
 use time;
-use bytes::BytesMut;
-use http::StatusCode;
-use futures_cpupool::{Builder, CpuPool};
 
-use super::helpers;
 use super::KeepAlive;
 use super::channel::Node;
+use super::helpers;
 use super::shared::{SharedBytes, SharedBytesPool};
 use body::Body;
-use httpresponse::{HttpResponse, HttpResponsePool, HttpResponseBuilder};
+use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
 
 /// Various server settings
 #[derive(Clone)]
@@ -71,9 +71,9 @@ impl Default for ServerSettings {
 
 impl ServerSettings {
     /// Crate server settings instance
-    pub(crate) fn new(addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool)
-                      -> ServerSettings
-    {
+    pub(crate) fn new(
+        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool
+    ) -> ServerSettings {
         let host = if let Some(ref host) = *host {
             host.clone()
         } else if let Some(ref addr) = addr {
@@ -83,7 +83,13 @@ impl ServerSettings {
         };
         let cpu_pool = Arc::new(InnerCpuPool::new());
         let responses = HttpResponsePool::pool();
-        ServerSettings { addr, secure, host, cpu_pool, responses }
+        ServerSettings {
+            addr,
+            secure,
+            host,
+            cpu_pool,
+            responses,
+        }
     }
 
     /// Returns the socket address of the local half of this TCP connection
@@ -112,11 +118,12 @@ impl ServerSettings {
     }
 
     #[inline]
-    pub(crate) fn get_response_builder(&self, status: StatusCode) -> HttpResponseBuilder {
+    pub(crate) fn get_response_builder(
+        &self, status: StatusCode
+    ) -> HttpResponseBuilder {
         HttpResponsePool::get_builder(&self.responses, status)
     }
 }
-
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -141,7 +148,8 @@ impl<H> WorkerSettings<H> {
         };
 
         WorkerSettings {
-            keep_alive, ka_enabled,
+            keep_alive,
+            ka_enabled,
             h: RefCell::new(h),
             bytes: Rc::new(SharedBytesPool::new()),
             messages: Rc::new(helpers::SharedMessagePool::new()),
@@ -176,7 +184,10 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn get_http_message(&self) -> helpers::SharedHttpInnerMessage {
-        helpers::SharedHttpInnerMessage::new(self.messages.get(), Rc::clone(&self.messages))
+        helpers::SharedHttpInnerMessage::new(
+            self.messages.get(),
+            Rc::clone(&self.messages),
+        )
     }
 
     pub fn add_channel(&self) {
@@ -186,26 +197,26 @@ impl<H> WorkerSettings<H> {
     pub fn remove_channel(&self) {
         let num = self.channels.get();
         if num > 0 {
-            self.channels.set(num-1);
+            self.channels.set(num - 1);
         } else {
             error!("Number of removed channels is bigger than added channel. Bug in actix-web");
         }
     }
 
     pub fn update_date(&self) {
-        unsafe{&mut *self.date.get()}.update();
+        unsafe { &mut *self.date.get() }.update();
     }
 
     pub fn set_date(&self, dst: &mut BytesMut) {
         let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
         buf[..6].copy_from_slice(b"date: ");
-        buf[6..35].copy_from_slice(&(unsafe{&*self.date.get()}.bytes));
+        buf[6..35].copy_from_slice(&(unsafe { &*self.date.get() }.bytes));
         buf[35..].copy_from_slice(b"\r\n\r\n");
         dst.extend_from_slice(&buf);
     }
 
     pub fn set_date_simple(&self, dst: &mut BytesMut) {
-        dst.extend_from_slice(&(unsafe{&*self.date.get()}.bytes));
+        dst.extend_from_slice(&(unsafe { &*self.date.get() }.bytes));
     }
 }
 
@@ -216,7 +227,10 @@ struct Date {
 
 impl Date {
     fn new() -> Date {
-        let mut date = Date{bytes: [0; DATE_VALUE_LENGTH], pos: 0};
+        let mut date = Date {
+            bytes: [0; DATE_VALUE_LENGTH],
+            pos: 0,
+        };
         date.update();
         date
     }
@@ -235,14 +249,16 @@ impl fmt::Write for Date {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_date_len() {
-        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
+        assert_eq!(
+            DATE_VALUE_LENGTH,
+            "Sun, 06 Nov 1994 08:49:37 GMT".len()
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! Various helpers
 
-use regex::Regex;
 use http::{header, StatusCode};
+use regex::Regex;
 
 use handler::Handler;
 use httprequest::HttpRequest;
@@ -24,9 +24,11 @@ use httpresponse::HttpResponse;
 /// defined with trailing slash and the request comes without it, it will
 /// append it automatically.
 ///
-/// If *merge* is *true*, merge multiple consecutive slashes in the path into one.
+/// If *merge* is *true*, merge multiple consecutive slashes in the path into
+/// one.
 ///
-/// This handler designed to be use as a handler for application's *default resource*.
+/// This handler designed to be use as a handler for application's *default
+/// resource*.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -55,7 +57,8 @@ pub struct NormalizePath {
 
 impl Default for NormalizePath {
     /// Create default `NormalizePath` instance, *append* is set to *true*,
-    /// *merge* is set to *true* and *redirect* is set to `StatusCode::MOVED_PERMANENTLY`
+    /// *merge* is set to *true* and *redirect* is set to
+    /// `StatusCode::MOVED_PERMANENTLY`
     fn default() -> NormalizePath {
         NormalizePath {
             append: true,
@@ -91,7 +94,11 @@ impl<S> Handler<S> for NormalizePath {
                 let p = self.re_merge.replace_all(req.path(), "/");
                 if p.len() != req.path().len() {
                     if router.has_route(p.as_ref()) {
-                        let p = if !query.is_empty() { p + "?" + query } else { p };
+                        let p = if !query.is_empty() {
+                            p + "?" + query
+                        } else {
+                            p
+                        };
                         return HttpResponse::build(self.redirect)
                             .header(header::LOCATION, p.as_ref())
                             .finish();
@@ -100,10 +107,14 @@ impl<S> Handler<S> for NormalizePath {
                     if self.append && !p.ends_with('/') {
                         let p = p.as_ref().to_owned() + "/";
                         if router.has_route(&p) {
-                            let p = if !query.is_empty() { p + "?" + query } else { p };
+                            let p = if !query.is_empty() {
+                                p + "?" + query
+                            } else {
+                                p
+                            };
                             return HttpResponse::build(self.redirect)
                                 .header(header::LOCATION, p.as_str())
-                                .finish()
+                                .finish();
                         }
                     }
 
@@ -113,11 +124,13 @@ impl<S> Handler<S> for NormalizePath {
                         if router.has_route(p) {
                             let mut req = HttpResponse::build(self.redirect);
                             return if !query.is_empty() {
-                                req.header(header::LOCATION, (p.to_owned() + "?" + query).as_str())
+                                req.header(
+                                    header::LOCATION,
+                                    (p.to_owned() + "?" + query).as_str(),
+                                )
                             } else {
                                 req.header(header::LOCATION, p)
-                            }
-                            .finish();
+                            }.finish();
                         }
                     }
                 } else if p.ends_with('/') {
@@ -126,12 +139,13 @@ impl<S> Handler<S> for NormalizePath {
                     if router.has_route(p) {
                         let mut req = HttpResponse::build(self.redirect);
                         return if !query.is_empty() {
-                            req.header(header::LOCATION,
-                                       (p.to_owned() + "?" + query).as_str())
+                            req.header(
+                                header::LOCATION,
+                                (p.to_owned() + "?" + query).as_str(),
+                            )
                         } else {
                             req.header(header::LOCATION, p)
-                        }
-                        .finish();
+                        }.finish();
                     }
                 }
             }
@@ -139,7 +153,11 @@ impl<S> Handler<S> for NormalizePath {
             if self.append && !req.path().ends_with('/') {
                 let p = req.path().to_owned() + "/";
                 if router.has_route(&p) {
-                    let p = if !query.is_empty() { p + "?" + query } else { p };
+                    let p = if !query.is_empty() {
+                        p + "?" + query
+                    } else {
+                        p
+                    };
                     return HttpResponse::build(self.redirect)
                         .header(header::LOCATION, p.as_str())
                         .finish();
@@ -153,9 +171,9 @@ impl<S> Handler<S> for NormalizePath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use application::App;
     use http::{header, Method};
     use test::TestRequest;
-    use application::App;
 
     fn index(_req: HttpRequest) -> HttpResponse {
         HttpResponse::new(StatusCode::OK)
@@ -170,17 +188,32 @@ mod tests {
             .finish();
 
         // trailing slashes
-        let params =
-            vec![("/resource1", "", StatusCode::OK),
-                 ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-                 ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
-                 ("/resource2/", "", StatusCode::OK),
-                 ("/resource1?p1=1&p2=2", "", StatusCode::OK),
-                 ("/resource1/?p1=1&p2=2", "/resource1?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
-                 ("/resource2?p1=1&p2=2", "/resource2/?p1=1&p2=2",
-                  StatusCode::MOVED_PERMANENTLY),
-                 ("/resource2/?p1=1&p2=2", "", StatusCode::OK)
-            ];
+        let params = vec![
+            ("/resource1", "", StatusCode::OK),
+            (
+                "/resource1/",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2",
+                "/resource2/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            ("/resource2/", "", StatusCode::OK),
+            ("/resource1?p1=1&p2=2", "", StatusCode::OK),
+            (
+                "/resource1/?p1=1&p2=2",
+                "/resource1?p1=1&p2=2",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2?p1=1&p2=2",
+                "/resource2/?p1=1&p2=2",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            ("/resource2/?p1=1&p2=2", "", StatusCode::OK),
+        ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
@@ -189,7 +222,12 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                );
             }
         }
     }
@@ -199,19 +237,25 @@ mod tests {
         let mut app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| r.h(
-                NormalizePath::new(false, true, StatusCode::MOVED_PERMANENTLY)))
+            .default_resource(|r| {
+                r.h(NormalizePath::new(
+                    false,
+                    true,
+                    StatusCode::MOVED_PERMANENTLY,
+                ))
+            })
             .finish();
 
         // trailing slashes
-        let params = vec![("/resource1", StatusCode::OK),
-                          ("/resource1/", StatusCode::MOVED_PERMANENTLY),
-                          ("/resource2", StatusCode::NOT_FOUND),
-                          ("/resource2/", StatusCode::OK),
-                          ("/resource1?p1=1&p2=2", StatusCode::OK),
-                          ("/resource1/?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
-                          ("/resource2?p1=1&p2=2", StatusCode::NOT_FOUND),
-                          ("/resource2/?p1=1&p2=2", StatusCode::OK)
+        let params = vec![
+            ("/resource1", StatusCode::OK),
+            ("/resource1/", StatusCode::MOVED_PERMANENTLY),
+            ("/resource2", StatusCode::NOT_FOUND),
+            ("/resource2/", StatusCode::OK),
+            ("/resource1?p1=1&p2=2", StatusCode::OK),
+            ("/resource1/?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
+            ("/resource2?p1=1&p2=2", StatusCode::NOT_FOUND),
+            ("/resource2/?p1=1&p2=2", StatusCode::OK),
         ];
         for (path, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
@@ -232,21 +276,77 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource1//", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b//", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource1//",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b//",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
-            ("//resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b//?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            (
+                "//resource1//a//b?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a//b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a//b//?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
         ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
@@ -256,7 +356,12 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                );
             }
         }
     }
@@ -274,38 +379,158 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/a/b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b//", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2/a/b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/a/b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b//",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2/a/b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource2/a/b/", "", StatusCode::OK),
-            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            (
+                "//resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
-            ("/resource1/a/b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b//?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2/a/b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b/?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/a/b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b//?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2/a/b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b/?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b/?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
         ];
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
@@ -314,7 +539,13 @@ mod tests {
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(
-                    target, r.headers().get(header::LOCATION).unwrap().to_str().unwrap());
+                    target,
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                );
             }
         }
     }

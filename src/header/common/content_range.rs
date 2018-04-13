@@ -1,8 +1,8 @@
+use error::ParseError;
+use header::{HeaderValue, IntoHeaderValue, InvalidHeaderValueBytes, Writer,
+             CONTENT_RANGE};
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
-use error::ParseError;
-use header::{IntoHeaderValue, Writer,
-             HeaderValue, InvalidHeaderValueBytes, CONTENT_RANGE};
 
 header! {
     /// `Content-Range` header, defined in
@@ -69,7 +69,6 @@ header! {
     }
 }
 
-
 /// Content-Range, described in [RFC7233](https://tools.ietf.org/html/rfc7233#section-4.2)
 ///
 /// # ABNF
@@ -99,7 +98,7 @@ pub enum ContentRangeSpec {
         range: Option<(u64, u64)>,
 
         /// Total length of the instance, can be omitted if unknown
-        instance_length: Option<u64>
+        instance_length: Option<u64>,
     },
 
     /// Custom range, with unit not registered at IANA
@@ -108,15 +107,15 @@ pub enum ContentRangeSpec {
         unit: String,
 
         /// other-range-resp
-        resp: String
-    }
+        resp: String,
+    },
 }
 
 fn split_in_two(s: &str, separator: char) -> Option<(&str, &str)> {
     let mut iter = s.splitn(2, separator);
     match (iter.next(), iter.next()) {
         (Some(a), Some(b)) => Some((a, b)),
-        _ => None
+        _ => None,
     }
 }
 
@@ -126,40 +125,40 @@ impl FromStr for ContentRangeSpec {
     fn from_str(s: &str) -> Result<Self, ParseError> {
         let res = match split_in_two(s, ' ') {
             Some(("bytes", resp)) => {
-                let (range, instance_length) = split_in_two(
-                    resp, '/').ok_or(ParseError::Header)?;
+                let (range, instance_length) =
+                    split_in_two(resp, '/').ok_or(ParseError::Header)?;
 
                 let instance_length = if instance_length == "*" {
                     None
                 } else {
-                    Some(instance_length.parse()
-                         .map_err(|_| ParseError::Header)?)
+                    Some(instance_length
+                        .parse()
+                        .map_err(|_| ParseError::Header)?)
                 };
 
                 let range = if range == "*" {
                     None
                 } else {
-                    let (first_byte, last_byte) = split_in_two(
-                        range, '-').ok_or(ParseError::Header)?;
-                    let first_byte = first_byte.parse()
-                        .map_err(|_| ParseError::Header)?;
-                    let last_byte = last_byte.parse()
-                        .map_err(|_| ParseError::Header)?;
+                    let (first_byte, last_byte) =
+                        split_in_two(range, '-').ok_or(ParseError::Header)?;
+                    let first_byte = first_byte.parse().map_err(|_| ParseError::Header)?;
+                    let last_byte = last_byte.parse().map_err(|_| ParseError::Header)?;
                     if last_byte < first_byte {
                         return Err(ParseError::Header);
                     }
                     Some((first_byte, last_byte))
                 };
 
-                ContentRangeSpec::Bytes {range, instance_length}
-            }
-            Some((unit, resp)) => {
-                ContentRangeSpec::Unregistered {
-                    unit: unit.to_owned(),
-                    resp: resp.to_owned()
+                ContentRangeSpec::Bytes {
+                    range,
+                    instance_length,
                 }
             }
-            _ => return Err(ParseError::Header)
+            Some((unit, resp)) => ContentRangeSpec::Unregistered {
+                unit: unit.to_owned(),
+                resp: resp.to_owned(),
+            },
+            _ => return Err(ParseError::Header),
         };
         Ok(res)
     }
@@ -168,12 +167,15 @@ impl FromStr for ContentRangeSpec {
 impl Display for ContentRangeSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ContentRangeSpec::Bytes { range, instance_length } => {
+            ContentRangeSpec::Bytes {
+                range,
+                instance_length,
+            } => {
                 try!(f.write_str("bytes "));
                 match range {
                     Some((first_byte, last_byte)) => {
                         try!(write!(f, "{}-{}", first_byte, last_byte));
-                    },
+                    }
                     None => {
                         try!(f.write_str("*"));
                     }
@@ -185,7 +187,10 @@ impl Display for ContentRangeSpec {
                     f.write_str("*")
                 }
             }
-            ContentRangeSpec::Unregistered { ref unit, ref resp } => {
+            ContentRangeSpec::Unregistered {
+                ref unit,
+                ref resp,
+            } => {
                 try!(f.write_str(unit));
                 try!(f.write_str(" "));
                 f.write_str(resp)

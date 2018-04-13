@@ -1,4 +1,4 @@
-use header::{EXPIRES, HttpDate};
+use header::{HttpDate, EXPIRES};
 
 header! {
     /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)

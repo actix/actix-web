@@ -1,29 +1,28 @@
 //! Http response
-use std::{mem, str, fmt};
-use std::rc::Rc;
-use std::io::Write;
 use std::cell::UnsafeCell;
 use std::collections::VecDeque;
+use std::io::Write;
+use std::rc::Rc;
+use std::{fmt, mem, str};
 
+use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
-use bytes::{Bytes, BytesMut, BufMut};
 use futures::Stream;
-use http::{StatusCode, Version, HeaderMap, HttpTryFrom, Error as HttpError};
 use http::header::{self, HeaderName, HeaderValue};
-use serde_json;
+use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
+use serde_json;
 
 use body::Body;
+use client::ClientResponse;
 use error::Error;
 use handler::Responder;
-use header::{Header, IntoHeaderValue, ContentEncoding};
-use httprequest::HttpRequest;
+use header::{ContentEncoding, Header, IntoHeaderValue};
 use httpmessage::HttpMessage;
-use client::ClientResponse;
+use httprequest::HttpRequest;
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
-
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -37,7 +36,10 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct HttpResponse(Option<Box<InnerHttpResponse>>, Rc<UnsafeCell<HttpResponsePool>>);
+pub struct HttpResponse(
+    Option<Box<InnerHttpResponse>>,
+    Rc<UnsafeCell<HttpResponsePool>>,
+);
 
 impl Drop for HttpResponse {
     fn drop(&mut self) {
@@ -48,7 +50,6 @@ impl Drop for HttpResponse {
 }
 
 impl HttpResponse {
-
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     fn get_ref(&self) -> &InnerHttpResponse {
@@ -103,7 +104,7 @@ impl HttpResponse {
             response,
             pool,
             err: None,
-            cookies: None,  // TODO: convert set-cookie headers
+            cookies: None, // TODO: convert set-cookie headers
         }
     }
 
@@ -149,7 +150,10 @@ impl HttpResponse {
         if let Some(reason) = self.get_ref().reason {
             reason
         } else {
-            self.get_ref().status.canonical_reason().unwrap_or("<unknown status code>")
+            self.get_ref()
+                .status
+                .canonical_reason()
+                .unwrap_or("<unknown status code>")
         }
     }
 
@@ -241,9 +245,13 @@ impl HttpResponse {
 
 impl fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(f, "\nHttpResponse {:?} {}{}",
-                         self.get_ref().version, self.get_ref().status,
-                         self.get_ref().reason.unwrap_or(""));
+        let res = writeln!(
+            f,
+            "\nHttpResponse {:?} {}{}",
+            self.get_ref().version,
+            self.get_ref().status,
+            self.get_ref().reason.unwrap_or("")
+        );
         let _ = writeln!(f, "  encoding: {:?}", self.get_ref().encoding);
         let _ = writeln!(f, "  headers:");
         for (key, val) in self.get_ref().headers.iter() {
@@ -299,11 +307,12 @@ impl HttpResponseBuilder {
     /// fn main() {}
     /// ```
     #[doc(hidden)]
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self
-    {
+    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match hdr.try_into() {
-                Ok(value) => { parts.headers.append(H::name(), value); }
+                Ok(value) => {
+                    parts.headers.append(H::name(), value);
+                }
                 Err(e) => self.err = Some(e.into()),
             }
         }
@@ -325,16 +334,17 @@ impl HttpResponseBuilder {
     /// fn main() {}
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-        where HeaderName: HttpTryFrom<K>,
-              V: IntoHeaderValue,
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderName::try_from(key) {
-                Ok(key) => {
-                    match value.try_into() {
-                        Ok(value) => { parts.headers.append(key, value); }
-                        Err(e) => self.err = Some(e.into()),
+                Ok(key) => match value.try_into() {
+                    Ok(value) => {
+                        parts.headers.append(key, value);
                     }
+                    Err(e) => self.err = Some(e.into()),
                 },
                 Err(e) => self.err = Some(e.into()),
             };
@@ -354,8 +364,9 @@ impl HttpResponseBuilder {
     /// Set content encoding.
     ///
     /// By default `ContentEncoding::Auto` is used, which automatically
-    /// negotiates content encoding based on request's `Accept-Encoding` headers.
-    /// To enforce specific encoding, use specific ContentEncoding` value.
+    /// negotiates content encoding based on request's `Accept-Encoding`
+    /// headers. To enforce specific encoding, use specific
+    /// ContentEncoding` value.
     #[inline]
     pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
@@ -408,11 +419,14 @@ impl HttpResponseBuilder {
     /// Set response content type
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
-        where HeaderValue: HttpTryFrom<V>
+    where
+        HeaderValue: HttpTryFrom<V>,
     {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderValue::try_from(value) {
-                Ok(value) => { parts.headers.insert(header::CONTENT_TYPE, value); },
+                Ok(value) => {
+                    parts.headers.insert(header::CONTENT_TYPE, value);
+                }
                 Err(e) => self.err = Some(e.into()),
             };
         }
@@ -452,12 +466,16 @@ impl HttpResponseBuilder {
             jar.add(cookie.into_owned());
             self.cookies = Some(jar)
         } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
+            self.cookies
+                .as_mut()
+                .unwrap()
+                .add(cookie.into_owned());
         }
         self
     }
 
-    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()` method.
+    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()`
+    /// method.
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
         {
             if self.cookies.is_none() {
@@ -471,9 +489,11 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is true.
+    /// This method calls provided closure with builder reference if value is
+    /// true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
-        where F: FnOnce(&mut HttpResponseBuilder)
+    where
+        F: FnOnce(&mut HttpResponseBuilder),
     {
         if value {
             f(self);
@@ -481,9 +501,11 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is Some.
+    /// This method calls provided closure with builder reference if value is
+    /// Some.
     pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
-        where F: FnOnce(T, &mut HttpResponseBuilder)
+    where
+        F: FnOnce(T, &mut HttpResponseBuilder),
     {
         if let Some(val) = value {
             f(val, self);
@@ -494,8 +516,8 @@ impl HttpResponseBuilder {
     /// Set write buffer capacity
     ///
     /// This parameter makes sense only for streaming response
-    /// or actor. If write buffer reaches specified capacity, stream or actor get
-    /// paused.
+    /// or actor. If write buffer reaches specified capacity, stream or actor
+    /// get paused.
     ///
     /// Default write buffer capacity is 64kb
     pub fn write_buffer_capacity(&mut self, cap: usize) -> &mut Self {
@@ -510,9 +532,11 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
         if let Some(e) = self.err.take() {
-            return Error::from(e).into()
+            return Error::from(e).into();
         }
-        let mut response = self.response.take().expect("cannot reuse response builder");
+        let mut response = self.response
+            .take()
+            .expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
@@ -530,10 +554,13 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
-        where S: Stream<Item=Bytes, Error=E> + 'static,
-              E: Into<Error>,
+    where
+        S: Stream<Item = Bytes, Error = E> + 'static,
+        E: Into<Error>,
     {
-        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
+        self.body(Body::Streaming(Box::new(
+            stream.map_err(|e| e.into()),
+        )))
     }
 
     /// Set a json body and generate `HttpResponse`
@@ -542,19 +569,19 @@ impl HttpResponseBuilder {
     pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
         match serde_json::to_string(&value) {
             Ok(body) => {
-                let contains =
-                    if let Some(parts) = parts(&mut self.response, &self.err) {
-                        parts.headers.contains_key(header::CONTENT_TYPE)
-                    } else {
-                        true
-                    };
+                let contains = if let Some(parts) = parts(&mut self.response, &self.err)
+                {
+                    parts.headers.contains_key(header::CONTENT_TYPE)
+                } else {
+                    true
+                };
                 if !contains {
                     self.header(header::CONTENT_TYPE, "application/json");
                 }
 
                 self.body(body)
-            },
-            Err(e) => Error::from(e).into()
+            }
+            Err(e) => Error::from(e).into(),
         }
     }
 
@@ -579,11 +606,11 @@ impl HttpResponseBuilder {
 
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
-fn parts<'a>(parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>)
-             -> Option<&'a mut Box<InnerHttpResponse>>
-{
+fn parts<'a>(
+    parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>
+) -> Option<&'a mut Box<InnerHttpResponse>> {
     if err.is_some() {
-        return None
+        return None;
     }
     parts.as_mut()
 }
@@ -628,8 +655,8 @@ impl Responder for &'static str {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("text/plain; charset=utf-8")
-           .body(self))
+            .content_type("text/plain; charset=utf-8")
+            .body(self))
     }
 }
 
@@ -647,8 +674,8 @@ impl Responder for &'static [u8] {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("application/octet-stream")
-           .body(self))
+            .content_type("application/octet-stream")
+            .body(self))
     }
 }
 
@@ -666,8 +693,8 @@ impl Responder for String {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("text/plain; charset=utf-8")
-           .body(self))
+            .content_type("text/plain; charset=utf-8")
+            .body(self))
     }
 }
 
@@ -685,8 +712,8 @@ impl<'a> Responder for &'a String {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("text/plain; charset=utf-8")
-           .body(self))
+            .content_type("text/plain; charset=utf-8")
+            .body(self))
     }
 }
 
@@ -704,8 +731,8 @@ impl Responder for Bytes {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("application/octet-stream")
-           .body(self))
+            .content_type("application/octet-stream")
+            .body(self))
     }
 }
 
@@ -723,8 +750,8 @@ impl Responder for BytesMut {
 
     fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(req.build_response(StatusCode::OK)
-           .content_type("application/octet-stream")
-           .body(self))
+            .content_type("application/octet-stream")
+            .body(self))
     }
 }
 
@@ -745,7 +772,9 @@ impl<'a> From<&'a ClientResponse> for HttpResponseBuilder {
 impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
     fn from(req: &'a HttpRequest<S>) -> HttpResponseBuilder {
         if let Some(router) = req.router() {
-            router.server_settings().get_response_builder(StatusCode::OK)
+            router
+                .server_settings()
+                .get_response_builder(StatusCode::OK)
         } else {
             HttpResponse::Ok()
         }
@@ -768,7 +797,6 @@ struct InnerHttpResponse {
 }
 
 impl InnerHttpResponse {
-
     #[inline]
     fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
         InnerHttpResponse {
@@ -793,38 +821,41 @@ pub(crate) struct HttpResponsePool(VecDeque<Box<InnerHttpResponse>>);
 thread_local!(static POOL: Rc<UnsafeCell<HttpResponsePool>> = HttpResponsePool::pool());
 
 impl HttpResponsePool {
-
     pub fn pool() -> Rc<UnsafeCell<HttpResponsePool>> {
-        Rc::new(UnsafeCell::new(HttpResponsePool(VecDeque::with_capacity(128))))
+        Rc::new(UnsafeCell::new(HttpResponsePool(
+            VecDeque::with_capacity(128),
+        )))
     }
 
     #[inline]
-    pub fn get_builder(pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode)
-                       -> HttpResponseBuilder
-    {
-        let p = unsafe{&mut *pool.as_ref().get()};
+    pub fn get_builder(
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode
+    ) -> HttpResponseBuilder {
+        let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
             msg.status = status;
             HttpResponseBuilder {
                 response: Some(msg),
                 pool: Some(Rc::clone(pool)),
                 err: None,
-                cookies: None }
+                cookies: None,
+            }
         } else {
             let msg = Box::new(InnerHttpResponse::new(status, Body::Empty));
             HttpResponseBuilder {
                 response: Some(msg),
                 pool: Some(Rc::clone(pool)),
                 err: None,
-                cookies: None }
+                cookies: None,
+            }
         }
     }
 
     #[inline]
-    pub fn get_response(pool: &Rc<UnsafeCell<HttpResponsePool>>,
-                        status: StatusCode, body: Body) -> HttpResponse
-    {
-        let p = unsafe{&mut *pool.as_ref().get()};
+    pub fn get_response(
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode, body: Body
+    ) -> HttpResponse {
+        let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
             msg.status = status;
             msg.body = body;
@@ -847,9 +878,10 @@ impl HttpResponsePool {
 
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
-    fn release(pool: &Rc<UnsafeCell<HttpResponsePool>>, mut inner: Box<InnerHttpResponse>)
-    {
-        let pool = unsafe{&mut *pool.as_ref().get()};
+    fn release(
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, mut inner: Box<InnerHttpResponse>
+    ) {
+        let pool = unsafe { &mut *pool.as_ref().get() };
         if pool.0.len() < 128 {
             inner.headers.clear();
             inner.version = None;
@@ -868,12 +900,12 @@ impl HttpResponsePool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
-    use time::Duration;
-    use http::{Method, Uri};
-    use http::header::{COOKIE, CONTENT_TYPE, HeaderValue};
     use body::Binary;
     use http;
+    use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use http::{Method, Uri};
+    use std::str::FromStr;
+    use time::Duration;
 
     #[test]
     fn test_debug() {
@@ -892,25 +924,37 @@ mod tests {
         headers.insert(COOKIE, HeaderValue::from_static("cookie2=value2"));
 
         let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            headers,
+            None,
+        );
         let cookies = req.cookies().unwrap();
 
         let resp = HttpResponse::Ok()
-            .cookie(http::Cookie::build("name", "value")
+            .cookie(
+                http::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
                     .path("/test")
                     .http_only(true)
                     .max_age(Duration::days(1))
-                    .finish())
+                    .finish(),
+            )
             .del_cookie(&cookies[0])
             .finish();
 
-        let mut val: Vec<_> = resp.headers().get_all("Set-Cookie")
-            .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
+        let mut val: Vec<_> = resp.headers()
+            .get_all("Set-Cookie")
+            .iter()
+            .map(|v| v.to_str().unwrap().to_owned())
+            .collect();
         val.sort();
         assert!(val[0].starts_with("cookie2=; Max-Age=0;"));
         assert_eq!(
-            val[1],"name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400");
+            val[1],
+            "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
+        );
     }
 
     #[test]
@@ -931,15 +975,21 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let resp = HttpResponse::build(StatusCode::OK)
+            .force_close()
+            .finish();
         assert!(!resp.keep_alive().unwrap())
     }
 
     #[test]
     fn test_content_type() {
         let resp = HttpResponse::build(StatusCode::OK)
-            .content_type("text/plain").body(Body::Empty);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
+            .content_type("text/plain")
+            .body(Body::Empty);
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            "text/plain"
+        )
     }
 
     #[test]
@@ -947,25 +997,29 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK).finish();
         assert_eq!(resp.content_encoding(), None);
 
-        #[cfg(feature="brotli")]
+        #[cfg(feature = "brotli")]
         {
             let resp = HttpResponse::build(StatusCode::OK)
-                .content_encoding(ContentEncoding::Br).finish();
+                .content_encoding(ContentEncoding::Br)
+                .finish();
             assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
         }
 
         let resp = HttpResponse::build(StatusCode::OK)
-            .content_encoding(ContentEncoding::Gzip).finish();
+            .content_encoding(ContentEncoding::Gzip)
+            .finish();
         assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
     }
 
     #[test]
     fn test_json() {
-        let resp = HttpResponse::build(StatusCode::OK)
-            .json(vec!["v1", "v2", "v3"]);
+        let resp = HttpResponse::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
     }
 
     #[test]
@@ -975,7 +1029,10 @@ mod tests {
             .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(*resp.body(), Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]")));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
     }
 
     impl Body {
@@ -993,91 +1050,152 @@ mod tests {
 
         let resp: HttpResponse = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
         let resp: HttpResponse = "test".respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
         let resp: HttpResponse = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(b"test".as_ref())
+        );
 
         let resp: HttpResponse = b"test".as_ref().respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(b"test".as_ref()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(b"test".as_ref())
+        );
 
         let resp: HttpResponse = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from("test".to_owned())
+        );
 
-        let resp: HttpResponse = "test".to_owned().respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = "test"
+            .to_owned()
+            .respond_to(req.clone())
+            .ok()
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test".to_owned()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from("test".to_owned())
+        );
 
         let resp: HttpResponse = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(&"test".to_owned())
+        );
 
-        let resp: HttpResponse = (&"test".to_owned()).respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = (&"test".to_owned())
+            .respond_to(req.clone())
+            .ok()
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("text/plain; charset=utf-8"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(&"test".to_owned()));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(&"test".to_owned())
+        );
 
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(Bytes::from_static(b"test"))
+        );
 
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(Bytes::from_static(b"test")));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(Bytes::from_static(b"test"))
+        );
 
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(BytesMut::from("test"))
+        );
 
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(),
-                   HeaderValue::from_static("application/octet-stream"));
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from(BytesMut::from("test")));
+        assert_eq!(
+            resp.body().binary().unwrap(),
+            &Binary::from(BytesMut::from("test"))
+        );
     }
 
     #[test]

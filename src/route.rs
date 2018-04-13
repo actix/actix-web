@@ -1,17 +1,18 @@
+use futures::{Async, Future, Poll};
+use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
-use std::marker::PhantomData;
-use futures::{Async, Future, Poll};
 
 use error::Error;
-use pred::Predicate;
+use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyItem, Responder,
+              RouteHandler, WrapHandler};
 use http::StatusCode;
-use handler::{Reply, ReplyItem, Handler, FromRequest,
-              Responder, RouteHandler, AsyncHandler, WrapHandler};
-use middleware::{Middleware, Response as MiddlewareResponse, Started as MiddlewareStarted};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use with::{With, With2, With3, ExtractorConfig};
+use middleware::{Middleware, Response as MiddlewareResponse,
+                 Started as MiddlewareStarted};
+use pred::Predicate;
+use with::{ExtractorConfig, With, With2, With3};
 
 /// Resource route definition
 ///
@@ -23,7 +24,6 @@ pub struct Route<S> {
 }
 
 impl<S: 'static> Default for Route<S> {
-
     fn default() -> Route<S> {
         Route {
             preds: Vec::new(),
@@ -33,12 +33,11 @@ impl<S: 'static> Default for Route<S> {
 }
 
 impl<S: 'static> Route<S> {
-
     #[inline]
     pub(crate) fn check(&self, req: &mut HttpRequest<S>) -> bool {
         for pred in &self.preds {
             if !pred.check(req) {
-                return false
+                return false;
             }
         }
         true
@@ -50,9 +49,9 @@ impl<S: 'static> Route<S> {
     }
 
     #[inline]
-    pub(crate) fn compose(&mut self,
-                          req: HttpRequest<S>,
-                          mws: Rc<Vec<Box<Middleware<S>>>>) -> Reply {
+    pub(crate) fn compose(
+        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>
+    ) -> Reply {
         Reply::async(Compose::new(req, mws, self.handler.clone()))
     }
 
@@ -86,18 +85,20 @@ impl<S: 'static> Route<S> {
     /// Set handler function. Usually call to this method is last call
     /// during route configuration, so it does not return reference to self.
     pub fn f<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Responder + 'static,
+    where
+        F: Fn(HttpRequest<S>) -> R + 'static,
+        R: Responder + 'static,
     {
         self.handler = InnerHandler::new(handler);
     }
 
     /// Set async handler function.
     pub fn a<H, R, F, E>(&mut self, handler: H)
-        where H: Fn(HttpRequest<S>) -> F + 'static,
-              F: Future<Item=R, Error=E> + 'static,
-              R: Responder + 'static,
-              E: Into<Error> + 'static
+    where
+        H: Fn(HttpRequest<S>) -> F + 'static,
+        F: Future<Item = R, Error = E> + 'static,
+        R: Responder + 'static,
+        E: Into<Error> + 'static,
     {
         self.handler = InnerHandler::async(handler);
     }
@@ -128,9 +129,10 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
-        where F: Fn(T) -> R + 'static,
-              R: Responder + 'static,
-              T: FromRequest<S> + 'static,
+    where
+        F: Fn(T) -> R + 'static,
+        R: Responder + 'static,
+        T: FromRequest<S> + 'static,
     {
         let cfg = ExtractorConfig::default();
         self.h(With::new(handler, Clone::clone(&cfg)));
@@ -167,43 +169,58 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
     /// }
     /// ```
-    pub fn with2<T1, T2, F, R>(&mut self, handler: F)
-                               -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
-        where F: Fn(T1, T2) -> R + 'static,
-              R: Responder + 'static,
-              T1: FromRequest<S> + 'static,
-              T2: FromRequest<S> + 'static,
+    pub fn with2<T1, T2, F, R>(
+        &mut self, handler: F
+    ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
+    where
+        F: Fn(T1, T2) -> R + 'static,
+        R: Responder + 'static,
+        T1: FromRequest<S> + 'static,
+        T2: FromRequest<S> + 'static,
     {
         let cfg1 = ExtractorConfig::default();
         let cfg2 = ExtractorConfig::default();
-        self.h(With2::new(handler, Clone::clone(&cfg1), Clone::clone(&cfg2)));
+        self.h(With2::new(
+            handler,
+            Clone::clone(&cfg1),
+            Clone::clone(&cfg2),
+        ));
         (cfg1, cfg2)
     }
 
     /// Set handler function, use request extractor for all paramters.
-    pub fn with3<T1, T2, T3, F, R>(&mut self, handler: F)
-        -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>, ExtractorConfig<S, T3>)
-        where F: Fn(T1, T2, T3) -> R + 'static,
-              R: Responder + 'static,
-              T1: FromRequest<S> + 'static,
-              T2: FromRequest<S> + 'static,
-              T3: FromRequest<S> + 'static,
+    pub fn with3<T1, T2, T3, F, R>(
+        &mut self, handler: F
+    ) -> (
+        ExtractorConfig<S, T1>,
+        ExtractorConfig<S, T2>,
+        ExtractorConfig<S, T3>,
+    )
+    where
+        F: Fn(T1, T2, T3) -> R + 'static,
+        R: Responder + 'static,
+        T1: FromRequest<S> + 'static,
+        T2: FromRequest<S> + 'static,
+        T3: FromRequest<S> + 'static,
     {
         let cfg1 = ExtractorConfig::default();
         let cfg2 = ExtractorConfig::default();
         let cfg3 = ExtractorConfig::default();
         self.h(With3::new(
-            handler, Clone::clone(&cfg1), Clone::clone(&cfg2), Clone::clone(&cfg3)));
+            handler,
+            Clone::clone(&cfg1),
+            Clone::clone(&cfg2),
+            Clone::clone(&cfg3),
+        ));
         (cfg1, cfg2, cfg3)
     }
 }
 
-/// `RouteHandler` wrapper. This struct is required because it needs to be shared
-/// for resource level middlewares.
+/// `RouteHandler` wrapper. This struct is required because it needs to be
+/// shared for resource level middlewares.
 struct InnerHandler<S>(Rc<Box<RouteHandler<S>>>);
 
 impl<S: 'static> InnerHandler<S> {
-
     #[inline]
     fn new<H: Handler<S>>(h: H) -> Self {
         InnerHandler(Rc::new(Box::new(WrapHandler::new(h))))
@@ -211,10 +228,11 @@ impl<S: 'static> InnerHandler<S> {
 
     #[inline]
     fn async<H, R, F, E>(h: H) -> Self
-        where H: Fn(HttpRequest<S>) -> F + 'static,
-              F: Future<Item=R, Error=E> + 'static,
-              R: Responder + 'static,
-              E: Into<Error> + 'static
+    where
+        H: Fn(HttpRequest<S>) -> F + 'static,
+        F: Future<Item = R, Error = E> + 'static,
+        R: Responder + 'static,
+        E: Into<Error> + 'static,
     {
         InnerHandler(Rc::new(Box::new(AsyncHandler::new(h))))
     }
@@ -236,7 +254,6 @@ impl<S> Clone for InnerHandler<S> {
         InnerHandler(Rc::clone(&self.0))
     }
 }
-
 
 /// Compose resource level middlewares with route handler.
 struct Compose<S: 'static> {
@@ -270,14 +287,18 @@ impl<S: 'static> ComposeState<S> {
 }
 
 impl<S: 'static> Compose<S> {
-    fn new(req: HttpRequest<S>,
-           mws: Rc<Vec<Box<Middleware<S>>>>,
-           handler: InnerHandler<S>) -> Self
-    {
-        let mut info = ComposeInfo { count: 0, req, mws, handler };
+    fn new(
+        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>
+    ) -> Self {
+        let mut info = ComposeInfo {
+            count: 0,
+            req,
+            mws,
+            handler,
+        };
         let state = StartMiddlewares::init(&mut info);
 
-        Compose {state, info}
+        Compose { state, info }
     }
 }
 
@@ -289,12 +310,12 @@ impl<S> Future for Compose<S> {
         loop {
             if let ComposeState::Response(ref mut resp) = self.state {
                 let resp = resp.resp.take().unwrap();
-                return Ok(Async::Ready(resp))
+                return Ok(Async::Ready(resp));
             }
             if let Some(state) = self.state.poll(&mut self.info) {
                 self.state = state;
             } else {
-                return Ok(Async::NotReady)
+                return Ok(Async::NotReady);
             }
         }
     }
@@ -306,51 +327,47 @@ struct StartMiddlewares<S> {
     _s: PhantomData<S>,
 }
 
-type Fut = Box<Future<Item=Option<HttpResponse>, Error=Error>>;
+type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 
 impl<S: 'static> StartMiddlewares<S> {
-
     fn init(info: &mut ComposeInfo<S>) -> ComposeState<S> {
         let len = info.mws.len();
         loop {
             if info.count == len {
                 let reply = info.handler.handle(info.req.clone());
-                return WaitingResponse::init(info, reply)
+                return WaitingResponse::init(info, reply);
             } else {
                 match info.mws[info.count].start(&mut info.req) {
-                    Ok(MiddlewareStarted::Done) =>
-                        info.count += 1,
-                    Ok(MiddlewareStarted::Response(resp)) =>
-                        return RunMiddlewares::init(info, resp),
-                    Ok(MiddlewareStarted::Future(mut fut)) =>
-                        match fut.poll() {
-                            Ok(Async::NotReady) =>
-                                return ComposeState::Starting(StartMiddlewares {
-                                    fut: Some(fut),
-                                    _s: PhantomData}),
-                            Ok(Async::Ready(resp)) => {
-                                if let Some(resp) = resp {
-                                    return RunMiddlewares::init(info, resp);
-                                }
-                                info.count += 1;
+                    Ok(MiddlewareStarted::Done) => info.count += 1,
+                    Ok(MiddlewareStarted::Response(resp)) => {
+                        return RunMiddlewares::init(info, resp)
+                    }
+                    Ok(MiddlewareStarted::Future(mut fut)) => match fut.poll() {
+                        Ok(Async::NotReady) => {
+                            return ComposeState::Starting(StartMiddlewares {
+                                fut: Some(fut),
+                                _s: PhantomData,
+                            })
+                        }
+                        Ok(Async::Ready(resp)) => {
+                            if let Some(resp) = resp {
+                                return RunMiddlewares::init(info, resp);
                             }
-                            Err(err) =>
-                                return Response::init(err.into()),
-                        },
-                    Err(err) =>
-                        return Response::init(err.into()),
+                            info.count += 1;
+                        }
+                        Err(err) => return Response::init(err.into()),
+                    },
+                    Err(err) => return Response::init(err.into()),
                 }
             }
         }
     }
 
-    fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>>
-    {
+    fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
         let len = info.mws.len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) =>
-                    return None,
+                Ok(Async::NotReady) => return None,
                 Ok(Async::Ready(resp)) => {
                     info.count += 1;
                     if let Some(resp) = resp {
@@ -362,23 +379,20 @@ impl<S: 'static> StartMiddlewares<S> {
                     } else {
                         loop {
                             match info.mws[info.count].start(&mut info.req) {
-                                Ok(MiddlewareStarted::Done) =>
-                                    info.count += 1,
+                                Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
-                                },
+                                }
                                 Ok(MiddlewareStarted::Future(fut)) => {
                                     self.fut = Some(fut);
-                                    continue 'outer
-                                },
-                                Err(err) =>
-                                    return Some(Response::init(err.into()))
+                                    continue 'outer;
+                                }
+                                Err(err) => return Some(Response::init(err.into())),
                             }
                         }
                     }
                 }
-                Err(err) =>
-                    return Some(Response::init(err.into()))
+                Err(err) => return Some(Response::init(err.into())),
             }
         }
     }
@@ -386,44 +400,39 @@ impl<S: 'static> StartMiddlewares<S> {
 
 // waiting for response
 struct WaitingResponse<S> {
-    fut: Box<Future<Item=HttpResponse, Error=Error>>,
+    fut: Box<Future<Item = HttpResponse, Error = Error>>,
     _s: PhantomData<S>,
 }
 
 impl<S: 'static> WaitingResponse<S> {
-
     #[inline]
     fn init(info: &mut ComposeInfo<S>, reply: Reply) -> ComposeState<S> {
         match reply.into() {
-            ReplyItem::Message(resp) =>
-                RunMiddlewares::init(info, resp),
-            ReplyItem::Future(fut) =>
-                ComposeState::Handler(
-                    WaitingResponse { fut, _s: PhantomData }),
+            ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
+            ReplyItem::Future(fut) => ComposeState::Handler(WaitingResponse {
+                fut,
+                _s: PhantomData,
+            }),
         }
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
-            Ok(Async::Ready(response)) =>
-                Some(RunMiddlewares::init(info, response)),
-            Err(err) =>
-                Some(Response::init(err.into())),
+            Ok(Async::Ready(response)) => Some(RunMiddlewares::init(info, response)),
+            Err(err) => Some(Response::init(err.into())),
         }
     }
 }
 
-
 /// Middlewares response executor
 struct RunMiddlewares<S> {
     curr: usize,
-    fut: Option<Box<Future<Item=HttpResponse, Error=Error>>>,
+    fut: Option<Box<Future<Item = HttpResponse, Error = Error>>>,
     _s: PhantomData<S>,
 }
 
 impl<S: 'static> RunMiddlewares<S> {
-
     fn init(info: &mut ComposeInfo<S>, mut resp: HttpResponse) -> ComposeState<S> {
         let mut curr = 0;
         let len = info.mws.len();
@@ -432,40 +441,39 @@ impl<S: 'static> RunMiddlewares<S> {
             resp = match info.mws[curr].response(&mut info.req, resp) {
                 Err(err) => {
                     info.count = curr + 1;
-                    return Response::init(err.into())
-                },
+                    return Response::init(err.into());
+                }
                 Ok(MiddlewareResponse::Done(r)) => {
                     curr += 1;
                     if curr == len {
-                        return Response::init(r)
+                        return Response::init(r);
                     } else {
                         r
                     }
-                },
+                }
                 Ok(MiddlewareResponse::Future(fut)) => {
-                    return ComposeState::RunMiddlewares(
-                        RunMiddlewares { curr, fut: Some(fut), _s: PhantomData })
-                },
+                    return ComposeState::RunMiddlewares(RunMiddlewares {
+                        curr,
+                        fut: Some(fut),
+                        _s: PhantomData,
+                    })
+                }
             };
         }
     }
-    
-    fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>>
-    {
+
+    fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
         let len = info.mws.len();
 
         loop {
             // poll latest fut
             let mut resp = match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) => {
-                    return None
-                }
+                Ok(Async::NotReady) => return None,
                 Ok(Async::Ready(resp)) => {
                     self.curr += 1;
                     resp
                 }
-                Err(err) =>
-                    return Some(Response::init(err.into())),
+                Err(err) => return Some(Response::init(err.into())),
             };
 
             loop {
@@ -473,16 +481,15 @@ impl<S: 'static> RunMiddlewares<S> {
                     return Some(Response::init(resp));
                 } else {
                     match info.mws[self.curr].response(&mut info.req, resp) {
-                        Err(err) =>
-                            return Some(Response::init(err.into())),
+                        Err(err) => return Some(Response::init(err.into())),
                         Ok(MiddlewareResponse::Done(r)) => {
                             self.curr += 1;
                             resp = r
-                        },
+                        }
                         Ok(MiddlewareResponse::Future(fut)) => {
                             self.fut = Some(fut);
-                            break
-                        },
+                            break;
+                        }
                     }
                 }
             }
@@ -496,9 +503,10 @@ struct Response<S> {
 }
 
 impl<S: 'static> Response<S> {
-
     fn init(resp: HttpResponse) -> ComposeState<S> {
-        ComposeState::Response(
-            Response{resp: Some(resp), _s: PhantomData})
+        ComposeState::Response(Response {
+            resp: Some(resp),
+            _s: PhantomData,
+        })
     }
 }

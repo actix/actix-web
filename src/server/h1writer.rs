@@ -1,22 +1,22 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use std::{io, mem};
-use std::rc::Rc;
 use bytes::BufMut;
 use futures::{Async, Poll};
-use tokio_io::AsyncWrite;
-use http::{Method, Version};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
+use http::{Method, Version};
+use std::rc::Rc;
+use std::{io, mem};
+use tokio_io::AsyncWrite;
 
-use body::{Body, Binary};
+use super::encoding::ContentEncoder;
+use super::helpers;
+use super::settings::WorkerSettings;
+use super::shared::SharedBytes;
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use body::{Binary, Body};
 use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use super::helpers;
-use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
-use super::shared::SharedBytes;
-use super::encoding::ContentEncoder;
-use super::settings::WorkerSettings;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
@@ -41,10 +41,9 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
 }
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
-
-    pub fn new(stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>)
-               -> H1Writer<T, H>
-    {
+    pub fn new(
+        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>
+    ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::empty(),
             encoder: ContentEncoder::empty(buf.clone()),
@@ -80,11 +79,11 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
             match self.stream.write(&data[written..]) {
                 Ok(0) => {
                     self.disconnected();
-                    return Err(io::Error::new(io::ErrorKind::WriteZero, ""))
-                },
+                    return Err(io::Error::new(io::ErrorKind::WriteZero, ""));
+                }
                 Ok(n) => {
                     written += n;
-                },
+                }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     return Ok(written)
                 }
@@ -96,19 +95,18 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
 }
 
 impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
-
     #[inline]
     fn written(&self) -> u64 {
         self.written
     }
 
-    fn start(&mut self,
-             req: &mut HttpInnerMessage,
-             msg: &mut HttpResponse,
-             encoding: ContentEncoding) -> io::Result<WriterState>
-    {
+    fn start(
+        &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
+        encoding: ContentEncoding,
+    ) -> io::Result<WriterState> {
         // prepare task
-        self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
+        self.encoder =
+            ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags.insert(Flags::STARTED | Flags::KEEPALIVE);
         } else {
@@ -119,15 +117,18 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         let version = msg.version().unwrap_or_else(|| req.version);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
-            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
+            msg.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
         else if self.flags.contains(Flags::KEEPALIVE) {
             if version < Version::HTTP_11 {
-                msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+                msg.headers_mut()
+                    .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if version >= Version::HTTP_11 {
-            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
+            msg.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("close"));
         }
         let body = msg.replace_body(Body::Empty);
 
@@ -137,12 +138,14 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let reason = msg.reason().as_bytes();
             let mut is_bin = if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE
-                        + bytes.len() + reason.len());
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len()
+                        + reason.len(),
+                );
                 true
             } else {
                 buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len());
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len(),
+                );
                 false
             };
 
@@ -151,51 +154,50 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             SharedBytes::extend_from_slice_(buffer, reason);
 
             match body {
-                Body::Empty =>
-                    if req.method != Method::HEAD {
-                        SharedBytes::put_slice(buffer, b"\r\ncontent-length: 0\r\n");
-                    } else {
-                        SharedBytes::put_slice(buffer, b"\r\n");
-                    },
-                Body::Binary(ref bytes) =>
-                    helpers::write_content_length(bytes.len(), &mut buffer),
-                _ =>
-                    SharedBytes::put_slice(buffer, b"\r\n"),
+                Body::Empty => if req.method != Method::HEAD {
+                    SharedBytes::put_slice(buffer, b"\r\ncontent-length: 0\r\n");
+                } else {
+                    SharedBytes::put_slice(buffer, b"\r\n");
+                },
+                Body::Binary(ref bytes) => {
+                    helpers::write_content_length(bytes.len(), &mut buffer)
+                }
+                _ => SharedBytes::put_slice(buffer, b"\r\n"),
             }
 
             // write headers
             let mut pos = 0;
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
-            let mut buf: &mut [u8] = unsafe{ mem::transmute(buffer.bytes_mut()) };
+            let mut buf: &mut [u8] = unsafe { mem::transmute(buffer.bytes_mut()) };
             for (key, value) in msg.headers() {
                 if is_bin && key == CONTENT_LENGTH {
                     is_bin = false;
-                    continue
+                    continue;
                 }
                 has_date = has_date || key == DATE;
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
                 let len = k.len() + v.len() + 4;
                 if len > remaining {
-                    unsafe{buffer.advance_mut(pos)};
+                    unsafe { buffer.advance_mut(pos) };
                     pos = 0;
                     buffer.reserve(len);
                     remaining = buffer.remaining_mut();
-                    buf = unsafe{ mem::transmute(buffer.bytes_mut()) };
+                    buf = unsafe { mem::transmute(buffer.bytes_mut()) };
                 }
 
-                buf[pos..pos+k.len()].copy_from_slice(k);
+                buf[pos..pos + k.len()].copy_from_slice(k);
                 pos += k.len();
-                buf[pos..pos+2].copy_from_slice(b": ");
+                buf[pos..pos + 2].copy_from_slice(b": ");
                 pos += 2;
-                buf[pos..pos+v.len()].copy_from_slice(v);
+                buf[pos..pos + v.len()].copy_from_slice(v);
                 pos += v.len();
-                buf[pos..pos+2].copy_from_slice(b"\r\n");
+                buf[pos..pos + 2].copy_from_slice(b"\r\n");
                 pos += 2;
                 remaining -= len;
             }
-            unsafe{buffer.advance_mut(pos)};
+            unsafe { buffer.advance_mut(pos) };
 
             // optimized date header, set_date writes \r\n
             if !has_date {
@@ -256,8 +258,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         self.encoder.write_eof()?;
 
         if !self.encoder.is_eof() {
-            Err(io::Error::new(io::ErrorKind::Other,
-                               "Last payload item, but eof is not reached"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Last payload item, but eof is not reached",
+            ))
         } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
@@ -268,11 +272,11 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
-            let buf: &[u8] = unsafe{mem::transmute(self.buffer.as_ref())};
+            let buf: &[u8] = unsafe { mem::transmute(self.buffer.as_ref()) };
             let written = self.write_data(buf)?;
             let _ = self.buffer.split_to(written);
             if self.buffer.len() > self.buffer_capacity {
-                return Ok(Async::NotReady)
+                return Ok(Async::NotReady);
             }
         }
         if shutdown {

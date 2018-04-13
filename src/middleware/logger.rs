@@ -4,14 +4,14 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 
 use libc;
-use time;
 use regex::Regex;
+use time;
 
 use error::Result;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Middleware, Started, Finished};
+use middleware::{Finished, Middleware, Started};
 
 /// `Middleware` for logging request and response info to the terminal.
 /// `Logger` middleware uses standard log crate to log information. You should
@@ -21,7 +21,8 @@ use middleware::{Middleware, Started, Finished};
 /// ## Usage
 ///
 /// Create `Logger` middleware with the specified `format`.
-/// Default `Logger` could be created with `default` method, it uses the default format:
+/// Default `Logger` could be created with `default` method, it uses the
+/// default format:
 ///
 /// ```ignore
 ///  %a %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
@@ -59,7 +60,8 @@ use middleware::{Middleware, Started, Finished};
 ///
 /// `%b`  Size of response in bytes, including HTTP headers
 ///
-/// `%T` Time taken to serve the request, in seconds with floating fraction in .06f format
+/// `%T` Time taken to serve the request, in seconds with floating fraction in
+/// .06f format
 ///
 /// `%D`  Time taken to serve the request, in milliseconds
 ///
@@ -76,7 +78,9 @@ pub struct Logger {
 impl Logger {
     /// Create `Logger` middleware with the specified `format`.
     pub fn new(format: &str) -> Logger {
-        Logger { format: Format::new(format) }
+        Logger {
+            format: Format::new(format),
+        }
     }
 }
 
@@ -87,14 +91,15 @@ impl Default for Logger {
     /// %a %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
     /// ```
     fn default() -> Logger {
-        Logger { format: Format::default() }
+        Logger {
+            format: Format::default(),
+        }
     }
 }
 
 struct StartTime(time::Tm);
 
 impl Logger {
-
     fn log<S>(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) {
         let entry_time = req.extensions().get::<StartTime>().unwrap().0;
 
@@ -109,7 +114,6 @@ impl Logger {
 }
 
 impl<S> Middleware<S> for Logger {
-
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         req.extensions().insert(StartTime(time::now()));
         Ok(Started::Done)
@@ -153,29 +157,26 @@ impl Format {
             idx = m.end();
 
             if let Some(key) = cap.get(2) {
-                results.push(
-                    match cap.get(3).unwrap().as_str() {
-                        "i" => FormatText::RequestHeader(key.as_str().to_owned()),
-                        "o" => FormatText::ResponseHeader(key.as_str().to_owned()),
-                        "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
-                        _ => unreachable!(),
-                    })
+                results.push(match cap.get(3).unwrap().as_str() {
+                    "i" => FormatText::RequestHeader(key.as_str().to_owned()),
+                    "o" => FormatText::ResponseHeader(key.as_str().to_owned()),
+                    "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
+                    _ => unreachable!(),
+                })
             } else {
                 let m = cap.get(1).unwrap();
-                results.push(
-                    match m.as_str() {
-                        "%" => FormatText::Percent,
-                        "a" => FormatText::RemoteAddr,
-                        "t" => FormatText::RequestTime,
-                        "P" => FormatText::Pid,
-                        "r" => FormatText::RequestLine,
-                        "s" => FormatText::ResponseStatus,
-                        "b" => FormatText::ResponseSize,
-                        "T" => FormatText::Time,
-                        "D" => FormatText::TimeMillis,
-                        _ => FormatText::Str(m.as_str().to_owned()),
-                    }
-                );
+                results.push(match m.as_str() {
+                    "%" => FormatText::Percent,
+                    "a" => FormatText::RemoteAddr,
+                    "t" => FormatText::RequestTime,
+                    "P" => FormatText::Pid,
+                    "r" => FormatText::RequestLine,
+                    "s" => FormatText::ResponseStatus,
+                    "b" => FormatText::ResponseSize,
+                    "T" => FormatText::Time,
+                    "D" => FormatText::TimeMillis,
+                    _ => FormatText::Str(m.as_str().to_owned()),
+                });
             }
         }
         if idx != s.len() {
@@ -207,12 +208,10 @@ pub enum FormatText {
 }
 
 impl FormatText {
-
-    fn render<S>(&self, fmt: &mut Formatter,
-                 req: &HttpRequest<S>,
-                 resp: &HttpResponse,
-                 entry_time: time::Tm) -> Result<(), fmt::Error>
-    {
+    fn render<S>(
+        &self, fmt: &mut Formatter, req: &HttpRequest<S>, resp: &HttpResponse,
+        entry_time: time::Tm,
+    ) -> Result<(), fmt::Error> {
         match *self {
             FormatText::Str(ref string) => fmt.write_str(string),
             FormatText::Percent => "%".fmt(fmt),
@@ -220,26 +219,33 @@ impl FormatText {
                 if req.query_string().is_empty() {
                     fmt.write_fmt(format_args!(
                         "{} {} {:?}",
-                        req.method(), req.path(), req.version()))
+                        req.method(),
+                        req.path(),
+                        req.version()
+                    ))
                 } else {
                     fmt.write_fmt(format_args!(
                         "{} {}?{} {:?}",
-                        req.method(), req.path(), req.query_string(), req.version()))
+                        req.method(),
+                        req.path(),
+                        req.query_string(),
+                        req.version()
+                    ))
                 }
-            },
+            }
             FormatText::ResponseStatus => resp.status().as_u16().fmt(fmt),
             FormatText::ResponseSize => resp.response_size().fmt(fmt),
-            FormatText::Pid => unsafe{libc::getpid().fmt(fmt)},
+            FormatText::Pid => unsafe { libc::getpid().fmt(fmt) },
             FormatText::Time => {
                 let rt = time::now() - entry_time;
                 let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000_000.0;
                 fmt.write_fmt(format_args!("{:.6}", rt))
-            },
+            }
             FormatText::TimeMillis => {
                 let rt = time::now() - entry_time;
                 let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000.0;
                 fmt.write_fmt(format_args!("{:.6}", rt))
-            },
+            }
             FormatText::RemoteAddr => {
                 if let Some(remote) = req.connection_info().remote() {
                     return remote.fmt(fmt);
@@ -247,14 +253,17 @@ impl FormatText {
                     "-".fmt(fmt)
                 }
             }
-            FormatText::RequestTime => {
-                entry_time.strftime("[%d/%b/%Y:%H:%M:%S %z]")
-                    .unwrap()
-                    .fmt(fmt)
-            }
+            FormatText::RequestTime => entry_time
+                .strftime("[%d/%b/%Y:%H:%M:%S %z]")
+                .unwrap()
+                .fmt(fmt),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
-                    if let Ok(s) = val.to_str() { s } else { "-" }
+                    if let Ok(s) = val.to_str() {
+                        s
+                    } else {
+                        "-"
+                    }
                 } else {
                     "-"
                 };
@@ -262,7 +271,11 @@ impl FormatText {
             }
             FormatText::ResponseHeader(ref name) => {
                 let s = if let Some(val) = resp.headers().get(name) {
-                    if let Ok(s) = val.to_str() { s } else { "-" }
+                    if let Ok(s) = val.to_str() {
+                        s
+                    } else {
+                        "-"
+                    }
                 } else {
                     "-"
                 };
@@ -279,8 +292,7 @@ impl FormatText {
     }
 }
 
-pub(crate) struct FormatDisplay<'a>(
-    &'a Fn(&mut Formatter) -> Result<(), fmt::Error>);
+pub(crate) struct FormatDisplay<'a>(&'a Fn(&mut Formatter) -> Result<(), fmt::Error>);
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
@@ -291,19 +303,27 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::header::{self, HeaderMap};
+    use http::{Method, StatusCode, Uri, Version};
     use std::str::FromStr;
     use time;
-    use http::{Method, Version, StatusCode, Uri};
-    use http::header::{self, HeaderMap};
 
     #[test]
     fn test_logger() {
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
         let mut headers = HeaderMap::new();
-        headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        );
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            headers,
+            None,
+        );
         let resp = HttpResponse::build(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close()
@@ -333,10 +353,20 @@ mod tests {
         let format = Format::default();
 
         let mut headers = HeaderMap::new();
-        headers.insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        );
         let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            headers,
+            None,
+        );
+        let resp = HttpResponse::build(StatusCode::OK)
+            .force_close()
+            .finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
@@ -351,9 +381,15 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
 
         let req = HttpRequest::new(
-            Method::GET, Uri::from_str("/?test").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+            Method::GET,
+            Uri::from_str("/?test").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
+        let resp = HttpResponse::build(StatusCode::OK)
+            .force_close()
+            .finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {

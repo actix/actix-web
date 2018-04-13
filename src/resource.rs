@@ -1,15 +1,15 @@
-use std::rc::Rc;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
-use smallvec::SmallVec;
 use http::{Method, StatusCode};
+use smallvec::SmallVec;
 
-use pred;
-use route::Route;
-use handler::{Reply, Handler, Responder, FromRequest};
-use middleware::Middleware;
+use handler::{FromRequest, Handler, Reply, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use middleware::Middleware;
+use pred;
+use route::Route;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -18,8 +18,8 @@ use httpresponse::HttpResponse;
 /// and list of predicates (objects that implement `Predicate` trait).
 /// Route uses builder-like pattern for configuration.
 /// During request handling, resource object iterate through all routes
-/// and check all predicates for specific route, if request matches all predicates route
-/// route considered matched and route handler get called.
+/// and check all predicates for specific route, if request matches all
+/// predicates route route considered matched and route handler get called.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -31,7 +31,7 @@ use httpresponse::HttpResponse;
 ///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
-pub struct ResourceHandler<S=()> {
+pub struct ResourceHandler<S = ()> {
     name: String,
     state: PhantomData<S>,
     routes: SmallVec<[Route<S>; 3]>,
@@ -44,18 +44,19 @@ impl<S> Default for ResourceHandler<S> {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
-            middlewares: Rc::new(Vec::new()) }
+            middlewares: Rc::new(Vec::new()),
+        }
     }
 }
 
 impl<S> ResourceHandler<S> {
-
     pub(crate) fn default_not_found() -> Self {
         ResourceHandler {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
-            middlewares: Rc::new(Vec::new()) }
+            middlewares: Rc::new(Vec::new()),
+        }
     }
 
     /// Set resource name
@@ -69,9 +70,9 @@ impl<S> ResourceHandler<S> {
 }
 
 impl<S: 'static> ResourceHandler<S> {
-
     /// Register a new route and return mutable reference to *Route* object.
-    /// *Route* is used for route configuration, i.e. adding predicates, setting up handler.
+    /// *Route* is used for route configuration, i.e. adding predicates,
+    /// setting up handler.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -131,7 +132,10 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Method(method))
+        self.routes
+            .last_mut()
+            .unwrap()
+            .filter(pred::Method(method))
     }
 
     /// Register a new route and add handler object.
@@ -154,8 +158,9 @@ impl<S: 'static> ResourceHandler<S> {
     /// Application::resource("/", |r| r.route().f(index)
     /// ```
     pub fn f<F, R>(&mut self, handler: F)
-        where F: Fn(HttpRequest<S>) -> R + 'static,
-              R: Responder + 'static,
+    where
+        F: Fn(HttpRequest<S>) -> R + 'static,
+        R: Responder + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)
@@ -169,9 +174,10 @@ impl<S: 'static> ResourceHandler<S> {
     /// Application::resource("/", |r| r.route().with(index)
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F)
-        where F: Fn(T) -> R + 'static,
-              R: Responder + 'static,
-              T: FromRequest<S> + 'static,
+    where
+        F: Fn(T) -> R + 'static,
+        R: Responder + 'static,
+        T: FromRequest<S> + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().with(handler);
@@ -182,13 +188,14 @@ impl<S: 'static> ResourceHandler<S> {
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
     pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
-        Rc::get_mut(&mut self.middlewares).unwrap().push(Box::new(mw));
+        Rc::get_mut(&mut self.middlewares)
+            .unwrap()
+            .push(Box::new(mw));
     }
 
-    pub(crate) fn handle(&mut self,
-                         mut req: HttpRequest<S>,
-                         default: Option<&mut ResourceHandler<S>>) -> Reply
-    {
+    pub(crate) fn handle(
+        &mut self, mut req: HttpRequest<S>, default: Option<&mut ResourceHandler<S>>
+    ) -> Reply {
         for route in &mut self.routes {
             if route.check(&mut req) {
                 return if self.middlewares.is_empty() {

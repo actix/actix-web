@@ -1,4 +1,4 @@
-use header::{IF_MODIFIED_SINCE, HttpDate};
+use header::{HttpDate, IF_MODIFIED_SINCE};
 
 header! {
     /// `If-Modified-Since` header, defined in

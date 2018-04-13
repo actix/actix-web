@@ -1,36 +1,35 @@
-use std::{fmt, mem, io, time};
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-use std::net::Shutdown;
-use std::time::{Duration, Instant};
 use std::collections::{HashMap, VecDeque};
+use std::net::Shutdown;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+use std::{fmt, io, mem, time};
 
-use actix::{fut, Actor, ActorFuture, Arbiter, Context, AsyncContext,
-            Recipient, Syn, Handler, Message, ActorResponse,
-            Supervised, ContextFutureSpawner};
-use actix::registry::ArbiterService;
+use actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::fut::WrapFuture;
-use actix::actors::{Connector, ConnectorError, Connect as ResolveConnect};
+use actix::registry::ArbiterService;
+use actix::{fut, Actor, ActorFuture, ActorResponse, Arbiter, AsyncContext, Context,
+            ContextFutureSpawner, Handler, Message, Recipient, Supervised, Syn};
 
-use http::{Uri, HttpTryFrom, Error as HttpError};
-use futures::{Async, Future, Poll};
-use futures::task::{Task, current as current_task};
+use futures::task::{current as current_task, Task};
 use futures::unsync::oneshot;
-use tokio_io::{AsyncRead, AsyncWrite};
+use futures::{Async, Future, Poll};
+use http::{Error as HttpError, HttpTryFrom, Uri};
 use tokio_core::reactor::Timeout;
+use tokio_io::{AsyncRead, AsyncWrite};
 
-#[cfg(feature="alpn")]
-use openssl::ssl::{SslMethod, SslConnector, Error as OpensslError};
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
+use openssl::ssl::{Error as OpensslError, SslConnector, SslMethod};
+#[cfg(feature = "alpn")]
 use tokio_openssl::SslConnectorExt;
 
-#[cfg(all(feature="tls", not(feature="alpn")))]
-use native_tls::{TlsConnector, Error as TlsError};
-#[cfg(all(feature="tls", not(feature="alpn")))]
+#[cfg(all(feature = "tls", not(feature = "alpn")))]
+use native_tls::{Error as TlsError, TlsConnector};
+#[cfg(all(feature = "tls", not(feature = "alpn")))]
 use tokio_tls::TlsConnectorExt;
 
-use {HAS_OPENSSL, HAS_TLS};
 use server::IoStream;
+use {HAS_OPENSSL, HAS_TLS};
 
 /// Client connector usage stats
 #[derive(Default, Message)]
@@ -54,7 +53,10 @@ pub struct Connect {
 
 impl Connect {
     /// Create `Connect` message for specified `Uri`
-    pub fn new<U>(uri: U) -> Result<Connect, HttpError> where Uri: HttpTryFrom<U> {
+    pub fn new<U>(uri: U) -> Result<Connect, HttpError>
+    where
+        Uri: HttpTryFrom<U>,
+    {
         Ok(Connect {
             uri: Uri::try_from(uri).map_err(|e| e.into())?,
             wait_timeout: Duration::from_secs(5),
@@ -92,13 +94,13 @@ pub struct Pause {
 impl Pause {
     /// Create message with pause duration parameter
     pub fn new(time: Duration) -> Pause {
-        Pause{time: Some(time)}
+        Pause { time: Some(time) }
     }
 }
 
 impl Default for Pause {
     fn default() -> Pause {
-        Pause{time: None}
+        Pause { time: None }
     }
 }
 
@@ -114,21 +116,21 @@ pub struct Resume;
 #[derive(Fail, Debug)]
 pub enum ClientConnectorError {
     /// Invalid URL
-    #[fail(display="Invalid URL")]
+    #[fail(display = "Invalid URL")]
     InvalidUrl,
 
     /// SSL feature is not enabled
-    #[fail(display="SSL is not supported")]
+    #[fail(display = "SSL is not supported")]
     SslIsNotSupported,
 
     /// SSL error
-    #[cfg(feature="alpn")]
-    #[fail(display="{}", _0)]
+    #[cfg(feature = "alpn")]
+    #[fail(display = "{}", _0)]
     SslError(#[cause] OpensslError),
 
     /// SSL error
-    #[cfg(all(feature="tls", not(feature="alpn")))]
-    #[fail(display="{}", _0)]
+    #[cfg(all(feature = "tls", not(feature = "alpn")))]
+    #[fail(display = "{}", _0)]
     SslError(#[cause] TlsError),
 
     /// Connection error
@@ -152,7 +154,7 @@ impl From<ConnectorError> for ClientConnectorError {
     fn from(err: ConnectorError) -> ClientConnectorError {
         match err {
             ConnectorError::Timeout => ClientConnectorError::Timeout,
-            _ => ClientConnectorError::Connector(err)
+            _ => ClientConnectorError::Connector(err),
         }
     }
 }
@@ -166,9 +168,9 @@ struct Waiter {
 /// `ClientConnector` type is responsible for transport layer of a
 /// client connection.
 pub struct ClientConnector {
-    #[cfg(all(feature="alpn"))]
+    #[cfg(all(feature = "alpn"))]
     connector: SslConnector,
-    #[cfg(all(feature="tls", not(feature="alpn")))]
+    #[cfg(all(feature = "tls", not(feature = "alpn")))]
     connector: TlsConnector,
 
     stats: ClientConnectorStats,
@@ -207,12 +209,12 @@ impl Default for ClientConnector {
     fn default() -> ClientConnector {
         let _modified = Rc::new(Cell::new(false));
 
-        #[cfg(all(feature="alpn"))]
+        #[cfg(all(feature = "alpn"))]
         {
             let builder = SslConnector::builder(SslMethod::tls()).unwrap();
             ClientConnector::with_connector(builder.build())
         }
-        #[cfg(all(feature="tls", not(feature="alpn")))]
+        #[cfg(all(feature = "tls", not(feature = "alpn")))]
         {
             let builder = TlsConnector::builder().unwrap();
             ClientConnector {
@@ -235,29 +237,29 @@ impl Default for ClientConnector {
             }
         }
 
-        #[cfg(not(any(feature="alpn", feature="tls")))]
-        ClientConnector {stats: ClientConnectorStats::default(),
-                         subscriber: None,
-                         pool: Rc::new(Pool::new(Rc::clone(&_modified))),
-                         pool_modified: _modified,
-                         conn_lifetime: Duration::from_secs(15),
-                         conn_keep_alive: Duration::from_secs(75),
-                         limit: 100,
-                         limit_per_host: 0,
-                         acquired: 0,
-                         acquired_per_host: HashMap::new(),
-                         available: HashMap::new(),
-                         to_close: Vec::new(),
-                         waiters: HashMap::new(),
-                         wait_timeout: None,
-                         paused: None,
+        #[cfg(not(any(feature = "alpn", feature = "tls")))]
+        ClientConnector {
+            stats: ClientConnectorStats::default(),
+            subscriber: None,
+            pool: Rc::new(Pool::new(Rc::clone(&_modified))),
+            pool_modified: _modified,
+            conn_lifetime: Duration::from_secs(15),
+            conn_keep_alive: Duration::from_secs(75),
+            limit: 100,
+            limit_per_host: 0,
+            acquired: 0,
+            acquired_per_host: HashMap::new(),
+            available: HashMap::new(),
+            to_close: Vec::new(),
+            waiters: HashMap::new(),
+            wait_timeout: None,
+            paused: None,
         }
     }
 }
 
 impl ClientConnector {
-
-    #[cfg(feature="alpn")]
+    #[cfg(feature = "alpn")]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
     /// By default `ClientConnector` uses very a simple SSL configuration.
@@ -369,20 +371,19 @@ impl ClientConnector {
         // check limits
         if self.limit > 0 {
             if self.acquired >= self.limit {
-                return Acquire::NotAvailable
+                return Acquire::NotAvailable;
             }
             if self.limit_per_host > 0 {
                 if let Some(per_host) = self.acquired_per_host.get(key) {
                     if self.limit_per_host >= *per_host {
-                        return Acquire::NotAvailable
+                        return Acquire::NotAvailable;
                     }
                 }
             }
-        }
-        else if self.limit_per_host > 0 {
+        } else if self.limit_per_host > 0 {
             if let Some(per_host) = self.acquired_per_host.get(key) {
                 if self.limit_per_host >= *per_host {
-                    return Acquire::NotAvailable
+                    return Acquire::NotAvailable;
                 }
             }
         }
@@ -408,11 +409,11 @@ impl ClientConnector {
                         Ok(n) if n > 0 => {
                             self.stats.closed += 1;
                             self.to_close.push(conn);
-                            continue
-                        },
+                            continue;
+                        }
                         Ok(_) | Err(_) => continue,
                     }
-                    return Acquire::Acquired(conn)
+                    return Acquire::Acquired(conn);
                 }
             }
         }
@@ -421,25 +422,25 @@ impl ClientConnector {
 
     fn reserve(&mut self, key: &Key) {
         self.acquired += 1;
-        let per_host =
-            if let Some(per_host) = self.acquired_per_host.get(key) {
-                *per_host
-            } else {
-                0
-            };
-        self.acquired_per_host.insert(key.clone(), per_host + 1);
+        let per_host = if let Some(per_host) = self.acquired_per_host.get(key) {
+            *per_host
+        } else {
+            0
+        };
+        self.acquired_per_host
+            .insert(key.clone(), per_host + 1);
     }
 
     fn release_key(&mut self, key: &Key) {
         self.acquired -= 1;
-        let per_host =
-            if let Some(per_host) = self.acquired_per_host.get(key) {
-                *per_host
-            } else {
-                return
-            };
+        let per_host = if let Some(per_host) = self.acquired_per_host.get(key) {
+            *per_host
+        } else {
+            return;
+        };
         if per_host > 1 {
-            self.acquired_per_host.insert(key.clone(), per_host - 1);
+            self.acquired_per_host
+                .insert(key.clone(), per_host - 1);
         } else {
             self.acquired_per_host.remove(key);
         }
@@ -472,7 +473,8 @@ impl ClientConnector {
 
                     // check connection lifetime and the return to available pool
                     if (now - conn.ts) < self.conn_lifetime {
-                        self.available.entry(conn.key.clone())
+                        self.available
+                            .entry(conn.key.clone())
                             .or_insert_with(VecDeque::new)
                             .push_back(Conn(Instant::now(), conn));
                     }
@@ -490,7 +492,7 @@ impl ClientConnector {
                     self.to_close.push(conn);
                     self.stats.closed += 1;
                 } else {
-                    break
+                    break;
                 }
             }
         }
@@ -503,7 +505,7 @@ impl ClientConnector {
                     Ok(Async::NotReady) => idx += 1,
                     _ => {
                         self.to_close.swap_remove(idx);
-                    },
+                    }
                 }
             }
         }
@@ -514,7 +516,9 @@ impl ClientConnector {
     fn collect_periodic(&mut self, ctx: &mut Context<Self>) {
         self.collect(true);
         // re-schedule next collect period
-        ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect_periodic(ctx));
+        ctx.run_later(Duration::from_secs(1), |act, ctx| {
+            act.collect_periodic(ctx)
+        });
 
         // send stats
         let stats = mem::replace(&mut self.stats, ClientConnectorStats::default());
@@ -555,27 +559,34 @@ impl ClientConnector {
     fn install_wait_timeout(&mut self, time: Instant) {
         if let Some(ref mut wait) = self.wait_timeout {
             if wait.0 < time {
-                return
+                return;
             }
         }
 
-        let mut timeout = Timeout::new(time-Instant::now(), Arbiter::handle()).unwrap();
+        let mut timeout =
+            Timeout::new(time - Instant::now(), Arbiter::handle()).unwrap();
         let _ = timeout.poll();
         self.wait_timeout = Some((time, timeout));
     }
 
-    fn wait_for(&mut self, key: Key,
-                wait: Duration, conn_timeout: Duration)
-                -> oneshot::Receiver<Result<Connection, ClientConnectorError>>
-    {
+    fn wait_for(
+        &mut self, key: Key, wait: Duration, conn_timeout: Duration
+    ) -> oneshot::Receiver<Result<Connection, ClientConnectorError>> {
         // connection is not available, wait
         let (tx, rx) = oneshot::channel();
 
         let wait = Instant::now() + wait;
         self.install_wait_timeout(wait);
 
-        let waiter = Waiter{ tx, wait, conn_timeout };
-        self.waiters.entry(key).or_insert_with(VecDeque::new).push_back(waiter);
+        let waiter = Waiter {
+            tx,
+            wait,
+            conn_timeout,
+        };
+        self.waiters
+            .entry(key)
+            .or_insert_with(VecDeque::new)
+            .push_back(waiter);
         rx
     }
 }
@@ -617,21 +628,23 @@ impl Handler<Connect> for ClientConnector {
 
         // host name is required
         if uri.host().is_none() {
-            return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl))
+            return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl));
         }
 
         // supported protocols
         let proto = match uri.scheme_part() {
             Some(scheme) => match Protocol::from(scheme.as_str()) {
                 Some(proto) => proto,
-                None => return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl)),
+                None => {
+                    return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl))
+                }
             },
             None => return ActorResponse::reply(Err(ClientConnectorError::InvalidUrl)),
         };
 
         // check ssl availability
         if proto.is_secure() && !HAS_OPENSSL && !HAS_TLS {
-            return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported))
+            return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported));
         }
 
         // check if pool has task reference
@@ -641,7 +654,11 @@ impl Handler<Connect> for ClientConnector {
 
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
-        let key = Key {host, port, ssl: proto.is_secure()};
+        let key = Key {
+            host,
+            port,
+            ssl: proto.is_secure(),
+        };
 
         // check pause state
         if self.paused.is_some() {
@@ -653,7 +670,8 @@ impl Handler<Connect> for ClientConnector {
                     .and_then(|res, _, _| match res {
                         Ok(conn) => fut::ok(conn),
                         Err(err) => fut::err(err),
-                    }));
+                    }),
+            );
         }
 
         // acquire connection
@@ -663,8 +681,8 @@ impl Handler<Connect> for ClientConnector {
                     // use existing connection
                     conn.pool = Some(AcquiredConn(key, Some(Rc::clone(&self.pool))));
                     self.stats.reused += 1;
-                    return ActorResponse::async(fut::ok(conn))
-                },
+                    return ActorResponse::async(fut::ok(conn));
+                }
                 Acquire::NotAvailable => {
                     // connection is not available, wait
                     let rx = self.wait_for(key, wait_timeout, conn_timeout);
@@ -675,106 +693,131 @@ impl Handler<Connect> for ClientConnector {
                             .and_then(|res, _, _| match res {
                                 Ok(conn) => fut::ok(conn),
                                 Err(err) => fut::err(err),
-                            }));
+                            }),
+                    );
                 }
-                Acquire::Available => {
-                    Some(Rc::clone(&self.pool))
-                },
+                Acquire::Available => Some(Rc::clone(&self.pool)),
             }
         } else {
             None
         };
         let conn = AcquiredConn(key, pool);
 
-{
-    ActorResponse::async(
-        Connector::from_registry()
-            .send(ResolveConnect::host_and_port(&conn.0.host, port)
-                  .timeout(conn_timeout))
-            .into_actor(self)
-            .map_err(|_, _, _| ClientConnectorError::Disconnected)
-            .and_then(move |res, act, _| {
-                #[cfg(feature="alpn")]
-                match res {
-                    Err(err) => {
-                        act.stats.opened += 1;
-                        fut::Either::B(fut::err(err.into()))
-                    },
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if proto.is_secure() {
-                            fut::Either::A(
-                                act.connector.connect_async(&conn.0.host, stream)
-                                    .map_err(ClientConnectorError::SslError)
-                                    .map(|stream| Connection::new(
-                                        conn.0.clone(), Some(conn), Box::new(stream)))
-                                    .into_actor(act))
-                        } else {
-                            fut::Either::B(fut::ok(
-                                Connection::new(
-                                    conn.0.clone(), Some(conn), Box::new(stream))))
+        {
+            ActorResponse::async(
+                Connector::from_registry()
+                    .send(
+                        ResolveConnect::host_and_port(&conn.0.host, port)
+                            .timeout(conn_timeout),
+                    )
+                    .into_actor(self)
+                    .map_err(|_, _, _| ClientConnectorError::Disconnected)
+                    .and_then(move |res, act, _| {
+                        #[cfg(feature = "alpn")]
+                        match res {
+                            Err(err) => {
+                                act.stats.opened += 1;
+                                fut::Either::B(fut::err(err.into()))
+                            }
+                            Ok(stream) => {
+                                act.stats.opened += 1;
+                                if proto.is_secure() {
+                                    fut::Either::A(
+                                        act.connector
+                                            .connect_async(&conn.0.host, stream)
+                                            .map_err(ClientConnectorError::SslError)
+                                            .map(|stream| {
+                                                Connection::new(
+                                                    conn.0.clone(),
+                                                    Some(conn),
+                                                    Box::new(stream),
+                                                )
+                                            })
+                                            .into_actor(act),
+                                    )
+                                } else {
+                                    fut::Either::B(fut::ok(Connection::new(
+                                        conn.0.clone(),
+                                        Some(conn),
+                                        Box::new(stream),
+                                    )))
+                                }
+                            }
                         }
-                    }
-                }
 
-                #[cfg(all(feature="tls", not(feature="alpn")))]
-                match res {
-                    Err(err) => {
-                        act.stats.opened += 1;
-                        fut::Either::B(fut::err(err.into()))
-                    },
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if proto.is_secure() {
-                            fut::Either::A(
-                                act.connector.connect_async(&conn.0.host, stream)
-                                    .map_err(ClientConnectorError::SslError)
-                                    .map(|stream| Connection::new(
-                                        conn.0.clone(), Some(conn), Box::new(stream)))
-                                    .into_actor(act))
-                        } else {
-                            fut::Either::B(fut::ok(
-                                Connection::new(
-                                    conn.0.clone(), Some(conn), Box::new(stream))))
+                        #[cfg(all(feature = "tls", not(feature = "alpn")))]
+                        match res {
+                            Err(err) => {
+                                act.stats.opened += 1;
+                                fut::Either::B(fut::err(err.into()))
+                            }
+                            Ok(stream) => {
+                                act.stats.opened += 1;
+                                if proto.is_secure() {
+                                    fut::Either::A(
+                                        act.connector
+                                            .connect_async(&conn.0.host, stream)
+                                            .map_err(ClientConnectorError::SslError)
+                                            .map(|stream| {
+                                                Connection::new(
+                                                    conn.0.clone(),
+                                                    Some(conn),
+                                                    Box::new(stream),
+                                                )
+                                            })
+                                            .into_actor(act),
+                                    )
+                                } else {
+                                    fut::Either::B(fut::ok(Connection::new(
+                                        conn.0.clone(),
+                                        Some(conn),
+                                        Box::new(stream),
+                                    )))
+                                }
+                            }
                         }
-                    }
-                }
 
-                #[cfg(not(any(feature="alpn", feature="tls")))]
-                match res {
-                    Err(err) => {
-                        act.stats.opened += 1;
-                        fut::err(err.into())
-                    },
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if proto.is_secure() {
-                            fut::err(ClientConnectorError::SslIsNotSupported)
-                        } else {
-                            fut::ok(Connection::new(
-                                conn.0.clone(), Some(conn), Box::new(stream)))
+                        #[cfg(not(any(feature = "alpn", feature = "tls")))]
+                        match res {
+                            Err(err) => {
+                                act.stats.opened += 1;
+                                fut::err(err.into())
+                            }
+                            Ok(stream) => {
+                                act.stats.opened += 1;
+                                if proto.is_secure() {
+                                    fut::err(ClientConnectorError::SslIsNotSupported)
+                                } else {
+                                    fut::ok(Connection::new(
+                                        conn.0.clone(),
+                                        Some(conn),
+                                        Box::new(stream),
+                                    ))
+                                }
+                            }
                         }
-                    }
-                }
-            }))
-}
+                    }),
+            )
+        }
     }
 }
 
 struct Maintenance;
 
-impl fut::ActorFuture for Maintenance
-{
+impl fut::ActorFuture for Maintenance {
     type Item = ();
     type Error = ();
     type Actor = ClientConnector;
 
-    fn poll(&mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>)
-            -> Poll<Self::Item, Self::Error>
-    {
+    fn poll(
+        &mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>
+    ) -> Poll<Self::Item, Self::Error> {
         // check pause duration
         let done = if let Some(Some(ref pause)) = act.paused {
-            pause.0 <= Instant::now() } else { false };
+            pause.0 <= Instant::now()
+        } else {
+            false
+        };
         if done {
             act.paused.take();
         }
@@ -788,128 +831,151 @@ impl fut::ActorFuture for Maintenance
         act.collect_waiters();
 
         // check waiters
-        let tmp: &mut ClientConnector = unsafe{mem::transmute(act as &mut _)};
+        let tmp: &mut ClientConnector = unsafe { mem::transmute(act as &mut _) };
 
         for (key, waiters) in &mut tmp.waiters {
             while let Some(waiter) = waiters.pop_front() {
-                if waiter.tx.is_canceled() { continue }
+                if waiter.tx.is_canceled() {
+                    continue;
+                }
 
                 match act.acquire(key) {
                     Acquire::Acquired(mut conn) => {
                         // use existing connection
                         act.stats.reused += 1;
-                        conn.pool = Some(
-                            AcquiredConn(key.clone(), Some(Rc::clone(&act.pool))));
+                        conn.pool =
+                            Some(AcquiredConn(key.clone(), Some(Rc::clone(&act.pool))));
                         let _ = waiter.tx.send(Ok(conn));
-                    },
+                    }
                     Acquire::NotAvailable => {
                         waiters.push_front(waiter);
-                        break
+                        break;
                     }
-                    Acquire::Available =>
-       {
-           let conn = AcquiredConn(key.clone(), Some(Rc::clone(&act.pool)));
+                    Acquire::Available => {
+                        let conn = AcquiredConn(key.clone(), Some(Rc::clone(&act.pool)));
 
-           fut::WrapFuture::<ClientConnector>::actfuture(
-               Connector::from_registry()
-                   .send(ResolveConnect::host_and_port(&conn.0.host, conn.0.port)
-                         .timeout(waiter.conn_timeout)))
-               .map_err(|_, _, _| ())
-               .and_then(move |res, act, _| {
-                   #[cfg(feature="alpn")]
-                   match res {
-                       Err(err) => {
-                           act.stats.errors += 1;
-                           let _ = waiter.tx.send(Err(err.into()));
-                           fut::Either::B(fut::err(()))
-                       },
-                       Ok(stream) => {
-                           act.stats.opened += 1;
-                           if conn.0.ssl {
-                               fut::Either::A(
-                                   act.connector.connect_async(&key.host, stream)
-                                       .then(move |res| {
-                                           match res {
-                                               Err(e) => {
-                                                   let _ = waiter.tx.send(Err(
-                                                       ClientConnectorError::SslError(e)));
-                                               },
-                                               Ok(stream) => {
-                                                   let _ = waiter.tx.send(Ok(
-                                                       Connection::new(
-                                                           conn.0.clone(),
-                                                           Some(conn), Box::new(stream))));
-                                               }
-                                           }
-                                           Ok(())
-                                       })
-                                       .actfuture())
-                           } else {
-                               let _ = waiter.tx.send(Ok(Connection::new(
-                                   conn.0.clone(), Some(conn), Box::new(stream))));
-                               fut::Either::B(fut::ok(()))
-                           }
-                       }
-                   }
+                        fut::WrapFuture::<ClientConnector>::actfuture(
+                            Connector::from_registry().send(
+                                ResolveConnect::host_and_port(&conn.0.host, conn.0.port)
+                                    .timeout(waiter.conn_timeout),
+                            ),
+                        ).map_err(|_, _, _| ())
+                            .and_then(move |res, act, _| {
+                                #[cfg_attr(rustfmt, rustfmt_skip)]
+      #[cfg(feature = "alpn")]
+      match res {
+          Err(err) => {
+              act.stats.errors += 1;
+              let _ = waiter.tx.send(Err(err.into()));
+              fut::Either::B(fut::err(()))
+          }
+          Ok(stream) => {
+              act.stats.opened += 1;
+              if conn.0.ssl {
+                  fut::Either::A(
+                      act.connector
+                          .connect_async(&key.host, stream)
+                          .then(move |res| {
+                              match res {
+                                  Err(e) => {
+                                      let _ = waiter.tx.send(
+                                          Err(ClientConnectorError::SslError(e)));
+                                  }
+                                  Ok(stream) => {
+                                      let _ = waiter.tx.send(
+                                          Ok(Connection::new(
+                                              conn.0.clone(),
+                                              Some(conn),
+                                              Box::new(stream),
+                                          )),
+                                      );
+                                  }
+                              }
+                              Ok(())
+                          })
+                          .actfuture(),
+                  )
+              } else {
+                  let _ = waiter.tx.send(Ok(Connection::new(
+                      conn.0.clone(),
+                      Some(conn),
+                      Box::new(stream),
+                  )));
+                  fut::Either::B(fut::ok(()))
+              }
+          }
+      }
 
-                   #[cfg(all(feature="tls", not(feature="alpn")))]
-                   match res {
-                       Err(err) => {
-                           act.stats.errors += 1;
-                           let _ = waiter.tx.send(Err(err.into()));
-                           fut::Either::B(fut::err(()))
-                       },
-                       Ok(stream) => {
-                           act.stats.opened += 1;
-                           if conn.0.ssl {
-                               fut::Either::A(
-                                   act.connector.connect_async(&conn.0.host, stream)
-                                       .then(|res| {
-                                           match res {
-                                               Err(e) => {
-                                                   let _ = waiter.tx.send(Err(
-                                                       ClientConnectorError::SslError(e)));
-                                               },
-                                               Ok(stream) => {
-                                                   let _ = waiter.tx.send(Ok(
-                                                       Connection::new(
-                                                           conn.0.clone(), Some(conn),
-                                                           Box::new(stream))));
-                                               }
-                                           }
-                                           Ok(())
-                                       })
-                                       .into_actor(act))
-                           } else {
-                               let _ = waiter.tx.send(Ok(Connection::new(
-                                   conn.0.clone(), Some(conn), Box::new(stream))));
-                               fut::Either::B(fut::ok(()))
-                           }
-                       }
-                   }
+                                #[cfg_attr(rustfmt, rustfmt_skip)]
+      #[cfg(all(feature = "tls", not(feature = "alpn")))]
+      match res {
+          Err(err) => {
+              act.stats.errors += 1;
+              let _ = waiter.tx.send(Err(err.into()));
+              fut::Either::B(fut::err(()))
+          }
+          Ok(stream) => {
+              act.stats.opened += 1;
+              if conn.0.ssl {
+                  fut::Either::A(
+                      act.connector
+                          .connect_async(&conn.0.host, stream)
+                          .then(|res| {
+                              match res {
+                                  Err(e) => {
+                                      let _ = waiter.tx.send(Err(
+                                          ClientConnectorError::SslError(e),
+                                      ));
+                                  }
+                                  Ok(stream) => {
+                                      let _ = waiter.tx.send(
+                                          Ok(Connection::new(
+                                              conn.0.clone(), Some(conn),
+                                              Box::new(stream),
+                                          )),
+                                      );
+                                  }
+                              }
+                              Ok(())
+                          })
+                          .into_actor(act),
+                  )
+              } else {
+                  let _ = waiter.tx.send(Ok(Connection::new(
+                      conn.0.clone(),
+                      Some(conn),
+                      Box::new(stream),
+                  )));
+                  fut::Either::B(fut::ok(()))
+              }
+          }
+      }
 
-                   #[cfg(not(any(feature="alpn", feature="tls")))]
-                   match res {
-                       Err(err) => {
-                           act.stats.errors += 1;
-                           let _ = waiter.tx.send(Err(err.into()));
-                           fut::err(())
-                       },
-                       Ok(stream) => {
-                           act.stats.opened += 1;
-                           if conn.0.ssl {
-                               let _ = waiter.tx.send(
-                                   Err(ClientConnectorError::SslIsNotSupported));
-                           } else {
-                               let _ = waiter.tx.send(Ok(Connection::new(
-                                   conn.0.clone(), Some(conn), Box::new(stream))));
-                           };
-                           fut::ok(())
-                       },
-                   }
-               })
-               .spawn(ctx);
-       }
+                                #[cfg_attr(rustfmt, rustfmt_skip)]
+      #[cfg(not(any(feature = "alpn", feature = "tls")))]
+      match res {
+          Err(err) => {
+              act.stats.errors += 1;
+              let _ = waiter.tx.send(Err(err.into()));
+              fut::err(())
+          }
+          Ok(stream) => {
+              act.stats.opened += 1;
+              if conn.0.ssl {
+                  let _ = waiter.tx.send(Err(ClientConnectorError::SslIsNotSupported));
+              } else {
+                  let _ = waiter.tx.send(Ok(Connection::new(
+                      conn.0.clone(),
+                      Some(conn),
+                      Box::new(stream),
+                  )));
+              };
+              fut::ok(())
+          }
+      }
+                            })
+                            .spawn(ctx);
+                    }
                 }
             }
         }
@@ -954,7 +1020,7 @@ impl Protocol {
     fn port(&self) -> u16 {
         match *self {
             Protocol::Http | Protocol::Ws => 80,
-            Protocol::Https | Protocol::Wss => 443
+            Protocol::Https | Protocol::Wss => 443,
         }
     }
 }
@@ -968,7 +1034,11 @@ struct Key {
 
 impl Key {
     fn empty() -> Key {
-        Key{host: String::new(), port: 0, ssl: false}
+        Key {
+            host: String::new(),
+            port: 0,
+            ssl: false,
+        }
     }
 }
 
@@ -1035,7 +1105,10 @@ impl Pool {
         if self.to_close.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(&mut *self.to_close.borrow_mut(), Vec::new()))
+            Some(mem::replace(
+                &mut *self.to_close.borrow_mut(),
+                Vec::new(),
+            ))
         }
     }
 
@@ -1043,7 +1116,10 @@ impl Pool {
         if self.to_release.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(&mut *self.to_release.borrow_mut(), Vec::new()))
+            Some(mem::replace(
+                &mut *self.to_release.borrow_mut(),
+                Vec::new(),
+            ))
         }
     }
 
@@ -1072,7 +1148,6 @@ impl Pool {
     }
 }
 
-
 pub struct Connection {
     key: Key,
     stream: Box<IoStream>,
@@ -1088,7 +1163,12 @@ impl fmt::Debug for Connection {
 
 impl Connection {
     fn new(key: Key, pool: Option<AcquiredConn>, stream: Box<IoStream>) -> Self {
-        Connection {key, stream, pool, ts: Instant::now()}
+        Connection {
+            key,
+            stream,
+            pool,
+            ts: Instant::now(),
+        }
     }
 
     pub fn stream(&mut self) -> &mut IoStream {

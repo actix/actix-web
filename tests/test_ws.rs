@@ -1,19 +1,19 @@
 extern crate actix;
 extern crate actix_web;
+extern crate bytes;
 extern crate futures;
 extern crate http;
-extern crate bytes;
 extern crate rand;
 
 use bytes::Bytes;
 use futures::Stream;
 use rand::Rng;
 
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 extern crate openssl;
 
-use actix_web::*;
 use actix::prelude::*;
+use actix_web::*;
 
 struct Ws;
 
@@ -22,7 +22,6 @@ impl Actor for Ws {
 }
 
 impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
-
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
@@ -36,8 +35,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 
 #[test]
 fn test_simple() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws)));
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (reader, mut writer) = srv.ws().unwrap();
 
     writer.text("text");
@@ -46,7 +44,12 @@ fn test_simple() {
 
     writer.binary(b"text".as_ref());
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
-    assert_eq!(item, Some(ws::Message::Binary(Bytes::from_static(b"text").into())));
+    assert_eq!(
+        item,
+        Some(ws::Message::Binary(
+            Bytes::from_static(b"text").into()
+        ))
+    );
 
     writer.ping("ping");
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
@@ -64,8 +67,7 @@ fn test_large_text() {
         .take(65_536)
         .collect::<String>();
 
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws)));
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (mut reader, mut writer) = srv.ws().unwrap();
 
     for _ in 0..100 {
@@ -83,15 +85,17 @@ fn test_large_bin() {
         .take(65_536)
         .collect::<String>();
 
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws)));
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (mut reader, mut writer) = srv.ws().unwrap();
 
     for _ in 0..100 {
         writer.binary(data.clone());
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
-        assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
+        assert_eq!(
+            item,
+            Some(ws::Message::Binary(Binary::from(data.clone())))
+        );
     }
 }
 
@@ -115,18 +119,19 @@ impl Ws2 {
         } else {
             ctx.text("0".repeat(65_536));
         }
-        ctx.drain().and_then(|_, act, ctx| {
-            act.count += 1;
-            if act.count != 10_000 {
-                act.send(ctx);
-            }
-            actix::fut::ok(())
-        }).wait(ctx);
+        ctx.drain()
+            .and_then(|_, act, ctx| {
+                act.count += 1;
+                if act.count != 10_000 {
+                    act.send(ctx);
+                }
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 }
 
 impl StreamHandler<ws::Message, ws::ProtocolError> for Ws2 {
-
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
             ws::Message::Ping(msg) => ctx.pong(&msg),
@@ -142,8 +147,17 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws2 {
 fn test_server_send_text() {
     let data = Some(ws::Message::Text("0".repeat(65_536)));
 
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws2{count:0, bin: false})));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: false,
+                },
+            )
+        })
+    });
     let (mut reader, _writer) = srv.ws().unwrap();
 
     for _ in 0..10_000 {
@@ -157,8 +171,17 @@ fn test_server_send_text() {
 fn test_server_send_bin() {
     let data = Some(ws::Message::Binary(Binary::from("0".repeat(65_536))));
 
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req| ws::start(req, Ws2{count:0, bin: true})));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: true,
+                },
+            )
+        })
+    });
     let (mut reader, _writer) = srv.ws().unwrap();
 
     for _ in 0..10_000 {
@@ -169,19 +192,33 @@ fn test_server_send_bin() {
 }
 
 #[test]
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 fn test_ws_server_ssl() {
     extern crate openssl;
-    use openssl::ssl::{SslMethod, SslAcceptor, SslFiletype};
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder.set_private_key_file("tests/key.pem", SslFiletype::PEM).unwrap();
-    builder.set_certificate_chain_file("tests/cert.pem").unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
 
     let mut srv = test::TestServer::build()
         .ssl(builder.build())
-        .start(|app| app.handler(|req| ws::start(req, Ws2{count:0, bin: false})));
+        .start(|app| {
+            app.handler(|req| {
+                ws::start(
+                    req,
+                    Ws2 {
+                        count: 0,
+                        bin: false,
+                    },
+                )
+            })
+        });
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));

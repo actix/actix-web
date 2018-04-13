@@ -1,4 +1,4 @@
-use header::{IF_MATCH, EntityTag};
+use header::{EntityTag, IF_MATCH};
 
 header! {
     /// `If-Match` header, defined in

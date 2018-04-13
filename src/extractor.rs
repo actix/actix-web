@@ -1,19 +1,19 @@
-use std::str;
 use std::ops::{Deref, DerefMut};
+use std::str;
 
-use mime::Mime;
 use bytes::Bytes;
-use serde_urlencoded;
-use serde::de::{self, DeserializeOwned};
-use futures::future::{Future, FutureResult, result};
 use encoding::all::UTF_8;
-use encoding::types::{Encoding, DecoderTrap};
+use encoding::types::{DecoderTrap, Encoding};
+use futures::future::{result, Future, FutureResult};
+use mime::Mime;
+use serde::de::{self, DeserializeOwned};
+use serde_urlencoded;
 
+use de::PathDeserializer;
 use error::{Error, ErrorBadRequest};
 use handler::{Either, FromRequest};
-use httprequest::HttpRequest;
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
-use de::PathDeserializer;
+use httprequest::HttpRequest;
 
 /// Extract typed information from the request's path.
 ///
@@ -39,8 +39,8 @@ use de::PathDeserializer;
 /// }
 /// ```
 ///
-/// It is possible to extract path information to a specific type that implements
-/// `Deserialize` trait from *serde*.
+/// It is possible to extract path information to a specific type that
+/// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
 /// # extern crate bytes;
@@ -65,12 +65,11 @@ use de::PathDeserializer;
 ///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
-pub struct Path<T>{
-    inner: T
+pub struct Path<T> {
+    inner: T,
 }
 
 impl<T> AsRef<T> for Path<T> {
-
     fn as_ref(&self) -> &T {
         &self.inner
     }
@@ -98,7 +97,9 @@ impl<T> Path<T> {
 }
 
 impl<T, S> FromRequest<S> for Path<T>
-    where T: DeserializeOwned, S: 'static
+where
+    T: DeserializeOwned,
+    S: 'static,
 {
     type Config = ();
     type Result = FutureResult<Self, Error>;
@@ -106,9 +107,11 @@ impl<T, S> FromRequest<S> for Path<T>
     #[inline]
     fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
-        result(de::Deserialize::deserialize(PathDeserializer::new(&req))
-               .map_err(|e| e.into())
-               .map(|inner| Path{inner}))
+        result(
+            de::Deserialize::deserialize(PathDeserializer::new(&req))
+                .map_err(|e| e.into())
+                .map(|inner| Path { inner }),
+        )
     }
 }
 
@@ -164,7 +167,9 @@ impl<T> Query<T> {
 }
 
 impl<T, S> FromRequest<S> for Query<T>
-    where T: de::DeserializeOwned, S: 'static
+where
+    T: de::DeserializeOwned,
+    S: 'static,
 {
     type Config = ();
     type Result = FutureResult<Self, Error>;
@@ -172,24 +177,26 @@ impl<T, S> FromRequest<S> for Query<T>
     #[inline]
     fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
-        result(serde_urlencoded::from_str::<T>(req.query_string())
-               .map_err(|e| e.into())
-               .map(Query))
+        result(
+            serde_urlencoded::from_str::<T>(req.query_string())
+                .map_err(|e| e.into())
+                .map(Query),
+        )
     }
 }
 
 /// Extract typed information from the request's body.
 ///
-/// To extract typed information from request's body, the type `T` must implement the
-/// `Deserialize` trait from *serde*.
+/// To extract typed information from request's body, the type `T` must
+/// implement the `Deserialize` trait from *serde*.
 ///
 /// [**FormConfig**](dev/struct.FormConfig.html) allows to configure extraction
 /// process.
 ///
 /// ## Example
 ///
-/// It is possible to extract path information to a specific type that implements
-/// `Deserialize` trait from *serde*.
+/// It is possible to extract path information to a specific type that
+/// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -233,17 +240,21 @@ impl<T> DerefMut for Form<T> {
 }
 
 impl<T, S> FromRequest<S> for Form<T>
-    where T: DeserializeOwned + 'static, S: 'static
+where
+    T: DeserializeOwned + 'static,
+    S: 'static,
 {
     type Config = FormConfig;
-    type Result = Box<Future<Item=Self, Error=Error>>;
+    type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(UrlEncoded::new(req.clone())
-                 .limit(cfg.limit)
-                 .from_err()
-                 .map(Form))
+        Box::new(
+            UrlEncoded::new(req.clone())
+                .limit(cfg.limit)
+                .from_err()
+                .map(Form),
+        )
     }
 }
 
@@ -279,7 +290,6 @@ pub struct FormConfig {
 }
 
 impl FormConfig {
-
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(&mut self, limit: usize) -> &mut Self {
         self.limit = limit;
@@ -289,7 +299,7 @@ impl FormConfig {
 
 impl Default for FormConfig {
     fn default() -> Self {
-        FormConfig{limit: 262_144}
+        FormConfig { limit: 262_144 }
     }
 }
 
@@ -297,8 +307,8 @@ impl Default for FormConfig {
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
-/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure extraction
-/// process.
+/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure
+/// extraction process.
 ///
 /// ## Example
 ///
@@ -313,11 +323,10 @@ impl Default for FormConfig {
 /// }
 /// # fn main() {}
 /// ```
-impl<S: 'static> FromRequest<S> for Bytes
-{
+impl<S: 'static> FromRequest<S> for Bytes {
     type Config = PayloadConfig;
-    type Result = Either<FutureResult<Self, Error>,
-                         Box<Future<Item=Self, Error=Error>>>;
+    type Result =
+        Either<FutureResult<Self, Error>, Box<Future<Item = Self, Error = Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
@@ -326,9 +335,11 @@ impl<S: 'static> FromRequest<S> for Bytes
             return Either::A(result(Err(e)));
         }
 
-        Either::B(Box::new(MessageBody::new(req.clone())
-                           .limit(cfg.limit)
-                           .from_err()))
+        Either::B(Box::new(
+            MessageBody::new(req.clone())
+                .limit(cfg.limit)
+                .from_err(),
+        ))
     }
 }
 
@@ -351,11 +362,10 @@ impl<S: 'static> FromRequest<S> for Bytes
 /// }
 /// # fn main() {}
 /// ```
-impl<S: 'static> FromRequest<S> for String
-{
+impl<S: 'static> FromRequest<S> for String {
     type Config = PayloadConfig;
-    type Result = Either<FutureResult<String, Error>,
-                         Box<Future<Item=String, Error=Error>>>;
+    type Result =
+        Either<FutureResult<String, Error>, Box<Future<Item = String, Error = Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
@@ -366,8 +376,11 @@ impl<S: 'static> FromRequest<S> for String
 
         // check charset
         let encoding = match req.encoding() {
-            Err(_) => return Either::A(
-                result(Err(ErrorBadRequest("Unknown request charset")))),
+            Err(_) => {
+                return Either::A(result(Err(ErrorBadRequest(
+                    "Unknown request charset",
+                ))))
+            }
             Ok(encoding) => encoding,
         };
 
@@ -379,13 +392,15 @@ impl<S: 'static> FromRequest<S> for String
                     let enc: *const Encoding = encoding as *const Encoding;
                     if enc == UTF_8 {
                         Ok(str::from_utf8(body.as_ref())
-                           .map_err(|_| ErrorBadRequest("Can not decode body"))?
-                           .to_owned())
+                            .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                            .to_owned())
                     } else {
-                        Ok(encoding.decode(&body, DecoderTrap::Strict)
-                           .map_err(|_| ErrorBadRequest("Can not decode body"))?)
+                        Ok(encoding
+                            .decode(&body, DecoderTrap::Strict)
+                            .map_err(|_| ErrorBadRequest("Can not decode body"))?)
                     }
-                })))
+                }),
+        ))
     }
 }
 
@@ -396,14 +411,14 @@ pub struct PayloadConfig {
 }
 
 impl PayloadConfig {
-
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(&mut self, limit: usize) -> &mut Self {
         self.limit = limit;
         self
     }
 
-    /// Set required mime-type of the request. By default mime type is not enforced.
+    /// Set required mime-type of the request. By default mime type is not
+    /// enforced.
     pub fn mimetype(&mut self, mt: Mime) -> &mut Self {
         self.mimetype = Some(mt);
         self
@@ -417,13 +432,13 @@ impl PayloadConfig {
                     if mt != req_mt {
                         return Err(ErrorBadRequest("Unexpected Content-Type"));
                     }
-                },
+                }
                 Ok(None) => {
                     return Err(ErrorBadRequest("Content-Type is expected"));
-                },
+                }
                 Err(err) => {
                     return Err(err.into());
-                },
+                }
             }
         }
         Ok(())
@@ -432,21 +447,24 @@ impl PayloadConfig {
 
 impl Default for PayloadConfig {
     fn default() -> Self {
-        PayloadConfig{limit: 262_144, mimetype: None}
+        PayloadConfig {
+            limit: 262_144,
+            mimetype: None,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mime;
     use bytes::Bytes;
     use futures::{Async, Future};
     use http::header;
-    use router::{Router, Resource};
+    use mime;
     use resource::ResourceHandler;
-    use test::TestRequest;
+    use router::{Resource, Router};
     use server::ServerSettings;
+    use test::TestRequest;
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {
@@ -457,12 +475,13 @@ mod tests {
     fn test_bytes() {
         let cfg = PayloadConfig::default();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         match Bytes::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s, Bytes::from_static(b"hello=world"));
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -471,12 +490,13 @@ mod tests {
     fn test_string() {
         let cfg = PayloadConfig::default();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         match String::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s, "hello=world");
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -484,17 +504,19 @@ mod tests {
     #[test]
     fn test_form() {
         let mut req = TestRequest::with_header(
-            header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(header::CONTENT_LENGTH, "11")
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "11")
             .finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
         match Form::<Info>::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.hello, "world");
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -507,10 +529,13 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_err());
 
         let req = TestRequest::with_header(
-            header::CONTENT_TYPE, "application/x-www-form-urlencoded").finish();
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).finish();
         assert!(cfg.check_mimetype(&req).is_err());
 
-        let req = TestRequest::with_header(header::CONTENT_TYPE, "application/json").finish();
+        let req =
+            TestRequest::with_header(header::CONTENT_TYPE, "application/json").finish();
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
@@ -538,30 +563,39 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
+        routes.push((
+            Resource::new("index", "/{key}/{value}/"),
+            Some(resource),
+        ));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<MyStruct>::from_request(&req, &()).poll().unwrap() {
+        match Path::<MyStruct>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.key, "name");
                 assert_eq!(s.value, "user1");
-            },
+            }
             _ => unreachable!(),
         }
 
-        match Path::<(String, String)>::from_request(&req, &()).poll().unwrap() {
+        match Path::<(String, String)>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, "user1");
-            },
+            }
             _ => unreachable!(),
         }
 
         match Query::<Id>::from_request(&req, &()).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.id, "test");
-            },
+            }
             _ => unreachable!(),
         }
 
@@ -572,22 +606,31 @@ mod tests {
             Async::Ready(s) => {
                 assert_eq!(s.as_ref().key, "name");
                 assert_eq!(s.value, 32);
-            },
+            }
             _ => unreachable!(),
         }
 
-        match Path::<(String, u8)>::from_request(&req, &()).poll().unwrap() {
+        match Path::<(String, u8)>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, 32);
-            },
+            }
             _ => unreachable!(),
         }
 
-        match Path::<Vec<String>>::from_request(&req, &()).poll().unwrap() {
+        match Path::<Vec<String>>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
-                assert_eq!(s.into_inner(), vec!["name".to_owned(), "32".to_owned()]);
-            },
+                assert_eq!(
+                    s.into_inner(),
+                    vec!["name".to_owned(), "32".to_owned()]
+                );
+            }
             _ => unreachable!(),
         }
     }
@@ -606,7 +649,7 @@ mod tests {
         match Path::<i8>::from_request(&req, &()).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.into_inner(), 32);
-            },
+            }
             _ => unreachable!(),
         }
     }

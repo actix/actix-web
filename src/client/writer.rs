@@ -1,29 +1,28 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use std::io::{self, Write};
 use std::cell::RefCell;
 use std::fmt::Write as FmtWrite;
+use std::io::{self, Write};
 
-use time::{self, Duration};
-use bytes::{BytesMut, BufMut};
-use futures::{Async, Poll};
-use tokio_io::AsyncWrite;
-use http::{Version, HttpTryFrom};
-use http::header::{HeaderValue, DATE,
-                   CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
-use flate2::Compression;
-use flate2::write::{GzEncoder, DeflateEncoder};
-#[cfg(feature="brotli")]
+#[cfg(feature = "brotli")]
 use brotli2::write::BrotliEncoder;
+use bytes::{BufMut, BytesMut};
+use flate2::Compression;
+use flate2::write::{DeflateEncoder, GzEncoder};
+use futures::{Async, Poll};
+use http::header::{HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE,
+                   TRANSFER_ENCODING};
+use http::{HttpTryFrom, Version};
+use time::{self, Duration};
+use tokio_io::AsyncWrite;
 
-use body::{Body, Binary};
+use body::{Binary, Body};
 use header::ContentEncoding;
 use server::WriterState;
-use server::shared::SharedBytes;
 use server::encoding::{ContentEncoder, TransferEncoding};
+use server::shared::SharedBytes;
 
 use client::ClientRequest;
-
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -46,7 +45,6 @@ pub(crate) struct HttpClientWriter {
 }
 
 impl HttpClientWriter {
-
     pub fn new(buffer: SharedBytes) -> HttpClientWriter {
         let encoder = ContentEncoder::Identity(TransferEncoding::eof(buffer.clone()));
         HttpClientWriter {
@@ -64,24 +62,26 @@ impl HttpClientWriter {
     }
 
     // pub fn keepalive(&self) -> bool {
-    //    self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
-    // }
+    // self.flags.contains(Flags::KEEPALIVE) &&
+    // !self.flags.contains(Flags::UPGRADE) }
 
-    fn write_to_stream<T: AsyncWrite>(&mut self, stream: &mut T) -> io::Result<WriterState> {
+    fn write_to_stream<T: AsyncWrite>(
+        &mut self, stream: &mut T
+    ) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
             match stream.write(self.buffer.as_ref()) {
                 Ok(0) => {
                     self.disconnected();
                     return Ok(WriterState::Done);
-                },
+                }
                 Ok(n) => {
                     let _ = self.buffer.split_to(n);
-                },
+                }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if self.buffer.len() > self.buffer_capacity {
-                        return Ok(WriterState::Pause)
+                        return Ok(WriterState::Pause);
                     } else {
-                        return Ok(WriterState::Done)
+                        return Ok(WriterState::Done);
                     }
                 }
                 Err(err) => return Err(err),
@@ -92,7 +92,6 @@ impl HttpClientWriter {
 }
 
 impl HttpClientWriter {
-
     pub fn start(&mut self, msg: &mut ClientRequest) -> io::Result<()> {
         // prepare task
         self.flags.insert(Flags::STARTED);
@@ -105,10 +104,16 @@ impl HttpClientWriter {
         // render message
         {
             // status line
-            writeln!(self.buffer, "{} {} {:?}\r",
-                     msg.method(),
-                     msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-                     msg.version())?;
+            writeln!(
+                self.buffer,
+                "{} {} {:?}\r",
+                msg.method(),
+                msg.uri()
+                    .path_and_query()
+                    .map(|u| u.as_str())
+                    .unwrap_or("/"),
+                msg.version()
+            )?;
 
             // write headers
             let mut buffer = self.buffer.get_mut();
@@ -173,15 +178,17 @@ impl HttpClientWriter {
         if self.encoder.is_eof() {
             Ok(())
         } else {
-            Err(io::Error::new(io::ErrorKind::Other,
-                               "Last payload item, but eof is not reached"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Last payload item, but eof is not reached",
+            ))
         }
     }
 
     #[inline]
-    pub fn poll_completed<T: AsyncWrite>(&mut self, stream: &mut T, shutdown: bool)
-                                         -> Poll<(), io::Error>
-    {
+    pub fn poll_completed<T: AsyncWrite>(
+        &mut self, stream: &mut T, shutdown: bool
+    ) -> Poll<(), io::Error> {
         match self.write_to_stream(stream) {
             Ok(WriterState::Done) => {
                 if shutdown {
@@ -189,13 +196,12 @@ impl HttpClientWriter {
                 } else {
                     Ok(Async::Ready(()))
                 }
-            },
+            }
             Ok(WriterState::Pause) => Ok(Async::NotReady),
-            Err(err) => Err(err)
+            Err(err) => Err(err),
         }
     }
 }
-
 
 fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder {
     let version = req.version();
@@ -206,21 +212,25 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
         Body::Empty => {
             req.headers_mut().remove(CONTENT_LENGTH);
             TransferEncoding::length(0, buf)
-        },
+        }
         Body::Binary(ref mut bytes) => {
             if encoding.is_compression() {
                 let tmp = SharedBytes::default();
                 let transfer = TransferEncoding::eof(tmp.clone());
                 let mut enc = match encoding {
                     ContentEncoding::Deflate => ContentEncoder::Deflate(
-                        DeflateEncoder::new(transfer, Compression::default())),
-                    ContentEncoding::Gzip => ContentEncoder::Gzip(
-                        GzEncoder::new(transfer, Compression::default())),
-                    #[cfg(feature="brotli")]
-                    ContentEncoding::Br => ContentEncoder::Br(
-                        BrotliEncoder::new(transfer, 5)),
+                        DeflateEncoder::new(transfer, Compression::default()),
+                    ),
+                    ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
+                        transfer,
+                        Compression::default(),
+                    )),
+                    #[cfg(feature = "brotli")]
+                    ContentEncoding::Br => {
+                        ContentEncoder::Br(BrotliEncoder::new(transfer, 5))
+                    }
                     ContentEncoding::Identity => ContentEncoder::Identity(transfer),
-                    ContentEncoding::Auto => unreachable!()
+                    ContentEncoding::Auto => unreachable!(),
                 };
                 // TODO return error!
                 let _ = enc.write(bytes.clone());
@@ -228,21 +238,26 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                 *bytes = Binary::from(tmp.take());
 
                 req.headers_mut().insert(
-                    CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+                    CONTENT_ENCODING,
+                    HeaderValue::from_static(encoding.as_str()),
+                );
                 encoding = ContentEncoding::Identity;
             }
             let mut b = BytesMut::new();
             let _ = write!(b, "{}", bytes.len());
             req.headers_mut().insert(
-                CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
+                CONTENT_LENGTH,
+                HeaderValue::try_from(b.freeze()).unwrap(),
+            );
             TransferEncoding::eof(buf)
-        },
+        }
         Body::Streaming(_) | Body::Actor(_) => {
             if req.upgrade() {
                 if version == Version::HTTP_2 {
                     error!("Connection upgrade is forbidden for HTTP/2");
                 } else {
-                    req.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
+                    req.headers_mut()
+                        .insert(CONNECTION, HeaderValue::from_static("upgrade"));
                 }
                 if encoding != ContentEncoding::Identity {
                     encoding = ContentEncoding::Identity;
@@ -257,24 +272,31 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
 
     if encoding.is_compression() {
         req.headers_mut().insert(
-            CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
+            CONTENT_ENCODING,
+            HeaderValue::from_static(encoding.as_str()),
+        );
     }
 
     req.replace_body(body);
     match encoding {
-        ContentEncoding::Deflate => ContentEncoder::Deflate(
-            DeflateEncoder::new(transfer, Compression::default())),
-        ContentEncoding::Gzip => ContentEncoder::Gzip(
-            GzEncoder::new(transfer, Compression::default())),
-        #[cfg(feature="brotli")]
-        ContentEncoding::Br => ContentEncoder::Br(
-            BrotliEncoder::new(transfer, 5)),
-        ContentEncoding::Identity | ContentEncoding::Auto => ContentEncoder::Identity(transfer),
+        ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
+            transfer,
+            Compression::default(),
+        )),
+        ContentEncoding::Gzip => {
+            ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::default()))
+        }
+        #[cfg(feature = "brotli")]
+        ContentEncoding::Br => ContentEncoder::Br(BrotliEncoder::new(transfer, 5)),
+        ContentEncoding::Identity | ContentEncoding::Auto => {
+            ContentEncoder::Identity(transfer)
+        }
     }
 }
 
-fn streaming_encoding(buf: SharedBytes, version: Version, req: &mut ClientRequest)
-                      -> TransferEncoding {
+fn streaming_encoding(
+    buf: SharedBytes, version: Version, req: &mut ClientRequest
+) -> TransferEncoding {
     if req.chunked() {
         // Enable transfer encoding
         req.headers_mut().remove(CONTENT_LENGTH);
@@ -282,29 +304,28 @@ fn streaming_encoding(buf: SharedBytes, version: Version, req: &mut ClientReques
             req.headers_mut().remove(TRANSFER_ENCODING);
             TransferEncoding::eof(buf)
         } else {
-            req.headers_mut().insert(
-                TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+            req.headers_mut()
+                .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
             TransferEncoding::chunked(buf)
         }
     } else {
         // if Content-Length is specified, then use it as length hint
-        let (len, chunked) =
-            if let Some(len) = req.headers().get(CONTENT_LENGTH) {
-                // Content-Length
-                if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<u64>() {
-                        (Some(len), false)
-                    } else {
-                        error!("illegal Content-Length: {:?}", len);
-                        (None, false)
-                    }
+        let (len, chunked) = if let Some(len) = req.headers().get(CONTENT_LENGTH) {
+            // Content-Length
+            if let Ok(s) = len.to_str() {
+                if let Ok(len) = s.parse::<u64>() {
+                    (Some(len), false)
                 } else {
                     error!("illegal Content-Length: {:?}", len);
                     (None, false)
                 }
             } else {
-                (None, true)
-            };
+                error!("illegal Content-Length: {:?}", len);
+                (None, false)
+            }
+        } else {
+            (None, true)
+        };
 
         if !chunked {
             if let Some(len) = len {
@@ -316,10 +337,10 @@ fn streaming_encoding(buf: SharedBytes, version: Version, req: &mut ClientReques
             // Enable transfer encoding
             match version {
                 Version::HTTP_11 => {
-                    req.headers_mut().insert(
-                        TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                    req.headers_mut()
+                        .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
                     TransferEncoding::chunked(buf)
-                },
+                }
                 _ => {
                     req.headers_mut().remove(TRANSFER_ENCODING);
                     TransferEncoding::eof(buf)
@@ -328,7 +349,6 @@ fn streaming_encoding(buf: SharedBytes, version: Version, req: &mut ClientReques
         }
     }
 }
-
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;

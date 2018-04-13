@@ -28,24 +28,22 @@
 //! ```
 mod connector;
 mod parser;
+mod pipeline;
 mod request;
 mod response;
-mod pipeline;
 mod writer;
 
+pub use self::connector::{ClientConnector, ClientConnectorError, ClientConnectorStats,
+                          Connect, Connection, Pause, Resume};
+pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
 pub use self::pipeline::{SendRequest, SendRequestError};
 pub use self::request::{ClientRequest, ClientRequestBuilder};
 pub use self::response::ClientResponse;
-pub use self::connector::{
-    Connect, Pause, Resume,
-    Connection, ClientConnector, ClientConnectorError, ClientConnectorStats};
 pub(crate) use self::writer::HttpClientWriter;
-pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
 
 use error::ResponseError;
 use http::Method;
 use httpresponse::HttpResponse;
-
 
 /// Convert `SendRequestError` to a `HttpResponse`
 impl ResponseError for SendRequestError {
@@ -53,8 +51,7 @@ impl ResponseError for SendRequestError {
         match *self {
             SendRequestError::Connector(_) => HttpResponse::BadGateway(),
             _ => HttpResponse::InternalServerError(),
-        }
-        .into()
+        }.into()
     }
 }
 

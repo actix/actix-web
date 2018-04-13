@@ -1,30 +1,30 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use std::{io, cmp, mem};
-use std::rc::Rc;
-use std::io::{Read, Write};
-use std::time::Duration;
-use std::net::SocketAddr;
 use std::collections::VecDeque;
+use std::io::{Read, Write};
+use std::net::SocketAddr;
+use std::rc::Rc;
+use std::time::Duration;
+use std::{cmp, io, mem};
 
 use actix::Arbiter;
-use modhttp::request::Parts;
-use http2::{Reason, RecvStream};
-use http2::server::{self, Connection, Handshake, SendResponse};
 use bytes::{Buf, Bytes};
-use futures::{Async, Poll, Future, Stream};
-use tokio_io::{AsyncRead, AsyncWrite};
+use futures::{Async, Future, Poll, Stream};
+use http2::server::{self, Connection, Handshake, SendResponse};
+use http2::{Reason, RecvStream};
+use modhttp::request::Parts;
 use tokio_core::reactor::Timeout;
+use tokio_io::{AsyncRead, AsyncWrite};
 
-use pipeline::Pipeline;
 use error::PayloadError;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use payload::{Payload, PayloadWriter, PayloadStatus};
+use payload::{Payload, PayloadStatus, PayloadWriter};
+use pipeline::Pipeline;
 
-use super::h2writer::H2Writer;
 use super::encoding::PayloadType;
+use super::h2writer::H2Writer;
 use super::settings::WorkerSettings;
 use super::{HttpHandler, HttpHandlerTask, Writer};
 
@@ -35,9 +35,10 @@ bitflags! {
 }
 
 /// HTTP/2 Transport
-pub(crate)
-struct Http2<T, H>
-    where T: AsyncRead + AsyncWrite + 'static, H: 'static
+pub(crate) struct Http2<T, H>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+    H: 'static,
 {
     flags: Flags,
     settings: Rc<WorkerSettings<H>>,
@@ -54,20 +55,23 @@ enum State<T: AsyncRead + AsyncWrite> {
 }
 
 impl<T, H> Http2<T, H>
-    where T: AsyncRead + AsyncWrite + 'static,
-          H: HttpHandler + 'static
+where
+    T: AsyncRead + AsyncWrite + 'static,
+    H: HttpHandler + 'static,
 {
-    pub fn new(settings: Rc<WorkerSettings<H>>,
-               io: T,
-               addr: Option<SocketAddr>, buf: Bytes) -> Self
-    {
-        Http2{ flags: Flags::empty(),
-               tasks: VecDeque::new(),
-               state: State::Handshake(
-                   server::handshake(IoWrapper{unread: Some(buf), inner: io})),
-               keepalive_timer: None,
-               addr,
-               settings,
+    pub fn new(
+        settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes
+    ) -> Self {
+        Http2 {
+            flags: Flags::empty(),
+            tasks: VecDeque::new(),
+            state: State::Handshake(server::handshake(IoWrapper {
+                unread: Some(buf),
+                inner: io,
+            })),
+            keepalive_timer: None,
+            addr,
+            settings,
         }
     }
 
@@ -89,7 +93,7 @@ impl<T, H> Http2<T, H>
                 match timeout.poll() {
                     Ok(Async::Ready(_)) => {
                         trace!("Keep-alive timeout, close connection");
-                        return Ok(Async::Ready(()))
+                        return Ok(Async::Ready(()));
                     }
                     Ok(Async::NotReady) => (),
                     Err(_) => unreachable!(),
@@ -111,29 +115,30 @@ impl<T, H> Http2<T, H>
                                 Ok(Async::Ready(ready)) => {
                                     if ready {
                                         item.flags.insert(
-                                            EntryFlags::EOF | EntryFlags::FINISHED);
+                                            EntryFlags::EOF | EntryFlags::FINISHED,
+                                        );
                                     } else {
                                         item.flags.insert(EntryFlags::EOF);
                                     }
                                     not_ready = false;
-                                },
+                                }
                                 Ok(Async::NotReady) => {
                                     if item.payload.need_read() == PayloadStatus::Read
                                         && !retry
                                     {
-                                        continue
+                                        continue;
                                     }
-                                },
+                                }
                                 Err(err) => {
                                     error!("Unhandled error: {}", err);
                                     item.flags.insert(
-                                        EntryFlags::EOF |
-                                        EntryFlags::ERROR |
-                                        EntryFlags::WRITE_DONE);
+                                        EntryFlags::EOF | EntryFlags::ERROR
+                                            | EntryFlags::WRITE_DONE,
+                                    );
                                     item.stream.reset(Reason::INTERNAL_ERROR);
                                 }
                             }
-                            break
+                            break;
                         }
                     } else if !item.flags.contains(EntryFlags::FINISHED) {
                         match item.task.poll() {
@@ -141,11 +146,12 @@ impl<T, H> Http2<T, H>
                             Ok(Async::Ready(_)) => {
                                 not_ready = false;
                                 item.flags.insert(EntryFlags::FINISHED);
-                            },
+                            }
                             Err(err) => {
                                 item.flags.insert(
-                                    EntryFlags::ERROR | EntryFlags::WRITE_DONE |
-                                    EntryFlags::FINISHED);
+                                    EntryFlags::ERROR | EntryFlags::WRITE_DONE
+                                        | EntryFlags::FINISHED,
+                                );
                                 error!("Unhandled error: {}", err);
                             }
                         }
@@ -167,13 +173,13 @@ impl<T, H> Http2<T, H>
 
                 // cleanup finished tasks
                 while !self.tasks.is_empty() {
-                    if self.tasks[0].flags.contains(EntryFlags::EOF) &&
-                        self.tasks[0].flags.contains(EntryFlags::WRITE_DONE) ||
-                        self.tasks[0].flags.contains(EntryFlags::ERROR)
+                    if self.tasks[0].flags.contains(EntryFlags::EOF)
+                        && self.tasks[0].flags.contains(EntryFlags::WRITE_DONE)
+                        || self.tasks[0].flags.contains(EntryFlags::ERROR)
                     {
                         self.tasks.pop_front();
                     } else {
-                        break
+                        break;
                     }
                 }
 
@@ -186,7 +192,7 @@ impl<T, H> Http2<T, H>
                             for entry in &mut self.tasks {
                                 entry.task.disconnected()
                             }
-                        },
+                        }
                         Ok(Async::Ready(Some((req, resp)))) => {
                             not_ready = false;
                             let (parts, body) = req.into_parts();
@@ -194,8 +200,13 @@ impl<T, H> Http2<T, H>
                             // stop keepalive timer
                             self.keepalive_timer.take();
 
-                            self.tasks.push_back(
-                                Entry::new(parts, body, resp, self.addr, &self.settings));
+                            self.tasks.push_back(Entry::new(
+                                parts,
+                                body,
+                                resp,
+                                self.addr,
+                                &self.settings,
+                            ));
                         }
                         Ok(Async::NotReady) => {
                             // start keep-alive timer
@@ -213,12 +224,13 @@ impl<T, H> Http2<T, H>
                                     }
                                 } else {
                                     // keep-alive disable, drop connection
-                                    return conn.poll_close().map_err(
-                                        |e| error!("Error during connection close: {}", e))
+                                    return conn.poll_close().map_err(|e| {
+                                        error!("Error during connection close: {}", e)
+                                    });
                                 }
                             } else {
                                 // keep-alive unset, rely on operating system
-                                return Ok(Async::NotReady)
+                                return Ok(Async::NotReady);
                             }
                         }
                         Err(err) => {
@@ -228,16 +240,17 @@ impl<T, H> Http2<T, H>
                                 entry.task.disconnected()
                             }
                             self.keepalive_timer.take();
-                        },
+                        }
                     }
                 }
 
                 if not_ready {
-                    if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED) {
-                        return conn.poll_close().map_err(
-                            |e| error!("Error during connection close: {}", e))
+                    if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED)
+                    {
+                        return conn.poll_close()
+                            .map_err(|e| error!("Error during connection close: {}", e));
                     } else {
-                        return Ok(Async::NotReady)
+                        return Ok(Async::NotReady);
                     }
                 }
             }
@@ -246,14 +259,11 @@ impl<T, H> Http2<T, H>
         // handshake
         self.state = if let State::Handshake(ref mut handshake) = self.state {
             match handshake.poll() {
-                Ok(Async::Ready(conn)) => {
-                    State::Connection(conn)
-                },
-                Ok(Async::NotReady) =>
-                    return Ok(Async::NotReady),
+                Ok(Async::Ready(conn)) => State::Connection(conn),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     trace!("Error handling connection: {}", err);
-                    return Err(())
+                    return Err(());
                 }
             }
         } else {
@@ -283,12 +293,12 @@ struct Entry<H: 'static> {
 }
 
 impl<H: 'static> Entry<H> {
-    fn new(parts: Parts,
-           recv: RecvStream,
-           resp: SendResponse<Bytes>,
-           addr: Option<SocketAddr>,
-           settings: &Rc<WorkerSettings<H>>) -> Entry<H>
-        where H: HttpHandler + 'static
+    fn new(
+        parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
+        addr: Option<SocketAddr>, settings: &Rc<WorkerSettings<H>>,
+    ) -> Entry<H>
+    where
+        H: HttpHandler + 'static,
     {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
@@ -312,18 +322,22 @@ impl<H: 'static> Entry<H> {
             req = match h.handle(req) {
                 Ok(t) => {
                     task = Some(t);
-                    break
-                },
+                    break;
+                }
                 Err(req) => req,
             }
         }
 
-        Entry {task: task.unwrap_or_else(|| Pipeline::error(HttpResponse::NotFound())),
-               payload: psender,
-               stream: H2Writer::new(
-                   resp, settings.get_shared_bytes(), Rc::clone(settings)),
-               flags: EntryFlags::empty(),
-               recv,
+        Entry {
+            task: task.unwrap_or_else(|| Pipeline::error(HttpResponse::NotFound())),
+            payload: psender,
+            stream: H2Writer::new(
+                resp,
+                settings.get_shared_bytes(),
+                Rc::clone(settings),
+            ),
+            flags: EntryFlags::empty(),
+            recv,
         }
     }
 
@@ -340,14 +354,12 @@ impl<H: 'static> Entry<H> {
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
                     self.payload.feed_data(chunk);
-                },
+                }
                 Ok(Async::Ready(None)) => {
                     self.flags.insert(EntryFlags::REOF);
-                },
-                Ok(Async::NotReady) => (),
-                Err(err) => {
-                    self.payload.set_error(PayloadError::Http2(err))
                 }
+                Ok(Async::NotReady) => (),
+                Err(err) => self.payload.set_error(PayloadError::Http2(err)),
             }
         }
     }

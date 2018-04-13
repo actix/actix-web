@@ -1,24 +1,24 @@
-use std::mem;
-use std::rc::Rc;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
+use std::mem;
+use std::rc::Rc;
 
-use http::Method;
 use handler::Reply;
-use router::{Router, Resource};
-use resource::{ResourceHandler};
+use handler::{FromRequest, Handler, Responder, RouteHandler, WrapHandler};
 use header::ContentEncoding;
-use handler::{Handler, RouteHandler, WrapHandler, FromRequest, Responder};
+use http::Method;
 use httprequest::HttpRequest;
-use pipeline::{Pipeline, PipelineHandler, HandlerType};
 use middleware::Middleware;
-use server::{HttpHandler, IntoHttpHandler, HttpHandlerTask, ServerSettings};
+use pipeline::{HandlerType, Pipeline, PipelineHandler};
+use resource::ResourceHandler;
+use router::{Resource, Router};
+use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, ServerSettings};
 
-#[deprecated(since="0.5.0", note="please use `actix_web::App` instead")]
+#[deprecated(since = "0.5.0", note = "please use `actix_web::App` instead")]
 pub type Application<S> = App<S>;
 
 /// Application
-pub struct HttpApplication<S=()> {
+pub struct HttpApplication<S = ()> {
     state: Rc<S>,
     prefix: String,
     prefix_len: usize,
@@ -36,28 +36,25 @@ pub(crate) struct Inner<S> {
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
-
     fn encoding(&self) -> ContentEncoding {
         self.encoding
     }
 
     fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType) -> Reply {
         match htype {
-            HandlerType::Normal(idx) =>
-                self.resources[idx].handle(req, Some(&mut self.default)),
-            HandlerType::Handler(idx) =>
-                self.handlers[idx].1.handle(req),
-            HandlerType::Default =>
-                self.default.handle(req, None)
+            HandlerType::Normal(idx) => {
+                self.resources[idx].handle(req, Some(&mut self.default))
+            }
+            HandlerType::Handler(idx) => self.handlers[idx].1.handle(req),
+            HandlerType::Default => self.default.handle(req, None),
         }
     }
 }
 
 impl<S: 'static> HttpApplication<S> {
-
     #[inline]
     fn as_ref(&self) -> &Inner<S> {
-        unsafe{&*self.inner.get()}
+        unsafe { &*self.inner.get() }
     }
 
     #[inline]
@@ -70,20 +67,21 @@ impl<S: 'static> HttpApplication<S> {
                 let &(ref prefix, _) = &inner.handlers[idx];
                 let m = {
                     let path = &req.path()[inner.prefix..];
-                    path.starts_with(prefix) && (
-                        path.len() == prefix.len() ||
-                            path.split_at(prefix.len()).1.starts_with('/'))
+                    path.starts_with(prefix)
+                        && (path.len() == prefix.len()
+                            || path.split_at(prefix.len()).1.starts_with('/'))
                 };
 
                 if m {
                     let path: &'static str = unsafe {
-                        mem::transmute(&req.path()[inner.prefix+prefix.len()..]) };
+                        mem::transmute(&req.path()[inner.prefix + prefix.len()..])
+                    };
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "");
                     } else {
                         req.match_info_mut().add("tail", path.split_at(1).1);
                     }
-                    return HandlerType::Handler(idx)
+                    return HandlerType::Handler(idx);
                 }
             }
             HandlerType::Default
@@ -93,7 +91,7 @@ impl<S: 'static> HttpApplication<S> {
     #[cfg(test)]
     pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
         let tp = self.get_handler(&mut req);
-        unsafe{&mut *self.inner.get()}.handle(req, tp)
+        unsafe { &mut *self.inner.get() }.handle(req, tp)
     }
 
     #[cfg(test)]
@@ -103,19 +101,23 @@ impl<S: 'static> HttpApplication<S> {
 }
 
 impl<S: 'static> HttpHandler for HttpApplication<S> {
-
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         let m = {
             let path = req.path();
-            path.starts_with(&self.prefix) && (
-                path.len() == self.prefix_len ||
-                    path.split_at(self.prefix_len).1.starts_with('/'))
+            path.starts_with(&self.prefix)
+                && (path.len() == self.prefix_len
+                    || path.split_at(self.prefix_len).1.starts_with('/'))
         };
         if m {
             let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
             let tp = self.get_handler(&mut req);
             let inner = Rc::clone(&self.inner);
-            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner, tp)))
+            Ok(Box::new(Pipeline::new(
+                req,
+                Rc::clone(&self.middlewares),
+                inner,
+                tp,
+            )))
         } else {
             Err(req)
         }
@@ -134,14 +136,14 @@ struct ApplicationParts<S> {
     middlewares: Vec<Box<Middleware<S>>>,
 }
 
-/// Structure that follows the builder pattern for building application instances.
-pub struct App<S=()> {
+/// Structure that follows the builder pattern for building application
+/// instances.
+pub struct App<S = ()> {
     parts: Option<ApplicationParts<S>>,
 }
 
 impl App<()> {
-
-   /// Create application with empty state. Application can
+    /// Create application with empty state. Application can
     /// be configured with a builder-like pattern.
     pub fn new() -> App<()> {
         App {
@@ -155,7 +157,7 @@ impl App<()> {
                 external: HashMap::new(),
                 encoding: ContentEncoding::Auto,
                 middlewares: Vec::new(),
-            })
+            }),
         }
     }
 }
@@ -166,8 +168,10 @@ impl Default for App<()> {
     }
 }
 
-impl<S> App<S> where S: 'static {
-
+impl<S> App<S>
+where
+    S: 'static,
+{
     /// Create application with specified state. Application can be
     /// configured with a builder-like pattern.
     ///
@@ -185,7 +189,7 @@ impl<S> App<S> where S: 'static {
                 external: HashMap::new(),
                 middlewares: Vec::new(),
                 encoding: ContentEncoding::Auto,
-            })
+            }),
         }
     }
 
@@ -256,20 +260,22 @@ impl<S> App<S> where S: 'static {
     /// }
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
-        where F: Fn(T) -> R + 'static,
-              R: Responder + 'static,
-              T: FromRequest<S> + 'static,
+    where
+        F: Fn(T) -> R + 'static,
+        R: Responder + 'static,
+        T: FromRequest<S> + 'static,
     {
         {
-            let parts: &mut ApplicationParts<S> = unsafe{
-                mem::transmute(self.parts.as_mut().expect("Use after finish"))};
+            let parts: &mut ApplicationParts<S> = unsafe {
+                mem::transmute(self.parts.as_mut().expect("Use after finish"))
+            };
 
             // get resource handler
             for &mut (ref pattern, ref mut handler) in &mut parts.resources {
                 if let Some(ref mut handler) = *handler {
                     if pattern.pattern() == path {
                         handler.method(method).with(f);
-                        return self
+                        return self;
                     }
                 }
             }
@@ -315,7 +321,8 @@ impl<S> App<S> where S: 'static {
     /// }
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> App<S>
-        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
+    where
+        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -334,13 +341,17 @@ impl<S> App<S> where S: 'static {
     #[doc(hidden)]
     pub fn register_resource(&mut self, path: &str, resource: ResourceHandler<S>) {
         let pattern = Resource::new(resource.get_name(), path);
-        self.parts.as_mut().expect("Use after finish")
-            .resources.push((pattern, Some(resource)));
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .resources
+            .push((pattern, Some(resource)));
     }
 
     /// Default resource to be used if no matching route could be found.
     pub fn default_resource<F, R>(mut self, f: F) -> App<S>
-        where F: FnOnce(&mut ResourceHandler<S>) -> R + 'static
+    where
+        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -350,8 +361,7 @@ impl<S> App<S> where S: 'static {
     }
 
     /// Set default content encoding. `ContentEncoding::Auto` is set by default.
-    pub fn default_encoding(mut self, encoding: ContentEncoding) -> App<S>
-    {
+    pub fn default_encoding(mut self, encoding: ContentEncoding) -> App<S> {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
             parts.encoding = encoding;
@@ -383,7 +393,9 @@ impl<S> App<S> where S: 'static {
     /// }
     /// ```
     pub fn external_resource<T, U>(mut self, name: T, url: U) -> App<S>
-        where T: AsRef<str>, U: AsRef<str>
+    where
+        T: AsRef<str>,
+        U: AsRef<str>,
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -393,7 +405,8 @@ impl<S> App<S> where S: 'static {
             }
             parts.external.insert(
                 String::from(name.as_ref()),
-                Resource::external(name.as_ref(), url.as_ref()));
+                Resource::external(name.as_ref(), url.as_ref()),
+            );
         }
         self
     }
@@ -419,8 +432,7 @@ impl<S> App<S> where S: 'static {
     ///         }});
     /// }
     /// ```
-    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S>
-    {
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S> {
         {
             let mut path = path.trim().trim_right_matches('/').to_owned();
             if !path.is_empty() && !path.starts_with('/') {
@@ -428,15 +440,20 @@ impl<S> App<S> where S: 'static {
             }
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            parts.handlers.push((path, Box::new(WrapHandler::new(handler))));
+            parts
+                .handlers
+                .push((path, Box::new(WrapHandler::new(handler))));
         }
         self
     }
 
     /// Register a middleware.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
-        self.parts.as_mut().expect("Use after finish")
-            .middlewares.push(Box::new(mw));
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .middlewares
+            .push(Box::new(mw));
         self
     }
 
@@ -468,7 +485,8 @@ impl<S> App<S> where S: 'static {
     /// }
     /// ```
     pub fn configure<F>(self, cfg: F) -> App<S>
-        where F: Fn(App<S>) -> App<S>
+    where
+        F: Fn(App<S>) -> App<S>,
     {
         cfg(self)
     }
@@ -490,15 +508,13 @@ impl<S> App<S> where S: 'static {
 
         let (router, resources) = Router::new(&prefix, parts.settings, resources);
 
-        let inner = Rc::new(UnsafeCell::new(
-            Inner {
-                prefix: prefix_len,
-                default: parts.default,
-                encoding: parts.encoding,
-                handlers: parts.handlers,
-                resources,
-            }
-        ));
+        let inner = Rc::new(UnsafeCell::new(Inner {
+            prefix: prefix_len,
+            default: parts.default,
+            encoding: parts.encoding,
+            handlers: parts.handlers,
+            resources,
+        }));
 
         HttpApplication {
             state: Rc::new(parts.state),
@@ -582,14 +598,13 @@ impl<S: 'static> Iterator for App<S> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use http::StatusCode;
     use super::*;
-    use test::TestRequest;
+    use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
+    use test::TestRequest;
 
     #[test]
     fn test_default_resource() {
@@ -603,14 +618,20 @@ mod tests {
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let mut app = App::new()
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::METHOD_NOT_ALLOWED
+        );
     }
 
     #[test]
@@ -627,7 +648,8 @@ mod tests {
         let mut app = App::with_state(10)
             .resource("/", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
-        let req = HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
+        let req =
+            HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
     }
@@ -675,11 +697,17 @@ mod tests {
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
@@ -702,11 +730,17 @@ mod tests {
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
@@ -730,31 +764,53 @@ mod tests {
 
         let req = TestRequest::with_uri("/prefix/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/prefix/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
     fn test_route() {
         let mut app = App::new()
-            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
-            .route("/test", Method::POST, |_: HttpRequest| HttpResponse::Created())
+            .route("/test", Method::GET, |_: HttpRequest| {
+                HttpResponse::Ok()
+            })
+            .route("/test", Method::POST, |_: HttpRequest| {
+                HttpResponse::Created()
+            })
             .finish();
 
-        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::CREATED);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::CREATED
+        );
 
-        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::HEAD)
+            .finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
@@ -766,7 +822,10 @@ mod tests {
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/app/test").finish();
         let resp = app.run(req);
@@ -782,12 +841,16 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/app/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
-
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
-
 }

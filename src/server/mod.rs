@@ -1,27 +1,27 @@
 //! Http server
-use std::{time, io};
 use std::net::Shutdown;
+use std::{io, time};
 
 use actix;
 use futures::Poll;
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_core::net::TcpStream;
+use tokio_io::{AsyncRead, AsyncWrite};
 
-mod srv;
-mod worker;
 mod channel;
 pub(crate) mod encoding;
 pub(crate) mod h1;
-mod h2;
 mod h1writer;
+mod h2;
 mod h2writer;
-mod settings;
 pub(crate) mod helpers;
+mod settings;
 pub(crate) mod shared;
+mod srv;
 pub(crate) mod utils;
+mod worker;
 
-pub use self::srv::HttpServer;
 pub use self::settings::ServerSettings;
+pub use self::srv::HttpServer;
 
 use body::Binary;
 use error::Error;
@@ -56,9 +56,10 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// }
 /// ```
 pub fn new<F, U, H>(factory: F) -> HttpServer<H>
-    where F: Fn() -> U + Sync + Send + 'static,
-          U: IntoIterator<Item=H> + 'static,
-          H: IntoHttpHandler + 'static
+where
+    F: Fn() -> U + Sync + Send + 'static,
+    U: IntoIterator<Item = H> + 'static,
+    H: IntoHttpHandler + 'static,
 {
     HttpServer::new(factory)
 }
@@ -107,7 +108,7 @@ pub struct ResumeServer;
 ///
 /// If server starts with `spawn()` method, then spawned thread get terminated.
 pub struct StopServer {
-    pub graceful: bool
+    pub graceful: bool,
 }
 
 impl actix::Message for StopServer {
@@ -117,7 +118,6 @@ impl actix::Message for StopServer {
 /// Low level http request handler
 #[allow(unused_variables)]
 pub trait HttpHandler: 'static {
-
     /// Handle request
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
 }
@@ -130,7 +130,6 @@ impl HttpHandler for Box<HttpHandler> {
 
 #[doc(hidden)]
 pub trait HttpHandlerTask {
-
     /// Poll task, this method is used before or after *io* object is available
     fn poll(&mut self) -> Poll<(), Error>;
 
@@ -170,8 +169,10 @@ pub enum WriterState {
 pub trait Writer {
     fn written(&self) -> u64;
 
-    fn start(&mut self, req: &mut HttpInnerMessage, resp: &mut HttpResponse, encoding: ContentEncoding)
-             -> io::Result<WriterState>;
+    fn start(
+        &mut self, req: &mut HttpInnerMessage, resp: &mut HttpResponse,
+        encoding: ContentEncoding,
+    ) -> io::Result<WriterState>;
 
     fn write(&mut self, payload: Binary) -> io::Result<WriterState>;
 
@@ -207,10 +208,10 @@ impl IoStream for TcpStream {
     }
 }
 
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 use tokio_openssl::SslStream;
 
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 impl IoStream for SslStream<TcpStream> {
     #[inline]
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
@@ -229,10 +230,10 @@ impl IoStream for SslStream<TcpStream> {
     }
 }
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 use tokio_tls::TlsStream;
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 impl IoStream for TlsStream<TcpStream> {
     #[inline]
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {

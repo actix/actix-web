@@ -1,25 +1,25 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use std::{io, cmp};
-use std::rc::Rc;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
-use http2::{Reason, SendStream};
 use http2::server::SendResponse;
+use http2::{Reason, SendStream};
 use modhttp::Response;
+use std::rc::Rc;
+use std::{cmp, io};
 
-use http::{Version, HttpTryFrom};
-use http::header::{HeaderValue, CONNECTION, TRANSFER_ENCODING, DATE, CONTENT_LENGTH};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use http::{HttpTryFrom, Version};
 
-use body::{Body, Binary};
+use super::encoding::ContentEncoder;
+use super::helpers;
+use super::settings::WorkerSettings;
+use super::shared::SharedBytes;
+use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
+use body::{Binary, Body};
 use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use super::helpers;
-use super::encoding::ContentEncoder;
-use super::shared::SharedBytes;
-use super::settings::WorkerSettings;
-use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -44,10 +44,9 @@ pub(crate) struct H2Writer<H: 'static> {
 }
 
 impl<H: 'static> H2Writer<H> {
-
-    pub fn new(respond: SendResponse<Bytes>,
-               buf: SharedBytes, settings: Rc<WorkerSettings<H>>) -> H2Writer<H>
-    {
+    pub fn new(
+        respond: SendResponse<Bytes>, buf: SharedBytes, settings: Rc<WorkerSettings<H>>
+    ) -> H2Writer<H> {
         H2Writer {
             respond,
             settings,
@@ -68,19 +67,18 @@ impl<H: 'static> H2Writer<H> {
 }
 
 impl<H: 'static> Writer for H2Writer<H> {
-
     fn written(&self) -> u64 {
         self.written
     }
 
-    fn start(&mut self,
-             req: &mut HttpInnerMessage,
-             msg: &mut HttpResponse,
-             encoding: ContentEncoding) -> io::Result<WriterState>
-    {
+    fn start(
+        &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
+        encoding: ContentEncoding,
+    ) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder = ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
+        self.encoder =
+            ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }
@@ -93,7 +91,8 @@ impl<H: 'static> Writer for H2Writer<H> {
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
             self.settings.set_date_simple(&mut bytes);
-            msg.headers_mut().insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+            msg.headers_mut()
+                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
         }
 
         let body = msg.replace_body(Body::Empty);
@@ -104,11 +103,13 @@ impl<H: 'static> Writer for H2Writer<H> {
                 let l = val.len();
                 msg.headers_mut().insert(
                     CONTENT_LENGTH,
-                    HeaderValue::try_from(val.split_to(l-2).freeze()).unwrap());
+                    HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
+                );
             }
             Body::Empty => {
-                msg.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-            },
+                msg.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+            }
             _ => (),
         }
 
@@ -119,11 +120,11 @@ impl<H: 'static> Writer for H2Writer<H> {
             resp.headers_mut().insert(key, value.clone());
         }
 
-        match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
-            Ok(stream) =>
-                self.stream = Some(stream),
-            Err(_) =>
-                return Err(io::Error::new(io::ErrorKind::Other, "err")),
+        match self.respond
+            .send_response(resp, self.flags.contains(Flags::EOF))
+        {
+            Ok(stream) => self.stream = Some(stream),
+            Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
 
         trace!("Response: {:?}", msg);
@@ -169,8 +170,10 @@ impl<H: 'static> Writer for H2Writer<H> {
 
         self.flags.insert(Flags::EOF);
         if !self.encoder.is_eof() {
-            Err(io::Error::new(io::ErrorKind::Other,
-                               "Last payload item, but eof is not reached"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Last payload item, but eof is not reached",
+            ))
         } else if self.buffer.len() > MAX_WRITE_BUFFER_SIZE {
             Ok(WriterState::Pause)
         } else {
@@ -197,17 +200,18 @@ impl<H: 'static> Writer for H2Writer<H> {
                     Ok(Async::Ready(Some(cap))) => {
                         let len = self.buffer.len();
                         let bytes = self.buffer.split_to(cmp::min(cap, len));
-                        let eof = self.buffer.is_empty() && self.flags.contains(Flags::EOF);
+                        let eof =
+                            self.buffer.is_empty() && self.flags.contains(Flags::EOF);
                         self.written += bytes.len() as u64;
 
                         if let Err(e) = stream.send_data(bytes.freeze(), eof) {
-                            return Err(io::Error::new(io::ErrorKind::Other, e))
+                            return Err(io::Error::new(io::ErrorKind::Other, e));
                         } else if !self.buffer.is_empty() {
                             let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
                             self.flags.remove(Flags::RESERVED);
-                            return Ok(Async::NotReady)
+                            return Ok(Async::NotReady);
                         }
                     }
                     Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),

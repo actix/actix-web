@@ -1,5 +1,5 @@
+use header::{QualityItem, ACCEPT_LANGUAGE};
 use language_tags::LanguageTag;
-use header::{ACCEPT_LANGUAGE, QualityItem};
 
 header! {
     /// `Accept-Language` header, defined in

@@ -1,7 +1,7 @@
-use std::ops::Deref;
-use std::marker::PhantomData;
 use futures::Poll;
-use futures::future::{Future, FutureResult, ok, err};
+use futures::future::{err, ok, Future, FutureResult};
+use std::marker::PhantomData;
+use std::ops::Deref;
 
 use error::Error;
 use httprequest::HttpRequest;
@@ -10,7 +10,6 @@ use httpresponse::HttpResponse;
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
 pub trait Handler<S>: 'static {
-
     /// The type of value that handler will return.
     type Result: Responder;
 
@@ -35,13 +34,15 @@ pub trait Responder {
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route::with()` method.
-pub trait FromRequest<S>: Sized where S: 'static
+pub trait FromRequest<S>: Sized
+where
+    S: 'static,
 {
     /// Configuration for conversion process
     type Config: Default;
 
     /// Future that resolves to a Self
-    type Result: Future<Item=Self, Error=Error>;
+    type Result: Future<Item = Self, Error = Error>;
 
     /// Convert request to a Self
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
@@ -83,7 +84,9 @@ pub enum Either<A, B> {
 }
 
 impl<A, B> Responder for Either<A, B>
-    where A: Responder, B: Responder
+where
+    A: Responder,
+    B: Responder,
 {
     type Item = Reply;
     type Error = Error;
@@ -103,8 +106,9 @@ impl<A, B> Responder for Either<A, B>
 }
 
 impl<A, B, I, E> Future for Either<A, B>
-    where A: Future<Item=I, Error=E>,
-          B: Future<Item=I, Error=E>,
+where
+    A: Future<Item = I, Error = E>,
+    B: Future<Item = I, Error = E>,
 {
     type Item = I;
     type Error = E;
@@ -146,23 +150,25 @@ impl<A, B, I, E> Future for Either<A, B>
 /// # fn main() {}
 /// ```
 pub trait AsyncResponder<I, E>: Sized {
-    fn responder(self) -> Box<Future<Item=I, Error=E>>;
+    fn responder(self) -> Box<Future<Item = I, Error = E>>;
 }
 
 impl<F, I, E> AsyncResponder<I, E> for F
-    where F: Future<Item=I, Error=E> + 'static,
-          I: Responder + 'static,
-          E: Into<Error> + 'static,
+where
+    F: Future<Item = I, Error = E> + 'static,
+    I: Responder + 'static,
+    E: Into<Error> + 'static,
 {
-    fn responder(self) -> Box<Future<Item=I, Error=E>> {
+    fn responder(self) -> Box<Future<Item = I, Error = E>> {
         Box::new(self)
     }
 }
 
 /// Handler<S> for Fn()
 impl<F, R, S> Handler<S> for F
-    where F: Fn(HttpRequest<S>) -> R + 'static,
-          R: Responder + 'static
+where
+    F: Fn(HttpRequest<S>) -> R + 'static,
+    R: Responder + 'static,
 {
     type Result = R;
 
@@ -176,15 +182,15 @@ pub struct Reply(ReplyItem);
 
 pub(crate) enum ReplyItem {
     Message(HttpResponse),
-    Future(Box<Future<Item=HttpResponse, Error=Error>>),
+    Future(Box<Future<Item = HttpResponse, Error = Error>>),
 }
 
 impl Reply {
-
     /// Create async response
     #[inline]
     pub fn async<F>(fut: F) -> Reply
-        where F: Future<Item=HttpResponse, Error=Error> + 'static
+    where
+        F: Future<Item = HttpResponse, Error = Error> + 'static,
     {
         Reply(ReplyItem::Future(Box::new(fut)))
     }
@@ -229,15 +235,13 @@ impl Responder for HttpResponse {
 }
 
 impl From<HttpResponse> for Reply {
-
     #[inline]
     fn from(resp: HttpResponse) -> Reply {
         Reply(ReplyItem::Message(resp))
     }
 }
 
-impl<T: Responder, E: Into<Error>> Responder for Result<T, E>
-{
+impl<T: Responder, E: Into<Error>> Responder for Result<T, E> {
     type Item = <T as Responder>::Item;
     type Error = Error;
 
@@ -272,19 +276,20 @@ impl<E: Into<Error>> From<Result<HttpResponse, E>> for Reply {
     }
 }
 
-impl From<Box<Future<Item=HttpResponse, Error=Error>>> for Reply {
+impl From<Box<Future<Item = HttpResponse, Error = Error>>> for Reply {
     #[inline]
-    fn from(fut: Box<Future<Item=HttpResponse, Error=Error>>) -> Reply {
+    fn from(fut: Box<Future<Item = HttpResponse, Error = Error>>) -> Reply {
         Reply(ReplyItem::Future(fut))
     }
 }
 
 /// Convenience type alias
-pub type FutureResponse<I, E=Error> = Box<Future<Item=I, Error=E>>;
+pub type FutureResponse<I, E = Error> = Box<Future<Item = I, Error = E>>;
 
-impl<I, E> Responder for Box<Future<Item=I, Error=E>>
-    where I: Responder + 'static,
-          E: Into<Error> + 'static
+impl<I, E> Responder for Box<Future<Item = I, Error = E>>
+where
+    I: Responder + 'static,
+    E: Into<Error> + 'static,
 {
     type Item = Reply;
     type Error = Error;
@@ -292,14 +297,12 @@ impl<I, E> Responder for Box<Future<Item=I, Error=E>>
     #[inline]
     fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
         let fut = self.map_err(|e| e.into())
-            .then(move |r| {
-                match r.respond_to(req) {
-                    Ok(reply) => match reply.into().0 {
-                        ReplyItem::Message(resp) => ok(resp),
-                        _ => panic!("Nested async replies are not supported"),
-                    },
-                    Err(e) => err(e),
-                }
+            .then(move |r| match r.respond_to(req) {
+                Ok(reply) => match reply.into().0 {
+                    ReplyItem::Message(resp) => ok(resp),
+                    _ => panic!("Nested async replies are not supported"),
+                },
+                Err(e) => err(e),
             });
         Ok(Reply::async(fut))
     }
@@ -311,30 +314,35 @@ pub(crate) trait RouteHandler<S>: 'static {
 }
 
 /// Route handler wrapper for Handler
-pub(crate)
-struct WrapHandler<S, H, R>
-    where H: Handler<S, Result=R>,
-          R: Responder,
-          S: 'static,
+pub(crate) struct WrapHandler<S, H, R>
+where
+    H: Handler<S, Result = R>,
+    R: Responder,
+    S: 'static,
 {
     h: H,
     s: PhantomData<S>,
 }
 
 impl<S, H, R> WrapHandler<S, H, R>
-    where H: Handler<S, Result=R>,
-          R: Responder,
-          S: 'static,
+where
+    H: Handler<S, Result = R>,
+    R: Responder,
+    S: 'static,
 {
     pub fn new(h: H) -> Self {
-        WrapHandler{h, s: PhantomData}
+        WrapHandler {
+            h,
+            s: PhantomData,
+        }
     }
 }
 
 impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
-    where H: Handler<S, Result=R>,
-          R: Responder + 'static,
-          S: 'static,
+where
+    H: Handler<S, Result = R>,
+    R: Responder + 'static,
+    S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
         let req2 = req.drop_state();
@@ -346,50 +354,53 @@ impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 }
 
 /// Async route handler
-pub(crate)
-struct AsyncHandler<S, H, F, R, E>
-    where H: Fn(HttpRequest<S>) -> F + 'static,
-          F: Future<Item=R, Error=E> + 'static,
-          R: Responder + 'static,
-          E: Into<Error> + 'static,
-          S: 'static,
+pub(crate) struct AsyncHandler<S, H, F, R, E>
+where
+    H: Fn(HttpRequest<S>) -> F + 'static,
+    F: Future<Item = R, Error = E> + 'static,
+    R: Responder + 'static,
+    E: Into<Error> + 'static,
+    S: 'static,
 {
     h: Box<H>,
     s: PhantomData<S>,
 }
 
 impl<S, H, F, R, E> AsyncHandler<S, H, F, R, E>
-    where H: Fn(HttpRequest<S>) -> F + 'static,
-          F: Future<Item=R, Error=E> + 'static,
-          R: Responder + 'static,
-          E: Into<Error> + 'static,
-          S: 'static,
+where
+    H: Fn(HttpRequest<S>) -> F + 'static,
+    F: Future<Item = R, Error = E> + 'static,
+    R: Responder + 'static,
+    E: Into<Error> + 'static,
+    S: 'static,
 {
     pub fn new(h: H) -> Self {
-        AsyncHandler{h: Box::new(h), s: PhantomData}
+        AsyncHandler {
+            h: Box::new(h),
+            s: PhantomData,
+        }
     }
 }
 
 impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
-    where H: Fn(HttpRequest<S>) -> F + 'static,
-          F: Future<Item=R, Error=E> + 'static,
-          R: Responder + 'static,
-          E: Into<Error> + 'static,
-          S: 'static,
+where
+    H: Fn(HttpRequest<S>) -> F + 'static,
+    F: Future<Item = R, Error = E> + 'static,
+    R: Responder + 'static,
+    E: Into<Error> + 'static,
+    S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> Reply {
         let req2 = req.drop_state();
-        let fut = (self.h)(req)
-            .map_err(|e| e.into())
-            .then(move |r| {
-                match r.respond_to(req2) {
-                    Ok(reply) => match reply.into().0 {
-                        ReplyItem::Message(resp) => ok(resp),
-                        _ => panic!("Nested async replies are not supported"),
-                    },
-                    Err(e) => err(e),
-                }
-            });
+        let fut = (self.h)(req).map_err(|e| e.into()).then(move |r| {
+            match r.respond_to(req2) {
+                Ok(reply) => match reply.into().0 {
+                    ReplyItem::Message(resp) => ok(resp),
+                    _ => panic!("Nested async replies are not supported"),
+                },
+                Err(e) => err(e),
+            }
+        });
         Reply::async(fut)
     }
 }
@@ -426,7 +437,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 ///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
 /// }
 /// ```
-pub struct State<S> (HttpRequest<S>);
+pub struct State<S>(HttpRequest<S>);
 
 impl<S> Deref for State<S> {
     type Target = S;
@@ -436,8 +447,7 @@ impl<S> Deref for State<S> {
     }
 }
 
-impl<S: 'static> FromRequest<S> for State<S>
-{
+impl<S: 'static> FromRequest<S> for State<S> {
     type Config = ();
     type Result = FutureResult<Self, Error>;
 

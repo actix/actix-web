@@ -1,4 +1,4 @@
-use header::{IF_UNMODIFIED_SINCE, HttpDate};
+use header::{HttpDate, IF_UNMODIFIED_SINCE};
 
 header! {
     /// `If-Unmodified-Since` header, defined in

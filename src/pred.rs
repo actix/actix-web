@@ -1,20 +1,18 @@
 //! Route match predicates
 #![allow(non_snake_case)]
-use std::marker::PhantomData;
 use http;
 use http::{header, HttpTryFrom};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
+use std::marker::PhantomData;
 
 /// Trait defines resource route predicate.
 /// Predicate can modify request object. It is also possible to
 /// to store extra attributes on request by using `Extensions` container,
 /// Extensions container available via `HttpRequest::extensions()` method.
 pub trait Predicate<S> {
-
     /// Check if request matches predicate
     fn check(&self, &mut HttpRequest<S>) -> bool;
-
 }
 
 /// Return predicate that matches if any of supplied predicate matches.
@@ -30,8 +28,7 @@ pub trait Predicate<S> {
 ///             .f(|r| HttpResponse::MethodNotAllowed()));
 /// }
 /// ```
-pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S>
-{
+pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S> {
     AnyPredicate(vec![Box::new(pred)])
 }
 
@@ -50,7 +47,7 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
         for p in &self.0 {
             if p.check(req) {
-                return true
+                return true;
             }
         }
         false
@@ -90,7 +87,7 @@ impl<S: 'static> Predicate<S> for AllPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
         for p in &self.0 {
             if !p.check(req) {
-                return false
+                return false;
             }
         }
         true
@@ -98,8 +95,7 @@ impl<S: 'static> Predicate<S> for AllPredicate<S> {
 }
 
 /// Return predicate that matches if supplied predicate does not match.
-pub fn Not<S: 'static, P: Predicate<S> + 'static>(pred: P) -> NotPredicate<S>
-{
+pub fn Not<S: 'static, P: Predicate<S> + 'static>(pred: P) -> NotPredicate<S> {
     NotPredicate(Box::new(pred))
 }
 
@@ -172,21 +168,29 @@ pub fn Method<S: 'static>(method: http::Method) -> MethodPredicate<S> {
     MethodPredicate(method, PhantomData)
 }
 
-/// Return predicate that matches if request contains specified header and value.
-pub fn Header<S: 'static>(name: &'static str, value: &'static str) -> HeaderPredicate<S>
-{
-    HeaderPredicate(header::HeaderName::try_from(name).unwrap(),
-                    header::HeaderValue::from_static(value),
-                    PhantomData)
+/// Return predicate that matches if request contains specified header and
+/// value.
+pub fn Header<S: 'static>(
+    name: &'static str, value: &'static str
+) -> HeaderPredicate<S> {
+    HeaderPredicate(
+        header::HeaderName::try_from(name).unwrap(),
+        header::HeaderValue::from_static(value),
+        PhantomData,
+    )
 }
 
 #[doc(hidden)]
-pub struct HeaderPredicate<S>(header::HeaderName, header::HeaderValue, PhantomData<S>);
+pub struct HeaderPredicate<S>(
+    header::HeaderName,
+    header::HeaderValue,
+    PhantomData<S>,
+);
 
 impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {
         if let Some(val) = req.headers().get(&self.0) {
-            return val == self.1
+            return val == self.1;
         }
         false
     }
@@ -195,17 +199,24 @@ impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
-    use http::{Uri, Version, Method};
     use http::header::{self, HeaderMap};
+    use http::{Method, Uri, Version};
+    use std::str::FromStr;
 
     #[test]
     fn test_header() {
         let mut headers = HeaderMap::new();
-        headers.insert(header::TRANSFER_ENCODING,
-                       header::HeaderValue::from_static("chunked"));
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            header::HeaderValue::from_static("chunked"),
+        );
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(), Version::HTTP_11, headers, None);
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            headers,
+            None,
+        );
 
         let pred = Header("transfer-encoding", "chunked");
         assert!(pred.check(&mut req));
@@ -220,11 +231,19 @@ mod tests {
     #[test]
     fn test_methods() {
         let mut req = HttpRequest::new(
-            Method::GET, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         let mut req2 = HttpRequest::new(
-            Method::POST, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::POST,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
 
         assert!(Get().check(&mut req));
         assert!(!Get().check(&mut req2));
@@ -232,44 +251,72 @@ mod tests {
         assert!(!Post().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::PUT, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::PUT,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Put().check(&mut r));
         assert!(!Put().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::DELETE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::DELETE,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Delete().check(&mut r));
         assert!(!Delete().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::HEAD, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::HEAD,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Head().check(&mut r));
         assert!(!Head().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::OPTIONS, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::OPTIONS,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Options().check(&mut r));
         assert!(!Options().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::CONNECT, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::CONNECT,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Connect().check(&mut r));
         assert!(!Connect().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::PATCH, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::PATCH,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Patch().check(&mut r));
         assert!(!Patch().check(&mut req));
 
         let mut r = HttpRequest::new(
-            Method::TRACE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::TRACE,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
         assert!(Trace().check(&mut r));
         assert!(!Trace().check(&mut req));
     }
@@ -277,8 +324,12 @@ mod tests {
     #[test]
     fn test_preds() {
         let mut r = HttpRequest::new(
-            Method::TRACE, Uri::from_str("/").unwrap(),
-            Version::HTTP_11, HeaderMap::new(), None);
+            Method::TRACE,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            HeaderMap::new(),
+            None,
+        );
 
         assert!(Not(Get()).check(&mut r));
         assert!(!Not(Trace()).check(&mut r));

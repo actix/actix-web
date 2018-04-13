@@ -1,25 +1,26 @@
-use std::mem;
-use futures::{Async, Poll};
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
+use futures::{Async, Poll};
 use smallvec::SmallVec;
+use std::mem;
 
-use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Addr, Handler, Message, Syn, Unsync, SpawnHandle};
+use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
-use actix::dev::{ContextImpl, ToEnvelope, SyncEnvelope};
+use actix::{Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message,
+            SpawnHandle, Syn, Unsync};
 
-use body::{Body, Binary};
+use body::{Binary, Body};
+use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
-use context::{Frame as ContextFrame, ActorHttpContext, Drain};
 
 use ws::frame::Frame;
-use ws::proto::{OpCode, CloseCode};
-
+use ws::proto::{CloseCode, OpCode};
 
 /// Execution context for `WebSockets` actors
-pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, S>>,
+pub struct WebsocketContext<A, S = ()>
+where
+    A: Actor<Context = WebsocketContext<A, S>>,
 {
     inner: ContextImpl<A>,
     stream: Option<SmallVec<[ContextFrame; 4]>>,
@@ -27,7 +28,9 @@ pub struct WebsocketContext<A, S=()> where A: Actor<Context=WebsocketContext<A, 
     disconnected: bool,
 }
 
-impl<A, S> ActorContext for WebsocketContext<A, S> where A: Actor<Context=Self>
+impl<A, S> ActorContext for WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
 {
     fn stop(&mut self) {
         self.inner.stop();
@@ -40,16 +43,20 @@ impl<A, S> ActorContext for WebsocketContext<A, S> where A: Actor<Context=Self>
     }
 }
 
-impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Self>
+impl<A, S> AsyncContext<A> for WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
-        where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
+    where
+        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
-        where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
+    where
+        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -57,8 +64,8 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.waiting() || self.inner.state() == ActorState::Stopping ||
-            self.inner.state() == ActorState::Stopped
+        self.inner.waiting() || self.inner.state() == ActorState::Stopping
+            || self.inner.state() == ActorState::Stopped
     }
 
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
@@ -78,8 +85,10 @@ impl<A, S> AsyncContext<A> for WebsocketContext<A, S> where A: Actor<Context=Sel
     }
 }
 
-impl<A, S: 'static> WebsocketContext<A, S> where A: Actor<Context=Self> {
-
+impl<A, S: 'static> WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
+{
     #[inline]
     pub fn new(req: HttpRequest<S>, actor: A) -> WebsocketContext<A, S> {
         WebsocketContext::from_request(req).actor(actor)
@@ -101,8 +110,10 @@ impl<A, S: 'static> WebsocketContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
-
+impl<A, S> WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
+{
     /// Write payload
     #[inline]
     fn write(&mut self, data: Binary) {
@@ -145,13 +156,23 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, false));
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Ping,
+            true,
+            false,
+        ));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, false));
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Pong,
+            true,
+            false,
+        ));
     }
 
     /// Send close frame
@@ -191,8 +212,11 @@ impl<A, S> WebsocketContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Self>, S: 'static {
-
+impl<A, S> ActorHttpContext for WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
+    S: 'static,
+{
     #[inline]
     fn disconnected(&mut self) {
         self.disconnected = true;
@@ -200,12 +224,11 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
     }
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame; 4]>>, Error> {
-        let ctx: &mut WebsocketContext<A, S> = unsafe {
-            mem::transmute(self as &mut WebsocketContext<A, S>)
-        };
+        let ctx: &mut WebsocketContext<A, S> =
+            unsafe { mem::transmute(self as &mut WebsocketContext<A, S>) };
 
         if self.inner.alive() && self.inner.poll(ctx).is_err() {
-            return Err(ErrorInternalServerError("error"))
+            return Err(ErrorInternalServerError("error"));
         }
 
         // frames
@@ -220,8 +243,10 @@ impl<A, S> ActorHttpContext for WebsocketContext<A, S> where A: Actor<Context=Se
 }
 
 impl<A, M, S> ToEnvelope<Syn, A, M> for WebsocketContext<A, S>
-    where A: Actor<Context=WebsocketContext<A, S>> + Handler<M>,
-          M: Message + Send + 'static, M::Result: Send
+where
+    A: Actor<Context = WebsocketContext<A, S>> + Handler<M>,
+    M: Message + Send + 'static,
+    M::Result: Send,
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> SyncEnvelope<A> {
         SyncEnvelope::new(msg, tx)
@@ -229,7 +254,9 @@ impl<A, M, S> ToEnvelope<Syn, A, M> for WebsocketContext<A, S>
 }
 
 impl<A, S> From<WebsocketContext<A, S>> for Body
-    where A: Actor<Context=WebsocketContext<A, S>>, S: 'static
+where
+    A: Actor<Context = WebsocketContext<A, S>>,
+    S: 'static,
 {
     fn from(ctx: WebsocketContext<A, S>) -> Body {
         Body::Actor(Box::new(ctx))

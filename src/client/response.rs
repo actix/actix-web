@@ -1,18 +1,17 @@
-use std::{fmt, str};
-use std::rc::Rc;
 use std::cell::UnsafeCell;
+use std::rc::Rc;
+use std::{fmt, str};
 
 use bytes::Bytes;
 use cookie::Cookie;
 use futures::{Async, Poll, Stream};
-use http::{HeaderMap, StatusCode, Version};
 use http::header::{self, HeaderValue};
+use http::{HeaderMap, StatusCode, Version};
 
-use httpmessage::HttpMessage;
 use error::{CookieParseError, PayloadError};
+use httpmessage::HttpMessage;
 
 use super::pipeline::Pipeline;
-
 
 pub(crate) struct ClientMessage {
     pub status: StatusCode,
@@ -22,7 +21,6 @@ pub(crate) struct ClientMessage {
 }
 
 impl Default for ClientMessage {
-
     fn default() -> ClientMessage {
         ClientMessage {
             status: StatusCode::OK,
@@ -45,7 +43,6 @@ impl HttpMessage for ClientResponse {
 }
 
 impl ClientResponse {
-
     pub(crate) fn new(msg: ClientMessage) -> ClientResponse {
         ClientResponse(Rc::new(UnsafeCell::new(msg)), None)
     }
@@ -56,13 +53,13 @@ impl ClientResponse {
 
     #[inline]
     fn as_ref(&self) -> &ClientMessage {
-        unsafe{ &*self.0.get() }
+        unsafe { &*self.0.get() }
     }
 
     #[inline]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn as_mut(&self) -> &mut ClientMessage {
-        unsafe{ &mut *self.0.get() }
+        unsafe { &mut *self.0.get() }
     }
 
     /// Get the HTTP version of this response.
@@ -96,7 +93,7 @@ impl ClientResponse {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies {
                 if cookie.name() == name {
-                    return Some(cookie)
+                    return Some(cookie);
                 }
             }
         }
@@ -107,7 +104,11 @@ impl ClientResponse {
 impl fmt::Debug for ClientResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = writeln!(
-            f, "\nClientResponse {:?} {}", self.version(), self.status());
+            f,
+            "\nClientResponse {:?} {}",
+            self.version(),
+            self.status()
+        );
         let _ = writeln!(f, "  headers:");
         for (key, val) in self.headers().iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
@@ -138,9 +139,13 @@ mod tests {
     fn test_debug() {
         let resp = ClientResponse::new(ClientMessage::default());
         resp.as_mut().headers.insert(
-            header::COOKIE, HeaderValue::from_static("cookie1=value1"));
+            header::COOKIE,
+            HeaderValue::from_static("cookie1=value1"),
+        );
         resp.as_mut().headers.insert(
-            header::COOKIE, HeaderValue::from_static("cookie2=value2"));
+            header::COOKIE,
+            HeaderValue::from_static("cookie2=value2"),
+        );
 
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("ClientResponse"));

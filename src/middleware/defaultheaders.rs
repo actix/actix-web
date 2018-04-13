@@ -1,11 +1,11 @@
 //! Default response headers
-use http::{HeaderMap, HttpTryFrom};
 use http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
+use http::{HeaderMap, HttpTryFrom};
 
 use error::Result;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Response, Middleware};
+use middleware::{Middleware, Response};
 
 /// `Middleware` for setting default response headers.
 ///
@@ -27,14 +27,17 @@ use middleware::{Response, Middleware};
 ///         .finish();
 /// }
 /// ```
-pub struct DefaultHeaders{
+pub struct DefaultHeaders {
     ct: bool,
     headers: HeaderMap,
 }
 
 impl Default for DefaultHeaders {
     fn default() -> Self {
-        DefaultHeaders{ct: false, headers: HeaderMap::new()}
+        DefaultHeaders {
+            ct: false,
+            headers: HeaderMap::new(),
+        }
     }
 }
 
@@ -48,15 +51,16 @@ impl DefaultHeaders {
     #[inline]
     #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
-        where HeaderName: HttpTryFrom<K>,
-              HeaderValue: HttpTryFrom<V>
+    where
+        HeaderName: HttpTryFrom<K>,
+        HeaderValue: HttpTryFrom<V>,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => {
-                match HeaderValue::try_from(value) {
-                    Ok(value) => { self.headers.append(key, value); }
-                    Err(_) => panic!("Can not create header value"),
+            Ok(key) => match HeaderValue::try_from(value) {
+                Ok(value) => {
+                    self.headers.append(key, value);
                 }
+                Err(_) => panic!("Can not create header value"),
             },
             Err(_) => panic!("Can not create header name"),
         }
@@ -71,8 +75,9 @@ impl DefaultHeaders {
 }
 
 impl<S> Middleware<S> for DefaultHeaders {
-
-    fn response(&self, _: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
+    fn response(
+        &self, _: &mut HttpRequest<S>, mut resp: HttpResponse
+    ) -> Result<Response> {
         for (key, value) in self.headers.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());
@@ -81,7 +86,9 @@ impl<S> Middleware<S> for DefaultHeaders {
         // default content-type
         if self.ct && !resp.headers().contains_key(CONTENT_TYPE) {
             resp.headers_mut().insert(
-                CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            );
         }
         Ok(Response::Done(resp))
     }
@@ -94,8 +101,7 @@ mod tests {
 
     #[test]
     fn test_default_headers() {
-        let mw = DefaultHeaders::new()
-            .header(CONTENT_TYPE, "0001");
+        let mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
 
         let mut req = HttpRequest::default();
 
@@ -106,7 +112,9 @@ mod tests {
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish();
+        let resp = HttpResponse::Ok()
+            .header(CONTENT_TYPE, "0002")
+            .finish();
         let resp = match mw.response(&mut req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),

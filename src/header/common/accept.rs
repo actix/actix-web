@@ -1,6 +1,6 @@
-use mime::{self, Mime};
-use header::{QualityItem, qitem};
+use header::{qitem, QualityItem};
 use http::header as http;
+use mime::{self, Mime};
 
 header! {
     /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)

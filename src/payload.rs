@@ -1,17 +1,16 @@
 //! Payload stream
-use std::cmp;
-use std::rc::{Rc, Weak};
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use bytes::{Bytes, BytesMut};
+use futures::task::{current as current_task, Task};
 use futures::{Async, Poll, Stream};
-use futures::task::{Task, current as current_task};
+use std::cell::RefCell;
+use std::cmp;
+use std::collections::VecDeque;
+use std::rc::{Rc, Weak};
 
 use error::PayloadError;
 
 /// max buffer size 32k
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
-
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum PayloadStatus {
@@ -22,9 +21,9 @@ pub(crate) enum PayloadStatus {
 
 /// Buffered stream of bytes chunks
 ///
-/// Payload stores chunks in a vector. First chunk can be received with `.readany()` method.
-/// Payload stream is not thread safe. Payload does not notify current task when
-/// new data is available.
+/// Payload stores chunks in a vector. First chunk can be received with
+/// `.readany()` method. Payload stream is not thread safe. Payload does not
+/// notify current task when new data is available.
 ///
 /// Payload stream can be used as `HttpResponse` body stream.
 #[derive(Debug)]
@@ -33,10 +32,10 @@ pub struct Payload {
 }
 
 impl Payload {
-
     /// Create payload stream.
     ///
-    /// This method construct two objects responsible for bytes stream generation.
+    /// This method construct two objects responsible for bytes stream
+    /// generation.
     ///
     /// * `PayloadSender` - *Sender* side of the stream
     ///
@@ -44,13 +43,20 @@ impl Payload {
     pub fn new(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
-        (PayloadSender{inner: Rc::downgrade(&shared)}, Payload{inner: shared})
+        (
+            PayloadSender {
+                inner: Rc::downgrade(&shared),
+            },
+            Payload { inner: shared },
+        )
     }
 
     /// Create empty payload
     #[doc(hidden)]
     pub fn empty() -> Payload {
-        Payload{inner: Rc::new(RefCell::new(Inner::new(true)))}
+        Payload {
+            inner: Rc::new(RefCell::new(Inner::new(true))),
+        }
     }
 
     /// Indicates EOF of payload
@@ -103,13 +109,14 @@ impl Stream for Payload {
 
 impl Clone for Payload {
     fn clone(&self) -> Payload {
-        Payload{inner: Rc::clone(&self.inner)}
+        Payload {
+            inner: Rc::clone(&self.inner),
+        }
     }
 }
 
 /// Payload writer interface.
 pub(crate) trait PayloadWriter {
-
     /// Set stream error.
     fn set_error(&mut self, err: PayloadError);
 
@@ -129,7 +136,6 @@ pub struct PayloadSender {
 }
 
 impl PayloadWriter for PayloadSender {
-
     #[inline]
     fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
@@ -186,7 +192,6 @@ struct Inner {
 }
 
 impl Inner {
-
     fn new(eof: bool) -> Self {
         Inner {
             eof,
@@ -292,8 +297,10 @@ pub struct PayloadHelper<S> {
     stream: S,
 }
 
-impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
-
+impl<S> PayloadHelper<S>
+where
+    S: Stream<Item = Bytes, Error = PayloadError>,
+{
     pub fn new(stream: S) -> Self {
         PayloadHelper {
             len: 0,
@@ -309,16 +316,14 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
     #[inline]
     fn poll_stream(&mut self) -> Poll<bool, PayloadError> {
-        self.stream.poll().map(|res| {
-            match res {
-                Async::Ready(Some(data)) => {
-                    self.len += data.len();
-                    self.items.push_back(data);
-                    Async::Ready(true)
-                },
-                Async::Ready(None) => Async::Ready(false),
-                Async::NotReady => Async::NotReady,
+        self.stream.poll().map(|res| match res {
+            Async::Ready(Some(data)) => {
+                self.len += data.len();
+                self.items.push_back(data);
+                Async::Ready(true)
             }
+            Async::Ready(None) => Async::Ready(false),
+            Async::NotReady => Async::NotReady,
         })
     }
 
@@ -373,11 +378,9 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                 let buf = chunk.split_to(size);
                 self.items.push_front(chunk);
                 Ok(Async::Ready(Some(buf)))
-            }
-            else if size == chunk.len() {
+            } else if size == chunk.len() {
                 Ok(Async::Ready(Some(chunk)))
-            }
-            else {
+            } else {
                 let mut buf = BytesMut::with_capacity(size);
                 buf.extend_from_slice(&chunk);
 
@@ -408,7 +411,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
             let mut len = 0;
             while len < size {
                 let mut chunk = self.items.pop_front().unwrap();
-                let rem = cmp::min(size-len, chunk.len());
+                let rem = cmp::min(size - len, chunk.len());
                 len += rem;
                 if rem < chunk.len() {
                     chunk.split_to(rem);
@@ -427,7 +430,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                     buf.extend_from_slice(&chunk[..rem]);
                 }
                 if buf.len() == size {
-                    return Ok(Async::Ready(Some(buf)))
+                    return Ok(Async::Ready(Some(buf)));
                 }
             }
         }
@@ -454,8 +457,8 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                         idx += 1;
                         if idx == line.len() {
                             num = no;
-                            offset = pos+1;
-                            length += pos+1;
+                            offset = pos + 1;
+                            length += pos + 1;
                             found = true;
                             break;
                         }
@@ -483,7 +486,7 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
                     }
                 }
                 self.len -= length;
-                return Ok(Async::Ready(Some(buf.freeze())))
+                return Ok(Async::Ready(Some(buf.freeze())));
             }
         }
 
@@ -505,171 +508,217 @@ impl<S> PayloadHelper<S> where S: Stream<Item=Bytes, Error=PayloadError> {
 
     #[allow(dead_code)]
     pub fn remaining(&mut self) -> Bytes {
-        self.items.iter_mut()
+        self.items
+            .iter_mut()
             .fold(BytesMut::new(), |mut b, c| {
                 b.extend_from_slice(c);
                 b
-            }).freeze()
+            })
+            .freeze()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io;
     use failure::Fail;
     use futures::future::{lazy, result};
+    use std::io;
     use tokio_core::reactor::Core;
 
     #[test]
     fn test_error() {
-        let err: PayloadError = io::Error::new(io::ErrorKind::Other, "ParseError").into();
+        let err: PayloadError =
+            io::Error::new(io::ErrorKind::Other, "ParseError").into();
         assert_eq!(format!("{}", err), "ParseError");
         assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
 
         let err = PayloadError::Incomplete;
-        assert_eq!(format!("{}", err), "A payload reached EOF, but is not complete.");
+        assert_eq!(
+            format!("{}", err),
+            "A payload reached EOF, but is not complete."
+        );
     }
 
     #[test]
     fn test_basic() {
-        Core::new().unwrap().run(lazy(|| {
-            let (_, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (_, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(payload.len, 0);
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+                assert_eq!(payload.len, 0);
+                assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_eof() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (mut sender, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
-            sender.feed_data(Bytes::from("data"));
-            sender.feed_eof();
+                assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+                sender.feed_data(Bytes::from("data"));
+                sender.feed_eof();
 
-            assert_eq!(Async::Ready(Some(Bytes::from("data"))),
-                       payload.readany().ok().unwrap());
-            assert_eq!(payload.len, 0);
-            assert_eq!(Async::Ready(None), payload.readany().ok().unwrap());
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("data"))),
+                    payload.readany().ok().unwrap()
+                );
+                assert_eq!(payload.len, 0);
+                assert_eq!(Async::Ready(None), payload.readany().ok().unwrap());
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_err() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (mut sender, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
+                assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
-            sender.set_error(PayloadError::Incomplete);
-            payload.readany().err().unwrap();
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                sender.set_error(PayloadError::Incomplete);
+                payload.readany().err().unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_readany() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (mut sender, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
+                sender.feed_data(Bytes::from("line1"));
+                sender.feed_data(Bytes::from("line2"));
 
-            assert_eq!(Async::Ready(Some(Bytes::from("line1"))),
-                       payload.readany().ok().unwrap());
-            assert_eq!(payload.len, 0);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("line1"))),
+                    payload.readany().ok().unwrap()
+                );
+                assert_eq!(payload.len, 0);
 
-            assert_eq!(Async::Ready(Some(Bytes::from("line2"))),
-                       payload.readany().ok().unwrap());
-            assert_eq!(payload.len, 0);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("line2"))),
+                    payload.readany().ok().unwrap()
+                );
+                assert_eq!(payload.len, 0);
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_readexactly() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (mut sender, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.read_exact(2).ok().unwrap());
+                assert_eq!(Async::NotReady, payload.read_exact(2).ok().unwrap());
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
+                sender.feed_data(Bytes::from("line1"));
+                sender.feed_data(Bytes::from("line2"));
 
-            assert_eq!(Async::Ready(Some(Bytes::from_static(b"li"))),
-                       payload.read_exact(2).ok().unwrap());
-            assert_eq!(payload.len, 3);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from_static(b"li"))),
+                    payload.read_exact(2).ok().unwrap()
+                );
+                assert_eq!(payload.len, 3);
 
-            assert_eq!(Async::Ready(Some(Bytes::from_static(b"ne1l"))),
-                       payload.read_exact(4).ok().unwrap());
-            assert_eq!(payload.len, 4);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from_static(b"ne1l"))),
+                    payload.read_exact(4).ok().unwrap()
+                );
+                assert_eq!(payload.len, 4);
 
-            sender.set_error(PayloadError::Incomplete);
-            payload.read_exact(10).err().unwrap();
+                sender.set_error(PayloadError::Incomplete);
+                payload.read_exact(10).err().unwrap();
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_readuntil() {
-        Core::new().unwrap().run(lazy(|| {
-            let (mut sender, payload) = Payload::new(false);
-            let mut payload = PayloadHelper::new(payload);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (mut sender, payload) = Payload::new(false);
+                let mut payload = PayloadHelper::new(payload);
 
-            assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
+                assert_eq!(
+                    Async::NotReady,
+                    payload.read_until(b"ne").ok().unwrap()
+                );
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
+                sender.feed_data(Bytes::from("line1"));
+                sender.feed_data(Bytes::from("line2"));
 
-            assert_eq!(Async::Ready(Some(Bytes::from("line"))),
-                       payload.read_until(b"ne").ok().unwrap());
-            assert_eq!(payload.len, 1);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("line"))),
+                    payload.read_until(b"ne").ok().unwrap()
+                );
+                assert_eq!(payload.len, 1);
 
-            assert_eq!(Async::Ready(Some(Bytes::from("1line2"))),
-                       payload.read_until(b"2").ok().unwrap());
-            assert_eq!(payload.len, 0);
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("1line2"))),
+                    payload.read_until(b"2").ok().unwrap()
+                );
+                assert_eq!(payload.len, 0);
 
-            sender.set_error(PayloadError::Incomplete);
-            payload.read_until(b"b").err().unwrap();
+                sender.set_error(PayloadError::Incomplete);
+                payload.read_until(b"b").err().unwrap();
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 
     #[test]
     fn test_unread_data() {
-        Core::new().unwrap().run(lazy(|| {
-            let (_, mut payload) = Payload::new(false);
+        Core::new()
+            .unwrap()
+            .run(lazy(|| {
+                let (_, mut payload) = Payload::new(false);
 
-            payload.unread_data(Bytes::from("data"));
-            assert!(!payload.is_empty());
-            assert_eq!(payload.len(), 4);
+                payload.unread_data(Bytes::from("data"));
+                assert!(!payload.is_empty());
+                assert_eq!(payload.len(), 4);
 
-            assert_eq!(Async::Ready(Some(Bytes::from("data"))),
-                       payload.poll().ok().unwrap());
+                assert_eq!(
+                    Async::Ready(Some(Bytes::from("data"))),
+                    payload.poll().ok().unwrap()
+                );
 
-            let res: Result<(), ()> = Ok(());
-            result(res)
-        })).unwrap();
+                let res: Result<(), ()> = Ok(());
+                result(res)
+            }))
+            .unwrap();
     }
 }

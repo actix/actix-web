@@ -1,30 +1,30 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use std::{self, io};
-use std::rc::Rc;
-use std::net::SocketAddr;
-use std::time::Duration;
 use std::collections::VecDeque;
+use std::net::SocketAddr;
+use std::rc::Rc;
+use std::time::Duration;
+use std::{self, io};
 
 use actix::Arbiter;
-use httparse;
-use http::{Uri, Method, Version, HttpTryFrom, HeaderMap};
-use http::header::{self, HeaderName, HeaderValue};
 use bytes::{Bytes, BytesMut};
-use futures::{Future, Poll, Async};
+use futures::{Async, Future, Poll};
+use http::header::{self, HeaderName, HeaderValue};
+use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
+use httparse;
 use tokio_core::reactor::Timeout;
 
-use pipeline::Pipeline;
+use error::{ParseError, PayloadError, ResponseError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use error::{ParseError, PayloadError, ResponseError};
-use payload::{Payload, PayloadWriter, PayloadStatus};
+use payload::{Payload, PayloadStatus, PayloadWriter};
+use pipeline::Pipeline;
 
-use super::{utils, Writer};
-use super::h1writer::H1Writer;
 use super::encoding::PayloadType;
+use super::h1writer::H1Writer;
 use super::settings::WorkerSettings;
 use super::{HttpHandler, HttpHandlerTask, IoStream};
+use super::{utils, Writer};
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
@@ -64,21 +64,24 @@ struct Entry {
 }
 
 impl<T, H> Http1<T, H>
-    where T: IoStream, H: HttpHandler + 'static
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
 {
-    pub fn new(settings: Rc<WorkerSettings<H>>,
-               stream: T,
-               addr: Option<SocketAddr>, read_buf: BytesMut) -> Self
-    {
+    pub fn new(
+        settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
+        read_buf: BytesMut,
+    ) -> Self {
         let bytes = settings.get_shared_bytes();
-        Http1{ flags: Flags::KEEPALIVE,
-               stream: H1Writer::new(stream, bytes, Rc::clone(&settings)),
-               reader: Reader::new(),
-               tasks: VecDeque::new(),
-               keepalive_timer: None,
-               addr,
-               read_buf,
-               settings,
+        Http1 {
+            flags: Flags::KEEPALIVE,
+            stream: H1Writer::new(stream, bytes, Rc::clone(&settings)),
+            reader: Reader::new(),
+            tasks: VecDeque::new(),
+            keepalive_timer: None,
+            addr,
+            read_buf,
+            settings,
         }
     }
 
@@ -110,7 +113,7 @@ impl<T, H> Http1<T, H>
                 Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
-                    return Err(())
+                    return Err(());
                 }
             }
         }
@@ -120,8 +123,8 @@ impl<T, H> Http1<T, H>
                 Async::Ready(true) => (),
                 Async::Ready(false) => {
                     self.flags.insert(Flags::SHUTDOWN);
-                    return self.poll()
-                },
+                    return self.poll();
+                }
                 Async::NotReady => return Ok(Async::NotReady),
             }
         }
@@ -130,12 +133,15 @@ impl<T, H> Http1<T, H>
     // TODO: refactor
     pub fn poll_io(&mut self) -> Poll<bool, ()> {
         // read incoming data
-        let need_read = if !self.flags.intersects(Flags::ERROR) &&
-            self.tasks.len() < MAX_PIPELINED_MESSAGES
+        let need_read = if !self.flags.intersects(Flags::ERROR)
+            && self.tasks.len() < MAX_PIPELINED_MESSAGES
         {
             'outer: loop {
-                match self.reader.parse(self.stream.get_mut(),
-                                        &mut self.read_buf, &self.settings) {
+                match self.reader.parse(
+                    self.stream.get_mut(),
+                    &mut self.read_buf,
+                    &self.settings,
+                ) {
                     Ok(Async::Ready(mut req)) => {
                         self.flags.insert(Flags::STARTED);
 
@@ -149,19 +155,22 @@ impl<T, H> Http1<T, H>
                         for h in self.settings.handlers().iter_mut() {
                             req = match h.handle(req) {
                                 Ok(pipe) => {
-                                    self.tasks.push_back(
-                                        Entry {pipe, flags: EntryFlags::empty()});
-                                    continue 'outer
-                                },
+                                    self.tasks.push_back(Entry {
+                                        pipe,
+                                        flags: EntryFlags::empty(),
+                                    });
+                                    continue 'outer;
+                                }
                                 Err(req) => req,
                             }
                         }
 
-                        self.tasks.push_back(
-                            Entry {pipe: Pipeline::error(HttpResponse::NotFound()),
-                                   flags: EntryFlags::empty()});
-                        continue
-                    },
+                        self.tasks.push_back(Entry {
+                            pipe: Pipeline::error(HttpResponse::NotFound()),
+                            flags: EntryFlags::empty(),
+                        });
+                        continue;
+                    }
                     Ok(Async::NotReady) => (),
                     Err(err) => {
                         trace!("Parse error: {:?}", err);
@@ -176,23 +185,24 @@ impl<T, H> Http1<T, H>
                         self.flags.remove(Flags::KEEPALIVE);
                         self.keepalive_timer.take();
 
-                        // on parse error, stop reading stream but tasks need to be completed
+                        // on parse error, stop reading stream but tasks need to be
+                        // completed
                         self.flags.insert(Flags::ERROR);
 
                         match err {
                             ReaderError::Disconnect => (),
-                            _ =>
-                                if self.tasks.is_empty() {
-                                    if let ReaderError::Error(err) = err {
-                                        self.tasks.push_back(
-                                            Entry {pipe: Pipeline::error(err.error_response()),
-                                                   flags: EntryFlags::empty()});
-                                    }
+                            _ => if self.tasks.is_empty() {
+                                if let ReaderError::Error(err) = err {
+                                    self.tasks.push_back(Entry {
+                                        pipe: Pipeline::error(err.error_response()),
+                                        flags: EntryFlags::empty(),
+                                    });
                                 }
+                            },
                         }
-                    },
+                    }
                 }
-                break
+                break;
             }
             false
         } else {
@@ -211,9 +221,9 @@ impl<T, H> Http1<T, H>
                 // io is corrupted, send buffer
                 if item.flags.contains(EntryFlags::ERROR) {
                     if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                        return Ok(Async::NotReady)
+                        return Ok(Async::NotReady);
                     }
-                    return Err(())
+                    return Err(());
                 }
 
                 match item.pipe.poll_io(&mut self.stream) {
@@ -228,11 +238,12 @@ impl<T, H> Http1<T, H>
                         self.stream.reset();
 
                         if ready {
-                            item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                            item.flags
+                                .insert(EntryFlags::EOF | EntryFlags::FINISHED);
                         } else {
                             item.flags.insert(EntryFlags::FINISHED);
                         }
-                    },
+                    }
                     // no more IO for this iteration
                     Ok(Async::NotReady) => {
                         if self.reader.need_read() == PayloadStatus::Read && !retry {
@@ -248,9 +259,9 @@ impl<T, H> Http1<T, H>
 
                         // check stream state, we still can have valid data in buffer
                         if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                            return Ok(Async::NotReady)
+                            return Ok(Async::NotReady);
                         }
-                        return Err(())
+                        return Err(());
                     }
                 }
             } else if !item.flags.contains(EntryFlags::FINISHED) {
@@ -269,15 +280,18 @@ impl<T, H> Http1<T, H>
         // cleanup finished tasks
         let mut popped = false;
         while !self.tasks.is_empty() {
-            if self.tasks[0].flags.contains(EntryFlags::EOF | EntryFlags::FINISHED) {
+            if self.tasks[0]
+                .flags
+                .contains(EntryFlags::EOF | EntryFlags::FINISHED)
+            {
                 popped = true;
                 self.tasks.pop_front();
             } else {
-                break
+                break;
             }
         }
         if need_read && popped {
-            return self.poll_io()
+            return self.poll_io();
         }
 
         // check stream state
@@ -286,7 +300,7 @@ impl<T, H> Http1<T, H>
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
-                    return Err(())
+                    return Err(());
                 }
                 _ => (),
             }
@@ -295,20 +309,21 @@ impl<T, H> Http1<T, H>
         // deal with keep-alive
         if self.tasks.is_empty() {
             // no keep-alive situations
-            if self.flags.contains(Flags::ERROR) ||
-                (!self.flags.contains(Flags::KEEPALIVE)
-                 || !self.settings.keep_alive_enabled()) &&
-                self.flags.contains(Flags::STARTED)
+            if self.flags.contains(Flags::ERROR)
+                || (!self.flags.contains(Flags::KEEPALIVE)
+                    || !self.settings.keep_alive_enabled())
+                    && self.flags.contains(Flags::STARTED)
             {
-                return Ok(Async::Ready(false))
+                return Ok(Async::Ready(false));
             }
 
             // start keep-alive timer
             let keep_alive = self.settings.keep_alive();
             if self.keepalive_timer.is_none() && keep_alive > 0 {
                 trace!("Start keep-alive timer");
-                let mut timer = Timeout::new(
-                    Duration::new(keep_alive, 0), Arbiter::handle()).unwrap();
+                let mut timer =
+                    Timeout::new(Duration::new(keep_alive, 0), Arbiter::handle())
+                        .unwrap();
                 // register timer
                 let _ = timer.poll();
                 self.keepalive_timer = Some(timer);
@@ -342,9 +357,7 @@ enum ReaderError {
 
 impl Reader {
     pub fn new() -> Reader {
-        Reader {
-            payload: None,
-        }
+        Reader { payload: None }
     }
 
     #[inline]
@@ -357,36 +370,37 @@ impl Reader {
     }
 
     #[inline]
-    fn decode(&mut self, buf: &mut BytesMut, payload: &mut PayloadInfo)
-              -> Result<Decoding, ReaderError>
-    {
+    fn decode(
+        &mut self, buf: &mut BytesMut, payload: &mut PayloadInfo
+    ) -> Result<Decoding, ReaderError> {
         while !buf.is_empty() {
             match payload.decoder.decode(buf) {
                 Ok(Async::Ready(Some(bytes))) => {
                     payload.tx.feed_data(bytes);
                     if payload.decoder.is_eof() {
                         payload.tx.feed_eof();
-                        return Ok(Decoding::Ready)
+                        return Ok(Decoding::Ready);
                     }
-                },
+                }
                 Ok(Async::Ready(None)) => {
                     payload.tx.feed_eof();
-                    return Ok(Decoding::Ready)
-                },
+                    return Ok(Decoding::Ready);
+                }
                 Ok(Async::NotReady) => return Ok(Decoding::NotReady),
                 Err(err) => {
                     payload.tx.set_error(err.into());
-                    return Err(ReaderError::Payload)
+                    return Err(ReaderError::Payload);
                 }
             }
         }
         Ok(Decoding::NotReady)
     }
 
-    pub fn parse<T, H>(&mut self, io: &mut T,
-                       buf: &mut BytesMut,
-                       settings: &WorkerSettings<H>) -> Poll<HttpRequest, ReaderError>
-        where T: IoStream
+    pub fn parse<T, H>(
+        &mut self, io: &mut T, buf: &mut BytesMut, settings: &WorkerSettings<H>
+    ) -> Poll<HttpRequest, ReaderError>
+    where
+        T: IoStream,
     {
         match self.need_read() {
             PayloadStatus::Read => (),
@@ -403,14 +417,14 @@ impl Reader {
                             payload.tx.set_error(PayloadError::Incomplete);
 
                             // http channel should not deal with payload errors
-                            return Err(ReaderError::Payload)
-                        },
+                            return Err(ReaderError::Payload);
+                        }
                         Ok(Async::NotReady) => true,
                         Err(err) => {
                             payload.tx.set_error(err.into());
 
                             // http channel should not deal with payload errors
-                            return Err(ReaderError::Payload)
+                            return Err(ReaderError::Payload);
                         }
                         _ => false,
                     };
@@ -420,24 +434,24 @@ impl Reader {
                                 payload.tx.feed_data(bytes);
                                 if payload.decoder.is_eof() {
                                     payload.tx.feed_eof();
-                                    break 'buf true
+                                    break 'buf true;
                                 }
-                            },
+                            }
                             Ok(Async::Ready(None)) => {
                                 payload.tx.feed_eof();
-                                break 'buf true
-                            },
+                                break 'buf true;
+                            }
                             Ok(Async::NotReady) => {
                                 // if buffer is full then
                                 // socket still can contain more data
                                 if not_ready {
-                                    return Ok(Async::NotReady)
+                                    return Ok(Async::NotReady);
                                 }
-                                continue 'buf
-                            },
+                                continue 'buf;
+                            }
                             Err(err) => {
                                 payload.tx.set_error(err.into());
-                                return Err(ReaderError::Payload)
+                                return Err(ReaderError::Payload);
                             }
                         }
                     }
@@ -446,7 +460,9 @@ impl Reader {
                 false
             }
         };
-        if done { self.payload = None }
+        if done {
+            self.payload = None
+        }
 
         // if buf is empty parse_message will always return NotReady, let's avoid that
         if buf.is_empty() {
@@ -454,7 +470,7 @@ impl Reader {
                 Ok(Async::Ready(0)) => return Err(ReaderError::Disconnect),
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(err) => return Err(ReaderError::Error(err.into()))
+                Err(err) => return Err(ReaderError::Error(err.into())),
             }
         };
 
@@ -469,7 +485,7 @@ impl Reader {
                         }
                     }
                     return Ok(Async::Ready(msg));
-                },
+                }
                 Async::NotReady => {
                     if buf.len() >= MAX_BUFFER_SIZE {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -479,18 +495,19 @@ impl Reader {
                         Ok(Async::Ready(0)) => {
                             debug!("Ignored premature client disconnection");
                             return Err(ReaderError::Disconnect);
-                        },
+                        }
                         Ok(Async::Ready(_)) => (),
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Err(err) => return Err(ReaderError::Error(err.into())),
                     }
-                },
+                }
             }
         }
     }
 
-    fn parse_message<H>(buf: &mut BytesMut, settings: &WorkerSettings<H>)
-                        -> Poll<(HttpRequest, Option<PayloadInfo>), ParseError> {
+    fn parse_message<H>(
+        buf: &mut BytesMut, settings: &WorkerSettings<H>
+    ) -> Poll<(HttpRequest, Option<PayloadInfo>), ParseError> {
         // Parse http message
         let mut has_te = false;
         let mut has_upgrade = false;
@@ -498,15 +515,17 @@ impl Reader {
         let msg = {
             let bytes_ptr = buf.as_ref().as_ptr() as usize;
             let mut headers: [httparse::Header; MAX_HEADERS] =
-                unsafe{std::mem::uninitialized()};
+                unsafe { std::mem::uninitialized() };
 
             let (len, method, path, version, headers_len) = {
-                let b = unsafe{ let b: &[u8] = buf; std::mem::transmute(b) };
+                let b = unsafe {
+                    let b: &[u8] = buf;
+                    std::mem::transmute(b)
+                };
                 let mut req = httparse::Request::new(&mut headers);
                 match req.parse(b)? {
                     httparse::Status::Complete(len) => {
-                        let method = Method::from_bytes(
-                            req.method.unwrap().as_bytes())
+                        let method = Method::from_bytes(req.method.unwrap().as_bytes())
                             .map_err(|_| ParseError::Method)?;
                         let path = Uri::try_from(req.path.unwrap())?;
                         let version = if req.version.unwrap() == 1 {
@@ -535,10 +554,12 @@ impl Reader {
                         let v_end = v_start + header.value.len();
                         let value = unsafe {
                             HeaderValue::from_shared_unchecked(
-                                slice.slice(v_start, v_end)) };
+                                slice.slice(v_start, v_end),
+                            )
+                        };
                         msg_mut.headers.append(name, value);
                     } else {
-                        return Err(ParseError::Header)
+                        return Err(ParseError::Header);
                     }
                 }
 
@@ -555,17 +576,20 @@ impl Reader {
             Some(Decoder::chunked())
         } else if has_length {
             // Content-Length
-            let len = msg.get_ref().headers.get(header::CONTENT_LENGTH).unwrap();
+            let len = msg.get_ref()
+                .headers
+                .get(header::CONTENT_LENGTH)
+                .unwrap();
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
                     Some(Decoder::length(len))
                 } else {
                     debug!("illegal Content-Length: {:?}", len);
-                    return Err(ParseError::Header)
+                    return Err(ParseError::Header);
                 }
             } else {
                 debug!("illegal Content-Length: {:?}", len);
-                return Err(ParseError::Header)
+                return Err(ParseError::Header);
             }
         } else if has_upgrade || msg.get_ref().method == Method::CONNECT {
             // upgrade(websocket) or connect
@@ -581,7 +605,10 @@ impl Reader {
                 decoder,
             };
             msg.get_mut().payload = Some(payload);
-            Ok(Async::Ready((HttpRequest::from_message(msg), Some(info))))
+            Ok(Async::Ready((
+                HttpRequest::from_message(msg),
+                Some(info),
+            )))
         } else {
             Ok(Async::Ready((HttpRequest::from_message(msg), None)))
         }
@@ -612,21 +639,28 @@ pub struct Decoder {
 
 impl Decoder {
     pub fn length(x: u64) -> Decoder {
-        Decoder { kind: Kind::Length(x) }
+        Decoder {
+            kind: Kind::Length(x),
+        }
     }
 
     pub fn chunked() -> Decoder {
-        Decoder { kind: Kind::Chunked(ChunkedState::Size, 0) }
+        Decoder {
+            kind: Kind::Chunked(ChunkedState::Size, 0),
+        }
     }
 
     pub fn eof() -> Decoder {
-        Decoder { kind: Kind::Eof(false) }
+        Decoder {
+            kind: Kind::Eof(false),
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
-    /// A Reader used when a Content-Length header is passed with a positive integer.
+    /// A Reader used when a Content-Length header is passed with a positive
+    /// integer.
     Length(u64),
     /// A Reader used when Transfer-Encoding is `chunked`.
     Chunked(ChunkedState, u64),
@@ -664,7 +698,9 @@ enum ChunkedState {
 impl Decoder {
     pub fn is_eof(&self) -> bool {
         match self.kind {
-            Kind::Length(0) | Kind::Chunked(ChunkedState::End, _) | Kind::Eof(true) => true,
+            Kind::Length(0) | Kind::Chunked(ChunkedState::End, _) | Kind::Eof(true) => {
+                true
+            }
             _ => false,
         }
     }
@@ -676,7 +712,7 @@ impl Decoder {
                     Ok(Async::Ready(None))
                 } else {
                     if body.is_empty() {
-                        return Ok(Async::NotReady)
+                        return Ok(Async::NotReady);
                     }
                     let len = body.len() as u64;
                     let buf;
@@ -734,9 +770,9 @@ macro_rules! byte (
 );
 
 impl ChunkedState {
-    fn step(&self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>)
-            -> Poll<ChunkedState, io::Error>
-    {
+    fn step(
+        &self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>
+    ) -> Poll<ChunkedState, io::Error> {
         use self::ChunkedState::*;
         match *self {
             Size => ChunkedState::read_size(body, size),
@@ -770,8 +806,10 @@ impl ChunkedState {
             b';' => return Ok(Async::Ready(ChunkedState::Extension)),
             b'\r' => return Ok(Async::Ready(ChunkedState::SizeLf)),
             _ => {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "Invalid chunk size line: Invalid Size"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid chunk size line: Invalid Size",
+                ));
             }
         }
         Ok(Async::Ready(ChunkedState::Size))
@@ -783,10 +821,10 @@ impl ChunkedState {
             b'\t' | b' ' => Ok(Async::Ready(ChunkedState::SizeLws)),
             b';' => Ok(Async::Ready(ChunkedState::Extension)),
             b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
-            _ => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   "Invalid chunk size linear white space"))
-            }
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk size linear white space",
+            )),
         }
     }
     fn read_extension(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
@@ -795,17 +833,22 @@ impl ChunkedState {
             _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
         }
     }
-    fn read_size_lf(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
+    fn read_size_lf(
+        rdr: &mut BytesMut, size: &mut u64
+    ) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
             b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk size LF",
+            )),
         }
     }
 
-    fn read_body(rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>)
-                 -> Poll<ChunkedState, io::Error>
-    {
+    fn read_body(
+        rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>
+    ) -> Poll<ChunkedState, io::Error> {
         trace!("Chunked read, remaining={:?}", rem);
 
         let len = rdr.len() as u64;
@@ -832,41 +875,53 @@ impl ChunkedState {
     fn read_body_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::BodyLf)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk body CR",
+            )),
         }
     }
     fn read_body_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' => Ok(Async::Ready(ChunkedState::Size)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk body LF",
+            )),
         }
     }
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::EndLf)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk end CR",
+            )),
         }
     }
     fn read_end_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' => Ok(Async::Ready(ChunkedState::End)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid chunk end LF",
+            )),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{io, cmp, time};
-    use std::net::Shutdown;
-    use bytes::{Bytes, BytesMut, Buf};
+    use bytes::{Buf, Bytes, BytesMut};
     use futures::{Async, Stream};
+    use http::{Method, Version};
+    use std::net::Shutdown;
+    use std::{cmp, io, time};
     use tokio_io::{AsyncRead, AsyncWrite};
-    use http::{Version, Method};
 
     use super::*;
-    use httpmessage::HttpMessage;
     use application::HttpApplication;
+    use httpmessage::HttpMessage;
     use server::settings::WorkerSettings;
     use server::{IoStream, KeepAlive};
 
@@ -919,70 +974,77 @@ mod tests {
         }
     }
     impl io::Write for Buffer {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {Ok(buf.len())}
-        fn flush(&mut self) -> io::Result<()> {Ok(())}
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
     }
     impl AsyncWrite for Buffer {
-        fn shutdown(&mut self) -> Poll<(), io::Error> { Ok(Async::Ready(())) }
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            Ok(Async::Ready(()))
+        }
         fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
             Ok(Async::NotReady)
         }
     }
 
     macro_rules! not_ready {
-        ($e:expr) => (match $e {
-            Ok(Async::NotReady) => (),
-            Err(err) => unreachable!("Unexpected error: {:?}", err),
-            _ => unreachable!("Should not be ready"),
-        })
+        ($e:expr) => {
+            match $e {
+                Ok(Async::NotReady) => (),
+                Err(err) => unreachable!("Unexpected error: {:?}", err),
+                _ => unreachable!("Should not be ready"),
+            }
+        };
     }
 
     macro_rules! parse_ready {
-        ($e:expr) => ({
-            let settings = WorkerSettings::<HttpApplication>::new(
-                Vec::new(), KeepAlive::Os);
+        ($e:expr) => {{
+            let settings: WorkerSettings<HttpApplication> =
+                WorkerSettings::new(Vec::new(), KeepAlive::Os);
             match Reader::new().parse($e, &mut BytesMut::new(), &settings) {
                 Ok(Async::Ready(req)) => req,
                 Ok(_) => unreachable!("Eof during parsing http request"),
                 Err(err) => unreachable!("Error during parsing http request: {:?}", err),
             }
-        })
+        }};
     }
 
     macro_rules! reader_parse_ready {
-        ($e:expr) => (
+        ($e:expr) => {
             match $e {
                 Ok(Async::Ready(req)) => req,
                 Ok(_) => unreachable!("Eof during parsing http request"),
-                Err(err) => unreachable!("Error during parsing http request: {:?}", err),
+                Err(err) => {
+                    unreachable!("Error during parsing http request: {:?}", err)
+                }
             }
-        )
+        };
     }
 
     macro_rules! expect_parse_err {
-        ($e:expr) => ({
+        ($e:expr) => {{
             let mut buf = BytesMut::new();
-            let settings = WorkerSettings::<HttpApplication>::new(
-                Vec::new(), KeepAlive::Os);
+            let settings: WorkerSettings<HttpApplication> =
+                WorkerSettings::new(Vec::new(), KeepAlive::Os);
 
             match Reader::new().parse($e, &mut buf, &settings) {
                 Err(err) => match err {
                     ReaderError::Error(_) => (),
                     _ => unreachable!("Parse error expected"),
                 },
-                _ => {
-                    unreachable!("Error expected")
-                }
-            }}
-        )
+                _ => unreachable!("Error expected"),
+            }
+        }};
     }
 
     #[test]
     fn test_parse() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -999,8 +1061,7 @@ mod tests {
     fn test_parse_partial() {
         let mut buf = Buffer::new("PUT /test HTTP/1");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1023,8 +1084,7 @@ mod tests {
     fn test_parse_post() {
         let mut buf = Buffer::new("POST /test2 HTTP/1.0\r\n\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1041,8 +1101,7 @@ mod tests {
     fn test_parse_body() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1058,11 +1117,10 @@ mod tests {
 
     #[test]
     fn test_parse_body_crlf() {
-        let mut buf = Buffer::new(
-            "\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf =
+            Buffer::new("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
@@ -1080,8 +1138,7 @@ mod tests {
     fn test_parse_partial_eof() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
@@ -1101,8 +1158,7 @@ mod tests {
     fn test_headers_split_field() {
         let mut buf = Buffer::new("GET /test HTTP/1.1\r\n");
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         not_ready!{ reader.parse(&mut buf, &mut readbuf, &settings) }
@@ -1119,7 +1175,10 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
+                assert_eq!(
+                    req.headers().get("test").unwrap().as_bytes(),
+                    b"value"
+                );
             }
             Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
@@ -1130,16 +1189,19 @@ mod tests {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
              Set-Cookie: c1=cookie1\r\n\
-             Set-Cookie: c2=cookie2\r\n\r\n");
+             Set-Cookie: c2=cookie2\r\n\r\n",
+        );
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
         match reader.parse(&mut buf, &mut readbuf, &settings) {
             Ok(Async::Ready(req)) => {
-                let val: Vec<_> = req.headers().get_all("Set-Cookie")
-                    .iter().map(|v| v.to_str().unwrap().to_owned()).collect();
+                let val: Vec<_> = req.headers()
+                    .get_all("Set-Cookie")
+                    .iter()
+                    .map(|v| v.to_str().unwrap().to_owned())
+                    .collect();
                 assert_eq!(val[0], "c1=cookie1");
                 assert_eq!(val[1], "c2=cookie2");
             }
@@ -1167,7 +1229,8 @@ mod tests {
     fn test_conn_close() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             connection: close\r\n\r\n");
+             connection: close\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
@@ -1177,7 +1240,8 @@ mod tests {
     fn test_conn_close_1_0() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.0\r\n\
-             connection: close\r\n\r\n");
+             connection: close\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
@@ -1187,7 +1251,8 @@ mod tests {
     fn test_conn_keep_alive_1_0() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.0\r\n\
-             connection: keep-alive\r\n\r\n");
+             connection: keep-alive\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(req.keep_alive());
@@ -1197,7 +1262,8 @@ mod tests {
     fn test_conn_keep_alive_1_1() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             connection: keep-alive\r\n\r\n");
+             connection: keep-alive\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(req.keep_alive());
@@ -1207,7 +1273,8 @@ mod tests {
     fn test_conn_other_1_0() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.0\r\n\
-             connection: other\r\n\r\n");
+             connection: other\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
@@ -1217,7 +1284,8 @@ mod tests {
     fn test_conn_other_1_1() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             connection: other\r\n\r\n");
+             connection: other\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(req.keep_alive());
@@ -1228,7 +1296,8 @@ mod tests {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
              upgrade: websockets\r\n\
-             connection: upgrade\r\n\r\n");
+             connection: upgrade\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(!req.payload().eof());
@@ -1239,7 +1308,8 @@ mod tests {
     fn test_conn_upgrade_connect_method() {
         let mut buf = Buffer::new(
             "CONNECT /test HTTP/1.1\r\n\
-             content-type: text/plain\r\n\r\n");
+             content-type: text/plain\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
@@ -1250,7 +1320,8 @@ mod tests {
     fn test_request_chunked() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         if let Ok(val) = req.chunked() {
@@ -1262,7 +1333,8 @@ mod tests {
         // type in chunked
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chnked\r\n\r\n");
+             transfer-encoding: chnked\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
         if let Ok(val) = req.chunked() {
@@ -1276,7 +1348,8 @@ mod tests {
     fn test_headers_content_length_err_1() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             content-length: line\r\n\r\n");
+             content-length: line\r\n\r\n",
+        );
 
         expect_parse_err!(&mut buf)
     }
@@ -1285,7 +1358,8 @@ mod tests {
     fn test_headers_content_length_err_2() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             content-length: -1\r\n\r\n");
+             content-length: -1\r\n\r\n",
+        );
 
         expect_parse_err!(&mut buf);
     }
@@ -1294,7 +1368,8 @@ mod tests {
     fn test_invalid_header() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             test line\r\n\r\n");
+             test line\r\n\r\n",
+        );
 
         expect_parse_err!(&mut buf);
     }
@@ -1303,7 +1378,8 @@ mod tests {
     fn test_invalid_name() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             test[]: line\r\n\r\n");
+             test[]: line\r\n\r\n",
+        );
 
         expect_parse_err!(&mut buf);
     }
@@ -1320,28 +1396,34 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              connection: upgrade\r\n\
              upgrade: websocket\r\n\r\n\
-             some raw data");
+             some raw data",
+        );
         let mut req = parse_ready!(&mut buf);
         assert!(!req.keep_alive());
         assert!(req.upgrade());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"some raw data");
+        assert_eq!(
+            req.payload_mut().readall().unwrap().as_ref(),
+            b"some raw data"
+        );
     }
 
     #[test]
     fn test_http_request_parser_utf8() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             x-test: тест\r\n\r\n");
+             x-test: тест\r\n\r\n",
+        );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.headers().get("x-test").unwrap().as_bytes(),
-                   "тест".as_bytes());
+        assert_eq!(
+            req.headers().get("x-test").unwrap().as_bytes(),
+            "тест".as_bytes()
+        );
     }
 
     #[test]
     fn test_http_request_parser_two_slashes() {
-        let mut buf = Buffer::new(
-            "GET //path HTTP/1.1\r\n\r\n");
+        let mut buf = Buffer::new("GET //path HTTP/1.1\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
         assert_eq!(req.path(), "//path");
@@ -1349,8 +1431,7 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_bad_method() {
-        let mut buf = Buffer::new(
-            "!12%()+=~$ /get HTTP/1.1\r\n\r\n");
+        let mut buf = Buffer::new("!12%()+=~$ /get HTTP/1.1\r\n\r\n");
 
         expect_parse_err!(&mut buf);
     }
@@ -1366,13 +1447,14 @@ mod tests {
     fn test_http_request_chunked_payload() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+        let mut req =
+            reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
@@ -1380,7 +1462,10 @@ mod tests {
         let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
+        assert_eq!(
+            req.payload_mut().readall().unwrap().as_ref(),
+            b"dataline"
+        );
         assert!(req.payload().eof());
     }
 
@@ -1388,21 +1473,23 @@ mod tests {
     fn test_http_request_chunked_payload_and_next_message() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
 
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+        let mut req =
+            reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
         buf.feed_data(
             "4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
              POST /test2 HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let _ = req.payload_mut().poll();
 
         let req2 = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
@@ -1410,7 +1497,10 @@ mod tests {
         assert!(req2.chunked().unwrap());
         assert!(!req2.payload().eof());
 
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
+        assert_eq!(
+            req.payload_mut().readall().unwrap().as_ref(),
+            b"dataline"
+        );
         assert!(req.payload().eof());
     }
 
@@ -1418,13 +1508,14 @@ mod tests {
     fn test_http_request_chunked_payload_chunks() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+        let mut req =
+            reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         req.payload_mut().set_read_buffer_capacity(0);
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
@@ -1457,7 +1548,10 @@ mod tests {
         let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
 
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
+        assert_eq!(
+            req.payload_mut().readall().unwrap().as_ref(),
+            b"dataline"
+        );
         assert!(!req.payload().eof());
 
         buf.feed_data("\r\n");
@@ -1470,13 +1564,14 @@ mod tests {
     fn test_parse_chunked_payload_chunk_extension() {
         let mut buf = Buffer::new(
             "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n");
+             transfer-encoding: chunked\r\n\r\n",
+        );
         let mut readbuf = BytesMut::new();
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
 
         let mut reader = Reader::new();
-        let mut req = reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
+        let mut req =
+            reader_parse_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(req.chunked().unwrap());
         assert!(!req.payload().eof());
 
@@ -1484,7 +1579,10 @@ mod tests {
         let _ = req.payload_mut().poll();
         not_ready!(reader.parse(&mut buf, &mut readbuf, &settings));
         assert!(!req.payload().eof());
-        assert_eq!(req.payload_mut().readall().unwrap().as_ref(), b"dataline");
+        assert_eq!(
+            req.payload_mut().readall().unwrap().as_ref(),
+            b"dataline"
+        );
         assert!(req.payload().eof());
     }
 

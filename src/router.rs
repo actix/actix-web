@@ -1,15 +1,15 @@
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::mem;
 use std::rc::Rc;
-use std::hash::{Hash, Hasher};
-use std::collections::HashMap;
 
-use regex::{Regex, escape};
 use percent_encoding::percent_decode;
+use regex::{escape, Regex};
 
-use param::Params;
 use error::UrlGenerationError;
-use resource::ResourceHandler;
 use httprequest::HttpRequest;
+use param::Params;
+use resource::ResourceHandler;
 use server::ServerSettings;
 
 /// Interface for application router.
@@ -25,11 +25,10 @@ struct Inner {
 
 impl Router {
     /// Create new router
-    pub fn new<S>(prefix: &str,
-                  settings: ServerSettings,
-                  map: Vec<(Resource, Option<ResourceHandler<S>>)>)
-                  -> (Router, Vec<ResourceHandler<S>>)
-    {
+    pub fn new<S>(
+        prefix: &str, settings: ServerSettings,
+        map: Vec<(Resource, Option<ResourceHandler<S>>)>,
+    ) -> (Router, Vec<ResourceHandler<S>>) {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
         let mut patterns = Vec::new();
@@ -48,8 +47,16 @@ impl Router {
         }
 
         let prefix_len = prefix.len();
-        (Router(Rc::new(
-            Inner{ prefix, prefix_len, named, patterns, srv: settings })), resources)
+        (
+            Router(Rc::new(Inner {
+                prefix,
+                prefix_len,
+                named,
+                patterns,
+                srv: settings,
+            })),
+            resources,
+        )
     }
 
     /// Router prefix
@@ -71,16 +78,18 @@ impl Router {
     /// Query for matched resource
     pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
         if self.0.prefix_len > req.path().len() {
-            return None
+            return None;
         }
-        let path: &str = unsafe{mem::transmute(&req.path()[self.0.prefix_len..])};
+        let path: &str = unsafe { mem::transmute(&req.path()[self.0.prefix_len..]) };
         let route_path = if path.is_empty() { "/" } else { path };
-        let p = percent_decode(route_path.as_bytes()).decode_utf8().unwrap();
+        let p = percent_decode(route_path.as_bytes())
+            .decode_utf8()
+            .unwrap();
 
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
             if pattern.match_with_params(p.as_ref(), req.match_info_mut()) {
                 req.set_resource(idx);
-                return Some(idx)
+                return Some(idx);
             }
         }
         None
@@ -97,7 +106,7 @@ impl Router {
 
         for pattern in &self.0.patterns {
             if pattern.is_match(path) {
-                return true
+                return true;
             }
         }
         false
@@ -105,12 +114,14 @@ impl Router {
 
     /// Build named resource path.
     ///
-    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.url_for)
-    /// for detailed information.
-    pub fn resource_path<U, I>(&self, name: &str, elements: U)
-                               -> Result<String, UrlGenerationError>
-        where U: IntoIterator<Item=I>,
-              I: AsRef<str>,
+    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
+    /// url_for) for detailed information.
+    pub fn resource_path<U, I>(
+        &self, name: &str, elements: U
+    ) -> Result<String, UrlGenerationError>
+    where
+        U: IntoIterator<Item = I>,
+        I: AsRef<str>,
     {
         if let Some(pattern) = self.0.named.get(name) {
             pattern.0.resource_path(self, elements)
@@ -196,7 +207,7 @@ impl Resource {
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
                 Ok(re) => re,
-                Err(err) => panic!("Wrong path pattern: \"{}\" {}", path, err)
+                Err(err) => panic!("Wrong path pattern: \"{}\" {}", path, err),
             };
             let names = re.capture_names()
                 .filter_map(|name| name.map(|name| name.to_owned()))
@@ -237,9 +248,9 @@ impl Resource {
         }
     }
 
-    pub fn match_with_params<'a>(&'a self, path: &'a str, params: &'a mut Params<'a>)
-                                 -> bool
-    {
+    pub fn match_with_params<'a>(
+        &'a self, path: &'a str, params: &'a mut Params<'a>
+    ) -> bool {
         match self.tp {
             PatternType::Static(ref s) => s == path,
             PatternType::Dynamic(ref re, ref names) => {
@@ -248,7 +259,7 @@ impl Resource {
                     for capture in captures.iter() {
                         if let Some(ref m) = capture {
                             if idx != 0 {
-                                params.add(names[idx-1].as_str(), m.as_str());
+                                params.add(names[idx - 1].as_str(), m.as_str());
                             }
                             idx += 1;
                         }
@@ -262,10 +273,12 @@ impl Resource {
     }
 
     /// Build reousrce path.
-    pub fn resource_path<U, I>(&self, router: &Router, elements: U)
-                               -> Result<String, UrlGenerationError>
-        where U: IntoIterator<Item=I>,
-              I: AsRef<str>,
+    pub fn resource_path<U, I>(
+        &self, router: &Router, elements: U
+    ) -> Result<String, UrlGenerationError>
+    where
+        U: IntoIterator<Item = I>,
+        I: AsRef<str>,
     {
         let mut iter = elements.into_iter();
         let mut path = if self.rtp != ResourceType::External {
@@ -280,7 +293,7 @@ impl Resource {
                     if let Some(val) = iter.next() {
                         path.push_str(val.as_ref())
                     } else {
-                        return Err(UrlGenerationError::NotEnoughElements)
+                        return Err(UrlGenerationError::NotEnoughElements);
                     }
                 }
             }
@@ -374,20 +387,35 @@ mod tests {
     #[test]
     fn test_recognizer() {
         let routes = vec![
-            (Resource::new("", "/name"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "/name/{val}"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "/name/{val}/index.html"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "/file/{file}.{ext}"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "/v{val}/{val2}/index.html"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "/v/{tail:.*}"),
-             Some(ResourceHandler::default())),
-            (Resource::new("", "{test}/index.html"),
-             Some(ResourceHandler::default()))];
+            (
+                Resource::new("", "/name"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/name/{val}"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/name/{val}/index.html"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/file/{file}.{ext}"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/v{val}/{val2}/index.html"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/v/{tail:.*}"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "{test}/index.html"),
+                Some(ResourceHandler::default()),
+            ),
+        ];
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -415,7 +443,10 @@ mod tests {
 
         let mut req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
         assert_eq!(rec.recognize(&mut req), Some(5));
-        assert_eq!(req.match_info().get("tail").unwrap(), "blah-blah/index.html");
+        assert_eq!(
+            req.match_info().get("tail").unwrap(),
+            "blah-blah/index.html"
+        );
 
         let mut req = TestRequest::with_uri("/bbb/index.html").finish();
         assert_eq!(rec.recognize(&mut req), Some(6));
@@ -425,8 +456,15 @@ mod tests {
     #[test]
     fn test_recognizer_2() {
         let routes = vec![
-            (Resource::new("", "/index.json"), Some(ResourceHandler::default())),
-            (Resource::new("", "/{source}.json"), Some(ResourceHandler::default()))];
+            (
+                Resource::new("", "/index.json"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/{source}.json"),
+                Some(ResourceHandler::default()),
+            ),
+        ];
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/index.json").finish();
@@ -439,8 +477,15 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let routes = vec![
-            (Resource::new("", "/name"), Some(ResourceHandler::default())),
-            (Resource::new("", "/name/{val}"), Some(ResourceHandler::default()))];
+            (
+                Resource::new("", "/name"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/name/{val}"),
+                Some(ResourceHandler::default()),
+            ),
+        ];
         let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -456,8 +501,15 @@ mod tests {
 
         // same patterns
         let routes = vec![
-            (Resource::new("", "/name"), Some(ResourceHandler::default())),
-            (Resource::new("", "/name/{val}"), Some(ResourceHandler::default()))];
+            (
+                Resource::new("", "/name"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/name/{val}"),
+                Some(ResourceHandler::default()),
+            ),
+        ];
         let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
 
         let mut req = TestRequest::with_uri("/name").finish();
@@ -525,18 +577,25 @@ mod tests {
     #[test]
     fn test_request_resource() {
         let routes = vec![
-            (Resource::new("r1", "/index.json"), Some(ResourceHandler::default())),
-            (Resource::new("r2", "/test.json"), Some(ResourceHandler::default()))];
+            (
+                Resource::new("r1", "/index.json"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("r2", "/test.json"),
+                Some(ResourceHandler::default()),
+            ),
+        ];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
-        let mut req = TestRequest::with_uri("/index.json")
-            .finish_with_router(router.clone());
+        let mut req =
+            TestRequest::with_uri("/index.json").finish_with_router(router.clone());
         assert_eq!(router.recognize(&mut req), Some(0));
         let resource = req.resource();
         assert_eq!(resource.name(), "r1");
 
-        let mut req = TestRequest::with_uri("/test.json")
-            .finish_with_router(router.clone());
+        let mut req =
+            TestRequest::with_uri("/test.json").finish_with_router(router.clone());
         assert_eq!(router.recognize(&mut req), Some(1));
         let resource = req.resource();
         assert_eq!(resource.name(), "r2");

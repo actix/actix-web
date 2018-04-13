@@ -6,14 +6,13 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response};
 
-
 type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>;
 
 /// `Middleware` for allowing custom handlers for responses.
 ///
-/// You can use `ErrorHandlers::handler()` method  to register a custom error handler
-/// for specific status code. You can modify existing response or create completly new
-/// one.
+/// You can use `ErrorHandlers::handler()` method  to register a custom error
+/// handler for specific status code. You can modify existing response or
+/// create completly new one.
 ///
 /// ## Example
 ///
@@ -53,7 +52,6 @@ impl<S> Default for ErrorHandlers<S> {
 }
 
 impl<S> ErrorHandlers<S> {
-
     /// Construct new `ErrorHandlers` instance
     pub fn new() -> Self {
         ErrorHandlers::default()
@@ -61,7 +59,8 @@ impl<S> ErrorHandlers<S> {
 
     /// Register error handler for specified status code
     pub fn handler<F>(mut self, status: StatusCode, handler: F) -> Self
-        where F: Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response> + 'static
+    where
+        F: Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response> + 'static,
     {
         self.handlers.insert(status, Box::new(handler));
         self
@@ -69,8 +68,9 @@ impl<S> ErrorHandlers<S> {
 }
 
 impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
-
-    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+    fn response(
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse
+    ) -> Result<Response> {
         if let Some(handler) = self.handlers.get(&resp.status()) {
             handler(req, resp)
         } else {
@@ -90,11 +90,11 @@ mod tests {
         builder.header(CONTENT_TYPE, "0001");
         Ok(Response::Done(builder.into()))
     }
-    
+
     #[test]
     fn test_handler() {
-        let mw = ErrorHandlers::new()
-            .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw =
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mut req = HttpRequest::default();
         let resp = HttpResponse::InternalServerError().finish();

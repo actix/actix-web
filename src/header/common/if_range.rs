@@ -1,10 +1,10 @@
-use std::fmt::{self, Display, Write};
 use error::ParseError;
-use httpmessage::HttpMessage;
-use http::header;
 use header::from_one_raw_str;
-use header::{IntoHeaderValue, Header, HeaderName, HeaderValue,
-             EntityTag, HttpDate, Writer, InvalidHeaderValueBytes};
+use header::{EntityTag, Header, HeaderName, HeaderValue, HttpDate, IntoHeaderValue,
+             InvalidHeaderValueBytes, Writer};
+use http::header;
+use httpmessage::HttpMessage;
+use std::fmt::{self, Display, Write};
 
 /// `If-Range` header, defined in [RFC7233](http://tools.ietf.org/html/rfc7233#section-3.2)
 ///
@@ -36,16 +36,19 @@ use header::{IntoHeaderValue, Header, HeaderName, HeaderValue,
 ///
 /// ```rust
 /// use actix_web::HttpResponse;
-/// use actix_web::http::header::{IfRange, EntityTag};
+/// use actix_web::http::header::{EntityTag, IfRange};
 ///
 /// let mut builder = HttpResponse::Ok();
-/// builder.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
+/// builder.set(IfRange::EntityTag(EntityTag::new(
+///     false,
+///     "xyzzy".to_owned(),
+/// )));
 /// ```
 ///
 /// ```rust
 /// use actix_web::HttpResponse;
 /// use actix_web::http::header::IfRange;
-/// use std::time::{SystemTime, Duration};
+/// use std::time::{Duration, SystemTime};
 ///
 /// let mut builder = HttpResponse::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
@@ -64,7 +67,9 @@ impl Header for IfRange {
         header::IF_RANGE
     }
     #[inline]
-    fn parse<T>(msg: &T) -> Result<Self, ParseError> where T: HttpMessage
+    fn parse<T>(msg: &T) -> Result<Self, ParseError>
+    where
+        T: HttpMessage,
     {
         let etag: Result<EntityTag, _> =
             from_one_raw_str(msg.headers().get(header::IF_RANGE));
@@ -99,12 +104,11 @@ impl IntoHeaderValue for IfRange {
     }
 }
 
-
 #[cfg(test)]
 mod test_if_range {
-    use std::str;
-    use header::*;
     use super::IfRange as HeaderField;
+    use header::*;
+    use std::str;
     test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     test_header!(test2, vec![b"\"xyzzy\""]);
     test_header!(test3, vec![b"this-is-invalid"], None::<IfRange>);

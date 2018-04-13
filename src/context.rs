@@ -1,19 +1,18 @@
-use std::mem;
-use std::marker::PhantomData;
-use futures::{Async, Future, Poll};
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
+use futures::{Async, Future, Poll};
 use smallvec::SmallVec;
+use std::marker::PhantomData;
+use std::mem;
 
-use actix::{Actor, ActorState, ActorContext, AsyncContext,
-            Addr, Handler, Message, SpawnHandle, Syn, Unsync};
+use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
-use actix::dev::{ContextImpl, ToEnvelope, SyncEnvelope};
+use actix::{Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message,
+            SpawnHandle, Syn, Unsync};
 
-use body::{Body, Binary};
+use body::{Binary, Body};
 use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
-
 
 pub trait ActorHttpContext: 'static {
     fn disconnected(&mut self);
@@ -36,7 +35,9 @@ impl Frame {
 }
 
 /// Execution context for http actors
-pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
+pub struct HttpContext<A, S = ()>
+where
+    A: Actor<Context = HttpContext<A, S>>,
 {
     inner: ContextImpl<A>,
     stream: Option<SmallVec<[Frame; 4]>>,
@@ -44,7 +45,9 @@ pub struct HttpContext<A, S=()> where A: Actor<Context=HttpContext<A, S>>,
     disconnected: bool,
 }
 
-impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
+impl<A, S> ActorContext for HttpContext<A, S>
+where
+    A: Actor<Context = Self>,
 {
     fn stop(&mut self) {
         self.inner.stop();
@@ -57,25 +60,29 @@ impl<A, S> ActorContext for HttpContext<A, S> where A: Actor<Context=Self>
     }
 }
 
-impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
+impl<A, S> AsyncContext<A> for HttpContext<A, S>
+where
+    A: Actor<Context = Self>,
 {
     #[inline]
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
-        where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
+    where
+        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.spawn(fut)
     }
     #[inline]
     fn wait<F>(&mut self, fut: F)
-        where F: ActorFuture<Item=(), Error=(), Actor=A> + 'static
+    where
+        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.wait(fut)
     }
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.waiting() || self.inner.state() == ActorState::Stopping ||
-            self.inner.state() == ActorState::Stopped
+        self.inner.waiting() || self.inner.state() == ActorState::Stopping
+            || self.inner.state() == ActorState::Stopped
     }
     #[inline]
     fn cancel_future(&mut self, handle: SpawnHandle) -> bool {
@@ -93,8 +100,10 @@ impl<A, S> AsyncContext<A> for HttpContext<A, S> where A: Actor<Context=Self>
     }
 }
 
-impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
-
+impl<A, S: 'static> HttpContext<A, S>
+where
+    A: Actor<Context = Self>,
+{
     #[inline]
     pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
         HttpContext::from_request(req).actor(actor)
@@ -114,8 +123,10 @@ impl<A, S: 'static> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
-
+impl<A, S> HttpContext<A, S>
+where
+    A: Actor<Context = Self>,
+{
     /// Shared application state
     #[inline]
     pub fn state(&self) -> &S {
@@ -175,8 +186,11 @@ impl<A, S> HttpContext<A, S> where A: Actor<Context=Self> {
     }
 }
 
-impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, S: 'static {
-
+impl<A, S> ActorHttpContext for HttpContext<A, S>
+where
+    A: Actor<Context = Self>,
+    S: 'static,
+{
     #[inline]
     fn disconnected(&mut self) {
         self.disconnected = true;
@@ -184,9 +198,8 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
     }
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error> {
-        let ctx: &mut HttpContext<A, S> = unsafe {
-            mem::transmute(self as &mut HttpContext<A, S>)
-        };
+        let ctx: &mut HttpContext<A, S> =
+            unsafe { mem::transmute(self as &mut HttpContext<A, S>) };
 
         if self.inner.alive() {
             match self.inner.poll(ctx) {
@@ -207,8 +220,10 @@ impl<A, S> ActorHttpContext for HttpContext<A, S> where A: Actor<Context=Self>, 
 }
 
 impl<A, M, S> ToEnvelope<Syn, A, M> for HttpContext<A, S>
-    where A: Actor<Context=HttpContext<A, S>> + Handler<M>,
-          M: Message + Send + 'static, M::Result: Send,
+where
+    A: Actor<Context = HttpContext<A, S>> + Handler<M>,
+    M: Message + Send + 'static,
+    M::Result: Send,
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> SyncEnvelope<A> {
         SyncEnvelope::new(msg, tx)
@@ -216,8 +231,9 @@ impl<A, M, S> ToEnvelope<Syn, A, M> for HttpContext<A, S>
 }
 
 impl<A, S> From<HttpContext<A, S>> for Body
-    where A: Actor<Context=HttpContext<A, S>>,
-          S: 'static
+where
+    A: Actor<Context = HttpContext<A, S>>,
+    S: 'static,
 {
     fn from(ctx: HttpContext<A, S>) -> Body {
         Body::Actor(Box::new(ctx))
@@ -231,7 +247,10 @@ pub struct Drain<A> {
 
 impl<A> Drain<A> {
     pub fn new(fut: oneshot::Receiver<()>) -> Self {
-        Drain { fut, _a: PhantomData }
+        Drain {
+            fut,
+            _a: PhantomData,
+        }
     }
 }
 
@@ -241,10 +260,9 @@ impl<A: Actor> ActorFuture for Drain<A> {
     type Actor = A;
 
     #[inline]
-    fn poll(&mut self,
-            _: &mut A,
-            _: &mut <Self::Actor as Actor>::Context) -> Poll<Self::Item, Self::Error>
-    {
+    fn poll(
+        &mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context
+    ) -> Poll<Self::Item, Self::Error> {
         self.fut.poll().map_err(|_| ())
     }
 }

@@ -1,31 +1,30 @@
-use std::{net, time};
-use std::rc::Rc;
 use futures::Future;
 use futures::unsync::oneshot;
+use net2::TcpStreamExt;
+use std::rc::Rc;
+use std::{net, time};
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
-use net2::TcpStreamExt;
 
-#[cfg(any(feature="tls", feature="alpn"))]
+#[cfg(any(feature = "tls", feature = "alpn"))]
 use futures::future;
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 use native_tls::TlsAcceptor;
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 use tokio_tls::TlsAcceptorExt;
 
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptor;
-#[cfg(feature="alpn")]
+#[cfg(feature = "alpn")]
 use tokio_openssl::SslAcceptorExt;
 
-use actix::*;
 use actix::msgs::StopArbiter;
+use actix::*;
 
-use server::{HttpHandler, KeepAlive};
 use server::channel::HttpChannel;
 use server::settings::WorkerSettings;
-
+use server::{HttpHandler, KeepAlive};
 
 #[derive(Message)]
 pub(crate) struct Conn<T> {
@@ -46,9 +45,12 @@ impl Message for StopWorker {
 
 /// Http worker
 ///
-/// Worker accepts Socket objects via unbounded channel and start requests processing.
-pub(crate)
-struct Worker<H> where H: HttpHandler + 'static {
+/// Worker accepts Socket objects via unbounded channel and start requests
+/// processing.
+pub(crate) struct Worker<H>
+where
+    H: HttpHandler + 'static,
+{
     settings: Rc<WorkerSettings<H>>,
     hnd: Handle,
     handler: StreamHandlerType,
@@ -56,10 +58,9 @@ struct Worker<H> where H: HttpHandler + 'static {
 }
 
 impl<H: HttpHandler + 'static> Worker<H> {
-
-    pub(crate) fn new(h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive)
-                      -> Worker<H>
-    {
+    pub(crate) fn new(
+        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive
+    ) -> Worker<H> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
         } else {
@@ -76,11 +77,14 @@ impl<H: HttpHandler + 'static> Worker<H> {
 
     fn update_time(&self, ctx: &mut Context<Self>) {
         self.settings.update_date();
-        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
+        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| {
+            slf.update_time(ctx)
+        });
     }
 
-    fn shutdown_timeout(&self, ctx: &mut Context<Self>,
-                        tx: oneshot::Sender<bool>, dur: time::Duration) {
+    fn shutdown_timeout(
+        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration
+    ) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
             let num = slf.settings.num_channels();
@@ -99,7 +103,10 @@ impl<H: HttpHandler + 'static> Worker<H> {
     }
 }
 
-impl<H: 'static> Actor for Worker<H> where H: HttpHandler + 'static {
+impl<H: 'static> Actor for Worker<H>
+where
+    H: HttpHandler + 'static,
+{
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -108,22 +115,24 @@ impl<H: 'static> Actor for Worker<H> where H: HttpHandler + 'static {
 }
 
 impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
-    where H: HttpHandler + 'static,
+where
+    H: HttpHandler + 'static,
 {
     type Result = ();
 
-    fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>)
-    {
+    fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>) {
         if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
             error!("Can not set socket keep-alive option");
         }
-        self.handler.handle(Rc::clone(&self.settings), &self.hnd, msg);
+        self.handler
+            .handle(Rc::clone(&self.settings), &self.hnd, msg);
     }
 }
 
 /// `StopWorker` message handler
 impl<H> Handler<StopWorker> for Worker<H>
-    where H: HttpHandler + 'static,
+where
+    H: HttpHandler + 'static,
 {
     type Result = Response<bool, ()>;
 
@@ -148,17 +157,16 @@ impl<H> Handler<StopWorker> for Worker<H>
 #[derive(Clone)]
 pub(crate) enum StreamHandlerType {
     Normal,
-    #[cfg(feature="tls")]
+    #[cfg(feature = "tls")]
     Tls(TlsAcceptor),
-    #[cfg(feature="alpn")]
+    #[cfg(feature = "alpn")]
     Alpn(SslAcceptor),
 }
 
 impl StreamHandlerType {
-
-    fn handle<H: HttpHandler>(&mut self,
-                              h: Rc<WorkerSettings<H>>,
-                              hnd: &Handle, msg: Conn<net::TcpStream>) {
+    fn handle<H: HttpHandler>(
+        &mut self, h: Rc<WorkerSettings<H>>, hnd: &Handle, msg: Conn<net::TcpStream>
+    ) {
         match *self {
             StreamHandlerType::Normal => {
                 let _ = msg.io.set_nodelay(true);
@@ -167,7 +175,7 @@ impl StreamHandlerType {
 
                 hnd.spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
             }
-            #[cfg(feature="tls")]
+            #[cfg(feature = "tls")]
             StreamHandlerType::Tls(ref acceptor) => {
                 let Conn { io, peer, http2 } = msg;
                 let _ = io.set_nodelay(true);
@@ -177,16 +185,21 @@ impl StreamHandlerType {
                 hnd.spawn(
                     TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
                         match res {
-                            Ok(io) => Arbiter::handle().spawn(
-                                HttpChannel::new(h, io, peer, http2)),
-                            Err(err) =>
-                                trace!("Error during handling tls connection: {}", err),
+                            Ok(io) => Arbiter::handle().spawn(HttpChannel::new(
+                                h,
+                                io,
+                                peer,
+                                http2,
+                            )),
+                            Err(err) => {
+                                trace!("Error during handling tls connection: {}", err)
+                            }
                         };
                         future::result(Ok(()))
-                    })
+                    }),
                 );
             }
-            #[cfg(feature="alpn")]
+            #[cfg(feature = "alpn")]
             StreamHandlerType::Alpn(ref acceptor) => {
                 let Conn { io, peer, .. } = msg;
                 let _ = io.set_nodelay(true);
@@ -197,20 +210,26 @@ impl StreamHandlerType {
                     SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
                         match res {
                             Ok(io) => {
-                                let http2 = if let Some(p) = io.get_ref().ssl().selected_alpn_protocol()
+                                let http2 = if let Some(p) =
+                                    io.get_ref().ssl().selected_alpn_protocol()
                                 {
                                     p.len() == 2 && &p == b"h2"
                                 } else {
                                     false
                                 };
-                                Arbiter::handle().spawn(
-                                    HttpChannel::new(h, io, peer, http2));
-                            },
-                            Err(err) =>
-                                trace!("Error during handling tls connection: {}", err),
+                                Arbiter::handle().spawn(HttpChannel::new(
+                                    h,
+                                    io,
+                                    peer,
+                                    http2,
+                                ));
+                            }
+                            Err(err) => {
+                                trace!("Error during handling tls connection: {}", err)
+                            }
                         };
                         future::result(Ok(()))
-                    })
+                    }),
                 );
             }
         }

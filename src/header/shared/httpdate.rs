@@ -3,13 +3,12 @@ use std::io::Write;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use time;
-use bytes::{BytesMut, BufMut};
+use bytes::{BufMut, BytesMut};
 use http::header::{HeaderValue, InvalidHeaderValueBytes};
+use time;
 
 use error::ParseError;
 use header::IntoHeaderValue;
-
 
 /// A timestamp with HTTP formatting and parsing
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -19,11 +18,10 @@ impl FromStr for HttpDate {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
-        match time::strptime(s, "%a, %d %b %Y %T %Z").or_else(|_| {
-            time::strptime(s, "%A, %d-%b-%y %T %Z")
-        }).or_else(|_| {
-            time::strptime(s, "%c")
-        }) {
+        match time::strptime(s, "%a, %d %b %Y %T %Z")
+            .or_else(|_| time::strptime(s, "%A, %d-%b-%y %T %Z"))
+            .or_else(|_| time::strptime(s, "%c"))
+        {
             Ok(t) => Ok(HttpDate(t)),
             Err(_) => Err(ParseError::Header),
         }
@@ -47,11 +45,14 @@ impl From<SystemTime> for HttpDate {
         let tmspec = match sys.duration_since(UNIX_EPOCH) {
             Ok(dur) => {
                 time::Timespec::new(dur.as_secs() as i64, dur.subsec_nanos() as i32)
-            },
+            }
             Err(err) => {
                 let neg = err.duration();
-                time::Timespec::new(-(neg.as_secs() as i64), -(neg.subsec_nanos() as i32))
-            },
+                time::Timespec::new(
+                    -(neg.as_secs() as i64),
+                    -(neg.subsec_nanos() as i32),
+                )
+            }
         };
         HttpDate(time::at_utc(tmspec))
     }
@@ -63,7 +64,11 @@ impl IntoHeaderValue for HttpDate {
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(wrt, "{}", self.0.rfc822()).unwrap();
-        unsafe{Ok(HeaderValue::from_shared_unchecked(wrt.get_mut().take().freeze()))}
+        unsafe {
+            Ok(HeaderValue::from_shared_unchecked(
+                wrt.get_mut().take().freeze(),
+            ))
+        }
     }
 }
 
@@ -80,18 +85,43 @@ impl From<HttpDate> for SystemTime {
 
 #[cfg(test)]
 mod tests {
-    use time::Tm;
     use super::HttpDate;
+    use time::Tm;
 
     const NOV_07: HttpDate = HttpDate(Tm {
-        tm_nsec: 0, tm_sec: 37, tm_min: 48, tm_hour: 8, tm_mday: 7, tm_mon: 10, tm_year: 94,
-        tm_wday: 0, tm_isdst: 0, tm_yday: 0, tm_utcoff: 0});
+        tm_nsec: 0,
+        tm_sec: 37,
+        tm_min: 48,
+        tm_hour: 8,
+        tm_mday: 7,
+        tm_mon: 10,
+        tm_year: 94,
+        tm_wday: 0,
+        tm_isdst: 0,
+        tm_yday: 0,
+        tm_utcoff: 0,
+    });
 
     #[test]
     fn test_date() {
-        assert_eq!("Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(), NOV_07);
-        assert_eq!("Sunday, 07-Nov-94 08:48:37 GMT".parse::<HttpDate>().unwrap(), NOV_07);
-        assert_eq!("Sun Nov  7 08:48:37 1994".parse::<HttpDate>().unwrap(), NOV_07);
+        assert_eq!(
+            "Sun, 07 Nov 1994 08:48:37 GMT"
+                .parse::<HttpDate>()
+                .unwrap(),
+            NOV_07
+        );
+        assert_eq!(
+            "Sunday, 07-Nov-94 08:48:37 GMT"
+                .parse::<HttpDate>()
+                .unwrap(),
+            NOV_07
+        );
+        assert_eq!(
+            "Sun Nov  7 08:48:37 1994"
+                .parse::<HttpDate>()
+                .unwrap(),
+            NOV_07
+        );
         assert!("this-is-no-date".parse::<HttpDate>().is_err());
     }
 }

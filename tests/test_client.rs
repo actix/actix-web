@@ -1,49 +1,46 @@
 extern crate actix;
 extern crate actix_web;
 extern crate bytes;
-extern crate futures;
 extern crate flate2;
+extern crate futures;
 extern crate rand;
 
 use std::io::Read;
 
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use futures::Future;
 use futures::stream::once;
-use flate2::read::GzDecoder;
 use rand::Rng;
 
 use actix_web::*;
 
-
-const STR: &str =
-    "Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World \
-     Hello World Hello World Hello World Hello World Hello World";
-
+const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World";
 
 #[test]
 fn test_simple() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|_| HttpResponse::Ok().body(STR)));
+    let mut srv =
+        test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
     let request = srv.get().header("x-test", "111").finish().unwrap();
     let repr = format!("{:?}", request);
@@ -68,23 +65,26 @@ fn test_simple() {
 
 #[test]
 fn test_with_query_parameter() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|req: HttpRequest| match req.query().get("qp") {
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| match req.query().get("qp") {
             Some(_) => HttpResponse::Ok().finish(),
             None => HttpResponse::BadRequest().finish(),
-        }));
+        })
+    });
 
-    let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
+    let request = srv.get()
+        .uri(srv.url("/?qp=5").as_str())
+        .finish()
+        .unwrap();
 
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 }
 
-
 #[test]
 fn test_no_decompress() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|_| HttpResponse::Ok().body(STR)));
+    let mut srv =
+        test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
     let request = srv.get().disable_decompress().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -111,19 +111,23 @@ fn test_no_decompress() {
 
 #[test]
 fn test_client_gzip_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Deflate)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Deflate)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.post()
         .content_encoding(http::ContentEncoding::Gzip)
-        .body(STR).unwrap();
+        .body(STR)
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -136,19 +140,23 @@ fn test_client_gzip_encoding() {
 fn test_client_gzip_encoding_large() {
     let data = STR.repeat(10);
 
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Deflate)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Deflate)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.post()
         .content_encoding(http::ContentEncoding::Gzip)
-        .body(data.clone()).unwrap();
+        .body(data.clone())
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -164,19 +172,23 @@ fn test_client_gzip_encoding_large_random() {
         .take(100_000)
         .collect::<String>();
 
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Deflate)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Deflate)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.post()
         .content_encoding(http::ContentEncoding::Gzip)
-        .body(data.clone()).unwrap();
+        .body(data.clone())
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -185,22 +197,26 @@ fn test_client_gzip_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(feature="brotli")]
+#[cfg(feature = "brotli")]
 #[test]
 fn test_client_brotli_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Gzip)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Gzip)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.client(http::Method::POST, "/")
         .content_encoding(http::ContentEncoding::Br)
-        .body(STR).unwrap();
+        .body(STR)
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -209,7 +225,7 @@ fn test_client_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(feature="brotli")]
+#[cfg(feature = "brotli")]
 #[test]
 fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
@@ -217,19 +233,23 @@ fn test_client_brotli_encoding_large_random() {
         .take(70_000)
         .collect::<String>();
 
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(move |bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Gzip)
-                   .body(bytes))
-            }).responder()}
-        ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(move |bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Gzip)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.client(http::Method::POST, "/")
         .content_encoding(http::ContentEncoding::Br)
-        .body(data.clone()).unwrap();
+        .body(data.clone())
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -239,22 +259,26 @@ fn test_client_brotli_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(feature="brotli")]
+#[cfg(feature = "brotli")]
 #[test]
 fn test_client_deflate_encoding() {
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Br)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Br)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.post()
         .content_encoding(http::ContentEncoding::Deflate)
-        .body(STR).unwrap();
+        .body(STR)
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -263,7 +287,7 @@ fn test_client_deflate_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(feature="brotli")]
+#[cfg(feature = "brotli")]
 #[test]
 fn test_client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
@@ -271,19 +295,23 @@ fn test_client_deflate_encoding_large_random() {
         .take(70_000)
         .collect::<String>();
 
-    let mut srv = test::TestServer::new(|app| app.handler(|req: HttpRequest| {
-        req.body()
-            .and_then(|bytes: Bytes| {
-                Ok(HttpResponse::Ok()
-                   .content_encoding(http::ContentEncoding::Br)
-                   .body(bytes))
-            }).responder()}
-    ));
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Br)
+                        .body(bytes))
+                })
+                .responder()
+        })
+    });
 
     // client request
     let request = srv.post()
         .content_encoding(http::ContentEncoding::Deflate)
-        .body(data.clone()).unwrap();
+        .body(data.clone())
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -294,20 +322,25 @@ fn test_client_deflate_encoding_large_random() {
 
 #[test]
 fn test_client_streaming_explicit() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(
-            |req: HttpRequest| req.body()
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req: HttpRequest| {
+            req.body()
                 .map_err(Error::from)
                 .and_then(|body| {
                     Ok(HttpResponse::Ok()
-                       .chunked()
-                       .content_encoding(http::ContentEncoding::Identity)
-                       .body(body))})
-                .responder()));
+                        .chunked()
+                        .content_encoding(http::ContentEncoding::Identity)
+                        .body(body))
+                })
+                .responder()
+        })
+    });
 
     let body = once(Ok(Bytes::from_static(STR.as_ref())));
 
-    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
+    let request = srv.get()
+        .body(Body::Streaming(Box::new(body)))
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -318,12 +351,14 @@ fn test_client_streaming_explicit() {
 
 #[test]
 fn test_body_streaming_implicit() {
-    let mut srv = test::TestServer::new(
-        |app| app.handler(|_| {
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             HttpResponse::Ok()
                 .content_encoding(http::ContentEncoding::Gzip)
-                .body(Body::Streaming(Box::new(body)))}));
+                .body(Body::Streaming(Box::new(body)))
+        })
+    });
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
@@ -338,7 +373,7 @@ fn test_body_streaming_implicit() {
 fn test_client_cookie_handling() {
     use actix_web::http::Cookie;
     fn err() -> Error {
-        use std::io::{ErrorKind, Error as IoError};
+        use std::io::{Error as IoError, ErrorKind};
         // stub some generic error
         Error::from(IoError::from(ErrorKind::NotFound))
     }
@@ -352,13 +387,12 @@ fn test_client_cookie_handling() {
     // Q: are all these clones really necessary? A: Yes, possibly
     let cookie1b = cookie1.clone();
     let cookie2b = cookie2.clone();
-    let mut srv = test::TestServer::new(
-        move |app| {
-            let cookie1 = cookie1b.clone();
-            let cookie2 = cookie2b.clone();
-            app.handler(move |req: HttpRequest| {
-                // Check cookies were sent correctly
-                req.cookie("cookie1").ok_or_else(err)
+    let mut srv = test::TestServer::new(move |app| {
+        let cookie1 = cookie1b.clone();
+        let cookie2 = cookie2b.clone();
+        app.handler(move |req: HttpRequest| {
+            // Check cookies were sent correctly
+            req.cookie("cookie1").ok_or_else(err)
                     .and_then(|c1| if c1.value() == "value1" {
                         Ok(())
                     } else {
@@ -376,8 +410,8 @@ fn test_client_cookie_handling() {
                          .cookie(cookie2.clone())
                          .finish()
                     )
-            })
-        });
+        })
+    });
 
     let request = srv.get()
         .cookie(cookie1.clone())

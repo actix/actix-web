@@ -1,6 +1,5 @@
-use mime::{self, Mime};
 use header::CONTENT_TYPE;
-
+use mime::{self, Mime};
 
 header! {
     /// `Content-Type` header, defined in
@@ -68,13 +67,15 @@ header! {
 }
 
 impl ContentType {
-    /// A constructor  to easily create a `Content-Type: application/json` header.
+    /// A constructor  to easily create a `Content-Type: application/json`
+    /// header.
     #[inline]
     pub fn json() -> ContentType {
         ContentType(mime::APPLICATION_JSON)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
+    /// A constructor  to easily create a `Content-Type: text/plain;
+    /// charset=utf-8` header.
     #[inline]
     pub fn plaintext() -> ContentType {
         ContentType(mime::TEXT_PLAIN_UTF_8)
@@ -92,7 +93,8 @@ impl ContentType {
         ContentType(mime::TEXT_XML)
     }
 
-    /// A constructor  to easily create a `Content-Type: application/www-form-url-encoded` header.
+    /// A constructor  to easily create a `Content-Type:
+    /// application/www-form-url-encoded` header.
     #[inline]
     pub fn form_url_encoded() -> ContentType {
         ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)
@@ -109,7 +111,8 @@ impl ContentType {
         ContentType(mime::IMAGE_PNG)
     }
 
-    /// A constructor  to easily create a `Content-Type: application/octet-stream` header.
+    /// A constructor  to easily create a `Content-Type:
+    /// application/octet-stream` header.
     #[inline]
     pub fn octet_stream() -> ContentType {
         ContentType(mime::APPLICATION_OCTET_STREAM)

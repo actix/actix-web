@@ -1,4 +1,4 @@
-use header::{IF_NONE_MATCH, EntityTag};
+use header::{EntityTag, IF_NONE_MATCH};
 
 header! {
     /// `If-None-Match` header, defined in
@@ -66,8 +66,8 @@ header! {
 #[cfg(test)]
 mod tests {
     use super::IfNoneMatch;
+    use header::{EntityTag, Header, IF_NONE_MATCH};
     use test::TestRequest;
-    use header::{IF_NONE_MATCH, Header, EntityTag};
 
     #[test]
     fn test_if_none_match() {
@@ -77,8 +77,9 @@ mod tests {
         if_none_match = Header::parse(&req);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
-        let req = TestRequest::with_header(
-            IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..]).finish();
+        let req =
+            TestRequest::with_header(IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..])
+                .finish();
 
         if_none_match = Header::parse(&req);
         let mut entities: Vec<EntityTag> = Vec::new();

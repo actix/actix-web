@@ -1,11 +1,10 @@
-use std::{io, mem};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::collections::VecDeque;
 use bytes::{BufMut, BytesMut};
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::{io, mem};
 
 use body::Binary;
-
 
 /// Internal use only! unsafe
 #[derive(Debug)]
@@ -34,8 +33,7 @@ impl SharedBytesPool {
 }
 
 #[derive(Debug)]
-pub(crate) struct SharedBytes(
-    Option<Rc<BytesMut>>, Option<Rc<SharedBytesPool>>);
+pub(crate) struct SharedBytes(Option<Rc<BytesMut>>, Option<Rc<SharedBytesPool>>);
 
 impl Drop for SharedBytes {
     fn drop(&mut self) {
@@ -50,7 +48,6 @@ impl Drop for SharedBytes {
 }
 
 impl SharedBytes {
-
     pub fn empty() -> Self {
         SharedBytes(None, None)
     }
@@ -64,7 +61,7 @@ impl SharedBytes {
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub(crate) fn get_mut(&self) -> &mut BytesMut {
         let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
-        unsafe{mem::transmute(r)}
+        unsafe { mem::transmute(r) }
     }
 
     #[inline]

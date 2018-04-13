@@ -48,8 +48,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use bytes::Bytes;
-use error::{Result, ResponseError};
-use http::{HeaderMap, HttpTryFrom, Uri, header};
+use error::{ResponseError, Result};
+use http::{header, HeaderMap, HttpTryFrom, Uri};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -59,13 +59,13 @@ use middleware::{Middleware, Started};
 #[derive(Debug, Fail)]
 pub enum CsrfError {
     /// The HTTP request header `Origin` was required but not provided.
-    #[fail(display="Origin header required")]
+    #[fail(display = "Origin header required")]
     MissingOrigin,
     /// The HTTP request header `Origin` could not be parsed correctly.
-    #[fail(display="Could not parse Origin header")]
+    #[fail(display = "Could not parse Origin header")]
     BadOrigin,
     /// The cross-site request was denied.
-    #[fail(display="Cross-site request denied")]
+    #[fail(display = "Cross-site request denied")]
     CsrDenied,
 }
 
@@ -80,15 +80,14 @@ fn uri_origin(uri: &Uri) -> Option<String> {
         (Some(scheme), Some(host), Some(port)) => {
             Some(format!("{}://{}:{}", scheme, host, port))
         }
-        (Some(scheme), Some(host), None) => {
-            Some(format!("{}://{}", scheme, host))
-        }
-        _ => None
+        (Some(scheme), Some(host), None) => Some(format!("{}://{}", scheme, host)),
+        _ => None,
     }
 }
 
 fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
-    headers.get(header::ORIGIN)
+    headers
+        .get(header::ORIGIN)
         .map(|origin| {
             origin
                 .to_str()
@@ -96,15 +95,14 @@ fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
                 .map(|o| o.into())
         })
         .or_else(|| {
-            headers.get(header::REFERER)
-                .map(|referer| {
-                    Uri::try_from(Bytes::from(referer.as_bytes()))
-                        .ok()
-                        .as_ref()
-                        .and_then(uri_origin)
-                        .ok_or(CsrfError::BadOrigin)
-                        .map(|o| o.into())
-                })
+            headers.get(header::REFERER).map(|referer| {
+                Uri::try_from(Bytes::from(referer.as_bytes()))
+                    .ok()
+                    .as_ref()
+                    .and_then(uri_origin)
+                    .ok_or(CsrfError::BadOrigin)
+                    .map(|o| o.into())
+            })
         })
 }
 
@@ -194,7 +192,8 @@ impl CsrfFilter {
         let is_upgrade = req.headers().contains_key(header::UPGRADE);
         let is_safe = req.method().is_safe() && (self.allow_upgrade || !is_upgrade);
 
-        if is_safe || (self.allow_xhr && req.headers().contains_key("x-requested-with")) {
+        if is_safe || (self.allow_xhr && req.headers().contains_key("x-requested-with"))
+        {
             Ok(())
         } else if let Some(header) = origin(req.headers()) {
             match header {
@@ -225,8 +224,7 @@ mod tests {
 
     #[test]
     fn test_safe() {
-        let csrf = CsrfFilter::new()
-            .allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::HEAD)
@@ -237,8 +235,7 @@ mod tests {
 
     #[test]
     fn test_csrf() {
-        let csrf = CsrfFilter::new()
-            .allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::POST)
@@ -249,11 +246,12 @@ mod tests {
 
     #[test]
     fn test_referer() {
-        let csrf = CsrfFilter::new()
-            .allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let mut req = TestRequest::with_header("Referer", "https://www.example.com/some/path?query=param")
-            .method(Method::POST)
+        let mut req = TestRequest::with_header(
+            "Referer",
+            "https://www.example.com/some/path?query=param",
+        ).method(Method::POST)
             .finish();
 
         assert!(csrf.start(&mut req).is_ok());
@@ -261,8 +259,7 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let strict_csrf = CsrfFilter::new()
-            .allowed_origin("https://www.example.com");
+        let strict_csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let lax_csrf = CsrfFilter::new()
             .allowed_origin("https://www.example.com")

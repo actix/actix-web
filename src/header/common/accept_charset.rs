@@ -1,4 +1,4 @@
-use header::{ACCEPT_CHARSET, Charset, QualityItem};
+use header::{Charset, QualityItem, ACCEPT_CHARSET};
 
 header! {
     /// `Accept-Charset` header, defined in

@@ -1,7 +1,7 @@
 #![allow(unused, deprecated)]
+use std::ascii::AsciiExt;
 use std::fmt::{self, Display};
 use std::str::FromStr;
-use std::ascii::AsciiExt;
 
 use self::Charset::*;
 
@@ -12,9 +12,9 @@ use self::Charset::*;
 /// See [http://www.iana.org/assignments/character-sets/character-sets.xhtml][url].
 ///
 /// [url]: http://www.iana.org/assignments/character-sets/character-sets.xhtml
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
-pub enum Charset{
+pub enum Charset {
     /// US ASCII
     Us_Ascii,
     /// ISO-8859-1
@@ -64,7 +64,7 @@ pub enum Charset{
     /// KOI8-R
     Koi8_R,
     /// An arbitrary charset specified as a string
-    Ext(String)
+    Ext(String),
 }
 
 impl Charset {
@@ -94,7 +94,7 @@ impl Charset {
             Gb2312 => "GB2312",
             Big5 => "5",
             Koi8_R => "KOI8-R",
-            Ext(ref s) => s
+            Ext(ref s) => s,
         }
     }
 }
@@ -133,18 +133,18 @@ impl FromStr for Charset {
             "GB2312" => Gb2312,
             "5" => Big5,
             "KOI8-R" => Koi8_R,
-            s => Ext(s.to_owned())
+            s => Ext(s.to_owned()),
         })
     }
 }
 
 #[test]
 fn test_parse() {
-    assert_eq!(Us_Ascii,"us-ascii".parse().unwrap());
-    assert_eq!(Us_Ascii,"US-Ascii".parse().unwrap());
-    assert_eq!(Us_Ascii,"US-ASCII".parse().unwrap());
-    assert_eq!(Shift_Jis,"Shift-JIS".parse().unwrap());
-    assert_eq!(Ext("ABCD".to_owned()),"abcd".parse().unwrap());
+    assert_eq!(Us_Ascii, "us-ascii".parse().unwrap());
+    assert_eq!(Us_Ascii, "US-Ascii".parse().unwrap());
+    assert_eq!(Us_Ascii, "US-ASCII".parse().unwrap());
+    assert_eq!(Shift_Jis, "Shift-JIS".parse().unwrap());
+    assert_eq!(Ext("ABCD".to_owned()), "abcd".parse().unwrap());
 }
 
 #[test]

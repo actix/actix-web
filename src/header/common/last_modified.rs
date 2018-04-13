@@ -1,4 +1,4 @@
-use header::{LAST_MODIFIED, HttpDate};
+use header::{HttpDate, LAST_MODIFIED};
 
 header! {
     /// `Last-Modified` header, defined in

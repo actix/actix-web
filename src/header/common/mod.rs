@@ -5,6 +5,7 @@
 //! Several header fields use MIME values for their contents. Keeping with the
 //! strongly-typed theme, the [mime](https://docs.rs/mime) crate
 //! is used, such as `ContentType(pub Mime)`.
+#![cfg_attr(rustfmt, rustfmt_skip)]
 
 pub use self::accept_charset::AcceptCharset;
 //pub use self::accept_encoding::AcceptEncoding;

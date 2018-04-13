@@ -1,16 +1,16 @@
-use std;
-use std::ops::Index;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::slice::Iter;
-use std::borrow::Cow;
 use http::StatusCode;
 use smallvec::SmallVec;
+use std;
+use std::borrow::Cow;
+use std::ops::Index;
+use std::path::PathBuf;
+use std::slice::Iter;
+use std::str::FromStr;
 
-use error::{ResponseError, UriSegmentError, InternalError};
+use error::{InternalError, ResponseError, UriSegmentError};
 
-
-/// A trait to abstract the idea of creating a new instance of a type from a path parameter.
+/// A trait to abstract the idea of creating a new instance of a type from a
+/// path parameter.
 pub trait FromParam: Sized {
     /// The associated error which can be returned from parsing.
     type Err: ResponseError;
@@ -26,7 +26,6 @@ pub trait FromParam: Sized {
 pub struct Params<'a>(SmallVec<[(Cow<'a, str>, Cow<'a, str>); 3]>);
 
 impl<'a> Params<'a> {
-
     pub(crate) fn new() -> Params<'a> {
         Params(SmallVec::new())
     }
@@ -36,7 +35,9 @@ impl<'a> Params<'a> {
     }
 
     pub(crate) fn add<N, V>(&mut self, name: N, value: V)
-        where N: Into<Cow<'a, str>>, V: Into<Cow<'a, str>>,
+    where
+        N: Into<Cow<'a, str>>,
+        V: Into<Cow<'a, str>>,
     {
         self.0.push((name.into(), value.into()));
     }
@@ -55,7 +56,7 @@ impl<'a> Params<'a> {
     pub fn get(&'a self, key: &str) -> Option<&'a str> {
         for item in self.0.iter() {
             if key == item.0 {
-                return Some(item.1.as_ref())
+                return Some(item.1.as_ref());
             }
         }
         None
@@ -63,7 +64,8 @@ impl<'a> Params<'a> {
 
     /// Get matched `FromParam` compatible parameter by name.
     ///
-    /// If keyed parameter is not available empty string is used as default value.
+    /// If keyed parameter is not available empty string is used as default
+    /// value.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -74,8 +76,7 @@ impl<'a> Params<'a> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn query<T: FromParam>(&'a self, key: &str) -> Result<T, <T as FromParam>::Err>
-    {
+    pub fn query<T: FromParam>(&'a self, key: &str) -> Result<T, <T as FromParam>::Err> {
         if let Some(s) = self.get(key) {
             T::from_param(s)
         } else {
@@ -93,7 +94,8 @@ impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
     type Output = str;
 
     fn index(&self, name: &'b str) -> &str {
-        self.get(name).expect("Value for parameter is not available")
+        self.get(name)
+            .expect("Value for parameter is not available")
     }
 }
 
@@ -118,9 +120,9 @@ impl<'a, 'c: 'a> Index<usize> for &'c Params<'a> {
 ///   * On Windows, decoded segment contains any of: '\'
 ///   * Percent-encoding results in invalid UTF8.
 ///
-/// As a result of these conditions, a `PathBuf` parsed from request path parameter is
-/// safe to interpolate within, or use as a suffix of, a path without additional
-/// checks.
+/// As a result of these conditions, a `PathBuf` parsed from request path
+/// parameter is safe to interpolate within, or use as a suffix of, a path
+/// without additional checks.
 impl FromParam for PathBuf {
     type Err = UriSegmentError;
 
@@ -130,19 +132,19 @@ impl FromParam for PathBuf {
             if segment == ".." {
                 buf.pop();
             } else if segment.starts_with('.') {
-                return Err(UriSegmentError::BadStart('.'))
+                return Err(UriSegmentError::BadStart('.'));
             } else if segment.starts_with('*') {
-                return Err(UriSegmentError::BadStart('*'))
+                return Err(UriSegmentError::BadStart('*'));
             } else if segment.ends_with(':') {
-                return Err(UriSegmentError::BadEnd(':'))
+                return Err(UriSegmentError::BadEnd(':'));
             } else if segment.ends_with('>') {
-                return Err(UriSegmentError::BadEnd('>'))
+                return Err(UriSegmentError::BadEnd('>'));
             } else if segment.ends_with('<') {
-                return Err(UriSegmentError::BadEnd('<'))
+                return Err(UriSegmentError::BadEnd('<'));
             } else if segment.is_empty() {
-                continue
+                continue;
             } else if cfg!(windows) && segment.contains('\\') {
-                return Err(UriSegmentError::BadChar('\\'))
+                return Err(UriSegmentError::BadChar('\\'));
             } else {
                 buf.push(segment)
             }
@@ -162,7 +164,7 @@ macro_rules! FROM_STR {
                     .map_err(|e| InternalError::new(e, StatusCode::BAD_REQUEST))
             }
         }
-    }
+    };
 }
 
 FROM_STR!(u8);
@@ -192,14 +194,33 @@ mod tests {
 
     #[test]
     fn test_path_buf() {
-        assert_eq!(PathBuf::from_param("/test/.tt"), Err(UriSegmentError::BadStart('.')));
-        assert_eq!(PathBuf::from_param("/test/*tt"), Err(UriSegmentError::BadStart('*')));
-        assert_eq!(PathBuf::from_param("/test/tt:"), Err(UriSegmentError::BadEnd(':')));
-        assert_eq!(PathBuf::from_param("/test/tt<"), Err(UriSegmentError::BadEnd('<')));
-        assert_eq!(PathBuf::from_param("/test/tt>"), Err(UriSegmentError::BadEnd('>')));
-        assert_eq!(PathBuf::from_param("/seg1/seg2/"),
-                   Ok(PathBuf::from_iter(vec!["seg1", "seg2"])));
-        assert_eq!(PathBuf::from_param("/seg1/../seg2/"),
-                   Ok(PathBuf::from_iter(vec!["seg2"])));
+        assert_eq!(
+            PathBuf::from_param("/test/.tt"),
+            Err(UriSegmentError::BadStart('.'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/*tt"),
+            Err(UriSegmentError::BadStart('*'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt:"),
+            Err(UriSegmentError::BadEnd(':'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt<"),
+            Err(UriSegmentError::BadEnd('<'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt>"),
+            Err(UriSegmentError::BadEnd('>'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/seg1/seg2/"),
+            Ok(PathBuf::from_iter(vec!["seg1", "seg2"]))
+        );
+        assert_eq!(
+            PathBuf::from_param("/seg1/../seg2/"),
+            Ok(PathBuf::from_iter(vec!["seg2"]))
+        );
     }
 }

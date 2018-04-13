@@ -1,9 +1,9 @@
-use std::{mem, ptr, slice};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::collections::VecDeque;
 use bytes::{BufMut, BytesMut};
 use http::Version;
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::{mem, ptr, slice};
 
 use httprequest::HttpInnerMessage;
 
@@ -35,7 +35,9 @@ impl SharedMessagePool {
 }
 
 pub(crate) struct SharedHttpInnerMessage(
-    Option<Rc<HttpInnerMessage>>, Option<Rc<SharedMessagePool>>);
+    Option<Rc<HttpInnerMessage>>,
+    Option<Rc<SharedMessagePool>>,
+);
 
 impl Drop for SharedHttpInnerMessage {
     fn drop(&mut self) {
@@ -50,26 +52,25 @@ impl Drop for SharedHttpInnerMessage {
 }
 
 impl Clone for SharedHttpInnerMessage {
-
     fn clone(&self) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(self.0.clone(), self.1.clone())
     }
 }
 
 impl Default for SharedHttpInnerMessage {
-
     fn default() -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(Rc::new(HttpInnerMessage::default())), None)
     }
 }
 
 impl SharedHttpInnerMessage {
-
     pub fn from_message(msg: HttpInnerMessage) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(Rc::new(msg)), None)
     }
 
-    pub fn new(msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>) -> SharedHttpInnerMessage {
+    pub fn new(
+        msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>
+    ) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(msg), Some(pool))
     }
 
@@ -78,7 +79,7 @@ impl SharedHttpInnerMessage {
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub fn get_mut(&self) -> &mut HttpInnerMessage {
         let r: &HttpInnerMessage = self.0.as_ref().unwrap().as_ref();
-        unsafe{mem::transmute(r)}
+        unsafe { mem::transmute(r) }
     }
 
     #[inline(always)]
@@ -88,20 +89,23 @@ impl SharedHttpInnerMessage {
     }
 }
 
-const DEC_DIGITS_LUT: &[u8] =
-    b"0001020304050607080910111213141516171819\
+const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       2021222324252627282930313233343536373839\
       4041424344454647484950515253545556575859\
       6061626364656667686970717273747576777879\
       8081828384858687888990919293949596979899";
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 13] = [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1',
-                             b' ', b' ', b' ', b' ', b' '];
+    let mut buf: [u8; 13] = [
+        b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' '
+    ];
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
-        Version::HTTP_09 => {buf[5] = b'0'; buf[7] = b'9';},
+        Version::HTTP_09 => {
+            buf[5] = b'0';
+            buf[7] = b'9';
+        }
         _ => (),
     }
 
@@ -124,7 +128,11 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
         } else {
             let d1 = n << 1;
             curr -= 2;
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1 as isize), buf_ptr.offset(curr), 2);
+            ptr::copy_nonoverlapping(
+                lut_ptr.offset(d1 as isize),
+                buf_ptr.offset(curr),
+                2,
+            );
         }
     }
 
@@ -137,30 +145,41 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
 /// NOTE: bytes object has to contain enough space
 pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
     if n < 10 {
-        let mut buf: [u8; 21] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
-                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
-                                 b't',b'h',b':',b' ',b'0',b'\r',b'\n'];
+        let mut buf: [u8; 21] = [
+            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
+            b'n', b'g', b't', b'h', b':', b' ', b'0', b'\r', b'\n',
+        ];
         buf[18] = (n as u8) + b'0';
         bytes.put_slice(&buf);
     } else if n < 100 {
-        let mut buf: [u8; 22] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
-                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
-                                 b't',b'h',b':',b' ',b'0',b'0',b'\r',b'\n'];
+        let mut buf: [u8; 22] = [
+            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
+            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'\r', b'\n',
+        ];
         let d1 = n << 1;
         unsafe {
             ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(18), 2);
+                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize),
+                buf.as_mut_ptr().offset(18),
+                2,
+            );
         }
         bytes.put_slice(&buf);
     } else if n < 1000 {
-        let mut buf: [u8; 23] = [b'\r',b'\n',b'c',b'o',b'n',b't',b'e',
-                                 b'n',b't',b'-',b'l',b'e',b'n',b'g',
-                                 b't',b'h',b':',b' ',b'0',b'0',b'0',b'\r',b'\n'];
+        let mut buf: [u8; 23] = [
+            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
+            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'0', b'\r', b'\n',
+        ];
         // decode 2 more chars, if > 2 chars
         let d1 = (n % 100) << 1;
         n /= 100;
-        unsafe {ptr::copy_nonoverlapping(
-            DEC_DIGITS_LUT.as_ptr().offset(d1 as isize), buf.as_mut_ptr().offset(19), 2)};
+        unsafe {
+            ptr::copy_nonoverlapping(
+                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize),
+                buf.as_mut_ptr().offset(19),
+                2,
+            )
+        };
 
         // decode last 1
         buf[18] = (n as u8) + b'0';
@@ -216,11 +235,12 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     }
 
     unsafe {
-        bytes.extend_from_slice(
-            slice::from_raw_parts(buf_ptr.offset(curr), 41 - curr as usize));
+        bytes.extend_from_slice(slice::from_raw_parts(
+            buf_ptr.offset(curr),
+            41 - curr as usize,
+        ));
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -231,33 +251,63 @@ mod tests {
         let mut bytes = BytesMut::new();
         bytes.reserve(50);
         write_content_length(0, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 0\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(9, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 9\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(10, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 10\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(99, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 99\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(100, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 100\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(101, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 101\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(998, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 998\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(1000, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 1000\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(1001, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 1001\r\n"[..]
+        );
         bytes.reserve(50);
         write_content_length(5909, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
+        assert_eq!(
+            bytes.take().freeze(),
+            b"\r\ncontent-length: 5909\r\n"[..]
+        );
     }
 }

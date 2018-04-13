@@ -1,30 +1,29 @@
 //! HTTP Request message related code.
-use std::{io, cmp, str, fmt, mem};
-use std::rc::Rc;
-use std::net::SocketAddr;
-use std::borrow::Cow;
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::{Async, Stream, Poll};
-use futures::future::{FutureResult, result};
-use futures_cpupool::CpuPool;
 use failure;
-use url::{Url, form_urlencoded};
-use http::{header, Uri, Method, Version, HeaderMap, Extensions, StatusCode};
-use tokio_io::AsyncRead;
+use futures::future::{result, FutureResult};
+use futures::{Async, Poll, Stream};
+use futures_cpupool::CpuPool;
+use http::{header, Extensions, HeaderMap, Method, StatusCode, Uri, Version};
 use percent_encoding::percent_decode;
+use std::borrow::Cow;
+use std::net::SocketAddr;
+use std::rc::Rc;
+use std::{cmp, fmt, io, mem, str};
+use tokio_io::AsyncRead;
+use url::{form_urlencoded, Url};
 
 use body::Body;
-use info::ConnectionInfo;
-use param::Params;
-use router::{Router, Resource};
-use payload::Payload;
+use error::{CookieParseError, Error, PayloadError, UrlGenerationError};
 use handler::FromRequest;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
+use info::ConnectionInfo;
+use param::Params;
+use payload::Payload;
+use router::{Resource, Router};
 use server::helpers::SharedHttpInnerMessage;
-use error::{Error, UrlGenerationError, CookieParseError, PayloadError};
-
 
 pub struct HttpInnerMessage {
     pub version: Version,
@@ -42,14 +41,13 @@ pub struct HttpInnerMessage {
     resource: RouterResource,
 }
 
-#[derive(Debug, Copy, Clone,PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum RouterResource {
     Notset,
     Normal(u16),
 }
 
 impl Default for HttpInnerMessage {
-
     fn default() -> HttpInnerMessage {
         HttpInnerMessage {
             method: Method::GET,
@@ -70,7 +68,6 @@ impl Default for HttpInnerMessage {
 }
 
 impl HttpInnerMessage {
-
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
@@ -79,8 +76,8 @@ impl HttpInnerMessage {
                 if self.version == Version::HTTP_10 && conn.contains("keep-alive") {
                     true
                 } else {
-                    self.version == Version::HTTP_11 &&
-                        !(conn.contains("close") || conn.contains("upgrade"))
+                    self.version == Version::HTTP_11
+                        && !(conn.contains("close") || conn.contains("upgrade"))
                 }
             } else {
                 false
@@ -105,21 +102,20 @@ impl HttpInnerMessage {
     }
 }
 
-lazy_static!{
+lazy_static! {
     static ref RESOURCE: Resource = Resource::unset();
 }
 
-
 /// An HTTP Request
-pub struct HttpRequest<S=()>(SharedHttpInnerMessage, Option<Rc<S>>, Option<Router>);
+pub struct HttpRequest<S = ()>(SharedHttpInnerMessage, Option<Rc<S>>, Option<Router>);
 
 impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
-    pub fn new(method: Method, uri: Uri,
-               version: Version, headers: HeaderMap, payload: Option<Payload>)
-               -> HttpRequest
-    {
+    pub fn new(
+        method: Method, uri: Uri, version: Version, headers: HeaderMap,
+        payload: Option<Payload>,
+    ) -> HttpRequest {
         HttpRequest(
             SharedHttpInnerMessage::from_message(HttpInnerMessage {
                 method,
@@ -142,7 +138,7 @@ impl HttpRequest<()> {
     }
 
     #[inline(always)]
-    #[cfg_attr(feature="cargo-clippy", allow(inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     pub(crate) fn from_message(msg: SharedHttpInnerMessage) -> HttpRequest {
         HttpRequest(msg, None, None)
     }
@@ -154,7 +150,6 @@ impl HttpRequest<()> {
     }
 }
 
-
 impl<S> HttpMessage for HttpRequest<S> {
     #[inline]
     fn headers(&self) -> &HeaderMap {
@@ -163,7 +158,6 @@ impl<S> HttpMessage for HttpRequest<S> {
 }
 
 impl<S> HttpRequest<S> {
-
     #[inline]
     /// Construct new http request with state.
     pub fn change_state<NS>(&self, state: Rc<NS>) -> HttpRequest<NS> {
@@ -211,8 +205,10 @@ impl<S> HttpRequest<S> {
     #[inline]
     #[doc(hidden)]
     pub fn cpu_pool(&self) -> &CpuPool {
-        self.router().expect("HttpRequest has to have Router instance")
-            .server_settings().cpu_pool()
+        self.router()
+            .expect("HttpRequest has to have Router instance")
+            .server_settings()
+            .cpu_pool()
     }
 
     /// Create http response
@@ -235,12 +231,18 @@ impl<S> HttpRequest<S> {
 
     #[doc(hidden)]
     pub fn prefix_len(&self) -> usize {
-        if let Some(router) = self.router() { router.prefix().len() } else { 0 }
+        if let Some(router) = self.router() {
+            router.prefix().len()
+        } else {
+            0
+        }
     }
 
     /// Read the Request Uri.
     #[inline]
-    pub fn uri(&self) -> &Uri { &self.as_ref().uri }
+    pub fn uri(&self) -> &Uri {
+        &self.as_ref().uri
+    }
 
     /// Returns mutable the Request Uri.
     ///
@@ -252,7 +254,9 @@ impl<S> HttpRequest<S> {
 
     /// Read the Request method.
     #[inline]
-    pub fn method(&self) -> &Method { &self.as_ref().method }
+    pub fn method(&self) -> &Method {
+        &self.as_ref().method
+    }
 
     /// Read the Request Version.
     #[inline]
@@ -277,14 +281,16 @@ impl<S> HttpRequest<S> {
     /// Percent decoded path of this Request.
     #[inline]
     pub fn path_decoded(&self) -> Cow<str> {
-        percent_decode(self.uri().path().as_bytes()).decode_utf8().unwrap()
+        percent_decode(self.uri().path().as_bytes())
+            .decode_utf8()
+            .unwrap()
     }
 
     /// Get *ConnectionInfo* for correct request.
     pub fn connection_info(&self) -> &ConnectionInfo {
         if self.as_ref().info.is_none() {
-            let info: ConnectionInfo<'static> = unsafe{
-                mem::transmute(ConnectionInfo::new(self))};
+            let info: ConnectionInfo<'static> =
+                unsafe { mem::transmute(ConnectionInfo::new(self)) };
             self.as_mut().info = Some(info);
         }
         self.as_ref().info.as_ref().unwrap()
@@ -310,9 +316,12 @@ impl<S> HttpRequest<S> {
     ///         .finish();
     /// }
     /// ```
-    pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<Url, UrlGenerationError>
-        where U: IntoIterator<Item=I>,
-              I: AsRef<str>,
+    pub fn url_for<U, I>(
+        &self, name: &str, elements: U
+    ) -> Result<Url, UrlGenerationError>
+    where
+        U: IntoIterator<Item = I>,
+        I: AsRef<str>,
     {
         if self.router().is_none() {
             Err(UrlGenerationError::RouterNotAvailable)
@@ -320,7 +329,12 @@ impl<S> HttpRequest<S> {
             let path = self.router().unwrap().resource_path(name, elements)?;
             if path.starts_with('/') {
                 let conn = self.connection_info();
-                Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
+                Ok(Url::parse(&format!(
+                    "{}://{}{}",
+                    conn.scheme(),
+                    conn.host(),
+                    path
+                ))?)
             } else {
                 Ok(Url::parse(&path)?)
             }
@@ -338,7 +352,7 @@ impl<S> HttpRequest<S> {
     pub fn resource(&self) -> &Resource {
         if let Some(ref router) = self.2 {
             if let RouterResource::Normal(idx) = self.as_ref().resource {
-                return router.get_resource(idx as usize)
+                return router.get_resource(idx as usize);
             }
         }
         &*RESOURCE
@@ -353,7 +367,8 @@ impl<S> HttpRequest<S> {
     /// Peer address is actual socket address, if proxy is used in front of
     /// actix http server, then peer address would be address of this proxy.
     ///
-    /// To get client connection information `connection_info()` method should be used.
+    /// To get client connection information `connection_info()` method should
+    /// be used.
     #[inline]
     pub fn peer_addr(&self) -> Option<&SocketAddr> {
         self.as_ref().addr.as_ref()
@@ -368,13 +383,14 @@ impl<S> HttpRequest<S> {
     /// Params is a container for url query parameters.
     pub fn query(&self) -> &Params {
         if !self.as_ref().query_loaded {
-            let params: &mut Params = unsafe{ mem::transmute(&mut self.as_mut().query) };
+            let params: &mut Params =
+                unsafe { mem::transmute(&mut self.as_mut().query) };
             self.as_mut().query_loaded = true;
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 params.add(key, val);
             }
         }
-        unsafe{ mem::transmute(&self.as_ref().query) }
+        unsafe { mem::transmute(&self.as_ref().query) }
     }
 
     /// The query string in the URL.
@@ -412,7 +428,7 @@ impl<S> HttpRequest<S> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies {
                 if cookie.name() == name {
-                    return Some(cookie)
+                    return Some(cookie);
                 }
             }
         }
@@ -423,16 +439,17 @@ impl<S> HttpRequest<S> {
     ///
     /// Params is a container for url parameters.
     /// Route supports glob patterns: * for a single wildcard segment and :param
-    /// for matching storing that segment of the request url in the Params object.
+    /// for matching storing that segment of the request url in the Params
+    /// object.
     #[inline]
     pub fn match_info(&self) -> &Params {
-        unsafe{ mem::transmute(&self.as_ref().params) }
+        unsafe { mem::transmute(&self.as_ref().params) }
     }
 
     /// Get mutable reference to request's Params.
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Params {
-        unsafe{ mem::transmute(&mut self.as_mut().params) }
+        unsafe { mem::transmute(&mut self.as_mut().params) }
     }
 
     /// Checks if a connection should be kept alive.
@@ -444,7 +461,7 @@ impl<S> HttpRequest<S> {
     pub(crate) fn upgrade(&self) -> bool {
         if let Some(conn) = self.as_ref().headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
-                return s.to_lowercase().contains("upgrade")
+                return s.to_lowercase().contains("upgrade");
             }
         }
         self.as_ref().method == Method::CONNECT
@@ -479,7 +496,6 @@ impl<S> HttpRequest<S> {
 }
 
 impl Default for HttpRequest<()> {
-
     /// Construct default request
     fn default() -> HttpRequest {
         HttpRequest(SharedHttpInnerMessage::default(), None, None)
@@ -492,8 +508,7 @@ impl<S> Clone for HttpRequest<S> {
     }
 }
 
-impl<S: 'static> FromRequest<S> for HttpRequest<S>
-{
+impl<S: 'static> FromRequest<S> for HttpRequest<S> {
     type Config = ();
     type Result = FutureResult<Self, Error>;
 
@@ -540,10 +555,13 @@ impl<S> io::Read for HttpRequest<S> {
                     }
                 }
                 Ok(Async::Ready(None)) => Ok(0),
-                Ok(Async::NotReady) =>
-                    Err(io::Error::new(io::ErrorKind::WouldBlock, "Not ready")),
-                Err(e) =>
-                    Err(io::Error::new(io::ErrorKind::Other, failure::Error::from(e).compat())),
+                Ok(Async::NotReady) => {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, "Not ready"))
+                }
+                Err(e) => Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    failure::Error::from(e).compat(),
+                )),
             }
         } else {
             Ok(0)
@@ -556,8 +574,12 @@ impl<S> AsyncRead for HttpRequest<S> {}
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = writeln!(
-            f, "\nHttpRequest {:?} {}:{}",
-            self.as_ref().version, self.as_ref().method, self.path_decoded());
+            f,
+            "\nHttpRequest {:?} {}:{}",
+            self.as_ref().version,
+            self.as_ref().method,
+            self.path_decoded()
+        );
         if !self.query_string().is_empty() {
             let _ = writeln!(f, "  query: ?{:?}", self.query_string());
         }
@@ -575,11 +597,11 @@ impl<S> fmt::Debug for HttpRequest<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::{Uri, HttpTryFrom};
-    use router::Resource;
+    use http::{HttpTryFrom, Uri};
     use resource::ResourceHandler;
-    use test::TestRequest;
+    use router::Resource;
     use server::ServerSettings;
+    use test::TestRequest;
 
     #[test]
     fn test_debug() {
@@ -652,12 +674,19 @@ mod tests {
     #[test]
     fn test_url_for() {
         let req2 = HttpRequest::default();
-        assert_eq!(req2.url_for("unknown", &["test"]),
-                   Err(UrlGenerationError::RouterNotAvailable));
+        assert_eq!(
+            req2.url_for("unknown", &["test"]),
+            Err(UrlGenerationError::RouterNotAvailable)
+        );
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec!((Resource::new("index", "/user/{name}.{ext}"), Some(resource)));
+        let routes = vec![
+            (
+                Resource::new("index", "/user/{name}.{ext}"),
+                Some(resource),
+            ),
+        ];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -665,12 +694,19 @@ mod tests {
         let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
             .finish_with_router(router);
 
-        assert_eq!(req.url_for("unknown", &["test"]),
-                   Err(UrlGenerationError::ResourceNotFound));
-        assert_eq!(req.url_for("index", &["test"]),
-                   Err(UrlGenerationError::NotEnoughElements));
+        assert_eq!(
+            req.url_for("unknown", &["test"]),
+            Err(UrlGenerationError::ResourceNotFound)
+        );
+        assert_eq!(
+            req.url_for("index", &["test"]),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
         let url = req.url_for("index", &["test", "html"]);
-        assert_eq!(url.ok().unwrap().as_str(), "http://www.rust-lang.org/user/test.html");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.rust-lang.org/user/test.html"
+        );
     }
 
     #[test]
@@ -679,15 +715,22 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![
+            (
+                Resource::new("index", "/user/{name}.{ext}"),
+                Some(resource),
+            ),
+        ];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
 
         let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("index", &["test", "html"]);
-        assert_eq!(url.ok().unwrap().as_str(),
-                   "http://www.rust-lang.org/prefix/user/test.html");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.rust-lang.org/prefix/user/test.html"
+        );
     }
 
     #[test]
@@ -697,12 +740,19 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let routes = vec![
-            (Resource::external("youtube", "https://youtube.com/watch/{video_id}"), None)];
+            (
+                Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
+                None,
+            ),
+        ];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
         let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
-        assert_eq!(url.ok().unwrap().as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "https://youtube.com/watch/oHg5SJYRHA0"
+        );
     }
 }

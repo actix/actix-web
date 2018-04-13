@@ -13,11 +13,13 @@ use self::internal::IntoQuality;
 ///
 /// # Implementation notes
 ///
-/// The quality value is defined as a number between 0 and 1 with three decimal places. This means
-/// there are 1001 possible values. Since floating point numbers are not exact and the smallest
-/// floating point data type (`f32`) consumes four bytes, hyper uses an `u16` value to store the
-/// quality internally. For performance reasons you may set quality directly to a value between
-/// 0 and 1000 e.g. `Quality(532)` matches the quality `q=0.532`.
+/// The quality value is defined as a number between 0 and 1 with three decimal
+/// places. This means there are 1001 possible values. Since floating point
+/// numbers are not exact and the smallest floating point data type (`f32`)
+/// consumes four bytes, hyper uses an `u16` value to store the
+/// quality internally. For performance reasons you may set quality directly to
+/// a value between 0 and 1000 e.g. `Quality(532)` matches the quality
+/// `q=0.532`.
 ///
 /// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
 /// gives more information on quality values in HTTP header fields.
@@ -61,7 +63,11 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
         match self.quality.0 {
             1000 => Ok(()),
             0 => f.write_str("; q=0"),
-            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_right_matches('0'))
+            x => write!(
+                f,
+                "; q=0.{}",
+                format!("{:03}", x).trim_right_matches('0')
+            ),
         }
     }
 }
@@ -96,7 +102,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                         } else {
                             return Err(::error::ParseError::Header);
                         }
-                    },
+                    }
                     Err(_) => return Err(::error::ParseError::Header),
                 }
             }
@@ -114,7 +120,10 @@ fn from_f32(f: f32) -> Quality {
     // this function is only used internally. A check that `f` is within range
     // should be done before calling this method. Just in case, this
     // debug_assert should catch if we were forgetful
-    debug_assert!(f >= 0f32 && f <= 1f32, "q value must be between 0.0 and 1.0");
+    debug_assert!(
+        f >= 0f32 && f <= 1f32,
+        "q value must be between 0.0 and 1.0"
+    );
     Quality((f * 1000f32) as u16)
 }
 
@@ -125,7 +134,7 @@ pub fn qitem<T>(item: T) -> QualityItem<T> {
 }
 
 /// Convenience function to create a `Quality` from a float or integer.
-/// 
+///
 /// Implemented for `u16` and `f32`. Panics if value is out of range.
 pub fn q<T: IntoQuality>(val: T) -> Quality {
     val.into_quality()
@@ -147,7 +156,10 @@ mod internal {
 
     impl IntoQuality for f32 {
         fn into_quality(self) -> Quality {
-            assert!(self >= 0f32 && self <= 1f32, "float must be between 0.0 and 1.0");
+            assert!(
+                self >= 0f32 && self <= 1f32,
+                "float must be between 0.0 and 1.0"
+            );
             super::from_f32(self)
         }
     }
@@ -159,7 +171,6 @@ mod internal {
         }
     }
 
-
     pub trait Sealed {}
     impl Sealed for u16 {}
     impl Sealed for f32 {}
@@ -167,8 +178,8 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::encoding::*;
+    use super::*;
 
     #[test]
     fn test_quality_item_fmt_q_1() {
@@ -183,7 +194,7 @@ mod tests {
     #[test]
     fn test_quality_item_fmt_q_05() {
         // Custom value
-        let x = QualityItem{
+        let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
             quality: Quality(500),
         };
@@ -193,7 +204,7 @@ mod tests {
     #[test]
     fn test_quality_item_fmt_q_0() {
         // Custom value
-        let x = QualityItem{
+        let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
             quality: Quality(0),
         };
@@ -203,22 +214,46 @@ mod tests {
     #[test]
     fn test_quality_item_from_str1() {
         let x: Result<QualityItem<Encoding>, _> = "chunked".parse();
-        assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
+        assert_eq!(
+            x.unwrap(),
+            QualityItem {
+                item: Chunked,
+                quality: Quality(1000),
+            }
+        );
     }
     #[test]
     fn test_quality_item_from_str2() {
         let x: Result<QualityItem<Encoding>, _> = "chunked; q=1".parse();
-        assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
+        assert_eq!(
+            x.unwrap(),
+            QualityItem {
+                item: Chunked,
+                quality: Quality(1000),
+            }
+        );
     }
     #[test]
     fn test_quality_item_from_str3() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.5".parse();
-        assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(500), });
+        assert_eq!(
+            x.unwrap(),
+            QualityItem {
+                item: Gzip,
+                quality: Quality(500),
+            }
+        );
     }
     #[test]
     fn test_quality_item_from_str4() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.273".parse();
-        assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(273), });
+        assert_eq!(
+            x.unwrap(),
+            QualityItem {
+                item: Gzip,
+                quality: Quality(273),
+            }
+        );
     }
     #[test]
     fn test_quality_item_from_str5() {
@@ -245,14 +280,14 @@ mod tests {
 
     #[test]
     #[should_panic] // FIXME - 32-bit msvc unwinding broken
-    #[cfg_attr(all(target_arch="x86", target_env="msvc"), ignore)]
+    #[cfg_attr(all(target_arch = "x86", target_env = "msvc"), ignore)]
     fn test_quality_invalid() {
         q(-1.0);
     }
 
     #[test]
     #[should_panic] // FIXME - 32-bit msvc unwinding broken
-    #[cfg_attr(all(target_arch="x86", target_env="msvc"), ignore)]
+    #[cfg_attr(all(target_arch = "x86", target_env = "msvc"), ignore)]
     fn test_quality_invalid2() {
         q(2.0);
     }
@@ -260,6 +295,10 @@ mod tests {
     #[test]
     fn test_fuzzing_bugs() {
         assert!("99999;".parse::<QualityItem<String>>().is_err());
-        assert!("\x0d;;;=\u{d6aa}==".parse::<QualityItem<String>>().is_err())
+        assert!(
+            "\x0d;;;=\u{d6aa}=="
+                .parse::<QualityItem<String>>()
+                .is_err()
+        )
     }
 }

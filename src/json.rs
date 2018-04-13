@@ -1,16 +1,16 @@
+use bytes::{Bytes, BytesMut};
+use futures::{Future, Poll, Stream};
+use http::header::CONTENT_LENGTH;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
-use bytes::{Bytes, BytesMut};
-use futures::{Poll, Future, Stream};
-use http::header::CONTENT_LENGTH;
 
 use mime;
-use serde_json;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde_json;
 
 use error::{Error, JsonPayloadError, PayloadError};
-use handler::{Responder, FromRequest};
+use handler::{FromRequest, Responder};
 use http::StatusCode;
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
@@ -18,80 +18,15 @@ use httpresponse::HttpResponse;
 
 /// Json helper
 ///
-/// Json can be used for two different purpose. First is for json response generation
-/// and second is for extracting typed information from request's payload.
-pub struct Json<T>(pub T);
-
-impl<T> Json<T> {
-    /// Deconstruct to an inner value
-    pub fn into_inner(self) -> T {
-        self.0
-    }
-}
-
-impl<T> Deref for Json<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for Json<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
-}
-
-impl<T> fmt::Debug for Json<T> where T: fmt::Debug {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Json: {:?}", self.0)
-    }
-}
-
-impl<T> fmt::Display for Json<T> where T: fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
-}
-
-/// The `Json` type allows you to respond with well-formed JSON data: simply
-/// return a value of type Json<T> where T is the type of a structure
-/// to serialize into *JSON*. The type `T` must implement the `Serialize`
-/// trait from *serde*.
+/// Json can be used for two different purpose. First is for json response
+/// generation and second is for extracting typed information from request's
+/// payload.
 ///
-/// ```rust
-/// # extern crate actix_web;
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// #
-/// #[derive(Serialize)]
-/// struct MyObj {
-///     name: String,
-/// }
+/// To extract typed information from request's body, the type `T` must
+/// implement the `Deserialize` trait from *serde*.
 ///
-/// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
-///     Ok(Json(MyObj{name: req.match_info().query("name")?}))
-/// }
-/// # fn main() {}
-/// ```
-impl<T: Serialize> Responder for Json<T> {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
-        let body = serde_json::to_string(&self.0)?;
-
-        Ok(req.build_response(StatusCode::OK)
-           .content_type("application/json")
-           .body(body))
-    }
-}
-
-/// To extract typed information from request's body, the type `T` must implement the
-/// `Deserialize` trait from *serde*.
-///
-/// [**JsonConfig**](dev/struct.JsonConfig.html) allows to configure extraction process.
+/// [**JsonConfig**](dev/struct.JsonConfig.html) allows to configure extraction
+/// process.
 ///
 /// ## Example
 ///
@@ -116,11 +51,88 @@ impl<T: Serialize> Responder for Json<T> {
 ///        |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
 /// }
 /// ```
+///
+/// The `Json` type allows you to respond with well-formed JSON data: simply
+/// return a value of type Json<T> where T is the type of a structure
+/// to serialize into *JSON*. The type `T` must implement the `Serialize`
+/// trait from *serde*.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # #[macro_use] extern crate serde_derive;
+/// # use actix_web::*;
+/// #
+/// #[derive(Serialize)]
+/// struct MyObj {
+///     name: String,
+/// }
+///
+/// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
+///     Ok(Json(MyObj{name: req.match_info().query("name")?}))
+/// }
+/// # fn main() {}
+/// ```
+pub struct Json<T>(pub T);
+
+impl<T> Json<T> {
+    /// Deconstruct to an inner value
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T> Deref for Json<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Json<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> fmt::Debug for Json<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Json: {:?}", self.0)
+    }
+}
+
+impl<T> fmt::Display for Json<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl<T: Serialize> Responder for Json<T> {
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+        let body = serde_json::to_string(&self.0)?;
+
+        Ok(req.build_response(StatusCode::OK)
+            .content_type("application/json")
+            .body(body))
+    }
+}
+
 impl<T, S> FromRequest<S> for Json<T>
-    where T: DeserializeOwned + 'static, S: 'static
+where
+    T: DeserializeOwned + 'static,
+    S: 'static,
 {
     type Config = JsonConfig;
-    type Result = Box<Future<Item=Self, Error=Error>>;
+    type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
@@ -128,7 +140,8 @@ impl<T, S> FromRequest<S> for Json<T>
             JsonBody::new(req.clone())
                 .limit(cfg.limit)
                 .from_err()
-                .map(Json))
+                .map(Json),
+        )
     }
 }
 
@@ -163,7 +176,6 @@ pub struct JsonConfig {
 }
 
 impl JsonConfig {
-
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(&mut self, limit: usize) -> &mut Self {
         self.limit = limit;
@@ -173,7 +185,7 @@ impl JsonConfig {
 
 impl Default for JsonConfig {
     fn default() -> Self {
-        JsonConfig{limit: 262_144}
+        JsonConfig { limit: 262_144 }
     }
 }
 
@@ -208,17 +220,16 @@ impl Default for JsonConfig {
 /// }
 /// # fn main() {}
 /// ```
-pub struct JsonBody<T, U: DeserializeOwned>{
+pub struct JsonBody<T, U: DeserializeOwned> {
     limit: usize,
     req: Option<T>,
-    fut: Option<Box<Future<Item=U, Error=JsonPayloadError>>>,
+    fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
 }
 
 impl<T, U: DeserializeOwned> JsonBody<T, U> {
-
     /// Create `JsonBody` for request.
     pub fn new(req: T) -> Self {
-        JsonBody{
+        JsonBody {
             limit: 262_144,
             req: Some(req),
             fut: None,
@@ -233,7 +244,8 @@ impl<T, U: DeserializeOwned> JsonBody<T, U> {
 }
 
 impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
-    where T: HttpMessage + Stream<Item=Bytes, Error=PayloadError> + 'static
+where
+    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     type Item = U;
     type Error = JsonPayloadError;
@@ -259,7 +271,7 @@ impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
                 false
             };
             if !json {
-                return Err(JsonPayloadError::ContentType)
+                return Err(JsonPayloadError::ContentType);
             }
 
             let limit = self.limit;
@@ -276,7 +288,10 @@ impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
             self.fut = Some(Box::new(fut));
         }
 
-        self.fut.as_mut().expect("JsonBody could not be used second time").poll()
+        self.fut
+            .as_mut()
+            .expect("JsonBody could not be used second time")
+            .poll()
     }
 }
 
@@ -284,11 +299,11 @@ impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use http::header;
     use futures::Async;
+    use http::header;
 
-    use with::{With, ExtractorConfig};
     use handler::Handler;
+    use with::{ExtractorConfig, With};
 
     impl PartialEq for JsonPayloadError {
         fn eq(&self, other: &JsonPayloadError) -> bool {
@@ -313,59 +328,100 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let json = Json(MyObject{name: "test".to_owned()});
+        let json = Json(MyObject {
+            name: "test".to_owned(),
+        });
         let resp = json.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/json");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
     }
 
     #[test]
     fn test_json_body() {
         let req = HttpRequest::default();
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
+        assert_eq!(
+            json.poll().err().unwrap(),
+            JsonPayloadError::ContentType
+        );
 
         let mut req = HttpRequest::default();
-        req.headers_mut().insert(header::CONTENT_TYPE,
-                                 header::HeaderValue::from_static("application/text"));
+        req.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/text"),
+        );
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
+        assert_eq!(
+            json.poll().err().unwrap(),
+            JsonPayloadError::ContentType
+        );
 
         let mut req = HttpRequest::default();
-        req.headers_mut().insert(header::CONTENT_TYPE,
-                                 header::HeaderValue::from_static("application/json"));
-        req.headers_mut().insert(header::CONTENT_LENGTH,
-                                 header::HeaderValue::from_static("10000"));
+        req.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("10000"),
+        );
         let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
         let mut req = HttpRequest::default();
-        req.headers_mut().insert(header::CONTENT_TYPE,
-                                 header::HeaderValue::from_static("application/json"));
-        req.headers_mut().insert(header::CONTENT_LENGTH,
-                                 header::HeaderValue::from_static("16"));
-        req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        req.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        );
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().ok().unwrap(),
-                   Async::Ready(MyObject{name: "test".to_owned()}));
+        assert_eq!(
+            json.poll().ok().unwrap(),
+            Async::Ready(MyObject {
+                name: "test".to_owned()
+            })
+        );
     }
 
     #[test]
     fn test_with_json() {
         let mut cfg = ExtractorConfig::<_, Json<MyObject>>::default();
         cfg.limit(4096);
-        let mut handler = With::new(|data: Json<MyObject>| {data}, cfg);
+        let mut handler = With::new(|data: Json<MyObject>| data, cfg);
 
         let req = HttpRequest::default();
-        let err = handler.handle(req).as_response().unwrap().error().is_some();
+        let err = handler
+            .handle(req)
+            .as_response()
+            .unwrap()
+            .error()
+            .is_some();
         assert!(err);
 
         let mut req = HttpRequest::default();
-        req.headers_mut().insert(header::CONTENT_TYPE,
-                                 header::HeaderValue::from_static("application/json"));
-        req.headers_mut().insert(header::CONTENT_LENGTH,
-                                 header::HeaderValue::from_static("16"));
-        req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
-        let ok = handler.handle(req).as_response().unwrap().error().is_none();
+        req.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        );
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        let ok = handler
+            .handle(req)
+            .as_response()
+            .unwrap()
+            .error()
+            .is_none();
         assert!(ok)
     }
 }

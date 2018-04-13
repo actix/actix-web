@@ -1,7 +1,7 @@
-use std::fmt;
-use std::convert::{Into, From};
-use sha1;
 use base64;
+use sha1;
+use std::convert::{From, Into};
+use std::fmt;
 
 use self::OpCode::*;
 /// Operation codes as part of rfc6455.
@@ -26,52 +26,54 @@ pub enum OpCode {
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Continue   =>   write!(f, "CONTINUE"),
-            Text       =>   write!(f, "TEXT"),
-            Binary     =>   write!(f, "BINARY"),
-            Close      =>   write!(f, "CLOSE"),
-            Ping       =>   write!(f, "PING"),
-            Pong       =>   write!(f, "PONG"),
-            Bad        =>   write!(f, "BAD"),
+            Continue => write!(f, "CONTINUE"),
+            Text => write!(f, "TEXT"),
+            Binary => write!(f, "BINARY"),
+            Close => write!(f, "CLOSE"),
+            Ping => write!(f, "PING"),
+            Pong => write!(f, "PONG"),
+            Bad => write!(f, "BAD"),
         }
     }
 }
 
 impl Into<u8> for OpCode {
-
     fn into(self) -> u8 {
         match self {
-            Continue   =>   0,
-            Text       =>   1,
-            Binary     =>   2,
-            Close      =>   8,
-            Ping       =>   9,
-            Pong       =>   10,
-            Bad        => {
-                debug_assert!(false, "Attempted to convert invalid opcode to u8. This is a bug.");
-                8  // if this somehow happens, a close frame will help us tear down quickly
+            Continue => 0,
+            Text => 1,
+            Binary => 2,
+            Close => 8,
+            Ping => 9,
+            Pong => 10,
+            Bad => {
+                debug_assert!(
+                    false,
+                    "Attempted to convert invalid opcode to u8. This is a bug."
+                );
+                8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }
     }
 }
 
 impl From<u8> for OpCode {
-
     fn from(byte: u8) -> OpCode {
         match byte {
-            0   =>   Continue,
-            1   =>   Text,
-            2   =>   Binary,
-            8   =>   Close,
-            9   =>   Ping,
-            10  =>   Pong,
-            _   =>   Bad
+            0 => Continue,
+            1 => Text,
+            2 => Binary,
+            8 => Close,
+            9 => Ping,
+            10 => Pong,
+            _ => Bad,
         }
     }
 }
 
 use self::CloseCode::*;
-/// Status code used to indicate why an endpoint is closing the `WebSocket` connection.
+/// Status code used to indicate why an endpoint is closing the `WebSocket`
+/// connection.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum CloseCode {
     /// Indicates a normal closure, meaning that the purpose for
@@ -125,12 +127,13 @@ pub enum CloseCode {
     /// it encountered an unexpected condition that prevented it from
     /// fulfilling the request.
     Error,
-    /// Indicates that the server is restarting. A client may choose to reconnect,
-    /// and if it does, it should use a randomized delay of 5-30 seconds between attempts.
+    /// Indicates that the server is restarting. A client may choose to
+    /// reconnect, and if it does, it should use a randomized delay of 5-30
+    /// seconds between attempts.
     Restart,
-    /// Indicates that the server is overloaded and the client should either connect
-    /// to a different IP (when multiple targets exist), or reconnect to the same IP
-    /// when a user has performed an action.
+    /// Indicates that the server is overloaded and the client should either
+    /// connect to a different IP (when multiple targets exist), or
+    /// reconnect to the same IP when a user has performed an action.
     Again,
     #[doc(hidden)]
     Tls,
@@ -141,31 +144,29 @@ pub enum CloseCode {
 }
 
 impl Into<u16> for CloseCode {
-
     fn into(self) -> u16 {
         match self {
-           Normal        =>   1000,
-           Away          =>   1001,
-           Protocol      =>   1002,
-           Unsupported   =>   1003,
-           Status        =>   1005,
-           Abnormal      =>   1006,
-           Invalid       =>   1007,
-           Policy        =>   1008,
-           Size          =>   1009,
-           Extension     =>   1010,
-           Error         =>   1011,
-           Restart       =>   1012,
-           Again         =>   1013,
-           Tls           =>   1015,
-           Empty         =>   0,
-           Other(code)   =>   code,
+            Normal => 1000,
+            Away => 1001,
+            Protocol => 1002,
+            Unsupported => 1003,
+            Status => 1005,
+            Abnormal => 1006,
+            Invalid => 1007,
+            Policy => 1008,
+            Size => 1009,
+            Extension => 1010,
+            Error => 1011,
+            Restart => 1012,
+            Again => 1013,
+            Tls => 1015,
+            Empty => 0,
+            Other(code) => code,
         }
     }
 }
 
 impl From<u16> for CloseCode {
-
     fn from(code: u16) -> CloseCode {
         match code {
             1000 => Normal,
@@ -182,7 +183,7 @@ impl From<u16> for CloseCode {
             1012 => Restart,
             1013 => Again,
             1015 => Tls,
-            0    => Empty,
+            0 => Empty,
             _ => Other(code),
         }
     }
@@ -200,7 +201,6 @@ pub(crate) fn hash_key(key: &[u8]) -> String {
     base64::encode(&hasher.digest().bytes())
 }
 
-
 #[cfg(test)]
 mod test {
     #![allow(unused_imports, unused_variables, dead_code)]
@@ -210,9 +210,9 @@ mod test {
         ($from:expr => $opcode:pat) => {
             match OpCode::from($from) {
                 e @ $opcode => (),
-                e => unreachable!("{:?}", e)
+                e => unreachable!("{:?}", e),
             }
-        }
+        };
     }
 
     macro_rules! opcode_from {
@@ -220,9 +220,9 @@ mod test {
             let res: u8 = $from.into();
             match res {
                 e @ $opcode => (),
-                e => unreachable!("{:?}", e)
+                e => unreachable!("{:?}", e),
             }
-        }
+        };
     }
 
     #[test]

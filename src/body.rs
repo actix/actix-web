@@ -1,18 +1,17 @@
-use std::{fmt, mem};
-use std::rc::Rc;
-use std::sync::Arc;
 use bytes::{Bytes, BytesMut};
 use futures::Stream;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::{fmt, mem};
 
-use error::Error;
 use context::ActorHttpContext;
+use error::Error;
 use handler::Responder;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-
 /// Type represent streaming body
-pub type BodyStream = Box<Stream<Item=Bytes, Error=Error>>;
+pub type BodyStream = Box<Stream<Item = Bytes, Error = Error>>;
 
 /// Represents various types of http message body.
 pub enum Body {
@@ -50,7 +49,7 @@ impl Body {
     pub fn is_streaming(&self) -> bool {
         match *self {
             Body::Streaming(_) | Body::Actor(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -59,7 +58,7 @@ impl Body {
     pub fn is_binary(&self) -> bool {
         match *self {
             Body::Binary(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -96,7 +95,10 @@ impl fmt::Debug for Body {
     }
 }
 
-impl<T> From<T> for Body where T: Into<Binary>{
+impl<T> From<T> for Body
+where
+    T: Into<Binary>,
+{
     fn from(b: T) -> Body {
         Body::Binary(b.into())
     }
@@ -257,8 +259,8 @@ impl Responder for Binary {
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(HttpResponse::Ok()
-           .content_type("application/octet-stream")
-           .body(self))
+            .content_type("application/octet-stream")
+            .body(self))
     }
 }
 
@@ -349,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_bytes_mut() {
-        let b =  BytesMut::from("test");
+        let b = BytesMut::from("test");
         assert_eq!(Binary::from(b.clone()).len(), 4);
         assert_eq!(Binary::from(b).as_ref(), b"test");
     }

@@ -5,9 +5,9 @@ use std::fmt;
 use std::str::FromStr;
 
 use bytes::{Bytes, BytesMut};
-use modhttp::{Error as HttpError};
-use modhttp::header::GetAll;
 use mime::Mime;
+use modhttp::Error as HttpError;
+use modhttp::header::GetAll;
 
 pub use modhttp::header::*;
 
@@ -21,11 +21,12 @@ pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
-
 #[doc(hidden)]
 /// A trait for any object that will represent a header field and value.
-pub trait Header where Self: IntoHeaderValue {
-
+pub trait Header
+where
+    Self: IntoHeaderValue,
+{
     /// Returns the name of the header field
     fn name() -> HeaderName;
 
@@ -112,7 +113,7 @@ pub enum ContentEncoding {
     /// Automatically select encoding based on encoding negotiation
     Auto,
     /// A format using the Brotli algorithm
-    #[cfg(feature="brotli")]
+    #[cfg(feature = "brotli")]
     Br,
     /// A format using the zlib structure with deflate algorithm
     Deflate,
@@ -123,19 +124,18 @@ pub enum ContentEncoding {
 }
 
 impl ContentEncoding {
-
     #[inline]
     pub fn is_compression(&self) -> bool {
         match *self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
-            _ => true
+            _ => true,
         }
     }
 
     #[inline]
     pub fn as_str(&self) -> &'static str {
         match *self {
-            #[cfg(feature="brotli")]
+            #[cfg(feature = "brotli")]
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",
             ContentEncoding::Deflate => "deflate",
@@ -147,7 +147,7 @@ impl ContentEncoding {
     /// default quality value
     pub fn quality(&self) -> f64 {
         match *self {
-            #[cfg(feature="brotli")]
+            #[cfg(feature = "brotli")]
             ContentEncoding::Br => 1.1,
             ContentEncoding::Gzip => 1.0,
             ContentEncoding::Deflate => 0.9,
@@ -160,7 +160,7 @@ impl ContentEncoding {
 impl<'a> From<&'a str> for ContentEncoding {
     fn from(s: &'a str) -> ContentEncoding {
         match s.trim().to_lowercase().as_ref() {
-            #[cfg(feature="brotli")]
+            #[cfg(feature = "brotli")]
             "br" => ContentEncoding::Br,
             "gzip" => ContentEncoding::Gzip,
             "deflate" => ContentEncoding::Deflate,
@@ -176,7 +176,9 @@ pub(crate) struct Writer {
 
 impl Writer {
     fn new() -> Writer {
-        Writer{buf: BytesMut::new()}
+        Writer {
+            buf: BytesMut::new(),
+        }
     }
     fn take(&mut self) -> Bytes {
         self.buf.take().freeze()
@@ -199,18 +201,20 @@ impl fmt::Write for Writer {
 #[inline]
 #[doc(hidden)]
 /// Reads a comma-delimited raw header into a Vec.
-pub fn from_comma_delimited<T: FromStr>(all: GetAll<HeaderValue>)
-                                        -> Result<Vec<T>, ParseError>
-{
+pub fn from_comma_delimited<T: FromStr>(
+    all: GetAll<HeaderValue>
+) -> Result<Vec<T>, ParseError> {
     let mut result = Vec::new();
     for h in all {
         let s = h.to_str().map_err(|_| ParseError::Header)?;
-        result.extend(s.split(',')
-                      .filter_map(|x| match x.trim() {
-                          "" => None,
-                          y => Some(y)
-                      })
-                      .filter_map(|x| x.trim().parse().ok()))
+        result.extend(
+            s.split(',')
+                .filter_map(|x| match x.trim() {
+                    "" => None,
+                    y => Some(y),
+                })
+                .filter_map(|x| x.trim().parse().ok()),
+        )
     }
     Ok(result)
 }
@@ -218,13 +222,11 @@ pub fn from_comma_delimited<T: FromStr>(all: GetAll<HeaderValue>)
 #[inline]
 #[doc(hidden)]
 /// Reads a single string when parsing a header.
-pub fn from_one_raw_str<T: FromStr>(val: Option<&HeaderValue>)
-                                    -> Result<T, ParseError>
-{
+pub fn from_one_raw_str<T: FromStr>(val: Option<&HeaderValue>) -> Result<T, ParseError> {
     if let Some(line) = val {
         let line = line.to_str().map_err(|_| ParseError::Header)?;
         if !line.is_empty() {
-            return T::from_str(line).or(Err(ParseError::Header))
+            return T::from_str(line).or(Err(ParseError::Header));
         }
     }
     Err(ParseError::Header)
@@ -234,7 +236,8 @@ pub fn from_one_raw_str<T: FromStr>(val: Option<&HeaderValue>)
 #[doc(hidden)]
 /// Format an array into a comma-delimited string.
 pub fn fmt_comma_delimited<T>(f: &mut fmt::Formatter, parts: &[T]) -> fmt::Result
-    where T: fmt::Display
+where
+    T: fmt::Display,
 {
     let mut iter = parts.iter();
     if let Some(part) = iter.next() {

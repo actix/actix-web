@@ -1,4 +1,4 @@
-use header::{ETAG, EntityTag};
+use header::{EntityTag, ETAG};
 
 header! {
     /// `ETag` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.3)

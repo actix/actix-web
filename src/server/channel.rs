@@ -1,16 +1,15 @@
-use std::{ptr, mem, time, io};
+use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
-use std::net::{SocketAddr, Shutdown};
+use std::{io, mem, ptr, time};
 
-use bytes::{Bytes, BytesMut, Buf, BufMut};
-use futures::{Future, Poll, Async};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use super::{h1, h2, utils, HttpHandler, IoStream};
 use super::settings::WorkerSettings;
+use super::{utils, HttpHandler, IoStream, h1, h2};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
-
 
 enum HttpProtocol<T: IoStream, H: 'static> {
     H1(h1::Http1<T, H>),
@@ -24,27 +23,47 @@ enum ProtocolKind {
 }
 
 #[doc(hidden)]
-pub struct HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static {
+pub struct HttpChannel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
 }
 
-impl<T, H> HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
+impl<T, H> HttpChannel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
 {
-    pub(crate) fn new(settings: Rc<WorkerSettings<H>>,
-                      mut io: T, peer: Option<SocketAddr>, http2: bool) -> HttpChannel<T, H>
-    {
+    pub(crate) fn new(
+        settings: Rc<WorkerSettings<H>>, mut io: T, peer: Option<SocketAddr>,
+        http2: bool,
+    ) -> HttpChannel<T, H> {
         settings.add_channel();
         let _ = io.set_nodelay(true);
 
         if http2 {
             HttpChannel {
-                node: None, proto: Some(HttpProtocol::H2(
-                    h2::Http2::new(settings, io, peer, Bytes::new()))) }
+                node: None,
+                proto: Some(HttpProtocol::H2(h2::Http2::new(
+                    settings,
+                    io,
+                    peer,
+                    Bytes::new(),
+                ))),
+            }
         } else {
             HttpChannel {
-                node: None, proto: Some(HttpProtocol::Unknown(
-                    settings, peer, io, BytesMut::with_capacity(4096))) }
+                node: None,
+                proto: Some(HttpProtocol::Unknown(
+                    settings,
+                    peer,
+                    io,
+                    BytesMut::with_capacity(4096),
+                )),
+            }
         }
     }
 
@@ -55,15 +74,16 @@ impl<T, H> HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
                 let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
                 let _ = IoStream::shutdown(io, Shutdown::Both);
             }
-            Some(HttpProtocol::H2(ref mut h2)) => {
-                h2.shutdown()
-            }
+            Some(HttpProtocol::H2(ref mut h2)) => h2.shutdown(),
             _ => (),
         }
     }
 }
 
-impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'static
+impl<T, H> Future for HttpChannel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
 {
     type Item = ();
     type Error = ();
@@ -73,12 +93,15 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) =>
-                    self.node.as_ref().map(|n| h1.settings().head().insert(n)),
-                Some(HttpProtocol::H2(ref mut h2)) =>
-                    self.node.as_ref().map(|n| h2.settings().head().insert(n)),
-                Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) =>
-                    self.node.as_ref().map(|n| settings.head().insert(n)),
+                Some(HttpProtocol::H1(ref mut h1)) => self.node
+                    .as_ref()
+                    .map(|n| h1.settings().head().insert(n)),
+                Some(HttpProtocol::H2(ref mut h2)) => self.node
+                    .as_ref()
+                    .map(|n| h2.settings().head().insert(n)),
+                Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
+                    self.node.as_ref().map(|n| settings.head().insert(n))
+                }
                 None => unreachable!(),
             };
         }
@@ -90,30 +113,35 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
                     Ok(Async::Ready(())) | Err(_) => {
                         h1.settings().remove_channel();
                         self.node.as_mut().map(|n| n.remove());
-                    },
+                    }
                     _ => (),
                 }
-                return result
-            },
+                return result;
+            }
             Some(HttpProtocol::H2(ref mut h2)) => {
                 let result = h2.poll();
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
                         h2.settings().remove_channel();
                         self.node.as_mut().map(|n| n.remove());
-                    },
+                    }
                     _ => (),
                 }
-                return result
-            },
-            Some(HttpProtocol::Unknown(ref mut settings, _, ref mut io, ref mut buf)) => {
+                return result;
+            }
+            Some(HttpProtocol::Unknown(
+                ref mut settings,
+                _,
+                ref mut io,
+                ref mut buf,
+            )) => {
                 match utils::read_from_io(io, buf) {
                     Ok(Async::Ready(0)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
                         settings.remove_channel();
                         self.node.as_mut().map(|n| n.remove());
-                        return Err(())
-                    },
+                        return Err(());
+                    }
                     _ => (),
                 }
 
@@ -126,7 +154,7 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
                 } else {
                     return Ok(Async::NotReady);
                 }
-            },
+            }
             None => unreachable!(),
         };
 
@@ -134,30 +162,36 @@ impl<T, H> Future for HttpChannel<T, H> where T: IoStream, H: HttpHandler + 'sta
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto = Some(
-                        HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
-                    return self.poll()
-                },
+                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
+                        settings,
+                        io,
+                        addr,
+                        buf,
+                    )));
+                    return self.poll();
+                }
                 ProtocolKind::Http2 => {
-                    self.proto = Some(
-                        HttpProtocol::H2(h2::Http2::new(settings, io, addr, buf.freeze())));
-                    return self.poll()
-                },
+                    self.proto = Some(HttpProtocol::H2(h2::Http2::new(
+                        settings,
+                        io,
+                        addr,
+                        buf.freeze(),
+                    )));
+                    return self.poll();
+                }
             }
         }
         unreachable!()
     }
 }
 
-pub(crate) struct Node<T>
-{
+pub(crate) struct Node<T> {
     next: Option<*mut Node<()>>,
     prev: Option<*mut Node<()>>,
     element: *mut T,
 }
 
-impl<T> Node<T>
-{
+impl<T> Node<T> {
     fn new(el: *mut T) -> Self {
         Node {
             next: None,
@@ -194,9 +228,7 @@ impl<T> Node<T>
     }
 }
 
-
 impl Node<()> {
-
     pub(crate) fn head() -> Self {
         Node {
             next: None,
@@ -205,7 +237,11 @@ impl Node<()> {
         }
     }
 
-    pub(crate) fn traverse<T, H>(&self) where T: IoStream, H: HttpHandler + 'static {
+    pub(crate) fn traverse<T, H>(&self)
+    where
+        T: IoStream,
+        H: HttpHandler + 'static,
+    {
         let mut next = self.next.as_ref();
         loop {
             if let Some(n) = next {
@@ -214,30 +250,39 @@ impl Node<()> {
                     next = n.next.as_ref();
 
                     if !n.element.is_null() {
-                        let ch: &mut HttpChannel<T, H> = mem::transmute(
-                            &mut *(n.element as *mut _));
+                        let ch: &mut HttpChannel<T, H> =
+                            mem::transmute(&mut *(n.element as *mut _));
                         ch.shutdown();
                     }
                 }
             } else {
-                return
+                return;
             }
         }
     }
 }
 
 /// Wrapper for `AsyncRead + AsyncWrite` types
-pub(crate) struct WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
-   io: T,
+pub(crate) struct WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
+    io: T,
 }
 
-impl<T> WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     pub fn new(io: T) -> Self {
-        WrapperStream{ io }
+        WrapperStream { io }
     }
 }
 
-impl<T> IoStream for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> IoStream for WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     #[inline]
     fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
         Ok(())
@@ -252,14 +297,20 @@ impl<T> IoStream for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static 
     }
 }
 
-impl<T> io::Read for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> io::Read for WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.io.read(buf)
     }
 }
 
-impl<T> io::Write for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> io::Write for WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.io.write(buf)
@@ -270,14 +321,20 @@ impl<T> io::Write for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static
     }
 }
 
-impl<T> AsyncRead for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> AsyncRead for WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     #[inline]
     fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         self.io.read_buf(buf)
     }
 }
 
-impl<T> AsyncWrite for WrapperStream<T> where T: AsyncRead + AsyncWrite + 'static {
+impl<T> AsyncWrite for WrapperStream<T>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
     #[inline]
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.io.shutdown()
