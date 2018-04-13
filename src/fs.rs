@@ -625,12 +625,12 @@ mod tests {
     fn test_redirect_to_index_nested() {
         let mut st = StaticFiles::new(".").index_file("Cargo.toml");
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "examples/basics");
+        req.match_info_mut().add("tail", "tools/wsload");
 
         let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/examples/basics/Cargo.toml");
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/tools/wsload/Cargo.toml");
     }
 
     #[test]
