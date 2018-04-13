@@ -108,22 +108,5 @@ codegen-units = 1
 [workspace]
 members = [
   "./",
-  "examples/basics",
-  "examples/juniper",
-  "examples/diesel",
-  "examples/r2d2",
-  "examples/json",
-  "examples/protobuf",
-  "examples/hello-world",
-  "examples/http-proxy",
-  "examples/multipart",
-  "examples/state",
-  "examples/redis-session",
-  "examples/template_tera",
-  "examples/tls",
-  "examples/websocket",
-  "examples/websocket-chat",
-  "examples/web-cors/backend",
-  "examples/unix-socket",
   "tools/wsload/",
 ]
