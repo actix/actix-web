@@ -668,7 +668,7 @@ mod tests {
     fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".").index_file("index.html");
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "guide");
+        req.match_info_mut().add("tail", "tests");
 
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
@@ -677,11 +677,11 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
-            "/guide/index.html"
+            "/tests/index.html"
         );
 
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "guide/");
+        req.match_info_mut().add("tail", "tests/");
 
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
@@ -690,7 +690,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
-            "/guide/index.html"
+            "/tests/index.html"
         );
     }
 
