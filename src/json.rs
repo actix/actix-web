@@ -2,6 +2,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{Future, Poll, Stream};
 use http::header::CONTENT_LENGTH;
 use std::fmt;
+use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 
 use mime;
@@ -131,15 +132,17 @@ where
     T: DeserializeOwned + 'static,
     S: 'static,
 {
-    type Config = JsonConfig;
+    type Config = JsonConfig<S>;
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        let req = req.clone();
+        let err = Rc::clone(&cfg.ehandler);
         Box::new(
             JsonBody::new(req.clone())
                 .limit(cfg.limit)
-                .from_err()
+                .map_err(move |e| (*err)(e, req))
                 .map(Json),
         )
     }
@@ -150,7 +153,7 @@ where
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Json, Result, http};
+/// use actix_web::{App, Json, HttpResponse, Result, http, error};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -167,25 +170,40 @@ where
 ///        "/index.html", |r| {
 ///            r.method(http::Method::POST)
 ///               .with(index)
-///               .limit(4096);} // <- change json extractor configuration
-///     );
+///               .limit(4096)   // <- change json extractor configuration
+///               .error_handler(|err, req| {  // <- create custom error response
+///                   error::InternalError::from_response(
+///                      err, HttpResponse::Conflict().finish()).into()
+///               });
+///        });
 /// }
 /// ```
-pub struct JsonConfig {
+pub struct JsonConfig<S> {
     limit: usize,
+    ehandler: Rc<Fn(JsonPayloadError, HttpRequest<S>) -> Error>,
 }
 
-impl JsonConfig {
+impl<S> JsonConfig<S> {
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(&mut self, limit: usize) -> &mut Self {
         self.limit = limit;
         self
     }
+
+    /// Set custom error handler
+    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(JsonPayloadError, HttpRequest<S>) -> Error + 'static
+    {
+        self.ehandler = Rc::new(f);
+        self
+    }
 }
 
-impl Default for JsonConfig {
+impl<S> Default for JsonConfig<S> {
     fn default() -> Self {
-        JsonConfig { limit: 262_144 }
+        JsonConfig { limit: 262_144,
+                     ehandler: Rc::new(|e, _| e.into()) }
     }
 }
 

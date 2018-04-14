@@ -118,11 +118,12 @@ pub trait HttpMessage {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # #[macro_use] extern crate serde_derive;
-    /// use actix_web::*;
     /// use bytes::Bytes;
     /// use futures::future::Future;
+    /// use actix_web::{HttpMessage, HttpRequest, HttpResponse,
+    ///                 FutureResponse, AsyncResponder};
     ///
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
     ///     req.body()                     // <- get Body future
     ///        .limit(1024)                // <- change max size of the body to a 1kb
     ///        .from_err()

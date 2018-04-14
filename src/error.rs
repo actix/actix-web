@@ -1,4 +1,5 @@
 //! Error and Result module
+use std::cell::RefCell;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -545,18 +546,31 @@ impl From<UrlParseError> for UrlGenerationError {
 /// ```
 pub struct InternalError<T> {
     cause: T,
-    status: StatusCode,
+    status: InternalErrorType,
     backtrace: Backtrace,
 }
 
 unsafe impl<T> Sync for InternalError<T> {}
 unsafe impl<T> Send for InternalError<T> {}
 
+enum InternalErrorType {
+    Status(StatusCode),
+    Response(RefCell<Option<HttpResponse>>),
+}
+
 impl<T> InternalError<T> {
     pub fn new(cause: T, status: StatusCode) -> Self {
         InternalError {
             cause,
-            status,
+            status: InternalErrorType::Status(status),
+            backtrace: Backtrace::new(),
+        }
+    }
+
+    pub fn from_response(cause: T, response: HttpResponse) -> Self {
+        InternalError {
+            cause,
+            status: InternalErrorType::Response(RefCell::new(Some(response))),
             backtrace: Backtrace::new(),
         }
     }
@@ -594,7 +608,16 @@ where
     T: Send + Sync + fmt::Debug + 'static,
 {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(self.status)
+        match self.status {
+            InternalErrorType::Status(st) => HttpResponse::new(st),
+            InternalErrorType::Response(ref resp) => {
+                if let Some(resp) = resp.borrow_mut().take() {
+                    resp
+                } else {
+                    HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
     }
 }
 
@@ -858,5 +881,13 @@ mod tests {
             Ok(x) => env::set_var(NAME, x),
             _ => env::remove_var(NAME),
         }
+    }
+
+    #[test]
+    fn test_internal_error() {
+        let err = InternalError::from_response(
+            ExpectError::Encoding, HttpResponse::Ok().into());
+        let resp: HttpResponse = err.error_response();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
