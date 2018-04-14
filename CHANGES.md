@@ -3,6 +3,8 @@
 
 ## 0.5.2 (2018-04-xx)
 
+* Allow to configure StaticFiles's CpuPool, via static method or env variable
+
 * Add support for custom handling of Json extractor errors #181
 
 * Fix StaticFiles does not support percent encoded paths #177

@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{cmp, io};
+use std::{cmp, env, io};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -25,6 +25,9 @@ use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use param::FromParam;
+
+/// Env variable for default cpu pool size for `StaticFiles`
+const ENV_CPU_POOL_VAR: &str = "ACTIX_FS_POOL";
 
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
@@ -445,12 +448,37 @@ pub struct StaticFiles<S> {
 }
 
 lazy_static! {
-    static ref DEFAULT_CPUPOOL: Mutex<CpuPool> = Mutex::new(CpuPool::new(20));
+    static ref DEFAULT_CPUPOOL: Mutex<CpuPool> = {
+        let default = match env::var(ENV_CPU_POOL_VAR) {
+            Ok(val) => {
+                if let Ok(val) = val.parse() {
+                    val
+                } else {
+                    error!("Can not parse ACTIX_FS_POOL value");
+                    20
+                }
+            },
+            Err(_) => 20,
+        };
+        Mutex::new(CpuPool::new(default))
+    };
 }
 
 impl<S: 'static> StaticFiles<S> {
     /// Create new `StaticFiles` instance for specified base directory.
+    ///
+    /// `StaticFile` uses `CpuPool` for blocking filesystem operations.
+    /// By default pool with 20 threads is used.
+    /// Pool size can be changed by setting ACTIX_FS_POOL environment variable.
     pub fn new<T: Into<PathBuf>>(dir: T) -> StaticFiles<S> {
+        // use default CpuPool
+        let pool = { DEFAULT_CPUPOOL.lock().unwrap().clone() };
+
+        StaticFiles::with_pool(dir, pool)
+    }
+
+    /// Create new `StaticFiles` instance for specified base directory and `CpuPool`.
+    pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> StaticFiles<S> {
         let dir = dir.into();
 
         let (dir, access) = match dir.canonicalize() {
@@ -467,9 +495,6 @@ impl<S: 'static> StaticFiles<S> {
                 (dir, false)
             }
         };
-
-        // use default CpuPool
-        let pool = { DEFAULT_CPUPOOL.lock().unwrap().clone() };
 
         StaticFiles {
             directory: dir,

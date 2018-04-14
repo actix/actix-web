@@ -568,7 +568,7 @@ impl<T> InternalError<T> {
         }
     }
 
-    /// Create `InternalError` with predefined `HttpResponse`
+    /// Create `InternalError` with predefined `HttpResponse`.
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
         InternalError {
             cause,
