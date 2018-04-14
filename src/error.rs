@@ -559,6 +559,7 @@ enum InternalErrorType {
 }
 
 impl<T> InternalError<T> {
+    /// Create `InternalError` instance
     pub fn new(cause: T, status: StatusCode) -> Self {
         InternalError {
             cause,
@@ -567,6 +568,7 @@ impl<T> InternalError<T> {
         }
     }
 
+    /// Create `InternalError` with predefined `HttpResponse`
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
         InternalError {
             cause,
