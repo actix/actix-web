@@ -3,6 +3,8 @@
 
 ## 0.5.2 (2018-04-xx)
 
+* Add support for custom handling of Json extractor errors #181
+
 * Fix StaticFiles does not support percent encoded paths #177
 
 
