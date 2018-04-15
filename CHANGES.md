@@ -9,6 +9,8 @@
 
 * Fix StaticFiles does not support percent encoded paths #177
 
+* Fix Client Request with custom Body Stream halting on certain size requests #176
+
 
 ## 0.5.1 (2018-04-12)
 

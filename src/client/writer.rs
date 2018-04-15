@@ -61,6 +61,10 @@ impl HttpClientWriter {
         self.buffer.take();
     }
 
+    pub fn is_completed(&mut self) -> bool {
+        self.buffer.is_empty()
+    }
+
     // pub fn keepalive(&self) -> bool {
     // self.flags.contains(Flags::KEEPALIVE) &&
     // !self.flags.contains(Flags::UPGRADE) }

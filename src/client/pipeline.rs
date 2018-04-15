@@ -184,6 +184,7 @@ impl Future for SendRequest {
                         parser: Some(HttpResponseParser::default()),
                         parser_buf: BytesMut::new(),
                         disconnected: false,
+                        body_completed: false,
                         drain: None,
                         decompress: None,
                         should_decompress: self.req.response_decompress(),
@@ -217,6 +218,7 @@ impl Future for SendRequest {
 
 pub(crate) struct Pipeline {
     body: IoBody,
+    body_completed: bool,
     conn: Option<Connection>,
     writer: HttpClientWriter,
     parser: Option<HttpResponseParser>,
@@ -394,7 +396,7 @@ impl Pipeline {
                     IoBody::Payload(mut body) => match body.poll()? {
                         Async::Ready(None) => {
                             self.writer.write_eof()?;
-                            self.disconnected = true;
+                            self.body_completed = true;
                             break;
                         }
                         Async::Ready(Some(chunk)) => {
@@ -421,8 +423,7 @@ impl Pipeline {
                                 for frame in vec {
                                     match frame {
                                         Frame::Chunk(None) => {
-                                            // info.context = Some(ctx);
-                                            self.disconnected = true;
+                                            self.body_completed = true;
                                             self.writer.write_eof()?;
                                             break 'outter;
                                         }
@@ -451,7 +452,7 @@ impl Pipeline {
                         }
                     }
                     IoBody::Done => {
-                        self.disconnected = true;
+                        self.body_completed = true;
                         done = true;
                         break;
                     }
@@ -472,7 +473,9 @@ impl Pipeline {
             .poll_completed(self.conn.as_mut().unwrap(), false)
         {
             Ok(Async::Ready(_)) => {
-                if self.disconnected {
+                if self.disconnected
+                    || (self.body_completed && self.writer.is_completed())
+                {
                     self.write_state = RunningState::Done;
                 } else {
                     self.write_state.resume();
