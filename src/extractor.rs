@@ -315,13 +315,18 @@ impl Default for FormConfig {
 /// ```rust
 /// extern crate bytes;
 /// # extern crate actix_web;
-/// use actix_web::{App, Result};
+/// use actix_web::{http, App, Result};
 ///
 /// /// extract text data from request
 /// fn index(body: bytes::Bytes) -> Result<String> {
 ///     Ok(format!("Body {:?}!", body))
 /// }
-/// # fn main() {}
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html", |r|
+///            r.method(http::Method::GET).with(index))
+/// }
 /// ```
 impl<S: 'static> FromRequest<S> for Bytes {
     type Config = PayloadConfig;
@@ -354,13 +359,21 @@ impl<S: 'static> FromRequest<S> for Bytes {
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{App, Result};
+/// use actix_web::{http, App, Result};
 ///
 /// /// extract text data from request
 /// fn index(body: String) -> Result<String> {
 ///     Ok(format!("Body {}!", body))
 /// }
-/// # fn main() {}
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html", |r| {
+///            r.method(http::Method::GET)
+///                .with(index)   // <- register handler with extractor params
+///                .limit(4096);  // <- limit size of the payload
+///        })
+/// }
 /// ```
 impl<S: 'static> FromRequest<S> for String {
     type Config = PayloadConfig;

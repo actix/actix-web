@@ -61,7 +61,7 @@ impl HttpClientWriter {
         self.buffer.take();
     }
 
-    pub fn is_completed(&mut self) -> bool {
+    pub fn is_completed(&self) -> bool {
         self.buffer.is_empty()
     }
 

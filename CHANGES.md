@@ -1,7 +1,7 @@
 # Changes
 
 
-## 0.5.2 (2018-04-xx)
+## 0.5.2 (2018-04-16)
 
 * Allow to configure StaticFiles's CpuPool, via static method or env variable
 
