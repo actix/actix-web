@@ -325,7 +325,7 @@ impl Default for FormConfig {
 /// fn main() {
 ///     let app = App::new().resource(
 ///        "/index.html", |r|
-///            r.method(http::Method::GET).with(index))
+///            r.method(http::Method::GET).with(index));
 /// }
 /// ```
 impl<S: 'static> FromRequest<S> for Bytes {
@@ -372,7 +372,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
 ///            r.method(http::Method::GET)
 ///                .with(index)   // <- register handler with extractor params
 ///                .limit(4096);  // <- limit size of the payload
-///        })
+///        });
 /// }
 /// ```
 impl<S: 'static> FromRequest<S> for String {
