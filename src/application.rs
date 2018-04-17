@@ -314,7 +314,7 @@ where
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource("/test", |r| {
+    ///         .resource("/users/{userid}/{friend}", |r| {
     ///              r.get().f(|_| HttpResponse::Ok());
     ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         });
