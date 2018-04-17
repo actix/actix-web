@@ -438,9 +438,9 @@ impl<S> HttpRequest<S> {
     /// Get a reference to the Params object.
     ///
     /// Params is a container for url parameters.
-    /// Route supports glob patterns: * for a single wildcard segment and :param
-    /// for matching storing that segment of the request url in the Params
-    /// object.
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Params {
         unsafe { mem::transmute(&self.as_ref().params) }
