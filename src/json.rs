@@ -2,8 +2,8 @@ use bytes::{Bytes, BytesMut};
 use futures::{Future, Poll, Stream};
 use http::header::CONTENT_LENGTH;
 use std::fmt;
-use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 
 use mime;
 use serde::Serialize;
@@ -193,7 +193,7 @@ impl<S> JsonConfig<S> {
     /// Set custom error handler
     pub fn error_handler<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(JsonPayloadError, HttpRequest<S>) -> Error + 'static
+        F: Fn(JsonPayloadError, HttpRequest<S>) -> Error + 'static,
     {
         self.ehandler = Rc::new(f);
         self
@@ -202,8 +202,10 @@ impl<S> JsonConfig<S> {
 
 impl<S> Default for JsonConfig<S> {
     fn default() -> Self {
-        JsonConfig { limit: 262_144,
-                     ehandler: Rc::new(|e, _| e.into()) }
+        JsonConfig {
+            limit: 262_144,
+            ehandler: Rc::new(|e, _| e.into()),
+        }
     }
 }
 

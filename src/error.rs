@@ -888,7 +888,9 @@ mod tests {
     #[test]
     fn test_internal_error() {
         let err = InternalError::from_response(
-            ExpectError::Encoding, HttpResponse::Ok().into());
+            ExpectError::Encoding,
+            HttpResponse::Ok().into(),
+        );
         let resp: HttpResponse = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
     }

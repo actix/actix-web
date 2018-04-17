@@ -3,7 +3,6 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::rc::Rc;
 
-use percent_encoding::percent_decode;
 use regex::{escape, Regex};
 
 use error::UrlGenerationError;
@@ -82,12 +81,9 @@ impl Router {
         }
         let path: &str = unsafe { mem::transmute(&req.path()[self.0.prefix_len..]) };
         let route_path = if path.is_empty() { "/" } else { path };
-        let p = percent_decode(route_path.as_bytes())
-            .decode_utf8()
-            .unwrap();
 
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
-            if pattern.match_with_params(p.as_ref(), req.match_info_mut()) {
+            if pattern.match_with_params(route_path, req.match_info_mut()) {
                 req.set_resource(idx);
                 return Some(idx);
             }

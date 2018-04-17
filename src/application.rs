@@ -418,6 +418,8 @@ where
     /// `/app/test` would match, but the path `/application` would
     /// not.
     ///
+    /// Path tail is available as `tail` parameter in request's match_dict.
+    ///
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::{http, App, HttpRequest, HttpResponse};

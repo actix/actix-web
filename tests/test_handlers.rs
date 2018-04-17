@@ -148,3 +148,27 @@ fn test_non_ascii_route() {
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(b"success"));
 }
+
+#[test]
+fn test_unsafe_path_route() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/test/{url}", |r| {
+            r.f(|r| format!("success: {}", &r.match_info()["url"]))
+        });
+    });
+
+    // client request
+    let request = srv.get()
+        .uri(srv.url("/test/http%3A%2F%2Fexample.com"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"success: http:%2F%2Fexample.com")
+    );
+}

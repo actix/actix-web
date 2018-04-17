@@ -19,6 +19,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
+use uri::Url;
 
 use super::encoding::PayloadType;
 use super::h1writer::H1Writer;
@@ -527,7 +528,7 @@ impl Reader {
                     httparse::Status::Complete(len) => {
                         let method = Method::from_bytes(req.method.unwrap().as_bytes())
                             .map_err(|_| ParseError::Method)?;
-                        let path = Uri::try_from(req.path.unwrap())?;
+                        let path = Url::new(Uri::try_from(req.path.unwrap())?);
                         let version = if req.version.unwrap() == 1 {
                             Version::HTTP_11
                         } else {
@@ -563,7 +564,7 @@ impl Reader {
                     }
                 }
 
-                msg_mut.uri = path;
+                msg_mut.url = path;
                 msg_mut.method = method;
                 msg_mut.version = version;
             }

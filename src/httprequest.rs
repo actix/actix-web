@@ -6,8 +6,6 @@ use futures::future::{result, FutureResult};
 use futures::{Async, Poll, Stream};
 use futures_cpupool::CpuPool;
 use http::{header, Extensions, HeaderMap, Method, StatusCode, Uri, Version};
-use percent_encoding::percent_decode;
-use std::borrow::Cow;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{cmp, fmt, io, mem, str};
@@ -24,11 +22,12 @@ use param::Params;
 use payload::Payload;
 use router::{Resource, Router};
 use server::helpers::SharedHttpInnerMessage;
+use uri::Url as InnerUrl;
 
 pub struct HttpInnerMessage {
     pub version: Version,
     pub method: Method,
-    pub uri: Uri,
+    pub(crate) url: InnerUrl,
     pub headers: HeaderMap,
     pub extensions: Extensions,
     pub params: Params<'static>,
@@ -51,7 +50,7 @@ impl Default for HttpInnerMessage {
     fn default() -> HttpInnerMessage {
         HttpInnerMessage {
             method: Method::GET,
-            uri: Uri::default(),
+            url: InnerUrl::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             params: Params::new(),
@@ -116,10 +115,11 @@ impl HttpRequest<()> {
         method: Method, uri: Uri, version: Version, headers: HeaderMap,
         payload: Option<Payload>,
     ) -> HttpRequest {
+        let url = InnerUrl::new(uri);
         HttpRequest(
             SharedHttpInnerMessage::from_message(HttpInnerMessage {
                 method,
-                uri,
+                url,
                 version,
                 headers,
                 payload,
@@ -241,15 +241,17 @@ impl<S> HttpRequest<S> {
     /// Read the Request Uri.
     #[inline]
     pub fn uri(&self) -> &Uri {
-        &self.as_ref().uri
+        self.as_ref().url.uri()
     }
 
+    #[doc(hidden)]
+    #[deprecated(since = "0.5.3")]
     /// Returns mutable the Request Uri.
     ///
     /// This might be useful for middlewares, e.g. path normalization.
     #[inline]
     pub fn uri_mut(&mut self) -> &mut Uri {
-        &mut self.as_mut().uri
+        self.as_mut().url.uri_mut()
     }
 
     /// Read the Request method.
@@ -275,15 +277,7 @@ impl<S> HttpRequest<S> {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.uri().path()
-    }
-
-    /// Percent decoded path of this Request.
-    #[inline]
-    pub fn path_decoded(&self) -> Cow<str> {
-        percent_decode(self.uri().path().as_bytes())
-            .decode_utf8()
-            .unwrap()
+        self.as_ref().url.path()
     }
 
     /// Get *ConnectionInfo* for correct request.
@@ -578,7 +572,7 @@ impl<S> fmt::Debug for HttpRequest<S> {
             "\nHttpRequest {:?} {}:{}",
             self.as_ref().version,
             self.as_ref().method,
-            self.path_decoded()
+            self.path()
         );
         if !self.query_string().is_empty() {
             let _ = writeln!(f, "  query: ?{:?}", self.query_string());

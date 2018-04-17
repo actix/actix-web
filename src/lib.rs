@@ -147,6 +147,7 @@ mod pipeline;
 mod resource;
 mod route;
 mod router;
+mod uri;
 mod with;
 
 pub mod client;

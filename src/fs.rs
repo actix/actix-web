@@ -15,7 +15,6 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
 use mime_guess::get_mime_type;
-use percent_encoding::percent_decode;
 
 use error::Error;
 use handler::{Handler, Reply, Responder, RouteHandler, WrapHandler};
@@ -457,7 +456,7 @@ lazy_static! {
                     error!("Can not parse ACTIX_FS_POOL value");
                     20
                 }
-            },
+            }
             Err(_) => 20,
         };
         Mutex::new(CpuPool::new(default))
@@ -477,7 +476,8 @@ impl<S: 'static> StaticFiles<S> {
         StaticFiles::with_pool(dir, pool)
     }
 
-    /// Create new `StaticFiles` instance for specified base directory and `CpuPool`.
+    /// Create new `StaticFiles` instance for specified base directory and
+    /// `CpuPool`.
     pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> StaticFiles<S> {
         let dir = dir.into();
 
@@ -543,8 +543,7 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
         } else {
             let relpath = match req.match_info()
                 .get("tail")
-                .map(|tail| percent_decode(tail.as_bytes()).decode_utf8().unwrap())
-                .map(|tail| PathBuf::from_param(tail.as_ref()))
+                .map(|tail| PathBuf::from_param(tail))
             {
                 Some(Ok(path)) => path,
                 _ => return Ok(self.default.handle(req)),

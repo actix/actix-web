@@ -22,6 +22,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
+use uri::Url;
 
 use super::encoding::PayloadType;
 use super::h2writer::H2Writer;
@@ -304,7 +305,7 @@ impl<H: 'static> Entry<H> {
         let (psender, payload) = Payload::new(false);
 
         let msg = settings.get_http_message();
-        msg.get_mut().uri = parts.uri;
+        msg.get_mut().url = Url::new(parts.uri);
         msg.get_mut().method = parts.method;
         msg.get_mut().version = parts.version;
         msg.get_mut().headers = parts.headers;
