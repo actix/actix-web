@@ -177,6 +177,13 @@ where
     ///
     /// State is shared with all resources within same application and
     /// could be accessed with `HttpRequest::state()` method.
+    ///
+    /// **Note**: http server accepts an application factory rather than
+    /// an application instance. Http server constructs an application
+    /// instance for each thread, thus application state must be constructed multiple
+    /// times. If you want to share state between different threads, a
+    /// shared object should be used, e.g. `Arc`. Application state does not
+    /// need to be `Send` and `Sync`.
     pub fn with_state(state: S) -> App<S> {
         App {
             parts: Some(ApplicationParts {
