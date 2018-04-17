@@ -25,7 +25,7 @@ use httprequest::HttpRequest;
 /// # extern crate futures;
 /// use actix_web::{App, Path, Result, http};
 ///
-/// /// extract path info from "/{username}/{count}/?index.html" url
+/// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
 /// fn index(info: Path<(String, u32)>) -> Result<String> {
@@ -34,7 +34,7 @@ use httprequest::HttpRequest;
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/{username}/{count}/?index.html",       // <- define path parameters
+///        "/{username}/{count}/index.html",              // <- define path parameters
 ///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
@@ -194,9 +194,6 @@ where
 /// process.
 ///
 /// ## Example
-///
-/// It is possible to extract path information to a specific type that
-/// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
 /// # extern crate actix_web;
