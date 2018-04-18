@@ -18,7 +18,7 @@ use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
 use futures::stream::once;
-use futures::{Future, Stream};
+use futures::{future, Future, Stream};
 use h2::client as h2client;
 use modhttp::Request;
 use rand::Rng;
@@ -914,4 +914,35 @@ fn test_resource_middlewares() {
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     // assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+
+fn index_test_middleware_async_error(_: HttpRequest) -> FutureResponse<HttpResponse> {
+    future::result(Err(error::ErrorBadRequest("TEST"))).responder()
+}
+
+#[test]
+fn test_middleware_async_error() {
+    let req = Arc::new(AtomicUsize::new(0));
+    let resp = Arc::new(AtomicUsize::new(0));
+    let fin = Arc::new(AtomicUsize::new(0));
+
+    let act_req = Arc::clone(&req);
+    let act_resp = Arc::clone(&resp);
+    let act_fin = Arc::clone(&fin);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareTest {
+            start: Arc::clone(&act_req),
+            response: Arc::clone(&act_resp),
+            finish: Arc::clone(&act_fin),
+        }).handler(index_test_middleware_async_error)});
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+
+    assert_eq!(req.load(Ordering::Relaxed), 1);
+    assert_eq!(resp.load(Ordering::Relaxed), 1);
+    assert_eq!(fin.load(Ordering::Relaxed), 1);
 }

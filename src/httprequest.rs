@@ -590,6 +590,8 @@ impl<S> fmt::Debug for HttpRequest<S> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
+
     use super::*;
     use http::{HttpTryFrom, Uri};
     use resource::ResourceHandler;

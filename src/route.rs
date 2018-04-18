@@ -420,7 +420,7 @@ impl<S: 'static> WaitingResponse<S> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
             Ok(Async::Ready(response)) => Some(RunMiddlewares::init(info, response)),
-            Err(err) => Some(Response::init(err.into())),
+            Err(err) => Some(RunMiddlewares::init(info, err.into())),
         }
     }
 }

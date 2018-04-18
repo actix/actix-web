@@ -328,7 +328,7 @@ impl<S: 'static, H> WaitingResponse<S, H> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
             Ok(Async::Ready(response)) => Some(RunMiddlewares::init(info, response)),
-            Err(err) => Some(ProcessResponse::init(err.into())),
+            Err(err) => Some(RunMiddlewares::init(info, err.into())),
         }
     }
 }

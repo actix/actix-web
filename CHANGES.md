@@ -1,5 +1,10 @@
 # Changes
 
+## 0.5.4 (2018-04-xx)
+
+* Middleware response() is not invoked if there was an error in async handler #187
+
+
 ## 0.5.3 (2018-04-18)
 
 * Impossible to quote slashes in path parameters #182
