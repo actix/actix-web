@@ -1,6 +1,6 @@
 # Changes
 
-## 0.5.3 (2018-04-xx)
+## 0.5.3 (2018-04-18)
 
 * Impossible to quote slashes in path parameters #182
 
