@@ -2,6 +2,8 @@
 
 ## 0.5.4 (2018-04-xx)
 
+* Add identity service middleware
+
 * Middleware response() is not invoked if there was an error in async handler #187
 
 

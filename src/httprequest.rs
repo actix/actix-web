@@ -201,6 +201,19 @@ impl<S> HttpRequest<S> {
         &mut self.as_mut().extensions
     }
 
+    /// Request extensions
+    #[inline]
+    #[doc(hidden)]
+    pub fn extensions_ro(&self) -> &Extensions {
+        &self.as_ref().extensions
+    }
+
+    /// Mutable refernece to a the request's extensions
+    #[inline]
+    pub fn extensions_mut(&mut self) -> &mut Extensions {
+        &mut self.as_mut().extensions
+    }
+
     /// Default `CpuPool`
     #[inline]
     #[doc(hidden)]

@@ -7,8 +7,8 @@
 //!
 //!   1. Call [`Cors::build`](struct.Cors.html#method.build) to start building.
 //!   2. Use any of the builder methods to set fields in the backend.
-//! 3. Call [finish](struct.Cors.html#method.finish) to retrieve the
-//! constructed backend.
+//!   3. Call [finish](struct.Cors.html#method.finish) to retrieve the
+//!      constructed backend.
 //!
 //! Cors middleware could be used as parameter for `App::middleware()` or
 //! `ResourceHandler::middleware()` methods. But you have to use
