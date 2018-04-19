@@ -3,8 +3,8 @@
 //! [**IdentityService**](struct.IdentityService.html) middleware can be
 //! used with different policies types to store identity information.
 //!
-//! Bu default, only cookie identity policy is implemented. Other backend implementations
-//! can be added separately.
+//! Bu default, only cookie identity policy is implemented. Other backend
+//! implementations can be added separately.
 //!
 //! [**CookieIdentityPolicy**](struct.CookieIdentityPolicy.html)
 //! uses cookies as identity storage.
@@ -14,9 +14,9 @@
 //! *HttpRequest* implements *RequestIdentity* trait.
 //!
 //! ```rust
-//! use actix_web::*;
 //! use actix_web::middleware::identity::RequestIdentity;
-//! use actix_web::middleware::identity::{IdentityService, CookieIdentityPolicy};
+//! use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
+//! use actix_web::*;
 //!
 //! fn index(req: HttpRequest) -> Result<String> {
 //!     // access request identity
@@ -33,17 +33,17 @@
 //! }
 //!
 //! fn logout(mut req: HttpRequest) -> HttpResponse {
-//!     req.forget();                     // <- remove identity
+//!     req.forget(); // <- remove identity
 //!     HttpResponse::Ok().finish()
 //! }
 //!
 //! fn main() {
-//!    let app = App::new().middleware(
-//!        IdentityService::new(                      // <- create identity middleware
-//!            CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
+//!     let app = App::new().middleware(IdentityService::new(
+//!         // <- create identity middleware
+//!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
 //!               .name("auth-cookie")
-//!               .secure(false))
-//!    );
+//!               .secure(false),
+//!     ));
 //! }
 //! ```
 use std::rc::Rc;
@@ -53,12 +53,11 @@ use futures::Future;
 use futures::future::{FutureResult, err as FutErr, ok as FutOk};
 use time::Duration;
 
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use error::{Error, Result};
 use http::header::{self, HeaderValue};
+use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
-
 
 /// The helper trait to obtain your identity from a request.
 ///
@@ -87,7 +86,6 @@ use middleware::{Middleware, Response, Started};
 /// # fn main() {}
 /// ```
 pub trait RequestIdentity {
-
     /// Return the claimed identity of the user associated request or
     /// ``None`` if no identity can be found associated with the request.
     fn identity(&self) -> Option<&str>;
@@ -95,34 +93,34 @@ pub trait RequestIdentity {
     /// Remember identity.
     fn remember(&mut self, identity: String);
 
-    /// This method is used to 'forget' the current identity on subsequent requests.
+    /// This method is used to 'forget' the current identity on subsequent
+    /// requests.
     fn forget(&mut self);
 }
 
 impl<S> RequestIdentity for HttpRequest<S> {
     fn identity(&self) -> Option<&str> {
         if let Some(id) = self.extensions_ro().get::<IdentityBox>() {
-            return id.0.identity()
+            return id.0.identity();
         }
         None
     }
 
     fn remember(&mut self, identity: String) {
         if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
-            return id.0.remember(identity)
+            return id.0.remember(identity);
         }
     }
 
     fn forget(&mut self) {
         if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
-            return id.0.forget()
+            return id.0.forget();
         }
     }
 }
 
 /// An identity
 pub trait Identity: 'static {
-
     fn identity(&self) -> Option<&str>;
 
     fn remember(&mut self, key: String);
@@ -177,7 +175,6 @@ unsafe impl Send for IdentityBox {}
 #[doc(hidden)]
 unsafe impl Sync for IdentityBox {}
 
-
 impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
@@ -194,7 +191,9 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
         Ok(Started::Future(Box::new(fut)))
     }
 
-    fn response(&self, req: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+    fn response(
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse
+    ) -> Result<Response> {
         if let Some(mut id) = req.extensions().remove::<IdentityBox>() {
             id.0.write(resp)
         } else {
@@ -298,7 +297,7 @@ impl CookieIdentityInner {
 
                     let cookie_opt = jar.private(&self.key).get(&self.name);
                     if let Some(cookie) = cookie_opt {
-                        return Some(cookie.value().into())
+                        return Some(cookie.value().into());
                     }
                 }
             }
@@ -334,7 +333,6 @@ impl CookieIdentityInner {
 pub struct CookieIdentityPolicy(Rc<CookieIdentityInner>);
 
 impl CookieIdentityPolicy {
-
     /// Construct new `CookieIdentityPolicy` instance.
     ///
     /// Panics if key length is less than 32 bytes.

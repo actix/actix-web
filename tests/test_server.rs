@@ -916,7 +916,6 @@ fn test_resource_middlewares() {
     // assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
 
-
 fn index_test_middleware_async_error(_: HttpRequest) -> FutureResponse<HttpResponse> {
     future::result(Err(error::ErrorBadRequest("TEST"))).responder()
 }
@@ -936,7 +935,8 @@ fn test_middleware_async_error() {
             start: Arc::clone(&act_req),
             response: Arc::clone(&act_resp),
             finish: Arc::clone(&act_fin),
-        }).handler(index_test_middleware_async_error)});
+        }).handler(index_test_middleware_async_error)
+    });
 
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();

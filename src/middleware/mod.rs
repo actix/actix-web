@@ -9,10 +9,10 @@ mod logger;
 
 pub mod cors;
 pub mod csrf;
-#[cfg(feature = "session")]
-pub mod identity;
 mod defaultheaders;
 mod errhandlers;
+#[cfg(feature = "session")]
+pub mod identity;
 #[cfg(feature = "session")]
 pub mod session;
 pub use self::defaultheaders::DefaultHeaders;
@@ -21,7 +21,8 @@ pub use self::logger::Logger;
 
 #[cfg(feature = "session")]
 #[doc(hidden)]
-#[deprecated(since = "0.5.4", note="please use `actix_web::middleware::session` instead")]
+#[deprecated(since = "0.5.4",
+             note = "please use `actix_web::middleware::session` instead")]
 pub use self::session::{CookieSessionBackend, CookieSessionError, RequestSession,
                         Session, SessionBackend, SessionImpl, SessionStorage};
 

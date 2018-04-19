@@ -9,10 +9,10 @@
 //! backend implementations can be added.
 //!
 //! [**CookieSessionBackend**](struct.CookieSessionBackend.html)
-//! uses cookies as session storage. `CookieSessionBackend` creates sessions which
-//! are limited to storing fewer than 4000 bytes of data, as the payload must fit into a
-//! single cookie. An internal server error is generated if a session contains
-//! more than 4000 bytes.
+//! uses cookies as session storage. `CookieSessionBackend` creates sessions
+//! which are limited to storing fewer than 4000 bytes of data, as the payload
+//! must fit into a single cookie. An internal server error is generated if a
+//! session contains more than 4000 bytes.
 //!
 //! A cookie may have a security policy of *signed* or *private*. Each has
 //! a respective `CookieSessionBackend` constructor.
