@@ -1,3 +1,68 @@
+//! User sessions.
+//!
+//! Actix provides a general solution for session management. The
+//! [**SessionStorage**](struct.SessionStorage.html)
+//! middleware can be used with different backend types to store session
+//! data in different backends.
+//!
+//! By default, only cookie session backend is implemented. Other
+//! backend implementations can be added.
+//!
+//! [**CookieSessionBackend**](struct.CookieSessionBackend.html)
+//! uses cookies as session storage. `CookieSessionBackend` creates sessions which
+//! are limited to storing fewer than 4000 bytes of data, as the payload must fit into a
+//! single cookie. An internal server error is generated if a session contains
+//! more than 4000 bytes.
+//!
+//! A cookie may have a security policy of *signed* or *private*. Each has
+//! a respective `CookieSessionBackend` constructor.
+//!
+//! A *signed* cookie may be viewed but not modified by the client. A *private*
+//! cookie may neither be viewed nor modified by the client.
+//!
+//! The constructors take a key as an argument. This is the private key
+//! for cookie session - when this value is changed, all session data is lost.
+//!
+//! In general, you create a `SessionStorage` middleware and initialize it
+//! with specific backend implementation, such as a `CookieSessionBackend`.
+//! To access session data,
+//! [*HttpRequest::session()*](trait.RequestSession.html#tymethod.session)
+//! must be used. This method returns a
+//! [*Session*](struct.Session.html) object, which allows us to get or set
+//! session data.
+//!
+//! ```rust
+//! # extern crate actix;
+//! # extern crate actix_web;
+//! use actix_web::{server, App, HttpRequest, Result};
+//! use actix_web::middleware::{RequestSession, SessionStorage, CookieSessionBackend};
+//!
+//! fn index(mut req: HttpRequest) -> Result<&'static str> {
+//!     // access session data
+//!     if let Some(count) = req.session().get::<i32>("counter")? {
+//!         println!("SESSION value: {}", count);
+//!         req.session().set("counter", count+1)?;
+//!     } else {
+//!         req.session().set("counter", 1)?;
+//!     }
+//!
+//!     Ok("Welcome!")
+//! }
+//!
+//! fn main() {
+//!     let sys = actix::System::new("basic-example");
+//!     server::new(
+//!         || App::new()
+//!             .middleware(SessionStorage::new(          // <- create session middleware
+//!                 CookieSessionBackend::signed(&[0; 32]) // <- create signed cookie session backend
+//!                     .secure(false)
+//!             )))
+//!         .bind("127.0.0.1:59880").unwrap()
+//!         .start();
+//! #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//!     let _ = sys.run();
+//! }
+//! ```
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
