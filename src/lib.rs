@@ -110,7 +110,6 @@ extern crate percent_encoding;
 extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate smallvec;
-extern crate trust_dns_resolver;
 #[macro_use]
 extern crate actix;
 

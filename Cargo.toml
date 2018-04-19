@@ -81,7 +81,6 @@ futures = "0.1"
 futures-cpupool = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
-trust-dns-resolver = "0.8"
 
 # native-tls
 native-tls = { version="0.1", optional = true }
