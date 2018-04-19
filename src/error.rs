@@ -580,7 +580,7 @@ impl<T> InternalError<T> {
 
 impl<T> Fail for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
@@ -598,16 +598,16 @@ where
 
 impl<T> fmt::Display for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Display + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.cause, f)
+        fmt::Display::fmt(&self.cause, f)
     }
 }
 
 impl<T> ResponseError for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     fn error_response(&self) -> HttpResponse {
         match self.status {
@@ -625,7 +625,7 @@ where
 
 impl<T> Responder for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     type Item = HttpResponse;
     type Error = Error;
@@ -640,7 +640,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorBadRequest<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::BAD_REQUEST).into()
 }
@@ -650,7 +650,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorUnauthorized<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::UNAUTHORIZED).into()
 }
@@ -660,7 +660,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorForbidden<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::FORBIDDEN).into()
 }
@@ -670,7 +670,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorNotFound<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::NOT_FOUND).into()
 }
@@ -680,7 +680,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorMethodNotAllowed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
 }
@@ -690,7 +690,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorRequestTimeout<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::REQUEST_TIMEOUT).into()
 }
@@ -700,7 +700,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorConflict<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::CONFLICT).into()
 }
@@ -710,7 +710,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorGone<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::GONE).into()
 }
@@ -720,7 +720,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorPreconditionFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::PRECONDITION_FAILED).into()
 }
@@ -730,7 +730,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
 }
@@ -740,7 +740,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorInternalServerError<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }

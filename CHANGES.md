@@ -1,10 +1,12 @@
 # Changes
 
-## 0.5.4 (2018-04-xx)
+## 0.5.4 (2018-04-19)
 
 * Add identity service middleware
 
 * Middleware response() is not invoked if there was an error in async handler #187
+
+* Use Display formatting for InternalError Display implementation #188
 
 
 ## 0.5.3 (2018-04-18)
