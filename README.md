@@ -2,12 +2,12 @@
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/actix-web/guide/qs_13.html) protocols
+* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/book/actix-web/sec-12-http2.html) protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
-* Client/server [WebSockets](https://actix.rs/actix-web/guide/qs_9.html) support
+* Client/server [WebSockets](https://actix.rs/book/actix-web/sec-11-websockets.html) support
 * Transparent content compression/decompression (br, gzip, deflate)
-* Configurable [request routing](https://actix.rs/actix-web/guide/qs_5.html)
+* Configurable [request routing](https://actix.rs/book/actix-web/sec-6-url-dispatch.html)
 * Graceful server shutdown
 * Multipart streams
 * Static assets
