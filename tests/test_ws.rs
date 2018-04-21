@@ -61,6 +61,16 @@ fn test_simple() {
 }
 
 #[test]
+fn test_empty_close_code() {
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
+    let (reader, mut writer) = srv.ws().unwrap();
+
+    writer.close(ws::CloseCode::Empty, "");
+    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Status)));
+}
+
+#[test]
 fn test_large_text() {
     let data = rand::thread_rng()
         .gen_ascii_chars()

@@ -310,10 +310,14 @@ where
                     }
                     OpCode::Close => {
                         self.closed = true;
-                        let code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
-                        Ok(Async::Ready(Some(Message::Close(CloseCode::from(
-                            code,
-                        )))))
+                        let close_code = if payload.len() >= 2{
+                            let raw_code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
+                            CloseCode::from(raw_code)
+                        }else{
+                            CloseCode::Status
+                        };
+
+                        Ok(Async::Ready(Some(Message::Close(close_code))))
                     }
                     OpCode::Ping => Ok(Async::Ready(Some(Message::Ping(
                         String::from_utf8_lossy(payload.as_ref()).into(),
