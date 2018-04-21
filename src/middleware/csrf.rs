@@ -150,8 +150,8 @@ impl CsrfFilter {
 
     /// Add an origin that is allowed to make requests. Will be verified
     /// against the `Origin` request header.
-    pub fn allowed_origin(mut self, origin: &str) -> CsrfFilter {
-        self.origins.insert(origin.to_owned());
+    pub fn allowed_origin<T: Into<String>>(mut self, origin: T) -> CsrfFilter {
+        self.origins.insert(origin.into());
         self
     }
 
