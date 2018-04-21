@@ -1,5 +1,10 @@
 # Changes
 
+## 0.5.5 (2018-04-xx)
+
+* Fix panic when Websocket is closed with no error code #191
+
+
 ## 0.5.4 (2018-04-19)
 
 * Add identity service middleware

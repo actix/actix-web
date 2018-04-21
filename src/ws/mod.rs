@@ -310,10 +310,11 @@ where
                     }
                     OpCode::Close => {
                         self.closed = true;
-                        let close_code = if payload.len() >= 2{
-                            let raw_code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
+                        let close_code = if payload.len() >= 2 {
+                            let raw_code =
+                                NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
                             CloseCode::from(raw_code)
-                        }else{
+                        } else {
                             CloseCode::Status
                         };
 
