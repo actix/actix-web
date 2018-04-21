@@ -71,6 +71,17 @@ fn test_empty_close_code() {
 }
 
 #[test]
+fn test_close_description() {
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
+    let (reader, mut writer) = srv.ws().unwrap();
+
+    let close_reason:ws::CloseReason = (ws::CloseCode::Normal, "close description").into();
+    writer.close(Some(close_reason.clone()));
+    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Close(Some(close_reason))));
+}
+
+#[test]
 fn test_large_text() {
     let data = rand::thread_rng()
         .gen_ascii_chars()

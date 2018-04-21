@@ -179,7 +179,7 @@ impl From<u16> for CloseCode {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CloseReason {
 	pub code: CloseCode,
 	pub description: Option<String>,
