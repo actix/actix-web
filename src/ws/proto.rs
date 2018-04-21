@@ -90,10 +90,6 @@ pub enum CloseCode {
     /// endpoint that understands only text data MAY send this if it
     /// receives a binary message).
     Unsupported,
-    /// Indicates that no status code was included in a closing frame. This
-    /// close code makes it possible to use a single method, `on_close` to
-    /// handle even cases where no close code was provided.
-    Status,
     /// Indicates an abnormal closure. If the abnormal closure was due to an
     /// error, this close code will not be used. Instead, the `on_error` method
     /// of the handler will be called with the error. However, if the connection
@@ -138,8 +134,6 @@ pub enum CloseCode {
     #[doc(hidden)]
     Tls,
     #[doc(hidden)]
-    Empty,
-    #[doc(hidden)]
     Other(u16),
 }
 
@@ -150,7 +144,6 @@ impl Into<u16> for CloseCode {
             Away => 1001,
             Protocol => 1002,
             Unsupported => 1003,
-            Status => 1005,
             Abnormal => 1006,
             Invalid => 1007,
             Policy => 1008,
@@ -160,7 +153,6 @@ impl Into<u16> for CloseCode {
             Restart => 1012,
             Again => 1013,
             Tls => 1015,
-            Empty => 0,
             Other(code) => code,
         }
     }
@@ -173,7 +165,6 @@ impl From<u16> for CloseCode {
             1001 => Away,
             1002 => Protocol,
             1003 => Unsupported,
-            1005 => Status,
             1006 => Abnormal,
             1007 => Invalid,
             1008 => Policy,
@@ -183,10 +174,33 @@ impl From<u16> for CloseCode {
             1012 => Restart,
             1013 => Again,
             1015 => Tls,
-            0 => Empty,
             _ => Other(code),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CloseReason {
+	pub code: CloseCode,
+	pub description: Option<String>,
+}
+
+impl From<CloseCode> for CloseReason {
+	fn from(code: CloseCode) -> Self {
+		CloseReason {
+			code,
+			description: None,
+		}
+	}
+}
+
+impl <T: Into<String>> From<(CloseCode, T)> for CloseReason {
+	fn from(info: (CloseCode, T)) -> Self {
+		CloseReason{
+			code: info.0,
+			description: Some(info.1.into())
+		}
+	}
 }
 
 static WS_GUID: &'static str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -269,7 +283,6 @@ mod test {
         assert_eq!(CloseCode::from(1001u16), CloseCode::Away);
         assert_eq!(CloseCode::from(1002u16), CloseCode::Protocol);
         assert_eq!(CloseCode::from(1003u16), CloseCode::Unsupported);
-        assert_eq!(CloseCode::from(1005u16), CloseCode::Status);
         assert_eq!(CloseCode::from(1006u16), CloseCode::Abnormal);
         assert_eq!(CloseCode::from(1007u16), CloseCode::Invalid);
         assert_eq!(CloseCode::from(1008u16), CloseCode::Policy);
@@ -279,7 +292,6 @@ mod test {
         assert_eq!(CloseCode::from(1012u16), CloseCode::Restart);
         assert_eq!(CloseCode::from(1013u16), CloseCode::Again);
         assert_eq!(CloseCode::from(1015u16), CloseCode::Tls);
-        assert_eq!(CloseCode::from(0u16), CloseCode::Empty);
         assert_eq!(CloseCode::from(2000u16), CloseCode::Other(2000));
     }
 
@@ -289,7 +301,6 @@ mod test {
         assert_eq!(1001u16, Into::<u16>::into(CloseCode::Away));
         assert_eq!(1002u16, Into::<u16>::into(CloseCode::Protocol));
         assert_eq!(1003u16, Into::<u16>::into(CloseCode::Unsupported));
-        assert_eq!(1005u16, Into::<u16>::into(CloseCode::Status));
         assert_eq!(1006u16, Into::<u16>::into(CloseCode::Abnormal));
         assert_eq!(1007u16, Into::<u16>::into(CloseCode::Invalid));
         assert_eq!(1008u16, Into::<u16>::into(CloseCode::Policy));
@@ -299,7 +310,6 @@ mod test {
         assert_eq!(1012u16, Into::<u16>::into(CloseCode::Restart));
         assert_eq!(1013u16, Into::<u16>::into(CloseCode::Again));
         assert_eq!(1015u16, Into::<u16>::into(CloseCode::Tls));
-        assert_eq!(0u16, Into::<u16>::into(CloseCode::Empty));
         assert_eq!(2000u16, Into::<u16>::into(CloseCode::Other(2000)));
     }
 }

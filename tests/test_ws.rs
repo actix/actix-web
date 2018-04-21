@@ -27,7 +27,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
-            ws::Message::Close(reason) => ctx.close(reason, ""),
+            ws::Message::Close(reason) => ctx.close(reason),
             _ => (),
         }
     }
@@ -55,9 +55,9 @@ fn test_simple() {
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
     assert_eq!(item, Some(ws::Message::Pong("ping".to_owned())));
 
-    writer.close(ws::CloseCode::Normal, "");
+    writer.close(Some(ws::CloseCode::Normal.into()));
     let (item, _) = srv.execute(reader.into_future()).unwrap();
-    assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Normal)));
+    assert_eq!(item, Some(ws::Message::Close(Some(ws::CloseCode::Normal.into()))));
 }
 
 #[test]
@@ -65,9 +65,9 @@ fn test_empty_close_code() {
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (reader, mut writer) = srv.ws().unwrap();
 
-    writer.close(ws::CloseCode::Empty, "");
+    writer.close(None);
     let (item, _) = srv.execute(reader.into_future()).unwrap();
-    assert_eq!(item, Some(ws::Message::Close(ws::CloseCode::Status)));
+    assert_eq!(item, Some(ws::Message::Close(None)));
 }
 
 #[test]
@@ -147,7 +147,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws2 {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
-            ws::Message::Close(reason) => ctx.close(reason, ""),
+            ws::Message::Close(reason) => ctx.close(reason),
             _ => (),
         }
     }
