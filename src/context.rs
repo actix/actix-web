@@ -1,9 +1,10 @@
+use std::marker::PhantomData;
+use std::mem;
+
 use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use smallvec::SmallVec;
-use std::marker::PhantomData;
-use std::mem;
 
 use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
@@ -261,7 +262,7 @@ impl<A: Actor> ActorFuture for Drain<A> {
 
     #[inline]
     fn poll(
-        &mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context
+        &mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context,
     ) -> Poll<Self::Item, Self::Error> {
         self.fut.poll().map_err(|_| ())
     }

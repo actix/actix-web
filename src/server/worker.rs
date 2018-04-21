@@ -1,8 +1,10 @@
-use futures::Future;
-use futures::unsync::oneshot;
-use net2::TcpStreamExt;
 use std::rc::Rc;
-use std::{net, time};
+use std::{marker, net, time};
+
+use futures::task::current as current_task;
+use futures::unsync::oneshot;
+use futures::{Async, Future, Poll};
+use net2::TcpStreamExt;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 
@@ -22,9 +24,13 @@ use tokio_openssl::SslAcceptorExt;
 use actix::msgs::StopArbiter;
 use actix::*;
 
-use server::channel::HttpChannel;
+//use server::channel::HttpChannel;
+use server::h1;
+use server::h1decoder::Message as H1Message;
 use server::settings::WorkerSettings;
 use server::{HttpHandler, KeepAlive};
+
+use io::{IoChannel, IoCommand, TaskCommand};
 
 #[derive(Message)]
 pub(crate) struct Conn<T> {
@@ -55,21 +61,26 @@ where
     hnd: Handle,
     handler: StreamHandlerType,
     tcp_ka: Option<time::Duration>,
+    io: IoWriter,
 }
 
 impl<H: HttpHandler + 'static> Worker<H> {
     pub(crate) fn new(
-        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive
+        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive,
     ) -> Worker<H> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
         } else {
             None
         };
+        let io = IoWriter {
+            inner: Rc::new(IoChannel::new()),
+        };
 
         Worker {
             settings: Rc::new(WorkerSettings::new(h, keep_alive)),
             hnd: Arbiter::handle().clone(),
+            io,
             handler,
             tcp_ka,
         }
@@ -83,7 +94,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
     }
 
     fn shutdown_timeout(
-        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration
+        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration,
     ) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
@@ -111,6 +122,8 @@ where
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.update_time(ctx);
+        self.io.inner.set_notify(current_task());
+        ctx.spawn(IoQueue(marker::PhantomData));
     }
 }
 
@@ -124,8 +137,10 @@ where
         if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
             error!("Can not set socket keep-alive option");
         }
-        self.handler
-            .handle(Rc::clone(&self.settings), &self.hnd, msg);
+        //println!("HANDLE: {:?}", msg.io);
+        self.io.inner.add_source(msg.io, msg.peer, msg.http2);
+        //self.handler
+        //.handle(Rc::clone(&self.settings), &self.hnd, msg);
     }
 }
 
@@ -163,9 +178,10 @@ pub(crate) enum StreamHandlerType {
     Alpn(SslAcceptor),
 }
 
+/*
 impl StreamHandlerType {
     fn handle<H: HttpHandler>(
-        &mut self, h: Rc<WorkerSettings<H>>, hnd: &Handle, msg: Conn<net::TcpStream>
+        &mut self, h: Rc<WorkerSettings<H>>, hnd: &Handle, msg: Conn<net::TcpStream>,
     ) {
         match *self {
             StreamHandlerType::Normal => {
@@ -185,12 +201,8 @@ impl StreamHandlerType {
                 hnd.spawn(
                     TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
                         match res {
-                            Ok(io) => Arbiter::handle().spawn(HttpChannel::new(
-                                h,
-                                io,
-                                peer,
-                                http2,
-                            )),
+                            Ok(io) => Arbiter::handle()
+                                .spawn(HttpChannel::new(h, io, peer, http2)),
                             Err(err) => {
                                 trace!("Error during handling tls connection: {}", err)
                             }
@@ -217,12 +229,8 @@ impl StreamHandlerType {
                                 } else {
                                     false
                                 };
-                                Arbiter::handle().spawn(HttpChannel::new(
-                                    h,
-                                    io,
-                                    peer,
-                                    http2,
-                                ));
+                                Arbiter::handle()
+                                    .spawn(HttpChannel::new(h, io, peer, http2));
                             }
                             Err(err) => {
                                 trace!("Error during handling tls connection: {}", err)
@@ -233,5 +241,44 @@ impl StreamHandlerType {
                 );
             }
         }
+    }
+}*/
+
+struct IoQueue<H>(marker::PhantomData<H>);
+
+impl<H: HttpHandler + 'static> fut::ActorFuture for IoQueue<H> {
+    type Item = ();
+    type Error = ();
+    type Actor = Worker<H>;
+
+    fn poll(&mut self, act: &mut Worker<H>, _: &mut Context<Worker<H>>) -> Poll<(), ()> {
+        act.io.inner.as_ref().start();
+
+        loop {
+            match act.io.inner.try_recv() {
+                Ok(TaskCommand::Stream(stream)) => {
+                    act.hnd.spawn(h1::Http1::new(
+                        Rc::clone(&act.settings),
+                        stream,
+                        act.io.clone(),
+                    ));
+                }
+                Err(_) => break,
+            }
+        }
+        act.io.inner.as_ref().end();
+
+        Ok(Async::NotReady)
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct IoWriter {
+    pub inner: Rc<IoChannel>,
+}
+
+impl IoWriter {
+    pub fn send(&self, msg: IoCommand) {
+        self.inner.send(msg)
     }
 }

@@ -14,9 +14,9 @@ extern crate brotli2;
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut};
-use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
+use flate2::Compression;
 use futures::stream::once;
 use futures::{future, Future, Stream};
 use h2::client as h2client;
@@ -62,11 +62,9 @@ fn test_start() {
     thread::spawn(move || {
         let sys = System::new("test");
         let srv = server::new(|| {
-            vec![
-                App::new().resource("/", |r| {
-                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-                }),
-            ]
+            vec![App::new().resource("/", |r| {
+                r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+            })]
         });
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
@@ -113,11 +111,9 @@ fn test_shutdown() {
     thread::spawn(move || {
         let sys = System::new("test");
         let srv = server::new(|| {
-            vec![
-                App::new().resource("/", |r| {
-                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-                }),
-            ]
+            vec![App::new().resource("/", |r| {
+                r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+            })]
         });
 
         let srv = srv.bind("127.0.0.1:0").unwrap();
@@ -844,7 +840,7 @@ impl<S> middleware::Middleware<S> for MiddlewareTest {
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse
+        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         self.response.store(
             self.response.load(Ordering::Relaxed) + 1,

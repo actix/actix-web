@@ -18,7 +18,8 @@ use native_tls::TlsAcceptor;
 #[cfg(feature = "alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
-use super::channel::{HttpChannel, WrapperStream};
+//use super::channel::{HttpChannel, WrapperStream};
+use super::channel::WrapperStream;
 use super::settings::{ServerSettings, WorkerSettings};
 use super::worker::{Conn, StopWorker, StreamHandlerType, Worker};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
@@ -230,7 +231,7 @@ where
     }
 
     fn start_workers(
-        &mut self, settings: &ServerSettings, handler: &StreamHandlerType
+        &mut self, settings: &ServerSettings, handler: &StreamHandlerType,
     ) -> Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)> {
         // start workers
         let mut workers = Vec::new();
@@ -427,7 +428,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn start_ssl(
-        mut self, mut builder: SslAcceptorBuilder
+        mut self, mut builder: SslAcceptorBuilder,
     ) -> io::Result<Addr<Syn, Self>> {
         if self.sockets.is_empty() {
             Err(io::Error::new(
@@ -643,12 +644,12 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::handle().spawn(HttpChannel::new(
-            Rc::clone(self.h.as_ref().unwrap()),
-            msg.io,
-            msg.peer,
-            msg.http2,
-        ));
+        //Arbiter::handle().spawn(HttpChannel::new(
+        //    Rc::clone(self.h.as_ref().unwrap()),
+        //    msg.io,
+        //    msg.peer,
+        //    msg.http2,
+        //));
     }
 }
 
@@ -777,7 +778,7 @@ fn start_accept_thread(
                 &reg,
                 CMD,
                 mio::Ready::readable(),
-                mio::PollOpt::edge(),
+                mio::PollOpt::level(),
             ) {
                 panic!("Can not register Registration: {}", err);
             }
@@ -789,133 +790,115 @@ fn start_accept_thread(
             let sleep = Duration::from_millis(100);
 
             let mut next = 0;
-            loop {
-                if let Err(err) = poll.poll(&mut events, None) {
-                    panic!("Poll error: {}", err);
-                }
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            
+loop {
+    if let Err(err) = poll.poll(&mut events, None) {
+        panic!("Poll error: {}", err);
+    }
 
-                for event in events.iter() {
-                    match event.token() {
-                        SRV => if let Some(ref server) = server {
-                            loop {
-                                match server.accept_std() {
-                                    Ok((sock, addr)) => {
-                                        let mut msg = Conn {
-                                            io: sock,
-                                            peer: Some(addr),
-                                            http2: false,
-                                        };
-                                        while !workers.is_empty() {
-                                            match workers[next].1.unbounded_send(msg) {
-                                                Ok(_) => (),
-                                                Err(err) => {
-                                                    let _ = srv.unbounded_send(
-                                                        ServerCommand::WorkerDied(
-                                                            workers[next].0,
-                                                            info.clone(),
-                                                        ),
-                                                    );
-                                                    msg = err.into_inner();
-                                                    workers.swap_remove(next);
-                                                    if workers.is_empty() {
-                                                        error!("No workers");
-                                                        thread::sleep(sleep);
-                                                        break;
-                                                    } else if workers.len() <= next {
-                                                        next = 0;
-                                                    }
-                                                    continue;
-                                                }
-                                            }
-                                            next = (next + 1) % workers.len();
+    for event in events.iter() {
+        match event.token() {
+            SRV => if let Some(ref server) = server {
+                loop {
+                    match server.accept_std() {
+                        Ok((sock, addr)) => {
+                            let mut msg = Conn {
+                                io: sock,
+                                peer: Some(addr),
+                                http2: false,
+                            };
+                            while !workers.is_empty() {
+                                match workers[next].1.unbounded_send(msg) {
+                                    Ok(_) => (),
+                                    Err(err) => {
+                                        let _ = srv.unbounded_send(
+                                            ServerCommand::WorkerDied(
+                                                workers[next].0, info.clone()));
+                                        msg = err.into_inner();
+                                        workers.swap_remove(next);
+                                        if workers.is_empty() {
+                                            error!("No workers");
+                                            thread::sleep(sleep);
                                             break;
+                                        } else if workers.len() <= next {
+                                            next = 0;
                                         }
-                                    }
-                                    Err(ref e)
-                                        if e.kind() == io::ErrorKind::WouldBlock =>
-                                    {
-                                        break
-                                    }
-                                    Err(ref e) if connection_error(e) => continue,
-                                    Err(e) => {
-                                        error!("Error accepting connection: {}", e);
-                                        // sleep after error
-                                        thread::sleep(sleep);
-                                        break;
+                                        continue;
                                     }
                                 }
+                                next = (next + 1) % workers.len();
+                                break;
                             }
-                        },
-                        CMD => match rx.try_recv() {
-                            Ok(cmd) => match cmd {
-                                Command::Pause => if let Some(server) = server.take() {
-                                    if let Err(err) = poll.deregister(&server) {
-                                        error!(
-                                            "Can not deregister server socket {}",
-                                            err
-                                        );
-                                    } else {
-                                        info!(
-                                            "Paused accepting connections on {}",
-                                            addr
-                                        );
-                                    }
-                                },
-                                Command::Resume => {
-                                    let lst = create_tcp_listener(addr, backlog)
-                                        .expect("Can not create net::TcpListener");
-
-                                    server = Some(
-                                        mio::net::TcpListener::from_std(lst).expect(
-                                            "Can not create mio::net::TcpListener",
-                                        ),
-                                    );
-
-                                    if let Some(ref server) = server {
-                                        if let Err(err) = poll.register(
-                                            server,
-                                            SRV,
-                                            mio::Ready::readable(),
-                                            mio::PollOpt::edge(),
-                                        ) {
-                                            error!("Can not resume socket accept process: {}", err);
-                                        } else {
-                                            info!("Accepting connections on {} has been resumed",
-                                              addr);
-                                        }
-                                    }
-                                }
-                                Command::Stop => {
-                                    if let Some(server) = server.take() {
-                                        let _ = poll.deregister(&server);
-                                    }
-                                    return;
-                                }
-                                Command::Worker(idx, addr) => {
-                                    workers.push((idx, addr));
-                                }
-                            },
-                            Err(err) => match err {
-                                sync_mpsc::TryRecvError::Empty => (),
-                                sync_mpsc::TryRecvError::Disconnected => {
-                                    if let Some(server) = server.take() {
-                                        let _ = poll.deregister(&server);
-                                    }
-                                    return;
-                                }
-                            },
-                        },
-                        _ => unreachable!(),
+                        }
+                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { break }
+                        Err(ref e) if connection_error(e) => continue,
+                        Err(e) => {
+                            error!("Error accepting connection: {}", e);
+                            // sleep after error
+                            thread::sleep(sleep);
+                            break;
+                        }
                     }
                 }
-            }
+            },
+            CMD => match rx.try_recv() {
+                Ok(cmd) => match cmd {
+                    Command::Pause => if let Some(server) = server.take() {
+                        if let Err(err) = poll.deregister(&server) {
+                            error!("Can not deregister server socket {}", err);
+                        } else {
+                            info!("Paused accepting connections on {}", addr);
+                        }
+                    },
+                    Command::Resume => {
+                        let lst = create_tcp_listener(addr, backlog)
+                            .expect("Can not create net::TcpListener");
+                        
+                        server = Some(mio::net::TcpListener::from_std(lst).expect(
+                            "Can not create mio::net::TcpListener"));
+                        
+                        if let Some(ref server) = server {
+                            if let Err(err) = poll.register(
+                                server, SRV, mio::Ready::readable(), mio::PollOpt::edge())
+                            {
+                                error!("Can not resume socket accept process: {}", err);
+                            } else {
+                                info!("Accepting connections on {} has been resumed", addr);
+                            }
+                        }
+                    }
+                    Command::Stop => {
+                        if let Some(server) = server.take() {
+                            let _ = poll.deregister(&server);
+                        }
+                        return;
+                    }
+                    Command::Worker(idx, addr) => {
+                        workers.push((idx, addr));
+                    }
+                },
+                Err(err) => match err {
+                    sync_mpsc::TryRecvError::Empty => (),
+                    sync_mpsc::TryRecvError::Disconnected => {
+                        if let Some(server) = server.take() {
+                            let _ = poll.deregister(&server);
+                        }
+                        return;
+                    }
+                },
+            },
+            _ => unreachable!(),
+        }
+    }
+}
         });
 
     (readiness, tx)
 }
 
 fn create_tcp_listener(
-    addr: net::SocketAddr, backlog: i32
+    addr: net::SocketAddr, backlog: i32,
 ) -> io::Result<net::TcpListener> {
     let builder = match addr {
         net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,

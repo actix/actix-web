@@ -314,7 +314,7 @@ impl<S> HttpRequest<S> {
     /// }
     /// ```
     pub fn url_for<U, I>(
-        &self, name: &str, elements: U
+        &self, name: &str, elements: U,
     ) -> Result<Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -592,6 +592,29 @@ impl<S> fmt::Debug for HttpRequest<S> {
     }
 }
 
+impl fmt::Debug for HttpInnerMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = writeln!(
+            f,
+            "\nHttpInnerMessage {:?} {}:{}",
+            self.version,
+            self.method,
+            self.url.path()
+        );
+        if let Some(query) = self.url.uri().query().as_ref() {
+            let _ = writeln!(f, "  query: ?{:?}", query);
+        }
+        if !self.params.is_empty() {
+            let _ = writeln!(f, "  params: {:?}", self.params);
+        }
+        let _ = writeln!(f, "  headers:");
+        for (key, val) in self.headers.iter() {
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+        }
+        res
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(deprecated)]
@@ -681,12 +704,10 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
-            ),
-        ];
+        let routes = vec![(
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -715,12 +736,10 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
-            ),
-        ];
+        let routes = vec![(
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
@@ -739,12 +758,10 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
-                None,
-            ),
-        ];
+        let routes = vec![(
+            Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
+            None,
+        )];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 

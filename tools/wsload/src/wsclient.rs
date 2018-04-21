@@ -14,8 +14,8 @@ extern crate url;
 
 use futures::Future;
 use rand::{thread_rng, Rng};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix::prelude::*;

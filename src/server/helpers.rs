@@ -1,24 +1,55 @@
 use bytes::{BufMut, BytesMut};
-use http::Version;
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
-use std::{mem, ptr, slice};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{fmt, mem, ptr, slice};
 
+use http::Version;
 use httprequest::HttpInnerMessage;
 
+const SIZE: usize = 128;
+
 /// Internal use only! unsafe
-pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpInnerMessage>>>);
+pub(crate) struct SharedMessagePool {
+    head: AtomicUsize,
+    tail: AtomicUsize,
+    data: Option<[Rc<HttpInnerMessage>; 128]>,
+}
 
 impl SharedMessagePool {
     pub fn new() -> SharedMessagePool {
-        SharedMessagePool(RefCell::new(VecDeque::with_capacity(128)))
+        SharedMessagePool {
+            head: AtomicUsize::new(0),
+            tail: AtomicUsize::new(0),
+            data: Some(unsafe { mem::uninitialized() }),
+        }
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        let tail = self.tail.load(Ordering::Relaxed);
+        let head = self.head.load(Ordering::Relaxed);
+
+        if tail > head {
+            tail - head
+        } else if tail < head {
+            tail + SIZE - head
+        } else {
+            0
+        }
+    }
+
+    fn as_mut_ptr(&self) -> *mut Rc<HttpInnerMessage> {
+        &self.data as *const _ as *mut _
     }
 
     #[inline]
     pub fn get(&self) -> Rc<HttpInnerMessage> {
-        if let Some(msg) = self.0.borrow_mut().pop_front() {
-            msg
+        if self.len() > 0 {
+            let head = self.head.load(Ordering::Relaxed);
+            self.head.store((head + 1) % SIZE, Ordering::Relaxed);
+
+            unsafe { ptr::read(self.as_mut_ptr().offset(head as isize)) }
         } else {
             Rc::new(HttpInnerMessage::default())
         }
@@ -26,24 +57,32 @@ impl SharedMessagePool {
 
     #[inline]
     pub fn release(&self, mut msg: Rc<HttpInnerMessage>) {
-        let v = &mut self.0.borrow_mut();
-        if v.len() < 128 {
-            Rc::get_mut(&mut msg).unwrap().reset();
-            v.push_front(msg);
+        if self.len() < SIZE - 1 {
+            let tail = self.tail.load(Ordering::Relaxed);
+            unsafe {
+                ptr::write(self.as_mut_ptr().offset(tail as isize), msg);
+            }
+            self.tail.store((tail + 1) % SIZE, Ordering::Relaxed);
         }
     }
 }
 
 pub(crate) struct SharedHttpInnerMessage(
     Option<Rc<HttpInnerMessage>>,
-    Option<Rc<SharedMessagePool>>,
+    Option<Arc<SharedMessagePool>>,
 );
 
 impl Drop for SharedHttpInnerMessage {
     fn drop(&mut self) {
         if let Some(ref pool) = self.1 {
-            if let Some(msg) = self.0.take() {
-                if Rc::strong_count(&msg) == 1 {
+            if let Some(mut msg) = self.0.take() {
+                let release = if let Some(ref mut msg) = Rc::get_mut(&mut msg) {
+                    msg.reset();
+                    true
+                } else {
+                    false
+                };
+                if release {
                     pool.release(msg);
                 }
             }
@@ -63,13 +102,19 @@ impl Default for SharedHttpInnerMessage {
     }
 }
 
+impl fmt::Debug for SharedHttpInnerMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl SharedHttpInnerMessage {
     pub fn from_message(msg: HttpInnerMessage) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(Rc::new(msg)), None)
     }
 
     pub fn new(
-        msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>
+        msg: Rc<HttpInnerMessage>, pool: Arc<SharedMessagePool>,
     ) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(msg), Some(pool))
     }
@@ -96,9 +141,8 @@ const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       8081828384858687888990919293949596979899";
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 13] = [
-        b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' '
-    ];
+    let mut buf: [u8; 13] =
+        [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' '];
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
@@ -251,63 +295,33 @@ mod tests {
         let mut bytes = BytesMut::new();
         bytes.reserve(50);
         write_content_length(0, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 0\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
         bytes.reserve(50);
         write_content_length(9, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 9\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
         bytes.reserve(50);
         write_content_length(10, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 10\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
         bytes.reserve(50);
         write_content_length(99, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 99\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
         bytes.reserve(50);
         write_content_length(100, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 100\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
         bytes.reserve(50);
         write_content_length(101, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 101\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
         bytes.reserve(50);
         write_content_length(998, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 998\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1000, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 1000\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1001, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 1001\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
         bytes.reserve(50);
         write_content_length(5909, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 5909\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
     }
 }

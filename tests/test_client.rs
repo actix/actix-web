@@ -9,8 +9,8 @@ use std::io::Read;
 
 use bytes::Bytes;
 use flate2::read::GzDecoder;
-use futures::Future;
 use futures::stream::once;
+use futures::Future;
 use rand::Rng;
 
 use actix_web::*;

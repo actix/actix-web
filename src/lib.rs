@@ -64,8 +64,11 @@
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
-#![cfg_attr(feature = "cargo-clippy",
-            allow(decimal_literal_representation, suspicious_arithmetic_impl))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(decimal_literal_representation, suspicious_arithmetic_impl)
+)]
+#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
 #[macro_use]
 extern crate log;
@@ -127,6 +130,9 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 extern crate tokio_openssl;
 
+extern crate iovec;
+extern crate slab;
+
 mod application;
 mod body;
 mod context;
@@ -139,6 +145,7 @@ mod httpmessage;
 mod httprequest;
 mod httpresponse;
 mod info;
+mod io;
 mod json;
 mod param;
 mod payload;
@@ -215,6 +222,7 @@ pub mod http {
     //! Various HTTP related types
 
     // re-exports
+    pub use modhttp::header::{HeaderName, HeaderValue};
     pub use modhttp::{Method, StatusCode, Version};
 
     #[doc(hidden)]

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.5.5"
+version = "0.6.0-dev"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -79,8 +79,11 @@ bytes = "0.4"
 byteorder = "1"
 futures = "0.1"
 futures-cpupool = "0.1"
-tokio-io = "0.1"
-tokio-core = "0.1"
+tokio-io = "=0.1.5"
+tokio-core = "=0.1.12"
+
+slab = "0.4"
+iovec = "0.1"
 
 # native-tls
 native-tls = { version="0.1", optional = true }
@@ -101,6 +104,9 @@ version_check = "0.1"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+[replace]
+"mio:0.6.14" = {path="../mio"}
 
 [workspace]
 members = [

@@ -10,9 +10,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 mod channel;
 pub(crate) mod encoding;
 pub(crate) mod h1;
+pub(crate) mod h1decoder;
 mod h1writer;
-mod h2;
-mod h2writer;
+//mod h2;
+//mod h2writer;
 pub(crate) mod helpers;
 mod settings;
 pub(crate) mod shared;
@@ -28,6 +29,8 @@ use error::Error;
 use header::ContentEncoding;
 use httprequest::{HttpInnerMessage, HttpRequest};
 use httpresponse::HttpResponse;
+use io::IoCommand;
+use server::worker::IoWriter;
 
 /// max buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;

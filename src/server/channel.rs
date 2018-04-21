@@ -1,3 +1,8 @@
+#![allow(
+    dead_code, unused_imports, unused_imports, unreachable_code, unreachable_code,
+    unused_variables
+)]
+
 use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
 use std::{io, mem, ptr, time};
@@ -7,10 +12,12 @@ use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::settings::WorkerSettings;
-use super::{utils, HttpHandler, IoStream, h1, h2};
+//use super::{h1, h2, utils, HttpHandler, IoStream};
+use super::{h1, utils, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
+/*
 enum HttpProtocol<T: IoStream, H: 'static> {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
@@ -163,10 +170,7 @@ where
             match kind {
                 ProtocolKind::Http1 => {
                     self.proto = Some(HttpProtocol::H1(h1::Http1::new(
-                        settings,
-                        io,
-                        addr,
-                        buf,
+                        settings, io, addr, buf,
                     )));
                     return self.poll();
                 }
@@ -183,7 +187,7 @@ where
         }
         unreachable!()
     }
-}
+}*/
 
 pub(crate) struct Node<T> {
     next: Option<*mut Node<()>>,
@@ -250,9 +254,9 @@ impl Node<()> {
                     next = n.next.as_ref();
 
                     if !n.element.is_null() {
-                        let ch: &mut HttpChannel<T, H> =
-                            mem::transmute(&mut *(n.element as *mut _));
-                        ch.shutdown();
+                        //let ch: &mut HttpChannel<T, H> =
+                        //    mem::transmute(&mut *(n.element as *mut _));
+                        //ch.shutdown();
                     }
                 }
             } else {

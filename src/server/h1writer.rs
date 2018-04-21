@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+#![allow(dead_code, unused_mut, unused_variables)]
 
 use bytes::BufMut;
 use futures::{Async, Poll};
@@ -13,10 +14,12 @@ use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
+use http::{Method, Version};
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use http::{Method, Version};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
+use io::{IoCommand, IoToken};
+use server::worker::IoWriter;
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
@@ -29,9 +32,10 @@ bitflags! {
     }
 }
 
-pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
+pub(crate) struct H1Writer<H: 'static> {
     flags: Flags,
-    stream: T,
+    token: IoToken,
+    stream: IoWriter,
     encoder: ContentEncoder,
     written: u64,
     headers_size: u32,
@@ -40,23 +44,25 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     settings: Rc<WorkerSettings<H>>,
 }
 
-impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
+impl<H: 'static> H1Writer<H> {
     pub fn new(
-        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>
-    ) -> H1Writer<T, H> {
+        token: IoToken, stream: IoWriter, buf: SharedBytes,
+        settings: Rc<WorkerSettings<H>>,
+    ) -> H1Writer<H> {
         H1Writer {
+            token,
+            stream,
+            settings,
             flags: Flags::empty(),
             encoder: ContentEncoder::empty(buf.clone()),
             written: 0,
             headers_size: 0,
             buffer: buf,
             buffer_capacity: 0,
-            stream,
-            settings,
         }
     }
 
-    pub fn get_mut(&mut self) -> &mut T {
+    pub fn get_mut(&mut self) -> &mut IoWriter {
         &mut self.stream
     }
 
@@ -73,28 +79,19 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_data(&mut self, data: &[u8]) -> io::Result<usize> {
-        let mut written = 0;
-        while written < data.len() {
-            match self.stream.write(&data[written..]) {
-                Ok(0) => {
-                    self.disconnected();
-                    return Err(io::Error::new(io::ErrorKind::WriteZero, ""));
-                }
-                Ok(n) => {
-                    written += n;
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    return Ok(written)
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(written)
+    pub fn done(&self, graceful: bool) {
+        self.stream.send(IoCommand::Done {
+            graceful,
+            token: self.token,
+        });
+    }
+
+    pub fn resume(&self) {
+        self.stream.send(IoCommand::Resume(self.token));
     }
 }
 
-impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
+impl<H: 'static> Writer for H1Writer<H> {
     #[inline]
     fn written(&self) -> u64 {
         self.written
@@ -227,16 +224,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             if self.flags.contains(Flags::STARTED) {
                 // shortcut for upgraded connection
                 if self.flags.contains(Flags::UPGRADE) {
-                    if self.buffer.is_empty() {
-                        let pl: &[u8] = payload.as_ref();
-                        let n = self.write_data(pl)?;
-                        if n < pl.len() {
-                            self.buffer.extend_from_slice(&pl[n..]);
-                            return Ok(WriterState::Done);
-                        }
-                    } else {
-                        self.buffer.extend(payload);
-                    }
+                    self.buffer.extend(payload);
                 } else {
                     // TODO: add warning, write after EOF
                     self.encoder.write(payload)?;
@@ -272,6 +260,12 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
+            self.stream.send(IoCommand::Bytes(
+                self.token,
+                self.buffer.take().freeze(),
+            ));
+        }
+        /*
             let buf: &[u8] = unsafe { mem::transmute(self.buffer.as_ref()) };
             let written = self.write_data(buf)?;
             let _ = self.buffer.split_to(written);
@@ -281,8 +275,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         }
         if shutdown {
             self.stream.shutdown()
-        } else {
-            Ok(Async::Ready(()))
-        }
+        } else {*/
+        Ok(Async::Ready(()))
     }
 }
