@@ -43,7 +43,6 @@
 //! #      .finish();
 //! # }
 //! ```
-use byteorder::{ByteOrder, NetworkEndian};
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};

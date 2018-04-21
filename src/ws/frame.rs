@@ -2,7 +2,6 @@ use byteorder::{BigEndian, ByteOrder, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use rand;
-use std::iter::FromIterator;
 use std::{fmt, mem, ptr};
 
 use body::Binary;
@@ -30,7 +29,7 @@ impl Frame {
     /// Create a new Close control frame.
     #[inline]
     pub fn close(reason: Option<CloseReason>, genmask: bool) -> Binary {
-	    let payload:Vec<u8> = match reason {
+	    let payload = match reason {
 		    None => Vec::new(),
 		    Some(reason) => {
 			    let mut code_bytes = [0; 2];
