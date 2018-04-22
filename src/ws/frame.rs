@@ -29,21 +29,21 @@ impl Frame {
     /// Create a new Close control frame.
     #[inline]
     pub fn close(reason: Option<CloseReason>, genmask: bool) -> Binary {
-	    let payload = match reason {
-		    None => Vec::new(),
-		    Some(reason) => {
-			    let mut code_bytes = [0; 2];
-			    NetworkEndian::write_u16(&mut code_bytes, reason.code.into());
+        let payload = match reason {
+            None => Vec::new(),
+            Some(reason) => {
+                let mut code_bytes = [0; 2];
+                NetworkEndian::write_u16(&mut code_bytes, reason.code.into());
 
-			    let mut payload = Vec::from(&code_bytes[..]);
-			    if let Some(description) = reason.description{
-				    payload.extend(description.as_bytes());
-			    }
-			    payload
-		    }
-	    };
+                let mut payload = Vec::from(&code_bytes[..]);
+                if let Some(description) = reason.description{
+                    payload.extend(description.as_bytes());
+                }
+                payload
+            }
+        };
 
-	    Frame::message(payload, OpCode::Close, true, genmask)
+        Frame::message(payload, OpCode::Close, true, genmask)
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
@@ -529,19 +529,19 @@ mod tests {
         assert_eq!(frame, v.into());
     }
 
-	#[test]
-	fn test_close_frame() {
-		let reason = (CloseCode::Normal, "data");
-		let frame = Frame::close(Some(reason.into()), false);
+    #[test]
+    fn test_close_frame() {
+        let reason = (CloseCode::Normal, "data");
+        let frame = Frame::close(Some(reason.into()), false);
 
-		let mut v = vec![136u8, 6u8, 3u8, 232u8];
-		v.extend(b"data");
-		assert_eq!(frame, v.into());
-	}
+        let mut v = vec![136u8, 6u8, 3u8, 232u8];
+        v.extend(b"data");
+        assert_eq!(frame, v.into());
+    }
 
-	#[test]
-	fn test_empty_close_frame() {
-		let frame = Frame::close(None, false);
-		assert_eq!(frame, vec![0x88, 0x00].into());
-	}
+    #[test]
+    fn test_empty_close_frame() {
+        let frame = Frame::close(None, false);
+        assert_eq!(frame, vec![0x88, 0x00].into());
+    }
 }

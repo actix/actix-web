@@ -181,26 +181,26 @@ impl From<u16> for CloseCode {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CloseReason {
-	pub code: CloseCode,
-	pub description: Option<String>,
+    pub code: CloseCode,
+    pub description: Option<String>,
 }
 
 impl From<CloseCode> for CloseReason {
-	fn from(code: CloseCode) -> Self {
-		CloseReason {
-			code,
-			description: None,
-		}
-	}
+    fn from(code: CloseCode) -> Self {
+        CloseReason {
+            code,
+            description: None,
+        }
+    }
 }
 
 impl <T: Into<String>> From<(CloseCode, T)> for CloseReason {
-	fn from(info: (CloseCode, T)) -> Self {
-		CloseReason{
-			code: info.0,
-			description: Some(info.1.into())
-		}
-	}
+    fn from(info: (CloseCode, T)) -> Self {
+        CloseReason{
+            code: info.0,
+            description: Some(info.1.into())
+        }
+    }
 }
 
 static WS_GUID: &'static str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
