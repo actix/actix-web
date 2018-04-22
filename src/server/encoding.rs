@@ -9,7 +9,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
-use http::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING, CONNECTION,
+use http::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING,
                    CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{HttpTryFrom, Method, Version};
 
@@ -459,9 +459,6 @@ impl ContentEncoder {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");
-                    } else {
-                        resp.headers_mut()
-                            .insert(CONNECTION, HeaderValue::from_static("upgrade"));
                     }
                     if encoding != ContentEncoding::Identity {
                         encoding = ContentEncoding::Identity;

@@ -37,6 +37,7 @@ pub struct HttpInnerMessage {
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
+    pub keep_alive: bool,
     resource: RouterResource,
 }
 
@@ -56,11 +57,12 @@ impl Default for HttpInnerMessage {
             params: Params::new(),
             query: Params::new(),
             query_loaded: false,
-            cookies: None,
             addr: None,
+            cookies: None,
             payload: None,
             extensions: Extensions::new(),
             info: None,
+            keep_alive: true,
             resource: RouterResource::Notset,
         }
     }
@@ -70,20 +72,7 @@ impl HttpInnerMessage {
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        if let Some(conn) = self.headers.get(header::CONNECTION) {
-            if let Ok(conn) = conn.to_str() {
-                if self.version == Version::HTTP_10 && conn.contains("keep-alive") {
-                    true
-                } else {
-                    self.version == Version::HTTP_11
-                        && !(conn.contains("close") || conn.contains("upgrade"))
-                }
-            } else {
-                false
-            }
-        } else {
-            self.version != Version::HTTP_10
-        }
+        self.keep_alive
     }
 
     #[inline]
@@ -91,12 +80,12 @@ impl HttpInnerMessage {
         self.headers.clear();
         self.extensions.clear();
         self.params.clear();
-        self.query.clear();
-        self.query_loaded = false;
-        self.cookies = None;
         self.addr = None;
         self.info = None;
+        self.query_loaded = false;
+        self.cookies = None;
         self.payload = None;
+        self.keep_alive = true;
         self.resource = RouterResource::Notset;
     }
 }
@@ -126,10 +115,11 @@ impl HttpRequest<()> {
                 params: Params::new(),
                 query: Params::new(),
                 query_loaded: false,
+                extensions: Extensions::new(),
                 cookies: None,
                 addr: None,
-                extensions: Extensions::new(),
                 info: None,
+                keep_alive: true,
                 resource: RouterResource::Notset,
             }),
             None,
@@ -377,13 +367,13 @@ impl<S> HttpRequest<S> {
     /// To get client connection information `connection_info()` method should
     /// be used.
     #[inline]
-    pub fn peer_addr(&self) -> Option<&SocketAddr> {
-        self.as_ref().addr.as_ref()
+    pub fn peer_addr(&self) -> Option<SocketAddr> {
+        self.as_ref().addr
     }
 
     #[inline]
     pub(crate) fn set_peer_addr(&mut self, addr: Option<SocketAddr>) {
-        self.as_mut().addr = addr
+        self.as_mut().addr = addr;
     }
 
     /// Get a reference to the Params object.
@@ -392,6 +382,7 @@ impl<S> HttpRequest<S> {
         if !self.as_ref().query_loaded {
             let params: &mut Params =
                 unsafe { mem::transmute(&mut self.as_mut().query) };
+            params.clear();
             self.as_mut().query_loaded = true;
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 params.add(key, val);
@@ -425,9 +416,9 @@ impl<S> HttpRequest<S> {
                     }
                 }
             }
-            msg.cookies = Some(cookies)
+            msg.cookies = Some(cookies);
         }
-        Ok(self.as_ref().cookies.as_ref().unwrap())
+        Ok(&self.as_ref().cookies.as_ref().unwrap())
     }
 
     /// Return request cookie.

@@ -2,8 +2,6 @@
 
 use bytes::BufMut;
 use futures::{Async, Poll};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
-use http::{Method, Version};
 use std::rc::Rc;
 use std::{io, mem};
 use tokio_io::AsyncWrite;
@@ -17,6 +15,8 @@ use body::{Binary, Body};
 use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
+use http::{Method, Version};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
