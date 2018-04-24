@@ -34,16 +34,16 @@ tls = ["native-tls", "tokio-tls"]
 # openssl
 alpn = ["openssl", "tokio-openssl"]
 
-# sessions
+# sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
 
-# brotli encoding
+# brotli encoding, requires c compiler
 brotli = ["brotli2"]
 
 # miniz-sys backend for flate2 crate
 flate2-c = ["flate2/miniz-sys"]
 
-# rust-backend for flate2 crate
+# rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
