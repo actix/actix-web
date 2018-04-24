@@ -58,6 +58,7 @@ fn main() {
 * [Tera](https://github.com/actix/examples/tree/master/template_tera/) / 
   [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
+* [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
 * [SSL / HTTP/2.0](https://github.com/actix/examples/tree/master/tls/)
 * [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
 * [Json](https://github.com/actix/examples/tree/master/json/)
