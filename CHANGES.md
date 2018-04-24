@@ -1,9 +1,10 @@
 # Changes
 
-## 0.5.5 (2018-04-xx)
+## 0.5.5 (2018-04-24)
 
 * Fix panic when Websocket is closed with no error code #191
 
+* Allow to use rust backend for flate2 crate #199
 
 ## 0.5.4 (2018-04-19)
 

@@ -26,7 +26,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["session", "brotli"]
+default = ["session", "brotli", "flate2-c"]
 
 # tls
 tls = ["native-tls", "tokio-tls"]
@@ -40,13 +40,18 @@ session = ["cookie/secure"]
 # brotli encoding
 brotli = ["brotli2"]
 
+# miniz-sys backend for flate2 crate
+flate2-c = ["flate2/miniz-sys"]
+
+# rust-backend for flate2 crate
+flate2-rust = ["flate2/rust_backend"]
+
 [dependencies]
 actix = "^0.5.5"
 
 base64 = "0.9"
 bitflags = "1.0"
 failure = "0.1.1"
-flate2 = "1.0"
 h2 = "0.1"
 http = "^0.1.5"
 httparse = "1.2"
@@ -71,6 +76,7 @@ lazy_static = "1.0"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode"] }
 brotli2 = { version="^0.3.2", optional = true }
+flate2 = { version="1.0", default-features = false }
 
 # io
 mio = "^0.6.13"
