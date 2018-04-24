@@ -54,8 +54,9 @@ fn main() {
 * [Stateful](https://github.com/actix/examples/tree/master/state/)
 * [Protobuf support](https://github.com/actix/examples/tree/master/protobuf/)
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
-* [Simple websocket session](https://github.com/actix/examples/tree/master/websocket/)
-* [Tera templates](https://github.com/actix/examples/tree/master/template_tera/)
+* [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
+* [Tera](https://github.com/actix/examples/tree/master/template_tera/) / 
+  [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [SSL / HTTP/2.0](https://github.com/actix/examples/tree/master/tls/)
 * [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
