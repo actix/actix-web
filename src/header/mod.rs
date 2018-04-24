@@ -6,8 +6,8 @@ use std::str::FromStr;
 
 use bytes::{Bytes, BytesMut};
 use mime::Mime;
-use modhttp::Error as HttpError;
 use modhttp::header::GetAll;
+use modhttp::Error as HttpError;
 
 pub use modhttp::header::*;
 
@@ -116,8 +116,10 @@ pub enum ContentEncoding {
     #[cfg(feature = "brotli")]
     Br,
     /// A format using the zlib structure with deflate algorithm
+    #[cfg(feature = "flate2")]
     Deflate,
     /// Gzip algorithm
+    #[cfg(feature = "flate2")]
     Gzip,
     /// Indicates the identity function (i.e. no compression, nor modification)
     Identity,
@@ -137,7 +139,9 @@ impl ContentEncoding {
         match *self {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => "br",
+            #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => "gzip",
+            #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => "deflate",
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
@@ -149,7 +153,9 @@ impl ContentEncoding {
         match *self {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => 1.1,
+            #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => 1.0,
+            #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => 0.9,
             ContentEncoding::Identity | ContentEncoding::Auto => 0.1,
         }
@@ -159,10 +165,12 @@ impl ContentEncoding {
 // TODO: remove memory allocation
 impl<'a> From<&'a str> for ContentEncoding {
     fn from(s: &'a str) -> ContentEncoding {
-        match s.trim().to_lowercase().as_ref() {
+        match AsRef::<str>::as_ref(&s.trim().to_lowercase()) {
             #[cfg(feature = "brotli")]
             "br" => ContentEncoding::Br,
+            #[cfg(feature = "flate2")]
             "gzip" => ContentEncoding::Gzip,
+            #[cfg(feature = "flate2")]
             "deflate" => ContentEncoding::Deflate,
             _ => ContentEncoding::Identity,
         }
@@ -202,7 +210,7 @@ impl fmt::Write for Writer {
 #[doc(hidden)]
 /// Reads a comma-delimited raw header into a Vec.
 pub fn from_comma_delimited<T: FromStr>(
-    all: GetAll<HeaderValue>
+    all: GetAll<HeaderValue>,
 ) -> Result<Vec<T>, ParseError> {
     let mut result = Vec::new();
     for h in all {

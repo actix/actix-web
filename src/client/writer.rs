@@ -7,8 +7,10 @@ use std::io::{self, Write};
 #[cfg(feature = "brotli")]
 use brotli2::write::BrotliEncoder;
 use bytes::{BufMut, BytesMut};
-use flate2::Compression;
+#[cfg(feature = "flate2")]
 use flate2::write::{DeflateEncoder, GzEncoder};
+#[cfg(feature = "flate2")]
+use flate2::Compression;
 use futures::{Async, Poll};
 use http::header::{HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE,
                    TRANSFER_ENCODING};
@@ -18,9 +20,9 @@ use tokio_io::AsyncWrite;
 
 use body::{Binary, Body};
 use header::ContentEncoding;
-use server::WriterState;
 use server::encoding::{ContentEncoder, TransferEncoding};
 use server::shared::SharedBytes;
+use server::WriterState;
 
 use client::ClientRequest;
 
@@ -70,7 +72,7 @@ impl HttpClientWriter {
     // !self.flags.contains(Flags::UPGRADE) }
 
     fn write_to_stream<T: AsyncWrite>(
-        &mut self, stream: &mut T
+        &mut self, stream: &mut T,
     ) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
             match stream.write(self.buffer.as_ref()) {
@@ -191,7 +193,7 @@ impl HttpClientWriter {
 
     #[inline]
     pub fn poll_completed<T: AsyncWrite>(
-        &mut self, stream: &mut T, shutdown: bool
+        &mut self, stream: &mut T, shutdown: bool,
     ) -> Poll<(), io::Error> {
         match self.write_to_stream(stream) {
             Ok(WriterState::Done) => {
@@ -222,9 +224,11 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                 let tmp = SharedBytes::default();
                 let transfer = TransferEncoding::eof(tmp.clone());
                 let mut enc = match encoding {
+                    #[cfg(feature = "flate2")]
                     ContentEncoding::Deflate => ContentEncoder::Deflate(
                         DeflateEncoder::new(transfer, Compression::default()),
                     ),
+                    #[cfg(feature = "flate2")]
                     ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
                         transfer,
                         Compression::default(),
@@ -283,10 +287,12 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
 
     req.replace_body(body);
     match encoding {
+        #[cfg(feature = "flate2")]
         ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
             transfer,
             Compression::default(),
         )),
+        #[cfg(feature = "flate2")]
         ContentEncoding::Gzip => {
             ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::default()))
         }
@@ -299,7 +305,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
 }
 
 fn streaming_encoding(
-    buf: SharedBytes, version: Version, req: &mut ClientRequest
+    buf: SharedBytes, version: Version, req: &mut ClientRequest,
 ) -> TransferEncoding {
     if req.chunked() {
         // Enable transfer encoding
