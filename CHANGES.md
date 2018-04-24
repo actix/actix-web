@@ -1,5 +1,10 @@
 # Changes
 
+## 0.5.6 (2018-04-24)
+
+* Make flate2 crate optional #200
+
+
 ## 0.5.5 (2018-04-24)
 
 * Fix panic when Websocket is closed with no error code #191
