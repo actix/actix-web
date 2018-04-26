@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.0 (...)
+
+* Websocket CloseCode Empty/Status is ambiguous #193
+
+
 ## 0.5.6 (2018-04-24)
 
 * Make flate2 crate optional #200

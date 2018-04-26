@@ -1,4 +1,10 @@
-# Migration from 0.4 to 0.5
+## Migration from 0.5 to 0.6
+
+* `ws::Message::Close` now includes optional close reason.
+  `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
+
+
+## Migration from 0.4 to 0.5
 
 * `HttpResponseBuilder::body()`, `.finish()`, `.json()`
    methods return `HttpResponse` instead of `Result<HttpResponse>`
