@@ -200,6 +200,12 @@ where
         }
     }
 
+    /// Get reference to the application state
+    pub fn state(&self) -> &S {
+        let parts = self.parts.as_ref().expect("Use after finish");
+        &parts.state
+    }
+
     /// Set application prefix.
     ///
     /// Only requests that match the application's prefix get
