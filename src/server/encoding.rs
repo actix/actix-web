@@ -6,11 +6,14 @@ use std::{cmp, io, mem};
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{BufMut, Bytes, BytesMut};
-use flate2::Compression;
+#[cfg(feature = "flate2")]
 use flate2::read::GzDecoder;
+#[cfg(feature = "flate2")]
 use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
-use http::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING, CONNECTION,
-                   CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING};
+#[cfg(feature = "flate2")]
+use flate2::Compression;
+use http::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING, CONTENT_ENCODING,
+                   CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{HttpTryFrom, Method, Version};
 
 use body::{Binary, Body};
@@ -144,7 +147,9 @@ impl PayloadWriter for EncodedPayload {
 }
 
 pub(crate) enum Decoder {
+    #[cfg(feature = "flate2")]
     Deflate(Box<DeflateDecoder<Writer>>),
+    #[cfg(feature = "flate2")]
     Gzip(Option<Box<GzDecoder<Wrapper>>>),
     #[cfg(feature = "brotli")]
     Br(Box<BrotliDecoder<Writer>>),
@@ -223,9 +228,11 @@ impl PayloadStream {
             ContentEncoding::Br => {
                 Decoder::Br(Box::new(BrotliDecoder::new(Writer::new())))
             }
+            #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => {
                 Decoder::Deflate(Box::new(DeflateDecoder::new(Writer::new())))
             }
+            #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => Decoder::Gzip(None),
             _ => Decoder::Identity,
         };
@@ -251,6 +258,7 @@ impl PayloadStream {
                 }
                 Err(e) => Err(e),
             },
+            #[cfg(feature = "flate2")]
             Decoder::Gzip(ref mut decoder) => {
                 if let Some(ref mut decoder) = *decoder {
                     decoder.as_mut().get_mut().eof = true;
@@ -267,6 +275,7 @@ impl PayloadStream {
                     Ok(None)
                 }
             }
+            #[cfg(feature = "flate2")]
             Decoder::Deflate(ref mut decoder) => match decoder.try_finish() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -297,6 +306,7 @@ impl PayloadStream {
                 }
                 Err(e) => Err(e),
             },
+            #[cfg(feature = "flate2")]
             Decoder::Gzip(ref mut decoder) => {
                 if decoder.is_none() {
                     *decoder = Some(Box::new(GzDecoder::new(Wrapper {
@@ -334,6 +344,7 @@ impl PayloadStream {
                     }
                 }
             }
+            #[cfg(feature = "flate2")]
             Decoder::Deflate(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -352,7 +363,9 @@ impl PayloadStream {
 }
 
 pub(crate) enum ContentEncoder {
+    #[cfg(feature = "flate2")]
     Deflate(DeflateEncoder<TransferEncoding>),
+    #[cfg(feature = "flate2")]
     Gzip(GzEncoder<TransferEncoding>),
     #[cfg(feature = "brotli")]
     Br(BrotliEncoder<TransferEncoding>),
@@ -422,9 +435,11 @@ impl ContentEncoder {
                     let tmp = SharedBytes::default();
                     let transfer = TransferEncoding::eof(tmp.clone());
                     let mut enc = match encoding {
+                        #[cfg(feature = "flate2")]
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
                             DeflateEncoder::new(transfer, Compression::fast()),
                         ),
+                        #[cfg(feature = "flate2")]
                         ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
                             transfer,
                             Compression::fast(),
@@ -459,9 +474,6 @@ impl ContentEncoder {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");
-                    } else {
-                        resp.headers_mut()
-                            .insert(CONNECTION, HeaderValue::from_static("upgrade"));
                     }
                     if encoding != ContentEncoding::Identity {
                         encoding = ContentEncoding::Identity;
@@ -481,10 +493,12 @@ impl ContentEncoder {
         }
 
         match encoding {
+            #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
                 transfer,
                 Compression::fast(),
             )),
+            #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => {
                 ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::fast()))
             }
@@ -497,7 +511,7 @@ impl ContentEncoder {
     }
 
     fn streaming_encoding(
-        buf: SharedBytes, version: Version, resp: &mut HttpResponse
+        buf: SharedBytes, version: Version, resp: &mut HttpResponse,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
@@ -566,7 +580,9 @@ impl ContentEncoder {
         match *self {
             #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref encoder) => encoder.get_ref().is_eof(),
+            #[cfg(feature = "flate2")]
             ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_eof(),
+            #[cfg(feature = "flate2")]
             ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_eof(),
             ContentEncoder::Identity(ref encoder) => encoder.is_eof(),
         }
@@ -590,6 +606,7 @@ impl ContentEncoder {
                 }
                 Err(err) => Err(err),
             },
+            #[cfg(feature = "flate2")]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(mut writer) => {
                     writer.encode_eof();
@@ -598,6 +615,7 @@ impl ContentEncoder {
                 }
                 Err(err) => Err(err),
             },
+            #[cfg(feature = "flate2")]
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
                 Ok(mut writer) => {
                     writer.encode_eof();
@@ -628,6 +646,7 @@ impl ContentEncoder {
                     }
                 }
             }
+            #[cfg(feature = "flate2")]
             ContentEncoder::Gzip(ref mut encoder) => {
                 match encoder.write_all(data.as_ref()) {
                     Ok(_) => Ok(()),
@@ -637,6 +656,7 @@ impl ContentEncoder {
                     }
                 }
             }
+            #[cfg(feature = "flate2")]
             ContentEncoder::Deflate(ref mut encoder) => {
                 match encoder.write_all(data.as_ref()) {
                     Ok(_) => Ok(()),

@@ -64,8 +64,10 @@
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
-#![cfg_attr(feature = "cargo-clippy",
-            allow(decimal_literal_representation, suspicious_arithmetic_impl))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(decimal_literal_representation, suspicious_arithmetic_impl)
+)]
 
 #[macro_use]
 extern crate log;
@@ -103,6 +105,7 @@ extern crate serde;
 #[cfg(feature = "brotli")]
 extern crate brotli2;
 extern crate encoding;
+#[cfg(feature = "flate2")]
 extern crate flate2;
 extern crate h2 as http2;
 extern crate num_cpus;

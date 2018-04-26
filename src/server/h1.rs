@@ -510,9 +510,10 @@ impl Reader {
         buf: &mut BytesMut, settings: &WorkerSettings<H>
     ) -> Poll<(HttpRequest, Option<PayloadInfo>), ParseError> {
         // Parse http message
-        let mut has_te = false;
         let mut has_upgrade = false;
-        let mut has_length = false;
+        let mut chunked = false;
+        let mut content_length = None;
+
         let msg = {
             let bytes_ptr = buf.as_ref().as_ptr() as usize;
             let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -546,10 +547,10 @@ impl Reader {
             let msg = settings.get_http_message();
             {
                 let msg_mut = msg.get_mut();
+                msg_mut.keep_alive = version != Version::HTTP_10;
+
                 for header in headers[..headers_len].iter() {
                     if let Ok(name) = HeaderName::from_bytes(header.name.as_bytes()) {
-                        has_te = has_te || name == header::TRANSFER_ENCODING;
-                        has_length = has_length || name == header::CONTENT_LENGTH;
                         has_upgrade = has_upgrade || name == header::UPGRADE;
                         let v_start = header.value.as_ptr() as usize - bytes_ptr;
                         let v_end = v_start + header.value.len();
@@ -558,6 +559,47 @@ impl Reader {
                                 slice.slice(v_start, v_end),
                             )
                         };
+                        match name {
+                            header::CONTENT_LENGTH => {
+                                if let Ok(s) = value.to_str() {
+                                    if let Ok(len) = s.parse::<u64>() {
+                                        content_length = Some(len)
+                                    } else {
+                                        debug!("illegal Content-Length: {:?}", len);
+                                        return Err(ParseError::Header);
+                                    }
+                                } else {
+                                    debug!("illegal Content-Length: {:?}", len);
+                                    return Err(ParseError::Header);
+                                }
+                            },
+                            // transfer-encoding
+                            header::TRANSFER_ENCODING => {
+                                if let Ok(s) = value.to_str() {
+                                    chunked = s.to_lowercase().contains("chunked");
+                                } else {
+                                    return Err(ParseError::Header)
+                                }
+                            },
+                            // connection keep-alive state
+                            header::CONNECTION => {
+                                msg_mut.keep_alive = if let Ok(conn) = value.to_str() {
+                                    if version == Version::HTTP_10
+                                        && conn.contains("keep-alive")
+                                    {
+                                        true
+                                    } else {
+                                        version == Version::HTTP_11
+                                            && !(conn.contains("close")
+                                                 || conn.contains("upgrade"))
+                                    }
+                                } else {
+                                    false
+                                };
+                            },
+                            _ => (),
+                        }
+
                         msg_mut.headers.append(name, value);
                     } else {
                         return Err(ParseError::Header);
@@ -572,26 +614,12 @@ impl Reader {
         };
 
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
-        let decoder = if has_te && chunked(&msg.get_mut().headers)? {
+        let decoder = if chunked {
             // Chunked encoding
             Some(Decoder::chunked())
-        } else if has_length {
+        } else if let Some(len) = content_length {
             // Content-Length
-            let len = msg.get_ref()
-                .headers
-                .get(header::CONTENT_LENGTH)
-                .unwrap();
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    Some(Decoder::length(len))
-                } else {
-                    debug!("illegal Content-Length: {:?}", len);
-                    return Err(ParseError::Header);
-                }
-            } else {
-                debug!("illegal Content-Length: {:?}", len);
-                return Err(ParseError::Header);
-            }
+            Some(Decoder::length(len))
         } else if has_upgrade || msg.get_ref().method == Method::CONNECT {
             // upgrade(websocket) or connect
             Some(Decoder::eof())

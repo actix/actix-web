@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.5.5"
+version = "0.5.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -26,7 +26,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["session", "brotli"]
+default = ["session", "brotli", "flate2-c"]
 
 # tls
 tls = ["native-tls", "tokio-tls"]
@@ -34,11 +34,17 @@ tls = ["native-tls", "tokio-tls"]
 # openssl
 alpn = ["openssl", "tokio-openssl"]
 
-# sessions
+# sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
 
-# brotli encoding
+# brotli encoding, requires c compiler
 brotli = ["brotli2"]
+
+# miniz-sys backend for flate2 crate
+flate2-c = ["flate2/miniz-sys"]
+
+# rust backend for flate2 crate
+flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
 actix = "^0.5.5"
@@ -46,7 +52,6 @@ actix = "^0.5.5"
 base64 = "0.9"
 bitflags = "1.0"
 failure = "0.1.1"
-flate2 = "1.0"
 h2 = "0.1"
 http = "^0.1.5"
 httparse = "1.2"
@@ -71,6 +76,7 @@ lazy_static = "1.0"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode"] }
 brotli2 = { version="^0.3.2", optional = true }
+flate2 = { version="1.0", optional = true, default-features = false }
 
 # io
 mio = "^0.6.13"
