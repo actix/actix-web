@@ -5,7 +5,6 @@ use std::time::Duration;
 use std::{fmt, io, str};
 
 use base64;
-use byteorder::{ByteOrder, NetworkEndian};
 use bytes::Bytes;
 use cookie::Cookie;
 use futures::unsync::mpsc::{unbounded, UnboundedSender};
@@ -27,7 +26,7 @@ use client::{ClientConnector, ClientRequest, ClientRequestBuilder, ClientRespons
              HttpResponseParserError, SendRequest, SendRequestError};
 
 use super::frame::Frame;
-use super::proto::{CloseCode, OpCode};
+use super::proto::{CloseReason, OpCode};
 use super::{Message, ProtocolError};
 
 /// Websocket client error
@@ -468,10 +467,8 @@ impl Stream for ClientReader {
                     }
                     OpCode::Close => {
                         inner.closed = true;
-                        let code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
-                        Ok(Async::Ready(Some(Message::Close(CloseCode::from(
-                            code,
-                        )))))
+                        let close_reason = Frame::parse_close_payload(&payload);
+                        Ok(Async::Ready(Some(Message::Close(close_reason))))
                     }
                     OpCode::Ping => Ok(Async::Ready(Some(Message::Ping(
                         String::from_utf8_lossy(payload.as_ref()).into(),
@@ -560,7 +557,7 @@ impl ClientWriter {
 
     /// Send close frame
     #[inline]
-    pub fn close(&mut self, code: CloseCode, reason: &str) {
-        self.write(Frame::close(code, reason, true));
+    pub fn close(&mut self, reason: Option<CloseReason>) {
+        self.write(Frame::close(reason, true));
     }
 }

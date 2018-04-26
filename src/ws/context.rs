@@ -15,7 +15,7 @@ use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 
 use ws::frame::Frame;
-use ws::proto::{CloseCode, OpCode};
+use ws::proto::{CloseReason, OpCode};
 
 /// Execution context for `WebSockets` actors
 pub struct WebsocketContext<A, S = ()>
@@ -177,8 +177,8 @@ where
 
     /// Send close frame
     #[inline]
-    pub fn close(&mut self, code: CloseCode, reason: &str) {
-        self.write(Frame::close(code, reason, false));
+    pub fn close(&mut self, reason: Option<CloseReason>) {
+        self.write(Frame::close(reason, false));
     }
 
     /// Returns drain future

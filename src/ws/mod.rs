@@ -43,7 +43,6 @@
 //! #      .finish();
 //! # }
 //! ```
-use byteorder::{ByteOrder, NetworkEndian};
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
@@ -66,8 +65,7 @@ mod proto;
 pub use self::client::{Client, ClientError, ClientHandshake, ClientReader, ClientWriter};
 pub use self::context::WebsocketContext;
 pub use self::frame::Frame;
-pub use self::proto::CloseCode;
-pub use self::proto::OpCode;
+pub use self::proto::{CloseCode, CloseReason, OpCode};
 
 /// Websocket protocol errors
 #[derive(Fail, Debug)]
@@ -164,7 +162,7 @@ pub enum Message {
     Binary(Binary),
     Ping(String),
     Pong(String),
-    Close(CloseCode),
+    Close(Option<CloseReason>),
 }
 
 /// Do websocket handshake and start actor
@@ -310,15 +308,8 @@ where
                     }
                     OpCode::Close => {
                         self.closed = true;
-                        let close_code = if payload.len() >= 2 {
-                            let raw_code =
-                                NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
-                            CloseCode::from(raw_code)
-                        } else {
-                            CloseCode::Status
-                        };
-
-                        Ok(Async::Ready(Some(Message::Close(close_code))))
+                        let close_reason = Frame::parse_close_payload(&payload);
+                        Ok(Async::Ready(Some(Message::Close(close_reason))))
                     }
                     OpCode::Ping => Ok(Async::Ready(Some(Message::Ping(
                         String::from_utf8_lossy(payload.as_ref()).into(),

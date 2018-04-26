@@ -2,7 +2,6 @@ use byteorder::{BigEndian, ByteOrder, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use rand;
-use std::iter::FromIterator;
 use std::{fmt, mem, ptr};
 
 use body::Binary;
@@ -11,7 +10,7 @@ use payload::PayloadHelper;
 
 use ws::ProtocolError;
 use ws::mask::apply_mask;
-use ws::proto::{CloseCode, OpCode};
+use ws::proto::{CloseCode, CloseReason, OpCode};
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]
@@ -29,21 +28,19 @@ impl Frame {
 
     /// Create a new Close control frame.
     #[inline]
-    pub fn close(code: CloseCode, reason: &str, genmask: bool) -> Binary {
-        let raw: [u8; 2] = unsafe {
-            let u: u16 = code.into();
-            mem::transmute(u.to_be())
-        };
+    pub fn close(reason: Option<CloseReason>, genmask: bool) -> Binary {
+        let payload = match reason {
+            None => Vec::new(),
+            Some(reason) => {
+                let mut code_bytes = [0; 2];
+                NetworkEndian::write_u16(&mut code_bytes, reason.code.into());
 
-        let payload = if let CloseCode::Empty = code {
-            Vec::new()
-        } else {
-            Vec::from_iter(
-                raw[..]
-                    .iter()
-                    .chain(reason.as_bytes().iter())
-                    .cloned(),
-            )
+                let mut payload = Vec::from(&code_bytes[..]);
+                if let Some(description) = reason.description{
+                    payload.extend(description.as_bytes());
+                }
+                payload
+            }
         };
 
         Frame::message(payload, OpCode::Close, true, genmask)
@@ -279,6 +276,22 @@ impl Frame {
             opcode,
             payload: data.into(),
         })))
+    }
+
+    /// Parse the payload of a close frame.
+    pub fn parse_close_payload(payload: &Binary) -> Option<CloseReason> {
+        if payload.len() >= 2 {
+            let raw_code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
+            let code = CloseCode::from(raw_code);
+            let description = if payload.len() > 2 {
+                Some(String::from_utf8_lossy(&payload.as_ref()[2..]).into())
+            } else {
+                None
+            };
+            Some(CloseReason { code, description })
+        } else {
+            None
+        }
     }
 
     /// Generate binary representation
@@ -518,10 +531,17 @@ mod tests {
 
     #[test]
     fn test_close_frame() {
-        let frame = Frame::close(CloseCode::Normal, "data", false);
+        let reason = (CloseCode::Normal, "data");
+        let frame = Frame::close(Some(reason.into()), false);
 
         let mut v = vec![136u8, 6u8, 3u8, 232u8];
         v.extend(b"data");
         assert_eq!(frame, v.into());
+    }
+
+    #[test]
+    fn test_empty_close_frame() {
+        let frame = Frame::close(None, false);
+        assert_eq!(frame, vec![0x88, 0x00].into());
     }
 }
