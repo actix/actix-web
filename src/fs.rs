@@ -205,6 +205,9 @@ impl Responder for NamedFile {
                 resp.set(header::ContentType(get_mime_type(
                     &ext.to_string_lossy(),
                 )));
+            }).if_some(self.path().file_name(), |file_name, resp| {
+                resp.header("Content-Disposition",
+                            format!("attachment; filename={}", file_name.to_string_lossy()));
             });
             let reader = ChunkedReadFile {
                 size: self.md.len(),
@@ -256,12 +259,14 @@ impl Responder for NamedFile {
             resp.set(header::ContentType(get_mime_type(
                 &ext.to_string_lossy(),
             )));
+        }).if_some(self.path().file_name(), |file_name, resp| {
+            resp.header("Content-Disposition",
+                        format!("attachment; filename={}", file_name.to_string_lossy()));
         }).if_some(last_modified, |lm, resp| {
                 resp.set(header::LastModified(lm));
-            })
-            .if_some(etag, |etag, resp| {
-                resp.set(header::ETag(etag));
-            });
+        }).if_some(etag, |etag, resp| {
+            resp.set(header::ETag(etag));
+        });
 
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
@@ -612,7 +617,11 @@ mod tests {
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
-        )
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=Cargo.toml"
+        );
     }
 
     #[test]
@@ -633,6 +642,10 @@ mod tests {
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=Cargo.toml"
         );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
