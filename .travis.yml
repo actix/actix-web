@@ -8,11 +8,11 @@ cache:
 
 matrix:
   include:
-    - rust: 1.22.1
     - rust: stable
     - rust: beta
     - rust: nightly
   allow_failures:
+    - rust: 1.21.0
     - rust: nightly
 
 env:

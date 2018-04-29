@@ -296,13 +296,14 @@ where
 
     #[inline]
     fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
-        let fut = self.map_err(|e| e.into()).then(move |r| match r.respond_to(req) {
-            Ok(reply) => match reply.into().0 {
-                ReplyItem::Message(resp) => ok(resp),
-                _ => panic!("Nested async replies are not supported"),
-            },
-            Err(e) => err(e),
-        });
+        let fut = self.map_err(|e| e.into())
+            .then(move |r| match r.respond_to(req) {
+                Ok(reply) => match reply.into().0 {
+                    ReplyItem::Message(resp) => ok(resp),
+                    _ => panic!("Nested async replies are not supported"),
+                },
+                Err(e) => err(e),
+            });
         Ok(Reply::async(fut))
     }
 }

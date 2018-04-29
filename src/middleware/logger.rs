@@ -254,9 +254,10 @@ impl FormatText {
                     "-".fmt(fmt)
                 }
             }
-            FormatText::RequestTime => {
-                entry_time.strftime("[%d/%b/%Y:%H:%M:%S %z]").unwrap().fmt(fmt)
-            }
+            FormatText::RequestTime => entry_time
+                .strftime("[%d/%b/%Y:%H:%M:%S %z]")
+                .unwrap()
+                .fmt(fmt),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
                     if let Ok(s) = val.to_str() {
@@ -313,8 +314,10 @@ mod tests {
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
         let mut headers = HeaderMap::new();
-        headers
-            .insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        );
         let mut req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),
@@ -351,8 +354,10 @@ mod tests {
         let format = Format::default();
 
         let mut headers = HeaderMap::new();
-        headers
-            .insert(header::USER_AGENT, header::HeaderValue::from_static("ACTIX-WEB"));
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        );
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),
@@ -360,7 +365,9 @@ mod tests {
             headers,
             None,
         );
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let resp = HttpResponse::build(StatusCode::OK)
+            .force_close()
+            .finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
@@ -381,7 +388,9 @@ mod tests {
             HeaderMap::new(),
             None,
         );
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let resp = HttpResponse::build(StatusCode::OK)
+            .force_close()
+            .finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {

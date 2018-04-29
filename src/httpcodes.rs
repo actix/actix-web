@@ -245,7 +245,10 @@ impl HttpResponse {
     STATIC_RESP!(Ok, StatusCode::OK);
     STATIC_RESP!(Created, StatusCode::CREATED);
     STATIC_RESP!(Accepted, StatusCode::ACCEPTED);
-    STATIC_RESP!(NonAuthoritativeInformation, StatusCode::NON_AUTHORITATIVE_INFORMATION);
+    STATIC_RESP!(
+        NonAuthoritativeInformation,
+        StatusCode::NON_AUTHORITATIVE_INFORMATION
+    );
 
     STATIC_RESP!(NoContent, StatusCode::NO_CONTENT);
     STATIC_RESP!(ResetContent, StatusCode::RESET_CONTENT);
@@ -270,7 +273,10 @@ impl HttpResponse {
     STATIC_RESP!(Forbidden, StatusCode::FORBIDDEN);
     STATIC_RESP!(MethodNotAllowed, StatusCode::METHOD_NOT_ALLOWED);
     STATIC_RESP!(NotAcceptable, StatusCode::NOT_ACCEPTABLE);
-    STATIC_RESP!(ProxyAuthenticationRequired, StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+    STATIC_RESP!(
+        ProxyAuthenticationRequired,
+        StatusCode::PROXY_AUTHENTICATION_REQUIRED
+    );
     STATIC_RESP!(RequestTimeout, StatusCode::REQUEST_TIMEOUT);
     STATIC_RESP!(Conflict, StatusCode::CONFLICT);
     STATIC_RESP!(Gone, StatusCode::GONE);
@@ -278,7 +284,10 @@ impl HttpResponse {
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
-    STATIC_RESP!(UnsupportedMediaType, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    STATIC_RESP!(
+        UnsupportedMediaType,
+        StatusCode::UNSUPPORTED_MEDIA_TYPE
+    );
     STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
 
@@ -287,8 +296,14 @@ impl HttpResponse {
     STATIC_RESP!(BadGateway, StatusCode::BAD_GATEWAY);
     STATIC_RESP!(ServiceUnavailable, StatusCode::SERVICE_UNAVAILABLE);
     STATIC_RESP!(GatewayTimeout, StatusCode::GATEWAY_TIMEOUT);
-    STATIC_RESP!(VersionNotSupported, StatusCode::HTTP_VERSION_NOT_SUPPORTED);
-    STATIC_RESP!(VariantAlsoNegotiates, StatusCode::VARIANT_ALSO_NEGOTIATES);
+    STATIC_RESP!(
+        VersionNotSupported,
+        StatusCode::HTTP_VERSION_NOT_SUPPORTED
+    );
+    STATIC_RESP!(
+        VariantAlsoNegotiates,
+        StatusCode::VARIANT_ALSO_NEGOTIATES
+    );
     STATIC_RESP!(InsufficientStorage, StatusCode::INSUFFICIENT_STORAGE);
     STATIC_RESP!(LoopDetected, StatusCode::LOOP_DETECTED);
 }

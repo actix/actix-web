@@ -111,7 +111,12 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
             let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
             let tp = self.get_handler(&mut req);
             let inner = Rc::clone(&self.inner);
-            Ok(Box::new(Pipeline::new(req, Rc::clone(&self.middlewares), inner, tp)))
+            Ok(Box::new(Pipeline::new(
+                req,
+                Rc::clone(&self.middlewares),
+                inner,
+                tp,
+            )))
         } else {
             Err(req)
         }
@@ -449,14 +454,20 @@ where
             }
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            parts.handlers.push((path, Box::new(WrapHandler::new(handler))));
+            parts
+                .handlers
+                .push((path, Box::new(WrapHandler::new(handler))));
         }
         self
     }
 
     /// Register a middleware.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
-        self.parts.as_mut().expect("Use after finish").middlewares.push(Box::new(mw));
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .middlewares
+            .push(Box::new(mw));
         self
     }
 
@@ -611,8 +622,9 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let mut app =
-            App::new().resource("/test", |r| r.f(|_| HttpResponse::Ok())).finish();
+        let mut app = App::new()
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -620,14 +632,20 @@ mod tests {
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let mut app = App::new()
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::METHOD_NOT_ALLOWED
+        );
     }
 
     #[test]
@@ -641,8 +659,9 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let mut app =
-            App::with_state(10).resource("/", |r| r.f(|_| HttpResponse::Ok())).finish();
+        let mut app = App::with_state(10)
+            .resource("/", |r| r.f(|_| HttpResponse::Ok()))
+            .finish();
         let req =
             HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
@@ -674,7 +693,9 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
+        let mut app = App::new()
+            .handler("/test", |_| HttpResponse::Ok())
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -690,16 +711,24 @@ mod tests {
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
     fn test_handler2() {
-        let mut app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
+        let mut app = App::new()
+            .handler("test", |_| HttpResponse::Ok())
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -715,11 +744,17 @@ mod tests {
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
@@ -743,41 +778,68 @@ mod tests {
 
         let req = TestRequest::with_uri("/prefix/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/prefix/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
     fn test_route() {
         let mut app = App::new()
-            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
-            .route("/test", Method::POST, |_: HttpRequest| HttpResponse::Created())
+            .route("/test", Method::GET, |_: HttpRequest| {
+                HttpResponse::Ok()
+            })
+            .route("/test", Method::POST, |_: HttpRequest| {
+                HttpResponse::Created()
+            })
             .finish();
 
-        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::CREATED);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::CREATED
+        );
 
-        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::HEAD)
+            .finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
     fn test_handler_prefix() {
-        let mut app =
-            App::new().prefix("/app").handler("/test", |_| HttpResponse::Ok()).finish();
+        let mut app = App::new()
+            .prefix("/app")
+            .handler("/test", |_| HttpResponse::Ok())
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/app/test").finish();
         let resp = app.run(req);
@@ -793,10 +855,16 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
 
         let req = TestRequest::with_uri("/app/blah").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 }

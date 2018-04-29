@@ -44,10 +44,7 @@ impl Url {
     pub fn new(uri: Uri) -> Url {
         let path = DEFAULT_QUOTER.requote(uri.path().as_bytes());
 
-        Url {
-            uri,
-            path,
-        }
+        Url { uri, path }
     }
 
     pub fn uri(&self) -> &Uri {

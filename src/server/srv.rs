@@ -219,7 +219,10 @@ where
             if let Some(e) = err.take() {
                 Err(e)
             } else {
-                Err(io::Error::new(io::ErrorKind::Other, "Can not bind to address."))
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Can not bind to address.",
+                ))
             }
         } else {
             Ok(self)
@@ -375,7 +378,10 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// Start listening for incoming tls connections.
     pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<Addr<Syn, Self>> {
         if self.sockets.is_empty() {
-            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "No socket addresses are bound",
+            ))
         } else {
             let (tx, rx) = mpsc::unbounded();
             let addrs: Vec<(net::SocketAddr, net::TcpListener)> =
@@ -424,7 +430,10 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         mut self, mut builder: SslAcceptorBuilder,
     ) -> io::Result<Addr<Syn, Self>> {
         if self.sockets.is_empty() {
-            Err(io::Error::new(io::ErrorKind::Other, "No socket addresses are bound"))
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "No socket addresses are bound",
+            ))
         } else {
             // alpn support
             if !self.no_http2 {
@@ -554,35 +563,17 @@ impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H> {
             signal::SignalType::Int => {
                 info!("SIGINT received, exiting");
                 self.exit = true;
-                Handler::<StopServer>::handle(
-                    self,
-                    StopServer {
-                        graceful: false,
-                    },
-                    ctx,
-                );
+                Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
             }
             signal::SignalType::Term => {
                 info!("SIGTERM received, stopping");
                 self.exit = true;
-                Handler::<StopServer>::handle(
-                    self,
-                    StopServer {
-                        graceful: true,
-                    },
-                    ctx,
-                );
+                Handler::<StopServer>::handle(self, StopServer { graceful: true }, ctx);
             }
             signal::SignalType::Quit => {
                 info!("SIGQUIT received, exiting");
                 self.exit = true;
-                Handler::<StopServer>::handle(
-                    self,
-                    StopServer {
-                        graceful: false,
-                    },
-                    ctx,
-                );
+                Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
             }
             _ => (),
         }
@@ -706,9 +697,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
             let tx2 = tx.clone();
             worker
                 .1
-                .send(StopWorker {
-                    graceful: dur,
-                })
+                .send(StopWorker { graceful: dur })
                 .into_actor(self)
                 .then(move |_, slf, ctx| {
                     slf.workers.pop();
@@ -758,8 +747,9 @@ fn start_accept_thread(
 
     // start accept thread
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    let _ = thread::Builder::new().name(format!("Accept on {}", addr)).spawn(
-        move || {
+    let _ = thread::Builder::new()
+        .name(format!("Accept on {}", addr))
+        .spawn(move || {
             const SRV: mio::Token = mio::Token(0);
             const CMD: mio::Token = mio::Token(1);
 
@@ -784,9 +774,12 @@ fn start_accept_thread(
             }
 
             // Start listening for incoming commands
-            if let Err(err) =
-                poll.register(&reg, CMD, mio::Ready::readable(), mio::PollOpt::edge())
-            {
+            if let Err(err) = poll.register(
+                &reg,
+                CMD,
+                mio::Ready::readable(),
+                mio::PollOpt::edge(),
+            ) {
                 panic!("Can not register Registration: {}", err);
             }
 
@@ -917,8 +910,7 @@ fn start_accept_thread(
                     }
                 }
             }
-        },
-    );
+        });
 
     (readiness, tx)
 }

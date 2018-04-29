@@ -57,10 +57,7 @@ impl EntityTag {
     /// If the tag contains invalid characters.
     pub fn new(weak: bool, tag: String) -> EntityTag {
         assert!(check_slice_validity(&tag), "Invalid tag: {:?}", tag);
-        EntityTag {
-            weak,
-            tag,
-        }
+        EntityTag { weak, tag }
     }
 
     /// Constructs a new weak EntityTag.
@@ -199,7 +196,11 @@ mod tests {
     fn test_etag_parse_failures() {
         // Expected failures
         assert!("no-dquotes".parse::<EntityTag>().is_err());
-        assert!("w/\"the-first-w-is-case-sensitive\"".parse::<EntityTag>().is_err());
+        assert!(
+            "w/\"the-first-w-is-case-sensitive\""
+                .parse::<EntityTag>()
+                .is_err()
+        );
         assert!("".parse::<EntityTag>().is_err());
         assert!("\"unmatched-dquotes1".parse::<EntityTag>().is_err());
         assert!("unmatched-dquotes2\"".parse::<EntityTag>().is_err());
@@ -208,14 +209,26 @@ mod tests {
 
     #[test]
     fn test_etag_fmt() {
-        assert_eq!(format!("{}", EntityTag::strong("foobar".to_owned())), "\"foobar\"");
-        assert_eq!(format!("{}", EntityTag::strong("".to_owned())), "\"\"");
+        assert_eq!(
+            format!("{}", EntityTag::strong("foobar".to_owned())),
+            "\"foobar\""
+        );
+        assert_eq!(
+            format!("{}", EntityTag::strong("".to_owned())),
+            "\"\""
+        );
         assert_eq!(
             format!("{}", EntityTag::weak("weak-etag".to_owned())),
             "W/\"weak-etag\""
         );
-        assert_eq!(format!("{}", EntityTag::weak("\u{0065}".to_owned())), "W/\"\x65\"");
-        assert_eq!(format!("{}", EntityTag::weak("".to_owned())), "W/\"\"");
+        assert_eq!(
+            format!("{}", EntityTag::weak("\u{0065}".to_owned())),
+            "W/\"\x65\""
+        );
+        assert_eq!(
+            format!("{}", EntityTag::weak("".to_owned())),
+            "W/\"\""
+        );
     }
 
     #[test]

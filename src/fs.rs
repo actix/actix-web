@@ -15,7 +15,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
 use mime;
-use mime_guess::{guess_mime_type, get_mime_type};
+use mime_guess::{get_mime_type, guess_mime_type};
 
 use error::Error;
 use handler::{Handler, Reply, Responder, RouteHandler, WrapHandler};
@@ -203,24 +203,29 @@ impl Responder for NamedFile {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.if_some(self.path().extension(), |ext, resp| {
-                resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
+                resp.set(header::ContentType(get_mime_type(
+                    &ext.to_string_lossy(),
+                )));
             }).if_some(self.path().file_name(), |file_name, resp| {
-                let mime_type = guess_mime_type(self.path());
-                let inline_or_attachment = match mime_type.type_() {
-                    mime::IMAGE | mime::TEXT => "inline",
-                    _ => "attachment",
-                };
-                resp.header(
-                    "Content-Disposition",
-                    format!("{inline_or_attachment}; filename={filename}",
-                            inline_or_attachment=inline_or_attachment,
-                            filename=file_name.to_string_lossy())
-                );
-            });
+                    let mime_type = guess_mime_type(self.path());
+                    let inline_or_attachment = match mime_type.type_() {
+                        mime::IMAGE | mime::TEXT => "inline",
+                        _ => "attachment",
+                    };
+                    resp.header(
+                        "Content-Disposition",
+                        format!(
+                            "{inline_or_attachment}; filename={filename}",
+                            inline_or_attachment = inline_or_attachment,
+                            filename = file_name.to_string_lossy()
+                        ),
+                    );
+                });
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
-                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
+                cpu_pool: self.cpu_pool
+                    .unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
             };
@@ -263,24 +268,30 @@ impl Responder for NamedFile {
         let mut resp = HttpResponse::build(self.status_code);
 
         resp.if_some(self.path().extension(), |ext, resp| {
-            resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
+            resp.set(header::ContentType(get_mime_type(
+                &ext.to_string_lossy(),
+            )));
         }).if_some(self.path().file_name(), |file_name, resp| {
-            let mime_type = guess_mime_type(self.path());
-            let inline_or_attachment = match mime_type.type_() {
-                mime::IMAGE | mime::TEXT => "inline",
-                _ => "attachment",
-            };
-            resp.header(
-                "Content-Disposition",
-                format!("{inline_or_attachment}; filename={filename}",
-                        inline_or_attachment=inline_or_attachment,
-                        filename=file_name.to_string_lossy())
-            );
-        }).if_some(last_modified, |lm, resp| {
+                let mime_type = guess_mime_type(self.path());
+                let inline_or_attachment = match mime_type.type_() {
+                    mime::IMAGE | mime::TEXT => "inline",
+                    _ => "attachment",
+                };
+                resp.header(
+                    "Content-Disposition",
+                    format!(
+                        "{inline_or_attachment}; filename={filename}",
+                        inline_or_attachment = inline_or_attachment,
+                        filename = file_name.to_string_lossy()
+                    ),
+                );
+            })
+            .if_some(last_modified, |lm, resp| {
                 resp.set(header::LastModified(lm));
-        }).if_some(etag, |etag, resp| {
-            resp.set(header::ETag(etag));
-        });
+            })
+            .if_some(etag, |etag, resp| {
+                resp.set(header::ETag(etag));
+            });
 
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
@@ -294,7 +305,8 @@ impl Responder for NamedFile {
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
-                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
+                cpu_pool: self.cpu_pool
+                    .unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
             };
@@ -362,10 +374,7 @@ pub struct Directory {
 
 impl Directory {
     pub fn new(base: PathBuf, path: PathBuf) -> Directory {
-        Directory {
-            base,
-            path,
-        }
+        Directory { base, path }
     }
 
     fn can_list(&self, entry: &io::Result<DirEntry>) -> bool {
@@ -435,7 +444,9 @@ impl Responder for Directory {
              </ul></body>\n</html>",
             index_of, index_of, body
         );
-        Ok(HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html))
+        Ok(HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body(html))
     }
 }
 
@@ -560,12 +571,13 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
         if !self.accessible {
             Ok(self.default.handle(req))
         } else {
-            let relpath =
-                match req.match_info().get("tail").map(|tail| PathBuf::from_param(tail))
-                {
-                    Some(Ok(path)) => path,
-                    _ => return Ok(self.default.handle(req)),
-                };
+            let relpath = match req.match_info()
+                .get("tail")
+                .map(|tail| PathBuf::from_param(tail))
+            {
+                Some(Ok(path)) => path,
+                _ => return Ok(self.default.handle(req)),
+            };
 
             // full filepath
             let path = self.directory.join(&relpath).canonicalize()?;
@@ -615,8 +627,9 @@ mod tests {
     #[test]
     fn test_named_file_text() {
         assert!(NamedFile::open("test--").is_err());
-        let mut file =
-            NamedFile::open("Cargo.toml").unwrap().set_cpu_pool(CpuPool::new(1));
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
         {
             file.file();
             let _f: &File = &file;
@@ -626,17 +639,23 @@ mod tests {
         }
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml");
         assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-toml"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(header::CONTENT_DISPOSITION)
+                .unwrap(),
             "inline; filename=Cargo.toml"
         );
     }
 
     #[test]
     fn test_named_file_image() {
-        let mut file =
-            NamedFile::open("tests/test.png").unwrap().set_cpu_pool(CpuPool::new(1));
+        let mut file = NamedFile::open("tests/test.png")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
         {
             file.file();
             let _f: &File = &file;
@@ -646,17 +665,23 @@ mod tests {
         }
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "image/png");
         assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(header::CONTENT_DISPOSITION)
+                .unwrap(),
             "inline; filename=test.png"
         );
     }
 
     #[test]
     fn test_named_file_binary() {
-        let mut file =
-            NamedFile::open("tests/test.binary").unwrap().set_cpu_pool(CpuPool::new(1));
+        let mut file = NamedFile::open("tests/test.binary")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
         {
             file.file();
             let _f: &File = &file;
@@ -666,9 +691,14 @@ mod tests {
         }
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/octet-stream");
         assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(header::CONTENT_DISPOSITION)
+                .unwrap(),
             "attachment; filename=test.binary"
         );
     }
@@ -688,9 +718,14 @@ mod tests {
         }
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml");
         assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-toml"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(header::CONTENT_DISPOSITION)
+                .unwrap(),
             "inline; filename=Cargo.toml"
         );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -735,7 +770,9 @@ mod tests {
         req.match_info_mut().add("tail", "");
 
         st.show_index = true;
-        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = st.handle(req)
+            .respond_to(HttpRequest::default())
+            .unwrap();
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -751,18 +788,28 @@ mod tests {
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tests");
 
-        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = st.handle(req)
+            .respond_to(HttpRequest::default())
+            .unwrap();
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/tests/index.html");
+        assert_eq!(
+            resp.headers().get(header::LOCATION).unwrap(),
+            "/tests/index.html"
+        );
 
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tests/");
 
-        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = st.handle(req)
+            .respond_to(HttpRequest::default())
+            .unwrap();
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/tests/index.html");
+        assert_eq!(
+            resp.headers().get(header::LOCATION).unwrap(),
+            "/tests/index.html"
+        );
     }
 
     #[test]
@@ -771,7 +818,9 @@ mod tests {
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tools/wsload");
 
-        let resp = st.handle(req).respond_to(HttpRequest::default()).unwrap();
+        let resp = st.handle(req)
+            .respond_to(HttpRequest::default())
+            .unwrap();
         let resp = resp.as_response().expect("HTTP Response");
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -791,13 +840,23 @@ mod tests {
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        let loc = response
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(loc, "/public/Cargo.toml");
 
         let request = srv.get().uri(srv.url("/public/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        let loc = response
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(loc, "/public/Cargo.toml");
     }
 
@@ -810,13 +869,23 @@ mod tests {
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        let loc = response
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(loc, "/test/Cargo.toml");
 
         let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        let loc = response
+            .headers()
+            .get(header::LOCATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(loc, "/test/Cargo.toml");
     }
 
@@ -826,7 +895,10 @@ mod tests {
             App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
         });
 
-        let request = srv.get().uri(srv.url("/test/%43argo.toml")).finish().unwrap();
+        let request = srv.get()
+            .uri(srv.url("/test/%43argo.toml"))
+            .finish()
+            .unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }

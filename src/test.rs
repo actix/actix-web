@@ -170,22 +170,14 @@ impl TestServer {
         if uri.starts_with('/') {
             format!(
                 "{}://{}{}",
-                if self.ssl {
-                    "https"
-                } else {
-                    "http"
-                },
+                if self.ssl { "https" } else { "http" },
                 self.addr,
                 uri
             )
         } else {
             format!(
                 "{}://{}/{}",
-                if self.ssl {
-                    "https"
-                } else {
-                    "http"
-                },
+                if self.ssl { "https" } else { "http" },
                 self.addr,
                 uri
             )
@@ -358,14 +350,17 @@ pub struct TestApp<S = ()> {
 impl<S: 'static> TestApp<S> {
     fn new(state: S) -> TestApp<S> {
         let app = App::with_state(state);
-        TestApp {
-            app: Some(app),
-        }
+        TestApp { app: Some(app) }
     }
 
     /// Register handler for "/"
     pub fn handler<H: Handler<S>>(&mut self, handler: H) {
-        self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
+        self.app = Some(
+            self.app
+                .take()
+                .unwrap()
+                .resource("/", |r| r.h(handler)),
+        );
     }
 
     /// Register middleware

@@ -68,7 +68,12 @@ impl fmt::Debug for Error {
         if let Some(bt) = self.cause.backtrace() {
             write!(f, "{:?}\n\n{:?}", &self.cause, bt)
         } else {
-            write!(f, "{:?}\n\n{:?}", &self.cause, self.backtrace.as_ref().unwrap())
+            write!(
+                f,
+                "{:?}\n\n{:?}",
+                &self.cause,
+                self.backtrace.as_ref().unwrap()
+            )
         }
     }
 }
@@ -302,7 +307,10 @@ pub enum HttpRangeError {
 /// Return `BadRequest` for `HttpRangeError`
 impl ResponseError for HttpRangeError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(StatusCode::BAD_REQUEST, "Invalid Range header provided")
+        HttpResponse::with_body(
+            StatusCode::BAD_REQUEST,
+            "Invalid Range header provided",
+        )
     }
 }
 

@@ -2,7 +2,6 @@ use futures::sync::oneshot::Sender;
 use futures::unsync::oneshot;
 use futures::{Async, Poll};
 use smallvec::SmallVec;
-use std::mem;
 
 use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
@@ -156,13 +155,23 @@ where
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, false));
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Ping,
+            true,
+            false,
+        ));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, false));
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Pong,
+            true,
+            false,
+        ));
     }
 
     /// Send close frame
@@ -190,7 +199,9 @@ where
         if self.stream.is_none() {
             self.stream = Some(SmallVec::new());
         }
-        self.stream.as_mut().map(|s| s.push(frame));
+        if let Some(s) = self.stream.as_mut() {
+            s.push(frame)
+        }
         self.inner.modify();
     }
 
@@ -214,8 +225,7 @@ where
     }
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame; 4]>>, Error> {
-        let ctx: &mut WebsocketContext<A, S> =
-            unsafe { mem::transmute(self as &mut WebsocketContext<A, S>) };
+        let ctx: &mut WebsocketContext<A, S> = unsafe { &mut *(self as *mut _) };
 
         if self.inner.alive() && self.inner.poll(ctx).is_err() {
             return Err(ErrorInternalServerError("error"));

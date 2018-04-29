@@ -96,8 +96,10 @@ pub trait HttpMessage {
     /// `size` is full size of response (file).
     fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
         if let Some(range) = self.headers().get(header::RANGE) {
-            HttpRange::parse(unsafe { str::from_utf8_unchecked(range.as_bytes()) }, size)
-                .map_err(|e| e.into())
+            HttpRange::parse(
+                unsafe { str::from_utf8_unchecked(range.as_bytes()) },
+                size,
+            ).map_err(|e| e.into())
         } else {
             Ok(Vec::new())
         }
@@ -323,7 +325,10 @@ where
             ));
         }
 
-        self.fut.as_mut().expect("UrlEncoded could not be used second time").poll()
+        self.fut
+            .as_mut()
+            .expect("UrlEncoded could not be used second time")
+            .poll()
     }
 }
 
@@ -380,7 +385,8 @@ where
             if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
                 return Err(UrlencodedError::ContentType);
             }
-            let encoding = req.encoding().map_err(|_| UrlencodedError::ContentType)?;
+            let encoding = req.encoding()
+                .map_err(|_| UrlencodedError::ContentType)?;
 
             // future
             let limit = self.limit;
@@ -409,7 +415,10 @@ where
             self.fut = Some(Box::new(fut));
         }
 
-        self.fut.as_mut().expect("UrlEncoded could not be used second time").poll()
+        self.fut
+            .as_mut()
+            .expect("UrlEncoded could not be used second time")
+            .poll()
     }
 }
 
@@ -479,13 +488,19 @@ mod tests {
     #[test]
     fn test_encoding_error() {
         let req = TestRequest::with_header("content-type", "applicatjson").finish();
-        assert_eq!(Some(ContentTypeError::ParseError), req.encoding().err());
+        assert_eq!(
+            Some(ContentTypeError::ParseError),
+            req.encoding().err()
+        );
 
         let req = TestRequest::with_header(
             "content-type",
             "application/json; charset=kkkttktk",
         ).finish();
-        assert_eq!(Some(ContentTypeError::UnknownEncoding), req.encoding().err());
+        assert_eq!(
+            Some(ContentTypeError::UnknownEncoding),
+            req.encoding().err()
+        );
     }
 
     #[test]
@@ -606,7 +621,8 @@ mod tests {
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
             .finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         let result = req.urlencoded::<Info>().poll().ok().unwrap();
         assert_eq!(
@@ -621,7 +637,8 @@ mod tests {
             "application/x-www-form-urlencoded; charset=utf-8",
         ).header(header::CONTENT_LENGTH, "11")
             .finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         let result = req.urlencoded().poll().ok().unwrap();
         assert_eq!(
@@ -647,14 +664,16 @@ mod tests {
         }
 
         let mut req = HttpRequest::default();
-        req.payload_mut().unread_data(Bytes::from_static(b"test"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"test"));
         match req.body().poll().ok().unwrap() {
             Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
             _ => unreachable!("error"),
         }
 
         let mut req = HttpRequest::default();
-        req.payload_mut().unread_data(Bytes::from_static(b"11111111111111"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"11111111111111"));
         match req.body().limit(5).poll().err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),

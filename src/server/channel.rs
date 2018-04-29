@@ -1,6 +1,6 @@
 use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
-use std::{io, mem, ptr, time};
+use std::{io, ptr, time};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{Async, Future, Poll};
@@ -93,12 +93,12 @@ where
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) => {
-                    self.node.as_ref().map(|n| h1.settings().head().insert(n))
-                }
-                Some(HttpProtocol::H2(ref mut h2)) => {
-                    self.node.as_ref().map(|n| h2.settings().head().insert(n))
-                }
+                Some(HttpProtocol::H1(ref mut h1)) => self.node
+                    .as_ref()
+                    .map(|n| h1.settings().head().insert(n)),
+                Some(HttpProtocol::H2(ref mut h2)) => self.node
+                    .as_ref()
+                    .map(|n| h2.settings().head().insert(n)),
                 Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
                     self.node.as_ref().map(|n| settings.head().insert(n))
                 }
@@ -168,8 +168,9 @@ where
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto =
-                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
+                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
+                        settings, io, addr, buf,
+                    )));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {
@@ -210,10 +211,11 @@ impl<T> Node<T> {
                     &mut *(next2.as_ref().unwrap() as *const _ as *mut _);
                 n.prev = Some(next as *const _ as *mut _);
             }
-            let slf: &mut Node<T> = mem::transmute(self);
+            let slf: &mut Node<T> = &mut *(self as *const _ as *mut _);
+
             slf.next = Some(next as *const _ as *mut _);
 
-            let next: &mut Node<T> = mem::transmute(next);
+            let next: &mut Node<T> = &mut *(next as *const _ as *mut _);
             next.prev = Some(slf as *const _ as *mut _);
         }
     }
@@ -249,12 +251,12 @@ impl Node<()> {
         loop {
             if let Some(n) = next {
                 unsafe {
-                    let n: &Node<()> = mem::transmute(n.as_ref().unwrap());
+                    let n: &Node<()> = &*(n.as_ref().unwrap() as *const _);
                     next = n.next.as_ref();
 
                     if !n.element.is_null() {
                         let ch: &mut HttpChannel<T, H> =
-                            mem::transmute(&mut *(n.element as *mut _));
+                            &mut *(&mut *(n.element as *mut _) as *mut () as *mut _);
                         ch.shutdown();
                     }
                 }
@@ -278,9 +280,7 @@ where
     T: AsyncRead + AsyncWrite + 'static,
 {
     pub fn new(io: T) -> Self {
-        WrapperStream {
-            io,
-        }
+        WrapperStream { io }
     }
 }
 

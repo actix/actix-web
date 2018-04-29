@@ -132,7 +132,10 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Method(method))
+        self.routes
+            .last_mut()
+            .unwrap()
+            .filter(pred::Method(method))
     }
 
     /// Register a new route and add handler object.
@@ -185,7 +188,9 @@ impl<S: 'static> ResourceHandler<S> {
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
     pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
-        Rc::get_mut(&mut self.middlewares).unwrap().push(Box::new(mw));
+        Rc::get_mut(&mut self.middlewares)
+            .unwrap()
+            .push(Box::new(mw));
     }
 
     pub(crate) fn handle(

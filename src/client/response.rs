@@ -103,7 +103,12 @@ impl ClientResponse {
 
 impl fmt::Debug for ClientResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(f, "\nClientResponse {:?} {}", self.version(), self.status());
+        let res = writeln!(
+            f,
+            "\nClientResponse {:?} {}",
+            self.version(),
+            self.status()
+        );
         let _ = writeln!(f, "  headers:");
         for (key, val) in self.headers().iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
@@ -133,12 +138,14 @@ mod tests {
     #[test]
     fn test_debug() {
         let resp = ClientResponse::new(ClientMessage::default());
-        resp.as_mut()
-            .headers
-            .insert(header::COOKIE, HeaderValue::from_static("cookie1=value1"));
-        resp.as_mut()
-            .headers
-            .insert(header::COOKIE, HeaderValue::from_static("cookie2=value2"));
+        resp.as_mut().headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("cookie1=value1"),
+        );
+        resp.as_mut().headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("cookie2=value2"),
+        );
 
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("ClientResponse"));

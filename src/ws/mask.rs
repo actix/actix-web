@@ -1,4 +1,5 @@
 //! This is code from [Tungstenite project](https://github.com/snapview/tungstenite-rs)
+#![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
 use std::cmp::min;
 use std::mem::uninitialized;
 use std::ptr::copy_nonoverlapping;
@@ -28,11 +29,7 @@ fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
     // Possible first unaligned block.
     let head = min(len, (8 - (ptr as usize & 0x7)) & 0x3);
     let mask_u32 = if head > 0 {
-        let n = if head > 4 {
-            head - 4
-        } else {
-            head
-        };
+        let n = if head > 4 { head - 4 } else { head };
 
         let mask_u32 = if n > 0 {
             unsafe {

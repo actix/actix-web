@@ -41,9 +41,7 @@ pub struct PathDeserializer<'de, S: 'de> {
 
 impl<'de, S: 'de> PathDeserializer<'de, S> {
     pub fn new(req: &'de HttpRequest<S>) -> Self {
-        PathDeserializer {
-            req,
-        }
+        PathDeserializer { req }
     }
 }
 
@@ -204,12 +202,11 @@ impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        self.current =
-            self.params.next().map(|&(ref k, ref v)| (k.as_ref(), v.as_ref()));
+        self.current = self.params
+            .next()
+            .map(|&(ref k, ref v)| (k.as_ref(), v.as_ref()));
         match self.current {
-            Some((key, _)) => Ok(Some(seed.deserialize(Key {
-                key,
-            })?)),
+            Some((key, _)) => Ok(Some(seed.deserialize(Key { key })?)),
             None => Ok(None),
         }
     }
@@ -219,9 +216,7 @@ impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
         V: de::DeserializeSeed<'de>,
     {
         if let Some((_, value)) = self.current.take() {
-            seed.deserialize(Value {
-                value,
-            })
+            seed.deserialize(Value { value })
         } else {
             Err(de::value::Error::custom("unexpected item"))
         }
@@ -377,7 +372,9 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(de::value::Error::custom("unsupported type: tuple struct"))
+        Err(de::value::Error::custom(
+            "unsupported type: tuple struct",
+        ))
     }
 
     unsupported_type!(deserialize_any, "any");
@@ -419,9 +416,7 @@ impl<'de> de::EnumAccess<'de> for ValueEnum<'de> {
         V: de::DeserializeSeed<'de>,
     {
         Ok((
-            seed.deserialize(Key {
-                key: self.value,
-            })?,
+            seed.deserialize(Key { key: self.value })?,
             UnitVariant,
         ))
     }

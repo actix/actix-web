@@ -107,7 +107,8 @@ impl<H: 'static> Writer for H2Writer<H> {
                 );
             }
             Body::Empty => {
-                msg.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                msg.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
             }
             _ => (),
         }
@@ -119,7 +120,9 @@ impl<H: 'static> Writer for H2Writer<H> {
             resp.headers_mut().insert(key, value.clone());
         }
 
-        match self.respond.send_response(resp, self.flags.contains(Flags::EOF)) {
+        match self.respond
+            .send_response(resp, self.flags.contains(Flags::EOF))
+        {
             Ok(stream) => self.stream = Some(stream),
             Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }

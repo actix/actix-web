@@ -94,17 +94,13 @@ pub struct Pause {
 impl Pause {
     /// Create message with pause duration parameter
     pub fn new(time: Duration) -> Pause {
-        Pause {
-            time: Some(time),
-        }
+        Pause { time: Some(time) }
     }
 }
 
 impl Default for Pause {
     fn default() -> Pause {
-        Pause {
-            time: None,
-        }
+        Pause { time: None }
     }
 }
 
@@ -431,7 +427,8 @@ impl ClientConnector {
         } else {
             0
         };
-        self.acquired_per_host.insert(key.clone(), per_host + 1);
+        self.acquired_per_host
+            .insert(key.clone(), per_host + 1);
     }
 
     fn release_key(&mut self, key: &Key) {
@@ -442,7 +439,8 @@ impl ClientConnector {
             return;
         };
         if per_host > 1 {
-            self.acquired_per_host.insert(key.clone(), per_host - 1);
+            self.acquired_per_host
+                .insert(key.clone(), per_host - 1);
         } else {
             self.acquired_per_host.remove(key);
         }
@@ -518,7 +516,9 @@ impl ClientConnector {
     fn collect_periodic(&mut self, ctx: &mut Context<Self>) {
         self.collect(true);
         // re-schedule next collect period
-        ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect_periodic(ctx));
+        ctx.run_later(Duration::from_secs(1), |act, ctx| {
+            act.collect_periodic(ctx)
+        });
 
         // send stats
         let stats = mem::replace(&mut self.stats, ClientConnectorStats::default());
@@ -583,7 +583,10 @@ impl ClientConnector {
             wait,
             conn_timeout,
         };
-        self.waiters.entry(key).or_insert_with(VecDeque::new).push_back(waiter);
+        self.waiters
+            .entry(key)
+            .or_insert_with(VecDeque::new)
+            .push_back(waiter);
         rx
     }
 }
@@ -828,7 +831,7 @@ impl fut::ActorFuture for Maintenance {
         act.collect_waiters();
 
         // check waiters
-        let tmp: &mut ClientConnector = unsafe { mem::transmute(act as &mut _) };
+        let tmp: &mut ClientConnector = unsafe { &mut *(act as *mut _) };
 
         for (key, waiters) in &mut tmp.waiters {
             while let Some(waiter) = waiters.pop_front() {
@@ -1102,7 +1105,10 @@ impl Pool {
         if self.to_close.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(&mut *self.to_close.borrow_mut(), Vec::new()))
+            Some(mem::replace(
+                &mut *self.to_close.borrow_mut(),
+                Vec::new(),
+            ))
         }
     }
 
@@ -1110,7 +1116,10 @@ impl Pool {
         if self.to_release.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(&mut *self.to_release.borrow_mut(), Vec::new()))
+            Some(mem::replace(
+                &mut *self.to_release.borrow_mut(),
+                Vec::new(),
+            ))
         }
     }
 

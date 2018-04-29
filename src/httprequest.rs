@@ -327,7 +327,12 @@ impl<S> HttpRequest<S> {
             let path = self.router().unwrap().resource_path(name, elements)?;
             if path.starts_with('/') {
                 let conn = self.connection_info();
-                Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
+                Ok(Url::parse(&format!(
+                    "{}://{}{}",
+                    conn.scheme(),
+                    conn.host(),
+                    path
+                ))?)
             } else {
                 Ok(Url::parse(&path)?)
             }
@@ -677,8 +682,10 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes =
-            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![(
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -707,8 +714,10 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes =
-            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![(
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
@@ -736,6 +745,9 @@ mod tests {
 
         let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
-        assert_eq!(url.ok().unwrap().as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "https://youtube.com/watch/oHg5SJYRHA0"
+        );
     }
 }

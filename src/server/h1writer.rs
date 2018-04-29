@@ -117,7 +117,8 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         let version = msg.version().unwrap_or_else(|| req.version);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
-            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
+            msg.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
         else if self.flags.contains(Flags::KEEPALIVE) {
@@ -126,7 +127,8 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if version >= Version::HTTP_11 {
-            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
+            msg.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("close"));
         }
         let body = msg.replace_body(Body::Empty);
 

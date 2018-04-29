@@ -202,13 +202,16 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
-        let fut = self.0.from_request(&mut req).then(move |res| match res {
-            Ok(sess) => {
-                req.extensions().insert(Arc::new(SessionImplBox(Box::new(sess))));
-                FutOk(None)
-            }
-            Err(err) => FutErr(err),
-        });
+        let fut = self.0
+            .from_request(&mut req)
+            .then(move |res| match res {
+                Ok(sess) => {
+                    req.extensions()
+                        .insert(Arc::new(SessionImplBox(Box::new(sess))));
+                    FutOk(None)
+                }
+                Err(err) => FutErr(err),
+            });
         Ok(Started::Future(Box::new(fut)))
     }
 

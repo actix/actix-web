@@ -308,7 +308,10 @@ where
             self.fut = Some(Box::new(fut));
         }
 
-        self.fut.as_mut().expect("JsonBody could not be used second time").poll()
+        self.fut
+            .as_mut()
+            .expect("JsonBody could not be used second time")
+            .poll()
     }
 }
 
@@ -359,7 +362,10 @@ mod tests {
     fn test_json_body() {
         let req = HttpRequest::default();
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
+        assert_eq!(
+            json.poll().err().unwrap(),
+            JsonPayloadError::ContentType
+        );
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(
@@ -367,15 +373,20 @@ mod tests {
             header::HeaderValue::from_static("application/text"),
         );
         let mut json = req.json::<MyObject>();
-        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
+        assert_eq!(
+            json.poll().err().unwrap(),
+            JsonPayloadError::ContentType
+        );
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
-        req.headers_mut()
-            .insert(header::CONTENT_LENGTH, header::HeaderValue::from_static("10000"));
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("10000"),
+        );
         let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
@@ -384,9 +395,12 @@ mod tests {
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
-        req.headers_mut()
-            .insert(header::CONTENT_LENGTH, header::HeaderValue::from_static("16"));
-        req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        );
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
         let mut json = req.json::<MyObject>();
         assert_eq!(
             json.poll().ok().unwrap(),
@@ -403,7 +417,12 @@ mod tests {
         let mut handler = With::new(|data: Json<MyObject>| data, cfg);
 
         let req = HttpRequest::default();
-        let err = handler.handle(req).as_response().unwrap().error().is_some();
+        let err = handler
+            .handle(req)
+            .as_response()
+            .unwrap()
+            .error()
+            .is_some();
         assert!(err);
 
         let mut req = HttpRequest::default();
@@ -411,10 +430,18 @@ mod tests {
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
-        req.headers_mut()
-            .insert(header::CONTENT_LENGTH, header::HeaderValue::from_static("16"));
-        req.payload_mut().unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
-        let ok = handler.handle(req).as_response().unwrap().error().is_none();
+        req.headers_mut().insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        );
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        let ok = handler
+            .handle(req)
+            .as_response()
+            .unwrap()
+            .error()
+            .is_none();
         assert!(ok)
     }
 }

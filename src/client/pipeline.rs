@@ -269,7 +269,11 @@ impl Pipeline {
     #[inline]
     fn parse(&mut self) -> Poll<ClientResponse, HttpResponseParserError> {
         if let Some(ref mut conn) = self.conn {
-            match self.parser.as_mut().unwrap().parse(conn, &mut self.parser_buf) {
+            match self.parser
+                .as_mut()
+                .unwrap()
+                .parse(conn, &mut self.parser_buf)
+            {
                 Ok(Async::Ready(resp)) => {
                     // check content-encoding
                     if self.should_decompress {
@@ -301,7 +305,7 @@ impl Pipeline {
             return Ok(Async::Ready(None));
         }
         let conn: &mut Connection =
-            unsafe { mem::transmute(self.conn.as_mut().unwrap()) };
+            unsafe { &mut *(self.conn.as_mut().unwrap() as *mut _) };
 
         let mut need_run = false;
 
@@ -465,7 +469,9 @@ impl Pipeline {
         }
 
         // flush io but only if we need to
-        match self.writer.poll_completed(self.conn.as_mut().unwrap(), false) {
+        match self.writer
+            .poll_completed(self.conn.as_mut().unwrap(), false)
+        {
             Ok(Async::Ready(_)) => {
                 if self.disconnected
                     || (self.body_completed && self.writer.is_completed())

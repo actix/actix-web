@@ -122,7 +122,11 @@ where
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.safety.current() {
-            self.inner.as_mut().unwrap().borrow_mut().poll(&self.safety)
+            self.inner
+                .as_mut()
+                .unwrap()
+                .borrow_mut()
+                .poll(&self.safety)
         } else {
             Ok(Async::NotReady)
         }
@@ -671,7 +675,10 @@ mod tests {
         }
 
         let mut headers = HeaderMap::new();
-        headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("test"));
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("test"),
+        );
 
         match Multipart::boundary(&headers) {
             Err(MultipartError::ParseContentType) => (),

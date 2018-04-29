@@ -190,8 +190,16 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1", "", StatusCode::OK),
-            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2",
+                "/resource2/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource2/", "", StatusCode::OK),
             ("/resource1?p1=1&p2=2", "", StatusCode::OK),
             (
@@ -214,7 +222,11 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
                 );
             }
         }
@@ -226,7 +238,11 @@ mod tests {
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| {
-                r.h(NormalizePath::new(false, true, StatusCode::MOVED_PERMANENTLY))
+                r.h(NormalizePath::new(
+                    false,
+                    true,
+                    StatusCode::MOVED_PERMANENTLY,
+                ))
             })
             .finish();
 
@@ -260,14 +276,46 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource1//", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource1//a//b//", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource1//",
+                "/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource1//a//b//",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
             (
                 "//resource1//a//b?p=1",
@@ -308,7 +356,11 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
                 );
             }
         }
@@ -327,24 +379,88 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/a/b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b//", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("///resource1//a//b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource1/a///b/", "/resource1/a/b", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2/a/b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/a/b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b//",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource1//a//b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource1/a///b/",
+                "/resource1/a/b",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/resource2/a/b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource2/a/b/", "", StatusCode::OK),
-            ("//resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("//resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("///resource2//a//b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
-            ("/////resource2/a///b/", "/resource2/a/b/", StatusCode::MOVED_PERMANENTLY),
+            (
+                "//resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "//resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "///resource2//a//b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/////resource2/a///b/",
+                "/resource2/a/b/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             ("/resource1/a/b?p=1", "", StatusCode::OK),
-            ("/resource1/a/b/?p=1", "/resource1/a/b?p=1", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource1/a/b/?p=1",
+                "/resource1/a/b?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             (
                 "//resource2//a//b?p=1",
                 "/resource2/a/b/?p=1",
@@ -380,7 +496,11 @@ mod tests {
                 "/resource1/a/b?p=1",
                 StatusCode::MOVED_PERMANENTLY,
             ),
-            ("/resource2/a/b?p=1", "/resource2/a/b/?p=1", StatusCode::MOVED_PERMANENTLY),
+            (
+                "/resource2/a/b?p=1",
+                "/resource2/a/b/?p=1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
             (
                 "//resource2//a//b?p=1",
                 "/resource2/a/b/?p=1",
@@ -420,7 +540,11 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
+                    r.headers()
+                        .get(header::LOCATION)
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
                 );
             }
         }

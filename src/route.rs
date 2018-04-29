@@ -1,6 +1,6 @@
 use futures::{Async, Future, Poll};
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use std::mem;
 use std::rc::Rc;
 
 use error::Error;
@@ -180,14 +180,22 @@ impl<S: 'static> Route<S> {
     {
         let cfg1 = ExtractorConfig::default();
         let cfg2 = ExtractorConfig::default();
-        self.h(With2::new(handler, Clone::clone(&cfg1), Clone::clone(&cfg2)));
+        self.h(With2::new(
+            handler,
+            Clone::clone(&cfg1),
+            Clone::clone(&cfg2),
+        ));
         (cfg1, cfg2)
     }
 
     /// Set handler function, use request extractor for all paramters.
     pub fn with3<T1, T2, T3, F, R>(
         &mut self, handler: F,
-    ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>, ExtractorConfig<S, T3>)
+    ) -> (
+        ExtractorConfig<S, T1>,
+        ExtractorConfig<S, T2>,
+        ExtractorConfig<S, T3>,
+    )
     where
         F: Fn(T1, T2, T3) -> R + 'static,
         R: Responder + 'static,
@@ -210,12 +218,14 @@ impl<S: 'static> Route<S> {
 
 /// `RouteHandler` wrapper. This struct is required because it needs to be
 /// shared for resource level middlewares.
-struct InnerHandler<S>(Rc<Box<RouteHandler<S>>>);
+struct InnerHandler<S>(Rc<UnsafeCell<Box<RouteHandler<S>>>>);
 
 impl<S: 'static> InnerHandler<S> {
     #[inline]
     fn new<H: Handler<S>>(h: H) -> Self {
-        InnerHandler(Rc::new(Box::new(WrapHandler::new(h))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(
+            h,
+        )))))
     }
 
     #[inline]
@@ -226,16 +236,15 @@ impl<S: 'static> InnerHandler<S> {
         R: Responder + 'static,
         E: Into<Error> + 'static,
     {
-        InnerHandler(Rc::new(Box::new(AsyncHandler::new(h))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(
+            h,
+        )))))
     }
 
     #[inline]
     pub fn handle(&self, req: HttpRequest<S>) -> Reply {
-        // reason: handler is unique per thread,
-        // handler get called from async code only
-        #[allow(mutable_transmutes)]
-        #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
-        let h: &mut Box<RouteHandler<S>> = unsafe { mem::transmute(self.0.as_ref()) };
+        // reason: handler is unique per thread, handler get called from async code only
+        let h = unsafe { &mut *self.0.as_ref().get() };
         h.handle(req)
     }
 }
@@ -290,10 +299,7 @@ impl<S: 'static> Compose<S> {
         };
         let state = StartMiddlewares::init(&mut info);
 
-        Compose {
-            state,
-            info,
-        }
+        Compose { state, info }
     }
 }
 

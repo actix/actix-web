@@ -1,8 +1,9 @@
+#![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
 use byteorder::{BigEndian, ByteOrder, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use rand;
-use std::{fmt, mem, ptr};
+use std::{fmt, ptr};
 
 use body::Binary;
 use error::PayloadError;
@@ -122,7 +123,9 @@ impl Frame {
             None
         };
 
-        Ok(Async::Ready(Some((idx, finished, opcode, length, mask))))
+        Ok(Async::Ready(Some((
+            idx, finished, opcode, length, mask,
+        ))))
     }
 
     fn read_chunk_md(
@@ -257,10 +260,9 @@ impl Frame {
 
         // unmask
         if let Some(mask) = mask {
-            #[allow(mutable_transmutes)]
             let p: &mut [u8] = unsafe {
                 let ptr: &[u8] = &data;
-                mem::transmute(ptr)
+                &mut *(ptr as *const _ as *mut _)
             };
             apply_mask(p, mask);
         }

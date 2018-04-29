@@ -123,7 +123,7 @@ impl HttpResponseParser {
         let (len, version, status, headers_len) = {
             let b = unsafe {
                 let b: &[u8] = buf;
-                mem::transmute(b)
+                &*(b as *const _)
             };
             let mut resp = httparse::Response::new(&mut headers);
             match resp.parse(b)? {

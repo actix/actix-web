@@ -796,15 +796,18 @@ mod tests {
             .unwrap()
             .run(lazy(|| {
                 let mut info = PipelineInfo::new(HttpRequest::default());
-                Completed::<(), Inner<()>>::init(&mut info).is_none().unwrap();
+                Completed::<(), Inner<()>>::init(&mut info)
+                    .is_none()
+                    .unwrap();
 
                 let req = HttpRequest::default();
                 let mut ctx = HttpContext::new(req.clone(), MyActor);
                 let addr: Addr<Unsync, _> = ctx.address();
                 let mut info = PipelineInfo::new(req);
                 info.context = Some(Box::new(ctx));
-                let mut state =
-                    Completed::<(), Inner<()>>::init(&mut info).completed().unwrap();
+                let mut state = Completed::<(), Inner<()>>::init(&mut info)
+                    .completed()
+                    .unwrap();
 
                 assert!(state.poll(&mut info).is_none());
                 let pp = Pipeline(info, PipelineState::Completed(state));

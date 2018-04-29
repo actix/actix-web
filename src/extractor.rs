@@ -110,9 +110,7 @@ where
         result(
             de::Deserialize::deserialize(PathDeserializer::new(&req))
                 .map_err(|e| e.into())
-                .map(|inner| Path {
-                    inner,
-                }),
+                .map(|inner| Path { inner }),
         )
     }
 }
@@ -248,7 +246,12 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(UrlEncoded::new(req.clone()).limit(cfg.limit).from_err().map(Form))
+        Box::new(
+            UrlEncoded::new(req.clone())
+                .limit(cfg.limit)
+                .from_err()
+                .map(Form),
+        )
     }
 }
 
@@ -293,9 +296,7 @@ impl FormConfig {
 
 impl Default for FormConfig {
     fn default() -> Self {
-        FormConfig {
-            limit: 262_144,
-        }
+        FormConfig { limit: 262_144 }
     }
 }
 
@@ -336,7 +337,11 @@ impl<S: 'static> FromRequest<S> for Bytes {
             return Either::A(result(Err(e)));
         }
 
-        Either::B(Box::new(MessageBody::new(req.clone()).limit(cfg.limit).from_err()))
+        Either::B(Box::new(
+            MessageBody::new(req.clone())
+                .limit(cfg.limit)
+                .from_err(),
+        ))
     }
 }
 
@@ -382,14 +387,18 @@ impl<S: 'static> FromRequest<S> for String {
         // check charset
         let encoding = match req.encoding() {
             Err(_) => {
-                return Either::A(result(Err(ErrorBadRequest("Unknown request charset"))))
+                return Either::A(result(Err(ErrorBadRequest(
+                    "Unknown request charset",
+                ))))
             }
             Ok(encoding) => encoding,
         };
 
         Either::B(Box::new(
-            MessageBody::new(req.clone()).limit(cfg.limit).from_err().and_then(
-                move |body| {
+            MessageBody::new(req.clone())
+                .limit(cfg.limit)
+                .from_err()
+                .and_then(move |body| {
                     let enc: *const Encoding = encoding as *const Encoding;
                     if enc == UTF_8 {
                         Ok(str::from_utf8(body.as_ref())
@@ -400,8 +409,7 @@ impl<S: 'static> FromRequest<S> for String {
                             .decode(&body, DecoderTrap::Strict)
                             .map_err(|_| ErrorBadRequest("Can not decode body"))?)
                     }
-                },
-            ),
+                }),
         ))
     }
 }
@@ -477,7 +485,8 @@ mod tests {
     fn test_bytes() {
         let cfg = PayloadConfig::default();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         match Bytes::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
@@ -491,7 +500,8 @@ mod tests {
     fn test_string() {
         let cfg = PayloadConfig::default();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         match String::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
@@ -508,7 +518,8 @@ mod tests {
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
             .finish();
-        req.payload_mut().unread_data(Bytes::from_static(b"hello=world"));
+        req.payload_mut()
+            .unread_data(Bytes::from_static(b"hello=world"));
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
@@ -562,11 +573,17 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
+        routes.push((
+            Resource::new("index", "/{key}/{value}/"),
+            Some(resource),
+        ));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<MyStruct>::from_request(&req, &()).poll().unwrap() {
+        match Path::<MyStruct>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.key, "name");
                 assert_eq!(s.value, "user1");
@@ -574,7 +591,10 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<(String, String)>::from_request(&req, &()).poll().unwrap() {
+        match Path::<(String, String)>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, "user1");
@@ -600,7 +620,10 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<(String, u8)>::from_request(&req, &()).poll().unwrap() {
+        match Path::<(String, u8)>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.0, "name");
                 assert_eq!(s.1, 32);
@@ -608,9 +631,15 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match Path::<Vec<String>>::from_request(&req, &()).poll().unwrap() {
+        match Path::<Vec<String>>::from_request(&req, &())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
-                assert_eq!(s.into_inner(), vec!["name".to_owned(), "32".to_owned()]);
+                assert_eq!(
+                    s.into_inner(),
+                    vec!["name".to_owned(), "32".to_owned()]
+                );
             }
             _ => unreachable!(),
         }
