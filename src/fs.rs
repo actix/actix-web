@@ -14,7 +14,8 @@ use std::os::unix::fs::MetadataExt;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use mime_guess::get_mime_type;
+use mime;
+use mime_guess::{guess_mime_type, get_mime_type};
 
 use error::Error;
 use handler::{Handler, Reply, Responder, RouteHandler, WrapHandler};
@@ -203,6 +204,18 @@ impl Responder for NamedFile {
             let mut resp = HttpResponse::build(self.status_code);
             resp.if_some(self.path().extension(), |ext, resp| {
                 resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
+            }).if_some(self.path().file_name(), |file_name, resp| {
+                let mime_type = guess_mime_type(self.path());
+                let inline_or_attachment = match mime_type.type_() {
+                    mime::IMAGE | mime::TEXT => "inline",
+                    _ => "attachment",
+                };
+                resp.header(
+                    "Content-Disposition",
+                    format!("{inline_or_attachment}; filename={filename}",
+                            inline_or_attachment=inline_or_attachment,
+                            filename=file_name.to_string_lossy())
+                );
             });
             let reader = ChunkedReadFile {
                 size: self.md.len(),
@@ -251,12 +264,23 @@ impl Responder for NamedFile {
 
         resp.if_some(self.path().extension(), |ext, resp| {
             resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
+        }).if_some(self.path().file_name(), |file_name, resp| {
+            let mime_type = guess_mime_type(self.path());
+            let inline_or_attachment = match mime_type.type_() {
+                mime::IMAGE | mime::TEXT => "inline",
+                _ => "attachment",
+            };
+            resp.header(
+                "Content-Disposition",
+                format!("{inline_or_attachment}; filename={filename}",
+                        inline_or_attachment=inline_or_attachment,
+                        filename=file_name.to_string_lossy())
+            );
         }).if_some(last_modified, |lm, resp| {
                 resp.set(header::LastModified(lm));
-            })
-            .if_some(etag, |etag, resp| {
-                resp.set(header::ETag(etag));
-            });
+        }).if_some(etag, |etag, resp| {
+            resp.set(header::ETag(etag));
+        });
 
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
@@ -589,7 +613,7 @@ mod tests {
     use test::{self, TestRequest};
 
     #[test]
-    fn test_named_file() {
+    fn test_named_file_text() {
         assert!(NamedFile::open("test--").is_err());
         let mut file =
             NamedFile::open("Cargo.toml").unwrap().set_cpu_pool(CpuPool::new(1));
@@ -602,11 +626,55 @@ mod tests {
         }
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
-        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml")
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=Cargo.toml"
+        );
     }
 
     #[test]
-    fn test_named_file_status_code() {
+    fn test_named_file_image() {
+        let mut file =
+            NamedFile::open("tests/test.png").unwrap().set_cpu_pool(CpuPool::new(1));
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "image/png");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=test.png"
+        );
+    }
+
+    #[test]
+    fn test_named_file_binary() {
+        let mut file =
+            NamedFile::open("tests/test.binary").unwrap().set_cpu_pool(CpuPool::new(1));
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "application/octet-stream");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=test.binary"
+        );
+    }
+
+    #[test]
+    fn test_named_file_status_code_text() {
         let mut file = NamedFile::open("Cargo.toml")
             .unwrap()
             .set_status_code(StatusCode::NOT_FOUND)
@@ -621,6 +689,10 @@ mod tests {
 
         let resp = file.respond_to(HttpRequest::default()).unwrap();
         assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/x-toml");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=Cargo.toml"
+        );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
