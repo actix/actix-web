@@ -4,6 +4,8 @@
 
 * Websocket CloseCode Empty/Status is ambiguous #193
 
+* Add Content-Disposition to NamedFile #204
+
 
 ## 0.5.6 (2018-04-24)
 
