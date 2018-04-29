@@ -1,7 +1,7 @@
 max_width = 89
 reorder_imports = true
-reorder_imports_in_group = true
-reorder_imported_names = true
+#reorder_imports_in_group = true
+#reorder_imported_names = true
 wrap_comments = true
 fn_args_density = "Compressed"
-#use_small_heuristics = false
+use_small_heuristics = false

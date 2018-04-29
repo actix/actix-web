@@ -8,10 +8,10 @@ use std::sync::Arc;
 use std::{fmt, mem, net};
 use time;
 
-use super::KeepAlive;
 use super::channel::Node;
 use super::helpers;
 use super::shared::{SharedBytes, SharedBytesPool};
+use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
 
@@ -72,7 +72,7 @@ impl Default for ServerSettings {
 impl ServerSettings {
     /// Crate server settings instance
     pub(crate) fn new(
-        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool
+        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool,
     ) -> ServerSettings {
         let host = if let Some(ref host) = *host {
             host.clone()
@@ -119,7 +119,7 @@ impl ServerSettings {
 
     #[inline]
     pub(crate) fn get_response_builder(
-        &self, status: StatusCode
+        &self, status: StatusCode,
     ) -> HttpResponseBuilder {
         HttpResponsePool::get_builder(&self.responses, status)
     }
@@ -255,10 +255,7 @@ mod tests {
 
     #[test]
     fn test_date_len() {
-        assert_eq!(
-            DATE_VALUE_LENGTH,
-            "Sun, 06 Nov 1994 08:49:37 GMT".len()
-        );
+        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
     #[test]

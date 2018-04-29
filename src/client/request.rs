@@ -499,10 +499,7 @@ impl ClientRequestBuilder {
             jar.add(cookie.into_owned());
             self.cookies = Some(jar)
         } else {
-            self.cookies
-                .as_mut()
-                .unwrap()
-                .add(cookie.into_owned());
+            self.cookies.as_mut().unwrap().add(cookie.into_owned());
         }
         self
     }
@@ -594,11 +591,7 @@ impl ClientRequestBuilder {
         if self.default_headers {
             // enable br only for https
             let https = if let Some(parts) = parts(&mut self.request, &self.err) {
-                parts
-                    .uri
-                    .scheme_part()
-                    .map(|s| s == &uri::Scheme::HTTPS)
-                    .unwrap_or(true)
+                parts.uri.scheme_part().map(|s| s == &uri::Scheme::HTTPS).unwrap_or(true)
             } else {
                 true
             };
@@ -610,9 +603,7 @@ impl ClientRequestBuilder {
             }
         }
 
-        let mut request = self.request
-            .take()
-            .expect("cannot reuse request builder");
+        let mut request = self.request.take().expect("cannot reuse request builder");
 
         // set cookies
         if let Some(ref mut jar) = self.cookies {
@@ -657,9 +648,7 @@ impl ClientRequestBuilder {
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error>,
     {
-        self.body(Body::Streaming(Box::new(
-            stream.map_err(|e| e.into()),
-        )))
+        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
     /// Set an empty body and generate `ClientRequest`
@@ -682,7 +671,7 @@ impl ClientRequestBuilder {
 
 #[inline]
 fn parts<'a>(
-    parts: &'a mut Option<ClientRequest>, err: &Option<HttpError>
+    parts: &'a mut Option<ClientRequest>, err: &Option<HttpError>,
 ) -> Option<&'a mut ClientRequest> {
     if err.is_some() {
         return None;

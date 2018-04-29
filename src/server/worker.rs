@@ -1,5 +1,5 @@
-use futures::Future;
 use futures::unsync::oneshot;
+use futures::Future;
 use net2::TcpStreamExt;
 use std::rc::Rc;
 use std::{net, time};
@@ -59,7 +59,7 @@ where
 
 impl<H: HttpHandler + 'static> Worker<H> {
     pub(crate) fn new(
-        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive
+        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive,
     ) -> Worker<H> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
@@ -77,13 +77,11 @@ impl<H: HttpHandler + 'static> Worker<H> {
 
     fn update_time(&self, ctx: &mut Context<Self>) {
         self.settings.update_date();
-        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| {
-            slf.update_time(ctx)
-        });
+        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 
     fn shutdown_timeout(
-        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration
+        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration,
     ) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
@@ -124,8 +122,7 @@ where
         if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
             error!("Can not set socket keep-alive option");
         }
-        self.handler
-            .handle(Rc::clone(&self.settings), &self.hnd, msg);
+        self.handler.handle(Rc::clone(&self.settings), &self.hnd, msg);
     }
 }
 
@@ -165,7 +162,7 @@ pub(crate) enum StreamHandlerType {
 
 impl StreamHandlerType {
     fn handle<H: HttpHandler>(
-        &mut self, h: Rc<WorkerSettings<H>>, hnd: &Handle, msg: Conn<net::TcpStream>
+        &mut self, h: Rc<WorkerSettings<H>>, hnd: &Handle, msg: Conn<net::TcpStream>,
     ) {
         match *self {
             StreamHandlerType::Normal => {
@@ -177,60 +174,57 @@ impl StreamHandlerType {
             }
             #[cfg(feature = "tls")]
             StreamHandlerType::Tls(ref acceptor) => {
-                let Conn { io, peer, http2 } = msg;
+                let Conn {
+                    io,
+                    peer,
+                    http2,
+                } = msg;
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
-                hnd.spawn(
-                    TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => Arbiter::handle().spawn(HttpChannel::new(
-                                h,
-                                io,
-                                peer,
-                                http2,
-                            )),
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    }),
-                );
+                hnd.spawn(TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                    match res {
+                        Ok(io) => {
+                            Arbiter::handle().spawn(HttpChannel::new(h, io, peer, http2))
+                        }
+                        Err(err) => {
+                            trace!("Error during handling tls connection: {}", err)
+                        }
+                    };
+                    future::result(Ok(()))
+                }));
             }
             #[cfg(feature = "alpn")]
             StreamHandlerType::Alpn(ref acceptor) => {
-                let Conn { io, peer, .. } = msg;
+                let Conn {
+                    io,
+                    peer,
+                    ..
+                } = msg;
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
-                hnd.spawn(
-                    SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => {
-                                let http2 = if let Some(p) =
-                                    io.get_ref().ssl().selected_alpn_protocol()
-                                {
-                                    p.len() == 2 && &p == b"h2"
-                                } else {
-                                    false
-                                };
-                                Arbiter::handle().spawn(HttpChannel::new(
-                                    h,
-                                    io,
-                                    peer,
-                                    http2,
-                                ));
-                            }
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    }),
-                );
+                hnd.spawn(SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                    match res {
+                        Ok(io) => {
+                            let http2 = if let Some(p) =
+                                io.get_ref().ssl().selected_alpn_protocol()
+                            {
+                                p.len() == 2 && &p == b"h2"
+                            } else {
+                                false
+                            };
+                            Arbiter::handle()
+                                .spawn(HttpChannel::new(h, io, peer, http2));
+                        }
+                        Err(err) => {
+                            trace!("Error during handling tls connection: {}", err)
+                        }
+                    };
+                    future::result(Ok(()))
+                }));
             }
         }
     }

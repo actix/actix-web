@@ -1,4 +1,5 @@
 //! HTTP Request message related code.
+#![cfg_attr(feature = "cargo-clippy", allow(transmute_ptr_to_ptr))]
 use bytes::Bytes;
 use cookie::Cookie;
 use failure;
@@ -314,7 +315,7 @@ impl<S> HttpRequest<S> {
     /// }
     /// ```
     pub fn url_for<U, I>(
-        &self, name: &str, elements: U
+        &self, name: &str, elements: U,
     ) -> Result<Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -326,12 +327,7 @@ impl<S> HttpRequest<S> {
             let path = self.router().unwrap().resource_path(name, elements)?;
             if path.starts_with('/') {
                 let conn = self.connection_info();
-                Ok(Url::parse(&format!(
-                    "{}://{}{}",
-                    conn.scheme(),
-                    conn.host(),
-                    path
-                ))?)
+                Ok(Url::parse(&format!("{}://{}{}", conn.scheme(), conn.host(), path))?)
             } else {
                 Ok(Url::parse(&path)?)
             }
@@ -681,12 +677,8 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
-            ),
-        ];
+        let routes =
+            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -715,12 +707,8 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
-            ),
-        ];
+        let routes =
+            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
@@ -739,20 +727,15 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![
-            (
-                Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
-                None,
-            ),
-        ];
+        let routes = vec![(
+            Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
+            None,
+        )];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));
 
         let req = req.with_state(Rc::new(()), router);
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
-        assert_eq!(
-            url.ok().unwrap().as_str(),
-            "https://youtube.com/watch/oHg5SJYRHA0"
-        );
+        assert_eq!(url.ok().unwrap().as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
     }
 }

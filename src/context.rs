@@ -3,7 +3,6 @@ use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use smallvec::SmallVec;
 use std::marker::PhantomData;
-use std::mem;
 
 use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
@@ -174,7 +173,9 @@ where
         if self.stream.is_none() {
             self.stream = Some(SmallVec::new());
         }
-        self.stream.as_mut().map(|s| s.push(frame));
+        if let Some(s) = self.stream.as_mut() {
+            s.push(frame)
+        }
         self.inner.modify();
     }
 
@@ -199,7 +200,7 @@ where
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error> {
         let ctx: &mut HttpContext<A, S> =
-            unsafe { mem::transmute(self as &mut HttpContext<A, S>) };
+            unsafe { &mut *(self as &mut HttpContext<A, S> as *mut _) };
 
         if self.inner.alive() {
             match self.inner.poll(ctx) {
@@ -261,7 +262,7 @@ impl<A: Actor> ActorFuture for Drain<A> {
 
     #[inline]
     fn poll(
-        &mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context
+        &mut self, _: &mut A, _: &mut <Self::Actor as Actor>::Context,
     ) -> Poll<Self::Item, Self::Error> {
         self.fut.poll().map_err(|_| ())
     }

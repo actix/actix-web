@@ -41,7 +41,9 @@ impl From<io::Error> for DecoderError {
 
 impl H1Decoder {
     pub fn new() -> H1Decoder {
-        H1Decoder { decoder: None }
+        H1Decoder {
+            decoder: None,
+        }
     }
 
     pub fn decode<H>(
@@ -59,9 +61,7 @@ impl H1Decoder {
             }
         }
 
-        match self.parse_message(src, settings)
-            .map_err(DecoderError::Error)?
-        {
+        match self.parse_message(src, settings).map_err(DecoderError::Error)? {
             Async::Ready((msg, decoder)) => {
                 if let Some(decoder) = decoder {
                     self.decoder = Some(decoder);
@@ -103,7 +103,7 @@ impl H1Decoder {
             let (len, method, path, version, headers_len) = {
                 let b = unsafe {
                     let b: &[u8] = buf;
-                    mem::transmute(b)
+                    &*(b as *const [u8])
                 };
                 let mut req = httparse::Request::new(&mut headers);
                 match req.parse(b)? {
@@ -415,10 +415,9 @@ impl ChunkedState {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
             b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk size LF",
-            )),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF"))
+            }
         }
     }
 
@@ -451,37 +450,33 @@ impl ChunkedState {
     fn read_body_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::BodyLf)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk body CR",
-            )),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR"))
+            }
         }
     }
     fn read_body_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' => Ok(Async::Ready(ChunkedState::Size)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk body LF",
-            )),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF"))
+            }
         }
     }
     fn read_end_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\r' => Ok(Async::Ready(ChunkedState::EndLf)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
-            )),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR"))
+            }
         }
     }
     fn read_end_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' => Ok(Async::Ready(ChunkedState::End)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end LF",
-            )),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF"))
+            }
         }
     }
 }

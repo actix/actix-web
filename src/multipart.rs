@@ -7,8 +7,8 @@ use std::{cmp, fmt};
 use bytes::Bytes;
 use futures::task::{current as current_task, Task};
 use futures::{Async, Poll, Stream};
-use http::HttpTryFrom;
 use http::header::{self, HeaderMap, HeaderName, HeaderValue};
+use http::HttpTryFrom;
 use httparse;
 use mime;
 
@@ -122,11 +122,7 @@ where
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.safety.current() {
-            self.inner
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .poll(&self.safety)
+            self.inner.as_mut().unwrap().borrow_mut().poll(&self.safety)
         } else {
             Ok(Async::NotReady)
         }
@@ -168,7 +164,7 @@ where
     }
 
     fn read_boundary(
-        payload: &mut PayloadHelper<S>, boundary: &str
+        payload: &mut PayloadHelper<S>, boundary: &str,
     ) -> Poll<bool, MultipartError> {
         // TODO: need to read epilogue
         match payload.readline()? {
@@ -192,7 +188,7 @@ where
     }
 
     fn skip_until_boundary(
-        payload: &mut PayloadHelper<S>, boundary: &str
+        payload: &mut PayloadHelper<S>, boundary: &str,
     ) -> Poll<bool, MultipartError> {
         let mut eof = false;
         loop {
@@ -230,7 +226,7 @@ where
     }
 
     fn poll(
-        &mut self, safety: &Safety
+        &mut self, safety: &Safety,
     ) -> Poll<Option<MultipartItem<S>>, MultipartError> {
         if self.state == InnerState::Eof {
             Ok(Async::Ready(None))
@@ -450,7 +446,7 @@ where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
     fn new(
-        payload: PayloadRef<S>, boundary: String, headers: &HeaderMap
+        payload: PayloadRef<S>, boundary: String, headers: &HeaderMap,
     ) -> Result<InnerField<S>, PayloadError> {
         let len = if let Some(len) = headers.get(header::CONTENT_LENGTH) {
             if let Ok(s) = len.to_str() {
@@ -477,7 +473,7 @@ where
     /// Reads body part content chunk of the specified size.
     /// The body part must has `Content-Length` header with proper value.
     fn read_len(
-        payload: &mut PayloadHelper<S>, size: &mut u64
+        payload: &mut PayloadHelper<S>, size: &mut u64,
     ) -> Poll<Option<Bytes>, MultipartError> {
         if *size == 0 {
             Ok(Async::Ready(None))
@@ -502,7 +498,7 @@ where
     /// Reads content chunk of body part with unknown length.
     /// The `Content-Length` header for body part is not necessary.
     fn read_stream(
-        payload: &mut PayloadHelper<S>, boundary: &str
+        payload: &mut PayloadHelper<S>, boundary: &str,
     ) -> Poll<Option<Bytes>, MultipartError> {
         match payload.read_until(b"\r")? {
             Async::NotReady => Ok(Async::NotReady),
@@ -675,10 +671,7 @@ mod tests {
         }
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("test"),
-        );
+        headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("test"));
 
         match Multipart::boundary(&headers) {
             Err(MultipartError::ParseContentType) => (),

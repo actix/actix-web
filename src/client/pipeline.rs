@@ -18,9 +18,9 @@ use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
 use httpmessage::HttpMessage;
-use server::WriterState;
 use server::encoding::PayloadStream;
 use server::shared::SharedBytes;
+use server::WriterState;
 
 /// A set of errors that can occur during request sending and response reading
 #[derive(Fail, Debug)]
@@ -80,7 +80,7 @@ impl SendRequest {
     }
 
     pub(crate) fn with_connector(
-        req: ClientRequest, conn: Addr<Unsync, ClientConnector>
+        req: ClientRequest, conn: Addr<Unsync, ClientConnector>,
     ) -> SendRequest {
         SendRequest {
             req,
@@ -269,11 +269,7 @@ impl Pipeline {
     #[inline]
     fn parse(&mut self) -> Poll<ClientResponse, HttpResponseParserError> {
         if let Some(ref mut conn) = self.conn {
-            match self.parser
-                .as_mut()
-                .unwrap()
-                .parse(conn, &mut self.parser_buf)
-            {
+            match self.parser.as_mut().unwrap().parse(conn, &mut self.parser_buf) {
                 Ok(Async::Ready(resp)) => {
                     // check content-encoding
                     if self.should_decompress {
@@ -469,9 +465,7 @@ impl Pipeline {
         }
 
         // flush io but only if we need to
-        match self.writer
-            .poll_completed(self.conn.as_mut().unwrap(), false)
-        {
+        match self.writer.poll_completed(self.conn.as_mut().unwrap(), false) {
             Ok(Async::Ready(_)) => {
                 if self.disconnected
                     || (self.body_completed && self.writer.is_completed())

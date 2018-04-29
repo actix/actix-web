@@ -94,8 +94,7 @@ impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
     type Output = str;
 
     fn index(&self, name: &'b str) -> &str {
-        self.get(name)
-            .expect("Value for parameter is not available")
+        self.get(name).expect("Value for parameter is not available")
     }
 }
 
@@ -202,18 +201,9 @@ mod tests {
             PathBuf::from_param("/test/*tt"),
             Err(UriSegmentError::BadStart('*'))
         );
-        assert_eq!(
-            PathBuf::from_param("/test/tt:"),
-            Err(UriSegmentError::BadEnd(':'))
-        );
-        assert_eq!(
-            PathBuf::from_param("/test/tt<"),
-            Err(UriSegmentError::BadEnd('<'))
-        );
-        assert_eq!(
-            PathBuf::from_param("/test/tt>"),
-            Err(UriSegmentError::BadEnd('>'))
-        );
+        assert_eq!(PathBuf::from_param("/test/tt:"), Err(UriSegmentError::BadEnd(':')));
+        assert_eq!(PathBuf::from_param("/test/tt<"), Err(UriSegmentError::BadEnd('<')));
+        assert_eq!(PathBuf::from_param("/test/tt>"), Err(UriSegmentError::BadEnd('>')));
         assert_eq!(
             PathBuf::from_param("/seg1/seg2/"),
             Ok(PathBuf::from_iter(vec!["seg1", "seg2"]))

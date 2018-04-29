@@ -210,8 +210,7 @@ where
                         self.stream.reset();
 
                         if ready {
-                            item.flags
-                                .insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                            item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
                         } else {
                             item.flags.insert(EntryFlags::FINISHED);
                         }
@@ -253,10 +252,7 @@ where
         // cleanup finished tasks
         let max = self.tasks.len() >= MAX_PIPELINED_MESSAGES;
         while !self.tasks.is_empty() {
-            if self.tasks[0]
-                .flags
-                .contains(EntryFlags::EOF | EntryFlags::FINISHED)
-            {
+            if self.tasks[0].flags.contains(EntryFlags::EOF | EntryFlags::FINISHED) {
                 self.tasks.pop_front();
             } else {
                 break;
@@ -308,7 +304,10 @@ where
     pub fn parse(&mut self) {
         'outer: loop {
             match self.decoder.decode(&mut self.buf, &self.settings) {
-                Ok(Some(Message::Message { msg, payload })) => {
+                Ok(Some(Message::Message {
+                    msg,
+                    payload,
+                })) => {
                     self.flags.insert(Flags::STARTED);
 
                     if payload {
@@ -421,13 +420,19 @@ mod tests {
     impl Message {
         fn message(self) -> SharedHttpInnerMessage {
             match self {
-                Message::Message { msg, payload: _ } => msg,
+                Message::Message {
+                    msg,
+                    payload: _,
+                } => msg,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                Message::Message { msg: _, payload } => payload,
+                Message::Message {
+                    msg: _,
+                    payload,
+                } => payload,
                 _ => panic!("error"),
             }
         }
@@ -623,10 +628,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert_eq!(
-                    req.headers().get("test").unwrap().as_bytes(),
-                    b"value"
-                );
+                assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
             }
             Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
@@ -848,12 +850,7 @@ mod tests {
         assert!(!req.keep_alive());
         assert!(req.upgrade());
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf, &settings).unwrap().unwrap().chunk().as_ref(),
             b"some raw data"
         );
     }
@@ -910,30 +907,14 @@ mod tests {
 
         buf.extend(b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf, &settings).unwrap().unwrap().chunk().as_ref(),
             b"data"
         );
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf, &settings).unwrap().unwrap().chunk().as_ref(),
             b"line"
         );
-        assert!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .eof()
-        );
+        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1014,13 +995,7 @@ mod tests {
         assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
 
         buf.extend(b"\r\n");
-        assert!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .eof()
-        );
+        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1038,17 +1013,9 @@ mod tests {
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        let chunk = reader
-            .decode(&mut buf, &settings)
-            .unwrap()
-            .unwrap()
-            .chunk();
+        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"data"));
-        let chunk = reader
-            .decode(&mut buf, &settings)
-            .unwrap()
-            .unwrap()
-            .chunk();
+        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"line"));
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.eof());

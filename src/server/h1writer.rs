@@ -2,8 +2,8 @@
 
 use bytes::BufMut;
 use futures::{Async, Poll};
+use std::io;
 use std::rc::Rc;
-use std::{io, mem};
 use tokio_io::AsyncWrite;
 
 use super::encoding::ContentEncoder;
@@ -13,10 +13,10 @@ use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
+use http::{Method, Version};
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
-use http::{Method, Version};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE};
 
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
@@ -42,7 +42,7 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     pub fn new(
-        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>
+        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
     ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::empty(),
@@ -117,8 +117,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         let version = msg.version().unwrap_or_else(|| req.version);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
-            msg.headers_mut()
-                .insert(CONNECTION, HeaderValue::from_static("upgrade"));
+            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
         else if self.flags.contains(Flags::KEEPALIVE) {
@@ -127,8 +126,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if version >= Version::HTTP_11 {
-            msg.headers_mut()
-                .insert(CONNECTION, HeaderValue::from_static("close"));
+            msg.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
         }
         let body = msg.replace_body(Body::Empty);
 
@@ -169,7 +167,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let mut pos = 0;
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
-            let mut buf: &mut [u8] = unsafe { mem::transmute(buffer.bytes_mut()) };
+            let mut buf = unsafe { &mut *(buffer.bytes_mut() as *mut [u8]) };
             for (key, value) in msg.headers() {
                 if is_bin && key == CONTENT_LENGTH {
                     is_bin = false;
@@ -184,7 +182,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     pos = 0;
                     buffer.reserve(len);
                     remaining = buffer.remaining_mut();
-                    buf = unsafe { mem::transmute(buffer.bytes_mut()) };
+                    buf = unsafe { &mut *(buffer.bytes_mut() as *mut _) };
                 }
 
                 buf[pos..pos + k.len()].copy_from_slice(k);
@@ -272,7 +270,8 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
-            let buf: &[u8] = unsafe { mem::transmute(self.buffer.as_ref()) };
+            let buf: &[u8] =
+                unsafe { &mut *(self.buffer.as_ref() as *const _ as *mut _) };
             let written = self.write_data(buf)?;
             let _ = self.buffer.split_to(written);
             if self.buffer.len() > self.buffer_capacity {

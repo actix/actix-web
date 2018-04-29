@@ -133,24 +133,24 @@ pub enum HandshakeError {
 impl ResponseError for HandshakeError {
     fn error_response(&self) -> HttpResponse {
         match *self {
-            HandshakeError::GetMethodRequired => HttpResponse::MethodNotAllowed()
-                .header(header::ALLOW, "GET")
-                .finish(),
+            HandshakeError::GetMethodRequired => {
+                HttpResponse::MethodNotAllowed().header(header::ALLOW, "GET").finish()
+            }
             HandshakeError::NoWebsocketUpgrade => HttpResponse::BadRequest()
                 .reason("No WebSocket UPGRADE header found")
                 .finish(),
-            HandshakeError::NoConnectionUpgrade => HttpResponse::BadRequest()
-                .reason("No CONNECTION upgrade")
-                .finish(),
+            HandshakeError::NoConnectionUpgrade => {
+                HttpResponse::BadRequest().reason("No CONNECTION upgrade").finish()
+            }
             HandshakeError::NoVersionHeader => HttpResponse::BadRequest()
                 .reason("Websocket version header is required")
                 .finish(),
-            HandshakeError::UnsupportedVersion => HttpResponse::BadRequest()
-                .reason("Unsupported version")
-                .finish(),
-            HandshakeError::BadWebsocketKey => HttpResponse::BadRequest()
-                .reason("Handshake error")
-                .finish(),
+            HandshakeError::UnsupportedVersion => {
+                HttpResponse::BadRequest().reason("Unsupported version").finish()
+            }
+            HandshakeError::BadWebsocketKey => {
+                HttpResponse::BadRequest().reason("Handshake error").finish()
+            }
         }
     }
 }
@@ -189,7 +189,7 @@ where
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
 pub fn handshake<S>(
-    req: &HttpRequest<S>
+    req: &HttpRequest<S>,
 ) -> Result<HttpResponseBuilder, HandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
@@ -216,9 +216,7 @@ pub fn handshake<S>(
     }
 
     // check supported version
-    if !req.headers()
-        .contains_key(header::SEC_WEBSOCKET_VERSION)
-    {
+    if !req.headers().contains_key(header::SEC_WEBSOCKET_VERSION) {
         return Err(HandshakeError::NoVersionHeader);
     }
     let supported_ver = {
@@ -355,10 +353,7 @@ mod tests {
             HeaderMap::new(),
             None,
         );
-        assert_eq!(
-            HandshakeError::GetMethodRequired,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::GetMethodRequired, handshake(&req).err().unwrap());
 
         let req = HttpRequest::new(
             Method::GET,
@@ -367,16 +362,10 @@ mod tests {
             HeaderMap::new(),
             None,
         );
-        assert_eq!(
-            HandshakeError::NoWebsocketUpgrade,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("test"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("test"));
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),
@@ -384,16 +373,10 @@ mod tests {
             headers,
             None,
         );
-        assert_eq!(
-            HandshakeError::NoWebsocketUpgrade,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::NoWebsocketUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("websocket"));
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),
@@ -401,20 +384,11 @@ mod tests {
             headers,
             None,
         );
-        assert_eq!(
-            HandshakeError::NoConnectionUpgrade,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::NoConnectionUpgrade, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION, header::HeaderValue::from_static("upgrade"));
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),
@@ -422,20 +396,11 @@ mod tests {
             headers,
             None,
         );
-        assert_eq!(
-            HandshakeError::NoVersionHeader,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::NoVersionHeader, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION, header::HeaderValue::from_static("upgrade"));
         headers.insert(
             header::SEC_WEBSOCKET_VERSION,
             header::HeaderValue::from_static("5"),
@@ -447,20 +412,11 @@ mod tests {
             headers,
             None,
         );
-        assert_eq!(
-            HandshakeError::UnsupportedVersion,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::UnsupportedVersion, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION, header::HeaderValue::from_static("upgrade"));
         headers.insert(
             header::SEC_WEBSOCKET_VERSION,
             header::HeaderValue::from_static("13"),
@@ -472,28 +428,17 @@ mod tests {
             headers,
             None,
         );
-        assert_eq!(
-            HandshakeError::BadWebsocketKey,
-            handshake(&req).err().unwrap()
-        );
+        assert_eq!(HandshakeError::BadWebsocketKey, handshake(&req).err().unwrap());
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("websocket"));
+        headers.insert(header::CONNECTION, header::HeaderValue::from_static("upgrade"));
         headers.insert(
             header::SEC_WEBSOCKET_VERSION,
             header::HeaderValue::from_static("13"),
         );
-        headers.insert(
-            header::SEC_WEBSOCKET_KEY,
-            header::HeaderValue::from_static("13"),
-        );
+        headers
+            .insert(header::SEC_WEBSOCKET_KEY, header::HeaderValue::from_static("13"));
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),

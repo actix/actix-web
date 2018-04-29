@@ -47,7 +47,10 @@ impl<T> QualityItem<T> {
     /// The item can be of any type.
     /// The quality should be a value in the range [0, 1].
     pub fn new(item: T, quality: Quality) -> QualityItem<T> {
-        QualityItem { item, quality }
+        QualityItem {
+            item,
+            quality,
+        }
     }
 }
 
@@ -63,11 +66,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
         match self.quality.0 {
             1000 => Ok(()),
             0 => f.write_str("; q=0"),
-            x => write!(
-                f,
-                "; q=0.{}",
-                format!("{:03}", x).trim_right_matches('0')
-            ),
+            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_right_matches('0')),
         }
     }
 }
@@ -120,10 +119,7 @@ fn from_f32(f: f32) -> Quality {
     // this function is only used internally. A check that `f` is within range
     // should be done before calling this method. Just in case, this
     // debug_assert should catch if we were forgetful
-    debug_assert!(
-        f >= 0f32 && f <= 1f32,
-        "q value must be between 0.0 and 1.0"
-    );
+    debug_assert!(f >= 0f32 && f <= 1f32, "q value must be between 0.0 and 1.0");
     Quality((f * 1000f32) as u16)
 }
 
@@ -156,10 +152,7 @@ mod internal {
 
     impl IntoQuality for f32 {
         fn into_quality(self) -> Quality {
-            assert!(
-                self >= 0f32 && self <= 1f32,
-                "float must be between 0.0 and 1.0"
-            );
+            assert!(self >= 0f32 && self <= 1f32, "float must be between 0.0 and 1.0");
             super::from_f32(self)
         }
     }
@@ -295,10 +288,6 @@ mod tests {
     #[test]
     fn test_fuzzing_bugs() {
         assert!("99999;".parse::<QualityItem<String>>().is_err());
-        assert!(
-            "\x0d;;;=\u{d6aa}=="
-                .parse::<QualityItem<String>>()
-                .is_err()
-        )
+        assert!("\x0d;;;=\u{d6aa}==".parse::<QualityItem<String>>().is_err())
     }
 }

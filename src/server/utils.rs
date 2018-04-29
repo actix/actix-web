@@ -8,7 +8,7 @@ const LW_BUFFER_SIZE: usize = 4096;
 const HW_BUFFER_SIZE: usize = 32_768;
 
 pub fn read_from_io<T: IoStream>(
-    io: &mut T, buf: &mut BytesMut
+    io: &mut T, buf: &mut BytesMut,
 ) -> Poll<usize, io::Error> {
     unsafe {
         if buf.remaining_mut() < LW_BUFFER_SIZE {

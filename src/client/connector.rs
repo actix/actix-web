@@ -94,13 +94,17 @@ pub struct Pause {
 impl Pause {
     /// Create message with pause duration parameter
     pub fn new(time: Duration) -> Pause {
-        Pause { time: Some(time) }
+        Pause {
+            time: Some(time),
+        }
     }
 }
 
 impl Default for Pause {
     fn default() -> Pause {
-        Pause { time: None }
+        Pause {
+            time: None,
+        }
     }
 }
 
@@ -427,8 +431,7 @@ impl ClientConnector {
         } else {
             0
         };
-        self.acquired_per_host
-            .insert(key.clone(), per_host + 1);
+        self.acquired_per_host.insert(key.clone(), per_host + 1);
     }
 
     fn release_key(&mut self, key: &Key) {
@@ -439,8 +442,7 @@ impl ClientConnector {
             return;
         };
         if per_host > 1 {
-            self.acquired_per_host
-                .insert(key.clone(), per_host - 1);
+            self.acquired_per_host.insert(key.clone(), per_host - 1);
         } else {
             self.acquired_per_host.remove(key);
         }
@@ -516,9 +518,7 @@ impl ClientConnector {
     fn collect_periodic(&mut self, ctx: &mut Context<Self>) {
         self.collect(true);
         // re-schedule next collect period
-        ctx.run_later(Duration::from_secs(1), |act, ctx| {
-            act.collect_periodic(ctx)
-        });
+        ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect_periodic(ctx));
 
         // send stats
         let stats = mem::replace(&mut self.stats, ClientConnectorStats::default());
@@ -570,7 +570,7 @@ impl ClientConnector {
     }
 
     fn wait_for(
-        &mut self, key: Key, wait: Duration, conn_timeout: Duration
+        &mut self, key: Key, wait: Duration, conn_timeout: Duration,
     ) -> oneshot::Receiver<Result<Connection, ClientConnectorError>> {
         // connection is not available, wait
         let (tx, rx) = oneshot::channel();
@@ -583,10 +583,7 @@ impl ClientConnector {
             wait,
             conn_timeout,
         };
-        self.waiters
-            .entry(key)
-            .or_insert_with(VecDeque::new)
-            .push_back(waiter);
+        self.waiters.entry(key).or_insert_with(VecDeque::new).push_back(waiter);
         rx
     }
 }
@@ -810,7 +807,7 @@ impl fut::ActorFuture for Maintenance {
     type Actor = ClientConnector;
 
     fn poll(
-        &mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>
+        &mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>,
     ) -> Poll<Self::Item, Self::Error> {
         // check pause duration
         let done = if let Some(Some(ref pause)) = act.paused {
@@ -1105,10 +1102,7 @@ impl Pool {
         if self.to_close.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(
-                &mut *self.to_close.borrow_mut(),
-                Vec::new(),
-            ))
+            Some(mem::replace(&mut *self.to_close.borrow_mut(), Vec::new()))
         }
     }
 
@@ -1116,10 +1110,7 @@ impl Pool {
         if self.to_release.borrow().is_empty() {
             None
         } else {
-            Some(mem::replace(
-                &mut *self.to_release.borrow_mut(),
-                Vec::new(),
-            ))
+            Some(mem::replace(&mut *self.to_release.borrow_mut(), Vec::new()))
         }
     }
 

@@ -8,9 +8,9 @@ use body::Binary;
 use error::PayloadError;
 use payload::PayloadHelper;
 
-use ws::ProtocolError;
 use ws::mask::apply_mask;
 use ws::proto::{CloseCode, CloseReason, OpCode};
+use ws::ProtocolError;
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]
@@ -36,7 +36,7 @@ impl Frame {
                 NetworkEndian::write_u16(&mut code_bytes, reason.code.into());
 
                 let mut payload = Vec::from(&code_bytes[..]);
-                if let Some(description) = reason.description{
+                if let Some(description) = reason.description {
                     payload.extend(description.as_bytes());
                 }
                 payload
@@ -48,7 +48,7 @@ impl Frame {
 
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     fn read_copy_md<S>(
-        pl: &mut PayloadHelper<S>, server: bool, max_size: usize
+        pl: &mut PayloadHelper<S>, server: bool, max_size: usize,
     ) -> Poll<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError>
     where
         S: Stream<Item = Bytes, Error = PayloadError>,
@@ -122,17 +122,11 @@ impl Frame {
             None
         };
 
-        Ok(Async::Ready(Some((
-            idx,
-            finished,
-            opcode,
-            length,
-            mask,
-        ))))
+        Ok(Async::Ready(Some((idx, finished, opcode, length, mask))))
     }
 
     fn read_chunk_md(
-        chunk: &[u8], server: bool, max_size: usize
+        chunk: &[u8], server: bool, max_size: usize,
     ) -> Poll<(usize, bool, OpCode, usize, Option<u32>), ProtocolError> {
         let chunk_len = chunk.len();
 
@@ -203,7 +197,7 @@ impl Frame {
 
     /// Parse the input stream into a frame.
     pub fn parse<S>(
-        pl: &mut PayloadHelper<S>, server: bool, max_size: usize
+        pl: &mut PayloadHelper<S>, server: bool, max_size: usize,
     ) -> Poll<Option<Frame>, ProtocolError>
     where
         S: Stream<Item = Bytes, Error = PayloadError>,
@@ -288,7 +282,10 @@ impl Frame {
             } else {
                 None
             };
-            Some(CloseReason { code, description })
+            Some(CloseReason {
+                code,
+                description,
+            })
         } else {
             None
         }
@@ -296,7 +293,7 @@ impl Frame {
 
     /// Generate binary representation
     pub fn message<B: Into<Binary>>(
-        data: B, code: OpCode, finished: bool, genmask: bool
+        data: B, code: OpCode, finished: bool, genmask: bool,
     ) -> Binary {
         let payload = data.into();
         let one: u8 = if finished {

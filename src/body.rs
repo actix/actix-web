@@ -258,9 +258,7 @@ impl Responder for Binary {
     type Error = Error;
 
     fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
-            .content_type("application/octet-stream")
-            .body(self))
+        Ok(HttpResponse::Ok().content_type("application/octet-stream").body(self))
     }
 }
 

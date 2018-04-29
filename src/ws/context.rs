@@ -156,23 +156,13 @@ where
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Ping,
-            true,
-            false,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, false));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Pong,
-            true,
-            false,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, false));
     }
 
     /// Send close frame

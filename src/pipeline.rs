@@ -67,7 +67,7 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
 }
 
 struct PipelineInfo<S> {
-    req: HttpRequest<S>,
+    req: UnsafeCell<HttpRequest<S>>,
     count: u16,
     mws: Rc<Vec<Box<Middleware<S>>>>,
     context: Option<Box<ActorHttpContext>>,
@@ -79,7 +79,7 @@ struct PipelineInfo<S> {
 impl<S> PipelineInfo<S> {
     fn new(req: HttpRequest<S>) -> PipelineInfo<S> {
         PipelineInfo {
-            req,
+            req: UnsafeCell::new(req),
             count: 0,
             mws: Rc::new(Vec::new()),
             error: None,
@@ -89,11 +89,17 @@ impl<S> PipelineInfo<S> {
         }
     }
 
+    #[inline]
+    fn req(&self) -> &HttpRequest<S> {
+        unsafe { &*self.req.get() }
+    }
+
+    #[inline]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn req_mut(&self) -> &mut HttpRequest<S> {
         #[allow(mutable_transmutes)]
         unsafe {
-            mem::transmute(&self.req)
+            &mut *self.req.get()
         }
     }
 
@@ -116,8 +122,8 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
         handler: Rc<UnsafeCell<H>>, htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
-            req,
             mws,
+            req: UnsafeCell::new(req),
             count: 0,
             error: None,
             context: None,
@@ -159,7 +165,7 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
     }
 
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
-        let info: &mut PipelineInfo<_> = unsafe { mem::transmute(&mut self.0) };
+        let info: &mut PipelineInfo<_> = unsafe { &mut *(&mut self.0 as *mut _) };
 
         loop {
             if self.1.is_response() {
@@ -197,7 +203,7 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
     }
 
     fn poll(&mut self) -> Poll<(), Error> {
-        let info: &mut PipelineInfo<_> = unsafe { mem::transmute(&mut self.0) };
+        let info: &mut PipelineInfo<_> = unsafe { &mut *(&mut self.0 as *mut _) };
 
         loop {
             match self.1 {
@@ -228,17 +234,17 @@ struct StartMiddlewares<S, H> {
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(
-        info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType
+        info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType,
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
         let len = info.mws.len() as u16;
         loop {
             if info.count == len {
-                let reply = unsafe { &mut *hnd.get() }.handle(info.req.clone(), htype);
+                let reply = unsafe { &mut *hnd.get() }.handle(info.req().clone(), htype);
                 return WaitingResponse::init(info, reply);
             } else {
-                match info.mws[info.count as usize].start(&mut info.req) {
+                match info.mws[info.count as usize].start(info.req_mut()) {
                     Ok(Started::Done) => info.count += 1,
                     Ok(Started::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
@@ -278,7 +284,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     }
                     if info.count == len {
                         let reply = unsafe { &mut *self.hnd.get() }
-                            .handle(info.req.clone(), self.htype);
+                            .handle(info.req().clone(), self.htype);
                         return Some(WaitingResponse::init(info, reply));
                     } else {
                         loop {
@@ -462,7 +468,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     }
 
     fn poll_io(
-        mut self, io: &mut Writer, info: &mut PipelineInfo<S>
+        mut self, io: &mut Writer, info: &mut PipelineInfo<S>,
     ) -> Result<PipelineState<S, H>, PipelineState<S, H>> {
         loop {
             if self.drain.is_none() && self.running != RunningState::Paused {
@@ -482,8 +488,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 Err(err) => {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(
-                                        info,
-                                        self.resp,
+                                        info, self.resp,
                                     ));
                                 }
                             };
@@ -525,8 +530,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 if let Err(err) = io.write_eof() {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(
-                                        info,
-                                        self.resp,
+                                        info, self.resp,
                                     ));
                                 }
                                 break;
@@ -537,8 +541,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(
-                                            info,
-                                            self.resp,
+                                            info, self.resp,
                                         ));
                                     }
                                     Ok(result) => result,
@@ -572,8 +575,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                     info.error = Some(err.into());
                                                     return Ok(
                                                         FinishingMiddlewares::init(
-                                                            info,
-                                                            self.resp,
+                                                            info, self.resp,
                                                         ),
                                                     );
                                                 }
@@ -585,8 +587,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                         info.error = Some(err.into());
                                                         return Ok(
                                                             FinishingMiddlewares::init(
-                                                                info,
-                                                                self.resp,
+                                                                info, self.resp,
                                                             ),
                                                         );
                                                     }
@@ -611,8 +612,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 Err(err) => {
                                     info.error = Some(err);
                                     return Ok(FinishingMiddlewares::init(
-                                        info,
-                                        self.resp,
+                                        info, self.resp,
                                     ));
                                 }
                             }
@@ -796,18 +796,15 @@ mod tests {
             .unwrap()
             .run(lazy(|| {
                 let mut info = PipelineInfo::new(HttpRequest::default());
-                Completed::<(), Inner<()>>::init(&mut info)
-                    .is_none()
-                    .unwrap();
+                Completed::<(), Inner<()>>::init(&mut info).is_none().unwrap();
 
                 let req = HttpRequest::default();
                 let mut ctx = HttpContext::new(req.clone(), MyActor);
                 let addr: Addr<Unsync, _> = ctx.address();
                 let mut info = PipelineInfo::new(req);
                 info.context = Some(Box::new(ctx));
-                let mut state = Completed::<(), Inner<()>>::init(&mut info)
-                    .completed()
-                    .unwrap();
+                let mut state =
+                    Completed::<(), Inner<()>>::init(&mut info).completed().unwrap();
 
                 assert!(state.poll(&mut info).is_none());
                 let pp = Pipeline(info, PipelineState::Completed(state));

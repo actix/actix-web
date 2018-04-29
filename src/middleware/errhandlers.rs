@@ -69,7 +69,7 @@ impl<S> ErrorHandlers<S> {
 
 impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(handler) = self.handlers.get(&resp.status()) {
             handler(req, resp)
@@ -82,8 +82,8 @@ impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::StatusCode;
     use http::header::CONTENT_TYPE;
+    use http::StatusCode;
 
     fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         let mut builder = resp.into_builder();

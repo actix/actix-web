@@ -763,8 +763,7 @@ impl TransferEncoding {
                         return Ok(*remaining == 0);
                     }
                     let len = cmp::min(*remaining, msg.len() as u64);
-                    self.buffer
-                        .extend(msg.take().split_to(len as usize).into());
+                    self.buffer.extend(msg.take().split_to(len as usize).into());
 
                     *remaining -= len as u64;
                     Ok(*remaining == 0)
@@ -856,10 +855,8 @@ impl AcceptEncoding {
 
     /// Parse a raw Accept-Encoding header value into an ordered list.
     pub fn parse(raw: &str) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw.replace(' ', "")
-            .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .collect();
+        let mut encodings: Vec<_> =
+            raw.replace(' ', "").split(',').map(|l| AcceptEncoding::new(l)).collect();
         encodings.sort();
 
         for enc in encodings {
@@ -879,9 +876,7 @@ mod tests {
     fn test_chunked_te() {
         let bytes = SharedBytes::default();
         let mut enc = TransferEncoding::chunked(bytes.clone());
-        assert!(!enc.encode(Binary::from(b"test".as_ref()))
-            .ok()
-            .unwrap());
+        assert!(!enc.encode(Binary::from(b"test".as_ref())).ok().unwrap());
         assert!(enc.encode(Binary::from(b"".as_ref())).ok().unwrap());
         assert_eq!(
             bytes.get_mut().take().freeze(),

@@ -21,8 +21,9 @@ pub use self::logger::Logger;
 
 #[cfg(feature = "session")]
 #[doc(hidden)]
-#[deprecated(since = "0.5.4",
-             note = "please use `actix_web::middleware::session` instead")]
+#[deprecated(
+    since = "0.5.4", note = "please use `actix_web::middleware::session` instead"
+)]
 pub use self::session::{CookieSessionBackend, CookieSessionError, RequestSession,
                         Session, SessionBackend, SessionImpl, SessionStorage};
 
@@ -65,7 +66,7 @@ pub trait Middleware<S>: 'static {
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         Ok(Response::Done(resp))
     }

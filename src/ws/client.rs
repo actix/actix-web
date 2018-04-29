@@ -121,7 +121,7 @@ impl Client {
 
     /// Create new websocket connection with custom `ClientConnector`
     pub fn with_connector<S: AsRef<str>>(
-        uri: S, conn: Addr<Unsync, ClientConnector>
+        uri: S, conn: Addr<Unsync, ClientConnector>,
     ) -> Client {
         let mut cl = Client {
             request: ClientRequest::build(),
@@ -142,9 +142,8 @@ impl Client {
         U: IntoIterator<Item = V> + 'static,
         V: AsRef<str>,
     {
-        let mut protos = protos
-            .into_iter()
-            .fold(String::new(), |acc, s| acc + s.as_ref() + ",");
+        let mut protos =
+            protos.into_iter().fold(String::new(), |acc, s| acc + s.as_ref() + ",");
         protos.pop();
         self.protocols = Some(protos);
         self
@@ -218,8 +217,7 @@ impl Client {
             self.request.upgrade();
             self.request.set_header(header::UPGRADE, "websocket");
             self.request.set_header(header::CONNECTION, "upgrade");
-            self.request
-                .set_header(header::SEC_WEBSOCKET_VERSION, "13");
+            self.request.set_header(header::SEC_WEBSOCKET_VERSION, "13");
             self.request.with_connector(self.conn.clone());
 
             if let Some(protocols) = self.protocols.take() {
@@ -394,10 +392,7 @@ impl Future for ClientHandshake {
                     encoded,
                     key
                 );
-                return Err(ClientError::InvalidChallengeResponse(
-                    encoded,
-                    key.clone(),
-                ));
+                return Err(ClientError::InvalidChallengeResponse(encoded, key.clone()));
             }
         } else {
             trace!("Missing SEC-WEBSOCKET-ACCEPT header");
@@ -416,7 +411,9 @@ impl Future for ClientHandshake {
                 inner: Rc::clone(&inner),
                 max_size: self.max_size,
             },
-            ClientWriter { inner },
+            ClientWriter {
+                inner,
+            },
         )))
     }
 }
@@ -536,23 +533,13 @@ impl ClientWriter {
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Ping,
-            true,
-            true,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, true));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Pong,
-            true,
-            true,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, true));
     }
 
     /// Send close frame

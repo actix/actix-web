@@ -68,12 +68,7 @@ impl fmt::Debug for Error {
         if let Some(bt) = self.cause.backtrace() {
             write!(f, "{:?}\n\n{:?}", &self.cause, bt)
         } else {
-            write!(
-                f,
-                "{:?}\n\n{:?}",
-                &self.cause,
-                self.backtrace.as_ref().unwrap()
-            )
+            write!(f, "{:?}\n\n{:?}", &self.cause, self.backtrace.as_ref().unwrap())
         }
     }
 }
@@ -298,17 +293,16 @@ pub enum HttpRangeError {
     /// Returned if first-byte-pos of all of the byte-range-spec
     /// values is greater than the content size.
     /// See `https://github.com/golang/go/commit/aa9b3d7`
-    #[fail(display = "First-byte-pos of all of the byte-range-spec values is greater than the content size")]
+    #[fail(
+        display = "First-byte-pos of all of the byte-range-spec values is greater than the content size"
+    )]
     NoOverlap,
 }
 
 /// Return `BadRequest` for `HttpRangeError`
 impl ResponseError for HttpRangeError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(
-            StatusCode::BAD_REQUEST,
-            "Invalid Range header provided",
-        )
+        HttpResponse::with_body(StatusCode::BAD_REQUEST, "Invalid Range header provided")
     }
 }
 
