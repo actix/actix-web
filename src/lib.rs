@@ -59,7 +59,7 @@
 //! * SSL support with OpenSSL or `native-tls`
 //! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
 //! * Built on top of [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.22 or later
+//! * Supported Rust version: 1.24 or later
 
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
