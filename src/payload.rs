@@ -47,7 +47,9 @@ impl Payload {
             PayloadSender {
                 inner: Rc::downgrade(&shared),
             },
-            Payload { inner: shared },
+            Payload {
+                inner: shared,
+            },
         )
     }
 
@@ -534,10 +536,7 @@ mod tests {
         assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
 
         let err = PayloadError::Incomplete;
-        assert_eq!(
-            format!("{}", err),
-            "A payload reached EOF, but is not complete."
-        );
+        assert_eq!(format!("{}", err), "A payload reached EOF, but is not complete.");
     }
 
     #[test]
@@ -671,10 +670,7 @@ mod tests {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
-                assert_eq!(
-                    Async::NotReady,
-                    payload.read_until(b"ne").ok().unwrap()
-                );
+                assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
 
                 sender.feed_data(Bytes::from("line1"));
                 sender.feed_data(Bytes::from("line2"));

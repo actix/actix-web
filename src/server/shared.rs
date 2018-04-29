@@ -1,8 +1,8 @@
 use bytes::{BufMut, BytesMut};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::io;
 use std::rc::Rc;
-use std::{io, mem};
 
 use body::Binary;
 
@@ -61,7 +61,7 @@ impl SharedBytes {
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub(crate) fn get_mut(&self) -> &mut BytesMut {
         let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
-        unsafe { mem::transmute(r) }
+        unsafe { &mut *(r as *const _ as *mut _) }
     }
 
     #[inline]

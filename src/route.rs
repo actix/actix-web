@@ -50,7 +50,7 @@ impl<S: 'static> Route<S> {
 
     #[inline]
     pub(crate) fn compose(
-        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>
+        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
     ) -> Reply {
         Reply::async(Compose::new(req, mws, self.handler.clone()))
     }
@@ -170,7 +170,7 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(
-        &mut self, handler: F
+        &mut self, handler: F,
     ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
     where
         F: Fn(T1, T2) -> R + 'static,
@@ -180,22 +180,14 @@ impl<S: 'static> Route<S> {
     {
         let cfg1 = ExtractorConfig::default();
         let cfg2 = ExtractorConfig::default();
-        self.h(With2::new(
-            handler,
-            Clone::clone(&cfg1),
-            Clone::clone(&cfg2),
-        ));
+        self.h(With2::new(handler, Clone::clone(&cfg1), Clone::clone(&cfg2)));
         (cfg1, cfg2)
     }
 
     /// Set handler function, use request extractor for all paramters.
     pub fn with3<T1, T2, T3, F, R>(
-        &mut self, handler: F
-    ) -> (
-        ExtractorConfig<S, T1>,
-        ExtractorConfig<S, T2>,
-        ExtractorConfig<S, T3>,
-    )
+        &mut self, handler: F,
+    ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>, ExtractorConfig<S, T3>)
     where
         F: Fn(T1, T2, T3) -> R + 'static,
         R: Responder + 'static,
@@ -288,7 +280,7 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>
+        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -298,7 +290,10 @@ impl<S: 'static> Compose<S> {
         };
         let state = StartMiddlewares::init(&mut info);
 
-        Compose { state, info }
+        Compose {
+            state,
+            info,
+        }
     }
 }
 

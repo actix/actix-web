@@ -9,8 +9,8 @@ use std::io::Read;
 
 use bytes::Bytes;
 use flate2::read::GzDecoder;
-use futures::Future;
 use futures::stream::once;
+use futures::Future;
 use rand::Rng;
 
 use actix_web::*;
@@ -72,10 +72,7 @@ fn test_with_query_parameter() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/?qp=5").as_str())
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
 
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -124,10 +121,8 @@ fn test_client_gzip_encoding() {
     });
 
     // client request
-    let request = srv.post()
-        .content_encoding(http::ContentEncoding::Gzip)
-        .body(STR)
-        .unwrap();
+    let request =
+        srv.post().content_encoding(http::ContentEncoding::Gzip).body(STR).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -167,10 +162,7 @@ fn test_client_gzip_encoding_large() {
 
 #[test]
 fn test_client_gzip_encoding_large_random() {
-    let data = rand::thread_rng()
-        .gen_ascii_chars()
-        .take(100_000)
-        .collect::<String>();
+    let data = rand::thread_rng().gen_ascii_chars().take(100_000).collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
         app.handler(|req: HttpRequest| {
@@ -228,10 +220,7 @@ fn test_client_brotli_encoding() {
 #[cfg(feature = "brotli")]
 #[test]
 fn test_client_brotli_encoding_large_random() {
-    let data = rand::thread_rng()
-        .gen_ascii_chars()
-        .take(70_000)
-        .collect::<String>();
+    let data = rand::thread_rng().gen_ascii_chars().take(70_000).collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
         app.handler(|req: HttpRequest| {
@@ -275,10 +264,8 @@ fn test_client_deflate_encoding() {
     });
 
     // client request
-    let request = srv.post()
-        .content_encoding(http::ContentEncoding::Deflate)
-        .body(STR)
-        .unwrap();
+    let request =
+        srv.post().content_encoding(http::ContentEncoding::Deflate).body(STR).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -290,10 +277,7 @@ fn test_client_deflate_encoding() {
 #[cfg(feature = "brotli")]
 #[test]
 fn test_client_deflate_encoding_large_random() {
-    let data = rand::thread_rng()
-        .gen_ascii_chars()
-        .take(70_000)
-        .collect::<String>();
+    let data = rand::thread_rng().gen_ascii_chars().take(70_000).collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
         app.handler(|req: HttpRequest| {
@@ -338,9 +322,7 @@ fn test_client_streaming_explicit() {
 
     let body = once(Ok(Bytes::from_static(STR.as_ref())));
 
-    let request = srv.get()
-        .body(Body::Streaming(Box::new(body)))
-        .unwrap();
+    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -413,11 +395,8 @@ fn test_client_cookie_handling() {
         })
     });
 
-    let request = srv.get()
-        .cookie(cookie1.clone())
-        .cookie(cookie2.clone())
-        .finish()
-        .unwrap();
+    let request =
+        srv.get().cookie(cookie1.clone()).cookie(cookie2.clone()).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
     let c1 = response.cookie("cookie1").expect("Missing cookie1");

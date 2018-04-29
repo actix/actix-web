@@ -89,10 +89,7 @@ fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
     headers
         .get(header::ORIGIN)
         .map(|origin| {
-            origin
-                .to_str()
-                .map_err(|_| CsrfError::BadOrigin)
-                .map(|o| o.into())
+            origin.to_str().map_err(|_| CsrfError::BadOrigin).map(|o| o.into())
         })
         .or_else(|| {
             headers.get(header::REFERER).map(|referer| {
@@ -261,9 +258,8 @@ mod tests {
     fn test_upgrade() {
         let strict_csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let lax_csrf = CsrfFilter::new()
-            .allowed_origin("https://www.example.com")
-            .allow_upgrade();
+        let lax_csrf =
+            CsrfFilter::new().allowed_origin("https://www.example.com").allow_upgrade();
 
         let mut req = TestRequest::with_header("Origin", "https://cswsh.com")
             .header("Connection", "Upgrade")

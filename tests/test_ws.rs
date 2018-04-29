@@ -44,12 +44,7 @@ fn test_simple() {
 
     writer.binary(b"text".as_ref());
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
-    assert_eq!(
-        item,
-        Some(ws::Message::Binary(
-            Bytes::from_static(b"text").into()
-        ))
-    );
+    assert_eq!(item, Some(ws::Message::Binary(Bytes::from_static(b"text").into())));
 
     writer.ping("ping");
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
@@ -75,7 +70,8 @@ fn test_close_description() {
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (reader, mut writer) = srv.ws().unwrap();
 
-    let close_reason:ws::CloseReason = (ws::CloseCode::Normal, "close description").into();
+    let close_reason: ws::CloseReason =
+        (ws::CloseCode::Normal, "close description").into();
     writer.close(Some(close_reason.clone()));
     let (item, _) = srv.execute(reader.into_future()).unwrap();
     assert_eq!(item, Some(ws::Message::Close(Some(close_reason))));
@@ -83,10 +79,7 @@ fn test_close_description() {
 
 #[test]
 fn test_large_text() {
-    let data = rand::thread_rng()
-        .gen_ascii_chars()
-        .take(65_536)
-        .collect::<String>();
+    let data = rand::thread_rng().gen_ascii_chars().take(65_536).collect::<String>();
 
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (mut reader, mut writer) = srv.ws().unwrap();
@@ -101,10 +94,7 @@ fn test_large_text() {
 
 #[test]
 fn test_large_bin() {
-    let data = rand::thread_rng()
-        .gen_ascii_chars()
-        .take(65_536)
-        .collect::<String>();
+    let data = rand::thread_rng().gen_ascii_chars().take(65_536).collect::<String>();
 
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (mut reader, mut writer) = srv.ws().unwrap();
@@ -113,10 +103,7 @@ fn test_large_bin() {
         writer.binary(data.clone());
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
-        assert_eq!(
-            item,
-            Some(ws::Message::Binary(Binary::from(data.clone())))
-        );
+        assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
     }
 }
 
@@ -220,26 +207,20 @@ fn test_ws_server_ssl() {
 
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
-        .unwrap();
-    builder
-        .set_certificate_chain_file("tests/cert.pem")
-        .unwrap();
+    builder.set_private_key_file("tests/key.pem", SslFiletype::PEM).unwrap();
+    builder.set_certificate_chain_file("tests/cert.pem").unwrap();
 
-    let mut srv = test::TestServer::build()
-        .ssl(builder.build())
-        .start(|app| {
-            app.handler(|req| {
-                ws::start(
-                    req,
-                    Ws2 {
-                        count: 0,
-                        bin: false,
-                    },
-                )
-            })
-        });
+    let mut srv = test::TestServer::build().ssl(builder.build()).start(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: false,
+                },
+            )
+        })
+    });
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));

@@ -64,26 +64,36 @@ use resource::ResourceHandler;
 #[derive(Debug, Fail)]
 pub enum CorsError {
     /// The HTTP request header `Origin` is required but was not provided
-    #[fail(display = "The HTTP request header `Origin` is required but was not provided")]
+    #[fail(
+        display = "The HTTP request header `Origin` is required but was not provided"
+    )]
     MissingOrigin,
     /// The HTTP request header `Origin` could not be parsed correctly.
     #[fail(display = "The HTTP request header `Origin` could not be parsed correctly.")]
     BadOrigin,
     /// The request header `Access-Control-Request-Method` is required but is
     /// missing
-    #[fail(display = "The request header `Access-Control-Request-Method` is required but is missing")]
+    #[fail(
+        display = "The request header `Access-Control-Request-Method` is required but is missing"
+    )]
     MissingRequestMethod,
     /// The request header `Access-Control-Request-Method` has an invalid value
-    #[fail(display = "The request header `Access-Control-Request-Method` has an invalid value")]
+    #[fail(
+        display = "The request header `Access-Control-Request-Method` has an invalid value"
+    )]
     BadRequestMethod,
     /// The request header `Access-Control-Request-Headers`  has an invalid
     /// value
-    #[fail(display = "The request header `Access-Control-Request-Headers`  has an invalid value")]
+    #[fail(
+        display = "The request header `Access-Control-Request-Headers`  has an invalid value"
+    )]
     BadRequestHeaders,
     /// The request header `Access-Control-Request-Headers`  is required but is
     /// missing.
-    #[fail(display = "The request header `Access-Control-Request-Headers`  is required but is
-                     missing")]
+    #[fail(
+        display = "The request header `Access-Control-Request-Headers`  is required but is
+                     missing"
+    )]
     MissingRequestHeaders,
     /// Origin is not allowed to make this request
     #[fail(display = "Origin is not allowed to make this request")]
@@ -265,9 +275,7 @@ impl Cors {
     /// `ResourceHandler::middleware()` method, but in that case *Cors*
     /// middleware wont be able to handle *OPTIONS* requests.
     pub fn register<S: 'static>(self, resource: &mut ResourceHandler<S>) {
-        resource
-            .method(Method::OPTIONS)
-            .h(|_| HttpResponse::Ok());
+        resource.method(Method::OPTIONS).h(|_| HttpResponse::Ok());
         resource.middleware(self);
     }
 
@@ -292,11 +300,9 @@ impl Cors {
     }
 
     fn validate_allowed_method<S>(
-        &self, req: &mut HttpRequest<S>
+        &self, req: &mut HttpRequest<S>,
     ) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers()
-            .get(header::ACCESS_CONTROL_REQUEST_METHOD)
-        {
+        if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_METHOD) {
             if let Ok(meth) = hdr.to_str() {
                 if let Ok(method) = Method::try_from(meth) {
                     return self.inner
@@ -313,13 +319,13 @@ impl Cors {
     }
 
     fn validate_allowed_headers<S>(
-        &self, req: &mut HttpRequest<S>
+        &self, req: &mut HttpRequest<S>,
     ) -> Result<(), CorsError> {
         match self.inner.headers {
             AllOrSome::All => Ok(()),
             AllOrSome::Some(ref allowed_headers) => {
-                if let Some(hdr) = req.headers()
-                    .get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                if let Some(hdr) =
+                    req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
                 {
                     if let Ok(headers) = hdr.to_str() {
                         let mut hdrs = HashSet::new();
@@ -361,8 +367,8 @@ impl<S> Middleware<S> for Cors {
                             .as_str()[1..],
                     ).unwrap(),
                 )
-            } else if let Some(hdr) = req.headers()
-                .get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+            } else if let Some(hdr) =
+                req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
             {
                 Some(hdr.clone())
             } else {
@@ -419,7 +425,7 @@ impl<S> Middleware<S> for Cors {
     }
 
     fn response(
-        &self, req: &mut HttpRequest<S>, mut resp: HttpResponse
+        &self, req: &mut HttpRequest<S>, mut resp: HttpResponse,
     ) -> Result<Response> {
         match self.inner.origins {
             AllOrSome::All => {
@@ -506,7 +512,7 @@ pub struct CorsBuilder<S = ()> {
 }
 
 fn cors<'a>(
-    parts: &'a mut Option<Inner>, err: &Option<http::Error>
+    parts: &'a mut Option<Inner>, err: &Option<http::Error>,
 ) -> Option<&'a mut Inner> {
     if err.is_some() {
         return None;
@@ -813,17 +819,13 @@ impl<S: 'static> CorsBuilder<S> {
         }
 
         if let AllOrSome::Some(ref origins) = cors.origins {
-            let s = origins
-                .iter()
-                .fold(String::new(), |s, v| s + &format!("{}", v));
+            let s = origins.iter().fold(String::new(), |s, v| s + &v.to_string());
             cors.origins_str = Some(HeaderValue::try_from(s.as_str()).unwrap());
         }
 
         if !self.expose_hdrs.is_empty() {
             cors.expose_hdrs = Some(
-                self.expose_hdrs
-                    .iter()
-                    .fold(String::new(), |s, v| s + v.as_str())[1..]
+                self.expose_hdrs.iter().fold(String::new(), |s, v| s + v.as_str())[1..]
                     .to_owned(),
             );
         }
@@ -901,27 +903,19 @@ mod tests {
     #[test]
     #[should_panic(expected = "Credentials are allowed, but the Origin is set to")]
     fn cors_validates_illegal_allow_credentials() {
-        Cors::build()
-            .supports_credentials()
-            .send_wildcard()
-            .finish();
+        Cors::build().supports_credentials().send_wildcard().finish();
     }
 
     #[test]
     #[should_panic(expected = "No resources are registered")]
     fn no_resource() {
-        Cors::build()
-            .supports_credentials()
-            .send_wildcard()
-            .register();
+        Cors::build().supports_credentials().send_wildcard().register();
     }
 
     #[test]
     #[should_panic(expected = "Cors::for_app(app)")]
     fn no_resource2() {
-        Cors::build()
-            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
-            .register();
+        Cors::build().resource("/test", |r| r.f(|_| HttpResponse::Ok())).register();
     }
 
     #[test]
@@ -958,27 +952,18 @@ mod tests {
 
         let mut req = TestRequest::with_header("Origin", "https://www.example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
-            .header(
-                header::ACCESS_CONTROL_REQUEST_HEADERS,
-                "AUTHORIZATION,ACCEPT",
-            )
+            .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "AUTHORIZATION,ACCEPT")
             .method(Method::OPTIONS)
             .finish();
 
         let resp = cors.start(&mut req).unwrap().response();
         assert_eq!(
             &b"*"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes()
         );
         assert_eq!(
             &b"3600"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_MAX_AGE)
-                .unwrap()
-                .as_bytes()
+            resp.headers().get(header::ACCESS_CONTROL_MAX_AGE).unwrap().as_bytes()
         );
         //assert_eq!(
         //    &b"authorization,accept,content-type"[..],
@@ -995,9 +980,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "MissingOrigin")]
     fn test_validate_missing_origin() {
-        let cors = Cors::build()
-            .allowed_origin("https://www.example.com")
-            .finish();
+        let cors = Cors::build().allowed_origin("https://www.example.com").finish();
 
         let mut req = HttpRequest::default();
         cors.start(&mut req).unwrap();
@@ -1006,9 +989,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "OriginNotAllowed")]
     fn test_validate_not_allowed_origin() {
-        let cors = Cors::build()
-            .allowed_origin("https://www.example.com")
-            .finish();
+        let cors = Cors::build().allowed_origin("https://www.example.com").finish();
 
         let mut req = TestRequest::with_header("Origin", "https://www.unknown.com")
             .method(Method::GET)
@@ -1018,9 +999,7 @@ mod tests {
 
     #[test]
     fn test_validate_origin() {
-        let cors = Cors::build()
-            .allowed_origin("https://www.example.com")
-            .finish();
+        let cors = Cors::build().allowed_origin("https://www.example.com").finish();
 
         let mut req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::GET)
@@ -1036,11 +1015,7 @@ mod tests {
         let mut req = TestRequest::default().method(Method::GET).finish();
         let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&mut req, resp).unwrap().response();
-        assert!(
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .is_none()
-        );
+        assert!(resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
 
         let mut req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
@@ -1048,10 +1023,7 @@ mod tests {
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"https://www.example.com"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes()
         );
     }
 
@@ -1074,19 +1046,12 @@ mod tests {
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"*"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes()
         );
-        assert_eq!(
-            &b"Origin"[..],
-            resp.headers().get(header::VARY).unwrap().as_bytes()
-        );
+        assert_eq!(&b"Origin"[..], resp.headers().get(header::VARY).unwrap().as_bytes());
 
-        let resp: HttpResponse = HttpResponse::Ok()
-            .header(header::VARY, "Accept")
-            .finish();
+        let resp: HttpResponse =
+            HttpResponse::Ok().header(header::VARY, "Accept").finish();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"Accept, Origin"[..],
@@ -1101,10 +1066,7 @@ mod tests {
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"https://www.example.com"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
+            resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().as_bytes()
         );
     }
 

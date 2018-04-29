@@ -194,11 +194,11 @@ impl From<CloseCode> for CloseReason {
     }
 }
 
-impl <T: Into<String>> From<(CloseCode, T)> for CloseReason {
+impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
     fn from(info: (CloseCode, T)) -> Self {
-        CloseReason{
+        CloseReason {
             code: info.0,
-            description: Some(info.1.into())
+            description: Some(info.1.into()),
         }
     }
 }

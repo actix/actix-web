@@ -7,18 +7,18 @@ use std::mem;
 
 use error::{ParseError, PayloadError};
 
-use server::h1::{chunked, Decoder};
+use server::h1decoder::EncodingDecoder;
 use server::{utils, IoStream};
 
-use super::ClientResponse;
 use super::response::ClientMessage;
+use super::ClientResponse;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
 #[derive(Default)]
 pub struct HttpResponseParser {
-    decoder: Option<Decoder>,
+    decoder: Option<EncodingDecoder>,
 }
 
 #[derive(Debug, Fail)]
@@ -32,7 +32,7 @@ pub enum HttpResponseParserError {
 
 impl HttpResponseParser {
     pub fn parse<T>(
-        &mut self, io: &mut T, buf: &mut BytesMut
+        &mut self, io: &mut T, buf: &mut BytesMut,
     ) -> Poll<ClientResponse, HttpResponseParserError>
     where
         T: IoStream,
@@ -75,7 +75,7 @@ impl HttpResponseParser {
     }
 
     pub fn parse_payload<T>(
-        &mut self, io: &mut T, buf: &mut BytesMut
+        &mut self, io: &mut T, buf: &mut BytesMut,
     ) -> Poll<Option<Bytes>, PayloadError>
     where
         T: IoStream,
@@ -113,8 +113,8 @@ impl HttpResponseParser {
     }
 
     fn parse_message(
-        buf: &mut BytesMut
-    ) -> Poll<(ClientResponse, Option<Decoder>), ParseError> {
+        buf: &mut BytesMut,
+    ) -> Poll<(ClientResponse, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let bytes_ptr = buf.as_ref().as_ptr() as usize;
         let mut headers: [httparse::Header; MAX_HEADERS] =
@@ -160,12 +160,12 @@ impl HttpResponseParser {
         }
 
         let decoder = if status == StatusCode::SWITCHING_PROTOCOLS {
-            Some(Decoder::eof())
+            Some(EncodingDecoder::eof())
         } else if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
-                    Some(Decoder::length(len))
+                    Some(EncodingDecoder::length(len))
                 } else {
                     debug!("illegal Content-Length: {:?}", len);
                     return Err(ParseError::Header);
@@ -176,7 +176,7 @@ impl HttpResponseParser {
             }
         } else if chunked(&hdrs)? {
             // Chunked encoding
-            Some(Decoder::chunked())
+            Some(EncodingDecoder::chunked())
         } else {
             None
         };
@@ -202,5 +202,18 @@ impl HttpResponseParser {
                 None,
             )))
         }
+    }
+}
+
+/// Check if request has chunked transfer encoding
+pub fn chunked(headers: &HeaderMap) -> Result<bool, ParseError> {
+    if let Some(encodings) = headers.get(header::TRANSFER_ENCODING) {
+        if let Ok(s) = encodings.to_str() {
+            Ok(s.to_lowercase().contains("chunked"))
+        } else {
+            Err(ParseError::Header)
+        }
+    } else {
+        Ok(false)
     }
 }

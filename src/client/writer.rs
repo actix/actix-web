@@ -114,10 +114,7 @@ impl HttpClientWriter {
                 self.buffer,
                 "{} {} {:?}\r",
                 msg.method(),
-                msg.uri()
-                    .path_and_query()
-                    .map(|u| u.as_str())
-                    .unwrap_or("/"),
+                msg.uri().path_and_query().map(|u| u.as_str()).unwrap_or("/"),
                 msg.version()
             )?;
 
@@ -253,10 +250,8 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             }
             let mut b = BytesMut::new();
             let _ = write!(b, "{}", bytes.len());
-            req.headers_mut().insert(
-                CONTENT_LENGTH,
-                HeaderValue::try_from(b.freeze()).unwrap(),
-            );
+            req.headers_mut()
+                .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
             TransferEncoding::eof(buf)
         }
         Body::Streaming(_) | Body::Actor(_) => {
@@ -279,10 +274,8 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
     };
 
     if encoding.is_compression() {
-        req.headers_mut().insert(
-            CONTENT_ENCODING,
-            HeaderValue::from_static(encoding.as_str()),
-        );
+        req.headers_mut()
+            .insert(CONTENT_ENCODING, HeaderValue::from_static(encoding.as_str()));
     }
 
     req.replace_body(body);

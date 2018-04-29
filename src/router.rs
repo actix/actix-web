@@ -80,7 +80,11 @@ impl Router {
             return None;
         }
         let path: &str = unsafe { mem::transmute(&req.path()[self.0.prefix_len..]) };
-        let route_path = if path.is_empty() { "/" } else { path };
+        let route_path = if path.is_empty() {
+            "/"
+        } else {
+            path
+        };
 
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
             if pattern.match_with_params(route_path, req.match_info_mut()) {
@@ -98,7 +102,11 @@ impl Router {
     /// following path would be recognizable `/test/name` but `has_route()` call
     /// would return `false`.
     pub fn has_route(&self, path: &str) -> bool {
-        let path = if path.is_empty() { "/" } else { path };
+        let path = if path.is_empty() {
+            "/"
+        } else {
+            path
+        };
 
         for pattern in &self.0.patterns {
             if pattern.is_match(path) {
@@ -113,7 +121,7 @@ impl Router {
     /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
     /// url_for) for detailed information.
     pub fn resource_path<U, I>(
-        &self, name: &str, elements: U
+        &self, name: &str, elements: U,
     ) -> Result<String, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -245,7 +253,7 @@ impl Resource {
     }
 
     pub fn match_with_params<'a>(
-        &'a self, path: &'a str, params: &'a mut Params<'a>
+        &'a self, path: &'a str, params: &'a mut Params<'a>,
     ) -> bool {
         match self.tp {
             PatternType::Static(ref s) => s == path,
@@ -270,7 +278,7 @@ impl Resource {
 
     /// Build reousrce path.
     pub fn resource_path<U, I>(
-        &self, router: &Router, elements: U
+        &self, router: &Router, elements: U,
     ) -> Result<String, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -383,34 +391,19 @@ mod tests {
     #[test]
     fn test_recognizer() {
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (Resource::new("", "/name/{val}"), Some(ResourceHandler::default())),
             (
                 Resource::new("", "/name/{val}/index.html"),
                 Some(ResourceHandler::default()),
             ),
-            (
-                Resource::new("", "/file/{file}.{ext}"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/file/{file}.{ext}"), Some(ResourceHandler::default())),
             (
                 Resource::new("", "/v{val}/{val2}/index.html"),
                 Some(ResourceHandler::default()),
             ),
-            (
-                Resource::new("", "/v/{tail:.*}"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("", "{test}/index.html"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/v/{tail:.*}"), Some(ResourceHandler::default())),
+            (Resource::new("", "{test}/index.html"), Some(ResourceHandler::default())),
         ];
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
@@ -439,10 +432,7 @@ mod tests {
 
         let mut req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
         assert_eq!(rec.recognize(&mut req), Some(5));
-        assert_eq!(
-            req.match_info().get("tail").unwrap(),
-            "blah-blah/index.html"
-        );
+        assert_eq!(req.match_info().get("tail").unwrap(), "blah-blah/index.html");
 
         let mut req = TestRequest::with_uri("/bbb/index.html").finish();
         assert_eq!(rec.recognize(&mut req), Some(6));
@@ -452,14 +442,8 @@ mod tests {
     #[test]
     fn test_recognizer_2() {
         let routes = vec![
-            (
-                Resource::new("", "/index.json"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("", "/{source}.json"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/index.json"), Some(ResourceHandler::default())),
+            (Resource::new("", "/{source}.json"), Some(ResourceHandler::default())),
         ];
         let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
 
@@ -473,14 +457,8 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (Resource::new("", "/name/{val}"), Some(ResourceHandler::default())),
         ];
         let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
 
@@ -497,14 +475,8 @@ mod tests {
 
         // same patterns
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (Resource::new("", "/name/{val}"), Some(ResourceHandler::default())),
         ];
         let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
 
@@ -573,14 +545,8 @@ mod tests {
     #[test]
     fn test_request_resource() {
         let routes = vec![
-            (
-                Resource::new("r1", "/index.json"),
-                Some(ResourceHandler::default()),
-            ),
-            (
-                Resource::new("r2", "/test.json"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("r1", "/index.json"), Some(ResourceHandler::default())),
+            (Resource::new("r2", "/test.json"), Some(ResourceHandler::default())),
         ];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
 

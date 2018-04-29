@@ -170,14 +170,22 @@ impl TestServer {
         if uri.starts_with('/') {
             format!(
                 "{}://{}{}",
-                if self.ssl { "https" } else { "http" },
+                if self.ssl {
+                    "https"
+                } else {
+                    "http"
+                },
                 self.addr,
                 uri
             )
         } else {
             format!(
                 "{}://{}/{}",
-                if self.ssl { "https" } else { "http" },
+                if self.ssl {
+                    "https"
+                } else {
+                    "http"
+                },
                 self.addr,
                 uri
             )
@@ -202,7 +210,7 @@ impl TestServer {
 
     /// Connect to websocket server
     pub fn ws(
-        &mut self
+        &mut self,
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url("/");
         self.system.run_until_complete(
@@ -350,17 +358,14 @@ pub struct TestApp<S = ()> {
 impl<S: 'static> TestApp<S> {
     fn new(state: S) -> TestApp<S> {
         let app = App::with_state(state);
-        TestApp { app: Some(app) }
+        TestApp {
+            app: Some(app),
+        }
     }
 
     /// Register handler for "/"
     pub fn handler<H: Handler<S>>(&mut self, handler: H) {
-        self.app = Some(
-            self.app
-                .take()
-                .unwrap()
-                .resource("/", |r| r.h(handler)),
-        );
+        self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
     }
 
     /// Register middleware
@@ -594,7 +599,7 @@ impl<S> TestRequest<S> {
     ///
     /// This method panics is handler returns actor or async result.
     pub fn run<H: Handler<S>>(
-        self, mut h: H
+        self, mut h: H,
     ) -> Result<HttpResponse, <<H as Handler<S>>::Result as Responder>::Error> {
         let req = self.finish();
         let resp = h.handle(req.clone());

@@ -187,7 +187,7 @@ where
     S: 'static,
 {
     pub fn new(
-        f: F, cfg1: ExtractorConfig<S, T1>, cfg2: ExtractorConfig<S, T2>
+        f: F, cfg1: ExtractorConfig<S, T1>, cfg2: ExtractorConfig<S, T2>,
     ) -> Self {
         With2 {
             hnd: Rc::new(UnsafeCell::new(f)),
@@ -307,10 +307,8 @@ where
                 Async::Ready(item) => {
                     self.item = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::from_request(
-                        &self.req,
-                        self.cfg2.as_ref(),
-                    )));
+                    self.fut2 =
+                        Some(Box::new(T2::from_request(&self.req, self.cfg2.as_ref())));
                 }
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -510,10 +508,8 @@ where
                 Async::Ready(item) => {
                     self.item1 = Some(item);
                     self.fut1.take();
-                    self.fut2 = Some(Box::new(T2::from_request(
-                        &self.req,
-                        self.cfg2.as_ref(),
-                    )));
+                    self.fut2 =
+                        Some(Box::new(T2::from_request(&self.req, self.cfg2.as_ref())));
                 }
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -524,10 +520,8 @@ where
                 Async::Ready(item) => {
                     self.item2 = Some(item);
                     self.fut2.take();
-                    self.fut3 = Some(Box::new(T3::from_request(
-                        &self.req,
-                        self.cfg3.as_ref(),
-                    )));
+                    self.fut3 =
+                        Some(Box::new(T3::from_request(&self.req, self.cfg3.as_ref())));
                 }
                 Async::NotReady => return Ok(Async::NotReady),
             }
@@ -539,15 +533,13 @@ where
         };
 
         let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(
-            self.item1.take().unwrap(),
-            self.item2.take().unwrap(),
-            item,
-        ).respond_to(self.req.drop_state())
-        {
-            Ok(item) => item.into(),
-            Err(err) => return Err(err.into()),
-        };
+        let item =
+            match (*hnd)(self.item1.take().unwrap(), self.item2.take().unwrap(), item)
+                .respond_to(self.req.drop_state())
+            {
+                Ok(item) => item.into(),
+                Err(err) => return Err(err.into()),
+            };
 
         match item.into() {
             ReplyItem::Message(resp) => return Ok(Async::Ready(resp)),

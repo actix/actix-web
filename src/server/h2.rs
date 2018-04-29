@@ -61,7 +61,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes
+        settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes,
     ) -> Self {
         Http2 {
             flags: Flags::empty(),

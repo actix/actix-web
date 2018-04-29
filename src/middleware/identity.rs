@@ -49,8 +49,8 @@
 use std::rc::Rc;
 
 use cookie::{Cookie, CookieJar, Key};
+use futures::future::{err as FutErr, ok as FutOk, FutureResult};
 use futures::Future;
-use futures::future::{FutureResult, err as FutErr, ok as FutOk};
 use time::Duration;
 
 use error::{Error, Result};
@@ -164,7 +164,9 @@ pub struct IdentityService<T> {
 impl<T> IdentityService<T> {
     /// Create new identity service with specified backend.
     pub fn new(backend: T) -> Self {
-        IdentityService { backend }
+        IdentityService {
+            backend,
+        }
     }
 }
 
@@ -179,20 +181,18 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
-        let fut = self.backend
-            .from_request(&mut req)
-            .then(move |res| match res {
-                Ok(id) => {
-                    req.extensions().insert(IdentityBox(Box::new(id)));
-                    FutOk(None)
-                }
-                Err(err) => FutErr(err),
-            });
+        let fut = self.backend.from_request(&mut req).then(move |res| match res {
+            Ok(id) => {
+                req.extensions().insert(IdentityBox(Box::new(id)));
+                FutOk(None)
+            }
+            Err(err) => FutErr(err),
+        });
         Ok(Started::Future(Box::new(fut)))
     }
 
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(mut id) = req.extensions().remove::<IdentityBox>() {
             id.0.write(resp)

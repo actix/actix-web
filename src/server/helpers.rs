@@ -69,7 +69,7 @@ impl SharedHttpInnerMessage {
     }
 
     pub fn new(
-        msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>
+        msg: Rc<HttpInnerMessage>, pool: Rc<SharedMessagePool>,
     ) -> SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(msg), Some(pool))
     }
@@ -79,7 +79,7 @@ impl SharedHttpInnerMessage {
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
     pub fn get_mut(&self) -> &mut HttpInnerMessage {
         let r: &HttpInnerMessage = self.0.as_ref().unwrap().as_ref();
-        unsafe { mem::transmute(r) }
+        unsafe { &mut *(r as *const _ as *mut _) }
     }
 
     #[inline(always)]
@@ -96,9 +96,8 @@ const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       8081828384858687888990919293949596979899";
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 13] = [
-        b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' '
-    ];
+    let mut buf: [u8; 13] =
+        [b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' '];
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
@@ -251,63 +250,33 @@ mod tests {
         let mut bytes = BytesMut::new();
         bytes.reserve(50);
         write_content_length(0, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 0\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
         bytes.reserve(50);
         write_content_length(9, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 9\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
         bytes.reserve(50);
         write_content_length(10, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 10\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
         bytes.reserve(50);
         write_content_length(99, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 99\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
         bytes.reserve(50);
         write_content_length(100, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 100\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
         bytes.reserve(50);
         write_content_length(101, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 101\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
         bytes.reserve(50);
         write_content_length(998, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 998\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1000, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 1000\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1001, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 1001\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
         bytes.reserve(50);
         write_content_length(5909, &mut bytes);
-        assert_eq!(
-            bytes.take().freeze(),
-            b"\r\ncontent-length: 5909\r\n"[..]
-        );
+        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
     }
 }

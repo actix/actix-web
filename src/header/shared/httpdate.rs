@@ -64,11 +64,7 @@ impl IntoHeaderValue for HttpDate {
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(wrt, "{}", self.0.rfc822()).unwrap();
-        unsafe {
-            Ok(HeaderValue::from_shared_unchecked(
-                wrt.get_mut().take().freeze(),
-            ))
-        }
+        unsafe { Ok(HeaderValue::from_shared_unchecked(wrt.get_mut().take().freeze())) }
     }
 }
 
@@ -104,24 +100,12 @@ mod tests {
 
     #[test]
     fn test_date() {
+        assert_eq!("Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(), NOV_07);
         assert_eq!(
-            "Sun, 07 Nov 1994 08:48:37 GMT"
-                .parse::<HttpDate>()
-                .unwrap(),
+            "Sunday, 07-Nov-94 08:48:37 GMT".parse::<HttpDate>().unwrap(),
             NOV_07
         );
-        assert_eq!(
-            "Sunday, 07-Nov-94 08:48:37 GMT"
-                .parse::<HttpDate>()
-                .unwrap(),
-            NOV_07
-        );
-        assert_eq!(
-            "Sun Nov  7 08:48:37 1994"
-                .parse::<HttpDate>()
-                .unwrap(),
-            NOV_07
-        );
+        assert_eq!("Sun Nov  7 08:48:37 1994".parse::<HttpDate>().unwrap(), NOV_07);
         assert!("this-is-no-date".parse::<HttpDate>().is_err());
     }
 }

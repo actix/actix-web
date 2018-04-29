@@ -53,8 +53,8 @@ impl<'a> ConnectionInfo<'a> {
 
         // scheme
         if scheme.is_none() {
-            if let Some(h) = req.headers()
-                .get(HeaderName::from_str(X_FORWARDED_PROTO).unwrap())
+            if let Some(h) =
+                req.headers().get(HeaderName::from_str(X_FORWARDED_PROTO).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     scheme = h.split(',').next().map(|v| v.trim());
@@ -74,8 +74,8 @@ impl<'a> ConnectionInfo<'a> {
 
         // host
         if host.is_none() {
-            if let Some(h) = req.headers()
-                .get(HeaderName::from_str(X_FORWARDED_HOST).unwrap())
+            if let Some(h) =
+                req.headers().get(HeaderName::from_str(X_FORWARDED_HOST).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     host = h.split(',').next().map(|v| v.trim());
@@ -98,8 +98,8 @@ impl<'a> ConnectionInfo<'a> {
 
         // remote addr
         if remote.is_none() {
-            if let Some(h) = req.headers()
-                .get(HeaderName::from_str(X_FORWARDED_FOR).unwrap())
+            if let Some(h) =
+                req.headers().get(HeaderName::from_str(X_FORWARDED_FOR).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     remote = h.split(',').next().map(|v| v.trim());
@@ -189,10 +189,8 @@ mod tests {
         assert_eq!(info.remote(), Some("192.0.2.60"));
 
         let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            header::HOST,
-            HeaderValue::from_static("rust-lang.org"),
-        );
+        req.headers_mut()
+            .insert(header::HOST, HeaderValue::from_static("rust-lang.org"));
 
         let info = ConnectionInfo::new(&req);
         assert_eq!(info.scheme(), "http");

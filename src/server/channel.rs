@@ -7,7 +7,7 @@ use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::settings::WorkerSettings;
-use super::{utils, HttpHandler, IoStream, h1, h2};
+use super::{h1, h2, utils, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
@@ -93,12 +93,12 @@ where
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) => self.node
-                    .as_ref()
-                    .map(|n| h1.settings().head().insert(n)),
-                Some(HttpProtocol::H2(ref mut h2)) => self.node
-                    .as_ref()
-                    .map(|n| h2.settings().head().insert(n)),
+                Some(HttpProtocol::H1(ref mut h1)) => {
+                    self.node.as_ref().map(|n| h1.settings().head().insert(n))
+                }
+                Some(HttpProtocol::H2(ref mut h2)) => {
+                    self.node.as_ref().map(|n| h2.settings().head().insert(n))
+                }
                 Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
                     self.node.as_ref().map(|n| settings.head().insert(n))
                 }
@@ -112,7 +112,9 @@ where
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
                         h1.settings().remove_channel();
-                        self.node.as_mut().map(|n| n.remove());
+                        if let Some(n) = self.node.as_mut() {
+                            n.remove()
+                        };
                     }
                     _ => (),
                 }
@@ -123,7 +125,9 @@ where
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
                         h2.settings().remove_channel();
-                        self.node.as_mut().map(|n| n.remove());
+                        if let Some(n) = self.node.as_mut() {
+                            n.remove()
+                        };
                     }
                     _ => (),
                 }
@@ -139,7 +143,9 @@ where
                     Ok(Async::Ready(0)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
                         settings.remove_channel();
-                        self.node.as_mut().map(|n| n.remove());
+                        if let Some(n) = self.node.as_mut() {
+                            n.remove()
+                        };
                         return Err(());
                     }
                     _ => (),
@@ -162,12 +168,8 @@ where
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
-                        settings,
-                        io,
-                        addr,
-                        buf,
-                    )));
+                    self.proto =
+                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {
@@ -204,7 +206,8 @@ impl<T> Node<T> {
         #[allow(mutable_transmutes)]
         unsafe {
             if let Some(ref next2) = self.next {
-                let n: &mut Node<()> = mem::transmute(next2.as_ref().unwrap());
+                let n: &mut Node<()> =
+                    &mut *(next2.as_ref().unwrap() as *const _ as *mut _);
                 n.prev = Some(next as *const _ as *mut _);
             }
             let slf: &mut Node<T> = mem::transmute(self);
@@ -275,7 +278,9 @@ where
     T: AsyncRead + AsyncWrite + 'static,
 {
     pub fn new(io: T) -> Self {
-        WrapperStream { io }
+        WrapperStream {
+            io,
+        }
     }
 }
 

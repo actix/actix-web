@@ -26,10 +26,7 @@ fn test_path_extractor() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/test/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -47,10 +44,7 @@ fn test_query_extractor() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/index.html?username=test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/index.html?username=test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -59,10 +53,7 @@ fn test_query_extractor() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test!"));
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -78,10 +69,8 @@ fn test_path_and_query_extractor() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test1/index.html?username=test2"))
-        .finish()
-        .unwrap();
+    let request =
+        srv.get().uri(srv.url("/test1/index.html?username=test2")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -90,10 +79,7 @@ fn test_path_and_query_extractor() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - test2!"));
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test1/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/test1/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -102,18 +88,15 @@ fn test_path_and_query_extractor() {
 fn test_path_and_query_extractor2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route()
-                .with3(|_: HttpRequest, p: Path<PParam>, q: Query<PParam>| {
-                    format!("Welcome {} - {}!", p.username, q.username)
-                })
+            r.route().with3(|_: HttpRequest, p: Path<PParam>, q: Query<PParam>| {
+                format!("Welcome {} - {}!", p.username, q.username)
+            })
         });
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test1/index.html?username=test2"))
-        .finish()
-        .unwrap();
+    let request =
+        srv.get().uri(srv.url("/test1/index.html?username=test2")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -122,10 +105,7 @@ fn test_path_and_query_extractor2() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - test2!"));
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test1/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/test1/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -137,10 +117,7 @@ fn test_non_ascii_route() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/中文/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/中文/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -158,17 +135,12 @@ fn test_unsafe_path_route() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test/http%3A%2F%2Fexample.com"))
-        .finish()
-        .unwrap();
+    let request =
+        srv.get().uri(srv.url("/test/http%3A%2F%2Fexample.com")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"success: http:%2F%2Fexample.com")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"success: http:%2F%2Fexample.com"));
 }

@@ -14,8 +14,8 @@ extern crate url;
 
 use futures::Future;
 use rand::{thread_rng, Rng};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix::prelude::*;
@@ -61,12 +61,8 @@ fn main() {
     let sample_rate = parse_u64_default(matches.value_of("sample-rate"), 1) as usize;
 
     let perf_counters = Arc::new(PerfCounters::new());
-    let payload = Arc::new(
-        thread_rng()
-            .gen_ascii_chars()
-            .take(payload_size)
-            .collect::<String>(),
-    );
+    let payload =
+        Arc::new(thread_rng().gen_ascii_chars().take(payload_size).collect::<String>());
 
     let sys = actix::System::new("ws-client");
 
@@ -82,43 +78,40 @@ fn main() {
         let perf = perf_counters.clone();
         let addr = Arbiter::new(format!("test {}", t));
 
-        addr.do_send(actix::msgs::Execute::new(
-            move || -> Result<(), ()> {
-                for _ in 0..concurrency {
-                    let pl2 = pl.clone();
-                    let perf2 = perf.clone();
-                    let ws2 = ws.clone();
+        addr.do_send(actix::msgs::Execute::new(move || -> Result<(), ()> {
+            for _ in 0..concurrency {
+                let pl2 = pl.clone();
+                let perf2 = perf.clone();
+                let ws2 = ws.clone();
 
-                    Arbiter::handle().spawn(
-                        ws::Client::new(&ws)
-                            .write_buffer_capacity(0)
-                            .connect()
-                            .map_err(|e| {
-                                println!("Error: {}", e);
-                                //Arbiter::system().do_send(actix::msgs::SystemExit(0));
-                                ()
-                            })
-                            .map(move |(reader, writer)| {
-                                let addr: Addr<Syn, _> =
-                                    ChatClient::create(move |ctx| {
-                                        ChatClient::add_stream(reader, ctx);
-                                        ChatClient {
-                                            url: ws2,
-                                            conn: writer,
-                                            payload: pl2,
-                                            bin: bin,
-                                            ts: time::precise_time_ns(),
-                                            perf_counters: perf2,
-                                            sent: 0,
-                                            max_payload_size: max_payload_size,
-                                        }
-                                    });
-                            }),
-                    );
-                }
-                Ok(())
-            },
-        ));
+                Arbiter::handle().spawn(
+                    ws::Client::new(&ws)
+                        .write_buffer_capacity(0)
+                        .connect()
+                        .map_err(|e| {
+                            println!("Error: {}", e);
+                            //Arbiter::system().do_send(actix::msgs::SystemExit(0));
+                            ()
+                        })
+                        .map(move |(reader, writer)| {
+                            let addr: Addr<Syn, _> = ChatClient::create(move |ctx| {
+                                ChatClient::add_stream(reader, ctx);
+                                ChatClient {
+                                    url: ws2,
+                                    conn: writer,
+                                    payload: pl2,
+                                    bin: bin,
+                                    ts: time::precise_time_ns(),
+                                    perf_counters: perf2,
+                                    sent: 0,
+                                    max_payload_size: max_payload_size,
+                                }
+                            });
+                        }),
+                );
+            }
+            Ok(())
+        }));
     }
 
     let res = sys.run();
@@ -126,10 +119,7 @@ fn main() {
 
 fn parse_u64_default(input: Option<&str>, default: u64) -> u64 {
     input
-        .map(|v| {
-            v.parse()
-                .expect(&format!("not a valid number: {}", v))
-        })
+        .map(|v| v.parse().expect(&format!("not a valid number: {}", v)))
         .unwrap_or(default)
 }
 
@@ -149,15 +139,13 @@ impl Actor for Perf {
 
 impl Perf {
     fn sample_rate(&self, ctx: &mut Context<Self>) {
-        ctx.run_later(
-            Duration::new(self.sample_rate_secs as u64, 0),
-            |act, ctx| {
-                let req_count = act.counters.pull_request_count();
-                if req_count != 0 {
-                    let conns = act.counters.pull_connections_count();
-                    let latency = act.counters.pull_latency_ns();
-                    let latency_max = act.counters.pull_latency_max_ns();
-                    println!(
+        ctx.run_later(Duration::new(self.sample_rate_secs as u64, 0), |act, ctx| {
+            let req_count = act.counters.pull_request_count();
+            if req_count != 0 {
+                let conns = act.counters.pull_connections_count();
+                let latency = act.counters.pull_latency_ns();
+                let latency_max = act.counters.pull_latency_max_ns();
+                println!(
                         "rate: {}, conns: {}, throughput: {:?} kb, latency: {}, latency max: {}",
                         req_count / act.sample_rate_secs,
                         conns / act.sample_rate_secs,
@@ -166,11 +154,10 @@ impl Perf {
                         time::Duration::nanoseconds((latency / req_count as u64) as i64),
                         time::Duration::nanoseconds(latency_max as i64)
                     );
-                }
+            }
 
-                act.sample_rate(ctx);
-            },
-        );
+            act.sample_rate(ctx);
+        });
     }
 }
 
@@ -314,8 +301,7 @@ impl PerfCounters {
         loop {
             let current = self.lat_max.load(Ordering::SeqCst);
             if current >= nanos
-                || self.lat_max
-                    .compare_and_swap(current, nanos, Ordering::SeqCst)
+                || self.lat_max.compare_and_swap(current, nanos, Ordering::SeqCst)
                     == current
             {
                 break;
