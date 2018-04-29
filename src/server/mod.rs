@@ -10,6 +10,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 mod channel;
 pub(crate) mod encoding;
 pub(crate) mod h1;
+pub(crate) mod h1decoder;
 mod h1writer;
 mod h2;
 mod h2writer;
