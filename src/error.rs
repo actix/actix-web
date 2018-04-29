@@ -45,6 +45,16 @@ impl Error {
     pub fn cause(&self) -> &ResponseError {
         self.cause.as_ref()
     }
+
+    /// Returns a reference to the Backtrace carried by this error, if it
+    /// carries one.
+    pub fn backtrace(&self) -> Option<&Backtrace> {
+        if let Some(bt) = self.cause.backtrace() {
+            Some(bt)
+        } else {
+            self.backtrace.as_ref()
+        }
+    }
 }
 
 /// Error that can be converted to `HttpResponse`
@@ -791,6 +801,13 @@ mod tests {
         let desc = orig.description().to_owned();
         let e = ParseError::Io(orig);
         assert_eq!(format!("{}", e.cause().unwrap()), desc);
+    }
+
+    #[test]
+    fn test_backtrace() {
+        let orig = ErrorBadRequest("err");
+        let e: Error = orig.into();
+        assert!(e.backtrace().is_some());
     }
 
     #[test]

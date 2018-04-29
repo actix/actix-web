@@ -6,6 +6,8 @@
 
 * Add Content-Disposition to NamedFile #204
 
+* Allow to access Error's backtrace object
+
 
 ## 0.5.6 (2018-04-24)
 
