@@ -184,7 +184,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
-        for (pattern, resource) in self.resources.iter() {
+        for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(path, req.match_info_mut()) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
 

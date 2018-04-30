@@ -319,10 +319,10 @@ where
     /// }
     /// ```
     ///
-    /// In the above example three routes get registered:
-    ///  * /app/path1 - reponds to all http method
-    ///  * /app/path2 - `GET` requests
-    ///  * /app/path3 - `HEAD` requests
+    /// In the above example, three routes get added:
+    ///  * /app/path1
+    ///  * /app/path2
+    ///  * /app/path3
     ///
     pub fn scope<F>(mut self, path: &str, f: F) -> App<S>
     where
