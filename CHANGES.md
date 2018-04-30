@@ -2,6 +2,8 @@
 
 ## 0.6.0 (...)
 
+* Add route scopes #202
+
 * Websocket CloseCode Empty/Status is ambiguous #193
 
 * Add Content-Disposition to NamedFile #204

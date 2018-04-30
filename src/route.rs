@@ -1,7 +1,8 @@
-use futures::{Async, Future, Poll};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
+
+use futures::{Async, Future, Poll};
 
 use error::Error;
 use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyItem, Responder,

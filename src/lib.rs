@@ -149,6 +149,7 @@ mod pipeline;
 mod resource;
 mod route;
 mod router;
+mod scope;
 mod uri;
 mod with;
 
@@ -171,6 +172,7 @@ pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
+pub use scope::Scope;
 
 #[doc(hidden)]
 pub mod httpcodes;

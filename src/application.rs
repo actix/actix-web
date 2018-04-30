@@ -2,8 +2,7 @@ use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use handler::Reply;
-use handler::{FromRequest, Handler, Responder, RouteHandler, WrapHandler};
+use handler::{FromRequest, Handler, Reply, Responder, RouteHandler, WrapHandler};
 use header::ContentEncoding;
 use http::Method;
 use httprequest::HttpRequest;
@@ -11,6 +10,7 @@ use middleware::Middleware;
 use pipeline::{HandlerType, Pipeline, PipelineHandler};
 use resource::ResourceHandler;
 use router::{Resource, Router};
+use scope::Scope;
 use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, ServerSettings};
 
 #[deprecated(since = "0.5.0", note = "please use `actix_web::App` instead")]
@@ -76,9 +76,9 @@ impl<S: 'static> HttpApplication<S> {
                         &*(&req.path()[inner.prefix + prefix.len()..] as *const _)
                     };
                     if path.is_empty() {
-                        req.match_info_mut().add("tail", "");
+                        req.match_info_mut().add("tail", "/");
                     } else {
-                        req.match_info_mut().add("tail", path.split_at(1).1);
+                        req.match_info_mut().add("tail", path);
                     }
                     return HandlerType::Handler(idx);
                 }
@@ -296,6 +296,48 @@ where
             handler.method(method).with(f);
             let pattern = Resource::new(handler.get_name(), path);
             parts.resources.push((pattern, Some(handler)));
+        }
+        self
+    }
+
+    /// Configure scope for common root path.
+    ///
+    /// Scopes collect multiple paths under a common path prefix.
+    /// Scope path can not contain variable path segments as resources.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .scope("/app", |scope| {
+    ///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+    ///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+    ///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+    ///         });
+    /// }
+    /// ```
+    ///
+    /// In the above example three routes get registered:
+    ///  * /app/path1 - reponds to all http method
+    ///  * /app/path2 - `GET` requests
+    ///  * /app/path3 - `HEAD` requests
+    ///
+    pub fn scope<F>(mut self, path: &str, f: F) -> App<S>
+    where
+        F: FnOnce(Scope<S>) -> Scope<S>,
+    {
+        {
+            let scope = Box::new(f(Scope::new()));
+
+            let mut path = path.trim().trim_right_matches('/').to_owned();
+            if !path.is_empty() && !path.starts_with('/') {
+                path.insert(0, '/')
+            }
+            let parts = self.parts.as_mut().expect("Use after finish");
+
+            parts.handlers.push((path, scope));
         }
         self
     }
