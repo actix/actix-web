@@ -169,7 +169,7 @@ impl<S: 'static> Scope<S> {
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on scope level.
     ///
-    /// *Note* `Middleware::finish()` is fired right after response get
+    /// *Note* `Middleware::finish()` fires right after response get
     /// prepared. It does not wait until body get sent to peer.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Scope<S> {
         Rc::get_mut(&mut self.middlewares)

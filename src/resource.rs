@@ -187,6 +187,9 @@ impl<S: 'static> ResourceHandler<S> {
     ///
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
+    ///
+    /// *Note* `Middleware::finish()` fires right after response get
+    /// prepared. It does not wait until body get sent to peer.
     pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
         Rc::get_mut(&mut self.middlewares)
             .unwrap()

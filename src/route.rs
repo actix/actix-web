@@ -10,8 +10,8 @@ use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyItem, Responder,
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Middleware, Response as MiddlewareResponse,
-                 Started as MiddlewareStarted};
+use middleware::{Finished as MiddlewareFinished, Middleware,
+                 Response as MiddlewareResponse, Started as MiddlewareStarted};
 use pred::Predicate;
 use with::{ExtractorConfig, With, With2, With3};
 
@@ -274,7 +274,8 @@ enum ComposeState<S: 'static> {
     Starting(StartMiddlewares<S>),
     Handler(WaitingResponse<S>),
     RunMiddlewares(RunMiddlewares<S>),
-    Response(Response<S>),
+    Finishing(FinishingMiddlewares<S>),
+    Completed(Response<S>),
 }
 
 impl<S: 'static> ComposeState<S> {
@@ -283,7 +284,8 @@ impl<S: 'static> ComposeState<S> {
             ComposeState::Starting(ref mut state) => state.poll(info),
             ComposeState::Handler(ref mut state) => state.poll(info),
             ComposeState::RunMiddlewares(ref mut state) => state.poll(info),
-            ComposeState::Response(_) => None,
+            ComposeState::Finishing(ref mut state) => state.poll(info),
+            ComposeState::Completed(_) => None,
         }
     }
 }
@@ -310,7 +312,7 @@ impl<S> Future for Compose<S> {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            if let ComposeState::Response(ref mut resp) = self.state {
+            if let ComposeState::Completed(ref mut resp) = self.state {
                 let resp = resp.resp.take().unwrap();
                 return Ok(Async::Ready(resp));
             }
@@ -357,9 +359,9 @@ impl<S: 'static> StartMiddlewares<S> {
                             }
                             info.count += 1;
                         }
-                        Err(err) => return Response::init(err.into()),
+                        Err(err) => return FinishingMiddlewares::init(info, err.into()),
                     },
-                    Err(err) => return Response::init(err.into()),
+                    Err(err) => return FinishingMiddlewares::init(info, err.into()),
                 }
             }
         }
@@ -389,12 +391,17 @@ impl<S: 'static> StartMiddlewares<S> {
                                     self.fut = Some(fut);
                                     continue 'outer;
                                 }
-                                Err(err) => return Some(Response::init(err.into())),
+                                Err(err) => {
+                                    return Some(FinishingMiddlewares::init(
+                                        info,
+                                        err.into(),
+                                    ))
+                                }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(Response::init(err.into())),
+                Err(err) => return Some(FinishingMiddlewares::init(info, err.into())),
             }
         }
     }
@@ -443,12 +450,12 @@ impl<S: 'static> RunMiddlewares<S> {
             resp = match info.mws[curr].response(&mut info.req, resp) {
                 Err(err) => {
                     info.count = curr + 1;
-                    return Response::init(err.into());
+                    return FinishingMiddlewares::init(info, err.into());
                 }
                 Ok(MiddlewareResponse::Done(r)) => {
                     curr += 1;
                     if curr == len {
-                        return Response::init(r);
+                        return FinishingMiddlewares::init(info, r);
                     } else {
                         r
                     }
@@ -475,15 +482,17 @@ impl<S: 'static> RunMiddlewares<S> {
                     self.curr += 1;
                     resp
                 }
-                Err(err) => return Some(Response::init(err.into())),
+                Err(err) => return Some(FinishingMiddlewares::init(info, err.into())),
             };
 
             loop {
                 if self.curr == len {
-                    return Some(Response::init(resp));
+                    return Some(FinishingMiddlewares::init(info, resp));
                 } else {
                     match info.mws[self.curr].response(&mut info.req, resp) {
-                        Err(err) => return Some(Response::init(err.into())),
+                        Err(err) => {
+                            return Some(FinishingMiddlewares::init(info, err.into()))
+                        }
                         Ok(MiddlewareResponse::Done(r)) => {
                             self.curr += 1;
                             resp = r
@@ -499,6 +508,68 @@ impl<S: 'static> RunMiddlewares<S> {
     }
 }
 
+/// Middlewares start executor
+struct FinishingMiddlewares<S> {
+    resp: Option<HttpResponse>,
+    fut: Option<Box<Future<Item = (), Error = Error>>>,
+    _s: PhantomData<S>,
+}
+
+impl<S: 'static> FinishingMiddlewares<S> {
+    fn init(info: &mut ComposeInfo<S>, resp: HttpResponse) -> ComposeState<S> {
+        if info.count == 0 {
+            Response::init(resp)
+        } else {
+            let mut state = FinishingMiddlewares {
+                resp: Some(resp),
+                fut: None,
+                _s: PhantomData,
+            };
+            if let Some(st) = state.poll(info) {
+                st
+            } else {
+                ComposeState::Finishing(state)
+            }
+        }
+    }
+
+    fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
+        loop {
+            // poll latest fut
+            let not_ready = if let Some(ref mut fut) = self.fut {
+                match fut.poll() {
+                    Ok(Async::NotReady) => true,
+                    Ok(Async::Ready(())) => false,
+                    Err(err) => {
+                        error!("Middleware finish error: {}", err);
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            if not_ready {
+                return None;
+            }
+            self.fut = None;
+            info.count -= 1;
+
+            match info.mws[info.count as usize]
+                .finish(&mut info.req, self.resp.as_ref().unwrap())
+            {
+                MiddlewareFinished::Done => {
+                    if info.count == 0 {
+                        return Some(Response::init(self.resp.take().unwrap()));
+                    }
+                }
+                MiddlewareFinished::Future(fut) => {
+                    self.fut = Some(fut);
+                }
+            }
+        }
+    }
+}
+
 struct Response<S> {
     resp: Option<HttpResponse>,
     _s: PhantomData<S>,
@@ -506,7 +577,7 @@ struct Response<S> {
 
 impl<S: 'static> Response<S> {
     fn init(resp: HttpResponse) -> ComposeState<S> {
-        ComposeState::Response(Response {
+        ComposeState::Completed(Response {
             resp: Some(resp),
             _s: PhantomData,
         })
