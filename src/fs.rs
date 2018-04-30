@@ -573,7 +573,7 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
         } else {
             let relpath = match req.match_info()
                 .get("tail")
-                .map(|tail| PathBuf::from_param(tail))
+                .map(|tail| PathBuf::from_param(tail.trim_left_matches('/')))
             {
                 Some(Ok(path)) => path,
                 _ => return Ok(self.default.handle(req)),

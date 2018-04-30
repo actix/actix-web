@@ -388,7 +388,7 @@ where
                         }
                     }
                     Err(e) => {
-                        return e.kind() == io::ErrorKind::WouldBlock;
+                        return e.kind() != io::ErrorKind::WouldBlock;
                     }
                 }
             }
