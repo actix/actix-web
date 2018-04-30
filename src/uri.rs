@@ -51,10 +51,6 @@ impl Url {
         &self.uri
     }
 
-    pub fn uri_mut(&mut self) -> &mut Uri {
-        &mut self.uri
-    }
-
     pub fn path(&self) -> &str {
         if let Some(ref s) = self.path {
             s

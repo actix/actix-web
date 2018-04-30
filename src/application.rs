@@ -13,9 +13,6 @@ use router::{Resource, Router};
 use scope::Scope;
 use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, ServerSettings};
 
-#[deprecated(since = "0.5.0", note = "please use `actix_web::App` instead")]
-pub type Application<S> = App<S>;
-
 /// Application
 pub struct HttpApplication<S = ()> {
     state: Rc<S>,

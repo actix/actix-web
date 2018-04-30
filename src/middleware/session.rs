@@ -35,7 +35,7 @@
 //! # extern crate actix;
 //! # extern crate actix_web;
 //! use actix_web::{server, App, HttpRequest, Result};
-//! use actix_web::middleware::{RequestSession, SessionStorage, CookieSessionBackend};
+//! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 //!
 //! fn index(mut req: HttpRequest) -> Result<&'static str> {
 //!     // access session data
@@ -86,7 +86,7 @@ use middleware::{Middleware, Response, Started};
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middleware::RequestSession;
+/// use actix_web::middleware::session::RequestSession;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
@@ -123,7 +123,7 @@ impl<S> RequestSession for HttpRequest<S> {
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middleware::RequestSession;
+/// use actix_web::middleware::session::RequestSession;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
@@ -179,7 +179,7 @@ unsafe impl Sync for SessionImplBox {}
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// use actix_web::App;
-/// use actix_web::middleware::{SessionStorage, CookieSessionBackend};
+/// use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 ///
 /// fn main() {
 ///    let app = App::new().middleware(
@@ -437,7 +437,7 @@ impl CookieSessionInner {
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::middleware::CookieSessionBackend;
+/// use actix_web::middleware::session::CookieSessionBackend;
 ///
 /// # fn main() {
 /// let backend: CookieSessionBackend = CookieSessionBackend::signed(&[0; 32])

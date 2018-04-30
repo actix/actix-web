@@ -138,6 +138,7 @@ mod extractor;
 mod handler;
 mod header;
 mod helpers;
+mod httpcodes;
 mod httpmessage;
 mod httprequest;
 mod httpresponse;
@@ -173,13 +174,6 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
-
-#[doc(hidden)]
-pub mod httpcodes;
-
-#[doc(hidden)]
-#[allow(deprecated)]
-pub use application::Application;
 
 #[cfg(feature = "openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;

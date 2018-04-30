@@ -248,16 +248,6 @@ impl<S> HttpRequest<S> {
         self.as_ref().url.uri()
     }
 
-    #[doc(hidden)]
-    #[deprecated(since = "0.5.3")]
-    /// Returns mutable the Request Uri.
-    ///
-    /// This might be useful for middlewares, e.g. path normalization.
-    #[inline]
-    pub fn uri_mut(&mut self) -> &mut Uri {
-        self.as_mut().url.uri_mut()
-    }
-
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
@@ -595,10 +585,7 @@ impl<S> fmt::Debug for HttpRequest<S> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(deprecated)]
-
     use super::*;
-    use http::{HttpTryFrom, Uri};
     use resource::ResourceHandler;
     use router::Resource;
     use server::ServerSettings;
@@ -609,14 +596,6 @@ mod tests {
         let req = TestRequest::with_header("content-type", "text/plain").finish();
         let dbg = format!("{:?}", req);
         assert!(dbg.contains("HttpRequest"));
-    }
-
-    #[test]
-    fn test_uri_mut() {
-        let mut req = HttpRequest::default();
-        assert_eq!(req.path(), "/");
-        *req.uri_mut() = Uri::try_from("/test").unwrap();
-        assert_eq!(req.path(), "/test");
     }
 
     #[test]

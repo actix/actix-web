@@ -19,14 +19,6 @@ pub use self::defaultheaders::DefaultHeaders;
 pub use self::errhandlers::ErrorHandlers;
 pub use self::logger::Logger;
 
-#[cfg(feature = "session")]
-#[doc(hidden)]
-#[deprecated(
-    since = "0.5.4", note = "please use `actix_web::middleware::session` instead"
-)]
-pub use self::session::{CookieSessionBackend, CookieSessionError, RequestSession,
-                        Session, SessionBackend, SessionImpl, SessionStorage};
-
 /// Middleware start result
 pub enum Started {
     /// Execution completed
