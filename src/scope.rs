@@ -66,6 +66,9 @@ impl<S: 'static> Scope<S> {
 
     /// Create scope with new state.
     ///
+    /// Scope can have only one nested scope with new state. Every call
+    /// destroys previously created scope with state.
+    ///
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::{http, App, HttpRequest, HttpResponse, Path};
