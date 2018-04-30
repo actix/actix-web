@@ -42,6 +42,7 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 ///  * /app/path3 - `HEAD` requests
 ///
 pub struct Scope<S: 'static> {
+    handler: Option<UnsafeCell<Box<RouteHandler<S>>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
     default: Rc<UnsafeCell<ResourceHandler<S>>>,
     resources: ScopeResources<S>,
@@ -56,10 +57,52 @@ impl<S: 'static> Default for Scope<S> {
 impl<S: 'static> Scope<S> {
     pub fn new() -> Scope<S> {
         Scope {
+            handler: None,
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         }
+    }
+
+    /// Create scope with new state.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpRequest, HttpResponse, Path};
+    ///
+    /// struct AppState;
+    ///
+    /// fn index(req: HttpRequest<AppState>) -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .scope("/app", |scope| {
+    ///             scope.with_state(AppState, |scope| {
+    ///                scope.resource("/test1", |r| r.f(index))
+    ///             })
+    ///         });
+    /// }
+    /// ```
+    pub fn with_state<F, T: 'static>(mut self, state: T, f: F) -> Scope<S>
+    where
+        F: FnOnce(Scope<T>) -> Scope<T>,
+    {
+        let scope = Scope {
+            handler: None,
+            resources: Rc::new(Vec::new()),
+            middlewares: Rc::new(Vec::new()),
+            default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
+        };
+        let scope = f(scope);
+
+        self.handler = Some(UnsafeCell::new(Box::new(Wrapper {
+            scope,
+            state: Rc::new(state),
+        })));
+
+        self
     }
 
     /// Configure route for a specific path.
@@ -184,6 +227,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
+        // recognize paths
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(path, req.match_info_mut()) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
@@ -202,17 +246,36 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
             }
         }
 
-        let default = unsafe { &mut *self.default.as_ref().get() };
-        if self.middlewares.is_empty() {
-            default.handle(req, None)
+        // nested scope
+        if let Some(ref handler) = self.handler {
+            let hnd: &mut RouteHandler<_> = unsafe { (&mut *(handler.get())).as_mut() };
+            hnd.handle(req)
         } else {
-            Reply::async(Compose::new(
-                req,
-                Rc::clone(&self.middlewares),
-                Rc::clone(&self.default),
-                None,
-            ))
+            // default handler
+            let default = unsafe { &mut *self.default.as_ref().get() };
+            if self.middlewares.is_empty() {
+                default.handle(req, None)
+            } else {
+                Reply::async(Compose::new(
+                    req,
+                    Rc::clone(&self.middlewares),
+                    Rc::clone(&self.default),
+                    None,
+                ))
+            }
         }
+    }
+}
+
+struct Wrapper<S: 'static> {
+    state: Rc<S>,
+    scope: Scope<S>,
+}
+
+impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
+    fn handle(&mut self, req: HttpRequest<S2>) -> Reply {
+        self.scope
+            .handle(req.change_state(Rc::clone(&self.state)))
     }
 }
 
@@ -572,6 +635,26 @@ mod tests {
         let req = TestRequest::with_uri("/app/path1").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_with_state() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state(State, |scope| {
+                    scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::CREATED
+        );
     }
 
     #[test]
