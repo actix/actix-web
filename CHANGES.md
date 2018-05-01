@@ -4,6 +4,8 @@
 
 * Add route scopes #202
 
+* Allow to use ssl and non-ssl connections at the same time #206
+
 * Websocket CloseCode Empty/Status is ambiguous #193
 
 * Add Content-Disposition to NamedFile #204
