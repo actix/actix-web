@@ -3,6 +3,9 @@
 * `ws::Message::Close` now includes optional close reason.
   `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
 
+* `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated.
+  Use `HttpServer::bind_ssl()` and `HttpServer::bind_tls()` instead.
+
 
 ## Migration from 0.4 to 0.5
 

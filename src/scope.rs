@@ -71,7 +71,7 @@ impl<S: 'static> Scope<S> {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, App, HttpRequest, HttpResponse, Path};
+    /// use actix_web::{App, HttpRequest};
     ///
     /// struct AppState;
     ///

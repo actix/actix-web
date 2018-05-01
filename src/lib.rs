@@ -97,6 +97,7 @@ extern crate mime_guess;
 extern crate mio;
 extern crate net2;
 extern crate rand;
+extern crate slab;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate url;

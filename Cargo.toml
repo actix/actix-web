@@ -85,6 +85,7 @@ bytes = "0.4"
 byteorder = "1"
 futures = "0.1"
 futures-cpupool = "0.1"
+slab = "0.4"
 tokio-io = "0.1"
 tokio-core = "0.1"
 

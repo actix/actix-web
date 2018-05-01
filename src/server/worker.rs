@@ -1,6 +1,7 @@
 use futures::unsync::oneshot;
 use futures::Future;
 use net2::TcpStreamExt;
+use slab::Slab;
 use std::rc::Rc;
 use std::{net, time};
 use tokio_core::net::TcpStream;
@@ -29,8 +30,15 @@ use server::{HttpHandler, KeepAlive};
 #[derive(Message)]
 pub(crate) struct Conn<T> {
     pub io: T,
+    pub token: usize,
     pub peer: Option<net::SocketAddr>,
     pub http2: bool,
+}
+
+#[derive(Clone)]
+pub(crate) struct SocketInfo {
+    pub addr: net::SocketAddr,
+    pub htype: StreamHandlerType,
 }
 
 /// Stop worker message. Returns `true` on successful shutdown
@@ -53,13 +61,13 @@ where
 {
     settings: Rc<WorkerSettings<H>>,
     hnd: Handle,
-    handler: StreamHandlerType,
+    socks: Slab<SocketInfo>,
     tcp_ka: Option<time::Duration>,
 }
 
 impl<H: HttpHandler + 'static> Worker<H> {
     pub(crate) fn new(
-        h: Vec<H>, handler: StreamHandlerType, keep_alive: KeepAlive,
+        h: Vec<H>, socks: Slab<SocketInfo>, keep_alive: KeepAlive,
     ) -> Worker<H> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
@@ -70,7 +78,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
         Worker {
             settings: Rc::new(WorkerSettings::new(h, keep_alive)),
             hnd: Arbiter::handle().clone(),
-            handler,
+            socks,
             tcp_ka,
         }
     }
@@ -124,8 +132,11 @@ where
         if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
             error!("Can not set socket keep-alive option");
         }
-        self.handler
-            .handle(Rc::clone(&self.settings), &self.hnd, msg);
+        self.socks.get_mut(msg.token).unwrap().htype.handle(
+            Rc::clone(&self.settings),
+            &self.hnd,
+            msg,
+        );
     }
 }
 
@@ -177,7 +188,9 @@ impl StreamHandlerType {
             }
             #[cfg(feature = "tls")]
             StreamHandlerType::Tls(ref acceptor) => {
-                let Conn { io, peer, http2 } = msg;
+                let Conn {
+                    io, peer, http2, ..
+                } = msg;
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
