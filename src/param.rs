@@ -42,6 +42,22 @@ impl<'a> Params<'a> {
         self.0.push((name.into(), value.into()));
     }
 
+    pub(crate) fn set<N, V>(&mut self, name: N, value: V)
+    where
+        N: Into<Cow<'a, str>>,
+        V: Into<Cow<'a, str>>,
+    {
+        let name = name.into();
+        let value = value.into();
+        for item in &mut self.0 {
+            if item.0 == name {
+                item.1 = value;
+                return;
+            }
+        }
+        self.0.push((name, value));
+    }
+
     /// Check if there are any matched patterns
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()

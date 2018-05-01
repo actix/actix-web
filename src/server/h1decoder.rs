@@ -9,6 +9,7 @@ use super::settings::WorkerSettings;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HttpTryFrom, Method, Uri, Version};
+use httprequest::MessageFlags;
 use uri::Url;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -128,7 +129,9 @@ impl H1Decoder {
             let msg = settings.get_http_message();
             {
                 let msg_mut = msg.get_mut();
-                msg_mut.keep_alive = version != Version::HTTP_10;
+                msg_mut
+                    .flags
+                    .set(MessageFlags::KEEPALIVE, version != Version::HTTP_10);
 
                 for header in headers[..headers_len].iter() {
                     if let Ok(name) = HeaderName::from_bytes(header.name.as_bytes()) {
@@ -165,7 +168,7 @@ impl H1Decoder {
                             }
                             // connection keep-alive state
                             header::CONNECTION => {
-                                msg_mut.keep_alive = if let Ok(conn) = value.to_str() {
+                                let ka = if let Ok(conn) = value.to_str() {
                                     if version == Version::HTTP_10
                                         && conn.contains("keep-alive")
                                     {
@@ -178,6 +181,7 @@ impl H1Decoder {
                                 } else {
                                     false
                                 };
+                                msg_mut.flags.set(MessageFlags::KEEPALIVE, ka);
                             }
                             _ => (),
                         }

@@ -69,9 +69,11 @@ impl<S: 'static> HttpApplication<S> {
                 };
 
                 if m {
-                    let path: &'static str = unsafe {
-                        &*(&req.path()[inner.prefix + prefix.len()..] as *const _)
-                    };
+                    let prefix_len = inner.prefix + prefix.len();
+                    let path: &'static str =
+                        unsafe { &*(&req.path()[prefix_len..] as *const _) };
+
+                    req.set_prefix_len(prefix_len as u16);
                     if path.is_empty() {
                         req.match_info_mut().add("tail", "/");
                     } else {
@@ -881,8 +883,9 @@ mod tests {
         );
 
         let req = TestRequest::with_uri("/app/test").finish();
-        let resp = app.run(req);
+        let resp = app.run(req.clone());
         assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(req.prefix_len(), 9);
 
         let req = TestRequest::with_uri("/app/test/").finish();
         let resp = app.run(req);

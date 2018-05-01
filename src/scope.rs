@@ -14,6 +14,7 @@ use middleware::{Finished as MiddlewareFinished, Middleware,
 use resource::ResourceHandler;
 use router::Resource;
 
+type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
 type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>;
 
 /// Resources scope
@@ -42,7 +43,7 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 ///  * /app/path3 - `HEAD` requests
 ///
 pub struct Scope<S: 'static> {
-    handler: Option<UnsafeCell<Box<RouteHandler<S>>>>,
+    nested: Vec<(String, Route<S>)>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
     default: Rc<UnsafeCell<ResourceHandler<S>>>,
     resources: ScopeResources<S>,
@@ -57,17 +58,14 @@ impl<S: 'static> Default for Scope<S> {
 impl<S: 'static> Scope<S> {
     pub fn new() -> Scope<S> {
         Scope {
-            handler: None,
+            nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         }
     }
 
-    /// Create scope with new state.
-    ///
-    /// Scope can have only one nested scope with new state. Every call
-    /// destroys previously created scope with state.
+    /// Create nested scope with new state.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -82,28 +80,78 @@ impl<S: 'static> Scope<S> {
     /// fn main() {
     ///     let app = App::new()
     ///         .scope("/app", |scope| {
-    ///             scope.with_state(AppState, |scope| {
+    ///             scope.with_state("/state2", AppState, |scope| {
     ///                scope.resource("/test1", |r| r.f(index))
     ///             })
     ///         });
     /// }
     /// ```
-    pub fn with_state<F, T: 'static>(mut self, state: T, f: F) -> Scope<S>
+    pub fn with_state<F, T: 'static>(mut self, path: &str, state: T, f: F) -> Scope<S>
     where
         F: FnOnce(Scope<T>) -> Scope<T>,
     {
         let scope = Scope {
-            handler: None,
+            nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
         let scope = f(scope);
 
-        self.handler = Some(UnsafeCell::new(Box::new(Wrapper {
+        let mut path = path.trim().trim_right_matches('/').to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/')
+        }
+
+        let handler = UnsafeCell::new(Box::new(Wrapper {
             scope,
             state: Rc::new(state),
-        })));
+        }));
+        self.nested.push((path, handler));
+
+        self
+    }
+
+    /// Create nested scope.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{App, HttpRequest};
+    ///
+    /// struct AppState;
+    ///
+    /// fn index(req: HttpRequest<AppState>) -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::with_state(AppState)
+    ///         .scope("/app", |scope| {
+    ///             scope.nested("/v1", |scope| {
+    ///                scope.resource("/test1", |r| r.f(index))
+    ///             })
+    ///         });
+    /// }
+    /// ```
+    pub fn nested<F>(mut self, path: &str, f: F) -> Scope<S>
+    where
+        F: FnOnce(Scope<S>) -> Scope<S>,
+    {
+        let scope = Scope {
+            nested: Vec::new(),
+            resources: Rc::new(Vec::new()),
+            middlewares: Rc::new(Vec::new()),
+            default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
+        };
+        let scope = f(scope);
+
+        let mut path = path.trim().trim_right_matches('/').to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/')
+        }
+
+        self.nested
+            .push((path, UnsafeCell::new(Box::new(scope))));
 
         self
     }
@@ -249,23 +297,45 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
             }
         }
 
-        // nested scope
-        if let Some(ref handler) = self.handler {
-            let hnd: &mut RouteHandler<_> = unsafe { (&mut *(handler.get())).as_mut() };
-            hnd.handle(req)
-        } else {
-            // default handler
-            let default = unsafe { &mut *self.default.as_ref().get() };
-            if self.middlewares.is_empty() {
-                default.handle(req, None)
-            } else {
-                Reply::async(Compose::new(
-                    req,
-                    Rc::clone(&self.middlewares),
-                    Rc::clone(&self.default),
-                    None,
-                ))
+        // nested scopes
+        for &(ref prefix, ref handler) in &self.nested {
+            let len = req.prefix_len() as usize;
+            let m = {
+                let path = &req.path()[len..];
+                path.starts_with(prefix)
+                    && (path.len() == prefix.len()
+                        || path.split_at(prefix.len()).1.starts_with('/'))
+            };
+
+            if m {
+                let prefix_len = len + prefix.len();
+                let path: &'static str =
+                    unsafe { &*(&req.path()[prefix_len..] as *const _) };
+
+                req.set_prefix_len(prefix_len as u16);
+                if path.is_empty() {
+                    req.match_info_mut().set("tail", "/");
+                } else {
+                    req.match_info_mut().set("tail", path);
+                }
+
+                let hnd: &mut RouteHandler<_> =
+                    unsafe { (&mut *(handler.get())).as_mut() };
+                return hnd.handle(req);
             }
+        }
+
+        // default handler
+        let default = unsafe { &mut *self.default.as_ref().get() };
+        if self.middlewares.is_empty() {
+            default.handle(req, None)
+        } else {
+            Reply::async(Compose::new(
+                req,
+                Rc::clone(&self.middlewares),
+                Rc::clone(&self.default),
+                None,
+            ))
         }
     }
 }
@@ -646,13 +716,31 @@ mod tests {
 
         let mut app = App::new()
             .scope("/app", |scope| {
-                scope.with_state(State, |scope| {
+                scope.with_state("/t1", State, |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
                 })
             })
             .finish();
 
-        let req = TestRequest::with_uri("/app/path1").finish();
+        let req = TestRequest::with_uri("/app/t1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(
+            resp.as_response().unwrap().status(),
+            StatusCode::CREATED
+        );
+    }
+
+    #[test]
+    fn test_nested_scope() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/t1", |scope| {
+                    scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1").finish();
         let resp = app.run(req);
         assert_eq!(
             resp.as_response().unwrap().status(),

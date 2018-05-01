@@ -84,6 +84,7 @@ impl Router {
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
             if pattern.match_with_params(route_path, req.match_info_mut()) {
                 req.set_resource(idx);
+                req.set_prefix_len(self.0.prefix_len as u16);
                 return Some(idx);
             }
         }

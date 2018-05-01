@@ -25,20 +25,27 @@ use router::{Resource, Router};
 use server::helpers::SharedHttpInnerMessage;
 use uri::Url as InnerUrl;
 
+bitflags! {
+    pub(crate) struct MessageFlags: u8 {
+        const QUERY = 0b0000_0001;
+        const KEEPALIVE = 0b0000_0010;
+    }
+}
+
 pub struct HttpInnerMessage {
     pub version: Version,
     pub method: Method,
     pub(crate) url: InnerUrl,
+    pub(crate) flags: MessageFlags,
     pub headers: HeaderMap,
     pub extensions: Extensions,
     pub params: Params<'static>,
     pub cookies: Option<Vec<Cookie<'static>>>,
     pub query: Params<'static>,
-    pub query_loaded: bool,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
-    pub keep_alive: bool,
+    pub prefix: u16,
     resource: RouterResource,
 }
 
@@ -55,15 +62,15 @@ impl Default for HttpInnerMessage {
             url: InnerUrl::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
+            flags: MessageFlags::empty(),
             params: Params::new(),
             query: Params::new(),
-            query_loaded: false,
             addr: None,
             cookies: None,
             payload: None,
             extensions: Extensions::new(),
             info: None,
-            keep_alive: true,
+            prefix: 0,
             resource: RouterResource::Notset,
         }
     }
@@ -73,7 +80,7 @@ impl HttpInnerMessage {
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        self.keep_alive
+        self.flags.contains(MessageFlags::KEEPALIVE)
     }
 
     #[inline]
@@ -83,10 +90,10 @@ impl HttpInnerMessage {
         self.params.clear();
         self.addr = None;
         self.info = None;
-        self.query_loaded = false;
+        self.flags = MessageFlags::empty();
         self.cookies = None;
         self.payload = None;
-        self.keep_alive = true;
+        self.prefix = 0;
         self.resource = RouterResource::Notset;
     }
 }
@@ -115,12 +122,12 @@ impl HttpRequest<()> {
                 payload,
                 params: Params::new(),
                 query: Params::new(),
-                query_loaded: false,
                 extensions: Extensions::new(),
                 cookies: None,
                 addr: None,
                 info: None,
-                keep_alive: true,
+                prefix: 0,
+                flags: MessageFlags::empty(),
                 resource: RouterResource::Notset,
             }),
             None,
@@ -234,12 +241,13 @@ impl<S> HttpRequest<S> {
     }
 
     #[doc(hidden)]
-    pub fn prefix_len(&self) -> usize {
-        if let Some(router) = self.router() {
-            router.prefix().len()
-        } else {
-            0
-        }
+    pub fn prefix_len(&self) -> u16 {
+        self.as_ref().prefix as u16
+    }
+
+    #[doc(hidden)]
+    pub fn set_prefix_len(&mut self, len: u16) {
+        self.as_mut().prefix = len;
     }
 
     /// Read the Request Uri.
@@ -367,14 +375,16 @@ impl<S> HttpRequest<S> {
         self.as_mut().addr = addr;
     }
 
+    #[doc(hidden)]
+    #[deprecated(since = "0.6.0", note = "please use `Query<T>` extractor")]
     /// Get a reference to the Params object.
     /// Params is a container for url query parameters.
     pub fn query(&self) -> &Params {
-        if !self.as_ref().query_loaded {
+        if !self.as_ref().flags.contains(MessageFlags::QUERY) {
+            self.as_mut().flags.insert(MessageFlags::QUERY);
             let params: &mut Params =
                 unsafe { mem::transmute(&mut self.as_mut().query) };
             params.clear();
-            self.as_mut().query_loaded = true;
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 params.add(key, val);
             }
@@ -443,7 +453,7 @@ impl<S> HttpRequest<S> {
 
     /// Checks if a connection should be kept alive.
     pub fn keep_alive(&self) -> bool {
-        self.as_ref().keep_alive()
+        self.as_ref().flags.contains(MessageFlags::KEEPALIVE)
     }
 
     /// Check if request requires connection upgrade

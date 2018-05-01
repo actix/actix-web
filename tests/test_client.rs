@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 extern crate actix;
 extern crate actix_web;
 extern crate bytes;
