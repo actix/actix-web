@@ -100,7 +100,7 @@ pub trait RequestIdentity {
 
 impl<S> RequestIdentity for HttpRequest<S> {
     fn identity(&self) -> Option<&str> {
-        if let Some(id) = self.extensions_ro().get::<IdentityBox>() {
+        if let Some(id) = self.extensions().get::<IdentityBox>() {
             return id.0.identity();
         }
         None
@@ -183,7 +183,7 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
             .from_request(&mut req)
             .then(move |res| match res {
                 Ok(id) => {
-                    req.extensions().insert(IdentityBox(Box::new(id)));
+                    req.extensions_mut().insert(IdentityBox(Box::new(id)));
                     FutOk(None)
                 }
                 Err(err) => FutErr(err),
@@ -194,7 +194,7 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     fn response(
         &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
-        if let Some(mut id) = req.extensions().remove::<IdentityBox>() {
+        if let Some(mut id) = req.extensions_mut().remove::<IdentityBox>() {
             id.0.write(resp)
         } else {
             Ok(Response::Done(resp))

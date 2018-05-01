@@ -116,7 +116,7 @@ impl Logger {
 
 impl<S> Middleware<S> for Logger {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
-        req.extensions().insert(StartTime(time::now()));
+        req.extensions_mut().insert(StartTime(time::now()));
         Ok(Started::Done)
     }
 

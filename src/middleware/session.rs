@@ -106,7 +106,7 @@ pub trait RequestSession {
 
 impl<S> RequestSession for HttpRequest<S> {
     fn session(&mut self) -> Session {
-        if let Some(s_impl) = self.extensions().get_mut::<Arc<SessionImplBox>>() {
+        if let Some(s_impl) = self.extensions_mut().get_mut::<Arc<SessionImplBox>>() {
             if let Some(s) = Arc::get_mut(s_impl) {
                 return Session(s.0.as_mut());
             }
@@ -206,7 +206,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
             .from_request(&mut req)
             .then(move |res| match res {
                 Ok(sess) => {
-                    req.extensions()
+                    req.extensions_mut()
                         .insert(Arc::new(SessionImplBox(Box::new(sess))));
                     FutOk(None)
                 }
@@ -218,7 +218,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     fn response(
         &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
-        if let Some(s_box) = req.extensions().remove::<Arc<SessionImplBox>>() {
+        if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplBox>>() {
             s_box.0.write(resp)
         } else {
             Ok(Response::Done(resp))

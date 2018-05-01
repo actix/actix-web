@@ -6,6 +6,9 @@
 * `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated.
   Use `HttpServer::bind_ssl()` and `HttpServer::bind_tls()` instead.
 
+* `HttpRequest::extensions()` returns read only reference to the request's Extension
+  `HttpRequest::extensions_mut()` returns mutable reference.
+
 
 ## Migration from 0.4 to 0.5
 
