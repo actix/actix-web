@@ -109,9 +109,15 @@ where
     ///
     /// By default http server uses number of available logical cpu as threads
     /// count.
-    pub fn threads(mut self, num: usize) -> Self {
+    pub fn workers(mut self, num: usize) -> Self {
         self.threads = num;
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "0.6.0", note = "please use `HttpServer::workers()` instead")]
+    pub fn threads(self, num: usize) -> Self {
+        self.workers(num)
     }
 
     /// Set the maximum number of pending connections.
