@@ -63,6 +63,7 @@
 //!     let _ = sys.run();
 //! }
 //! ```
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -72,7 +73,8 @@ use cookie::{Cookie, CookieJar, Key};
 use futures::future::{err as FutErr, ok as FutOk, FutureResult};
 use futures::Future;
 use http::header::{self, HeaderValue};
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json;
 use serde_json::error::Error as JsonError;
 use time::Duration;
@@ -101,17 +103,15 @@ use middleware::{Middleware, Response, Started};
 /// # fn main() {}
 /// ```
 pub trait RequestSession {
-    fn session(&mut self) -> Session;
+    fn session(&self) -> Session;
 }
 
 impl<S> RequestSession for HttpRequest<S> {
-    fn session(&mut self) -> Session {
-        if let Some(s_impl) = self.extensions_mut().get_mut::<Arc<SessionImplBox>>() {
-            if let Some(s) = Arc::get_mut(s_impl) {
-                return Session(s.0.as_mut());
-            }
+    fn session(&self) -> Session {
+        if let Some(s_impl) = self.extensions().get::<Arc<SessionImplCell>>() {
+            return Session(SessionInner::Session(Arc::clone(&s_impl)));
         }
-        Session(unsafe { &mut DUMMY })
+        Session(SessionInner::None)
     }
 }
 
@@ -137,41 +137,65 @@ impl<S> RequestSession for HttpRequest<S> {
 /// }
 /// # fn main() {}
 /// ```
-pub struct Session<'a>(&'a mut SessionImpl);
+pub struct Session(SessionInner);
 
-impl<'a> Session<'a> {
+enum SessionInner {
+    Session(Arc<SessionImplCell>),
+    None,
+}
+
+impl Session {
     /// Get a `value` from the session.
-    pub fn get<T: Deserialize<'a>>(&'a self, key: &str) -> Result<Option<T>> {
-        if let Some(s) = self.0.get(key) {
-            Ok(Some(serde_json::from_str(s)?))
-        } else {
-            Ok(None)
+    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
+        match self.0 {
+            SessionInner::Session(ref sess) => {
+                if let Some(s) = sess.as_ref().0.borrow().get(key) {
+                    Ok(Some(serde_json::from_str(s)?))
+                } else {
+                    Ok(None)
+                }
+            }
+            SessionInner::None => Ok(None),
         }
     }
 
     /// Set a `value` from the session.
-    pub fn set<T: Serialize>(&mut self, key: &str, value: T) -> Result<()> {
-        self.0.set(key, serde_json::to_string(&value)?);
-        Ok(())
+    pub fn set<T: Serialize>(&self, key: &str, value: T) -> Result<()> {
+        match self.0 {
+            SessionInner::Session(ref sess) => {
+                sess.as_ref()
+                    .0
+                    .borrow_mut()
+                    .set(key, serde_json::to_string(&value)?);
+                Ok(())
+            }
+            SessionInner::None => Ok(()),
+        }
     }
 
     /// Remove value from the session.
-    pub fn remove(&'a mut self, key: &str) {
-        self.0.remove(key)
+    pub fn remove(&self, key: &str) {
+        match self.0 {
+            SessionInner::Session(ref sess) => sess.as_ref().0.borrow_mut().remove(key),
+            SessionInner::None => (),
+        }
     }
 
     /// Clear the session.
-    pub fn clear(&'a mut self) {
-        self.0.clear()
+    pub fn clear(&self) {
+        match self.0 {
+            SessionInner::Session(ref sess) => sess.as_ref().0.borrow_mut().clear(),
+            SessionInner::None => (),
+        }
     }
 }
 
-struct SessionImplBox(Box<SessionImpl>);
+struct SessionImplCell(RefCell<Box<SessionImpl>>);
 
 #[doc(hidden)]
-unsafe impl Send for SessionImplBox {}
+unsafe impl Send for SessionImplCell {}
 #[doc(hidden)]
-unsafe impl Sync for SessionImplBox {}
+unsafe impl Sync for SessionImplCell {}
 
 /// Session storage middleware
 ///
@@ -206,8 +230,9 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
             .from_request(&mut req)
             .then(move |res| match res {
                 Ok(sess) => {
-                    req.extensions_mut()
-                        .insert(Arc::new(SessionImplBox(Box::new(sess))));
+                    req.extensions_mut().insert(Arc::new(SessionImplCell(
+                        RefCell::new(Box::new(sess)),
+                    )));
                     FutOk(None)
                 }
                 Err(err) => FutErr(err),
@@ -218,8 +243,8 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     fn response(
         &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
-        if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplBox>>() {
-            s_box.0.write(resp)
+        if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplCell>>() {
+            s_box.0.borrow_mut().write(resp)
         } else {
             Ok(Response::Done(resp))
         }
@@ -249,23 +274,6 @@ pub trait SessionBackend<S>: Sized + 'static {
 
     /// Parse the session from request and load data from a storage backend.
     fn from_request(&self, request: &mut HttpRequest<S>) -> Self::ReadFuture;
-}
-
-/// Dummy session impl, does not do anything
-struct DummySessionImpl;
-
-static mut DUMMY: DummySessionImpl = DummySessionImpl;
-
-impl SessionImpl for DummySessionImpl {
-    fn get(&self, _: &str) -> Option<&str> {
-        None
-    }
-    fn set(&mut self, _: &str, _: String) {}
-    fn remove(&mut self, _: &str) {}
-    fn clear(&mut self) {}
-    fn write(&self, resp: HttpResponse) -> Result<Response> {
-        Ok(Response::Done(resp))
-    }
 }
 
 /// Session that uses signed cookies as session storage
