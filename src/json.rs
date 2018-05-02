@@ -136,7 +136,7 @@ where
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         let req = req.clone();
         let err = Rc::clone(&cfg.ehandler);
         Box::new(

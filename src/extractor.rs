@@ -99,13 +99,12 @@ impl<T> Path<T> {
 impl<T, S> FromRequest<S> for Path<T>
 where
     T: DeserializeOwned,
-    S: 'static,
 {
     type Config = ();
     type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
         de::Deserialize::deserialize(PathDeserializer::new(&req))
             .map_err(|e| e.into())
@@ -167,13 +166,12 @@ impl<T> Query<T> {
 impl<T, S> FromRequest<S> for Query<T>
 where
     T: de::DeserializeOwned,
-    S: 'static,
 {
     type Config = ();
     type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
         serde_urlencoded::from_str::<T>(req.query_string())
             .map_err(|e| e.into())
@@ -241,7 +239,7 @@ where
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         Box::new(
             UrlEncoded::new(req.clone())
                 .limit(cfg.limit)
@@ -326,7 +324,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
     type Result = Result<Box<Future<Item = Self, Error = Error>>, Error>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         // check content-type
         cfg.check_mimetype(req)?;
 
@@ -370,7 +368,7 @@ impl<S: 'static> FromRequest<S> for String {
     type Result = Result<Box<Future<Item = String, Error = Error>>, Error>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         // check content-type
         cfg.check_mimetype(req)?;
 
@@ -471,7 +469,7 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match Bytes::from_request(&mut req, &cfg)
+        match Bytes::from_request(&req, &cfg)
             .unwrap()
             .poll()
             .unwrap()
@@ -490,7 +488,7 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match String::from_request(&mut req, &cfg)
+        match String::from_request(&req, &cfg)
             .unwrap()
             .poll()
             .unwrap()
@@ -514,10 +512,7 @@ mod tests {
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
-        match Form::<Info>::from_request(&mut req, &cfg)
-            .poll()
-            .unwrap()
-        {
+        match Form::<Info>::from_request(&req, &cfg).poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s.hello, "world");
             }
@@ -574,29 +569,29 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        let s = Path::<MyStruct>::from_request(&mut req, &()).unwrap();
+        let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
 
-        let s = Path::<(String, String)>::from_request(&mut req, &()).unwrap();
+        let s = Path::<(String, String)>::from_request(&req, &()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
-        let s = Query::<Id>::from_request(&mut req, &()).unwrap();
+        let s = Query::<Id>::from_request(&req, &()).unwrap();
         assert_eq!(s.id, "test");
 
         let mut req = TestRequest::with_uri("/name/32/").finish();
         assert!(router.recognize(&mut req).is_some());
 
-        let s = Path::<Test2>::from_request(&mut req, &()).unwrap();
+        let s = Path::<Test2>::from_request(&req, &()).unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&mut req, &()).unwrap();
+        let s = Path::<(String, u8)>::from_request(&req, &()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_request(&mut req, &()).unwrap();
+        let res = Path::<Vec<String>>::from_default(&req).unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
     }

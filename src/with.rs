@@ -134,7 +134,7 @@ where
 
         let item = if !self.started {
             self.started = true;
-            let reply = T::from_request(&mut self.req, self.cfg.as_ref()).into();
+            let reply = T::from_request(&self.req, self.cfg.as_ref()).into();
             match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -268,7 +268,7 @@ where
 
         if !self.started {
             self.started = true;
-            let reply = T1::from_request(&mut self.req, self.cfg1.as_ref()).into();
+            let reply = T1::from_request(&self.req, self.cfg1.as_ref()).into();
             let item1 = match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -279,7 +279,7 @@ where
                 ReplyItem::None => panic!("use after resolve"),
             };
 
-            let reply = T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
+            let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
             let item2 = match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -309,8 +309,7 @@ where
         if self.fut1.is_some() {
             match self.fut1.as_mut().unwrap().poll()? {
                 Async::Ready(item) => {
-                    let reply =
-                        T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
+                    let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
                     let item2 = match reply.into() {
                         ReplyItem::Error(err) => return Err(err),
                         ReplyItem::Message(msg) => msg,
@@ -480,7 +479,7 @@ where
 
         if !self.started {
             self.started = true;
-            let reply = T1::from_request(&mut self.req, self.cfg1.as_ref()).into();
+            let reply = T1::from_request(&self.req, self.cfg1.as_ref()).into();
             let item1 = match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -491,7 +490,7 @@ where
                 ReplyItem::None => panic!("use after resolve"),
             };
 
-            let reply = T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
+            let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
             let item2 = match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -503,7 +502,7 @@ where
                 ReplyItem::None => panic!("use after resolve"),
             };
 
-            let reply = T3::from_request(&mut self.req, self.cfg3.as_ref()).into();
+            let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
             let item3 = match reply.into() {
                 ReplyItem::Error(err) => return Err(err),
                 ReplyItem::Message(msg) => msg,
@@ -536,8 +535,7 @@ where
                 Async::Ready(item) => {
                     self.item1 = Some(item);
                     self.fut1.take();
-                    let reply =
-                        T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
+                    let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
                     let item2 = match reply.into() {
                         ReplyItem::Error(err) => return Err(err),
                         ReplyItem::Message(msg) => msg,
@@ -548,8 +546,7 @@ where
                         ReplyItem::None => panic!("use after resolve"),
                     };
 
-                    let reply =
-                        T3::from_request(&mut self.req, self.cfg3.as_ref()).into();
+                    let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
                     let item3 = match reply.into() {
                         ReplyItem::Error(err) => return Err(err),
                         ReplyItem::Message(msg) => msg,
@@ -584,8 +581,7 @@ where
             match self.fut2.as_mut().unwrap().poll()? {
                 Async::Ready(item) => {
                     self.fut2.take();
-                    let reply =
-                        T3::from_request(&mut self.req, self.cfg3.as_ref()).into();
+                    let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
                     let item3 = match reply.into() {
                         ReplyItem::Error(err) => return Err(err),
                         ReplyItem::Message(msg) => msg,

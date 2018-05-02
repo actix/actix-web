@@ -36,10 +36,7 @@ pub trait Responder {
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route::with()` method.
-pub trait FromRequest<S>: Sized
-where
-    S: 'static,
-{
+pub trait FromRequest<S>: Sized {
     /// Configuration for conversion process
     type Config: Default;
 
@@ -47,7 +44,14 @@ where
     type Result: Into<Reply<Self>>;
 
     /// Convert request to a Self
-    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
+
+    /// Convert request to a Self
+    ///
+    /// This method uses default extractor configuration
+    fn from_default(req: &HttpRequest<S>) -> Self::Result {
+        Self::from_request(req, &Self::Config::default())
+    }
 }
 
 /// Combines two different responder types into a single type
@@ -505,12 +509,12 @@ impl<S> Deref for State<S> {
     }
 }
 
-impl<S: 'static> FromRequest<S> for State<S> {
+impl<S> FromRequest<S> for State<S> {
     type Config = ();
     type Result = State<S>;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        State(req.clone()).into()
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+        State(req.clone())
     }
 }

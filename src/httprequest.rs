@@ -500,12 +500,12 @@ impl<S> Clone for HttpRequest<S> {
     }
 }
 
-impl<S: 'static> FromRequest<S> for HttpRequest<S> {
+impl<S> FromRequest<S> for HttpRequest<S> {
     type Config = ();
     type Result = Self;
 
     #[inline]
-    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         req.clone()
     }
 }
