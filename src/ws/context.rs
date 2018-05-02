@@ -13,6 +13,7 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 
+use ws::WsWriter;
 use ws::frame::Frame;
 use ws::proto::{CloseReason, OpCode};
 
@@ -140,46 +141,6 @@ where
         &mut self.request
     }
 
-    /// Send text frame
-    #[inline]
-    pub fn text<T: Into<Binary>>(&mut self, text: T) {
-        self.write(Frame::message(text.into(), OpCode::Text, true, false));
-    }
-
-    /// Send binary frame
-    #[inline]
-    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(Frame::message(data, OpCode::Binary, true, false));
-    }
-
-    /// Send ping frame
-    #[inline]
-    pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Ping,
-            true,
-            false,
-        ));
-    }
-
-    /// Send pong frame
-    #[inline]
-    pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Pong,
-            true,
-            false,
-        ));
-    }
-
-    /// Send close frame
-    #[inline]
-    pub fn close(&mut self, reason: Option<CloseReason>) {
-        self.write(Frame::close(reason, false));
-    }
-
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
@@ -210,6 +171,52 @@ where
     /// SpawnHandle is the handle returned by `AsyncContext::spawn()` method.
     pub fn handle(&self) -> SpawnHandle {
         self.inner.curr_handle()
+    }
+}
+
+impl<A, S> WsWriter for WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
+    S: 'static,
+{
+    /// Send text frame
+    #[inline]
+    fn text<T: Into<Binary>>(&mut self, text: T) {
+        self.write(Frame::message(text.into(), OpCode::Text, true, false));
+    }
+
+    /// Send binary frame
+    #[inline]
+    fn binary<B: Into<Binary>>(&mut self, data: B) {
+        self.write(Frame::message(data, OpCode::Binary, true, false));
+    }
+
+    /// Send ping frame
+    #[inline]
+    fn ping(&mut self, message: &str) {
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Ping,
+            true,
+            false,
+        ));
+    }
+
+    /// Send pong frame
+    #[inline]
+    fn pong(&mut self, message: &str) {
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Pong,
+            true,
+            false,
+        ));
+    }
+
+    /// Send close frame
+    #[inline]
+    fn close(&mut self, reason: Option<CloseReason>) {
+        self.write(Frame::close(reason, false));
     }
 }
 

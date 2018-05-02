@@ -27,7 +27,7 @@ use client::{ClientConnector, ClientRequest, ClientRequestBuilder, ClientRespons
 
 use super::frame::Frame;
 use super::proto::{CloseReason, OpCode};
-use super::{Message, ProtocolError};
+use super::{Message, ProtocolError, WsWriter};
 
 /// Websocket client error
 #[derive(Fail, Debug)]
@@ -504,13 +504,6 @@ pub struct ClientWriter {
 }
 
 impl ClientWriter {
-    #[inline]
-    fn as_mut(&mut self) -> &mut Inner {
-        unsafe { &mut *self.inner.get() }
-    }
-}
-
-impl ClientWriter {
     /// Write payload
     #[inline]
     fn write(&mut self, mut data: Binary) {
@@ -521,21 +514,28 @@ impl ClientWriter {
         }
     }
 
+    #[inline]
+    fn as_mut(&mut self) -> &mut Inner {
+        unsafe { &mut *self.inner.get() }
+    }
+}
+
+impl WsWriter for ClientWriter {
     /// Send text frame
     #[inline]
-    pub fn text<T: Into<Binary>>(&mut self, text: T) {
+    fn text<T: Into<Binary>>(&mut self, text: T) {
         self.write(Frame::message(text.into(), OpCode::Text, true, true));
     }
 
     /// Send binary frame
     #[inline]
-    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
+    fn binary<B: Into<Binary>>(&mut self, data: B) {
         self.write(Frame::message(data, OpCode::Binary, true, true));
     }
 
     /// Send ping frame
     #[inline]
-    pub fn ping(&mut self, message: &str) {
+    fn ping(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Ping,
@@ -546,7 +546,7 @@ impl ClientWriter {
 
     /// Send pong frame
     #[inline]
-    pub fn pong(&mut self, message: &str) {
+    fn pong(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Pong,
@@ -557,7 +557,7 @@ impl ClientWriter {
 
     /// Send close frame
     #[inline]
-    pub fn close(&mut self, reason: Option<CloseReason>) {
+    fn close(&mut self, reason: Option<CloseReason>) {
         self.write(Frame::close(reason, true));
     }
 }
