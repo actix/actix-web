@@ -1,7 +1,9 @@
-use futures::future::{err, ok, Future};
-use futures::Poll;
 use std::marker::PhantomData;
+use std::mem;
 use std::ops::Deref;
+
+use futures::future::{err, ok, Future};
+use futures::{Async, Poll};
 
 use error::Error;
 use httprequest::HttpRequest;
@@ -185,7 +187,31 @@ where
 /// * Future<T, Error> - reply process completes in the future
 pub struct Reply<T>(ReplyItem<T>);
 
+impl<T> Future for Reply<T> {
+    type Item = T;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<T, Error> {
+        let item = mem::replace(&mut self.0, ReplyItem::None);
+
+        match item {
+            ReplyItem::Error(err) => Err(err),
+            ReplyItem::Message(msg) => Ok(Async::Ready(msg)),
+            ReplyItem::Future(mut fut) => match fut.poll() {
+                Ok(Async::NotReady) => {
+                    self.0 = ReplyItem::Future(fut);
+                    Ok(Async::NotReady)
+                }
+                Ok(Async::Ready(msg)) => Ok(Async::Ready(msg)),
+                Err(err) => Err(err),
+            },
+            ReplyItem::None => panic!("use after resolve"),
+        }
+    }
+}
+
 pub(crate) enum ReplyItem<T> {
+    None,
     Error(Error),
     Message(T),
     Future(Box<Future<Item = T, Error = Error>>),

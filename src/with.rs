@@ -142,6 +142,7 @@ where
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             }
         } else {
             match self.fut1.as_mut().unwrap().poll()? {
@@ -163,6 +164,7 @@ where
                 self.fut2 = Some(fut);
                 self.poll()
             }
+            ReplyItem::None => panic!("use after resolve"),
         }
     }
 }
@@ -274,6 +276,7 @@ where
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             };
 
             let reply = T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
@@ -285,6 +288,7 @@ where
                     self.fut2 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             };
 
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
@@ -296,6 +300,7 @@ where
                         self.fut3 = Some(fut);
                         return self.poll();
                     }
+                    ReplyItem::None => panic!("use after resolve"),
                 },
                 Err(e) => return Err(e.into()),
             }
@@ -314,6 +319,7 @@ where
                             self.fut2 = Some(fut);
                             return self.poll();
                         }
+                        ReplyItem::None => panic!("use after resolve"),
                     };
 
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
@@ -325,6 +331,7 @@ where
                                 self.fut3 = Some(fut);
                                 return self.poll();
                             }
+                            ReplyItem::None => panic!("use after resolve"),
                         },
                         Err(e) => return Err(e.into()),
                     }
@@ -350,6 +357,7 @@ where
             ReplyItem::Error(err) => return Err(err),
             ReplyItem::Message(resp) => return Ok(Async::Ready(resp)),
             ReplyItem::Future(fut) => self.fut3 = Some(fut),
+            ReplyItem::None => panic!("use after resolve"),
         }
 
         self.poll()
@@ -480,6 +488,7 @@ where
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             };
 
             let reply = T2::from_request(&mut self.req, self.cfg2.as_ref()).into();
@@ -491,6 +500,7 @@ where
                     self.fut2 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             };
 
             let reply = T3::from_request(&mut self.req, self.cfg3.as_ref()).into();
@@ -503,6 +513,7 @@ where
                     self.fut3 = Some(fut);
                     return self.poll();
                 }
+                ReplyItem::None => panic!("use after resolve"),
             };
 
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
@@ -514,6 +525,7 @@ where
                         self.fut4 = Some(fut);
                         return self.poll();
                     }
+                    ReplyItem::None => panic!("use after resolve"),
                 },
                 Err(e) => return Err(e.into()),
             }
@@ -533,6 +545,7 @@ where
                             self.fut2 = Some(fut);
                             return self.poll();
                         }
+                        ReplyItem::None => panic!("use after resolve"),
                     };
 
                     let reply =
@@ -545,6 +558,7 @@ where
                             self.fut3 = Some(fut);
                             return self.poll();
                         }
+                        ReplyItem::None => panic!("use after resolve"),
                     };
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
                     match (*hnd)(self.item1.take().unwrap(), item2, item3)
@@ -557,6 +571,7 @@ where
                                 self.fut4 = Some(fut);
                                 return self.poll();
                             }
+                            ReplyItem::None => panic!("use after resolve"),
                         },
                         Err(e) => return Err(e.into()),
                     }
@@ -579,6 +594,7 @@ where
                             self.fut3 = Some(fut);
                             return self.poll();
                         }
+                        ReplyItem::None => panic!("use after resolve"),
                     };
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
                     match (*hnd)(self.item1.take().unwrap(), item, item3)
@@ -591,6 +607,7 @@ where
                                 self.fut4 = Some(fut);
                                 return self.poll();
                             }
+                            ReplyItem::None => panic!("use after resolve"),
                         },
                         Err(e) => return Err(e.into()),
                     }
@@ -619,6 +636,7 @@ where
             ReplyItem::Error(err) => return Ok(Async::Ready(err.into())),
             ReplyItem::Message(resp) => return Ok(Async::Ready(resp)),
             ReplyItem::Future(fut) => self.fut4 = Some(fut),
+            ReplyItem::None => panic!("use after resolve"),
         }
 
         self.poll()

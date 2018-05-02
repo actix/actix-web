@@ -604,6 +604,7 @@ impl<S> TestRequest<S> {
                 ReplyItem::Message(resp) => Ok(resp),
                 ReplyItem::Error(err) => Ok(err.into()),
                 ReplyItem::Future(_) => panic!("Async handler is not supported."),
+                ReplyItem::None => panic!("use after resolve"),
             },
             Err(err) => Err(err),
         }

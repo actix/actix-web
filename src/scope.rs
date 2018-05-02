@@ -529,6 +529,7 @@ impl<S: 'static> WaitingResponse<S> {
                 fut,
                 _s: PhantomData,
             }),
+            ReplyItem::None => panic!("use after resolve"),
         }
     }
 
