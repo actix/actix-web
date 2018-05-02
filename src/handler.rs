@@ -49,7 +49,7 @@ pub trait FromRequest<S>: Sized {
     /// Convert request to a Self
     ///
     /// This method uses default extractor configuration
-    fn from_default(req: &HttpRequest<S>) -> Self::Result {
+    fn extract(req: &HttpRequest<S>) -> Self::Result {
         Self::from_request(req, &Self::Config::default())
     }
 }

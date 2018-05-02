@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_default(&req).unwrap();
+        let res = Path::<Vec<String>>::extract(&req).unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
     }
