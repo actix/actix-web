@@ -4,14 +4,14 @@ use std::str;
 use bytes::Bytes;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
-use futures::future::{result, Future, FutureResult};
+use futures::future::Future;
 use mime::Mime;
 use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
 use error::{Error, ErrorBadRequest};
-use handler::{Either, FromRequest};
+use handler::FromRequest;
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
 
@@ -102,16 +102,14 @@ where
     S: 'static,
 {
     type Config = ();
-    type Result = FutureResult<Self, Error>;
+    type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
-        result(
-            de::Deserialize::deserialize(PathDeserializer::new(&req))
-                .map_err(|e| e.into())
-                .map(|inner| Path { inner }),
-        )
+        de::Deserialize::deserialize(PathDeserializer::new(&req))
+            .map_err(|e| e.into())
+            .map(|inner| Path { inner })
     }
 }
 
@@ -172,16 +170,14 @@ where
     S: 'static,
 {
     type Config = ();
-    type Result = FutureResult<Self, Error>;
+    type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
-        result(
-            serde_urlencoded::from_str::<T>(req.query_string())
-                .map_err(|e| e.into())
-                .map(Query),
-        )
+        serde_urlencoded::from_str::<T>(req.query_string())
+            .map_err(|e| e.into())
+            .map(Query)
     }
 }
 
@@ -245,7 +241,7 @@ where
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         Box::new(
             UrlEncoded::new(req.clone())
                 .limit(cfg.limit)
@@ -327,17 +323,14 @@ impl Default for FormConfig {
 /// ```
 impl<S: 'static> FromRequest<S> for Bytes {
     type Config = PayloadConfig;
-    type Result =
-        Either<FutureResult<Self, Error>, Box<Future<Item = Self, Error = Error>>>;
+    type Result = Result<Box<Future<Item = Self, Error = Error>>, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         // check content-type
-        if let Err(e) = cfg.check_mimetype(req) {
-            return Either::A(result(Err(e)));
-        }
+        cfg.check_mimetype(req)?;
 
-        Either::B(Box::new(
+        Ok(Box::new(
             MessageBody::new(req.clone())
                 .limit(cfg.limit)
                 .from_err(),
@@ -374,27 +367,17 @@ impl<S: 'static> FromRequest<S> for Bytes {
 /// ```
 impl<S: 'static> FromRequest<S> for String {
     type Config = PayloadConfig;
-    type Result =
-        Either<FutureResult<String, Error>, Box<Future<Item = String, Error = Error>>>;
+    type Result = Result<Box<Future<Item = String, Error = Error>>, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         // check content-type
-        if let Err(e) = cfg.check_mimetype(req) {
-            return Either::A(result(Err(e)));
-        }
+        cfg.check_mimetype(req)?;
 
         // check charset
-        let encoding = match req.encoding() {
-            Err(_) => {
-                return Either::A(result(Err(ErrorBadRequest(
-                    "Unknown request charset",
-                ))))
-            }
-            Ok(encoding) => encoding,
-        };
+        let encoding = req.encoding()?;
 
-        Either::B(Box::new(
+        Ok(Box::new(
             MessageBody::new(req.clone())
                 .limit(cfg.limit)
                 .from_err()
@@ -488,7 +471,11 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match Bytes::from_request(&req, &cfg).poll().unwrap() {
+        match Bytes::from_request(&mut req, &cfg)
+            .unwrap()
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s, Bytes::from_static(b"hello=world"));
             }
@@ -503,7 +490,11 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match String::from_request(&req, &cfg).poll().unwrap() {
+        match String::from_request(&mut req, &cfg)
+            .unwrap()
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s, "hello=world");
             }
@@ -523,7 +514,10 @@ mod tests {
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
-        match Form::<Info>::from_request(&req, &cfg).poll().unwrap() {
+        match Form::<Info>::from_request(&mut req, &cfg)
+            .poll()
+            .unwrap()
+        {
             Async::Ready(s) => {
                 assert_eq!(s.hello, "world");
             }
@@ -580,69 +574,31 @@ mod tests {
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<MyStruct>::from_request(&req, &())
-            .poll()
-            .unwrap()
-        {
-            Async::Ready(s) => {
-                assert_eq!(s.key, "name");
-                assert_eq!(s.value, "user1");
-            }
-            _ => unreachable!(),
-        }
+        let s = Path::<MyStruct>::from_request(&mut req, &()).unwrap();
+        assert_eq!(s.key, "name");
+        assert_eq!(s.value, "user1");
 
-        match Path::<(String, String)>::from_request(&req, &())
-            .poll()
-            .unwrap()
-        {
-            Async::Ready(s) => {
-                assert_eq!(s.0, "name");
-                assert_eq!(s.1, "user1");
-            }
-            _ => unreachable!(),
-        }
+        let s = Path::<(String, String)>::from_request(&mut req, &()).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, "user1");
 
-        match Query::<Id>::from_request(&req, &()).poll().unwrap() {
-            Async::Ready(s) => {
-                assert_eq!(s.id, "test");
-            }
-            _ => unreachable!(),
-        }
+        let s = Query::<Id>::from_request(&mut req, &()).unwrap();
+        assert_eq!(s.id, "test");
 
         let mut req = TestRequest::with_uri("/name/32/").finish();
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<Test2>::from_request(&req, &()).poll().unwrap() {
-            Async::Ready(s) => {
-                assert_eq!(s.as_ref().key, "name");
-                assert_eq!(s.value, 32);
-            }
-            _ => unreachable!(),
-        }
+        let s = Path::<Test2>::from_request(&mut req, &()).unwrap();
+        assert_eq!(s.as_ref().key, "name");
+        assert_eq!(s.value, 32);
 
-        match Path::<(String, u8)>::from_request(&req, &())
-            .poll()
-            .unwrap()
-        {
-            Async::Ready(s) => {
-                assert_eq!(s.0, "name");
-                assert_eq!(s.1, 32);
-            }
-            _ => unreachable!(),
-        }
+        let s = Path::<(String, u8)>::from_request(&mut req, &()).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, 32);
 
-        match Path::<Vec<String>>::from_request(&req, &())
-            .poll()
-            .unwrap()
-        {
-            Async::Ready(s) => {
-                assert_eq!(
-                    s.into_inner(),
-                    vec!["name".to_owned(), "32".to_owned()]
-                );
-            }
-            _ => unreachable!(),
-        }
+        let res = Path::<Vec<String>>::from_request(&mut req, &()).unwrap();
+        assert_eq!(res[0], "name".to_owned());
+        assert_eq!(res[1], "32".to_owned());
     }
 
     #[test]
@@ -656,11 +612,6 @@ mod tests {
         let mut req = TestRequest::with_uri("/32/").finish();
         assert!(router.recognize(&mut req).is_some());
 
-        match Path::<i8>::from_request(&req, &()).poll().unwrap() {
-            Async::Ready(s) => {
-                assert_eq!(s.into_inner(), 32);
-            }
-            _ => unreachable!(),
-        }
+        assert_eq!(*Path::<i8>::from_request(&mut req, &()).unwrap(), 32);
     }
 }

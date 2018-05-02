@@ -274,7 +274,7 @@ impl<S: 'static> Scope<S> {
 }
 
 impl<S: 'static> RouteHandler<S> for Scope<S> {
-    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply<HttpResponse> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
@@ -346,7 +346,7 @@ struct Wrapper<S: 'static> {
 }
 
 impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
-    fn handle(&mut self, req: HttpRequest<S2>) -> Reply {
+    fn handle(&mut self, req: HttpRequest<S2>) -> Reply<HttpResponse> {
         self.scope
             .handle(req.change_state(Rc::clone(&self.state)))
     }
@@ -521,9 +521,10 @@ struct WaitingResponse<S> {
 
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
-    fn init(info: &mut ComposeInfo<S>, reply: Reply) -> ComposeState<S> {
+    fn init(info: &mut ComposeInfo<S>, reply: Reply<HttpResponse>) -> ComposeState<S> {
         match reply.into() {
             ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
+            ReplyItem::Error(err) => RunMiddlewares::init(info, err.into()),
             ReplyItem::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
@@ -707,7 +708,7 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/path1").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
     }
 
     #[test]
@@ -724,10 +725,7 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/t1/path1").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::CREATED
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
     }
 
     #[test]
@@ -742,10 +740,7 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/t1/path1").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::CREATED
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
     }
 
     #[test]
@@ -760,16 +755,10 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/path2").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::BAD_REQUEST
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/path2").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 }

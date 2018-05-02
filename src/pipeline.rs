@@ -28,7 +28,8 @@ pub(crate) enum HandlerType {
 pub(crate) trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
-    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType) -> Reply;
+    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType)
+        -> Reply<HttpResponse>;
 }
 
 pub(crate) struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
@@ -319,8 +320,11 @@ struct WaitingResponse<S, H> {
 
 impl<S: 'static, H> WaitingResponse<S, H> {
     #[inline]
-    fn init(info: &mut PipelineInfo<S>, reply: Reply) -> PipelineState<S, H> {
+    fn init(
+        info: &mut PipelineInfo<S>, reply: Reply<HttpResponse>,
+    ) -> PipelineState<S, H> {
         match reply.into() {
+            ReplyItem::Error(err) => RunMiddlewares::init(info, err.into()),
             ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
             ReplyItem::Future(fut) => PipelineState::Handler(WaitingResponse {
                 fut,

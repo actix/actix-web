@@ -198,7 +198,7 @@ impl<S: 'static> ResourceHandler<S> {
 
     pub(crate) fn handle(
         &mut self, mut req: HttpRequest<S>, default: Option<&mut ResourceHandler<S>>,
-    ) -> Reply {
+    ) -> Reply<HttpResponse> {
         for route in &mut self.routes {
             if route.check(&mut req) {
                 return if self.middlewares.is_empty() {

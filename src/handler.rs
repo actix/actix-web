@@ -1,4 +1,4 @@
-use futures::future::{err, ok, Future, FutureResult};
+use futures::future::{err, ok, Future};
 use futures::Poll;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -22,7 +22,7 @@ pub trait Handler<S>: 'static {
 /// Types that implement this trait can be used as the return type of a handler.
 pub trait Responder {
     /// The associated item which can be returned.
-    type Item: Into<Reply>;
+    type Item: Into<Reply<HttpResponse>>;
 
     /// The associated error which can be returned.
     type Error: Into<Error>;
@@ -42,10 +42,10 @@ where
     type Config: Default;
 
     /// Future that resolves to a Self
-    type Result: Future<Item = Self, Error = Error>;
+    type Result: Into<Reply<Self>>;
 
     /// Convert request to a Self
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
+    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
 }
 
 /// Combines two different responder types into a single type
@@ -88,10 +88,10 @@ where
     A: Responder,
     B: Responder,
 {
-    type Item = Reply;
+    type Item = Reply<HttpResponse>;
     type Error = Error;
 
-    fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
         match self {
             Either::A(a) => match a.respond_to(req) {
                 Ok(val) => Ok(val.into()),
@@ -177,66 +177,86 @@ where
     }
 }
 
-/// Represents response process.
-pub struct Reply(ReplyItem);
+/// Represents reply process.
+///
+/// Reply could be in tree different forms.
+/// * Message(T) - ready item
+/// * Error(Error) - error happen during reply process
+/// * Future<T, Error> - reply process completes in the future
+pub struct Reply<T>(ReplyItem<T>);
 
-pub(crate) enum ReplyItem {
-    Message(HttpResponse),
-    Future(Box<Future<Item = HttpResponse, Error = Error>>),
+pub(crate) enum ReplyItem<T> {
+    Error(Error),
+    Message(T),
+    Future(Box<Future<Item = T, Error = Error>>),
 }
 
-impl Reply {
+impl<T> Reply<T> {
     /// Create async response
     #[inline]
-    pub fn async<F>(fut: F) -> Reply
+    pub fn async<F>(fut: F) -> Reply<T>
     where
-        F: Future<Item = HttpResponse, Error = Error> + 'static,
+        F: Future<Item = T, Error = Error> + 'static,
     {
         Reply(ReplyItem::Future(Box::new(fut)))
     }
 
     /// Send response
     #[inline]
-    pub fn response<R: Into<HttpResponse>>(response: R) -> Reply {
+    pub fn response<R: Into<T>>(response: R) -> Reply<T> {
         Reply(ReplyItem::Message(response.into()))
     }
 
+    /// Send error
     #[inline]
-    pub(crate) fn into(self) -> ReplyItem {
+    pub fn error<R: Into<Error>>(err: R) -> Reply<T> {
+        Reply(ReplyItem::Error(err.into()))
+    }
+
+    #[inline]
+    pub(crate) fn into(self) -> ReplyItem<T> {
         self.0
     }
 
     #[cfg(test)]
-    pub(crate) fn as_response(&self) -> Option<&HttpResponse> {
+    pub(crate) fn as_msg(&self) -> &T {
         match self.0 {
-            ReplyItem::Message(ref resp) => Some(resp),
+            ReplyItem::Message(ref resp) => resp,
+            _ => panic!(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn as_err(&self) -> Option<&Error> {
+        match self.0 {
+            ReplyItem::Error(ref err) => Some(err),
             _ => None,
         }
     }
 }
 
-impl Responder for Reply {
-    type Item = Reply;
+impl Responder for Reply<HttpResponse> {
+    type Item = Reply<HttpResponse>;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
         Ok(self)
     }
 }
 
 impl Responder for HttpResponse {
-    type Item = Reply;
+    type Item = Reply<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to(self, _: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
         Ok(Reply(ReplyItem::Message(self)))
     }
 }
 
-impl From<HttpResponse> for Reply {
+impl<T> From<T> for Reply<T> {
     #[inline]
-    fn from(resp: HttpResponse) -> Reply {
+    fn from(resp: T) -> Reply<T> {
         Reply(ReplyItem::Message(resp))
     }
 }
@@ -256,29 +276,41 @@ impl<T: Responder, E: Into<Error>> Responder for Result<T, E> {
     }
 }
 
-impl<E: Into<Error>> From<Result<Reply, E>> for Reply {
+impl<T, E: Into<Error>> From<Result<Reply<T>, E>> for Reply<T> {
     #[inline]
-    fn from(res: Result<Reply, E>) -> Self {
+    fn from(res: Result<Reply<T>, E>) -> Self {
         match res {
             Ok(val) => val,
-            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+            Err(err) => Reply(ReplyItem::Error(err.into())),
         }
     }
 }
 
-impl<E: Into<Error>> From<Result<HttpResponse, E>> for Reply {
+impl<T, E: Into<Error>> From<Result<T, E>> for Reply<T> {
     #[inline]
-    fn from(res: Result<HttpResponse, E>) -> Self {
+    fn from(res: Result<T, E>) -> Self {
         match res {
             Ok(val) => Reply(ReplyItem::Message(val)),
-            Err(err) => Reply(ReplyItem::Message(err.into().into())),
+            Err(err) => Reply(ReplyItem::Error(err.into())),
         }
     }
 }
 
-impl From<Box<Future<Item = HttpResponse, Error = Error>>> for Reply {
+impl<T, E: Into<Error>> From<Result<Box<Future<Item = T, Error = Error>>, E>>
+    for Reply<T>
+{
     #[inline]
-    fn from(fut: Box<Future<Item = HttpResponse, Error = Error>>) -> Reply {
+    fn from(res: Result<Box<Future<Item = T, Error = Error>>, E>) -> Self {
+        match res {
+            Ok(fut) => Reply(ReplyItem::Future(fut)),
+            Err(err) => Reply(ReplyItem::Error(err.into())),
+        }
+    }
+}
+
+impl<T> From<Box<Future<Item = T, Error = Error>>> for Reply<T> {
+    #[inline]
+    fn from(fut: Box<Future<Item = T, Error = Error>>) -> Reply<T> {
         Reply(ReplyItem::Future(fut))
     }
 }
@@ -291,11 +323,11 @@ where
     I: Responder + 'static,
     E: Into<Error> + 'static,
 {
-    type Item = Reply;
+    type Item = Reply<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to(self, req: HttpRequest) -> Result<Reply, Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
         let fut = self.map_err(|e| e.into())
             .then(move |r| match r.respond_to(req) {
                 Ok(reply) => match reply.into().0 {
@@ -310,7 +342,7 @@ where
 
 /// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply;
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse>;
 }
 
 /// Route handler wrapper for Handler
@@ -344,7 +376,7 @@ where
     R: Responder + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
         let req2 = req.drop_state();
         match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
@@ -390,7 +422,7 @@ where
     E: Into<Error> + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply {
+    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
         let req2 = req.drop_state();
         let fut = (self.h)(req).map_err(|e| e.into()).then(move |r| {
             match r.respond_to(req2) {
@@ -449,10 +481,10 @@ impl<S> Deref for State<S> {
 
 impl<S: 'static> FromRequest<S> for State<S> {
     type Config = ();
-    type Result = FutureResult<Self, Error>;
+    type Result = State<S>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        ok(State(req.clone()))
+    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
+        State(req.clone()).into()
     }
 }

@@ -45,14 +45,14 @@ impl<S: 'static> Route<S> {
     }
 
     #[inline]
-    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> Reply {
+    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
         self.handler.handle(req)
     }
 
     #[inline]
     pub(crate) fn compose(
         &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
-    ) -> Reply {
+    ) -> Reply<HttpResponse> {
         Reply::async(Compose::new(req, mws, self.handler.clone()))
     }
 
@@ -243,7 +243,7 @@ impl<S: 'static> InnerHandler<S> {
     }
 
     #[inline]
-    pub fn handle(&self, req: HttpRequest<S>) -> Reply {
+    pub fn handle(&self, req: HttpRequest<S>) -> Reply<HttpResponse> {
         // reason: handler is unique per thread, handler get called from async code only
         let h = unsafe { &mut *self.0.as_ref().get() };
         h.handle(req)
@@ -415,8 +415,9 @@ struct WaitingResponse<S> {
 
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
-    fn init(info: &mut ComposeInfo<S>, reply: Reply) -> ComposeState<S> {
+    fn init(info: &mut ComposeInfo<S>, reply: Reply<HttpResponse>) -> ComposeState<S> {
         match reply.into() {
+            ReplyItem::Error(err) => RunMiddlewares::init(info, err.into()),
             ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
             ReplyItem::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,

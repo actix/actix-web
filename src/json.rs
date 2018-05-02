@@ -136,7 +136,7 @@ where
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+    fn from_request(req: &mut HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         let req = req.clone();
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
@@ -417,13 +417,7 @@ mod tests {
         let mut handler = With::new(|data: Json<MyObject>| data, cfg);
 
         let req = HttpRequest::default();
-        let err = handler
-            .handle(req)
-            .as_response()
-            .unwrap()
-            .error()
-            .is_some();
-        assert!(err);
+        assert!(handler.handle(req).as_err().is_some());
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(
@@ -436,12 +430,6 @@ mod tests {
         );
         req.payload_mut()
             .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
-        let ok = handler
-            .handle(req)
-            .as_response()
-            .unwrap()
-            .error()
-            .is_none();
-        assert!(ok)
+        assert!(handler.handle(req).as_err().is_none())
     }
 }

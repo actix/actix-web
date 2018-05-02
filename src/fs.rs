@@ -565,7 +565,7 @@ impl<S: 'static> StaticFiles<S> {
 }
 
 impl<S: 'static> Handler<S> for StaticFiles<S> {
-    type Result = Result<Reply, Error>;
+    type Result = Result<Reply<HttpResponse>, Error>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
@@ -755,7 +755,7 @@ mod tests {
         let resp = st.handle(HttpRequest::default())
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         st.accessible = true;
@@ -763,7 +763,7 @@ mod tests {
         let resp = st.handle(HttpRequest::default())
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut req = HttpRequest::default();
@@ -773,7 +773,7 @@ mod tests {
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/html; charset=utf-8"
@@ -791,7 +791,7 @@ mod tests {
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
@@ -804,7 +804,7 @@ mod tests {
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
@@ -821,7 +821,7 @@ mod tests {
         let resp = st.handle(req)
             .respond_to(HttpRequest::default())
             .unwrap();
-        let resp = resp.as_response().expect("HTTP Response");
+        let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),

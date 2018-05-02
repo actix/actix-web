@@ -217,7 +217,7 @@ mod tests {
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
-            let r = resp.as_response().unwrap();
+            let r = resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(
@@ -260,7 +260,7 @@ mod tests {
         for (path, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
-            let r = resp.as_response().unwrap();
+            let r = resp.as_msg();
             assert_eq!(r.status(), code);
         }
     }
@@ -351,7 +351,7 @@ mod tests {
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
-            let r = resp.as_response().unwrap();
+            let r = resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(
@@ -535,7 +535,7 @@ mod tests {
         for (path, target, code) in params {
             let req = app.prepare_request(TestRequest::with_uri(path).finish());
             let resp = app.run(req);
-            let r = resp.as_response().unwrap();
+            let r = resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(

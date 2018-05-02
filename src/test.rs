@@ -602,6 +602,7 @@ impl<S> TestRequest<S> {
         match resp.respond_to(req.drop_state()) {
             Ok(resp) => match resp.into().into() {
                 ReplyItem::Message(resp) => Ok(resp),
+                ReplyItem::Error(err) => Ok(err.into()),
                 ReplyItem::Future(_) => panic!("Async handler is not supported."),
             },
             Err(err) => Err(err),

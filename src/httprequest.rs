@@ -1,20 +1,20 @@
 //! HTTP Request message related code.
 #![cfg_attr(feature = "cargo-clippy", allow(transmute_ptr_to_ptr))]
-use bytes::Bytes;
-use cookie::Cookie;
-use failure;
-use futures::future::{result, FutureResult};
-use futures::{Async, Poll, Stream};
-use futures_cpupool::CpuPool;
-use http::{header, Extensions, HeaderMap, Method, StatusCode, Uri, Version};
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{cmp, fmt, io, mem, str};
+
+use bytes::Bytes;
+use cookie::Cookie;
+use failure;
+use futures::{Async, Poll, Stream};
+use futures_cpupool::CpuPool;
+use http::{header, Extensions, HeaderMap, Method, StatusCode, Uri, Version};
 use tokio_io::AsyncRead;
 use url::{form_urlencoded, Url};
 
 use body::Body;
-use error::{CookieParseError, Error, PayloadError, UrlGenerationError};
+use error::{CookieParseError, PayloadError, UrlGenerationError};
 use handler::FromRequest;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};
@@ -502,11 +502,11 @@ impl<S> Clone for HttpRequest<S> {
 
 impl<S: 'static> FromRequest<S> for HttpRequest<S> {
     type Config = ();
-    type Result = FutureResult<Self, Error>;
+    type Result = Self;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        result(Ok(req.clone()))
+    fn from_request(req: &mut HttpRequest<S>, _: &Self::Config) -> Self::Result {
+        req.clone()
     }
 }
 

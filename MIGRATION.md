@@ -11,6 +11,10 @@
 * `HttpRequest::extensions()` returns read only reference to the request's Extension
   `HttpRequest::extensions_mut()` returns mutable reference.
 
+* `FromRequest::from_request()` accepts mutable reference to a request
+
+* `FromRequest::Result` has to implement `Into<Reply<Self>>`
+
 
 ## Migration from 0.4 to 0.5
 

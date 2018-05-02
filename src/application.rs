@@ -6,6 +6,7 @@ use handler::{FromRequest, Handler, Reply, Responder, RouteHandler, WrapHandler}
 use header::ContentEncoding;
 use http::Method;
 use httprequest::HttpRequest;
+use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pipeline::{HandlerType, Pipeline, PipelineHandler};
 use resource::ResourceHandler;
@@ -36,7 +37,9 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         self.encoding
     }
 
-    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType) -> Reply {
+    fn handle(
+        &mut self, req: HttpRequest<S>, htype: HandlerType,
+    ) -> Reply<HttpResponse> {
         match htype {
             HandlerType::Normal(idx) => {
                 self.resources[idx].handle(req, Some(&mut self.default))
@@ -87,7 +90,7 @@ impl<S: 'static> HttpApplication<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply {
+    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply<HttpResponse> {
         let tp = self.get_handler(&mut req);
         unsafe { &mut *self.inner.get() }.handle(req, tp)
     }
@@ -669,24 +672,18 @@ mod tests {
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let mut app = App::new()
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::METHOD_NOT_ALLOWED
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[test]
@@ -706,7 +703,7 @@ mod tests {
         let req =
             HttpRequest::default().with_state(Rc::clone(&app.state), app.router.clone());
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
     }
 
     #[test]
@@ -740,29 +737,23 @@ mod tests {
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test/").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test/app").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -773,29 +764,23 @@ mod tests {
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test/").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test/app").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -807,29 +792,23 @@ mod tests {
 
         let req = TestRequest::with_uri("/prefix/test").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/prefix/test/").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/prefix/test/app").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/prefix/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/prefix/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -847,25 +826,19 @@ mod tests {
             .method(Method::GET)
             .finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::CREATED
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::HEAD)
             .finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -877,36 +850,27 @@ mod tests {
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/test").finish();
         let resp = app.run(req.clone());
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
         assert_eq!(req.prefix_len(), 9);
 
         let req = TestRequest::with_uri("/app/test/").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/test/app").finish();
         let resp = app.run(req);
-        assert_eq!(resp.as_response().unwrap().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/testapp").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/blah").finish();
         let resp = app.run(req);
-        assert_eq!(
-            resp.as_response().unwrap().status(),
-            StatusCode::NOT_FOUND
-        );
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 }
