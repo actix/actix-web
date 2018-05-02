@@ -21,7 +21,7 @@ use application::{App, HttpApplication};
 use body::Binary;
 use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
-use handler::{Handler, ReplyItem, Responder};
+use handler::{Handler, ReplyResult, Responder};
 use header::{Header, IntoHeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -601,10 +601,9 @@ impl<S> TestRequest<S> {
 
         match resp.respond_to(req.drop_state()) {
             Ok(resp) => match resp.into().into() {
-                ReplyItem::Message(resp) => Ok(resp),
-                ReplyItem::Error(err) => Ok(err.into()),
-                ReplyItem::Future(_) => panic!("Async handler is not supported."),
-                ReplyItem::None => panic!("use after resolve"),
+                ReplyResult::Ok(resp) => Ok(resp),
+                ReplyResult::Err(err) => Ok(err.into()),
+                ReplyResult::Future(_) => panic!("Async handler is not supported."),
             },
             Err(err) => Err(err),
         }
@@ -628,7 +627,7 @@ impl<S> TestRequest<S> {
         match core.run(fut) {
             Ok(r) => match r.respond_to(req.drop_state()) {
                 Ok(reply) => match reply.into().into() {
-                    ReplyItem::Message(resp) => Ok(resp),
+                    ReplyResult::Ok(resp) => Ok(resp),
                     _ => panic!("Nested async replies are not supported"),
                 },
                 Err(e) => Err(e),

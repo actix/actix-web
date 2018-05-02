@@ -11,7 +11,7 @@ use application::Inner;
 use body::{Body, BodyStream};
 use context::{ActorHttpContext, Frame};
 use error::Error;
-use handler::{Reply, ReplyItem};
+use handler::{Reply, ReplyResult};
 use header::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -324,14 +324,13 @@ impl<S: 'static, H> WaitingResponse<S, H> {
         info: &mut PipelineInfo<S>, reply: Reply<HttpResponse>,
     ) -> PipelineState<S, H> {
         match reply.into() {
-            ReplyItem::Error(err) => RunMiddlewares::init(info, err.into()),
-            ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
-            ReplyItem::Future(fut) => PipelineState::Handler(WaitingResponse {
+            ReplyResult::Err(err) => RunMiddlewares::init(info, err.into()),
+            ReplyResult::Ok(resp) => RunMiddlewares::init(info, resp),
+            ReplyResult::Future(fut) => PipelineState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
                 _h: PhantomData,
             }),
-            ReplyItem::None => panic!("use after resolve"),
         }
     }
 
