@@ -12,6 +12,8 @@
 
 * Allow to access Error's backtrace object
 
+* Various extractor usability improvements #207
+
 
 ## 0.5.6 (2018-04-24)
 
