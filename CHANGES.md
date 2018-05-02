@@ -12,6 +12,8 @@
 
 * Allow to access Error's backtrace object
 
+* Allow to override files listing renderer for `StaticFiles` #203
+
 * Various extractor usability improvements #207
 
 
