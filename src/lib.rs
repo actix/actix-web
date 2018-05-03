@@ -175,6 +175,7 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+pub use ws::WsWriter;
 
 #[cfg(feature = "openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;
