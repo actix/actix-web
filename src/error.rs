@@ -48,11 +48,11 @@ impl Error {
 
     /// Returns a reference to the Backtrace carried by this error, if it
     /// carries one.
-    pub fn backtrace(&self) -> Option<&Backtrace> {
+    pub fn backtrace(&self) -> &Backtrace {
         if let Some(bt) = self.cause.backtrace() {
-            Some(bt)
+            bt
         } else {
-            self.backtrace.as_ref()
+            self.backtrace.as_ref().unwrap()
         }
     }
 }
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn test_backtrace() {
         let e = ErrorBadRequest("err");
-        assert!(e.backtrace().is_some());
+        let _ = e.backtrace();
     }
 
     #[test]
