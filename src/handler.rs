@@ -247,7 +247,7 @@ impl<I, E> Reply<I, E> {
     #[cfg(test)]
     pub(crate) fn as_msg(&self) -> &I {
         match self.0.as_ref().unwrap() {
-            ReplyResult::Ok(ref resp) => resp,
+            &ReplyResult::Ok(ref resp) => resp,
             _ => panic!(),
         }
     }
@@ -255,7 +255,7 @@ impl<I, E> Reply<I, E> {
     #[cfg(test)]
     pub(crate) fn as_err(&self) -> Option<&E> {
         match self.0.as_ref().unwrap() {
-            ReplyResult::Err(ref err) => Some(err),
+            &ReplyResult::Err(ref err) => Some(err),
             _ => None,
         }
     }
