@@ -5,7 +5,7 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyItem, Responder,
+use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyResult, Responder,
               RouteHandler, WrapHandler};
 use http::StatusCode;
 use httprequest::HttpRequest;
@@ -417,13 +417,12 @@ impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(info: &mut ComposeInfo<S>, reply: Reply<HttpResponse>) -> ComposeState<S> {
         match reply.into() {
-            ReplyItem::Error(err) => RunMiddlewares::init(info, err.into()),
-            ReplyItem::Message(resp) => RunMiddlewares::init(info, resp),
-            ReplyItem::Future(fut) => ComposeState::Handler(WaitingResponse {
+            ReplyResult::Err(err) => RunMiddlewares::init(info, err.into()),
+            ReplyResult::Ok(resp) => RunMiddlewares::init(info, resp),
+            ReplyResult::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
             }),
-            ReplyItem::None => panic!("use after resolve"),
         }
     }
 

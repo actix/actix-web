@@ -365,11 +365,14 @@ impl Stream for ChunkedReadFile {
     }
 }
 
+type DirectoryRenderer<S> =
+    Fn(&Directory, &HttpRequest<S>) -> Result<HttpResponse, io::Error>;
+
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
 pub struct Directory {
-    base: PathBuf,
-    path: PathBuf,
+    pub base: PathBuf,
+    pub path: PathBuf,
 }
 
 impl Directory {
@@ -377,7 +380,7 @@ impl Directory {
         Directory { base, path }
     }
 
-    fn can_list(&self, entry: &io::Result<DirEntry>) -> bool {
+    pub fn is_visible(&self, entry: &io::Result<DirEntry>) -> bool {
         if let Ok(ref entry) = *entry {
             if let Some(name) = entry.file_name().to_str() {
                 if name.starts_with('.') {
@@ -393,61 +396,58 @@ impl Directory {
     }
 }
 
-impl Responder for Directory {
-    type Item = HttpResponse;
-    type Error = io::Error;
+fn directory_listing<S>(
+    dir: &Directory, req: &HttpRequest<S>,
+) -> Result<HttpResponse, io::Error> {
+    let index_of = format!("Index of {}", req.path());
+    let mut body = String::new();
+    let base = Path::new(req.path());
 
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
-        let index_of = format!("Index of {}", req.path());
-        let mut body = String::new();
-        let base = Path::new(req.path());
+    for entry in dir.path.read_dir()? {
+        if dir.is_visible(&entry) {
+            let entry = entry.unwrap();
+            let p = match entry.path().strip_prefix(&dir.path) {
+                Ok(p) => base.join(p),
+                Err(_) => continue,
+            };
+            // show file url as relative to static path
+            let file_url = format!("{}", p.to_string_lossy());
 
-        for entry in self.path.read_dir()? {
-            if self.can_list(&entry) {
-                let entry = entry.unwrap();
-                let p = match entry.path().strip_prefix(&self.path) {
-                    Ok(p) => base.join(p),
-                    Err(_) => continue,
-                };
-                // show file url as relative to static path
-                let file_url = format!("{}", p.to_string_lossy());
-
-                // if file is a directory, add '/' to the end of the name
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_dir() {
-                        let _ = write!(
-                            body,
-                            "<li><a href=\"{}\">{}/</a></li>",
-                            file_url,
-                            entry.file_name().to_string_lossy()
-                        );
-                    } else {
-                        let _ = write!(
-                            body,
-                            "<li><a href=\"{}\">{}</a></li>",
-                            file_url,
-                            entry.file_name().to_string_lossy()
-                        );
-                    }
+            // if file is a directory, add '/' to the end of the name
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_dir() {
+                    let _ = write!(
+                        body,
+                        "<li><a href=\"{}\">{}/</a></li>",
+                        file_url,
+                        entry.file_name().to_string_lossy()
+                    );
                 } else {
-                    continue;
+                    let _ = write!(
+                        body,
+                        "<li><a href=\"{}\">{}</a></li>",
+                        file_url,
+                        entry.file_name().to_string_lossy()
+                    );
                 }
+            } else {
+                continue;
             }
         }
-
-        let html = format!(
-            "<html>\
-             <head><title>{}</title></head>\
-             <body><h1>{}</h1>\
-             <ul>\
-             {}\
-             </ul></body>\n</html>",
-            index_of, index_of, body
-        );
-        Ok(HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html))
     }
+
+    let html = format!(
+        "<html>\
+         <head><title>{}</title></head>\
+         <body><h1>{}</h1>\
+         <ul>\
+         {}\
+         </ul></body>\n</html>",
+        index_of, index_of, body
+    );
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html))
 }
 
 /// Static files handling
@@ -472,6 +472,7 @@ pub struct StaticFiles<S> {
     show_index: bool,
     cpu_pool: CpuPool,
     default: Box<RouteHandler<S>>,
+    renderer: Box<DirectoryRenderer<S>>,
     _chunk_size: usize,
     _follow_symlinks: bool,
 }
@@ -535,6 +536,7 @@ impl<S: 'static> StaticFiles<S> {
             default: Box::new(WrapHandler::new(|_| {
                 HttpResponse::new(StatusCode::NOT_FOUND)
             })),
+            renderer: Box::new(directory_listing),
             _chunk_size: 0,
             _follow_symlinks: false,
         }
@@ -545,6 +547,17 @@ impl<S: 'static> StaticFiles<S> {
     /// By default show files listing is disabled.
     pub fn show_files_listing(mut self) -> Self {
         self.show_index = true;
+        self
+    }
+
+    /// Set custom directory renderer
+    pub fn files_listing_renderer<F>(mut self, f: F) -> Self
+    where
+        for<'r, 's> F: Fn(&'r Directory, &'s HttpRequest<S>)
+                -> Result<HttpResponse, io::Error>
+            + 'static,
+    {
+        self.renderer = Box::new(f);
         self
     }
 
@@ -601,9 +614,8 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                         .finish()
                         .respond_to(req.drop_state())
                 } else if self.show_index {
-                    Directory::new(self.directory.clone(), path)
-                        .respond_to(req.drop_state())?
-                        .respond_to(req.drop_state())
+                    let dir = Directory::new(self.directory.clone(), path);
+                    Ok((*self.renderer)(&dir, &req)?.into())
                 } else {
                     Ok(self.default.handle(req))
                 }

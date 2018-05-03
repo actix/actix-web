@@ -805,8 +805,7 @@ mod tests {
 
     #[test]
     fn test_backtrace() {
-        let orig = ErrorBadRequest("err");
-        let e: Error = orig.into();
+        let e = ErrorBadRequest("err");
         assert!(e.backtrace().is_some());
     }
 

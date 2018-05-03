@@ -37,7 +37,7 @@
 //! use actix_web::{server, App, HttpRequest, Result};
 //! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 //!
-//! fn index(mut req: HttpRequest) -> Result<&'static str> {
+//! fn index(req: HttpRequest) -> Result<&'static str> {
 //!     // access session data
 //!     if let Some(count) = req.session().get::<i32>("counter")? {
 //!         println!("SESSION value: {}", count);
@@ -523,5 +523,32 @@ impl<S> SessionBackend<S> for CookieSessionBackend {
             inner: Rc::clone(&self.0),
             state,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use application::App;
+    use test;
+
+    #[test]
+    fn cookie_session() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new()
+                .middleware(SessionStorage::new(
+                    CookieSessionBackend::signed(&[0; 32]).secure(false),
+                ))
+                .resource("/", |r| {
+                    r.f(|req| {
+                        let _ = req.session().set("counter", 100);
+                        "test"
+                    })
+                })
+        });
+
+        let request = srv.get().uri(srv.url("/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert!(response.cookie("actix-session").is_some());
     }
 }

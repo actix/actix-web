@@ -15,6 +15,20 @@
 
 * `FromRequest::Result` has to implement `Into<Reply<Self>>`
 
+* `HttpRequest::query()` is deprecated. Use `Query` extractor.
+
+   ```rust
+   fn index(q: Query<HashMap<String, String>>) -> Result<..> {
+       ...
+   }
+   ```
+
+   or
+
+   ```rust
+   let q = Query::<HashMap<String, String>>::extract(req);
+   ```
+
 
 ## Migration from 0.4 to 0.5
 

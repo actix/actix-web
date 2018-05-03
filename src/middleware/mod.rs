@@ -21,7 +21,7 @@ pub use self::logger::Logger;
 
 /// Middleware start result
 pub enum Started {
-    /// Execution completed
+    /// Middleware is completed, continue to next middleware
     Done,
     /// New http response got generated. If middleware generates response
     /// handler execution halts.
