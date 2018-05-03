@@ -5,8 +5,8 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncHandler, FromRequest, Handler, Reply, ReplyResult, Responder,
-              RouteHandler, WrapHandler};
+use handler::{AsyncHandler, AsyncResult, AsyncResultItem, FromRequest, Handler,
+              Responder, RouteHandler, WrapHandler};
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -45,15 +45,15 @@ impl<S: 'static> Route<S> {
     }
 
     #[inline]
-    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
+    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         self.handler.handle(req)
     }
 
     #[inline]
     pub(crate) fn compose(
         &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
-    ) -> Reply<HttpResponse> {
-        Reply::async(Compose::new(req, mws, self.handler.clone()))
+    ) -> AsyncResult<HttpResponse> {
+        AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
 
     /// Add match predicate to route.
@@ -243,7 +243,7 @@ impl<S: 'static> InnerHandler<S> {
     }
 
     #[inline]
-    pub fn handle(&self, req: HttpRequest<S>) -> Reply<HttpResponse> {
+    pub fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         // reason: handler is unique per thread, handler get called from async code only
         let h = unsafe { &mut *self.0.as_ref().get() };
         h.handle(req)
@@ -415,11 +415,13 @@ struct WaitingResponse<S> {
 
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
-    fn init(info: &mut ComposeInfo<S>, reply: Reply<HttpResponse>) -> ComposeState<S> {
+    fn init(
+        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+    ) -> ComposeState<S> {
         match reply.into() {
-            ReplyResult::Err(err) => RunMiddlewares::init(info, err.into()),
-            ReplyResult::Ok(resp) => RunMiddlewares::init(info, resp),
-            ReplyResult::Future(fut) => ComposeState::Handler(WaitingResponse {
+            AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
+            AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
+            AsyncResultItem::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
             }),

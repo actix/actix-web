@@ -11,7 +11,7 @@ use application::Inner;
 use body::{Body, BodyStream};
 use context::{ActorHttpContext, Frame};
 use error::Error;
-use handler::{Reply, ReplyResult};
+use handler::{AsyncResult, AsyncResultItem};
 use header::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -28,8 +28,9 @@ pub(crate) enum HandlerType {
 pub(crate) trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
-    fn handle(&mut self, req: HttpRequest<S>, htype: HandlerType)
-        -> Reply<HttpResponse>;
+    fn handle(
+        &mut self, req: HttpRequest<S>, htype: HandlerType,
+    ) -> AsyncResult<HttpResponse>;
 }
 
 pub(crate) struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
@@ -321,12 +322,12 @@ struct WaitingResponse<S, H> {
 impl<S: 'static, H> WaitingResponse<S, H> {
     #[inline]
     fn init(
-        info: &mut PipelineInfo<S>, reply: Reply<HttpResponse>,
+        info: &mut PipelineInfo<S>, reply: AsyncResult<HttpResponse>,
     ) -> PipelineState<S, H> {
         match reply.into() {
-            ReplyResult::Err(err) => RunMiddlewares::init(info, err.into()),
-            ReplyResult::Ok(resp) => RunMiddlewares::init(info, resp),
-            ReplyResult::Future(fut) => PipelineState::Handler(WaitingResponse {
+            AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
+            AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
+            AsyncResultItem::Future(fut) => PipelineState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
                 _h: PhantomData,

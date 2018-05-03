@@ -5,7 +5,7 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{FromRequest, Reply, ReplyResult, Responder, RouteHandler};
+use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler};
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -274,7 +274,7 @@ impl<S: 'static> Scope<S> {
 }
 
 impl<S: 'static> RouteHandler<S> for Scope<S> {
-    fn handle(&mut self, mut req: HttpRequest<S>) -> Reply<HttpResponse> {
+    fn handle(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
@@ -287,12 +287,12 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
                     let resource = unsafe { &mut *resource.get() };
                     return resource.handle(req, Some(default));
                 } else {
-                    return Reply::async(Compose::new(
+                    return AsyncResult::async(Box::new(Compose::new(
                         req,
                         Rc::clone(&self.middlewares),
                         Rc::clone(&resource),
                         Some(Rc::clone(&self.default)),
-                    ));
+                    )));
                 }
             }
         }
@@ -330,12 +330,12 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         if self.middlewares.is_empty() {
             default.handle(req, None)
         } else {
-            Reply::async(Compose::new(
+            AsyncResult::async(Box::new(Compose::new(
                 req,
                 Rc::clone(&self.middlewares),
                 Rc::clone(&self.default),
                 None,
-            ))
+            )))
         }
     }
 }
@@ -346,7 +346,7 @@ struct Wrapper<S: 'static> {
 }
 
 impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
-    fn handle(&mut self, req: HttpRequest<S2>) -> Reply<HttpResponse> {
+    fn handle(&mut self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
         self.scope
             .handle(req.change_state(Rc::clone(&self.state)))
     }
@@ -521,11 +521,13 @@ struct WaitingResponse<S> {
 
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
-    fn init(info: &mut ComposeInfo<S>, reply: Reply<HttpResponse>) -> ComposeState<S> {
+    fn init(
+        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+    ) -> ComposeState<S> {
         match reply.into() {
-            ReplyResult::Ok(resp) => RunMiddlewares::init(info, resp),
-            ReplyResult::Err(err) => RunMiddlewares::init(info, err.into()),
-            ReplyResult::Future(fut) => ComposeState::Handler(WaitingResponse {
+            AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
+            AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
+            AsyncResultItem::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
             }),

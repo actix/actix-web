@@ -4,7 +4,7 @@ use std::rc::Rc;
 use http::{Method, StatusCode};
 use smallvec::SmallVec;
 
-use handler::{FromRequest, Handler, Reply, Responder};
+use handler::{AsyncResult, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
@@ -198,7 +198,7 @@ impl<S: 'static> ResourceHandler<S> {
 
     pub(crate) fn handle(
         &mut self, mut req: HttpRequest<S>, default: Option<&mut ResourceHandler<S>>,
-    ) -> Reply<HttpResponse> {
+    ) -> AsyncResult<HttpResponse> {
         for route in &mut self.routes {
             if route.check(&mut req) {
                 return if self.middlewares.is_empty() {
@@ -211,7 +211,7 @@ impl<S: 'static> ResourceHandler<S> {
         if let Some(resource) = default {
             resource.handle(req, None)
         } else {
-            Reply::response(HttpResponse::new(StatusCode::NOT_FOUND))
+            AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
         }
     }
 }

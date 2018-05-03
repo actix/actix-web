@@ -18,7 +18,7 @@ use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 
 use error::Error;
-use handler::{Handler, Reply, Responder, RouteHandler, WrapHandler};
+use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
 use http::{Method, StatusCode};
 use httpmessage::HttpMessage;
@@ -578,7 +578,7 @@ impl<S: 'static> StaticFiles<S> {
 }
 
 impl<S: 'static> Handler<S> for StaticFiles<S> {
-    type Result = Result<Reply<HttpResponse>, Error>;
+    type Result = Result<AsyncResult<HttpResponse>, Error>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {

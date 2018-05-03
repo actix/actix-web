@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use error::Error;
-use handler::{FromRequest, Handler, Reply, ReplyResult, Responder};
+use handler::{AsyncResult, AsyncResultItem, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -82,7 +82,7 @@ where
     T: FromRequest<S> + 'static,
     S: 'static,
 {
-    type Result = Reply<HttpResponse>;
+    type Result = AsyncResult<HttpResponse>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         let mut fut = WithHandlerFut {
@@ -95,9 +95,9 @@ where
         };
 
         match fut.poll() {
-            Ok(Async::Ready(resp)) => Reply::response(resp),
-            Ok(Async::NotReady) => Reply::async(fut),
-            Err(e) => Reply::error::<Error>(e),
+            Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
+            Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
+            Err(e) => AsyncResult::error::<Error>(e),
         }
     }
 }
@@ -136,9 +136,9 @@ where
             self.started = true;
             let reply = T::from_request(&self.req, self.cfg.as_ref()).into();
             match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
@@ -157,9 +157,9 @@ where
         };
 
         match item.into() {
-            ReplyResult::Err(err) => Err(err),
-            ReplyResult::Ok(resp) => Ok(Async::Ready(resp)),
-            ReplyResult::Future(fut) => {
+            AsyncResultItem::Err(err) => Err(err),
+            AsyncResultItem::Ok(resp) => Ok(Async::Ready(resp)),
+            AsyncResultItem::Future(fut) => {
                 self.fut2 = Some(fut);
                 self.poll()
             }
@@ -207,7 +207,7 @@ where
     T2: FromRequest<S> + 'static,
     S: 'static,
 {
-    type Result = Reply<HttpResponse>;
+    type Result = AsyncResult<HttpResponse>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         let mut fut = WithHandlerFut2 {
@@ -222,9 +222,9 @@ where
             fut3: None,
         };
         match fut.poll() {
-            Ok(Async::Ready(resp)) => Reply::response(resp),
-            Ok(Async::NotReady) => Reply::async(fut),
-            Err(e) => Reply::response(e),
+            Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
+            Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
+            Err(e) => AsyncResult::ok(e),
         }
     }
 }
@@ -268,9 +268,9 @@ where
             self.started = true;
             let reply = T1::from_request(&self.req, self.cfg1.as_ref()).into();
             let item1 = match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
@@ -278,9 +278,9 @@ where
 
             let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
             let item2 = match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.item = Some(item1);
                     self.fut2 = Some(fut);
                     return self.poll();
@@ -290,9 +290,9 @@ where
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
             match (*hnd)(item1, item2).respond_to(self.req.drop_state()) {
                 Ok(item) => match item.into().into() {
-                    ReplyResult::Err(err) => return Err(err),
-                    ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-                    ReplyResult::Future(fut) => {
+                    AsyncResultItem::Err(err) => return Err(err),
+                    AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                    AsyncResultItem::Future(fut) => {
                         self.fut3 = Some(fut);
                         return self.poll();
                     }
@@ -306,9 +306,9 @@ where
                 Async::Ready(item) => {
                     let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
                     let item2 = match reply.into() {
-                        ReplyResult::Err(err) => return Err(err),
-                        ReplyResult::Ok(msg) => msg,
-                        ReplyResult::Future(fut) => {
+                        AsyncResultItem::Err(err) => return Err(err),
+                        AsyncResultItem::Ok(msg) => msg,
+                        AsyncResultItem::Future(fut) => {
                             self.item = Some(item);
                             self.fut2 = Some(fut);
                             return self.poll();
@@ -318,9 +318,9 @@ where
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
                     match (*hnd)(item, item2).respond_to(self.req.drop_state()) {
                         Ok(item) => match item.into().into() {
-                            ReplyResult::Err(err) => return Err(err),
-                            ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-                            ReplyResult::Future(fut) => {
+                            AsyncResultItem::Err(err) => return Err(err),
+                            AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                            AsyncResultItem::Future(fut) => {
                                 self.fut3 = Some(fut);
                                 return self.poll();
                             }
@@ -346,9 +346,9 @@ where
         };
 
         match item.into() {
-            ReplyResult::Err(err) => return Err(err),
-            ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-            ReplyResult::Future(fut) => self.fut3 = Some(fut),
+            AsyncResultItem::Err(err) => return Err(err),
+            AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+            AsyncResultItem::Future(fut) => self.fut3 = Some(fut),
         }
 
         self.poll()
@@ -404,7 +404,7 @@ where
     T3: 'static,
     S: 'static,
 {
-    type Result = Reply<HttpResponse>;
+    type Result = AsyncResult<HttpResponse>;
 
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
         let mut fut = WithHandlerFut3 {
@@ -422,9 +422,9 @@ where
             fut4: None,
         };
         match fut.poll() {
-            Ok(Async::Ready(resp)) => Reply::response(resp),
-            Ok(Async::NotReady) => Reply::async(fut),
-            Err(e) => Reply::response(e),
+            Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
+            Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
+            Err(e) => AsyncResult::error(e),
         }
     }
 }
@@ -473,9 +473,9 @@ where
             self.started = true;
             let reply = T1::from_request(&self.req, self.cfg1.as_ref()).into();
             let item1 = match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.fut1 = Some(fut);
                     return self.poll();
                 }
@@ -483,9 +483,9 @@ where
 
             let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
             let item2 = match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.item1 = Some(item1);
                     self.fut2 = Some(fut);
                     return self.poll();
@@ -494,9 +494,9 @@ where
 
             let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
             let item3 = match reply.into() {
-                ReplyResult::Err(err) => return Err(err),
-                ReplyResult::Ok(msg) => msg,
-                ReplyResult::Future(fut) => {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(msg) => msg,
+                AsyncResultItem::Future(fut) => {
                     self.item1 = Some(item1);
                     self.item2 = Some(item2);
                     self.fut3 = Some(fut);
@@ -507,9 +507,9 @@ where
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
             match (*hnd)(item1, item2, item3).respond_to(self.req.drop_state()) {
                 Ok(item) => match item.into().into() {
-                    ReplyResult::Err(err) => return Err(err),
-                    ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-                    ReplyResult::Future(fut) => {
+                    AsyncResultItem::Err(err) => return Err(err),
+                    AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                    AsyncResultItem::Future(fut) => {
                         self.fut4 = Some(fut);
                         return self.poll();
                     }
@@ -525,9 +525,9 @@ where
                     self.fut1.take();
                     let reply = T2::from_request(&self.req, self.cfg2.as_ref()).into();
                     let item2 = match reply.into() {
-                        ReplyResult::Err(err) => return Err(err),
-                        ReplyResult::Ok(msg) => msg,
-                        ReplyResult::Future(fut) => {
+                        AsyncResultItem::Err(err) => return Err(err),
+                        AsyncResultItem::Ok(msg) => msg,
+                        AsyncResultItem::Future(fut) => {
                             self.fut2 = Some(fut);
                             return self.poll();
                         }
@@ -535,9 +535,9 @@ where
 
                     let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
                     let item3 = match reply.into() {
-                        ReplyResult::Err(err) => return Err(err),
-                        ReplyResult::Ok(msg) => msg,
-                        ReplyResult::Future(fut) => {
+                        AsyncResultItem::Err(err) => return Err(err),
+                        AsyncResultItem::Ok(msg) => msg,
+                        AsyncResultItem::Future(fut) => {
                             self.item2 = Some(item2);
                             self.fut3 = Some(fut);
                             return self.poll();
@@ -548,9 +548,9 @@ where
                         .respond_to(self.req.drop_state())
                     {
                         Ok(item) => match item.into().into() {
-                            ReplyResult::Err(err) => return Err(err),
-                            ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-                            ReplyResult::Future(fut) => {
+                            AsyncResultItem::Err(err) => return Err(err),
+                            AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                            AsyncResultItem::Future(fut) => {
                                 self.fut4 = Some(fut);
                                 return self.poll();
                             }
@@ -568,9 +568,9 @@ where
                     self.fut2.take();
                     let reply = T3::from_request(&self.req, self.cfg3.as_ref()).into();
                     let item3 = match reply.into() {
-                        ReplyResult::Err(err) => return Err(err),
-                        ReplyResult::Ok(msg) => msg,
-                        ReplyResult::Future(fut) => {
+                        AsyncResultItem::Err(err) => return Err(err),
+                        AsyncResultItem::Ok(msg) => msg,
+                        AsyncResultItem::Future(fut) => {
                             self.item2 = Some(item);
                             self.fut3 = Some(fut);
                             return self.poll();
@@ -581,9 +581,9 @@ where
                         .respond_to(self.req.drop_state())
                     {
                         Ok(item) => match item.into().into() {
-                            ReplyResult::Err(err) => return Err(err),
-                            ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-                            ReplyResult::Future(fut) => {
+                            AsyncResultItem::Err(err) => return Err(err),
+                            AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                            AsyncResultItem::Future(fut) => {
                                 self.fut4 = Some(fut);
                                 return self.poll();
                             }
@@ -612,9 +612,9 @@ where
         };
 
         match item.into() {
-            ReplyResult::Err(err) => return Ok(Async::Ready(err.into())),
-            ReplyResult::Ok(resp) => return Ok(Async::Ready(resp)),
-            ReplyResult::Future(fut) => self.fut4 = Some(fut),
+            AsyncResultItem::Err(err) => return Err(err),
+            AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+            AsyncResultItem::Future(fut) => self.fut4 = Some(fut),
         }
 
         self.poll()

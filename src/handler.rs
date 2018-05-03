@@ -23,12 +23,12 @@ pub trait Handler<S>: 'static {
 /// Types that implement this trait can be used as the return type of a handler.
 pub trait Responder {
     /// The associated item which can be returned.
-    type Item: Into<Reply<HttpResponse>>;
+    type Item: Into<AsyncResult<HttpResponse>>;
 
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Convert itself to `Reply` or `Error`.
+    /// Convert itself to `AsyncResult` or `Error`.
     fn respond_to(self, req: HttpRequest) -> Result<Self::Item, Self::Error>;
 }
 
@@ -40,7 +40,7 @@ pub trait FromRequest<S>: Sized {
     type Config: Default;
 
     /// Future that resolves to a Self
-    type Result: Into<Reply<Self>>;
+    type Result: Into<AsyncResult<Self>>;
 
     /// Convert request to a Self
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
@@ -93,10 +93,10 @@ where
     A: Responder,
     B: Responder,
 {
-    type Item = Reply<HttpResponse>;
+    type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
-    fn respond_to(self, req: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<AsyncResult<HttpResponse>, Error> {
         match self {
             Either::A(a) => match a.respond_to(req) {
                 Ok(val) => Ok(val.into()),
@@ -182,26 +182,26 @@ where
     }
 }
 
-/// Represents reply process.
+/// Represents async result
 ///
-/// Reply could be in tree different forms.
-/// * Message(T) - ready item
-/// * Error(Error) - error happen during reply process
-/// * Future<T, Error> - reply process completes in the future
-pub struct Reply<I, E = Error>(Option<ReplyResult<I, E>>);
+/// Result could be in tree different forms.
+/// * Ok(T) - ready item
+/// * Err(E) - error happen during reply process
+/// * Future<T, E> - reply process completes in the future
+pub struct AsyncResult<I, E = Error>(Option<AsyncResultItem<I, E>>);
 
-impl<I, E> Future for Reply<I, E> {
+impl<I, E> Future for AsyncResult<I, E> {
     type Item = I;
     type Error = E;
 
     fn poll(&mut self) -> Poll<I, E> {
         let res = self.0.take().expect("use after resolve");
         match res {
-            ReplyResult::Ok(msg) => Ok(Async::Ready(msg)),
-            ReplyResult::Err(err) => Err(err),
-            ReplyResult::Future(mut fut) => match fut.poll() {
+            AsyncResultItem::Ok(msg) => Ok(Async::Ready(msg)),
+            AsyncResultItem::Err(err) => Err(err),
+            AsyncResultItem::Future(mut fut) => match fut.poll() {
                 Ok(Async::NotReady) => {
-                    self.0 = Some(ReplyResult::Future(fut));
+                    self.0 = Some(AsyncResultItem::Future(fut));
                     Ok(Async::NotReady)
                 }
                 Ok(Async::Ready(msg)) => Ok(Async::Ready(msg)),
@@ -211,43 +211,40 @@ impl<I, E> Future for Reply<I, E> {
     }
 }
 
-pub(crate) enum ReplyResult<I, E> {
+pub(crate) enum AsyncResultItem<I, E> {
     Ok(I),
     Err(E),
     Future(Box<Future<Item = I, Error = E>>),
 }
 
-impl<I, E> Reply<I, E> {
+impl<I, E> AsyncResult<I, E> {
     /// Create async response
     #[inline]
-    pub fn async<F>(fut: F) -> Reply<I, E>
-    where
-        F: Future<Item = I, Error = E> + 'static,
-    {
-        Reply(Some(ReplyResult::Future(Box::new(fut))))
+    pub fn async(fut: Box<Future<Item = I, Error = E>>) -> AsyncResult<I, E> {
+        AsyncResult(Some(AsyncResultItem::Future(fut)))
     }
 
     /// Send response
     #[inline]
-    pub fn response<R: Into<I>>(response: R) -> Reply<I, E> {
-        Reply(Some(ReplyResult::Ok(response.into())))
+    pub fn ok<R: Into<I>>(ok: R) -> AsyncResult<I, E> {
+        AsyncResult(Some(AsyncResultItem::Ok(ok.into())))
     }
 
     /// Send error
     #[inline]
-    pub fn error<R: Into<E>>(err: R) -> Reply<I, E> {
-        Reply(Some(ReplyResult::Err(err.into())))
+    pub fn error<R: Into<E>>(err: R) -> AsyncResult<I, E> {
+        AsyncResult(Some(AsyncResultItem::Err(err.into())))
     }
 
     #[inline]
-    pub(crate) fn into(self) -> ReplyResult<I, E> {
+    pub(crate) fn into(self) -> AsyncResultItem<I, E> {
         self.0.expect("use after resolve")
     }
 
     #[cfg(test)]
     pub(crate) fn as_msg(&self) -> &I {
         match self.0.as_ref().unwrap() {
-            &ReplyResult::Ok(ref resp) => resp,
+            &AsyncResultItem::Ok(ref resp) => resp,
             _ => panic!(),
         }
     }
@@ -255,35 +252,35 @@ impl<I, E> Reply<I, E> {
     #[cfg(test)]
     pub(crate) fn as_err(&self) -> Option<&E> {
         match self.0.as_ref().unwrap() {
-            &ReplyResult::Err(ref err) => Some(err),
+            &AsyncResultItem::Err(ref err) => Some(err),
             _ => None,
         }
     }
 }
 
-impl Responder for Reply<HttpResponse> {
-    type Item = Reply<HttpResponse>;
+impl Responder for AsyncResult<HttpResponse> {
+    type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
+    fn respond_to(self, _: HttpRequest) -> Result<AsyncResult<HttpResponse>, Error> {
         Ok(self)
     }
 }
 
 impl Responder for HttpResponse {
-    type Item = Reply<HttpResponse>;
+    type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to(self, _: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
-        Ok(Reply(Some(ReplyResult::Ok(self))))
+    fn respond_to(self, _: HttpRequest) -> Result<AsyncResult<HttpResponse>, Error> {
+        Ok(AsyncResult(Some(AsyncResultItem::Ok(self))))
     }
 }
 
-impl<T> From<T> for Reply<T> {
+impl<T> From<T> for AsyncResult<T> {
     #[inline]
-    fn from(resp: T) -> Reply<T> {
-        Reply(Some(ReplyResult::Ok(resp)))
+    fn from(resp: T) -> AsyncResult<T> {
+        AsyncResult(Some(AsyncResultItem::Ok(resp)))
     }
 }
 
@@ -302,42 +299,42 @@ impl<T: Responder, E: Into<Error>> Responder for Result<T, E> {
     }
 }
 
-impl<T, E: Into<Error>> From<Result<Reply<T>, E>> for Reply<T> {
+impl<T, E: Into<Error>> From<Result<AsyncResult<T>, E>> for AsyncResult<T> {
     #[inline]
-    fn from(res: Result<Reply<T>, E>) -> Self {
+    fn from(res: Result<AsyncResult<T>, E>) -> Self {
         match res {
             Ok(val) => val,
-            Err(err) => Reply(Some(ReplyResult::Err(err.into()))),
+            Err(err) => AsyncResult(Some(AsyncResultItem::Err(err.into()))),
         }
     }
 }
 
-impl<T, E: Into<Error>> From<Result<T, E>> for Reply<T> {
+impl<T, E: Into<Error>> From<Result<T, E>> for AsyncResult<T> {
     #[inline]
     fn from(res: Result<T, E>) -> Self {
         match res {
-            Ok(val) => Reply(Some(ReplyResult::Ok(val))),
-            Err(err) => Reply(Some(ReplyResult::Err(err.into()))),
+            Ok(val) => AsyncResult(Some(AsyncResultItem::Ok(val))),
+            Err(err) => AsyncResult(Some(AsyncResultItem::Err(err.into()))),
         }
     }
 }
 
 impl<T, E: Into<Error>> From<Result<Box<Future<Item = T, Error = Error>>, E>>
-    for Reply<T>
+    for AsyncResult<T>
 {
     #[inline]
     fn from(res: Result<Box<Future<Item = T, Error = Error>>, E>) -> Self {
         match res {
-            Ok(fut) => Reply(Some(ReplyResult::Future(fut))),
-            Err(err) => Reply(Some(ReplyResult::Err(err.into()))),
+            Ok(fut) => AsyncResult(Some(AsyncResultItem::Future(fut))),
+            Err(err) => AsyncResult(Some(AsyncResultItem::Err(err.into()))),
         }
     }
 }
 
-impl<T> From<Box<Future<Item = T, Error = Error>>> for Reply<T> {
+impl<T> From<Box<Future<Item = T, Error = Error>>> for AsyncResult<T> {
     #[inline]
-    fn from(fut: Box<Future<Item = T, Error = Error>>) -> Reply<T> {
-        Reply(Some(ReplyResult::Future(fut)))
+    fn from(fut: Box<Future<Item = T, Error = Error>>) -> AsyncResult<T> {
+        AsyncResult(Some(AsyncResultItem::Future(fut)))
     }
 }
 
@@ -349,26 +346,26 @@ where
     I: Responder + 'static,
     E: Into<Error> + 'static,
 {
-    type Item = Reply<HttpResponse>;
+    type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to(self, req: HttpRequest) -> Result<Reply<HttpResponse>, Error> {
+    fn respond_to(self, req: HttpRequest) -> Result<AsyncResult<HttpResponse>, Error> {
         let fut = self.map_err(|e| e.into())
             .then(move |r| match r.respond_to(req) {
                 Ok(reply) => match reply.into().into() {
-                    ReplyResult::Ok(resp) => ok(resp),
+                    AsyncResultItem::Ok(resp) => ok(resp),
                     _ => panic!("Nested async replies are not supported"),
                 },
                 Err(e) => err(e),
             });
-        Ok(Reply::async(fut))
+        Ok(AsyncResult::async(Box::new(fut)))
     }
 }
 
 /// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse>;
+    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse>;
 }
 
 /// Route handler wrapper for Handler
@@ -402,11 +399,11 @@ where
     R: Responder + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
+    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let req2 = req.drop_state();
         match self.h.handle(req).respond_to(req2) {
             Ok(reply) => reply.into(),
-            Err(err) => Reply::response(err.into()),
+            Err(err) => AsyncResult::ok(err.into()),
         }
     }
 }
@@ -448,18 +445,18 @@ where
     E: Into<Error> + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> Reply<HttpResponse> {
+    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let req2 = req.drop_state();
         let fut = (self.h)(req).map_err(|e| e.into()).then(move |r| {
             match r.respond_to(req2) {
                 Ok(reply) => match reply.into().into() {
-                    ReplyResult::Ok(resp) => ok(resp),
+                    AsyncResultItem::Ok(resp) => ok(resp),
                     _ => panic!("Nested async replies are not supported"),
                 },
                 Err(e) => err(e),
             }
         });
-        Reply::async(fut)
+        AsyncResult::async(Box::new(fut))
     }
 }
 

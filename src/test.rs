@@ -21,7 +21,7 @@ use application::{App, HttpApplication};
 use body::Binary;
 use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
-use handler::{Handler, ReplyResult, Responder};
+use handler::{AsyncResultItem, Handler, Responder};
 use header::{Header, IntoHeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -593,19 +593,17 @@ impl<S> TestRequest<S> {
     /// with generated request.
     ///
     /// This method panics is handler returns actor or async result.
-    pub fn run<H: Handler<S>>(
-        self, mut h: H,
-    ) -> Result<HttpResponse, <<H as Handler<S>>::Result as Responder>::Error> {
+    pub fn run<H: Handler<S>>(self, mut h: H) -> Result<HttpResponse, Error> {
         let req = self.finish();
         let resp = h.handle(req.clone());
 
         match resp.respond_to(req.drop_state()) {
             Ok(resp) => match resp.into().into() {
-                ReplyResult::Ok(resp) => Ok(resp),
-                ReplyResult::Err(err) => Ok(err.into()),
-                ReplyResult::Future(_) => panic!("Async handler is not supported."),
+                AsyncResultItem::Ok(resp) => Ok(resp),
+                AsyncResultItem::Err(err) => Err(err),
+                AsyncResultItem::Future(_) => panic!("Async handler is not supported."),
             },
-            Err(err) => Err(err),
+            Err(err) => Err(err.into()),
         }
     }
 
@@ -627,7 +625,7 @@ impl<S> TestRequest<S> {
         match core.run(fut) {
             Ok(r) => match r.respond_to(req.drop_state()) {
                 Ok(reply) => match reply.into().into() {
-                    ReplyResult::Ok(resp) => Ok(resp),
+                    AsyncResultItem::Ok(resp) => Ok(resp),
                     _ => panic!("Nested async replies are not supported"),
                 },
                 Err(e) => Err(e),

@@ -2,7 +2,7 @@ use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use handler::{FromRequest, Handler, Reply, Responder, RouteHandler, WrapHandler};
+use handler::{AsyncResult, FromRequest, Handler, Responder, RouteHandler, WrapHandler};
 use header::ContentEncoding;
 use http::Method;
 use httprequest::HttpRequest;
@@ -39,7 +39,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
     fn handle(
         &mut self, req: HttpRequest<S>, htype: HandlerType,
-    ) -> Reply<HttpResponse> {
+    ) -> AsyncResult<HttpResponse> {
         match htype {
             HandlerType::Normal(idx) => {
                 self.resources[idx].handle(req, Some(&mut self.default))
@@ -90,7 +90,7 @@ impl<S: 'static> HttpApplication<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> Reply<HttpResponse> {
+    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let tp = self.get_handler(&mut req);
         unsafe { &mut *self.inner.get() }.handle(req, tp)
     }

@@ -12,7 +12,7 @@ use serde_urlencoded;
 
 use de::PathDeserializer;
 use error::{Error, ErrorBadRequest};
-use handler::{FromRequest, Reply};
+use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
 
@@ -471,7 +471,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     {
         s: PhantomData<S>,
         items: ($(Option<$T>,)+),
-        futs: ($(Option<Reply<$T>>,)+),
+        futs: ($(Option<AsyncResult<$T>>,)+),
     }
 
     impl<S, $($T: FromRequest<S>),+> Future for $fut_type<S, $($T),+>

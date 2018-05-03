@@ -200,7 +200,7 @@ pub mod dev {
     pub use body::BodyStream;
     pub use context::Drain;
     pub use extractor::{FormConfig, PayloadConfig};
-    pub use handler::{Handler, Reply};
+    pub use handler::{AsyncResult, Handler};
     pub use httpmessage::{MessageBody, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;
     pub use info::ConnectionInfo;
