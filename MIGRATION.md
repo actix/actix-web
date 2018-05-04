@@ -15,6 +15,10 @@
 
 * `FromRequest::Result` has to implement `Into<Reply<Self>>`
 
+* [`Responder::respond_to()`](
+  https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to)
+  is generic over `S`
+
 * `HttpRequest::query()` is deprecated. Use `Query` extractor.
 
    ```rust
