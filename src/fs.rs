@@ -650,7 +650,7 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -676,7 +676,7 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -702,7 +702,7 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/octet-stream"
@@ -729,7 +729,7 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(HttpRequest::default()).unwrap();
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -748,7 +748,7 @@ mod tests {
         let req = TestRequest::default().method(Method::POST).finish();
         let file = NamedFile::open("Cargo.toml").unwrap();
 
-        let resp = file.only_get().respond_to(req).unwrap();
+        let resp = file.only_get().respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
@@ -756,7 +756,7 @@ mod tests {
     fn test_named_file_any_method() {
         let req = TestRequest::default().method(Method::POST).finish();
         let file = NamedFile::open("Cargo.toml").unwrap();
-        let resp = file.respond_to(req).unwrap();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -765,7 +765,7 @@ mod tests {
         let mut st = StaticFiles::new(".").show_files_listing();
         st.accessible = false;
         let resp = st.handle(HttpRequest::default())
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -773,7 +773,7 @@ mod tests {
         st.accessible = true;
         st.show_index = false;
         let resp = st.handle(HttpRequest::default())
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -783,7 +783,7 @@ mod tests {
 
         st.show_index = true;
         let resp = st.handle(req)
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(
@@ -801,7 +801,7 @@ mod tests {
         req.match_info_mut().add("tail", "tests");
 
         let resp = st.handle(req)
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
@@ -814,7 +814,7 @@ mod tests {
         req.match_info_mut().add("tail", "tests/");
 
         let resp = st.handle(req)
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
@@ -831,7 +831,7 @@ mod tests {
         req.match_info_mut().add("tail", "tools/wsload");
 
         let resp = st.handle(req)
-            .respond_to(HttpRequest::default())
+            .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);

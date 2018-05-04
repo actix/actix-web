@@ -1057,7 +1057,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
 
-        let resp: HttpResponse = "test".respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = "test".respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1078,7 +1078,7 @@ mod tests {
             &Binary::from(b"test".as_ref())
         );
 
-        let resp: HttpResponse = b"test".as_ref().respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b"test".as_ref().respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1102,11 +1102,7 @@ mod tests {
             &Binary::from("test".to_owned())
         );
 
-        let resp: HttpResponse = "test"
-            .to_owned()
-            .respond_to(req.clone())
-            .ok()
-            .unwrap();
+        let resp: HttpResponse = "test".to_owned().respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1130,10 +1126,7 @@ mod tests {
             &Binary::from(&"test".to_owned())
         );
 
-        let resp: HttpResponse = (&"test".to_owned())
-            .respond_to(req.clone())
-            .ok()
-            .unwrap();
+        let resp: HttpResponse = (&"test".to_owned()).respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1159,7 +1152,7 @@ mod tests {
         );
 
         let b = Bytes::from_static(b"test");
-        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b.respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1185,7 +1178,7 @@ mod tests {
         );
 
         let b = BytesMut::from("test");
-        let resp: HttpResponse = b.respond_to(req.clone()).ok().unwrap();
+        let resp: HttpResponse = b.respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
