@@ -37,7 +37,7 @@ script:
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
       cargo doc --features "alpn, tls, session" --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       git clone https://github.com/davisp/ghp-import.git &&
@@ -46,7 +46,7 @@ after_success:
     fi
 
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
       bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
       USE_SKEPTIC=1 cargo tarpaulin --out Xml
       bash <(curl -s https://codecov.io/bash)
