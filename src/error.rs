@@ -642,7 +642,7 @@ where
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
+    fn respond_to<S>(self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Err(self.into())
     }
 }

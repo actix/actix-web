@@ -257,8 +257,8 @@ impl Responder for Binary {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, _: HttpRequest) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::Ok()
+    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+        Ok(HttpResponse::build_from(req)
             .content_type("application/octet-stream")
             .body(self))
     }

@@ -97,7 +97,7 @@ where
         match fut.poll() {
             Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
             Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
-            Err(e) => AsyncResult::error::<Error>(e),
+            Err(e) => AsyncResult::err(e),
         }
     }
 }
@@ -151,7 +151,7 @@ where
         };
 
         let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(item).respond_to(self.req.drop_state()) {
+        let item = match (*hnd)(item).respond_to(&self.req) {
             Ok(item) => item.into(),
             Err(e) => return Err(e.into()),
         };
@@ -288,7 +288,7 @@ where
             };
 
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-            match (*hnd)(item1, item2).respond_to(self.req.drop_state()) {
+            match (*hnd)(item1, item2).respond_to(&self.req) {
                 Ok(item) => match item.into().into() {
                     AsyncResultItem::Err(err) => return Err(err),
                     AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
@@ -316,7 +316,7 @@ where
                     };
 
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-                    match (*hnd)(item, item2).respond_to(self.req.drop_state()) {
+                    match (*hnd)(item, item2).respond_to(&self.req) {
                         Ok(item) => match item.into().into() {
                             AsyncResultItem::Err(err) => return Err(err),
                             AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
@@ -338,9 +338,7 @@ where
         };
 
         let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(self.item.take().unwrap(), item)
-            .respond_to(self.req.drop_state())
-        {
+        let item = match (*hnd)(self.item.take().unwrap(), item).respond_to(&self.req) {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),
         };
@@ -424,7 +422,7 @@ where
         match fut.poll() {
             Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
             Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
-            Err(e) => AsyncResult::error(e),
+            Err(e) => AsyncResult::err(e),
         }
     }
 }
@@ -505,7 +503,7 @@ where
             };
 
             let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-            match (*hnd)(item1, item2, item3).respond_to(self.req.drop_state()) {
+            match (*hnd)(item1, item2, item3).respond_to(&self.req) {
                 Ok(item) => match item.into().into() {
                     AsyncResultItem::Err(err) => return Err(err),
                     AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
@@ -545,7 +543,7 @@ where
                     };
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
                     match (*hnd)(self.item1.take().unwrap(), item2, item3)
-                        .respond_to(self.req.drop_state())
+                        .respond_to(&self.req)
                     {
                         Ok(item) => match item.into().into() {
                             AsyncResultItem::Err(err) => return Err(err),
@@ -578,7 +576,7 @@ where
                     };
                     let hnd: &mut F = unsafe { &mut *self.hnd.get() };
                     match (*hnd)(self.item1.take().unwrap(), item, item3)
-                        .respond_to(self.req.drop_state())
+                        .respond_to(&self.req)
                     {
                         Ok(item) => match item.into().into() {
                             AsyncResultItem::Err(err) => return Err(err),
@@ -605,7 +603,7 @@ where
             self.item1.take().unwrap(),
             self.item2.take().unwrap(),
             item,
-        ).respond_to(self.req.drop_state())
+        ).respond_to(&self.req)
         {
             Ok(item) => item.into(),
             Err(err) => return Err(err.into()),

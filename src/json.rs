@@ -118,7 +118,7 @@ impl<T: Serialize> Responder for Json<T> {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, Error> {
+    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&self.0)?;
 
         Ok(req.build_response(StatusCode::OK)
@@ -351,7 +351,7 @@ mod tests {
         let json = Json(MyObject {
             name: "test".to_owned(),
         });
-        let resp = json.respond_to(HttpRequest::default()).unwrap();
+        let resp = json.respond_to(&HttpRequest::default()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/json"

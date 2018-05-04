@@ -161,7 +161,7 @@ impl DerefMut for NamedFile {
 }
 
 /// Returns true if `req` has no `If-Match` header or one which matches `etag`.
-fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
+fn any_match<S>(etag: Option<&header::EntityTag>, req: &HttpRequest<S>) -> bool {
     match req.get_header::<header::IfMatch>() {
         None | Some(header::IfMatch::Any) => true,
         Some(header::IfMatch::Items(ref items)) => {
@@ -178,7 +178,7 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 }
 
 /// Returns true if `req` doesn't have an `If-None-Match` header matching `req`.
-fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
+fn none_match<S>(etag: Option<&header::EntityTag>, req: &HttpRequest<S>) -> bool {
     match req.get_header::<header::IfNoneMatch>() {
         Some(header::IfNoneMatch::Any) => false,
         Some(header::IfNoneMatch::Items(ref items)) => {
@@ -199,7 +199,7 @@ impl Responder for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn respond_to(self, req: HttpRequest) -> Result<HttpResponse, io::Error> {
+    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.if_some(self.path().extension(), |ext, resp| {
@@ -244,7 +244,7 @@ impl Responder for NamedFile {
         let last_modified = self.last_modified();
 
         // check preconditions
-        let precondition_failed = if !any_match(etag.as_ref(), &req) {
+        let precondition_failed = if !any_match(etag.as_ref(), req) {
             true
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -255,7 +255,7 @@ impl Responder for NamedFile {
         };
 
         // check last modified
-        let not_modified = if !none_match(etag.as_ref(), &req) {
+        let not_modified = if !none_match(etag.as_ref(), req) {
             true
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -612,7 +612,7 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     HttpResponse::Found()
                         .header(header::LOCATION, new_path.as_str())
                         .finish()
-                        .respond_to(req.drop_state())
+                        .respond_to(&req)
                 } else if self.show_index {
                     let dir = Directory::new(self.directory.clone(), path);
                     Ok((*self.renderer)(&dir, &req)?.into())
@@ -622,8 +622,8 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
             } else {
                 NamedFile::open(path)?
                     .set_cpu_pool(self.cpu_pool.clone())
-                    .respond_to(req.drop_state())?
-                    .respond_to(req.drop_state())
+                    .respond_to(&req)?
+                    .respond_to(&req)
             }
         }
     }
