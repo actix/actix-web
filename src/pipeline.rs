@@ -722,8 +722,11 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
                 return None;
             }
             self.fut = None;
-            info.count -= 1;
+            if info.count == 0 {
+                return Some(Completed::init(info));
+            }
 
+            info.count -= 1;
             match info.mws[info.count as usize].finish(info.req_mut(), &self.resp) {
                 Finished::Done => {
                     if info.count == 0 {

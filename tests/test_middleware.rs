@@ -1,0 +1,375 @@
+extern crate actix;
+extern crate actix_web;
+extern crate futures;
+extern crate tokio_core;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
+use actix::*;
+use actix_web::*;
+use futures::{future, Future};
+use tokio_core::reactor::Timeout;
+
+struct MiddlewareTest {
+    start: Arc<AtomicUsize>,
+    response: Arc<AtomicUsize>,
+    finish: Arc<AtomicUsize>,
+}
+
+impl<S> middleware::Middleware<S> for MiddlewareTest {
+    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+        self.start.store(
+            self.start.load(Ordering::Relaxed) + 1,
+            Ordering::Relaxed,
+        );
+        Ok(middleware::Started::Done)
+    }
+
+    fn response(
+        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+    ) -> Result<middleware::Response> {
+        self.response.store(
+            self.response.load(Ordering::Relaxed) + 1,
+            Ordering::Relaxed,
+        );
+        Ok(middleware::Response::Done(resp))
+    }
+
+    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+        self.finish.store(
+            self.finish.load(Ordering::Relaxed) + 1,
+            Ordering::Relaxed,
+        );
+        middleware::Finished::Done
+    }
+}
+
+#[test]
+fn test_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).handler(|_| HttpResponse::Ok())
+    });
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_resource_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).handler(|_| HttpResponse::Ok())
+    });
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_scope_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/scope", |scope| {
+            scope
+                .middleware(MiddlewareAsyncTest {
+                    start: Arc::clone(&act_num1),
+                    response: Arc::clone(&act_num2),
+                    finish: Arc::clone(&act_num3),
+                })
+                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+        })
+    });
+
+    let request = srv.get()
+        .uri(srv.url("/scope/test"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+fn index_test_middleware_async_error(_: HttpRequest) -> FutureResponse<HttpResponse> {
+    future::result(Err(error::ErrorBadRequest("TEST"))).responder()
+}
+
+#[test]
+fn test_middleware_async_error() {
+    let req = Arc::new(AtomicUsize::new(0));
+    let resp = Arc::new(AtomicUsize::new(0));
+    let fin = Arc::new(AtomicUsize::new(0));
+
+    let act_req = Arc::clone(&req);
+    let act_resp = Arc::clone(&resp);
+    let act_fin = Arc::clone(&fin);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareTest {
+            start: Arc::clone(&act_req),
+            response: Arc::clone(&act_resp),
+            finish: Arc::clone(&act_fin),
+        }).handler(index_test_middleware_async_error)
+    });
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+
+    assert_eq!(req.load(Ordering::Relaxed), 1);
+    assert_eq!(resp.load(Ordering::Relaxed), 1);
+    assert_eq!(fin.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_scope_middleware_async_error() {
+    let req = Arc::new(AtomicUsize::new(0));
+    let resp = Arc::new(AtomicUsize::new(0));
+    let fin = Arc::new(AtomicUsize::new(0));
+
+    let act_req = Arc::clone(&req);
+    let act_resp = Arc::clone(&resp);
+    let act_fin = Arc::clone(&fin);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/scope", |scope| {
+            scope
+                .middleware(MiddlewareAsyncTest {
+                    start: Arc::clone(&act_req),
+                    response: Arc::clone(&act_resp),
+                    finish: Arc::clone(&act_fin),
+                })
+                .resource("/test", |r| r.f(index_test_middleware_async_error))
+        })
+    });
+
+    let request = srv.get()
+        .uri(srv.url("/scope/test"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+
+    assert_eq!(req.load(Ordering::Relaxed), 1);
+    assert_eq!(resp.load(Ordering::Relaxed), 1);
+    assert_eq!(fin.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_resource_middleware_async_error() {
+    let req = Arc::new(AtomicUsize::new(0));
+    let resp = Arc::new(AtomicUsize::new(0));
+    let fin = Arc::new(AtomicUsize::new(0));
+
+    let act_req = Arc::clone(&req);
+    let act_resp = Arc::clone(&resp);
+    let act_fin = Arc::clone(&fin);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        let mw = MiddlewareAsyncTest {
+            start: Arc::clone(&act_req),
+            response: Arc::clone(&act_resp),
+            finish: Arc::clone(&act_fin),
+        };
+
+        App::new().resource("/test", move |r| {
+            r.middleware(mw);
+            r.h(index_test_middleware_async_error);
+        })
+    });
+
+    let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+
+    assert_eq!(req.load(Ordering::Relaxed), 1);
+    assert_eq!(resp.load(Ordering::Relaxed), 1);
+    assert_eq!(fin.load(Ordering::Relaxed), 1);
+}
+
+struct MiddlewareAsyncTest {
+    start: Arc<AtomicUsize>,
+    response: Arc<AtomicUsize>,
+    finish: Arc<AtomicUsize>,
+}
+
+impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
+    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+
+        let start = Arc::clone(&self.start);
+        Ok(middleware::Started::Future(Box::new(
+            to.from_err().and_then(move |_| {
+                start.fetch_add(1, Ordering::Relaxed);
+                Ok(None)
+            }),
+        )))
+    }
+
+    fn response(
+        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+    ) -> Result<middleware::Response> {
+        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+
+        let response = Arc::clone(&self.response);
+        Ok(middleware::Response::Future(Box::new(
+            to.from_err().and_then(move |_| {
+                response.fetch_add(1, Ordering::Relaxed);
+                Ok(resp)
+            }),
+        )))
+    }
+
+    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+
+        let finish = Arc::clone(&self.finish);
+        middleware::Finished::Future(Box::new(to.from_err().and_then(move |_| {
+            finish.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        })))
+    }
+}
+
+#[test]
+fn test_async_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareAsyncTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).handler(|_| HttpResponse::Ok())
+    });
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_async_scope_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/scope", |scope| {
+            scope
+                .middleware(MiddlewareAsyncTest {
+                    start: Arc::clone(&act_num1),
+                    response: Arc::clone(&act_num2),
+                    finish: Arc::clone(&act_num3),
+                })
+                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+        })
+    });
+
+    let request = srv.get()
+        .uri(srv.url("/scope/test"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_async_resource_middleware() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        let mw = MiddlewareAsyncTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        };
+        App::new().resource("/test", move |r| {
+            r.middleware(mw);
+            r.h(|_| HttpResponse::Ok());
+        })
+    });
+
+    let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
+}

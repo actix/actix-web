@@ -18,12 +18,11 @@ use flate2::read::GzDecoder;
 use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
 use flate2::Compression;
 use futures::stream::once;
-use futures::{future, Future, Stream};
+use futures::{Future, Stream};
 use h2::client as h2client;
 use modhttp::Request;
 use rand::Rng;
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc};
 use std::{net, thread, time};
 use tokio_core::net::TcpStream;
@@ -822,123 +821,4 @@ fn test_application() {
     let request = srv.get().finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
-}
-
-struct MiddlewareTest {
-    start: Arc<AtomicUsize>,
-    response: Arc<AtomicUsize>,
-    finish: Arc<AtomicUsize>,
-}
-
-impl<S> middleware::Middleware<S> for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
-        self.start.store(
-            self.start.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
-        Ok(middleware::Started::Done)
-    }
-
-    fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
-    ) -> Result<middleware::Response> {
-        self.response.store(
-            self.response.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
-        Ok(middleware::Response::Done(resp))
-    }
-
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
-        self.finish.store(
-            self.finish.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
-        middleware::Finished::Done
-    }
-}
-
-#[test]
-fn test_middlewares() {
-    let num1 = Arc::new(AtomicUsize::new(0));
-    let num2 = Arc::new(AtomicUsize::new(0));
-    let num3 = Arc::new(AtomicUsize::new(0));
-
-    let act_num1 = Arc::clone(&num1);
-    let act_num2 = Arc::clone(&num2);
-    let act_num3 = Arc::clone(&num3);
-
-    let mut srv = test::TestServer::new(move |app| {
-        app.middleware(MiddlewareTest {
-            start: Arc::clone(&act_num1),
-            response: Arc::clone(&act_num2),
-            finish: Arc::clone(&act_num3),
-        }).handler(|_| HttpResponse::Ok())
-    });
-
-    let request = srv.get().finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    assert_eq!(num1.load(Ordering::Relaxed), 1);
-    assert_eq!(num2.load(Ordering::Relaxed), 1);
-    assert_eq!(num3.load(Ordering::Relaxed), 1);
-}
-
-#[test]
-fn test_resource_middlewares() {
-    let num1 = Arc::new(AtomicUsize::new(0));
-    let num2 = Arc::new(AtomicUsize::new(0));
-    let num3 = Arc::new(AtomicUsize::new(0));
-
-    let act_num1 = Arc::clone(&num1);
-    let act_num2 = Arc::clone(&num2);
-    let act_num3 = Arc::clone(&num3);
-
-    let mut srv = test::TestServer::new(move |app| {
-        app.middleware(MiddlewareTest {
-            start: Arc::clone(&act_num1),
-            response: Arc::clone(&act_num2),
-            finish: Arc::clone(&act_num3),
-        }).handler(|_| HttpResponse::Ok())
-    });
-
-    let request = srv.get().finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
-
-    assert_eq!(num1.load(Ordering::Relaxed), 1);
-    assert_eq!(num2.load(Ordering::Relaxed), 1);
-    // assert_eq!(num3.load(Ordering::Relaxed), 1);
-}
-
-fn index_test_middleware_async_error(_: HttpRequest) -> FutureResponse<HttpResponse> {
-    future::result(Err(error::ErrorBadRequest("TEST"))).responder()
-}
-
-#[test]
-fn test_middleware_async_error() {
-    let req = Arc::new(AtomicUsize::new(0));
-    let resp = Arc::new(AtomicUsize::new(0));
-    let fin = Arc::new(AtomicUsize::new(0));
-
-    let act_req = Arc::clone(&req);
-    let act_resp = Arc::clone(&resp);
-    let act_fin = Arc::clone(&fin);
-
-    let mut srv = test::TestServer::new(move |app| {
-        app.middleware(MiddlewareTest {
-            start: Arc::clone(&act_req),
-            response: Arc::clone(&act_resp),
-            finish: Arc::clone(&act_fin),
-        }).handler(index_test_middleware_async_error)
-    });
-
-    let request = srv.get().finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
-
-    assert_eq!(req.load(Ordering::Relaxed), 1);
-    assert_eq!(resp.load(Ordering::Relaxed), 1);
-    assert_eq!(fin.load(Ordering::Relaxed), 1);
 }
