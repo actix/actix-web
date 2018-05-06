@@ -310,7 +310,7 @@ pub enum HttpRangeError {
     /// See `https://github.com/golang/go/commit/aa9b3d7`
     #[fail(
         display = "First-byte-pos of all of the byte-range-spec values is greater than the content size"
-    )]
+        )]
     NoOverlap,
 }
 
@@ -392,7 +392,7 @@ impl ResponseError for ExpectError {
     }
 }
 
-/// A set of error that can occure during parsing content type
+/// A set of error that can occurred during parsing content type
 #[derive(Fail, PartialEq, Debug)]
 pub enum ContentTypeError {
     /// Can not parse content type
@@ -542,7 +542,7 @@ impl From<UrlParseError> for UrlGenerationError {
 /// Helper type that can wrap any error and generate custom response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST"
-/// response as opposite to *INNTERNAL SERVER ERROR* which is defined by
+/// response as opposite to *INTERNAL SERVER ERROR* which is defined by
 /// default.
 ///
 /// ```rust
@@ -850,7 +850,7 @@ mod tests {
     }
 
     macro_rules! from {
-        ($from:expr => $error:pat) => {
+        ($from: expr => $error: pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     assert!(format!("{}", e).len() >= 5);
@@ -861,7 +861,7 @@ mod tests {
     }
 
     macro_rules! from_and_cause {
-        ($from:expr => $error:pat) => {
+        ($from: expr => $error: pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e.cause().unwrap());

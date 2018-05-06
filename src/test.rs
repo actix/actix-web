@@ -88,7 +88,7 @@ impl TestServer {
     /// Create test server builder with specific state factory
     ///
     /// This method can be used for constructing application state.
-    /// Also it can be used for external dependecy initialization,
+    /// Also it can be used for external dependency initialization,
     /// like creating sync actors for diesel integration.
     pub fn build_with_state<F, S>(state: F) -> TestServerBuilder<S>
     where

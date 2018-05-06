@@ -104,7 +104,7 @@ impl<S: 'static> Route<S> {
         self.handler = InnerHandler::async(handler);
     }
 
-    /// Set handler function, use request extractor for paramters.
+    /// Set handler function, use request extractor for parameters.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -140,7 +140,7 @@ impl<S: 'static> Route<S> {
         cfg
     }
 
-    /// Set handler function, use request extractor for both paramters.
+    /// Set handler function, use request extractor for both parameters.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -189,7 +189,7 @@ impl<S: 'static> Route<S> {
         (cfg1, cfg2)
     }
 
-    /// Set handler function, use request extractor for all paramters.
+    /// Set handler function, use request extractor for all parameters.
     pub fn with3<T1, T2, T3, F, R>(
         &mut self, handler: F,
     ) -> (

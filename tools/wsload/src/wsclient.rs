@@ -259,7 +259,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for ChatClient {
                         ctx.stop();
                     }
                 } else {
-                    println!("not eaqual");
+                    println!("not equal");
                 }
             }
             _ => (),

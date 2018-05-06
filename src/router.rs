@@ -150,7 +150,7 @@ enum PatternType {
 pub enum ResourceType {
     /// Normal resource
     Normal,
-    /// Resource for applicaiton default handler
+    /// Resource for application default handler
     Default,
     /// External resource
     External,
@@ -158,7 +158,7 @@ pub enum ResourceType {
     Unset,
 }
 
-/// Reslource type describes an entry in resources table
+/// Resource type describes an entry in resources table
 #[derive(Clone)]
 pub struct Resource {
     tp: PatternType,
@@ -268,7 +268,7 @@ impl Resource {
         }
     }
 
-    /// Build reousrce path.
+    /// Build resource path.
     pub fn resource_path<U, I>(
         &self, router: &Router, elements: U,
     ) -> Result<String, UrlGenerationError>
