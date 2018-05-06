@@ -350,7 +350,7 @@ where
                     }
                 }
                 Ok(Some(Message::Eof)) => {
-                    if let Some(ref mut payload) = self.payload {
+                    if let Some(ref mut payload) = self.payload.take() {
                         payload.feed_eof();
                     } else {
                         error!("Internal server error: unexpected eof");

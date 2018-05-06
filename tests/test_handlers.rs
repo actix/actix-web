@@ -7,10 +7,17 @@ extern crate http;
 extern crate tokio_core;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 
+use std::time::Duration;
+
+use actix::*;
 use actix_web::*;
 use bytes::Bytes;
+use futures::Future;
 use http::StatusCode;
+use serde_json::Value;
+use tokio_core::reactor::Timeout;
 
 #[derive(Deserialize)]
 struct PParam {
@@ -120,6 +127,132 @@ fn test_path_and_query_extractor2() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - test2!"));
+
+    // client request
+    let request = srv.get()
+        .uri(srv.url("/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn test_path_and_query_extractor2_async() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with3(
+                |p: Path<PParam>, _: Query<PParam>, data: Json<Value>| {
+                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                        .unwrap()
+                        .and_then(move |_| {
+                            Ok(format!("Welcome {} - {}!", p.username, data.0))
+                        })
+                        .responder()
+                },
+            )
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
+    );
+}
+
+#[test]
+fn test_path_and_query_extractor3_async() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with2(|p: Path<PParam>, data: Json<Value>| {
+                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                    .unwrap()
+                    .and_then(move |_| {
+                        Ok(format!("Welcome {} - {}!", p.username, data.0))
+                    })
+                    .responder()
+            })
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_path_and_query_extractor4_async() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with2(|data: Json<Value>, p: Path<PParam>| {
+                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                    .unwrap()
+                    .and_then(move |_| {
+                        Ok(format!("Welcome {} - {}!", p.username, data.0))
+                    })
+                    .responder()
+            })
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_path_and_query_extractor2_async2() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with3(
+                |p: Path<PParam>, data: Json<Value>, _: Query<PParam>| {
+                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                        .unwrap()
+                        .and_then(move |_| {
+                            Ok(format!("Welcome {} - {}!", p.username, data.0))
+                        })
+                        .responder()
+                },
+            )
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
+    );
 
     // client request
     let request = srv.get()
