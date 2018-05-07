@@ -199,7 +199,7 @@ impl<S> HttpRequest<S> {
         &self.as_ref().extensions
     }
 
-    /// Mutable refernece to a the request's extensions
+    /// Mutable reference to a the request's extensions
     #[inline]
     pub fn extensions_mut(&mut self) -> &mut Extensions {
         &mut self.as_mut().extensions

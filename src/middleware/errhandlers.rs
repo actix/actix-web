@@ -12,7 +12,7 @@ type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>
 ///
 /// You can use `ErrorHandlers::handler()` method  to register a custom error
 /// handler for specific status code. You can modify existing response or
-/// create completly new one.
+/// create completely new one.
 ///
 /// ## Example
 ///

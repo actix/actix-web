@@ -715,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_path_signle() {
+    fn test_extract_path_single() {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();

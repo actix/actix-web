@@ -44,7 +44,7 @@
 //! * [HttpRequest](struct.HttpRequest.html) and
 //!   [HttpResponse](struct.HttpResponse.html): These structs
 //!   represent HTTP requests and responses and expose various methods
-//!   for inspecting, creating and otherwise utilising them.
+//!   for inspecting, creating and otherwise utilizing them.
 //!
 //! ## Features
 //!

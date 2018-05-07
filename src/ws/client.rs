@@ -258,7 +258,7 @@ struct Inner {
 
 /// Future that implementes client websocket handshake process.
 ///
-/// It resolves to a pair of `ClientReadr` and `ClientWriter` that
+/// It resolves to a pair of `ClientReader` and `ClientWriter` that
 /// can be used for reading and writing websocket frames.
 pub struct ClientHandshake {
     request: Option<SendRequest>,
