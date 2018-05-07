@@ -256,7 +256,7 @@ struct Inner {
     closed: bool,
 }
 
-/// Future that implemented client websocket handshake process.
+/// Future that implementes client websocket handshake process.
 ///
 /// It resolves to a pair of `ClientReader` and `ClientWriter` that
 /// can be used for reading and writing websocket frames.

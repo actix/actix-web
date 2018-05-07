@@ -665,8 +665,8 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let routes = vec![(
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
         )];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
@@ -697,8 +697,8 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let routes = vec![(
-                Resource::new("index", "/user/{name}.{ext}"),
-                Some(resource),
+            Resource::new("index", "/user/{name}.{ext}"),
+            Some(resource),
         )];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
@@ -719,8 +719,8 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let routes = vec![(
-                Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
-                None,
+            Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
+            None,
         )];
         let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
         assert!(!router.has_route("https://youtube.com/watch/unknown"));

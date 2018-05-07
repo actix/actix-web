@@ -310,7 +310,7 @@ pub enum HttpRangeError {
     /// See `https://github.com/golang/go/commit/aa9b3d7`
     #[fail(
         display = "First-byte-pos of all of the byte-range-spec values is greater than the content size"
-        )]
+    )]
     NoOverlap,
 }
 
@@ -392,7 +392,7 @@ impl ResponseError for ExpectError {
     }
 }
 
-/// A set of error that can occurred during parsing content type
+/// A set of error that can occure during parsing content type
 #[derive(Fail, PartialEq, Debug)]
 pub enum ContentTypeError {
     /// Can not parse content type
