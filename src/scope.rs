@@ -28,7 +28,7 @@ type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 /// Scope prefix is always complete path segment, i.e `/app` would
 /// be converted to a `/app/` and it would not match `/app` path.
 ///
-/// You can get variable path segments from HttpRequest::match_info()`.
+/// You can get variable path segments from `HttpRequest::match_info()`.
 /// `Path` extractor also is able to extract scope level variable segments.
 ///
 /// ```rust
@@ -50,6 +50,7 @@ type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 ///  * /{project_id}/path2 - `GET` requests
 ///  * /{project_id}/path3 - `HEAD` requests
 ///
+#[derive(Default)]
 pub struct Scope<S: 'static> {
     filters: Vec<Box<Predicate<S>>>,
     nested: Vec<NestedInfo<S>>,
@@ -58,12 +59,7 @@ pub struct Scope<S: 'static> {
     resources: ScopeResources<S>,
 }
 
-impl<S: 'static> Default for Scope<S> {
-    fn default() -> Scope<S> {
-        Scope::new()
-    }
-}
-
+#[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 impl<S: 'static> Scope<S> {
     pub fn new() -> Scope<S> {
         Scope {
@@ -319,7 +315,7 @@ impl<S: 'static> Scope<S> {
     /// middlewares get invoked on scope level.
     ///
     /// *Note* `Middleware::finish()` fires right after response get
-    /// prepared. It does not wait until body get sent to peer.
+    /// prepared. It does not wait until body get sent to the peer.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Scope<S> {
         Rc::get_mut(&mut self.middlewares)
             .expect("Can not use after configuration")
@@ -333,7 +329,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
-        // recognize paths
+        // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(path, req.match_info_mut()) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
@@ -777,6 +773,7 @@ mod tests {
     use application::App;
     use body::Body;
     use http::{Method, StatusCode};
+    use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
     use pred;
     use test::TestRequest;
@@ -792,6 +789,27 @@ mod tests {
         let req = TestRequest::with_uri("/app/path1").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_route() {
+        let mut app = App::new()
+            .scope("app", |scope| {
+                scope.route("/path1", Method::GET, |r: HttpRequest<_>| {
+                    HttpResponse::Ok()
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
