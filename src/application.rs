@@ -9,6 +9,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pipeline::{HandlerType, Pipeline, PipelineHandler};
+use pred::Predicate;
 use resource::ResourceHandler;
 use router::{Resource, Router};
 use scope::Scope;
@@ -34,7 +35,7 @@ pub(crate) struct Inner<S> {
 
 enum PrefixHandlerType<S> {
     Handler(String, Box<RouteHandler<S>>),
-    Scope(Resource, Box<RouteHandler<S>>),
+    Scope(Resource, Box<RouteHandler<S>>, Vec<Box<Predicate<S>>>),
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
@@ -51,7 +52,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
             }
             HandlerType::Handler(idx) => match self.handlers[idx] {
                 PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
-                PrefixHandlerType::Scope(_, ref mut hnd) => hnd.handle(req),
+                PrefixHandlerType::Scope(_, ref mut hnd, _) => hnd.handle(req),
             },
             HandlerType::Default => self.default.handle(req, None),
         }
@@ -73,8 +74,8 @@ impl<S: 'static> HttpApplication<S> {
             let path: &'static str =
                 unsafe { &*(&req.path()[inner.prefix..] as *const _) };
             let path_len = path.len();
-            for idx in 0..inner.handlers.len() {
-                match &inner.handlers[idx] {
+            'outer: for idx in 0..inner.handlers.len() {
+                match inner.handlers[idx] {
                     PrefixHandlerType::Handler(ref prefix, _) => {
                         let m = {
                             path.starts_with(prefix)
@@ -96,10 +97,16 @@ impl<S: 'static> HttpApplication<S> {
                             return HandlerType::Handler(idx);
                         }
                     }
-                    PrefixHandlerType::Scope(ref pattern, _) => {
+                    PrefixHandlerType::Scope(ref pattern, _, ref filters) => {
                         if let Some(prefix_len) =
                             pattern.match_prefix_with_params(path, req.match_info_mut())
                         {
+                            for filter in filters {
+                                if !filter.check(req) {
+                                    continue 'outer;
+                                }
+                            }
+
                             let prefix_len = inner.prefix + prefix_len - 1;
                             let path: &'static str =
                                 unsafe { &*(&req.path()[prefix_len..] as *const _) };
@@ -361,7 +368,7 @@ where
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
         {
-            let scope = Box::new(f(Scope::new()));
+            let mut scope = Box::new(f(Scope::new()));
 
             let mut path = path.trim().trim_right_matches('/').to_owned();
             if !path.is_empty() && !path.starts_with('/') {
@@ -372,9 +379,11 @@ where
             }
             let parts = self.parts.as_mut().expect("Use after finish");
 
+            let filters = scope.take_filters();
             parts.handlers.push(PrefixHandlerType::Scope(
                 Resource::prefix("", &path),
                 scope,
+                filters,
             ));
         }
         self

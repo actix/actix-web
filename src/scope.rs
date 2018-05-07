@@ -1,5 +1,6 @@
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::mem;
 use std::rc::Rc;
 
 use futures::{Async, Future, Poll};
@@ -11,11 +12,13 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Finished as MiddlewareFinished, Middleware,
                  Response as MiddlewareResponse, Started as MiddlewareStarted};
+use pred::Predicate;
 use resource::ResourceHandler;
 use router::Resource;
 
 type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
 type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>;
+type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 
 /// Resources scope
 ///
@@ -25,8 +28,8 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 /// Scope prefix is always complete path segment, i.e `/app` would
 /// be converted to a `/app/` and it would not match `/app` path.
 ///
-/// You can use variable path segments with `Path` extractor, also variable
-/// segments are available in `HttpRequest::match_info()`.
+/// You can get variable path segments from HttpRequest::match_info()`.
+/// `Path` extractor also is able to extract scope level variable segments.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -48,7 +51,8 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 ///  * /{project_id}/path3 - `HEAD` requests
 ///
 pub struct Scope<S: 'static> {
-    nested: Vec<(Resource, Route<S>)>,
+    filters: Vec<Box<Predicate<S>>>,
+    nested: Vec<NestedInfo<S>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
     default: Rc<UnsafeCell<ResourceHandler<S>>>,
     resources: ScopeResources<S>,
@@ -63,11 +67,42 @@ impl<S: 'static> Default for Scope<S> {
 impl<S: 'static> Scope<S> {
     pub fn new() -> Scope<S> {
         Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         }
+    }
+
+    #[inline]
+    pub(crate) fn take_filters(&mut self) -> Vec<Box<Predicate<S>>> {
+        mem::replace(&mut self.filters, Vec::new())
+    }
+
+    /// Add match predicate to scoupe.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, pred, App, HttpRequest, HttpResponse, Path};
+    ///
+    /// fn index(data: Path<(String, String)>) -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .scope("/app", |scope| {
+    ///             scope.filter(pred::Header("content-type", "text/plain"))
+    ///                .route("/test1", http::Method::GET, index)
+    ///                .route("/test2", http::Method::POST,
+    ///                    |_: HttpRequest| HttpResponse::MethodNotAllowed())
+    ///         });
+    /// }
+    /// ```
+    pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> Self {
+        self.filters.push(Box::new(p));
+        self
     }
 
     /// Create nested scope with new state.
@@ -96,12 +131,13 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(Scope<T>) -> Scope<T>,
     {
         let scope = Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
-        let scope = f(scope);
+        let mut scope = f(scope);
 
         let mut path = path.trim().trim_right_matches('/').to_owned();
         if !path.is_empty() && !path.starts_with('/') {
@@ -111,12 +147,14 @@ impl<S: 'static> Scope<S> {
             path.push('/');
         }
 
-        let handler = UnsafeCell::new(Box::new(Wrapper {
-            scope,
-            state: Rc::new(state),
-        }));
+        let state = Rc::new(state);
+        let filters: Vec<Box<Predicate<S>>> = vec![Box::new(FiltersWrapper {
+            state: Rc::clone(&state),
+            filters: scope.take_filters(),
+        })];
+        let handler = UnsafeCell::new(Box::new(Wrapper { scope, state }));
         self.nested
-            .push((Resource::prefix("", &path), handler));
+            .push((Resource::prefix("", &path), handler, filters));
 
         self
     }
@@ -147,12 +185,13 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
         let scope = Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
-        let scope = f(scope);
+        let mut scope = f(scope);
 
         let mut path = path.trim().trim_right_matches('/').to_owned();
         if !path.is_empty() && !path.starts_with('/') {
@@ -162,9 +201,11 @@ impl<S: 'static> Scope<S> {
             path.push('/');
         }
 
+        let filters = scope.take_filters();
         self.nested.push((
             Resource::prefix("", &path),
             UnsafeCell::new(Box::new(scope)),
+            filters,
         ));
 
         self
@@ -315,10 +356,15 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let len = req.prefix_len() as usize;
         let path: &'static str = unsafe { &*(&req.path()[len..] as *const _) };
 
-        for &(ref prefix, ref handler) in &self.nested {
+        'outer: for &(ref prefix, ref handler, ref filters) in &self.nested {
             if let Some(prefix_len) =
                 prefix.match_prefix_with_params(path, req.match_info_mut())
             {
+                for filter in filters {
+                    if !filter.check(&mut req) {
+                        continue 'outer;
+                    }
+                }
                 let prefix_len = len + prefix_len - 1;
                 let path: &'static str =
                     unsafe { &*(&req.path()[prefix_len..] as *const _) };
@@ -360,6 +406,23 @@ impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
     fn handle(&mut self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
         self.scope
             .handle(req.change_state(Rc::clone(&self.state)))
+    }
+}
+
+struct FiltersWrapper<S: 'static> {
+    state: Rc<S>,
+    filters: Vec<Box<Predicate<S>>>,
+}
+
+impl<S: 'static, S2: 'static> Predicate<S2> for FiltersWrapper<S> {
+    fn check(&self, req: &mut HttpRequest<S2>) -> bool {
+        let mut req = req.change_state(Rc::clone(&self.state));
+        for filter in &self.filters {
+            if !filter.check(&mut req) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -713,8 +776,9 @@ mod tests {
 
     use application::App;
     use body::Body;
-    use http::StatusCode;
+    use http::{Method, StatusCode};
     use httpresponse::HttpResponse;
+    use pred;
     use test::TestRequest;
 
     #[test]
@@ -726,6 +790,29 @@ mod tests {
             .finish();
 
         let req = TestRequest::with_uri("/app/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_filter() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope
+                    .filter(pred::Get())
+                    .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::GET)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
     }
@@ -748,7 +835,7 @@ mod tests {
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
         match resp.as_msg().body() {
-            Body::Binary(ref b) => {
+            &Body::Binary(ref b) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: project1"));
             }
@@ -778,6 +865,33 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_with_state_filter() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1", State, |scope| {
+                    scope
+                        .filter(pred::Get())
+                        .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::GET)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
     fn test_nested_scope() {
         let mut app = App::new()
             .scope("/app", |scope| {
@@ -790,6 +904,31 @@ mod tests {
         let req = TestRequest::with_uri("/app/t1/path1").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_nested_scope_filter() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/t1", |scope| {
+                    scope
+                        .filter(pred::Get())
+                        .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::GET)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
     }
 
     #[test]
@@ -814,7 +953,7 @@ mod tests {
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
         match resp.as_msg().body() {
-            Body::Binary(ref b) => {
+            &Body::Binary(ref b) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
             }
@@ -847,7 +986,7 @@ mod tests {
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
         match resp.as_msg().body() {
-            Body::Binary(ref b) => {
+            &Body::Binary(ref b) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
             }
