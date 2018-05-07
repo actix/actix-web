@@ -75,6 +75,33 @@ fn test_query_extractor() {
 }
 
 #[test]
+fn test_async_extractor_async() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with(|data: Json<Value>| {
+                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                    .unwrap()
+                    .and_then(move |_| Ok(format!("{}", data.0)))
+                    .responder()
+            })
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"{\"test\":1}"));
+}
+
+#[test]
 fn test_path_and_query_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
@@ -235,6 +262,93 @@ fn test_path_and_query_extractor2_async2() {
                         .responder()
                 },
             )
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
+    );
+
+    // client request
+    let request = srv.get()
+        .uri(srv.url("/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn test_path_and_query_extractor2_async3() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with3(
+                |data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
+                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                        .unwrap()
+                        .and_then(move |_| {
+                            Ok(format!("Welcome {} - {}!", p.username, data.0))
+                        })
+                        .responder()
+                },
+            )
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
+    );
+
+    // client request
+    let request = srv.get()
+        .uri(srv.url("/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn test_path_and_query_extractor2_async4() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route()
+                .with(|data: (Json<Value>, Path<PParam>, Query<PParam>)| {
+                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+                        .unwrap()
+                        .and_then(move |_| {
+                            Ok(format!(
+                                "Welcome {} - {}!",
+                                data.1.username,
+                                (data.0).0
+                            ))
+                        })
+                        .responder()
+                })
         });
     });
 

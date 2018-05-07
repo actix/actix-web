@@ -165,7 +165,7 @@ where
                 // completed
                 self.flags.insert(Flags::ERROR);
 
-                if let Some(ref mut payload) = self.payload {
+                if let Some(mut payload) = self.payload.take() {
                     payload.set_error(PayloadError::Incomplete);
                 }
             } else {
@@ -350,7 +350,7 @@ where
                     }
                 }
                 Ok(Some(Message::Eof)) => {
-                    if let Some(ref mut payload) = self.payload.take() {
+                    if let Some(mut payload) = self.payload.take() {
                         payload.feed_eof();
                     } else {
                         error!("Internal server error: unexpected eof");
@@ -360,7 +360,7 @@ where
                 Ok(None) => break,
                 Err(e) => {
                     self.flags.insert(Flags::ERROR);
-                    if let Some(ref mut payload) = self.payload {
+                    if let Some(mut payload) = self.payload.take() {
                         let e = match e {
                             DecoderError::Io(e) => PayloadError::Io(e),
                             DecoderError::Error(_) => PayloadError::EncodingCorrupted,
