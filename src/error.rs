@@ -850,7 +850,7 @@ mod tests {
     }
 
     macro_rules! from {
-        ($from: expr => $error: pat) => {
+        ($from:expr => $error:pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     assert!(format!("{}", e).len() >= 5);
@@ -861,7 +861,7 @@ mod tests {
     }
 
     macro_rules! from_and_cause {
-        ($from: expr => $error: pat) => {
+        ($from:expr => $error:pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e.cause().unwrap());

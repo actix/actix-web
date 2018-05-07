@@ -142,7 +142,8 @@ enum PatternElement {
 #[derive(Clone, Debug)]
 enum PatternType {
     Static(String),
-    Dynamic(Regex, Vec<String>),
+    Prefix(String),
+    Dynamic(Regex, Vec<String>, usize),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -173,14 +174,23 @@ impl Resource {
     ///
     /// Panics if path pattern is wrong.
     pub fn new(name: &str, path: &str) -> Self {
-        Resource::with_prefix(name, path, "/")
+        Resource::with_prefix(name, path, "/", false)
+    }
+
+    /// Parse path pattern and create new `Resource` instance.
+    ///
+    /// Use `prefix` type instead of `static`.
+    ///
+    /// Panics if path regex pattern is wrong.
+    pub fn prefix(name: &str, path: &str) -> Self {
+        Resource::with_prefix(name, path, "/", true)
     }
 
     /// Construct external resource
     ///
     /// Panics if path pattern is wrong.
     pub fn external(name: &str, path: &str) -> Self {
-        let mut resource = Resource::with_prefix(name, path, "/");
+        let mut resource = Resource::with_prefix(name, path, "/", false);
         resource.rtp = ResourceType::External;
         resource
     }
@@ -197,8 +207,9 @@ impl Resource {
     }
 
     /// Parse path pattern and create new `Resource` instance with custom prefix
-    pub fn with_prefix(name: &str, path: &str, prefix: &str) -> Self {
-        let (pattern, elements, is_dynamic) = Resource::parse(path, prefix);
+    pub fn with_prefix(name: &str, path: &str, prefix: &str, for_prefix: bool) -> Self {
+        let (pattern, elements, is_dynamic, len) =
+            Resource::parse(path, prefix, for_prefix);
 
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
@@ -208,7 +219,9 @@ impl Resource {
             let names = re.capture_names()
                 .filter_map(|name| name.map(|name| name.to_owned()))
                 .collect();
-            PatternType::Dynamic(re, names)
+            PatternType::Dynamic(re, names, len)
+        } else if for_prefix {
+            PatternType::Prefix(pattern.clone())
         } else {
             PatternType::Static(pattern.clone())
         };
@@ -240,7 +253,8 @@ impl Resource {
     pub fn is_match(&self, path: &str) -> bool {
         match self.tp {
             PatternType::Static(ref s) => s == path,
-            PatternType::Dynamic(ref re, _) => re.is_match(path),
+            PatternType::Dynamic(ref re, _, _) => re.is_match(path),
+            PatternType::Prefix(ref s) => path.starts_with(s),
         }
     }
 
@@ -249,7 +263,7 @@ impl Resource {
     ) -> bool {
         match self.tp {
             PatternType::Static(ref s) => s == path,
-            PatternType::Dynamic(ref re, ref names) => {
+            PatternType::Dynamic(ref re, ref names, _) => {
                 if let Some(captures) = re.captures(path) {
                     let mut idx = 0;
                     for capture in captures.iter() {
@@ -265,6 +279,42 @@ impl Resource {
                     false
                 }
             }
+            PatternType::Prefix(ref s) => path.starts_with(s),
+        }
+    }
+
+    pub fn match_prefix_with_params<'a>(
+        &'a self, path: &'a str, params: &'a mut Params<'a>,
+    ) -> Option<usize> {
+        match self.tp {
+            PatternType::Static(ref s) => if s == path {
+                Some(s.len())
+            } else {
+                None
+            },
+            PatternType::Dynamic(ref re, ref names, len) => {
+                if let Some(captures) = re.captures(path) {
+                    let mut idx = 0;
+                    let mut pos = 0;
+                    for capture in captures.iter() {
+                        if let Some(ref m) = capture {
+                            if idx != 0 {
+                                params.add(names[idx - 1].as_str(), m.as_str());
+                            }
+                            idx += 1;
+                            pos = m.end();
+                        }
+                    }
+                    Some(pos + len)
+                } else {
+                    None
+                }
+            }
+            PatternType::Prefix(ref s) => if path.starts_with(s) {
+                Some(s.len())
+            } else {
+                None
+            },
         }
     }
 
@@ -297,7 +347,9 @@ impl Resource {
         Ok(path)
     }
 
-    fn parse(pattern: &str, prefix: &str) -> (String, Vec<PatternElement>, bool) {
+    fn parse(
+        pattern: &str, prefix: &str, for_prefix: bool,
+    ) -> (String, Vec<PatternElement>, bool, usize) {
         const DEFAULT_PATTERN: &str = "[^/]+";
 
         let mut re1 = String::from("^") + prefix;
@@ -309,6 +361,7 @@ impl Resource {
         let mut param_pattern = String::from(DEFAULT_PATTERN);
         let mut is_dynamic = false;
         let mut elems = Vec::new();
+        let mut len = 0;
 
         for (index, ch) in pattern.chars().enumerate() {
             // All routes must have a leading slash so its optional to have one
@@ -325,6 +378,7 @@ impl Resource {
                     param_name.clear();
                     param_pattern = String::from(DEFAULT_PATTERN);
 
+                    len = 0;
                     in_param_pattern = false;
                     in_param = false;
                 } else if ch == ':' {
@@ -348,16 +402,19 @@ impl Resource {
                 re1.push_str(escape(&ch.to_string()).as_str());
                 re2.push(ch);
                 el.push(ch);
+                len += 1;
             }
         }
 
         let re = if is_dynamic {
-            re1.push('$');
+            if !for_prefix {
+                re1.push('$');
+            }
             re1
         } else {
             re2
         };
-        (re, elems, is_dynamic)
+        (re, elems, is_dynamic, len)
     }
 }
 
@@ -568,6 +625,41 @@ mod tests {
         assert!(re.match_with_params("/v151/resource/adahg32", req.match_info_mut()));
         assert_eq!(req.match_info().get("version").unwrap(), "151");
         assert_eq!(req.match_info().get("id").unwrap(), "adahg32");
+    }
+
+    #[test]
+    fn test_resource_prefix() {
+        let re = Resource::prefix("test", "/name");
+        assert!(re.is_match("/name"));
+        assert!(re.is_match("/name/"));
+        assert!(re.is_match("/name/test/test"));
+        assert!(re.is_match("/name1"));
+        assert!(re.is_match("/name~"));
+
+        let re = Resource::prefix("test", "/name/");
+        assert!(re.is_match("/name/"));
+        assert!(re.is_match("/name/gs"));
+        assert!(!re.is_match("/name"));
+    }
+
+    #[test]
+    fn test_reousrce_prefix_dynamic() {
+        let re = Resource::prefix("test", "/{name}/");
+        assert!(re.is_match("/name/"));
+        assert!(re.is_match("/name/gs"));
+        assert!(!re.is_match("/name"));
+
+        let mut req = TestRequest::with_uri("/test2/").finish();
+        assert!(re.match_with_params("/test2/", req.match_info_mut()));
+        assert_eq!(&req.match_info()["name"], "test2");
+
+        let mut req =
+            TestRequest::with_uri("/test2/subpath1/subpath2/index.html").finish();
+        assert!(re.match_with_params(
+            "/test2/subpath1/subpath2/index.html",
+            req.match_info_mut()
+        ));
+        assert_eq!(&req.match_info()["name"], "test2");
     }
 
     #[test]

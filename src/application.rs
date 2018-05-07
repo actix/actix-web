@@ -29,7 +29,12 @@ pub(crate) struct Inner<S> {
     default: ResourceHandler<S>,
     encoding: ContentEncoding,
     resources: Vec<ResourceHandler<S>>,
-    handlers: Vec<(String, Box<RouteHandler<S>>)>,
+    handlers: Vec<PrefixHandlerType<S>>,
+}
+
+enum PrefixHandlerType<S> {
+    Handler(String, Box<RouteHandler<S>>),
+    Scope(Resource, Box<RouteHandler<S>>),
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
@@ -44,7 +49,10 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
             HandlerType::Normal(idx) => {
                 self.resources[idx].handle(req, Some(&mut self.default))
             }
-            HandlerType::Handler(idx) => self.handlers[idx].1.handle(req),
+            HandlerType::Handler(idx) => match self.handlers[idx] {
+                PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
+                PrefixHandlerType::Scope(_, ref mut hnd) => hnd.handle(req),
+            },
             HandlerType::Default => self.default.handle(req, None),
         }
     }
@@ -62,27 +70,49 @@ impl<S: 'static> HttpApplication<S> {
             HandlerType::Normal(idx)
         } else {
             let inner = self.as_ref();
+            let path: &'static str =
+                unsafe { &*(&req.path()[inner.prefix..] as *const _) };
+            let path_len = path.len();
             for idx in 0..inner.handlers.len() {
-                let &(ref prefix, _) = &inner.handlers[idx];
-                let m = {
-                    let path = &req.path()[inner.prefix..];
-                    path.starts_with(prefix)
-                        && (path.len() == prefix.len()
-                            || path.split_at(prefix.len()).1.starts_with('/'))
-                };
+                match &inner.handlers[idx] {
+                    PrefixHandlerType::Handler(ref prefix, _) => {
+                        let m = {
+                            path.starts_with(prefix)
+                                && (path_len == prefix.len()
+                                    || path.split_at(prefix.len()).1.starts_with('/'))
+                        };
 
-                if m {
-                    let prefix_len = inner.prefix + prefix.len();
-                    let path: &'static str =
-                        unsafe { &*(&req.path()[prefix_len..] as *const _) };
+                        if m {
+                            let prefix_len = inner.prefix + prefix.len();
+                            let path: &'static str =
+                                unsafe { &*(&req.path()[prefix_len..] as *const _) };
 
-                    req.set_prefix_len(prefix_len as u16);
-                    if path.is_empty() {
-                        req.match_info_mut().add("tail", "/");
-                    } else {
-                        req.match_info_mut().add("tail", path);
+                            req.set_prefix_len(prefix_len as u16);
+                            if path.is_empty() {
+                                req.match_info_mut().add("tail", "/");
+                            } else {
+                                req.match_info_mut().add("tail", path);
+                            }
+                            return HandlerType::Handler(idx);
+                        }
                     }
-                    return HandlerType::Handler(idx);
+                    PrefixHandlerType::Scope(ref pattern, _) => {
+                        if let Some(prefix_len) =
+                            pattern.match_prefix_with_params(path, req.match_info_mut())
+                        {
+                            let prefix_len = inner.prefix + prefix_len - 1;
+                            let path: &'static str =
+                                unsafe { &*(&req.path()[prefix_len..] as *const _) };
+
+                            req.set_prefix_len(prefix_len as u16);
+                            if path.is_empty() {
+                                req.match_info_mut().set("tail", "/");
+                            } else {
+                                req.match_info_mut().set("tail", path);
+                            }
+                            return HandlerType::Handler(idx);
+                        }
+                    }
                 }
             }
             HandlerType::Default
@@ -131,7 +161,7 @@ struct ApplicationParts<S> {
     settings: ServerSettings,
     default: ResourceHandler<S>,
     resources: Vec<(Resource, Option<ResourceHandler<S>>)>,
-    handlers: Vec<(String, Box<RouteHandler<S>>)>,
+    handlers: Vec<PrefixHandlerType<S>>,
     external: HashMap<String, Resource>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
@@ -305,7 +335,7 @@ where
     /// Configure scope for common root path.
     ///
     /// Scopes collect multiple paths under a common path prefix.
-    /// Scope path can not contain variable path segments as resources.
+    /// Scope path can contain variable path segments as resources.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -313,7 +343,7 @@ where
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .scope("/app", |scope| {
+    ///         .scope("/{project_id}", |scope| {
     ///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
     ///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
     ///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
@@ -322,9 +352,9 @@ where
     /// ```
     ///
     /// In the above example, three routes get added:
-    ///  * /app/path1
-    ///  * /app/path2
-    ///  * /app/path3
+    ///  * /{project_id}/path1
+    ///  * /{project_id}/path2
+    ///  * /{project_id}/path3
     ///
     pub fn scope<F>(mut self, path: &str, f: F) -> App<S>
     where
@@ -337,9 +367,15 @@ where
             if !path.is_empty() && !path.starts_with('/') {
                 path.insert(0, '/')
             }
+            if !path.ends_with('/') {
+                path.push('/');
+            }
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            parts.handlers.push((path, scope));
+            parts.handlers.push(PrefixHandlerType::Scope(
+                Resource::prefix("", &path),
+                scope,
+            ));
         }
         self
     }
@@ -496,11 +532,15 @@ where
             if !path.is_empty() && !path.starts_with('/') {
                 path.insert(0, '/')
             }
+            if path.len() > 1 && path.ends_with('/') {
+                path.pop();
+            }
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            parts
-                .handlers
-                .push((path, Box::new(WrapHandler::new(handler))));
+            parts.handlers.push(PrefixHandlerType::Handler(
+                path,
+                Box::new(WrapHandler::new(handler)),
+            ));
         }
         self
     }

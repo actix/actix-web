@@ -551,7 +551,7 @@ fn test_async_middleware_multiple() {
     assert_eq!(num1.load(Ordering::Relaxed), 2);
     assert_eq!(num2.load(Ordering::Relaxed), 2);
 
-    thread::sleep(Duration::from_millis(30));
+    thread::sleep(Duration::from_millis(50));
     assert_eq!(num3.load(Ordering::Relaxed), 2);
 }
 

@@ -13,9 +13,9 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 
-use ws::WsWriter;
 use ws::frame::Frame;
 use ws::proto::{CloseReason, OpCode};
+use ws::WsWriter;
 
 /// Execution context for `WebSockets` actors
 pub struct WebsocketContext<A, S = ()>
