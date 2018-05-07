@@ -251,23 +251,14 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     Ok(Started::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
                     }
-                    Ok(Started::Future(mut fut)) => match fut.poll() {
-                        Ok(Async::NotReady) => {
-                            return PipelineState::Starting(StartMiddlewares {
-                                hnd,
-                                htype,
-                                fut: Some(fut),
-                                _s: PhantomData,
-                            })
-                        }
-                        Ok(Async::Ready(resp)) => {
-                            if let Some(resp) = resp {
-                                return RunMiddlewares::init(info, resp);
-                            }
-                            info.count += 1;
-                        }
-                        Err(err) => return ProcessResponse::init(err.into()),
-                    },
+                    Ok(Started::Future(fut)) => {
+                        return PipelineState::Starting(StartMiddlewares {
+                            hnd,
+                            htype,
+                            fut: Some(fut),
+                            _s: PhantomData,
+                        })
+                    }
                     Err(err) => return ProcessResponse::init(err.into()),
                 }
             }

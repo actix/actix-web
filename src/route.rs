@@ -346,21 +346,12 @@ impl<S: 'static> StartMiddlewares<S> {
                     Ok(MiddlewareStarted::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
                     }
-                    Ok(MiddlewareStarted::Future(mut fut)) => match fut.poll() {
-                        Ok(Async::NotReady) => {
-                            return ComposeState::Starting(StartMiddlewares {
-                                fut: Some(fut),
-                                _s: PhantomData,
-                            })
-                        }
-                        Ok(Async::Ready(resp)) => {
-                            if let Some(resp) = resp {
-                                return RunMiddlewares::init(info, resp);
-                            }
-                            info.count += 1;
-                        }
-                        Err(err) => return FinishingMiddlewares::init(info, err.into()),
-                    },
+                    Ok(MiddlewareStarted::Future(fut)) => {
+                        return ComposeState::Starting(StartMiddlewares {
+                            fut: Some(fut),
+                            _s: PhantomData,
+                        })
+                    }
                     Err(err) => return FinishingMiddlewares::init(info, err.into()),
                 }
             }
