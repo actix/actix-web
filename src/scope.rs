@@ -787,10 +787,10 @@ mod tests {
         let mut app = App::new()
             .scope("app", |scope| {
                 scope
-                    .route("/path1", Method::GET, |r: HttpRequest<_>| {
+                    .route("/path1", Method::GET, |_: HttpRequest<_>| {
                         HttpResponse::Ok()
                     })
-                    .route("/path1", Method::DELETE, |r: HttpRequest<_>| {
+                    .route("/path1", Method::DELETE, |_: HttpRequest<_>| {
                         HttpResponse::Ok()
                     })
             })

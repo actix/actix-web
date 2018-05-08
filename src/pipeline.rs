@@ -492,8 +492,8 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             if let Some(err) = self.resp.error() {
                                 if self.resp.status().is_server_error() {
                                     error!(
-                                        "Error occured during request handling: {}",
-                                        err
+                                        "Error occured during request handling, status: {} {}",
+                                        self.resp.status(), err
                                     );
                                 } else {
                                     warn!(

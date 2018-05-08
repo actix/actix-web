@@ -1,6 +1,8 @@
 # Changes
 
-## 0.6.1 (2018-05-xx)
+## 0.6.1 (2018-05-08)
+
+* Fix http/2 payload streaming #215
 
 * Fix connector's default `keep-alive` and `lifetime` settings #212
 
