@@ -347,6 +347,7 @@ impl ClientConnector {
     /// Keep-alive period is the period between connection usage. If
     /// the delay between repeated usages of the same connection
     /// exceeds this period, the connection is closed.
+    /// Default keep-alive period is 15 seconds.
     pub fn conn_keep_alive(mut self, dur: Duration) -> Self {
         self.conn_keep_alive = dur;
         self
@@ -356,6 +357,7 @@ impl ClientConnector {
     ///
     /// Connection lifetime is max lifetime of any opened connection
     /// until it is closed regardless of keep-alive period.
+    /// Default lifetime period is 75 seconds.
     pub fn conn_lifetime(mut self, dur: Duration) -> Self {
         self.conn_lifetime = dur;
         self
