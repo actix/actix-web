@@ -8,6 +8,8 @@
 
 * Send `ErrorNotFound` instead of `ErrorBadRequest` when path extractor fails #214
 
+* Allow to exclude certain endpoints from logging #211
+
 ## 0.6.0 (2018-05-08)
 
 * Add route scopes #202
