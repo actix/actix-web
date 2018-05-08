@@ -343,24 +343,27 @@ impl<H: 'static> Entry<H> {
     }
 
     fn poll_payload(&mut self) {
-        if !self.flags.contains(EntryFlags::REOF) {
-            if self.payload.need_read() == PayloadStatus::Read {
-                if let Err(err) = self.recv.release_capacity().release_capacity(32_768) {
-                    self.payload.set_error(PayloadError::Http2(err))
-                }
-            } else if let Err(err) = self.recv.release_capacity().release_capacity(0) {
-                self.payload.set_error(PayloadError::Http2(err))
-            }
-
+        while !self.flags.contains(EntryFlags::REOF)
+            && self.payload.need_read() == PayloadStatus::Read
+        {
             match self.recv.poll() {
                 Ok(Async::Ready(Some(chunk))) => {
+                    let l = chunk.len();
                     self.payload.feed_data(chunk);
+                    if let Err(err) = self.recv.release_capacity().release_capacity(l) {
+                        self.payload.set_error(PayloadError::Http2(err));
+                        break;
+                    }
                 }
                 Ok(Async::Ready(None)) => {
                     self.flags.insert(EntryFlags::REOF);
+                    self.payload.feed_eof();
                 }
-                Ok(Async::NotReady) => (),
-                Err(err) => self.payload.set_error(PayloadError::Http2(err)),
+                Ok(Async::NotReady) => break,
+                Err(err) => {
+                    self.payload.set_error(PayloadError::Http2(err));
+                    break;
+                }
             }
         }
     }

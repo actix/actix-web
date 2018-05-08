@@ -1,5 +1,10 @@
 # Changes
 
+## 0.5.7 (2018-05-09)
+
+* Fix http/2 payload streaming #215
+
+
 ## 0.5.6 (2018-04-24)
 
 * Make flate2 crate optional #200
