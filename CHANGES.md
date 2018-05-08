@@ -4,6 +4,8 @@
 
 * Fix connector's default `keep-alive` and `lifetime` settings #212
 
+* Send `ErrorNotFound` instead of `ErrorBadRequest` when path extractor fails #214
+
 ## 0.6.0 (2018-05-08)
 
 * Add route scopes #202
