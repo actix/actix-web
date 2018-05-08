@@ -1,5 +1,9 @@
 # Changes
 
+## 0.6.1 (2018-05-xx)
+
+* Fix connector's default `keep-alive` and `lifetime` settings #212
+
 ## 0.6.0 (2018-05-08)
 
 * Add route scopes #202
