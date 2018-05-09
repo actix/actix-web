@@ -177,6 +177,7 @@ pub use json::Json;
 pub use scope::Scope;
 
 #[doc(hidden)]
+#[deprecated(since = "0.6.2", note = "please use `use actix_web::ws::WsWriter`")]
 pub use ws::WsWriter;
 
 #[cfg(feature = "openssl")]
