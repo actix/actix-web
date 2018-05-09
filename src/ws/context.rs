@@ -149,36 +149,6 @@ where
         Drain::new(rx)
     }
 
-    /// Check if connection still open
-    #[inline]
-    pub fn connected(&self) -> bool {
-        !self.disconnected
-    }
-
-    #[inline]
-    fn add_frame(&mut self, frame: ContextFrame) {
-        if self.stream.is_none() {
-            self.stream = Some(SmallVec::new());
-        }
-        if let Some(s) = self.stream.as_mut() {
-            s.push(frame)
-        }
-        self.inner.modify();
-    }
-
-    /// Handle of the running future
-    ///
-    /// SpawnHandle is the handle returned by `AsyncContext::spawn()` method.
-    pub fn handle(&self) -> SpawnHandle {
-        self.inner.curr_handle()
-    }
-}
-
-impl<A, S> WsWriter for WebsocketContext<A, S>
-where
-    A: Actor<Context = Self>,
-    S: 'static,
-{
     /// Send text frame
     #[inline]
     fn text<T: Into<Binary>>(&mut self, text: T) {
@@ -217,6 +187,66 @@ where
     #[inline]
     fn close(&mut self, reason: Option<CloseReason>) {
         self.write(Frame::close(reason, false));
+    }
+
+    /// Check if connection still open
+    #[inline]
+    pub fn connected(&self) -> bool {
+        !self.disconnected
+    }
+
+    #[inline]
+    fn add_frame(&mut self, frame: ContextFrame) {
+        if self.stream.is_none() {
+            self.stream = Some(SmallVec::new());
+        }
+        if let Some(s) = self.stream.as_mut() {
+            s.push(frame)
+        }
+        self.inner.modify();
+    }
+
+    /// Handle of the running future
+    ///
+    /// SpawnHandle is the handle returned by `AsyncContext::spawn()` method.
+    pub fn handle(&self) -> SpawnHandle {
+        self.inner.curr_handle()
+    }
+}
+
+impl<A, S> WsWriter for WebsocketContext<A, S>
+where
+    A: Actor<Context = Self>,
+    S: 'static,
+{
+    /// Send text frame
+    #[inline]
+    fn send_text<T: Into<Binary>>(&mut self, text: T) {
+        self.text(text)
+    }
+
+    /// Send binary frame
+    #[inline]
+    fn send_binary<B: Into<Binary>>(&mut self, data: B) {
+        self.binary(data)
+    }
+
+    /// Send ping frame
+    #[inline]
+    fn send_ping(&mut self, message: &str) {
+        self.ping(message)
+    }
+
+    /// Send pong frame
+    #[inline]
+    fn send_pong(&mut self, message: &str) {
+        self.pong(message)
+    }
+
+    /// Send close frame
+    #[inline]
+    fn send_close(&mut self, reason: Option<CloseReason>) {
+        self.close(reason)
     }
 }
 

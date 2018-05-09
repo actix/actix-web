@@ -518,9 +518,7 @@ impl ClientWriter {
     fn as_mut(&mut self) -> &mut Inner {
         unsafe { &mut *self.inner.get() }
     }
-}
 
-impl WsWriter for ClientWriter {
     /// Send text frame
     #[inline]
     fn text<T: Into<Binary>>(&mut self, text: T) {
@@ -559,5 +557,37 @@ impl WsWriter for ClientWriter {
     #[inline]
     fn close(&mut self, reason: Option<CloseReason>) {
         self.write(Frame::close(reason, true));
+    }
+}
+
+impl WsWriter for ClientWriter {
+    /// Send text frame
+    #[inline]
+    fn send_text<T: Into<Binary>>(&mut self, text: T) {
+        self.text(text)
+    }
+
+    /// Send binary frame
+    #[inline]
+    fn send_binary<B: Into<Binary>>(&mut self, data: B) {
+        self.binary(data)
+    }
+
+    /// Send ping frame
+    #[inline]
+    fn send_ping(&mut self, message: &str) {
+        self.ping(message)
+    }
+
+    /// Send pong frame
+    #[inline]
+    fn send_pong(&mut self, message: &str) {
+        self.pong(message)
+    }
+
+    /// Send close frame
+    #[inline]
+    fn send_close(&mut self, reason: Option<CloseReason>) {
+        self.close(reason);
     }
 }

@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.2 (2018-05-09)
+
+* WsWriter trait is optional.
+
+
 ## 0.6.1 (2018-05-08)
 
 * Fix http/2 payload streaming #215

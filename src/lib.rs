@@ -175,6 +175,8 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+
+#[doc(hidden)]
 pub use ws::WsWriter;
 
 #[cfg(feature = "openssl")]
