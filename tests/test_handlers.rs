@@ -9,6 +9,7 @@ extern crate tokio_core;
 extern crate serde_derive;
 extern crate serde_json;
 
+use std::io;
 use std::time::Duration;
 
 use actix::*;
@@ -375,6 +376,83 @@ fn test_path_and_query_extractor2_async4() {
         .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[cfg(actix_impl_trait)]
+fn test_impl_trait(
+    data: (Json<Value>, Path<PParam>, Query<PParam>),
+) -> impl Future<Item = String, Error = io::Error> {
+    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+        .unwrap()
+        .and_then(move |_| {
+            Ok(format!(
+                "Welcome {} - {}!",
+                data.1.username,
+                (data.0).0
+            ))
+        })
+}
+
+#[cfg(actix_impl_trait)]
+fn test_impl_trait_err(
+    _data: (Json<Value>, Path<PParam>, Query<PParam>),
+) -> impl Future<Item = String, Error = io::Error> {
+    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
+        .unwrap()
+        .and_then(move |_| Err(io::Error::new(io::ErrorKind::Other, "other")))
+}
+
+#[cfg(actix_impl_trait)]
+#[test]
+fn test_path_and_query_extractor2_async4_impl_trait() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with_async(test_impl_trait)
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
+    );
+
+    // client request
+    let request = srv.get()
+        .uri(srv.url("/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[cfg(actix_impl_trait)]
+#[test]
+fn test_path_and_query_extractor2_async4_impl_trait_err() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with_async(test_impl_trait_err)
+        });
+    });
+
+    // client request
+    let request = srv.post()
+        .uri(srv.url("/test1/index.html?username=test2"))
+        .header("content-type", "application/json")
+        .body("{\"test\": 1}")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
 
 #[test]

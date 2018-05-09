@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.3 (2018-05-xx)
+
+* Add `Router::with_async()` method for async handler registration.
+
+
 ## 0.6.2 (2018-05-09)
 
 * WsWriter trait is optional.

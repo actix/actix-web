@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use futures::Future;
 use http::{Method, StatusCode};
 use smallvec::SmallVec;
 
+use error::Error;
 use handler::{AsyncResult, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -181,6 +183,25 @@ impl<S: 'static> ResourceHandler<S> {
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().with(handler);
+    }
+
+    /// Register a new route and add async handler.
+    ///
+    /// This is shortcut for:
+    ///
+    /// ```rust,ignore
+    /// Application::resource("/", |r| r.route().with_async(index)
+    /// ```
+    pub fn with_async<T, F, R, I, E>(&mut self, handler: F)
+    where
+        F: Fn(T) -> R + 'static,
+        R: Future<Item = I, Error = E> + 'static,
+        I: Responder + 'static,
+        E: Into<Error> + 'static,
+        T: FromRequest<S> + 'static,
+    {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().with_async(handler);
     }
 
     /// Register a resource middleware

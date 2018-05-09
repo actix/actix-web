@@ -13,7 +13,7 @@ use httpresponse::HttpResponse;
 use middleware::{Finished as MiddlewareFinished, Middleware,
                  Response as MiddlewareResponse, Started as MiddlewareStarted};
 use pred::Predicate;
-use with::{ExtractorConfig, With, With2, With3};
+use with::{ExtractorConfig, With, With2, With3, WithAsync};
 
 /// Resource route definition
 ///
@@ -129,6 +129,34 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
     /// }
     /// ```
+    ///
+    /// It is possible to use tuples for specifing multiple extractors for one
+    /// handler function.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// # use std::collections::HashMap;
+    /// use actix_web::{http, App, Query, Path, Result, Json};
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>)) -> Result<String> {
+    ///     Ok(format!("Welcome {}!", info.0.username))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource(
+    ///        "/{username}/index.html",                     // <- define path parameters
+    ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
+    /// }
+    /// ```
     pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
     where
         F: Fn(T) -> R + 'static,
@@ -140,6 +168,47 @@ impl<S: 'static> Route<S> {
         cfg
     }
 
+    /// Set async handler function, use request extractor for parameters.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{App, Path, Error, http};
+    /// use futures::Future;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(info: Path<Info>) -> Box<Future<Item=&'static str, Error=Error>> {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource(
+    ///        "/{username}/index.html",           // <- define path parameters
+    ///        |r| r.method(http::Method::GET)
+    ///               .with_async(index));         // <- use `with` extractor
+    /// }
+    /// ```
+    pub fn with_async<T, F, R, I, E>(&mut self, handler: F) -> ExtractorConfig<S, T>
+    where
+        F: Fn(T) -> R + 'static,
+        R: Future<Item = I, Error = E> + 'static,
+        I: Responder + 'static,
+        E: Into<Error> + 'static,
+        T: FromRequest<S> + 'static,
+    {
+        let cfg = ExtractorConfig::default();
+        self.h(WithAsync::new(handler, Clone::clone(&cfg)));
+        cfg
+    }
+
+    #[doc(hidden)]
     /// Set handler function, use request extractor for both parameters.
     ///
     /// ```rust
@@ -189,6 +258,7 @@ impl<S: 'static> Route<S> {
         (cfg1, cfg2)
     }
 
+    #[doc(hidden)]
     /// Set handler function, use request extractor for all parameters.
     pub fn with3<T1, T2, T3, F, R>(
         &mut self, handler: F,
