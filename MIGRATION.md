@@ -1,5 +1,7 @@
 ## Migration from 0.5 to 0.6
 
+* `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
+
 * `ws::Message::Close` now includes optional close reason.
   `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
 
