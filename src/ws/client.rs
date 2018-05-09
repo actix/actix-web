@@ -521,19 +521,19 @@ impl ClientWriter {
 
     /// Send text frame
     #[inline]
-    fn text<T: Into<Binary>>(&mut self, text: T) {
+    pub fn text<T: Into<Binary>>(&mut self, text: T) {
         self.write(Frame::message(text.into(), OpCode::Text, true, true));
     }
 
     /// Send binary frame
     #[inline]
-    fn binary<B: Into<Binary>>(&mut self, data: B) {
+    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
         self.write(Frame::message(data, OpCode::Binary, true, true));
     }
 
     /// Send ping frame
     #[inline]
-    fn ping(&mut self, message: &str) {
+    pub fn ping(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Ping,
@@ -544,7 +544,7 @@ impl ClientWriter {
 
     /// Send pong frame
     #[inline]
-    fn pong(&mut self, message: &str) {
+    pub fn pong(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Pong,
@@ -555,7 +555,7 @@ impl ClientWriter {
 
     /// Send close frame
     #[inline]
-    fn close(&mut self, reason: Option<CloseReason>) {
+    pub fn close(&mut self, reason: Option<CloseReason>) {
         self.write(Frame::close(reason, true));
     }
 }
