@@ -76,7 +76,7 @@ impl<S: 'static> Scope<S> {
         mem::replace(&mut self.filters, Vec::new())
     }
 
-    /// Add match predicate to scoupe.
+    /// Add match predicate to scope.
     ///
     /// ```rust
     /// # extern crate actix_web;
