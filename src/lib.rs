@@ -213,6 +213,7 @@ pub mod dev {
     pub use resource::ResourceHandler;
     pub use route::Route;
     pub use router::{Resource, ResourceType, Router};
+    pub use with::ExtractorConfig;
 }
 
 pub mod http {
