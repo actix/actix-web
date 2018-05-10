@@ -777,7 +777,6 @@ where
     InternalError::new(err, StatusCode::BAD_GATEWAY).into()
 }
 
-
 /// Helper function that creates wrapper of any error and
 /// generate *SERVICE UNAVAILABLE* response.
 #[allow(non_snake_case)]
@@ -797,7 +796,6 @@ where
 {
     InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -953,5 +951,53 @@ mod tests {
         );
         let resp: HttpResponse = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_error_helpers() {
+        let r: HttpResponse = ErrorBadRequest("err").into();
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+
+        let r: HttpResponse = ErrorUnauthorized("err").into();
+        assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+
+        let r: HttpResponse = ErrorForbidden("err").into();
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+
+        let r: HttpResponse = ErrorNotFound("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+
+        let r: HttpResponse = ErrorMethodNotAllowed("err").into();
+        assert_eq!(r.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let r: HttpResponse = ErrorRequestTimeout("err").into();
+        assert_eq!(r.status(), StatusCode::REQUEST_TIMEOUT);
+
+        let r: HttpResponse = ErrorConflict("err").into();
+        assert_eq!(r.status(), StatusCode::CONFLICT);
+
+        let r: HttpResponse = ErrorGone("err").into();
+        assert_eq!(r.status(), StatusCode::GONE);
+
+        let r: HttpResponse = ErrorPreconditionFailed("err").into();
+        assert_eq!(r.status(), StatusCode::PRECONDITION_FAILED);
+
+        let r: HttpResponse = ErrorExpectationFailed("err").into();
+        assert_eq!(r.status(), StatusCode::EXPECTATION_FAILED);
+
+        let r: HttpResponse = ErrorInternalServerError("err").into();
+        assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let r: HttpResponse = ErrorNotImplemented("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_IMPLEMENTED);
+
+        let r: HttpResponse = ErrorBadGateway("err").into();
+        assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+
+        let r: HttpResponse = ErrorServiceUnavailable("err").into();
+        assert_eq!(r.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        let r: HttpResponse = ErrorGatewayTimeout("err").into();
+        assert_eq!(r.status(), StatusCode::GATEWAY_TIMEOUT);
     }
 }

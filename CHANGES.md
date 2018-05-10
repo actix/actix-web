@@ -4,6 +4,8 @@
 
 * Add `Router::with_async()` method for async handler registration.
 
+* Added error response functions for 501,502,503,504
+
 
 ## 0.6.2 (2018-05-09)
 
