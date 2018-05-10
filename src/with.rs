@@ -9,6 +9,36 @@ use handler::{AsyncResult, AsyncResultItem, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
+/// Extractor configuration
+///
+/// `Route::with()` and `Route::with_async()` returns instance
+/// of the `ExtractorConfig` type. It could be used for extractor configuration.
+///
+/// In this example `Form<FormData>` configured.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{App, Form, Result, http};
+///
+/// #[derive(Deserialize)]
+/// struct FormData {
+///     username: String,
+/// }
+///
+/// fn index(form: Form<FormData>) -> Result<String> {
+///     Ok(format!("Welcome {}!", form.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html", |r| {
+///            r.method(http::Method::GET)
+///              .with(index)
+///              .limit(4096);} // <- change form extractor configuration
+///     );
+/// }
+/// ```
 pub struct ExtractorConfig<S: 'static, T: FromRequest<S>> {
     cfg: Rc<UnsafeCell<T::Config>>,
 }
