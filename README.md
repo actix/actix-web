@@ -36,7 +36,7 @@ extern crate actix_web;
 use actix_web::{http, server, App, Path};
 
 fn index(info: Path<(u32, String)>) -> String {
-    format!("Hello {}! id:{}", info.0, info.1)
+    format!("Hello {}! id:{}", info.1, info.0)
 }
 
 fn main() {
