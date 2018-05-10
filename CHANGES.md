@@ -6,6 +6,8 @@
 
 * Added error response functions for 501,502,503,504
 
+* Fix client request timeout handling
+
 
 ## 0.6.2 (2018-05-09)
 

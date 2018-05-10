@@ -194,6 +194,7 @@ impl Future for SendRequest {
                     self.state = State::Send(pl);
                 }
                 State::Send(mut pl) => {
+                    pl.poll_timeout()?;
                     pl.poll_write().map_err(|e| {
                         io::Error::new(io::ErrorKind::Other, format!("{}", e).as_str())
                     })?;
@@ -315,7 +316,7 @@ impl Pipeline {
         {
             Async::NotReady => need_run = true,
             Async::Ready(_) => {
-                let _ = self.poll_timeout().map_err(|e| {
+                self.poll_timeout().map_err(|e| {
                     io::Error::new(io::ErrorKind::Other, format!("{}", e))
                 })?;
             }
@@ -371,16 +372,15 @@ impl Pipeline {
         }
     }
 
-    fn poll_timeout(&mut self) -> Poll<(), SendRequestError> {
+    fn poll_timeout(&mut self) -> Result<(), SendRequestError> {
         if self.timeout.is_some() {
             match self.timeout.as_mut().unwrap().poll() {
-                Ok(Async::Ready(())) => Err(SendRequestError::Timeout),
-                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Ok(Async::Ready(())) => return Err(SendRequestError::Timeout),
+                Ok(Async::NotReady) => (),
                 Err(_) => unreachable!(),
             }
-        } else {
-            Ok(Async::NotReady)
         }
+        Ok(())
     }
 
     #[inline]
