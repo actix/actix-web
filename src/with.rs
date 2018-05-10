@@ -39,6 +39,32 @@ use httpresponse::HttpResponse;
 ///     );
 /// }
 /// ```
+///
+/// Same could be donce with multiple extractors
+///
+/// ```rust
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{App, Form, Path, Result, http};
+///
+/// #[derive(Deserialize)]
+/// struct FormData {
+///     username: String,
+/// }
+///
+/// fn index(data: (Path<(String,)>, Form<FormData>)) -> Result<String> {
+///     Ok(format!("Welcome {}!", data.1.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html", |r| {
+///            r.method(http::Method::GET)
+///              .with(index)
+///              .1.limit(4096);} // <- change form extractor configuration
+///     );
+/// }
+/// ```
 pub struct ExtractorConfig<S: 'static, T: FromRequest<S>> {
     cfg: Rc<UnsafeCell<T::Config>>,
 }
