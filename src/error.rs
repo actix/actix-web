@@ -757,6 +757,48 @@ where
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }
 
+/// Helper function that creates wrapper of any error and
+/// generate *NOT IMPLEMENTED* response.
+#[allow(non_snake_case)]
+pub fn ErrorNotImplemented<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::NOT_IMPLEMENTED).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *BAD GATEWAY* response.
+#[allow(non_snake_case)]
+pub fn ErrorBadGateway<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::BAD_GATEWAY).into()
+}
+
+
+/// Helper function that creates wrapper of any error and
+/// generate *SERVICE UNAVAILABLE* response.
+#[allow(non_snake_case)]
+pub fn ErrorServiceUnavailable<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::SERVICE_UNAVAILABLE).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *GATEWAY TIMEOUT* response.
+#[allow(non_snake_case)]
+pub fn ErrorGatewayTimeout<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
