@@ -169,6 +169,8 @@ impl<S: 'static> Route<S> {
     }
 
     /// Set async handler function, use request extractor for parameters.
+    /// Also this method needs to be used if your handler function returns
+    /// `impl Future<>`
     ///
     /// ```rust
     /// # extern crate bytes;
