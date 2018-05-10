@@ -1,6 +1,6 @@
 # Changes
 
-## 0.6.3 (2018-05-xx)
+## 0.6.3 (2018-05-10)
 
 * Add `Router::with_async()` method for async handler registration.
 
