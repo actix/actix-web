@@ -492,14 +492,15 @@ where
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(state: State<MyApp>, info: Path<Info>) -> String {
-///     format!("{} {}!", state.msg, info.username)
+/// fn index(data: (State<MyApp>, Path<Info>)) -> String {
+///     let (state, path) = data;
+///     format!("{} {}!", state.msg, path.username)
 /// }
 ///
 /// fn main() {
 ///     let app = App::with_state(MyApp{msg: "Welcome"}).resource(
 ///        "/{username}/index.html",                      // <- define path parameters
-///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
+///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
 /// }
 /// ```
 pub struct State<S>(HttpRequest<S>);
