@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.4 (2018-05-11)
+
+* Fix segfault in ServerSettings::get_response_builder()
+
+
 ## 0.6.3 (2018-05-10)
 
 * Add `Router::with_async()` method for async handler registration.
