@@ -1,5 +1,10 @@
 # Changes
 
+## 0.5.8 (2018-05-11)
+
+* Fix segfault in ServerSettings::get_response_builder()
+
+
 ## 0.5.7 (2018-05-09)
 
 * Fix http/2 payload streaming #215

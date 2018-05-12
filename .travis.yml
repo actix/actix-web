@@ -8,7 +8,6 @@ cache:
 
 matrix:
   include:
-    - rust: 1.21.0
     - rust: stable
     - rust: beta
     - rust: nightly

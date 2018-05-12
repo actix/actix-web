@@ -8,15 +8,14 @@ use std::sync::Arc;
 use std::{fmt, mem, net};
 use time;
 
-use super::KeepAlive;
 use super::channel::Node;
 use super::helpers;
 use super::shared::{SharedBytes, SharedBytesPool};
+use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
 
 /// Various server settings
-#[derive(Clone)]
 pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
@@ -27,6 +26,18 @@ pub struct ServerSettings {
 
 unsafe impl Sync for ServerSettings {}
 unsafe impl Send for ServerSettings {}
+
+impl Clone for ServerSettings {
+    fn clone(&self) -> Self {
+        ServerSettings {
+            addr: self.addr,
+            secure: self.secure,
+            host: self.host.clone(),
+            cpu_pool: self.cpu_pool.clone(),
+            responses: HttpResponsePool::pool(),
+        }
+    }
+}
 
 struct InnerCpuPool {
     cpu_pool: UnsafeCell<Option<CpuPool>>,
@@ -72,7 +83,7 @@ impl Default for ServerSettings {
 impl ServerSettings {
     /// Crate server settings instance
     pub(crate) fn new(
-        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool
+        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool,
     ) -> ServerSettings {
         let host = if let Some(ref host) = *host {
             host.clone()
@@ -119,7 +130,7 @@ impl ServerSettings {
 
     #[inline]
     pub(crate) fn get_response_builder(
-        &self, status: StatusCode
+        &self, status: StatusCode,
     ) -> HttpResponseBuilder {
         HttpResponsePool::get_builder(&self.responses, status)
     }
