@@ -62,9 +62,27 @@ impl Body {
         }
     }
 
+    /// Is this binary empy.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        match *self {
+            Body::Empty => true,
+            _ => false,
+        }
+    }
+
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Body {
         Body::Binary(Binary::Bytes(Bytes::from(s)))
+    }
+
+    /// Is this binary body.
+    #[inline]
+    pub(crate) fn binary(self) -> Binary {
+        match self {
+            Body::Binary(b) => b,
+            _ => panic!(),
+        }
     }
 }
 

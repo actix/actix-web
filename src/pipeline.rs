@@ -29,7 +29,9 @@ pub(crate) trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
     fn handle(
-        &mut self, req: HttpRequest<S>, htype: HandlerType,
+        &mut self,
+        req: HttpRequest<S>,
+        htype: HandlerType,
     ) -> AsyncResult<HttpResponse>;
 }
 
@@ -120,8 +122,10 @@ impl<S> PipelineInfo<S> {
 
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
     pub fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
-        handler: Rc<UnsafeCell<H>>, htype: HandlerType,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
+        handler: Rc<UnsafeCell<H>>,
+        htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
             mws,
@@ -148,6 +152,7 @@ impl Pipeline<(), Inner<()>> {
 }
 
 impl<S: 'static, H> Pipeline<S, H> {
+    #[inline]
     fn is_done(&self) -> bool {
         match self.1 {
             PipelineState::None
@@ -192,7 +197,9 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
             match self.1 {
                 PipelineState::None => return Ok(Async::Ready(true)),
                 PipelineState::Error => {
-                    return Err(io::Error::new(io::ErrorKind::Other, "Internal error").into())
+                    return Err(
+                        io::Error::new(io::ErrorKind::Other, "Internal error").into()
+                    )
                 }
                 _ => (),
             }
@@ -236,7 +243,9 @@ struct StartMiddlewares<S, H> {
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(
-        info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType,
+        info: &mut PipelineInfo<S>,
+        hnd: Rc<UnsafeCell<H>>,
+        htype: HandlerType,
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
@@ -313,7 +322,8 @@ struct WaitingResponse<S, H> {
 impl<S: 'static, H> WaitingResponse<S, H> {
     #[inline]
     fn init(
-        info: &mut PipelineInfo<S>, reply: AsyncResult<HttpResponse>,
+        info: &mut PipelineInfo<S>,
+        reply: AsyncResult<HttpResponse>,
     ) -> PipelineState<S, H> {
         match reply.into() {
             AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
@@ -344,6 +354,7 @@ struct RunMiddlewares<S, H> {
 }
 
 impl<S: 'static, H> RunMiddlewares<S, H> {
+    #[inline]
     fn init(info: &mut PipelineInfo<S>, mut resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {
             return ProcessResponse::init(resp);
@@ -464,7 +475,9 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     }
 
     fn poll_io(
-        mut self, io: &mut Writer, info: &mut PipelineInfo<S>,
+        mut self,
+        io: &mut Writer,
+        info: &mut PipelineInfo<S>,
     ) -> Result<PipelineState<S, H>, PipelineState<S, H>> {
         loop {
             if self.drain.is_none() && self.running != RunningState::Paused {
@@ -676,6 +689,7 @@ struct FinishingMiddlewares<S, H> {
 }
 
 impl<S: 'static, H> FinishingMiddlewares<S, H> {
+    #[inline]
     fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S, H> {
         if info.count == 0 {
             Completed::init(info)

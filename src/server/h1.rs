@@ -148,6 +148,7 @@ where
     }
 
     #[inline]
+    /// read data from stream
     pub fn poll_io(&mut self) {
         // read io from socket
         if !self.flags.intersects(Flags::ERROR)
@@ -210,7 +211,7 @@ where
                         if ready {
                             item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
                         } else {
-                            item.flags.insert(EntryFlags::FINISHED);
+                            item.flags.insert(EntryFlags::EOF);
                         }
                     }
                     // no more IO for this iteration
@@ -326,7 +327,36 @@ where
                     // search handler for request
                     for h in self.settings.handlers().iter_mut() {
                         req = match h.handle(req) {
-                            Ok(pipe) => {
+                            Ok(mut pipe) => {
+                                if self.tasks.is_empty() {
+                                    match pipe.poll_io(&mut self.stream) {
+                                        Ok(Async::Ready(ready)) => {
+                                            // override keep-alive state
+                                            if self.stream.keepalive() {
+                                                self.flags.insert(Flags::KEEPALIVE);
+                                            } else {
+                                                self.flags.remove(Flags::KEEPALIVE);
+                                            }
+                                            // prepare stream for next response
+                                            self.stream.reset();
+
+                                            if !ready {
+                                                let item = Entry {
+                                                    pipe,
+                                                    flags: EntryFlags::EOF,
+                                                };
+                                                self.tasks.push_back(item);
+                                            }
+                                            continue 'outer;
+                                        }
+                                        Ok(Async::NotReady) => {}
+                                        Err(err) => {
+                                            error!("Unhandled error: {}", err);
+                                            self.flags.intersects(Flags::ERROR);
+                                            return;
+                                        }
+                                    }
+                                }
                                 self.tasks.push_back(Entry {
                                     pipe,
                                     flags: EntryFlags::empty(),
