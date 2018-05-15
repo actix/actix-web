@@ -18,8 +18,8 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
   [DefaultHeaders](https://actix.rs/book/actix-web/sec-9-middlewares.html#default-headers),
   [CORS](https://actix.rs/actix-web/actix_web/middleware/cors/index.html),
   [CSRF](https://actix.rs/actix-web/actix_web/middleware/csrf/index.html))
-* Built on top of [Actix actor framework](https://github.com/actix/actix)
 * Includes an asynchronous [HTTP client](https://github.com/actix/actix-web/blob/master/src/client/mod.rs)
+* Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation & community resources
 
