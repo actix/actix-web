@@ -27,7 +27,6 @@ use uri::Url as InnerUrl;
 
 bitflags! {
     pub(crate) struct MessageFlags: u8 {
-        const QUERY = 0b0000_0001;
         const KEEPALIVE = 0b0000_0010;
     }
 }
@@ -41,13 +40,14 @@ pub struct HttpInnerMessage {
     pub extensions: Extensions,
     pub params: Params<'static>,
     pub cookies: Option<Vec<Cookie<'static>>>,
-    pub query: Params<'static>,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
     pub prefix: u16,
     resource: RouterResource,
 }
+
+struct Query(Params<'static>);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum RouterResource {
@@ -64,7 +64,6 @@ impl Default for HttpInnerMessage {
             headers: HeaderMap::with_capacity(16),
             flags: MessageFlags::empty(),
             params: Params::new(),
-            query: Params::new(),
             addr: None,
             cookies: None,
             payload: None,
@@ -109,7 +108,10 @@ impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
     pub fn new(
-        method: Method, uri: Uri, version: Version, headers: HeaderMap,
+        method: Method,
+        uri: Uri,
+        version: Version,
+        headers: HeaderMap,
         payload: Option<Payload>,
     ) -> HttpRequest {
         let url = InnerUrl::new(uri);
@@ -121,7 +123,6 @@ impl HttpRequest<()> {
                 headers,
                 payload,
                 params: Params::new(),
-                query: Params::new(),
                 extensions: Extensions::new(),
                 cookies: None,
                 addr: None,
@@ -306,7 +307,9 @@ impl<S> HttpRequest<S> {
     /// }
     /// ```
     pub fn url_for<U, I>(
-        &self, name: &str, elements: U,
+        &self,
+        name: &str,
+        elements: U,
     ) -> Result<Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -369,20 +372,20 @@ impl<S> HttpRequest<S> {
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "0.6.0", note = "please use `Query<T>` extractor")]
     /// Get a reference to the Params object.
     /// Params is a container for url query parameters.
-    pub fn query(&self) -> &Params {
-        if !self.as_ref().flags.contains(MessageFlags::QUERY) {
-            self.as_mut().flags.insert(MessageFlags::QUERY);
-            let params: &mut Params =
-                unsafe { mem::transmute(&mut self.as_mut().query) };
-            params.clear();
+    pub fn query<'a>(&'a self) -> &'a Params {
+        if let None = self.extensions().get::<Query>() {
+            let mut params: Params<'a> = Params::new();
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 params.add(key, val);
             }
+            let params: Params<'static> = unsafe { mem::transmute(params) };
+            self.as_mut().extensions.insert(Query(params));
         }
-        unsafe { mem::transmute(&self.as_ref().query) }
+        let params: &Params<'a> =
+            unsafe { mem::transmute(&self.extensions().get::<Query>().unwrap().0) };
+        params
     }
 
     /// The query string in the URL.
@@ -664,10 +667,8 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![(
-            Resource::new("index", "/user/{name}.{ext}"),
-            Some(resource),
-        )];
+        let routes =
+            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/test/unknown"));
@@ -696,10 +697,8 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes = vec![(
-            Resource::new("index", "/user/{name}.{ext}"),
-            Some(resource),
-        )];
+        let routes =
+            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));

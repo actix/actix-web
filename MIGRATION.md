@@ -32,7 +32,7 @@
   https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to)
   is generic over `S`
 
-* `HttpRequest::query()` is deprecated. Use `Query` extractor.
+*  Use `Query` extractor instead of HttpRequest::query()`.
 
    ```rust
    fn index(q: Query<HashMap<String, String>>) -> Result<..> {
