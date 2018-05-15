@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.5 (2018-05-15)
+
+* Fix error handling during request decoding #222
+
+
 ## 0.6.4 (2018-05-11)
 
 * Fix segfault in ServerSettings::get_response_builder()
