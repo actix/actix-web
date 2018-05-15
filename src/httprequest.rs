@@ -39,7 +39,6 @@ pub struct HttpInnerMessage {
     pub headers: HeaderMap,
     pub extensions: Extensions,
     pub params: Params<'static>,
-    pub cookies: Option<Vec<Cookie<'static>>>,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub info: Option<ConnectionInfo<'static>>,
@@ -48,6 +47,7 @@ pub struct HttpInnerMessage {
 }
 
 struct Query(Params<'static>);
+struct Cookies(Vec<Cookie<'static>>);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum RouterResource {
@@ -65,7 +65,6 @@ impl Default for HttpInnerMessage {
             flags: MessageFlags::empty(),
             params: Params::new(),
             addr: None,
-            cookies: None,
             payload: None,
             extensions: Extensions::new(),
             info: None,
@@ -90,7 +89,6 @@ impl HttpInnerMessage {
         self.addr = None;
         self.info = None;
         self.flags = MessageFlags::empty();
-        self.cookies = None;
         self.payload = None;
         self.prefix = 0;
         self.resource = RouterResource::Notset;
@@ -124,7 +122,6 @@ impl HttpRequest<()> {
                 payload,
                 params: Params::new(),
                 extensions: Extensions::new(),
-                cookies: None,
                 addr: None,
                 info: None,
                 prefix: 0,
@@ -402,7 +399,7 @@ impl<S> HttpRequest<S> {
 
     /// Load request cookies.
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
-        if self.as_ref().cookies.is_none() {
+        if let None = self.extensions().get::<Query>() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
             for hdr in msg.headers.get_all(header::COOKIE) {
@@ -413,9 +410,9 @@ impl<S> HttpRequest<S> {
                     }
                 }
             }
-            msg.cookies = Some(cookies);
+            msg.extensions.insert(Cookies(cookies));
         }
-        Ok(&self.as_ref().cookies.as_ref().unwrap())
+        Ok(&self.extensions().get::<Cookies>().unwrap().0)
     }
 
     /// Return request cookie.
@@ -428,6 +425,12 @@ impl<S> HttpRequest<S> {
             }
         }
         None
+    }
+
+    pub(crate) fn set_cookies(&mut self, cookies: Option<Vec<Cookie<'static>>>) {
+        if let Some(cookies) = cookies {
+            self.extensions_mut().insert(Cookies(cookies));
+        }
     }
 
     /// Get a reference to the Params object.
