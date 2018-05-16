@@ -284,12 +284,12 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     if let Some(resp) = resp {
                         return Some(RunMiddlewares::init(info, resp));
                     }
-                    if info.count == len {
-                        let reply = unsafe { &mut *self.hnd.get() }
-                            .handle(info.req().clone(), self.htype);
-                        return Some(WaitingResponse::init(info, reply));
-                    } else {
-                        loop {
+                    loop {
+                        if info.count == len {
+                            let reply = unsafe { &mut *self.hnd.get() }
+                                .handle(info.req().clone(), self.htype);
+                            return Some(WaitingResponse::init(info, reply));
+                        } else {
                             match info.mws[info.count as usize].start(info.req_mut()) {
                                 Ok(Started::Done) => info.count += 1,
                                 Ok(Started::Response(resp)) => {

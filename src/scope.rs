@@ -10,8 +10,10 @@ use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Finished as MiddlewareFinished, Middleware,
-                 Response as MiddlewareResponse, Started as MiddlewareStarted};
+use middleware::{
+    Finished as MiddlewareFinished, Middleware, Response as MiddlewareResponse,
+    Started as MiddlewareStarted,
+};
 use pred::Predicate;
 use resource::ResourceHandler;
 use router::Resource;
@@ -400,8 +402,7 @@ struct Wrapper<S: 'static> {
 
 impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
     fn handle(&mut self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
-        self.scope
-            .handle(req.change_state(Rc::clone(&self.state)))
+        self.scope.handle(req.change_state(Rc::clone(&self.state)))
     }
 }
 
@@ -458,7 +459,8 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
         resource: Rc<UnsafeCell<ResourceHandler<S>>>,
         default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
     ) -> Self {
@@ -543,17 +545,17 @@ impl<S: 'static> StartMiddlewares<S> {
                     if let Some(resp) = resp {
                         return Some(RunMiddlewares::init(info, resp));
                     }
-                    if info.count == len {
-                        let resource = unsafe { &mut *info.resource.get() };
-                        let reply = if let Some(ref default) = info.default {
-                            let d = unsafe { &mut *default.as_ref().get() };
-                            resource.handle(info.req.clone(), Some(d))
+                    loop {
+                        if info.count == len {
+                            let resource = unsafe { &mut *info.resource.get() };
+                            let reply = if let Some(ref default) = info.default {
+                                let d = unsafe { &mut *default.as_ref().get() };
+                                resource.handle(info.req.clone(), Some(d))
+                            } else {
+                                resource.handle(info.req.clone(), None)
+                            };
+                            return Some(WaitingResponse::init(info, reply));
                         } else {
-                            resource.handle(info.req.clone(), None)
-                        };
-                        return Some(WaitingResponse::init(info, reply));
-                    } else {
-                        loop {
                             match info.mws[info.count].start(&mut info.req) {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -583,7 +585,8 @@ struct WaitingResponse<S> {
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(
-        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+        info: &mut ComposeInfo<S>,
+        reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
             AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
