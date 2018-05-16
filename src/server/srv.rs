@@ -25,6 +25,20 @@ use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
 use super::{PauseServer, ResumeServer, StopServer};
 
+#[cfg(feature = "alpn")]
+fn configure_alpn(builder: &mut SslAcceptorBuilder) -> io::Result<()> {
+    builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
+    builder.set_alpn_select_callback(|_, protos| {
+        const H2: &[u8] = b"\x02h2";
+        if protos.windows(3).any(|window| window == H2) {
+            Ok(b"h2")
+        } else {
+            Err(AlpnError::NOACK)
+        }
+    });
+    Ok(())
+}
+
 /// An HTTP Server
 pub struct HttpServer<H>
 where
@@ -211,6 +225,40 @@ where
         self
     }
 
+    #[cfg(feature = "tls")]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// HttpServer does not change any configuration for TcpListener,
+    /// it needs to be configured before passing it to listen() method.
+    pub fn listen_tls(mut self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            lst,
+            tp: StreamHandlerType::Tls(acceptor.clone()),
+        });
+        self
+    }
+
+    #[cfg(feature = "alpn")]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn listen_ssl(mut self, lst: net::TcpListener, mut builder: SslAcceptorBuilder) -> io::Result<Self> {
+        // alpn support
+        if !self.no_http2 {
+            configure_alpn(&mut builder)?;
+        }
+        let acceptor = builder.build();
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            lst,
+            tp: StreamHandlerType::Alpn(acceptor.clone()),
+        });
+        Ok(self)
+    }
+
     fn bind2<S: net::ToSocketAddrs>(&mut self, addr: S) -> io::Result<Vec<Socket>> {
         let mut err = None;
         let mut succ = false;
@@ -277,15 +325,7 @@ where
     ) -> io::Result<Self> {
         // alpn support
         if !self.no_http2 {
-            builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
-            builder.set_alpn_select_callback(|_, protos| {
-                const H2: &[u8] = b"\x02h2";
-                if protos.windows(3).any(|window| window == H2) {
-                    Ok(b"h2")
-                } else {
-                    Err(AlpnError::NOACK)
-                }
-            });
+            configure_alpn(&mut builder)?;
         }
 
         let acceptor = builder.build();
