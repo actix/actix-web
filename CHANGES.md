@@ -4,6 +4,8 @@
 
 * Panic during middleware execution #226
 
+* Add support for listen_tls/listen_ssl #224
+
 
 ## 0.6.5 (2018-05-15)
 
