@@ -239,4 +239,14 @@ impl StreamHandlerType {
             }
         }
     }
+
+    pub(crate) fn scheme(&self) -> &'static str {
+        match *self {
+            StreamHandlerType::Normal => "http",
+            #[cfg(feature = "tls")]
+            StreamHandlerType::Tls(ref acceptor) => "https",
+            #[cfg(feature = "alpn")]
+            StreamHandlerType::Alpn(ref acceptor) => "https",
+        }
+    }
 }
