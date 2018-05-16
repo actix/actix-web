@@ -5,13 +5,17 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncHandler, AsyncResult, AsyncResultItem, FromRequest, Handler,
-              Responder, RouteHandler, WrapHandler};
+use handler::{
+    AsyncHandler, AsyncResult, AsyncResultItem, FromRequest, Handler, Responder,
+    RouteHandler, WrapHandler,
+};
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Finished as MiddlewareFinished, Middleware,
-                 Response as MiddlewareResponse, Started as MiddlewareStarted};
+use middleware::{
+    Finished as MiddlewareFinished, Middleware, Response as MiddlewareResponse,
+    Started as MiddlewareStarted,
+};
 use pred::Predicate;
 use with::{ExtractorConfig, With, With2, With3, WithAsync};
 
@@ -51,7 +55,9 @@ impl<S: 'static> Route<S> {
 
     #[inline]
     pub(crate) fn compose(
-        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        &mut self,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
     ) -> AsyncResult<HttpResponse> {
         AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
@@ -242,7 +248,8 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(
-        &mut self, handler: F,
+        &mut self,
+        handler: F,
     ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
     where
         F: Fn(T1, T2) -> R + 'static,
@@ -263,7 +270,8 @@ impl<S: 'static> Route<S> {
     #[doc(hidden)]
     /// Set handler function, use request extractor for all parameters.
     pub fn with3<T1, T2, T3, F, R>(
-        &mut self, handler: F,
+        &mut self,
+        handler: F,
     ) -> (
         ExtractorConfig<S, T1>,
         ExtractorConfig<S, T2>,
@@ -296,9 +304,7 @@ struct InnerHandler<S>(Rc<UnsafeCell<Box<RouteHandler<S>>>>);
 impl<S: 'static> InnerHandler<S> {
     #[inline]
     fn new<H: Handler<S>>(h: H) -> Self {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(
-            h,
-        )))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(h)))))
     }
 
     #[inline]
@@ -309,9 +315,7 @@ impl<S: 'static> InnerHandler<S> {
         R: Responder + 'static,
         E: Into<Error> + 'static,
     {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(
-            h,
-        )))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(h)))))
     }
 
     #[inline]
@@ -364,7 +368,9 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
+        handler: InnerHandler<S>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -440,11 +446,11 @@ impl<S: 'static> StartMiddlewares<S> {
                     if let Some(resp) = resp {
                         return Some(RunMiddlewares::init(info, resp));
                     }
-                    if info.count == len {
-                        let reply = info.handler.handle(info.req.clone());
-                        return Some(WaitingResponse::init(info, reply));
-                    } else {
-                        loop {
+                    loop {
+                        if info.count == len {
+                            let reply = info.handler.handle(info.req.clone());
+                            return Some(WaitingResponse::init(info, reply));
+                        } else {
                             match info.mws[info.count].start(&mut info.req) {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -479,7 +485,8 @@ struct WaitingResponse<S> {
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(
-        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+        info: &mut ComposeInfo<S>,
+        reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
             AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),

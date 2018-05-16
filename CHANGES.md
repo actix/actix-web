@@ -1,8 +1,8 @@
 # Changes
 
-## 0.6.6 (2018-05-xx)
+## 0.6.6 (2018-05-16)
 
-..
+* Panic during middleware execution #226
 
 
 ## 0.6.5 (2018-05-15)
