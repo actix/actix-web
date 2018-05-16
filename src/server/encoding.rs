@@ -389,8 +389,8 @@ impl ContentEncoder {
         let is_head = req.method == Method::HEAD;
         let mut len = 0;
         let has_body = match resp.body() {
-            Body::Empty => false,
-            Body::Binary(ref bin) => {
+            &Body::Empty => false,
+            &Body::Binary(ref bin) => {
                 len = bin.len();
                 !(response_encoding == ContentEncoding::Auto && len < 96)
             }
@@ -427,13 +427,13 @@ impl ContentEncoder {
         };
 
         let mut transfer = match resp.body() {
-            Body::Empty => {
+            &Body::Empty => {
                 if req.method != Method::HEAD {
                     resp.headers_mut().remove(CONTENT_LENGTH);
                 }
                 TransferEncoding::length(0, buf)
             }
-            Body::Binary(_) => {
+            &Body::Binary(_) => {
                 if !(encoding == ContentEncoding::Identity
                     || encoding == ContentEncoding::Auto)
                 {
@@ -482,7 +482,7 @@ impl ContentEncoder {
                 }
                 TransferEncoding::eof(buf)
             }
-            Body::Streaming(_) | Body::Actor(_) => {
+            &Body::Streaming(_) | &Body::Actor(_) => {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");

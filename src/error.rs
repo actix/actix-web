@@ -88,7 +88,7 @@ impl fmt::Debug for Error {
     }
 }
 
-/// `HttpResponse` for `Error`
+/// Convert `Error` to a `HttpResponse` instance
 impl From<Error> for HttpResponse {
     fn from(err: Error) -> Self {
         HttpResponse::from_error(err)
@@ -317,10 +317,7 @@ pub enum HttpRangeError {
 /// Return `BadRequest` for `HttpRangeError`
 impl ResponseError for HttpRangeError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(
-            StatusCode::BAD_REQUEST,
-            "Invalid Range header provided",
-        )
+        HttpResponse::with_body(StatusCode::BAD_REQUEST, "Invalid Range header provided")
     }
 }
 
