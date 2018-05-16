@@ -211,6 +211,16 @@ where
         self.sockets.iter().map(|s| s.addr).collect()
     }
 
+    /// Get addresses of bound sockets and the scheme for it.
+    ///
+    /// This is useful when the server is bound from different sources
+    /// with some sockets listening on http and some listening on https
+    /// and the user should be presented with an enumeration of which
+    /// socket requires which protocol.
+    pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
+        self.sockets.iter().map(|s| (s.addr, s.tp.scheme())).collect()
+    }
+
     /// Use listener for accepting incoming connection requests
     ///
     /// HttpServer does not change any configuration for TcpListener,
