@@ -80,6 +80,7 @@ use serde_json::error::Error as JsonError;
 use time::Duration;
 
 use error::{Error, ResponseError, Result};
+use handler::FromRequest;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
@@ -190,6 +191,16 @@ impl Session {
     }
 }
 
+impl<S> FromRequest<S> for Session {
+    type Config = ();
+    type Result = Session;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+        req.session()
+    }
+}
+
 struct SessionImplCell(RefCell<Box<SessionImpl>>);
 
 #[doc(hidden)]
@@ -226,22 +237,21 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
-        let fut = self.0
-            .from_request(&mut req)
-            .then(move |res| match res {
-                Ok(sess) => {
-                    req.extensions_mut().insert(Arc::new(SessionImplCell(
-                        RefCell::new(Box::new(sess)),
-                    )));
-                    FutOk(None)
-                }
-                Err(err) => FutErr(err),
-            });
+        let fut = self.0.from_request(&mut req).then(move |res| match res {
+            Ok(sess) => {
+                req.extensions_mut()
+                    .insert(Arc::new(SessionImplCell(RefCell::new(Box::new(sess)))));
+                FutOk(None)
+            }
+            Err(err) => FutErr(err),
+        });
         Ok(Started::Future(Box::new(fut)))
     }
 
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &self,
+        req: &mut HttpRequest<S>,
+        resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplCell>>() {
             s_box.0.borrow_mut().write(resp)
@@ -357,7 +367,9 @@ impl CookieSessionInner {
     }
 
     fn set_cookie(
-        &self, resp: &mut HttpResponse, state: &HashMap<String, String>,
+        &self,
+        resp: &mut HttpResponse,
+        state: &HashMap<String, String>,
     ) -> Result<()> {
         let value =
             serde_json::to_string(&state).map_err(CookieSessionError::Serialize)?;
@@ -542,6 +554,26 @@ mod tests {
                 .resource("/", |r| {
                     r.f(|req| {
                         let _ = req.session().set("counter", 100);
+                        "test"
+                    })
+                })
+        });
+
+        let request = srv.get().uri(srv.url("/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert!(response.cookie("actix-session").is_some());
+    }
+
+    #[test]
+    fn cookie_session_extractor() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new()
+                .middleware(SessionStorage::new(
+                    CookieSessionBackend::signed(&[0; 32]).secure(false),
+                ))
+                .resource("/", |r| {
+                    r.with(|ses: Session| {
+                        let _ = ses.set("counter", 100);
                         "test"
                     })
                 })

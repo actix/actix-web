@@ -1,10 +1,12 @@
 # Changes
 
-## 0.6.6 (2018-05-16)
+## 0.6.6 (2018-05-17)
 
 * Panic during middleware execution #226
 
 * Add support for listen_tls/listen_ssl #224
+
+* Implement extractor for `Session`
 
 
 ## 0.6.5 (2018-05-15)
