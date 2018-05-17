@@ -8,6 +8,8 @@
 
 * Implement extractor for `Session`
 
+* Ranges header support for NamedFile #60
+
 
 ## 0.6.5 (2018-05-15)
 
