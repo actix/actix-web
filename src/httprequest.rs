@@ -367,7 +367,7 @@ impl<S> HttpRequest<S> {
     /// Get a reference to the Params object.
     /// Params is a container for url query parameters.
     pub fn query<'a>(&'a self) -> &'a Params {
-        if let None = self.extensions().get::<Query>() {
+        if self.extensions().get::<Query>().is_none() {
             let mut params: Params<'a> = Params::new();
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 params.add(key, val);
@@ -394,7 +394,7 @@ impl<S> HttpRequest<S> {
 
     /// Load request cookies.
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
-        if let None = self.extensions().get::<Query>() {
+        if self.extensions().get::<Query>().is_none() {
             let msg = self.as_mut();
             let mut cookies = Vec::new();
             for hdr in msg.headers.get_all(header::COOKIE) {

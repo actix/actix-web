@@ -386,6 +386,8 @@ impl ContentEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
         let is_head = req.method == Method::HEAD;
         let mut len = 0;
+
+        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let has_body = match resp.body() {
             &Body::Empty => false,
             &Body::Binary(ref bin) => {
@@ -424,6 +426,7 @@ impl ContentEncoder {
             ContentEncoding::Identity
         };
 
+        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let mut transfer = match resp.body() {
             &Body::Empty => {
                 if req.method != Method::HEAD {

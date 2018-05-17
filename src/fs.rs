@@ -332,8 +332,8 @@ impl Responder for NamedFile {
             Ok(resp.finish())
         } else {
             let reader = ChunkedReadFile {
+                offset,
                 size: length,
-                offset: offset,
                 cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
