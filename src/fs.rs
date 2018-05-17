@@ -20,7 +20,7 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use error::Error;
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
-use http::{Method, StatusCode};
+use http::{HttpRange, Method, StatusCode};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -209,7 +209,7 @@ impl Responder for NamedFile {
             }).if_some(self.path().file_name(), |file_name, resp| {
                     let mime_type = guess_mime_type(self.path());
                     let inline_or_attachment = match mime_type.type_() {
-                        mime::IMAGE | mime::TEXT => "inline",
+                        mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
                         _ => "attachment",
                     };
                     resp.header(
@@ -228,6 +228,7 @@ impl Responder for NamedFile {
                     .unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
+                counter: 0,
             };
             return Ok(resp.streaming(reader));
         }
@@ -274,7 +275,7 @@ impl Responder for NamedFile {
         }).if_some(self.path().file_name(), |file_name, resp| {
                 let mime_type = guess_mime_type(self.path());
                 let inline_or_attachment = match mime_type.type_() {
-                    mime::IMAGE | mime::TEXT => "inline",
+                    mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
                     _ => "attachment",
                 };
                 resp.header(
@@ -292,6 +293,31 @@ impl Responder for NamedFile {
             .if_some(etag, |etag, resp| {
                 resp.set(header::ETag(etag));
             });
+        
+        // TODO: Debug, enabling "accept-ranges: bytes" causes problems with 
+        // certain clients when not using the ranges header. 
+        //resp.header(header::ACCEPT_RANGES, format!("bytes"));
+
+        let mut length = self.md.len();
+        let mut offset = 0;
+
+        // check for ranges header
+        if let Some(ranges) = req.headers().get(header::RANGE) {
+            if let Ok(rangesheader) = ranges.to_str() {
+                if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
+                    length = rangesvec[0].length - 1;
+                    offset = rangesvec[0].start;
+                    resp.header(header::RANGE, format!("bytes={}-{}/{}", offset, offset+length, self.md.len()));
+                } else {
+                    resp.header(header::RANGE, format!("*/{}", length));
+                    return Ok(resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish());
+                };
+            } else {
+                return Ok(resp.status(StatusCode::BAD_REQUEST).finish());
+            };
+        };
+
+        resp.header(header::CONTENT_LENGTH, format!("{}", length));
 
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
@@ -303,12 +329,16 @@ impl Responder for NamedFile {
             Ok(resp.finish())
         } else {
             let reader = ChunkedReadFile {
-                size: self.md.len(),
-                offset: 0,
+                size: length,
+                offset: offset,
                 cpu_pool: self.cpu_pool
                     .unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
+                counter: 0,
+            };
+            if offset != 0 || length != self.md.len() {
+                return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
             };
             Ok(resp.streaming(reader))
         }
@@ -323,6 +353,7 @@ pub struct ChunkedReadFile {
     cpu_pool: CpuPool,
     file: Option<File>,
     fut: Option<CpuFuture<(File, Bytes), io::Error>>,
+    counter: u64,
 }
 
 impl Stream for ChunkedReadFile {
@@ -336,6 +367,7 @@ impl Stream for ChunkedReadFile {
                     self.fut.take();
                     self.file = Some(file);
                     self.offset += bytes.len() as u64;
+                    self.counter += bytes.len() as u64;
                     Ok(Async::Ready(Some(bytes)))
                 }
                 Async::NotReady => Ok(Async::NotReady),
@@ -344,14 +376,16 @@ impl Stream for ChunkedReadFile {
 
         let size = self.size;
         let offset = self.offset;
+        let counter = self.counter;
 
-        if size == offset {
+        if size == counter {
             Ok(Async::Ready(None))
         } else {
             let mut file = self.file.take().expect("Use after completion");
             self.fut = Some(self.cpu_pool.spawn_fn(move || {
-                let max_bytes = cmp::min(size.saturating_sub(offset), 65_536) as usize;
-                let mut buf = BytesMut::with_capacity(max_bytes);
+                let max_bytes: usize;
+                max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
+                let mut buf = BytesMut::from(Vec::with_capacity(max_bytes));
                 file.seek(io::SeekFrom::Start(offset))?;
                 let nbytes = file.read(unsafe { buf.bytes_mut() })?;
                 if nbytes == 0 {
@@ -741,6 +775,49 @@ mod tests {
             "inline; filename=Cargo.toml"
         );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+    
+    #[test]
+    fn test_named_file_ranges_status_code() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
+        });
+
+        let request = srv.get()
+            .uri(srv.url("/t%65st/Cargo.toml"))
+            .header(header::RANGE, "bytes=10-20")
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    }
+
+    #[test]
+    fn test_named_file_ranges_headers() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new().handler("test", StaticFiles::new(".").index_file("tests/test.binary"))
+        });
+
+        let request = srv.get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .header(header::RANGE, "bytes=10-20")
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        let contentlength = response.headers().get(header::CONTENT_LENGTH).unwrap().to_str().unwrap();
+
+        assert_eq!(contentlength, "10");
+
+        let request = srv.get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .header(header::RANGE, "bytes=10-20")
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        let range = response.headers().get(header::RANGE).unwrap().to_str().unwrap();
+
+        assert_eq!(range, "bytes=10-20/100");
     }
 
     #[test]
