@@ -16,7 +16,6 @@ use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
 
 /// Various server settings
-#[derive(Clone)]
 pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
@@ -27,6 +26,18 @@ pub struct ServerSettings {
 
 unsafe impl Sync for ServerSettings {}
 unsafe impl Send for ServerSettings {}
+
+impl Clone for ServerSettings {
+    fn clone(&self) -> Self {
+        ServerSettings {
+            addr: self.addr,
+            secure: self.secure,
+            host: self.host.clone(),
+            cpu_pool: self.cpu_pool.clone(),
+            responses: HttpResponsePool::pool(),
+        }
+    }
+}
 
 struct InnerCpuPool {
     cpu_pool: UnsafeCell<Option<CpuPool>>,

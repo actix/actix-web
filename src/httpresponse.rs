@@ -466,10 +466,7 @@ impl HttpResponseBuilder {
             jar.add(cookie.into_owned());
             self.cookies = Some(jar)
         } else {
-            self.cookies
-                .as_mut()
-                .unwrap()
-                .add(cookie.into_owned());
+            self.cookies.as_mut().unwrap().add(cookie.into_owned());
         }
         self
     }
@@ -534,9 +531,7 @@ impl HttpResponseBuilder {
         if let Some(e) = self.err.take() {
             return Error::from(e).into();
         }
-        let mut response = self.response
-            .take()
-            .expect("cannot reuse response builder");
+        let mut response = self.response.take().expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
@@ -558,9 +553,7 @@ impl HttpResponseBuilder {
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error>,
     {
-        self.body(Body::Streaming(Box::new(
-            stream.map_err(|e| e.into()),
-        )))
+        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
     /// Set a json body and generate `HttpResponse`
@@ -607,7 +600,8 @@ impl HttpResponseBuilder {
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(
-    parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>,
+    parts: &'a mut Option<Box<InnerHttpResponse>>,
+    err: &Option<HttpError>,
 ) -> Option<&'a mut Box<InnerHttpResponse>> {
     if err.is_some() {
         return None;
@@ -822,14 +816,15 @@ thread_local!(static POOL: Rc<UnsafeCell<HttpResponsePool>> = HttpResponsePool::
 
 impl HttpResponsePool {
     pub fn pool() -> Rc<UnsafeCell<HttpResponsePool>> {
-        Rc::new(UnsafeCell::new(HttpResponsePool(
-            VecDeque::with_capacity(128),
-        )))
+        Rc::new(UnsafeCell::new(HttpResponsePool(VecDeque::with_capacity(
+            128,
+        ))))
     }
 
     #[inline]
     pub fn get_builder(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>,
+        status: StatusCode,
     ) -> HttpResponseBuilder {
         let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
@@ -853,7 +848,9 @@ impl HttpResponsePool {
 
     #[inline]
     pub fn get_response(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode, body: Body,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>,
+        status: StatusCode,
+        body: Body,
     ) -> HttpResponse {
         let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
@@ -879,7 +876,8 @@ impl HttpResponsePool {
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
     fn release(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>, mut inner: Box<InnerHttpResponse>,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>,
+        mut inner: Box<InnerHttpResponse>,
     ) {
         let pool = unsafe { &mut *pool.as_ref().get() };
         if pool.0.len() < 128 {
@@ -975,9 +973,7 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close()
-            .finish();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive().unwrap())
     }
 
@@ -986,10 +982,7 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            "text/plain"
-        )
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
@@ -1036,10 +1029,10 @@ mod tests {
     }
 
     impl Body {
-        pub(crate) fn binary(&self) -> Option<&Binary> {
+        pub(crate) fn bin_ref(&self) -> &Binary {
             match *self {
-                Body::Binary(ref bin) => Some(bin),
-                _ => None,
+                Body::Binary(ref bin) => bin,
+                _ => panic!(),
             }
         }
     }
@@ -1055,7 +1048,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
+        assert_eq!(resp.body().bin_ref(), &Binary::from("test"));
 
         let resp: HttpResponse = "test".respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1064,7 +1057,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().binary().unwrap(), &Binary::from("test"));
+        assert_eq!(resp.body().bin_ref(), &Binary::from("test"));
 
         let resp: HttpResponse = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1073,10 +1066,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(b"test".as_ref())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(b"test".as_ref()));
 
         let resp: HttpResponse = b"test".as_ref().respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1085,10 +1075,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(b"test".as_ref())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(b"test".as_ref()));
 
         let resp: HttpResponse = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1097,10 +1084,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from("test".to_owned())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from("test".to_owned()));
 
         let resp: HttpResponse = "test".to_owned().respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1109,10 +1093,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from("test".to_owned())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from("test".to_owned()));
 
         let resp: HttpResponse = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1121,10 +1102,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(&"test".to_owned())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(&"test".to_owned()));
 
         let resp: HttpResponse = (&"test".to_owned()).respond_to(&req).ok().unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1133,10 +1111,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(&"test".to_owned())
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(&"test".to_owned()));
 
         let b = Bytes::from_static(b"test");
         let resp: HttpResponse = b.into();
@@ -1147,7 +1122,7 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.body().binary().unwrap(),
+            resp.body().bin_ref(),
             &Binary::from(Bytes::from_static(b"test"))
         );
 
@@ -1160,7 +1135,7 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.body().binary().unwrap(),
+            resp.body().bin_ref(),
             &Binary::from(Bytes::from_static(b"test"))
         );
 
@@ -1172,10 +1147,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(BytesMut::from("test"))
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(BytesMut::from("test")));
 
         let b = BytesMut::from("test");
         let resp: HttpResponse = b.respond_to(&req).ok().unwrap();
@@ -1185,10 +1157,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().binary().unwrap(),
-            &Binary::from(BytesMut::from("test"))
-        );
+        assert_eq!(resp.body().bin_ref(), &Binary::from(BytesMut::from("test")));
     }
 
     #[test]

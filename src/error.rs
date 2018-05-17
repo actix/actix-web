@@ -88,7 +88,7 @@ impl fmt::Debug for Error {
     }
 }
 
-/// `HttpResponse` for `Error`
+/// Convert `Error` to a `HttpResponse` instance
 impl From<Error> for HttpResponse {
     fn from(err: Error) -> Self {
         HttpResponse::from_error(err)
@@ -317,10 +317,7 @@ pub enum HttpRangeError {
 /// Return `BadRequest` for `HttpRangeError`
 impl ResponseError for HttpRangeError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(
-            StatusCode::BAD_REQUEST,
-            "Invalid Range header provided",
-        )
+        HttpResponse::with_body(StatusCode::BAD_REQUEST, "Invalid Range header provided")
     }
 }
 
@@ -757,6 +754,46 @@ where
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }
 
+/// Helper function that creates wrapper of any error and
+/// generate *NOT IMPLEMENTED* response.
+#[allow(non_snake_case)]
+pub fn ErrorNotImplemented<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::NOT_IMPLEMENTED).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *BAD GATEWAY* response.
+#[allow(non_snake_case)]
+pub fn ErrorBadGateway<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::BAD_GATEWAY).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *SERVICE UNAVAILABLE* response.
+#[allow(non_snake_case)]
+pub fn ErrorServiceUnavailable<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::SERVICE_UNAVAILABLE).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *GATEWAY TIMEOUT* response.
+#[allow(non_snake_case)]
+pub fn ErrorGatewayTimeout<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -850,7 +887,7 @@ mod tests {
     }
 
     macro_rules! from {
-        ($from: expr => $error: pat) => {
+        ($from:expr => $error:pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     assert!(format!("{}", e).len() >= 5);
@@ -861,7 +898,7 @@ mod tests {
     }
 
     macro_rules! from_and_cause {
-        ($from: expr => $error: pat) => {
+        ($from:expr => $error:pat) => {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e.cause().unwrap());
@@ -911,5 +948,53 @@ mod tests {
         );
         let resp: HttpResponse = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_error_helpers() {
+        let r: HttpResponse = ErrorBadRequest("err").into();
+        assert_eq!(r.status(), StatusCode::BAD_REQUEST);
+
+        let r: HttpResponse = ErrorUnauthorized("err").into();
+        assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+
+        let r: HttpResponse = ErrorForbidden("err").into();
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+
+        let r: HttpResponse = ErrorNotFound("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+
+        let r: HttpResponse = ErrorMethodNotAllowed("err").into();
+        assert_eq!(r.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let r: HttpResponse = ErrorRequestTimeout("err").into();
+        assert_eq!(r.status(), StatusCode::REQUEST_TIMEOUT);
+
+        let r: HttpResponse = ErrorConflict("err").into();
+        assert_eq!(r.status(), StatusCode::CONFLICT);
+
+        let r: HttpResponse = ErrorGone("err").into();
+        assert_eq!(r.status(), StatusCode::GONE);
+
+        let r: HttpResponse = ErrorPreconditionFailed("err").into();
+        assert_eq!(r.status(), StatusCode::PRECONDITION_FAILED);
+
+        let r: HttpResponse = ErrorExpectationFailed("err").into();
+        assert_eq!(r.status(), StatusCode::EXPECTATION_FAILED);
+
+        let r: HttpResponse = ErrorInternalServerError("err").into();
+        assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let r: HttpResponse = ErrorNotImplemented("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_IMPLEMENTED);
+
+        let r: HttpResponse = ErrorBadGateway("err").into();
+        assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+
+        let r: HttpResponse = ErrorServiceUnavailable("err").into();
+        assert_eq!(r.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        let r: HttpResponse = ErrorGatewayTimeout("err").into();
+        assert_eq!(r.status(), StatusCode::GATEWAY_TIMEOUT);
     }
 }

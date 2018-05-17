@@ -67,7 +67,9 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
+        settings: Rc<WorkerSettings<H>>,
+        stream: T,
+        addr: Option<SocketAddr>,
         buf: BytesMut,
     ) -> Self {
         let bytes = settings.get_shared_bytes();
@@ -146,10 +148,12 @@ where
     }
 
     #[inline]
+    /// read data from stream
     pub fn poll_io(&mut self) {
         // read io from socket
         if !self.flags.intersects(Flags::ERROR)
-            && self.tasks.len() < MAX_PIPELINED_MESSAGES && self.can_read()
+            && self.tasks.len() < MAX_PIPELINED_MESSAGES
+            && self.can_read()
         {
             if self.read() {
                 // notify all tasks
@@ -158,7 +162,6 @@ where
                     entry.pipe.disconnected()
                 }
                 // kill keepalive
-                self.flags.remove(Flags::KEEPALIVE);
                 self.keepalive_timer.take();
 
                 // on parse error, stop reading stream but tasks need to be
@@ -205,10 +208,9 @@ where
                         self.stream.reset();
 
                         if ready {
-                            item.flags
-                                .insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                            item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
                         } else {
-                            item.flags.insert(EntryFlags::FINISHED);
+                            item.flags.insert(EntryFlags::EOF);
                         }
                     }
                     // no more IO for this iteration
@@ -324,7 +326,36 @@ where
                     // search handler for request
                     for h in self.settings.handlers().iter_mut() {
                         req = match h.handle(req) {
-                            Ok(pipe) => {
+                            Ok(mut pipe) => {
+                                if self.tasks.is_empty() {
+                                    match pipe.poll_io(&mut self.stream) {
+                                        Ok(Async::Ready(ready)) => {
+                                            // override keep-alive state
+                                            if self.stream.keepalive() {
+                                                self.flags.insert(Flags::KEEPALIVE);
+                                            } else {
+                                                self.flags.remove(Flags::KEEPALIVE);
+                                            }
+                                            // prepare stream for next response
+                                            self.stream.reset();
+
+                                            if !ready {
+                                                let item = Entry {
+                                                    pipe,
+                                                    flags: EntryFlags::EOF,
+                                                };
+                                                self.tasks.push_back(item);
+                                            }
+                                            continue 'outer;
+                                        }
+                                        Ok(Async::NotReady) => {}
+                                        Err(err) => {
+                                            error!("Unhandled error: {}", err);
+                                            self.flags.insert(Flags::ERROR);
+                                            return;
+                                        }
+                                    }
+                                }
                                 self.tasks.push_back(Entry {
                                     pipe,
                                     flags: EntryFlags::empty(),
@@ -347,6 +378,7 @@ where
                     } else {
                         error!("Internal server error: unexpected payload chunk");
                         self.flags.insert(Flags::ERROR);
+                        break;
                     }
                 }
                 Ok(Some(Message::Eof)) => {
@@ -355,6 +387,7 @@ where
                     } else {
                         error!("Internal server error: unexpected eof");
                         self.flags.insert(Flags::ERROR);
+                        break;
                     }
                 }
                 Ok(None) => break,
@@ -367,6 +400,7 @@ where
                         };
                         payload.set_error(e);
                     }
+                    break;
                 }
             }
         }
@@ -398,8 +432,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Bytes, BytesMut};
+    use std::net::Shutdown;
+    use std::{cmp, time};
+
+    use bytes::{Buf, Bytes, BytesMut};
     use http::{Method, Version};
+    use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
     use application::HttpApplication;
@@ -461,6 +499,101 @@ mod tests {
                 _ => unreachable!("Error expected"),
             }
         }};
+    }
+
+    struct Buffer {
+        buf: Bytes,
+        err: Option<io::Error>,
+    }
+
+    impl Buffer {
+        fn new(data: &'static str) -> Buffer {
+            Buffer {
+                buf: Bytes::from(data),
+                err: None,
+            }
+        }
+        fn feed_data(&mut self, data: &'static str) {
+            let mut b = BytesMut::from(self.buf.as_ref());
+            b.extend(data.as_bytes());
+            self.buf = b.take().freeze();
+        }
+    }
+
+    impl AsyncRead for Buffer {}
+    impl io::Read for Buffer {
+        fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+            if self.buf.is_empty() {
+                if self.err.is_some() {
+                    Err(self.err.take().unwrap())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+                }
+            } else {
+                let size = cmp::min(self.buf.len(), dst.len());
+                let b = self.buf.split_to(size);
+                dst[..size].copy_from_slice(&b);
+                Ok(size)
+            }
+        }
+    }
+
+    impl IoStream for Buffer {
+        fn shutdown(&mut self, _: Shutdown) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_nodelay(&mut self, _: bool) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl io::Write for Buffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl AsyncWrite for Buffer {
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            Ok(Async::Ready(()))
+        }
+        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+            Ok(Async::NotReady)
+        }
+    }
+
+    #[test]
+    fn test_req_parse() {
+        let buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
+        let readbuf = BytesMut::new();
+        let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+        ));
+
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
+        h1.poll_io();
+        h1.parse();
+        assert_eq!(h1.tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_req_parse_err() {
+        let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
+        let readbuf = BytesMut::new();
+        let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+        ));
+
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
+        h1.poll_io();
+        h1.parse();
+        assert!(h1.flags.contains(Flags::ERROR));
     }
 
     #[test]
@@ -614,10 +747,7 @@ mod tests {
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
-                assert_eq!(
-                    req.headers().get("test").unwrap().as_bytes(),
-                    b"value"
-                );
+                assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
             }
             Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
         }
@@ -918,13 +1048,7 @@ mod tests {
                 .as_ref(),
             b"line"
         );
-        assert!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .eof()
-        );
+        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1005,13 +1129,7 @@ mod tests {
         assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
 
         buf.extend(b"\r\n");
-        assert!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .eof()
-        );
+        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1029,17 +1147,9 @@ mod tests {
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        let chunk = reader
-            .decode(&mut buf, &settings)
-            .unwrap()
-            .unwrap()
-            .chunk();
+        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"data"));
-        let chunk = reader
-            .decode(&mut buf, &settings)
-            .unwrap()
-            .unwrap()
-            .chunk();
+        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"line"));
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.eof());

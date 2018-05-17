@@ -38,7 +38,9 @@ where
     H: HttpHandler + 'static,
 {
     pub(crate) fn new(
-        settings: Rc<WorkerSettings<H>>, mut io: T, peer: Option<SocketAddr>,
+        settings: Rc<WorkerSettings<H>>,
+        mut io: T,
+        peer: Option<SocketAddr>,
         http2: bool,
     ) -> HttpChannel<T, H> {
         settings.add_channel();
@@ -61,7 +63,7 @@ where
                     settings,
                     peer,
                     io,
-                    BytesMut::with_capacity(4096),
+                    BytesMut::with_capacity(8192),
                 )),
             }
         }
@@ -93,12 +95,12 @@ where
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) => self.node
-                    .as_ref()
-                    .map(|n| h1.settings().head().insert(n)),
-                Some(HttpProtocol::H2(ref mut h2)) => self.node
-                    .as_ref()
-                    .map(|n| h2.settings().head().insert(n)),
+                Some(HttpProtocol::H1(ref mut h1)) => {
+                    self.node.as_ref().map(|n| h1.settings().head().insert(n))
+                }
+                Some(HttpProtocol::H2(ref mut h2)) => {
+                    self.node.as_ref().map(|n| h2.settings().head().insert(n))
+                }
                 Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
                     self.node.as_ref().map(|n| settings.head().insert(n))
                 }
@@ -168,9 +170,8 @@ where
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
-                        settings, io, addr, buf,
-                    )));
+                    self.proto =
+                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {

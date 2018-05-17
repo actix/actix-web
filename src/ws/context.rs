@@ -13,9 +13,9 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError};
 use httprequest::HttpRequest;
 
-use ws::WsWriter;
 use ws::frame::Frame;
 use ws::proto::{CloseReason, OpCode};
+use ws::WsWriter;
 
 /// Execution context for `WebSockets` actors
 pub struct WebsocketContext<A, S = ()>
@@ -149,6 +149,46 @@ where
         Drain::new(rx)
     }
 
+    /// Send text frame
+    #[inline]
+    pub fn text<T: Into<Binary>>(&mut self, text: T) {
+        self.write(Frame::message(text.into(), OpCode::Text, true, false));
+    }
+
+    /// Send binary frame
+    #[inline]
+    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
+        self.write(Frame::message(data, OpCode::Binary, true, false));
+    }
+
+    /// Send ping frame
+    #[inline]
+    pub fn ping(&mut self, message: &str) {
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Ping,
+            true,
+            false,
+        ));
+    }
+
+    /// Send pong frame
+    #[inline]
+    pub fn pong(&mut self, message: &str) {
+        self.write(Frame::message(
+            Vec::from(message),
+            OpCode::Pong,
+            true,
+            false,
+        ));
+    }
+
+    /// Send close frame
+    #[inline]
+    pub fn close(&mut self, reason: Option<CloseReason>) {
+        self.write(Frame::close(reason, false));
+    }
+
     /// Check if connection still open
     #[inline]
     pub fn connected(&self) -> bool {
@@ -181,42 +221,32 @@ where
 {
     /// Send text frame
     #[inline]
-    fn text<T: Into<Binary>>(&mut self, text: T) {
-        self.write(Frame::message(text.into(), OpCode::Text, true, false));
+    fn send_text<T: Into<Binary>>(&mut self, text: T) {
+        self.text(text)
     }
 
     /// Send binary frame
     #[inline]
-    fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(Frame::message(data, OpCode::Binary, true, false));
+    fn send_binary<B: Into<Binary>>(&mut self, data: B) {
+        self.binary(data)
     }
 
     /// Send ping frame
     #[inline]
-    fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Ping,
-            true,
-            false,
-        ));
+    fn send_ping(&mut self, message: &str) {
+        self.ping(message)
     }
 
     /// Send pong frame
     #[inline]
-    fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Pong,
-            true,
-            false,
-        ));
+    fn send_pong(&mut self, message: &str) {
+        self.pong(message)
     }
 
     /// Send close frame
     #[inline]
-    fn close(&mut self, reason: Option<CloseReason>) {
-        self.write(Frame::close(reason, false));
+    fn send_close(&mut self, reason: Option<CloseReason>) {
+        self.close(reason)
     }
 }
 

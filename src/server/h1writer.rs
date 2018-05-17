@@ -42,7 +42,9 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     pub fn new(
-        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
+        stream: T,
+        buf: SharedBytes,
+        settings: Rc<WorkerSettings<H>>,
     ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::empty(),
@@ -101,7 +103,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     }
 
     fn start(
-        &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
+        &mut self,
+        req: &mut HttpInnerMessage,
+        msg: &mut HttpResponse,
         encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare task
@@ -138,7 +142,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let reason = msg.reason().as_bytes();
             let mut is_bin = if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len()
+                    256
+                        + msg.headers().len() * AVERAGE_HEADER_SIZE
+                        + bytes.len()
                         + reason.len(),
                 );
                 true
@@ -255,9 +261,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     }
 
     fn write_eof(&mut self) -> io::Result<WriterState> {
-        self.encoder.write_eof()?;
-
-        if !self.encoder.is_eof() {
+        if !self.encoder.write_eof()? {
             Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Last payload item, but eof is not reached",
@@ -276,7 +280,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 unsafe { &mut *(self.buffer.as_ref() as *const _ as *mut _) };
             let written = self.write_data(buf)?;
             let _ = self.buffer.split_to(written);
-            if self.buffer.len() > self.buffer_capacity {
+            if shutdown && !self.buffer.is_empty()
+                || (self.buffer.len() > self.buffer_capacity)
+            {
                 return Ok(Async::NotReady);
             }
         }

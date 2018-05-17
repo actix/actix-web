@@ -343,15 +343,15 @@ where
 /// Common writing methods for a websocket.
 pub trait WsWriter {
     /// Send a text
-    fn text<T: Into<Binary>>(&mut self, text: T);
+    fn send_text<T: Into<Binary>>(&mut self, text: T);
     /// Send a binary
-    fn binary<B: Into<Binary>>(&mut self, data: B);
+    fn send_binary<B: Into<Binary>>(&mut self, data: B);
     /// Send a ping message
-    fn ping(&mut self, message: &str);
+    fn send_ping(&mut self, message: &str);
     /// Send a pong message
-    fn pong(&mut self, message: &str);
+    fn send_pong(&mut self, message: &str);
     /// Close the connection
-    fn close(&mut self, reason: Option<CloseReason>);
+    fn send_close(&mut self, reason: Option<CloseReason>);
 }
 
 #[cfg(test)]

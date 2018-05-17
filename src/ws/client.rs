@@ -518,24 +518,22 @@ impl ClientWriter {
     fn as_mut(&mut self) -> &mut Inner {
         unsafe { &mut *self.inner.get() }
     }
-}
 
-impl WsWriter for ClientWriter {
     /// Send text frame
     #[inline]
-    fn text<T: Into<Binary>>(&mut self, text: T) {
+    pub fn text<T: Into<Binary>>(&mut self, text: T) {
         self.write(Frame::message(text.into(), OpCode::Text, true, true));
     }
 
     /// Send binary frame
     #[inline]
-    fn binary<B: Into<Binary>>(&mut self, data: B) {
+    pub fn binary<B: Into<Binary>>(&mut self, data: B) {
         self.write(Frame::message(data, OpCode::Binary, true, true));
     }
 
     /// Send ping frame
     #[inline]
-    fn ping(&mut self, message: &str) {
+    pub fn ping(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Ping,
@@ -546,7 +544,7 @@ impl WsWriter for ClientWriter {
 
     /// Send pong frame
     #[inline]
-    fn pong(&mut self, message: &str) {
+    pub fn pong(&mut self, message: &str) {
         self.write(Frame::message(
             Vec::from(message),
             OpCode::Pong,
@@ -557,7 +555,39 @@ impl WsWriter for ClientWriter {
 
     /// Send close frame
     #[inline]
-    fn close(&mut self, reason: Option<CloseReason>) {
+    pub fn close(&mut self, reason: Option<CloseReason>) {
         self.write(Frame::close(reason, true));
+    }
+}
+
+impl WsWriter for ClientWriter {
+    /// Send text frame
+    #[inline]
+    fn send_text<T: Into<Binary>>(&mut self, text: T) {
+        self.text(text)
+    }
+
+    /// Send binary frame
+    #[inline]
+    fn send_binary<B: Into<Binary>>(&mut self, data: B) {
+        self.binary(data)
+    }
+
+    /// Send ping frame
+    #[inline]
+    fn send_ping(&mut self, message: &str) {
+        self.ping(message)
+    }
+
+    /// Send pong frame
+    #[inline]
+    fn send_pong(&mut self, message: &str) {
+        self.pong(message)
+    }
+
+    /// Send close frame
+    #[inline]
+    fn send_close(&mut self, reason: Option<CloseReason>) {
+        self.close(reason);
     }
 }

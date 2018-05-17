@@ -1,5 +1,6 @@
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::mem;
 use std::rc::Rc;
 
 use futures::{Async, Future, Poll};
@@ -9,19 +10,28 @@ use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Finished as MiddlewareFinished, Middleware,
-                 Response as MiddlewareResponse, Started as MiddlewareStarted};
+use middleware::{
+    Finished as MiddlewareFinished, Middleware, Response as MiddlewareResponse,
+    Started as MiddlewareStarted,
+};
+use pred::Predicate;
 use resource::ResourceHandler;
 use router::Resource;
 
 type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
 type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>;
+type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 
 /// Resources scope
 ///
 /// Scope is a set of resources with common root path.
 /// Scopes collect multiple paths under a common path prefix.
-/// Scope path can not contain variable path segments as resources.
+/// Scope path can contain variable path segments as resources.
+/// Scope prefix is always complete path segment, i.e `/app` would
+/// be converted to a `/app/` and it would not match `/app` path.
+///
+/// You can get variable path segments from `HttpRequest::match_info()`.
+/// `Path` extractor also is able to extract scope level variable segments.
 ///
 /// ```rust
 /// # extern crate actix_web;
@@ -29,7 +39,7 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .scope("/app", |scope| {
+///         .scope("/{project_id}/", |scope| {
 ///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
 ///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
 ///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
@@ -38,31 +48,59 @@ type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>
 /// ```
 ///
 /// In the above example three routes get registered:
-///  * /app/path1 - reponds to all http method
-///  * /app/path2 - `GET` requests
-///  * /app/path3 - `HEAD` requests
+///  * /{project_id}/path1 - reponds to all http method
+///  * /{project_id}/path2 - `GET` requests
+///  * /{project_id}/path3 - `HEAD` requests
 ///
+#[derive(Default)]
 pub struct Scope<S: 'static> {
-    nested: Vec<(String, Route<S>)>,
+    filters: Vec<Box<Predicate<S>>>,
+    nested: Vec<NestedInfo<S>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
     default: Rc<UnsafeCell<ResourceHandler<S>>>,
     resources: ScopeResources<S>,
 }
 
-impl<S: 'static> Default for Scope<S> {
-    fn default() -> Scope<S> {
-        Scope::new()
-    }
-}
-
+#[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 impl<S: 'static> Scope<S> {
     pub fn new() -> Scope<S> {
         Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         }
+    }
+
+    #[inline]
+    pub(crate) fn take_filters(&mut self) -> Vec<Box<Predicate<S>>> {
+        mem::replace(&mut self.filters, Vec::new())
+    }
+
+    /// Add match predicate to scope.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, pred, App, HttpRequest, HttpResponse, Path};
+    ///
+    /// fn index(data: Path<(String, String)>) -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .scope("/app", |scope| {
+    ///             scope.filter(pred::Header("content-type", "text/plain"))
+    ///                .route("/test1", http::Method::GET, index)
+    ///                .route("/test2", http::Method::POST,
+    ///                    |_: HttpRequest| HttpResponse::MethodNotAllowed())
+    ///         });
+    /// }
+    /// ```
+    pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> Self {
+        self.filters.push(Box::new(p));
+        self
     }
 
     /// Create nested scope with new state.
@@ -91,23 +129,30 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(Scope<T>) -> Scope<T>,
     {
         let scope = Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
-        let scope = f(scope);
+        let mut scope = f(scope);
 
         let mut path = path.trim().trim_right_matches('/').to_owned();
         if !path.is_empty() && !path.starts_with('/') {
             path.insert(0, '/')
         }
+        if !path.ends_with('/') {
+            path.push('/');
+        }
 
-        let handler = UnsafeCell::new(Box::new(Wrapper {
-            scope,
-            state: Rc::new(state),
-        }));
-        self.nested.push((path, handler));
+        let state = Rc::new(state);
+        let filters: Vec<Box<Predicate<S>>> = vec![Box::new(FiltersWrapper {
+            state: Rc::clone(&state),
+            filters: scope.take_filters(),
+        })];
+        let handler = UnsafeCell::new(Box::new(Wrapper { scope, state }));
+        self.nested
+            .push((Resource::prefix("", &path), handler, filters));
 
         self
     }
@@ -138,20 +183,28 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
         let scope = Scope {
+            filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(Vec::new()),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
-        let scope = f(scope);
+        let mut scope = f(scope);
 
         let mut path = path.trim().trim_right_matches('/').to_owned();
         if !path.is_empty() && !path.starts_with('/') {
             path.insert(0, '/')
         }
+        if !path.ends_with('/') {
+            path.push('/');
+        }
 
-        self.nested
-            .push((path, UnsafeCell::new(Box::new(scope))));
+        let filters = scope.take_filters();
+        self.nested.push((
+            Resource::prefix("", &path),
+            UnsafeCell::new(Box::new(scope)),
+            filters,
+        ));
 
         self
     }
@@ -264,7 +317,7 @@ impl<S: 'static> Scope<S> {
     /// middlewares get invoked on scope level.
     ///
     /// *Note* `Middleware::finish()` fires right after response get
-    /// prepared. It does not wait until body get sent to peer.
+    /// prepared. It does not wait until body get sent to the peer.
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Scope<S> {
         Rc::get_mut(&mut self.middlewares)
             .expect("Can not use after configuration")
@@ -278,7 +331,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
         let path = if path == "" { "/" } else { path };
 
-        // recognize paths
+        // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(path, req.match_info_mut()) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
@@ -298,17 +351,19 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         }
 
         // nested scopes
-        for &(ref prefix, ref handler) in &self.nested {
-            let len = req.prefix_len() as usize;
-            let m = {
-                let path = &req.path()[len..];
-                path.starts_with(prefix)
-                    && (path.len() == prefix.len()
-                        || path.split_at(prefix.len()).1.starts_with('/'))
-            };
+        let len = req.prefix_len() as usize;
+        let path: &'static str = unsafe { &*(&req.path()[len..] as *const _) };
 
-            if m {
-                let prefix_len = len + prefix.len();
+        'outer: for &(ref prefix, ref handler, ref filters) in &self.nested {
+            if let Some(prefix_len) =
+                prefix.match_prefix_with_params(path, req.match_info_mut())
+            {
+                for filter in filters {
+                    if !filter.check(&mut req) {
+                        continue 'outer;
+                    }
+                }
+                let prefix_len = len + prefix_len - 1;
                 let path: &'static str =
                     unsafe { &*(&req.path()[prefix_len..] as *const _) };
 
@@ -347,8 +402,24 @@ struct Wrapper<S: 'static> {
 
 impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
     fn handle(&mut self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
-        self.scope
-            .handle(req.change_state(Rc::clone(&self.state)))
+        self.scope.handle(req.change_state(Rc::clone(&self.state)))
+    }
+}
+
+struct FiltersWrapper<S: 'static> {
+    state: Rc<S>,
+    filters: Vec<Box<Predicate<S>>>,
+}
+
+impl<S: 'static, S2: 'static> Predicate<S2> for FiltersWrapper<S> {
+    fn check(&self, req: &mut HttpRequest<S2>) -> bool {
+        let mut req = req.change_state(Rc::clone(&self.state));
+        for filter in &self.filters {
+            if !filter.check(&mut req) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -388,7 +459,8 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
         resource: Rc<UnsafeCell<ResourceHandler<S>>>,
         default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
     ) -> Self {
@@ -451,21 +523,12 @@ impl<S: 'static> StartMiddlewares<S> {
                     Ok(MiddlewareStarted::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
                     }
-                    Ok(MiddlewareStarted::Future(mut fut)) => match fut.poll() {
-                        Ok(Async::NotReady) => {
-                            return ComposeState::Starting(StartMiddlewares {
-                                fut: Some(fut),
-                                _s: PhantomData,
-                            })
-                        }
-                        Ok(Async::Ready(resp)) => {
-                            if let Some(resp) = resp {
-                                return RunMiddlewares::init(info, resp);
-                            }
-                            info.count += 1;
-                        }
-                        Err(err) => return Response::init(err.into()),
-                    },
+                    Ok(MiddlewareStarted::Future(fut)) => {
+                        return ComposeState::Starting(StartMiddlewares {
+                            fut: Some(fut),
+                            _s: PhantomData,
+                        })
+                    }
                     Err(err) => return Response::init(err.into()),
                 }
             }
@@ -482,17 +545,17 @@ impl<S: 'static> StartMiddlewares<S> {
                     if let Some(resp) = resp {
                         return Some(RunMiddlewares::init(info, resp));
                     }
-                    if info.count == len {
-                        let resource = unsafe { &mut *info.resource.get() };
-                        let reply = if let Some(ref default) = info.default {
-                            let d = unsafe { &mut *default.as_ref().get() };
-                            resource.handle(info.req.clone(), Some(d))
+                    loop {
+                        if info.count == len {
+                            let resource = unsafe { &mut *info.resource.get() };
+                            let reply = if let Some(ref default) = info.default {
+                                let d = unsafe { &mut *default.as_ref().get() };
+                                resource.handle(info.req.clone(), Some(d))
+                            } else {
+                                resource.handle(info.req.clone(), None)
+                            };
+                            return Some(WaitingResponse::init(info, reply));
                         } else {
-                            resource.handle(info.req.clone(), None)
-                        };
-                        return Some(WaitingResponse::init(info, reply));
-                    } else {
-                        loop {
                             match info.mws[info.count].start(&mut info.req) {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -522,7 +585,8 @@ struct WaitingResponse<S> {
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(
-        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+        info: &mut ComposeInfo<S>,
+        reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
             AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
@@ -698,9 +762,14 @@ impl<S: 'static> Response<S> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use application::App;
-    use http::StatusCode;
+    use body::Body;
+    use http::{Method, StatusCode};
+    use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
+    use pred;
     use test::TestRequest;
 
     #[test]
@@ -714,6 +783,90 @@ mod tests {
         let req = TestRequest::with_uri("/app/path1").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_route() {
+        let mut app = App::new()
+            .scope("app", |scope| {
+                scope
+                    .route("/path1", Method::GET, |_: HttpRequest<_>| {
+                        HttpResponse::Ok()
+                    })
+                    .route("/path1", Method::DELETE, |_: HttpRequest<_>| {
+                        HttpResponse::Ok()
+                    })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::DELETE)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_scope_filter() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope
+                    .filter(pred::Get())
+                    .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::GET)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_variable_segment() {
+        let mut app = App::new()
+            .scope("/ab-{project}", |scope| {
+                scope.resource("/path1", |r| {
+                    r.f(|r| {
+                        HttpResponse::Ok()
+                            .body(format!("project: {}", &r.match_info()["project"]))
+                    })
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/ab-project1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        match resp.as_msg().body() {
+            &Body::Binary(ref b) => {
+                let bytes: Bytes = b.clone().into();
+                assert_eq!(bytes, Bytes::from_static(b"project: project1"));
+            }
+            _ => panic!(),
+        }
+
+        let req = TestRequest::with_uri("/aa-project1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -734,6 +887,33 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_with_state_filter() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1", State, |scope| {
+                    scope
+                        .filter(pred::Get())
+                        .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::GET)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
     fn test_nested_scope() {
         let mut app = App::new()
             .scope("/app", |scope| {
@@ -746,6 +926,98 @@ mod tests {
         let req = TestRequest::with_uri("/app/t1/path1").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_nested_scope_filter() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/t1", |scope| {
+                    scope
+                        .filter(pred::Get())
+                        .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::POST)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::GET)
+            .finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_nested_scope_with_variable_segment() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/{project_id}", |scope| {
+                    scope.resource("/path1", |r| {
+                        r.f(|r| {
+                            HttpResponse::Created().body(format!(
+                                "project: {}",
+                                &r.match_info()["project_id"]
+                            ))
+                        })
+                    })
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/project_1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+
+        match resp.as_msg().body() {
+            &Body::Binary(ref b) => {
+                let bytes: Bytes = b.clone().into();
+                assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_nested2_scope_with_variable_segment() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/{project}", |scope| {
+                    scope.nested("/{id}", |scope| {
+                        scope.resource("/path1", |r| {
+                            r.f(|r| {
+                                HttpResponse::Created().body(format!(
+                                    "project: {} - {}",
+                                    &r.match_info()["project"],
+                                    &r.match_info()["id"],
+                                ))
+                            })
+                        })
+                    })
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/test/1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+
+        match resp.as_msg().body() {
+            &Body::Binary(ref b) => {
+                let bytes: Bytes = b.clone().into();
+                assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
+            }
+            _ => panic!(),
+        }
+
+        let req = TestRequest::with_uri("/app/test/1/path2").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]

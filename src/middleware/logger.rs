@@ -1,7 +1,7 @@
 //! Request logging middleware
+use std::collections::HashSet;
 use std::env;
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 
 use libc;
 use regex::Regex;
@@ -74,6 +74,7 @@ use middleware::{Finished, Middleware, Started};
 ///
 pub struct Logger {
     format: Format,
+    exclude: HashSet<String>,
 }
 
 impl Logger {
@@ -81,7 +82,14 @@ impl Logger {
     pub fn new(format: &str) -> Logger {
         Logger {
             format: Format::new(format),
+            exclude: HashSet::new(),
         }
+    }
+
+    /// Ignore and do not log access info for specified path.
+    pub fn exclude<T: Into<String>>(mut self, path: T) -> Self {
+        self.exclude.insert(path.into());
+        self
     }
 }
 
@@ -94,6 +102,7 @@ impl Default for Logger {
     fn default() -> Logger {
         Logger {
             format: Format::default(),
+            exclude: HashSet::new(),
         }
     }
 }
@@ -102,21 +111,23 @@ struct StartTime(time::Tm);
 
 impl Logger {
     fn log<S>(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) {
-        let entry_time = req.extensions().get::<StartTime>().unwrap().0;
-
-        let render = |fmt: &mut Formatter| {
-            for unit in &self.format.0 {
-                unit.render(fmt, req, resp, entry_time)?;
-            }
-            Ok(())
-        };
-        info!("{}", FormatDisplay(&render));
+        if let Some(entry_time) = req.extensions().get::<StartTime>() {
+            let render = |fmt: &mut Formatter| {
+                for unit in &self.format.0 {
+                    unit.render(fmt, req, resp, entry_time.0)?;
+                }
+                Ok(())
+            };
+            info!("{}", FormatDisplay(&render));
+        }
     }
 }
 
 impl<S> Middleware<S> for Logger {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
-        req.extensions_mut().insert(StartTime(time::now()));
+        if !self.exclude.contains(req.path()) {
+            req.extensions_mut().insert(StartTime(time::now()));
+        }
         Ok(Started::Done)
     }
 

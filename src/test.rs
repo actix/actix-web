@@ -355,12 +355,7 @@ impl<S: 'static> TestApp<S> {
 
     /// Register handler for "/"
     pub fn handler<H: Handler<S>>(&mut self, handler: H) {
-        self.app = Some(
-            self.app
-                .take()
-                .unwrap()
-                .resource("/", |r| r.h(handler)),
-        );
+        self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
     }
 
     /// Register middleware
@@ -562,8 +557,8 @@ impl<S: 'static> TestRequest<S> {
             cookies,
             payload,
         } = self;
-        let req = HttpRequest::new(method, uri, version, headers, payload);
-        req.as_mut().cookies = cookies;
+        let mut req = HttpRequest::new(method, uri, version, headers, payload);
+        req.set_cookies(cookies);
         req.as_mut().params = params;
         let (router, _) = Router::new::<S>("/", ServerSettings::default(), Vec::new());
         req.with_state(Rc::new(state), router)
@@ -583,8 +578,8 @@ impl<S: 'static> TestRequest<S> {
             payload,
         } = self;
 
-        let req = HttpRequest::new(method, uri, version, headers, payload);
-        req.as_mut().cookies = cookies;
+        let mut req = HttpRequest::new(method, uri, version, headers, payload);
+        req.set_cookies(cookies);
         req.as_mut().params = params;
         req.with_state(Rc::new(state), router)
     }

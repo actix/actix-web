@@ -60,7 +60,21 @@
 //! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
 //! * Built on top of [Actix actor framework](https://github.com/actix/actix)
 //! * Supported Rust version: 1.24 or later
-
+//!
+//! ## Package feature
+//!
+//! * `tls` - enables ssl support via `native-tls` crate
+//! * `alpn` - enables ssl support via `openssl` crate, require for `http/2`
+//!    support
+//! * `session` - enables session support, includes `ring` crate as
+//!   dependency
+//! * `brotli` - enables `brotli` compression support, requires `c`
+//!   compiler
+//! * `flate-c` - enables `gzip`, `deflate` compression support, requires
+//!   `c` compiler
+//! * `flate-rust` - experimental rust based implementation for
+//!   `gzip`, `deflate` compression.
+//!
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
 ))]
@@ -169,12 +183,17 @@ pub use body::{Binary, Body};
 pub use context::HttpContext;
 pub use error::{Error, ResponseError, Result};
 pub use extractor::{Form, Path, Query};
-pub use handler::{AsyncResponder, Either, FromRequest, FutureResponse, Responder, State};
+pub use handler::{
+    AsyncResponder, Either, FromRequest, FutureResponse, Responder, State,
+};
 pub use httpmessage::HttpMessage;
 pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+
+#[doc(hidden)]
+#[deprecated(since = "0.6.2", note = "please use `use actix_web::ws::WsWriter`")]
 pub use ws::WsWriter;
 
 #[cfg(feature = "openssl")]
@@ -210,6 +229,7 @@ pub mod dev {
     pub use resource::ResourceHandler;
     pub use route::Route;
     pub use router::{Resource, ResourceType, Router};
+    pub use with::ExtractorConfig;
 }
 
 pub mod http {

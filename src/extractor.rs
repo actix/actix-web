@@ -11,7 +11,7 @@ use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
-use error::{Error, ErrorBadRequest};
+use error::{Error, ErrorNotFound, ErrorBadRequest};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
@@ -108,7 +108,7 @@ where
     fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
         de::Deserialize::deserialize(PathDeserializer::new(&req))
-            .map_err(|e| e.into())
+            .map_err(ErrorNotFound)
             .map(|inner| Path { inner })
     }
 }

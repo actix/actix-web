@@ -21,28 +21,24 @@ struct MiddlewareTest {
 
 impl<S> middleware::Middleware<S> for MiddlewareTest {
     fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
-        self.start.store(
-            self.start.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
+        self.start
+            .store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Started::Done)
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &self,
+        _: &mut HttpRequest<S>,
+        resp: HttpResponse,
     ) -> Result<middleware::Response> {
-        self.response.store(
-            self.response.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
+        self.response
+            .store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Response::Done(resp))
     }
 
     fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
-        self.finish.store(
-            self.finish.load(Ordering::Relaxed) + 1,
-            Ordering::Relaxed,
-        );
+        self.finish
+            .store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middleware::Finished::Done
     }
 }
@@ -187,10 +183,7 @@ fn test_scope_middleware() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -226,10 +219,7 @@ fn test_scope_middleware_multiple() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -337,10 +327,7 @@ fn test_scope_middleware_async_handler() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -402,10 +389,7 @@ fn test_scope_middleware_async_error() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
 
@@ -466,7 +450,9 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &self,
+        _: &mut HttpRequest<S>,
+        resp: HttpResponse,
     ) -> Result<middleware::Response> {
         let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
 
@@ -551,7 +537,43 @@ fn test_async_middleware_multiple() {
     assert_eq!(num1.load(Ordering::Relaxed), 2);
     assert_eq!(num2.load(Ordering::Relaxed), 2);
 
-    thread::sleep(Duration::from_millis(30));
+    thread::sleep(Duration::from_millis(50));
+    assert_eq!(num3.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_async_sync_middleware_multiple() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new()
+            .middleware(MiddlewareAsyncTest {
+                start: Arc::clone(&act_num1),
+                response: Arc::clone(&act_num2),
+                finish: Arc::clone(&act_num3),
+            })
+            .middleware(MiddlewareTest {
+                start: Arc::clone(&act_num1),
+                response: Arc::clone(&act_num2),
+                finish: Arc::clone(&act_num3),
+            })
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+    });
+
+    let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 2);
+    assert_eq!(num2.load(Ordering::Relaxed), 2);
+
+    thread::sleep(Duration::from_millis(50));
     assert_eq!(num3.load(Ordering::Relaxed), 2);
 }
 
@@ -577,10 +599,7 @@ fn test_async_scope_middleware() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -618,10 +637,45 @@ fn test_async_scope_middleware_multiple() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/scope/test"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 2);
+    assert_eq!(num2.load(Ordering::Relaxed), 2);
+
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(num3.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_async_async_scope_middleware_multiple() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/scope", |scope| {
+            scope
+                .middleware(MiddlewareAsyncTest {
+                    start: Arc::clone(&act_num1),
+                    response: Arc::clone(&act_num2),
+                    finish: Arc::clone(&act_num3),
+                })
+                .middleware(MiddlewareTest {
+                    start: Arc::clone(&act_num1),
+                    response: Arc::clone(&act_num2),
+                    finish: Arc::clone(&act_num3),
+                })
+                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+        })
+    });
+
+    let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -682,6 +736,45 @@ fn test_async_resource_middleware_multiple() {
             finish: Arc::clone(&act_num3),
         };
         let mw2 = MiddlewareAsyncTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        };
+        App::new().resource("/test", move |r| {
+            r.middleware(mw1);
+            r.middleware(mw2);
+            r.h(|_| HttpResponse::Ok());
+        })
+    });
+
+    let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 2);
+    assert_eq!(num2.load(Ordering::Relaxed), 2);
+
+    thread::sleep(Duration::from_millis(40));
+    assert_eq!(num3.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_async_sync_resource_middleware_multiple() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::with_factory(move || {
+        let mw1 = MiddlewareAsyncTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        };
+        let mw2 = MiddlewareTest {
             start: Arc::clone(&act_num1),
             response: Arc::clone(&act_num2),
             finish: Arc::clone(&act_num3),

@@ -1,6 +1,50 @@
 # Changes
 
-## 0.6.0 (...)
+## 0.6.6 (2018-05-17)
+
+* Panic during middleware execution #226
+
+* Add support for listen_tls/listen_ssl #224
+
+* Implement extractor for `Session`
+
+
+## 0.6.5 (2018-05-15)
+
+* Fix error handling during request decoding #222
+
+
+## 0.6.4 (2018-05-11)
+
+* Fix segfault in ServerSettings::get_response_builder()
+
+
+## 0.6.3 (2018-05-10)
+
+* Add `Router::with_async()` method for async handler registration.
+
+* Added error response functions for 501,502,503,504
+
+* Fix client request timeout handling
+
+
+## 0.6.2 (2018-05-09)
+
+* WsWriter trait is optional.
+
+
+## 0.6.1 (2018-05-08)
+
+* Fix http/2 payload streaming #215
+
+* Fix connector's default `keep-alive` and `lifetime` settings #212
+
+* Send `ErrorNotFound` instead of `ErrorBadRequest` when path extractor fails #214
+
+* Allow to exclude certain endpoints from logging #211
+
+
+## 0.6.0 (2018-05-08)
 
 * Add route scopes #202
 

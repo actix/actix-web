@@ -1,5 +1,7 @@
 ## Migration from 0.5 to 0.6
 
+* `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
+
 * `ws::Message::Close` now includes optional close reason.
   `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
 
@@ -11,6 +13,17 @@
 * `HttpRequest::extensions()` returns read only reference to the request's Extension
   `HttpRequest::extensions_mut()` returns mutable reference.
 
+* Instead of 
+
+   `use actix_web::middleware::{
+        CookieSessionBackend, CookieSessionError, RequestSession,
+        Session, SessionBackend, SessionImpl, SessionStorage};`
+                                
+  use `actix_web::middleware::session`
+
+   `use actix_web::middleware::session{CookieSessionBackend, CookieSessionError,
+        RequestSession, Session, SessionBackend, SessionImpl, SessionStorage};`
+
 * `FromRequest::from_request()` accepts mutable reference to a request
 
 * `FromRequest::Result` has to implement `Into<Reply<Self>>`
@@ -19,7 +32,7 @@
   https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to)
   is generic over `S`
 
-* `HttpRequest::query()` is deprecated. Use `Query` extractor.
+*  Use `Query` extractor instead of HttpRequest::query()`.
 
    ```rust
    fn index(q: Query<HashMap<String, String>>) -> Result<..> {
@@ -32,6 +45,9 @@
    ```rust
    let q = Query::<HashMap<String, String>>::extract(req);
    ```
+
+* Websocket operations are implemented as `WsWriter` trait.
+  you need to use `use actix_web::ws::WsWriter`
 
 
 ## Migration from 0.4 to 0.5

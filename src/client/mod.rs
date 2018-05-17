@@ -49,6 +49,7 @@ use httpresponse::HttpResponse;
 impl ResponseError for SendRequestError {
     fn error_response(&self) -> HttpResponse {
         match *self {
+            SendRequestError::Timeout => HttpResponse::GatewayTimeout(),
             SendRequestError::Connector(_) => HttpResponse::BadGateway(),
             _ => HttpResponse::InternalServerError(),
         }.into()

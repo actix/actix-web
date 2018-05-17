@@ -5,15 +5,19 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncHandler, AsyncResult, AsyncResultItem, FromRequest, Handler,
-              Responder, RouteHandler, WrapHandler};
+use handler::{
+    AsyncHandler, AsyncResult, AsyncResultItem, FromRequest, Handler, Responder,
+    RouteHandler, WrapHandler,
+};
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::{Finished as MiddlewareFinished, Middleware,
-                 Response as MiddlewareResponse, Started as MiddlewareStarted};
+use middleware::{
+    Finished as MiddlewareFinished, Middleware, Response as MiddlewareResponse,
+    Started as MiddlewareStarted,
+};
 use pred::Predicate;
-use with::{ExtractorConfig, With, With2, With3};
+use with::{ExtractorConfig, With, With2, With3, WithAsync};
 
 /// Resource route definition
 ///
@@ -51,7 +55,9 @@ impl<S: 'static> Route<S> {
 
     #[inline]
     pub(crate) fn compose(
-        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        &mut self,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
     ) -> AsyncResult<HttpResponse> {
         AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
@@ -129,6 +135,34 @@ impl<S: 'static> Route<S> {
     ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
     /// }
     /// ```
+    ///
+    /// It is possible to use tuples for specifing multiple extractors for one
+    /// handler function.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// # use std::collections::HashMap;
+    /// use actix_web::{http, App, Query, Path, Result, Json};
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>)) -> Result<String> {
+    ///     Ok(format!("Welcome {}!", info.0.username))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource(
+    ///        "/{username}/index.html",                     // <- define path parameters
+    ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
+    /// }
+    /// ```
     pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
     where
         F: Fn(T) -> R + 'static,
@@ -140,6 +174,49 @@ impl<S: 'static> Route<S> {
         cfg
     }
 
+    /// Set async handler function, use request extractor for parameters.
+    /// Also this method needs to be used if your handler function returns
+    /// `impl Future<>`
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{App, Path, Error, http};
+    /// use futures::Future;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(info: Path<Info>) -> Box<Future<Item=&'static str, Error=Error>> {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource(
+    ///        "/{username}/index.html",           // <- define path parameters
+    ///        |r| r.method(http::Method::GET)
+    ///               .with_async(index));         // <- use `with` extractor
+    /// }
+    /// ```
+    pub fn with_async<T, F, R, I, E>(&mut self, handler: F) -> ExtractorConfig<S, T>
+    where
+        F: Fn(T) -> R + 'static,
+        R: Future<Item = I, Error = E> + 'static,
+        I: Responder + 'static,
+        E: Into<Error> + 'static,
+        T: FromRequest<S> + 'static,
+    {
+        let cfg = ExtractorConfig::default();
+        self.h(WithAsync::new(handler, Clone::clone(&cfg)));
+        cfg
+    }
+
+    #[doc(hidden)]
     /// Set handler function, use request extractor for both parameters.
     ///
     /// ```rust
@@ -171,7 +248,8 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(
-        &mut self, handler: F,
+        &mut self,
+        handler: F,
     ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
     where
         F: Fn(T1, T2) -> R + 'static,
@@ -189,9 +267,11 @@ impl<S: 'static> Route<S> {
         (cfg1, cfg2)
     }
 
+    #[doc(hidden)]
     /// Set handler function, use request extractor for all parameters.
     pub fn with3<T1, T2, T3, F, R>(
-        &mut self, handler: F,
+        &mut self,
+        handler: F,
     ) -> (
         ExtractorConfig<S, T1>,
         ExtractorConfig<S, T2>,
@@ -224,9 +304,7 @@ struct InnerHandler<S>(Rc<UnsafeCell<Box<RouteHandler<S>>>>);
 impl<S: 'static> InnerHandler<S> {
     #[inline]
     fn new<H: Handler<S>>(h: H) -> Self {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(
-            h,
-        )))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(h)))))
     }
 
     #[inline]
@@ -237,9 +315,7 @@ impl<S: 'static> InnerHandler<S> {
         R: Responder + 'static,
         E: Into<Error> + 'static,
     {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(
-            h,
-        )))))
+        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(h)))))
     }
 
     #[inline]
@@ -292,7 +368,9 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>,
+        req: HttpRequest<S>,
+        mws: Rc<Vec<Box<Middleware<S>>>>,
+        handler: InnerHandler<S>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -346,21 +424,12 @@ impl<S: 'static> StartMiddlewares<S> {
                     Ok(MiddlewareStarted::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
                     }
-                    Ok(MiddlewareStarted::Future(mut fut)) => match fut.poll() {
-                        Ok(Async::NotReady) => {
-                            return ComposeState::Starting(StartMiddlewares {
-                                fut: Some(fut),
-                                _s: PhantomData,
-                            })
-                        }
-                        Ok(Async::Ready(resp)) => {
-                            if let Some(resp) = resp {
-                                return RunMiddlewares::init(info, resp);
-                            }
-                            info.count += 1;
-                        }
-                        Err(err) => return FinishingMiddlewares::init(info, err.into()),
-                    },
+                    Ok(MiddlewareStarted::Future(fut)) => {
+                        return ComposeState::Starting(StartMiddlewares {
+                            fut: Some(fut),
+                            _s: PhantomData,
+                        })
+                    }
                     Err(err) => return FinishingMiddlewares::init(info, err.into()),
                 }
             }
@@ -377,11 +446,11 @@ impl<S: 'static> StartMiddlewares<S> {
                     if let Some(resp) = resp {
                         return Some(RunMiddlewares::init(info, resp));
                     }
-                    if info.count == len {
-                        let reply = info.handler.handle(info.req.clone());
-                        return Some(WaitingResponse::init(info, reply));
-                    } else {
-                        loop {
+                    loop {
+                        if info.count == len {
+                            let reply = info.handler.handle(info.req.clone());
+                            return Some(WaitingResponse::init(info, reply));
+                        } else {
                             match info.mws[info.count].start(&mut info.req) {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -416,7 +485,8 @@ struct WaitingResponse<S> {
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(
-        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
+        info: &mut ComposeInfo<S>,
+        reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
             AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
