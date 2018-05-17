@@ -671,10 +671,7 @@ mod tests {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
-                assert_eq!(
-                    Async::NotReady,
-                    payload.read_until(b"ne").ok().unwrap()
-                );
+                assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
 
                 sender.feed_data(Bytes::from("line1"));
                 sender.feed_data(Bytes::from("line2"));

@@ -73,10 +73,7 @@ fn test_with_query_parameter() {
         })
     });
 
-    let request = srv.get()
-        .uri(srv.url("/?qp=5").as_str())
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
 
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -125,7 +122,8 @@ fn test_client_gzip_encoding() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .content_encoding(http::ContentEncoding::Gzip)
         .body(STR)
         .unwrap();
@@ -154,7 +152,8 @@ fn test_client_gzip_encoding_large() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .content_encoding(http::ContentEncoding::Gzip)
         .body(data.clone())
         .unwrap();
@@ -186,7 +185,8 @@ fn test_client_gzip_encoding_large_random() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .content_encoding(http::ContentEncoding::Gzip)
         .body(data.clone())
         .unwrap();
@@ -214,7 +214,8 @@ fn test_client_brotli_encoding() {
     });
 
     // client request
-    let request = srv.client(http::Method::POST, "/")
+    let request = srv
+        .client(http::Method::POST, "/")
         .content_encoding(http::ContentEncoding::Br)
         .body(STR)
         .unwrap();
@@ -247,7 +248,8 @@ fn test_client_brotli_encoding_large_random() {
     });
 
     // client request
-    let request = srv.client(http::Method::POST, "/")
+    let request = srv
+        .client(http::Method::POST, "/")
         .content_encoding(http::ContentEncoding::Br)
         .body(data.clone())
         .unwrap();
@@ -276,7 +278,8 @@ fn test_client_deflate_encoding() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .content_encoding(http::ContentEncoding::Deflate)
         .body(STR)
         .unwrap();
@@ -309,7 +312,8 @@ fn test_client_deflate_encoding_large_random() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .content_encoding(http::ContentEncoding::Deflate)
         .body(data.clone())
         .unwrap();
@@ -339,9 +343,7 @@ fn test_client_streaming_explicit() {
 
     let body = once(Ok(Bytes::from_static(STR.as_ref())));
 
-    let request = srv.get()
-        .body(Body::Streaming(Box::new(body)))
-        .unwrap();
+    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -414,7 +416,8 @@ fn test_client_cookie_handling() {
         })
     });
 
-    let request = srv.get()
+    let request = srv
+        .get()
         .cookie(cookie1.clone())
         .cookie(cookie2.clone())
         .finish()

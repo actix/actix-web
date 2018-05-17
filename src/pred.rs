@@ -181,11 +181,7 @@ pub fn Header<S: 'static>(
 }
 
 #[doc(hidden)]
-pub struct HeaderPredicate<S>(
-    header::HeaderName,
-    header::HeaderValue,
-    PhantomData<S>,
-);
+pub struct HeaderPredicate<S>(header::HeaderName, header::HeaderValue, PhantomData<S>);
 
 impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
     fn check(&self, req: &mut HttpRequest<S>) -> bool {

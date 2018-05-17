@@ -46,9 +46,7 @@ impl H1Decoder {
     }
 
     pub fn decode<H>(
-        &mut self,
-        src: &mut BytesMut,
-        settings: &WorkerSettings<H>,
+        &mut self, src: &mut BytesMut, settings: &WorkerSettings<H>,
     ) -> Result<Option<Message>, DecoderError> {
         // read payload
         if self.decoder.is_some() {
@@ -62,7 +60,8 @@ impl H1Decoder {
             }
         }
 
-        match self.parse_message(src, settings)
+        match self
+            .parse_message(src, settings)
             .map_err(DecoderError::Error)?
         {
             Async::Ready((msg, decoder)) => {
@@ -84,9 +83,7 @@ impl H1Decoder {
     }
 
     fn parse_message<H>(
-        &self,
-        buf: &mut BytesMut,
-        settings: &WorkerSettings<H>,
+        &self, buf: &mut BytesMut, settings: &WorkerSettings<H>,
     ) -> Poll<(SharedHttpInnerMessage, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
@@ -348,10 +345,7 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step(
-        &self,
-        body: &mut BytesMut,
-        size: &mut u64,
-        buf: &mut Option<Bytes>,
+        &self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         use self::ChunkedState::*;
         match *self {
@@ -414,8 +408,7 @@ impl ChunkedState {
         }
     }
     fn read_size_lf(
-        rdr: &mut BytesMut,
-        size: &mut u64,
+        rdr: &mut BytesMut, size: &mut u64,
     ) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
@@ -428,9 +421,7 @@ impl ChunkedState {
     }
 
     fn read_body(
-        rdr: &mut BytesMut,
-        rem: &mut u64,
-        buf: &mut Option<Bytes>,
+        rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         trace!("Chunked read, remaining={:?}", rem);
 

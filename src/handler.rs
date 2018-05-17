@@ -362,7 +362,8 @@ where
         self, req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         let req = req.clone();
-        let fut = self.map_err(|e| e.into())
+        let fut = self
+            .map_err(|e| e.into())
             .then(move |r| match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => ok(resp),
@@ -397,10 +398,7 @@ where
     S: 'static,
 {
     pub fn new(h: H) -> Self {
-        WrapHandler {
-            h,
-            s: PhantomData,
-        }
+        WrapHandler { h, s: PhantomData }
     }
 }
 
@@ -456,16 +454,16 @@ where
     S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        let fut = (self.h)(req.clone())
-            .map_err(|e| e.into())
-            .then(move |r| match r.respond_to(&req) {
+        let fut = (self.h)(req.clone()).map_err(|e| e.into()).then(move |r| {
+            match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => Either::A(ok(resp)),
                     AsyncResultItem::Err(e) => Either::A(err(e)),
                     AsyncResultItem::Future(fut) => Either::B(fut),
                 },
                 Err(e) => Either::A(err(e)),
-            });
+            }
+        });
         AsyncResult::async(Box::new(fut))
     }
 }

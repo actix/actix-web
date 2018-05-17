@@ -275,9 +275,7 @@ impl Cors {
     /// `ResourceHandler::middleware()` method, but in that case *Cors*
     /// middleware wont be able to handle *OPTIONS* requests.
     pub fn register<S: 'static>(self, resource: &mut ResourceHandler<S>) {
-        resource
-            .method(Method::OPTIONS)
-            .h(|_| HttpResponse::Ok());
+        resource.method(Method::OPTIONS).h(|_| HttpResponse::Ok());
         resource.middleware(self);
     }
 
@@ -304,12 +302,11 @@ impl Cors {
     fn validate_allowed_method<S>(
         &self, req: &mut HttpRequest<S>,
     ) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers()
-            .get(header::ACCESS_CONTROL_REQUEST_METHOD)
-        {
+        if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_METHOD) {
             if let Ok(meth) = hdr.to_str() {
                 if let Ok(method) = Method::try_from(meth) {
-                    return self.inner
+                    return self
+                        .inner
                         .methods
                         .get(&method)
                         .and_then(|_| Some(()))
@@ -328,8 +325,8 @@ impl Cors {
         match self.inner.headers {
             AllOrSome::All => Ok(()),
             AllOrSome::Some(ref allowed_headers) => {
-                if let Some(hdr) = req.headers()
-                    .get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                if let Some(hdr) =
+                    req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
                 {
                     if let Ok(headers) = hdr.to_str() {
                         let mut hdrs = HashSet::new();
@@ -371,8 +368,8 @@ impl<S> Middleware<S> for Cors {
                             .as_str()[1..],
                     ).unwrap(),
                 )
-            } else if let Some(hdr) = req.headers()
-                .get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+            } else if let Some(hdr) =
+                req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
             {
                 Some(hdr.clone())
             } else {
@@ -413,7 +410,8 @@ impl<S> Middleware<S> for Cors {
                     })
                     .header(
                         header::ACCESS_CONTROL_ALLOW_METHODS,
-                        &self.inner
+                        &self
+                            .inner
                             .methods
                             .iter()
                             .fold(String::new(), |s, v| s + "," + v.as_str())
@@ -866,7 +864,8 @@ impl<S: 'static> CorsBuilder<S> {
         }
 
         let cors = self.construct();
-        let mut app = self.app
+        let mut app = self
+            .app
             .take()
             .expect("CorsBuilder has to be constructed with Cors::for_app(app)");
 
@@ -1094,9 +1093,8 @@ mod tests {
             resp.headers().get(header::VARY).unwrap().as_bytes()
         );
 
-        let resp: HttpResponse = HttpResponse::Ok()
-            .header(header::VARY, "Accept")
-            .finish();
+        let resp: HttpResponse =
+            HttpResponse::Ok().header(header::VARY, "Accept").finish();
         let resp = cors.response(&mut req, resp).unwrap().response();
         assert_eq!(
             &b"Accept, Origin"[..],
@@ -1133,7 +1131,8 @@ mod tests {
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-        let request = srv.get()
+        let request = srv
+            .get()
             .uri(srv.url("/test"))
             .header("ORIGIN", "https://www.example.com")
             .finish()

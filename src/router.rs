@@ -216,7 +216,8 @@ impl Resource {
                 Ok(re) => re,
                 Err(err) => panic!("Wrong path pattern: \"{}\" {}", path, err),
             };
-            let names = re.capture_names()
+            let names = re
+                .capture_names()
                 .filter_map(|name| name.map(|name| name.to_owned()))
                 .collect();
             PatternType::Dynamic(re, names, len)
@@ -440,10 +441,7 @@ mod tests {
     #[test]
     fn test_recognizer() {
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
             (
                 Resource::new("", "/name/{val}"),
                 Some(ResourceHandler::default()),
@@ -530,10 +528,7 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
             (
                 Resource::new("", "/name/{val}"),
                 Some(ResourceHandler::default()),
@@ -554,10 +549,7 @@ mod tests {
 
         // same patterns
         let routes = vec![
-            (
-                Resource::new("", "/name"),
-                Some(ResourceHandler::default()),
-            ),
+            (Resource::new("", "/name"), Some(ResourceHandler::default())),
             (
                 Resource::new("", "/name/{val}"),
                 Some(ResourceHandler::default()),

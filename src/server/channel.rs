@@ -38,9 +38,7 @@ where
     H: HttpHandler + 'static,
 {
     pub(crate) fn new(
-        settings: Rc<WorkerSettings<H>>,
-        mut io: T,
-        peer: Option<SocketAddr>,
+        settings: Rc<WorkerSettings<H>>, mut io: T, peer: Option<SocketAddr>,
         http2: bool,
     ) -> HttpChannel<T, H> {
         settings.add_channel();

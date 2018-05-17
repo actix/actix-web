@@ -55,10 +55,7 @@ impl HttpResponse {
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
-    STATIC_RESP!(
-        UnsupportedMediaType,
-        StatusCode::UNSUPPORTED_MEDIA_TYPE
-    );
+    STATIC_RESP!(UnsupportedMediaType, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
 
@@ -67,14 +64,8 @@ impl HttpResponse {
     STATIC_RESP!(BadGateway, StatusCode::BAD_GATEWAY);
     STATIC_RESP!(ServiceUnavailable, StatusCode::SERVICE_UNAVAILABLE);
     STATIC_RESP!(GatewayTimeout, StatusCode::GATEWAY_TIMEOUT);
-    STATIC_RESP!(
-        VersionNotSupported,
-        StatusCode::HTTP_VERSION_NOT_SUPPORTED
-    );
-    STATIC_RESP!(
-        VariantAlsoNegotiates,
-        StatusCode::VARIANT_ALSO_NEGOTIATES
-    );
+    STATIC_RESP!(VersionNotSupported, StatusCode::HTTP_VERSION_NOT_SUPPORTED);
+    STATIC_RESP!(VariantAlsoNegotiates, StatusCode::VARIANT_ALSO_NEGOTIATES);
     STATIC_RESP!(InsufficientStorage, StatusCode::INSUFFICIENT_STORAGE);
     STATIC_RESP!(LoopDetected, StatusCode::LOOP_DETECTED);
 }

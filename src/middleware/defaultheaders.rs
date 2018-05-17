@@ -112,9 +112,7 @@ mod tests {
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp = HttpResponse::Ok()
-            .header(CONTENT_TYPE, "0002")
-            .finish();
+        let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish();
         let resp = match mw.response(&mut req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),

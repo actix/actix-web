@@ -133,7 +133,8 @@ where
                                 Err(err) => {
                                     error!("Unhandled error: {}", err);
                                     item.flags.insert(
-                                        EntryFlags::EOF | EntryFlags::ERROR
+                                        EntryFlags::EOF
+                                            | EntryFlags::ERROR
                                             | EntryFlags::WRITE_DONE,
                                     );
                                     item.stream.reset(Reason::INTERNAL_ERROR);
@@ -150,7 +151,8 @@ where
                             }
                             Err(err) => {
                                 item.flags.insert(
-                                    EntryFlags::ERROR | EntryFlags::WRITE_DONE
+                                    EntryFlags::ERROR
+                                        | EntryFlags::WRITE_DONE
                                         | EntryFlags::FINISHED,
                                 );
                                 error!("Unhandled error: {}", err);
@@ -248,7 +250,8 @@ where
                 if not_ready {
                     if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED)
                     {
-                        return conn.poll_close()
+                        return conn
+                            .poll_close()
                             .map_err(|e| error!("Error during connection close: {}", e));
                     } else {
                         return Ok(Async::NotReady);

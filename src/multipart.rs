@@ -122,11 +122,7 @@ where
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.safety.current() {
-            self.inner
-                .as_mut()
-                .unwrap()
-                .borrow_mut()
-                .poll(&self.safety)
+            self.inner.as_mut().unwrap().borrow_mut().poll(&self.safety)
         } else {
             Ok(Async::NotReady)
         }
@@ -175,11 +171,13 @@ where
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(chunk)) => {
-                if chunk.len() == boundary.len() + 4 && &chunk[..2] == b"--"
+                if chunk.len() == boundary.len() + 4
+                    && &chunk[..2] == b"--"
                     && &chunk[2..boundary.len() + 2] == boundary.as_bytes()
                 {
                     Ok(Async::Ready(false))
-                } else if chunk.len() == boundary.len() + 6 && &chunk[..2] == b"--"
+                } else if chunk.len() == boundary.len() + 6
+                    && &chunk[..2] == b"--"
                     && &chunk[2..boundary.len() + 2] == boundary.as_bytes()
                     && &chunk[boundary.len() + 2..boundary.len() + 4] == b"--"
                 {
@@ -514,7 +512,8 @@ where
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(None) => Err(MultipartError::Incomplete),
                         Async::Ready(Some(chunk)) => {
-                            if &chunk[..2] == b"\r\n" && &chunk[2..4] == b"--"
+                            if &chunk[..2] == b"\r\n"
+                                && &chunk[2..4] == b"--"
                                 && &chunk[4..] == boundary.as_bytes()
                             {
                                 payload.unread_data(chunk);

@@ -202,7 +202,8 @@ impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        self.current = self.params
+        self.current = self
+            .params
             .next()
             .map(|&(ref k, ref v)| (k.as_ref(), v.as_ref()));
         match self.current {
@@ -336,9 +337,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_enum(ValueEnum {
-            value: self.value,
-        })
+        visitor.visit_enum(ValueEnum { value: self.value })
     }
 
     fn deserialize_newtype_struct<V>(
@@ -372,9 +371,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(de::value::Error::custom(
-            "unsupported type: tuple struct",
-        ))
+        Err(de::value::Error::custom("unsupported type: tuple struct"))
     }
 
     unsupported_type!(deserialize_any, "any");
@@ -415,10 +412,7 @@ impl<'de> de::EnumAccess<'de> for ValueEnum<'de> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        Ok((
-            seed.deserialize(Key { key: self.value })?,
-            UnitVariant,
-        ))
+        Ok((seed.deserialize(Key { key: self.value })?, UnitVariant))
     }
 }
 

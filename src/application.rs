@@ -780,9 +780,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = App::new()
-            .handler("/test", |_| HttpResponse::Ok())
-            .finish();
+        let mut app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -807,9 +805,7 @@ mod tests {
 
     #[test]
     fn test_handler2() {
-        let mut app = App::new()
-            .handler("test", |_| HttpResponse::Ok())
-            .finish();
+        let mut app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -863,29 +859,21 @@ mod tests {
     #[test]
     fn test_route() {
         let mut app = App::new()
-            .route("/test", Method::GET, |_: HttpRequest| {
-                HttpResponse::Ok()
-            })
+            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
             })
             .finish();
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::GET)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::POST)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::HEAD)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }

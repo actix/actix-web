@@ -62,7 +62,9 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::client::{Client, ClientError, ClientHandshake, ClientReader, ClientWriter};
+pub use self::client::{
+    Client, ClientError, ClientHandshake, ClientReader, ClientWriter,
+};
 pub use self::context::WebsocketContext;
 pub use self::frame::Frame;
 pub use self::proto::{CloseCode, CloseReason, OpCode};
@@ -216,9 +218,7 @@ pub fn handshake<S>(
     }
 
     // check supported version
-    if !req.headers()
-        .contains_key(header::SEC_WEBSOCKET_VERSION)
-    {
+    if !req.headers().contains_key(header::SEC_WEBSOCKET_VERSION) {
         return Err(HandshakeError::NoVersionHeader);
     }
     let supported_ver = {
@@ -387,10 +387,7 @@ mod tests {
         );
 
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("test"),
-        );
+        headers.insert(header::UPGRADE, header::HeaderValue::from_static("test"));
         let req = HttpRequest::new(
             Method::GET,
             Uri::from_str("/").unwrap(),

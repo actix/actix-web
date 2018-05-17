@@ -67,9 +67,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>,
-        stream: T,
-        addr: Option<SocketAddr>,
+        settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
         buf: BytesMut,
     ) -> Self {
         let bytes = settings.get_shared_bytes();
@@ -765,7 +763,8 @@ mod tests {
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         let req = HttpRequest::from_message(msg.message());
 
-        let val: Vec<_> = req.headers()
+        let val: Vec<_> = req
+            .headers()
             .get_all("Set-Cookie")
             .iter()
             .map(|v| v.to_str().unwrap().to_owned())

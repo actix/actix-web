@@ -29,9 +29,7 @@ pub(crate) trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
     fn handle(
-        &mut self,
-        req: HttpRequest<S>,
-        htype: HandlerType,
+        &mut self, req: HttpRequest<S>, htype: HandlerType,
     ) -> AsyncResult<HttpResponse>;
 }
 
@@ -122,10 +120,8 @@ impl<S> PipelineInfo<S> {
 
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
     pub fn new(
-        req: HttpRequest<S>,
-        mws: Rc<Vec<Box<Middleware<S>>>>,
-        handler: Rc<UnsafeCell<H>>,
-        htype: HandlerType,
+        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        handler: Rc<UnsafeCell<H>>, htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
             mws,
@@ -243,9 +239,7 @@ struct StartMiddlewares<S, H> {
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(
-        info: &mut PipelineInfo<S>,
-        hnd: Rc<UnsafeCell<H>>,
-        htype: HandlerType,
+        info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType,
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
@@ -322,8 +316,7 @@ struct WaitingResponse<S, H> {
 impl<S: 'static, H> WaitingResponse<S, H> {
     #[inline]
     fn init(
-        info: &mut PipelineInfo<S>,
-        reply: AsyncResult<HttpResponse>,
+        info: &mut PipelineInfo<S>, reply: AsyncResult<HttpResponse>,
     ) -> PipelineState<S, H> {
         match reply.into() {
             AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
@@ -475,9 +468,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     }
 
     fn poll_io(
-        mut self,
-        io: &mut Writer,
-        info: &mut PipelineInfo<S>,
+        mut self, io: &mut Writer, info: &mut PipelineInfo<S>,
     ) -> Result<PipelineState<S, H>, PipelineState<S, H>> {
         loop {
             if self.drain.is_none() && self.running != RunningState::Paused {

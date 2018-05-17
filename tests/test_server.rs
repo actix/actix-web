@@ -337,11 +337,7 @@ fn test_body_br_streaming() {
 #[test]
 fn test_head_empty() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|_| {
-            HttpResponse::Ok()
-                .content_length(STR.len() as u64)
-                .finish()
-        })
+        app.handler(|_| HttpResponse::Ok().content_length(STR.len() as u64).finish())
     });
 
     let request = srv.head().finish().unwrap();
@@ -529,7 +525,8 @@ fn test_gzip_encoding() {
     e.write_all(STR.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "gzip")
         .body(enc.clone())
         .unwrap();
@@ -561,7 +558,8 @@ fn test_gzip_encoding_large() {
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "gzip")
         .body(enc.clone())
         .unwrap();
@@ -597,7 +595,8 @@ fn test_reading_gzip_encoding_large_random() {
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "gzip")
         .body(enc.clone())
         .unwrap();
@@ -629,7 +628,8 @@ fn test_reading_deflate_encoding() {
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "deflate")
         .body(enc)
         .unwrap();
@@ -661,7 +661,8 @@ fn test_reading_deflate_encoding_large() {
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "deflate")
         .body(enc)
         .unwrap();
@@ -697,7 +698,8 @@ fn test_reading_deflate_encoding_large_random() {
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "deflate")
         .body(enc)
         .unwrap();
@@ -730,7 +732,8 @@ fn test_brotli_encoding() {
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "br")
         .body(enc)
         .unwrap();
@@ -763,7 +766,8 @@ fn test_brotli_encoding_large() {
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .header(http::header::CONTENT_ENCODING, "br")
         .body(enc)
         .unwrap();
@@ -784,7 +788,8 @@ fn test_h2() {
     let handle = core.handle();
     let tcp = TcpStream::connect(&addr, &handle);
 
-    let tcp = tcp.then(|res| h2client::handshake(res.unwrap()))
+    let tcp = tcp
+        .then(|res| h2client::handshake(res.unwrap()))
         .then(move |res| {
             let (mut client, h2) = res.unwrap();
 

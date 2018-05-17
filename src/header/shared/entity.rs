@@ -132,7 +132,8 @@ impl FromStr for EntityTag {
             return Err(::error::ParseError::Header);
         }
         // The etag is weak if its first char is not a DQUOTE.
-        if slice.len() >= 2 && slice.starts_with('"')
+        if slice.len() >= 2
+            && slice.starts_with('"')
             && check_slice_validity(&slice[1..length - 1])
         {
             // No need to check if the last char is a DQUOTE,
@@ -141,7 +142,8 @@ impl FromStr for EntityTag {
                 weak: false,
                 tag: slice[1..length - 1].to_owned(),
             });
-        } else if slice.len() >= 4 && slice.starts_with("W/\"")
+        } else if slice.len() >= 4
+            && slice.starts_with("W/\"")
             && check_slice_validity(&slice[3..length - 1])
         {
             return Ok(EntityTag {
@@ -213,10 +215,7 @@ mod tests {
             format!("{}", EntityTag::strong("foobar".to_owned())),
             "\"foobar\""
         );
-        assert_eq!(
-            format!("{}", EntityTag::strong("".to_owned())),
-            "\"\""
-        );
+        assert_eq!(format!("{}", EntityTag::strong("".to_owned())), "\"\"");
         assert_eq!(
             format!("{}", EntityTag::weak("weak-etag".to_owned())),
             "W/\"weak-etag\""
@@ -225,10 +224,7 @@ mod tests {
             format!("{}", EntityTag::weak("\u{0065}".to_owned())),
             "W/\"\x65\""
         );
-        assert_eq!(
-            format!("{}", EntityTag::weak("".to_owned())),
-            "W/\"\""
-        );
+        assert_eq!(format!("{}", EntityTag::weak("".to_owned())), "W/\"\"");
     }
 
     #[test]

@@ -46,9 +46,7 @@ fn test_simple() {
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
     assert_eq!(
         item,
-        Some(ws::Message::Binary(
-            Bytes::from_static(b"text").into()
-        ))
+        Some(ws::Message::Binary(Bytes::from_static(b"text").into()))
     );
 
     writer.ping("ping");
@@ -117,10 +115,7 @@ fn test_large_bin() {
         writer.binary(data.clone());
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
-        assert_eq!(
-            item,
-            Some(ws::Message::Binary(Binary::from(data.clone())))
-        );
+        assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
     }
 }
 
@@ -231,19 +226,17 @@ fn test_ws_server_ssl() {
         .set_certificate_chain_file("tests/cert.pem")
         .unwrap();
 
-    let mut srv = test::TestServer::build()
-        .ssl(builder.build())
-        .start(|app| {
-            app.handler(|req| {
-                ws::start(
-                    req,
-                    Ws2 {
-                        count: 0,
-                        bin: false,
-                    },
-                )
-            })
-        });
+    let mut srv = test::TestServer::build().ssl(builder.build()).start(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: false,
+                },
+            )
+        })
+    });
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));

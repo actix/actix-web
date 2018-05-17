@@ -6,8 +6,10 @@ use std::marker::PhantomData;
 
 use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
-use actix::{Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message,
-            SpawnHandle, Syn, Unsync};
+use actix::{
+    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
+    Syn, Unsync,
+};
 
 use body::{Binary, Body};
 use error::{Error, ErrorInternalServerError};
@@ -80,7 +82,8 @@ where
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.waiting() || self.inner.state() == ActorState::Stopping
+        self.inner.waiting()
+            || self.inner.state() == ActorState::Stopping
             || self.inner.state() == ActorState::Stopped
     }
     #[inline]

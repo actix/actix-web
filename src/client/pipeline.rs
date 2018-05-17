@@ -270,7 +270,8 @@ impl Pipeline {
     #[inline]
     fn parse(&mut self) -> Poll<ClientResponse, HttpResponseParserError> {
         if let Some(ref mut conn) = self.conn {
-            match self.parser
+            match self
+                .parser
                 .as_mut()
                 .unwrap()
                 .parse(conn, &mut self.parser_buf)
@@ -311,7 +312,8 @@ impl Pipeline {
         let mut need_run = false;
 
         // need write?
-        match self.poll_write()
+        match self
+            .poll_write()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))?
         {
             Async::NotReady => need_run = true,
@@ -325,7 +327,8 @@ impl Pipeline {
         // need read?
         if self.parser.is_some() {
             loop {
-                match self.parser
+                match self
+                    .parser
                     .as_mut()
                     .unwrap()
                     .parse_payload(conn, &mut self.parser_buf)?
@@ -469,7 +472,8 @@ impl Pipeline {
         }
 
         // flush io but only if we need to
-        match self.writer
+        match self
+            .writer
             .poll_completed(self.conn.as_mut().unwrap(), false)
         {
             Ok(Async::Ready(_)) => {

@@ -11,7 +11,9 @@ use serde::de::DeserializeOwned;
 use serde_urlencoded;
 use std::str;
 
-use error::{ContentTypeError, HttpRangeError, ParseError, PayloadError, UrlencodedError};
+use error::{
+    ContentTypeError, HttpRangeError, ParseError, PayloadError, UrlencodedError,
+};
 use header::Header;
 use json::JsonBody;
 use multipart::Multipart;
@@ -96,10 +98,8 @@ pub trait HttpMessage {
     /// `size` is full size of response (file).
     fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
         if let Some(range) = self.headers().get(header::RANGE) {
-            HttpRange::parse(
-                unsafe { str::from_utf8_unchecked(range.as_bytes()) },
-                size,
-            ).map_err(|e| e.into())
+            HttpRange::parse(unsafe { str::from_utf8_unchecked(range.as_bytes()) }, size)
+                .map_err(|e| e.into())
         } else {
             Ok(Vec::new())
         }
@@ -385,12 +385,12 @@ where
             if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
                 return Err(UrlencodedError::ContentType);
             }
-            let encoding = req.encoding()
-                .map_err(|_| UrlencodedError::ContentType)?;
+            let encoding = req.encoding().map_err(|_| UrlencodedError::ContentType)?;
 
             // future
             let limit = self.limit;
-            let fut = req.from_err()
+            let fut = req
+                .from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(UrlencodedError::Overflow)
@@ -488,10 +488,7 @@ mod tests {
     #[test]
     fn test_encoding_error() {
         let req = TestRequest::with_header("content-type", "applicatjson").finish();
-        assert_eq!(
-            Some(ContentTypeError::ParseError),
-            req.encoding().err()
-        );
+        assert_eq!(Some(ContentTypeError::ParseError), req.encoding().err());
 
         let req = TestRequest::with_header(
             "content-type",
@@ -664,8 +661,7 @@ mod tests {
         }
 
         let mut req = HttpRequest::default();
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"test"));
+        req.payload_mut().unread_data(Bytes::from_static(b"test"));
         match req.body().poll().ok().unwrap() {
             Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
             _ => unreachable!("error"),

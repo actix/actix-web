@@ -34,10 +34,7 @@ fn test_path_extractor() {
     });
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/test/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/test/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -55,7 +52,8 @@ fn test_query_extractor() {
     });
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/index.html?username=test"))
         .finish()
         .unwrap();
@@ -67,10 +65,7 @@ fn test_query_extractor() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test!"));
 
     // client request
-    let request = srv.get()
-        .uri(srv.url("/index.html"))
-        .finish()
-        .unwrap();
+    let request = srv.get().uri(srv.url("/index.html")).finish().unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -89,7 +84,8 @@ fn test_async_extractor_async() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -113,7 +109,8 @@ fn test_path_and_query_extractor() {
     });
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html?username=test2"))
         .finish()
         .unwrap();
@@ -125,7 +122,8 @@ fn test_path_and_query_extractor() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - test2!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -145,7 +143,8 @@ fn test_path_and_query_extractor2() {
     });
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html?username=test2"))
         .finish()
         .unwrap();
@@ -157,7 +156,8 @@ fn test_path_and_query_extractor2() {
     assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - test2!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -169,21 +169,21 @@ fn test_path_and_query_extractor2() {
 fn test_path_and_query_extractor2_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with3(
-                |p: Path<PParam>, _: Query<PParam>, data: Json<Value>| {
+            r.route()
+                .with3(|p: Path<PParam>, _: Query<PParam>, data: Json<Value>| {
                     Timeout::new(Duration::from_millis(10), &Arbiter::handle())
                         .unwrap()
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                },
-            )
+                })
         });
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -193,10 +193,7 @@ fn test_path_and_query_extractor2_async() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - {\"test\":1}!"));
 }
 
 #[test]
@@ -215,7 +212,8 @@ fn test_path_and_query_extractor3_async() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -240,7 +238,8 @@ fn test_path_and_query_extractor4_async() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -253,21 +252,21 @@ fn test_path_and_query_extractor4_async() {
 fn test_path_and_query_extractor2_async2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with3(
-                |p: Path<PParam>, data: Json<Value>, _: Query<PParam>| {
+            r.route()
+                .with3(|p: Path<PParam>, data: Json<Value>, _: Query<PParam>| {
                     Timeout::new(Duration::from_millis(10), &Arbiter::handle())
                         .unwrap()
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                },
-            )
+                })
         });
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -277,13 +276,11 @@ fn test_path_and_query_extractor2_async2() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - {\"test\":1}!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -295,21 +292,21 @@ fn test_path_and_query_extractor2_async2() {
 fn test_path_and_query_extractor2_async3() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with3(
-                |data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
+            r.route()
+                .with3(|data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
                     Timeout::new(Duration::from_millis(10), &Arbiter::handle())
                         .unwrap()
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                },
-            )
+                })
         });
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -319,13 +316,11 @@ fn test_path_and_query_extractor2_async3() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - {\"test\":1}!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -342,11 +337,7 @@ fn test_path_and_query_extractor2_async4() {
                     Timeout::new(Duration::from_millis(10), &Arbiter::handle())
                         .unwrap()
                         .and_then(move |_| {
-                            Ok(format!(
-                                "Welcome {} - {}!",
-                                data.1.username,
-                                (data.0).0
-                            ))
+                            Ok(format!("Welcome {} - {}!", data.1.username, (data.0).0))
                         })
                         .responder()
                 })
@@ -354,7 +345,8 @@ fn test_path_and_query_extractor2_async4() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -364,13 +356,11 @@ fn test_path_and_query_extractor2_async4() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - {\"test\":1}!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -384,13 +374,7 @@ fn test_impl_trait(
 ) -> impl Future<Item = String, Error = io::Error> {
     Timeout::new(Duration::from_millis(10), &Arbiter::handle())
         .unwrap()
-        .and_then(move |_| {
-            Ok(format!(
-                "Welcome {} - {}!",
-                data.1.username,
-                (data.0).0
-            ))
-        })
+        .and_then(move |_| Ok(format!("Welcome {} - {}!", data.1.username, (data.0).0)))
 }
 
 #[cfg(actix_impl_trait)]
@@ -412,7 +396,8 @@ fn test_path_and_query_extractor2_async4_impl_trait() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -422,13 +407,11 @@ fn test_path_and_query_extractor2_async4_impl_trait() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(
-        bytes,
-        Bytes::from_static(b"Welcome test1 - {\"test\":1}!")
-    );
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test1 - {\"test\":1}!"));
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test1/index.html"))
         .finish()
         .unwrap();
@@ -446,7 +429,8 @@ fn test_path_and_query_extractor2_async4_impl_trait_err() {
     });
 
     // client request
-    let request = srv.post()
+    let request = srv
+        .post()
         .uri(srv.url("/test1/index.html?username=test2"))
         .header("content-type", "application/json")
         .body("{\"test\": 1}")
@@ -462,7 +446,8 @@ fn test_non_ascii_route() {
     });
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/中文/index.html"))
         .finish()
         .unwrap();
@@ -483,7 +468,8 @@ fn test_unsafe_path_route() {
     });
 
     // client request
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/test/http%3A%2F%2Fexample.com"))
         .finish()
         .unwrap();

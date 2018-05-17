@@ -85,9 +85,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
 
     fn update_time(&self, ctx: &mut Context<Self>) {
         self.settings.update_date();
-        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| {
-            slf.update_time(ctx)
-        });
+        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
     }
 
     fn shutdown_timeout(
@@ -195,18 +193,17 @@ impl StreamHandlerType {
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
-                hnd.spawn(
-                    TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => Arbiter::handle()
-                                .spawn(HttpChannel::new(h, io, peer, http2)),
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    }),
-                );
+                hnd.spawn(TlsAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                    match res {
+                        Ok(io) => {
+                            Arbiter::handle().spawn(HttpChannel::new(h, io, peer, http2))
+                        }
+                        Err(err) => {
+                            trace!("Error during handling tls connection: {}", err)
+                        }
+                    };
+                    future::result(Ok(()))
+                }));
             }
             #[cfg(feature = "alpn")]
             StreamHandlerType::Alpn(ref acceptor) => {
@@ -215,27 +212,25 @@ impl StreamHandlerType {
                 let io = TcpStream::from_stream(io, hnd)
                     .expect("failed to associate TCP stream");
 
-                hnd.spawn(
-                    SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
-                        match res {
-                            Ok(io) => {
-                                let http2 = if let Some(p) =
-                                    io.get_ref().ssl().selected_alpn_protocol()
-                                {
-                                    p.len() == 2 && &p == b"h2"
-                                } else {
-                                    false
-                                };
-                                Arbiter::handle()
-                                    .spawn(HttpChannel::new(h, io, peer, http2));
-                            }
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    }),
-                );
+                hnd.spawn(SslAcceptorExt::accept_async(acceptor, io).then(move |res| {
+                    match res {
+                        Ok(io) => {
+                            let http2 = if let Some(p) =
+                                io.get_ref().ssl().selected_alpn_protocol()
+                            {
+                                p.len() == 2 && &p == b"h2"
+                            } else {
+                                false
+                            };
+                            Arbiter::handle()
+                                .spawn(HttpChannel::new(h, io, peer, http2));
+                        }
+                        Err(err) => {
+                            trace!("Error during handling tls connection: {}", err)
+                        }
+                    };
+                    future::result(Ok(()))
+                }));
             }
         }
     }

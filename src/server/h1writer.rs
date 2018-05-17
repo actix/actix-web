@@ -42,9 +42,7 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     pub fn new(
-        stream: T,
-        buf: SharedBytes,
-        settings: Rc<WorkerSettings<H>>,
+        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
     ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::empty(),
@@ -103,9 +101,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     }
 
     fn start(
-        &mut self,
-        req: &mut HttpInnerMessage,
-        msg: &mut HttpResponse,
+        &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
         encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare task

@@ -123,9 +123,7 @@ impl Frame {
             None
         };
 
-        Ok(Async::Ready(Some((
-            idx, finished, opcode, length, mask,
-        ))))
+        Ok(Async::Ready(Some((idx, finished, opcode, length, mask))))
     }
 
     fn read_chunk_md(
@@ -284,10 +282,7 @@ impl Frame {
             } else {
                 None
             };
-            Some(CloseReason {
-                code,
-                description,
-            })
+            Some(CloseReason { code, description })
         } else {
             None
         }

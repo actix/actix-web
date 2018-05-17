@@ -794,15 +794,13 @@ where
         };
 
         let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(
-            self.item1.take().unwrap(),
-            self.item2.take().unwrap(),
-            item,
-        ).respond_to(&self.req)
-        {
-            Ok(item) => item.into(),
-            Err(err) => return Err(err.into()),
-        };
+        let item =
+            match (*hnd)(self.item1.take().unwrap(), self.item2.take().unwrap(), item)
+                .respond_to(&self.req)
+            {
+                Ok(item) => item.into(),
+                Err(err) => return Err(err.into()),
+            };
 
         match item.into() {
             AsyncResultItem::Err(err) => return Err(err),

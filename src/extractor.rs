@@ -11,7 +11,7 @@ use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
-use error::{Error, ErrorNotFound, ErrorBadRequest};
+use error::{Error, ErrorBadRequest, ErrorNotFound};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
@@ -330,9 +330,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
         cfg.check_mimetype(req)?;
 
         Ok(Box::new(
-            MessageBody::new(req.clone())
-                .limit(cfg.limit)
-                .from_err(),
+            MessageBody::new(req.clone()).limit(cfg.limit).from_err(),
         ))
     }
 }
@@ -512,14 +510,7 @@ tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
 tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
 tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
-tuple_from_req!(
-    TupleFromRequest5,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E)
-);
+tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
 tuple_from_req!(
     TupleFromRequest6,
     (0, A),
@@ -587,11 +578,7 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match Bytes::from_request(&req, &cfg)
-            .unwrap()
-            .poll()
-            .unwrap()
-        {
+        match Bytes::from_request(&req, &cfg).unwrap().poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s, Bytes::from_static(b"hello=world"));
             }
@@ -606,11 +593,7 @@ mod tests {
         req.payload_mut()
             .unread_data(Bytes::from_static(b"hello=world"));
 
-        match String::from_request(&req, &cfg)
-            .unwrap()
-            .poll()
-            .unwrap()
-        {
+        match String::from_request(&req, &cfg).unwrap().poll().unwrap() {
             Async::Ready(s) => {
                 assert_eq!(s, "hello=world");
             }
@@ -680,10 +663,7 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((
-            Resource::new("index", "/{key}/{value}/"),
-            Some(resource),
-        ));
+        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 
@@ -735,10 +715,7 @@ mod tests {
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((
-            Resource::new("index", "/{key}/{value}/"),
-            Some(resource),
-        ));
+        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", ServerSettings::default(), routes);
         assert!(router.recognize(&mut req).is_some());
 

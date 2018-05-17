@@ -5,8 +5,10 @@ use smallvec::SmallVec;
 
 use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
 use actix::fut::ActorFuture;
-use actix::{Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message,
-            SpawnHandle, Syn, Unsync};
+use actix::{
+    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
+    Syn, Unsync,
+};
 
 use body::{Binary, Body};
 use context::{ActorHttpContext, Drain, Frame as ContextFrame};
@@ -64,7 +66,8 @@ where
     #[doc(hidden)]
     #[inline]
     fn waiting(&self) -> bool {
-        self.inner.waiting() || self.inner.state() == ActorState::Stopping
+        self.inner.waiting()
+            || self.inner.state() == ActorState::Stopping
             || self.inner.state() == ActorState::Stopped
     }
 

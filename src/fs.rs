@@ -203,29 +203,26 @@ impl Responder for NamedFile {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.if_some(self.path().extension(), |ext, resp| {
-                resp.set(header::ContentType(get_mime_type(
-                    &ext.to_string_lossy(),
-                )));
+                resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
             }).if_some(self.path().file_name(), |file_name, resp| {
-                    let mime_type = guess_mime_type(self.path());
-                    let inline_or_attachment = match mime_type.type_() {
-                        mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
-                        _ => "attachment",
-                    };
-                    resp.header(
-                        "Content-Disposition",
-                        format!(
-                            "{inline_or_attachment}; filename={filename}",
-                            inline_or_attachment = inline_or_attachment,
-                            filename = file_name.to_string_lossy()
-                        ),
-                    );
-                });
+                let mime_type = guess_mime_type(self.path());
+                let inline_or_attachment = match mime_type.type_() {
+                    mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
+                    _ => "attachment",
+                };
+                resp.header(
+                    "Content-Disposition",
+                    format!(
+                        "{inline_or_attachment}; filename={filename}",
+                        inline_or_attachment = inline_or_attachment,
+                        filename = file_name.to_string_lossy()
+                    ),
+                );
+            });
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
-                cpu_pool: self.cpu_pool
-                    .unwrap_or_else(|| req.cpu_pool().clone()),
+                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
                 counter: 0,
@@ -269,9 +266,7 @@ impl Responder for NamedFile {
         let mut resp = HttpResponse::build(self.status_code);
 
         resp.if_some(self.path().extension(), |ext, resp| {
-            resp.set(header::ContentType(get_mime_type(
-                &ext.to_string_lossy(),
-            )));
+            resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
         }).if_some(self.path().file_name(), |file_name, resp| {
                 let mime_type = guess_mime_type(self.path());
                 let inline_or_attachment = match mime_type.type_() {
@@ -293,9 +288,9 @@ impl Responder for NamedFile {
             .if_some(etag, |etag, resp| {
                 resp.set(header::ETag(etag));
             });
-        
-        // TODO: Debug, enabling "accept-ranges: bytes" causes problems with 
-        // certain clients when not using the ranges header. 
+
+        // TODO: Debug, enabling "accept-ranges: bytes" causes problems with
+        // certain clients when not using the ranges header.
         //resp.header(header::ACCEPT_RANGES, format!("bytes"));
 
         let mut length = self.md.len();
@@ -307,7 +302,15 @@ impl Responder for NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length - 1;
                     offset = rangesvec[0].start;
-                    resp.header(header::RANGE, format!("bytes={}-{}/{}", offset, offset+length, self.md.len()));
+                    resp.header(
+                        header::RANGE,
+                        format!(
+                            "bytes={}-{}/{}",
+                            offset,
+                            offset + length,
+                            self.md.len()
+                        ),
+                    );
                 } else {
                     resp.header(header::RANGE, format!("*/{}", length));
                     return Ok(resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish());
@@ -331,8 +334,7 @@ impl Responder for NamedFile {
             let reader = ChunkedReadFile {
                 size: length,
                 offset: offset,
-                cpu_pool: self.cpu_pool
-                    .unwrap_or_else(|| req.cpu_pool().clone()),
+                cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
                 file: Some(self.file),
                 fut: None,
                 counter: 0,
@@ -618,7 +620,8 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
         if !self.accessible {
             Ok(self.default.handle(req))
         } else {
-            let relpath = match req.match_info()
+            let relpath = match req
+                .match_info()
                 .get("tail")
                 .map(|tail| PathBuf::from_param(tail.trim_left_matches('/')))
             {
@@ -690,9 +693,7 @@ mod tests {
             "text/x-toml"
         );
         assert_eq!(
-            resp.headers()
-                .get(header::CONTENT_DISPOSITION)
-                .unwrap(),
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=Cargo.toml"
         );
     }
@@ -716,9 +717,7 @@ mod tests {
             "image/png"
         );
         assert_eq!(
-            resp.headers()
-                .get(header::CONTENT_DISPOSITION)
-                .unwrap(),
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=test.png"
         );
     }
@@ -742,9 +741,7 @@ mod tests {
             "application/octet-stream"
         );
         assert_eq!(
-            resp.headers()
-                .get(header::CONTENT_DISPOSITION)
-                .unwrap(),
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "attachment; filename=test.binary"
         );
     }
@@ -769,21 +766,20 @@ mod tests {
             "text/x-toml"
         );
         assert_eq!(
-            resp.headers()
-                .get(header::CONTENT_DISPOSITION)
-                .unwrap(),
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=Cargo.toml"
         );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
-    
+
     #[test]
     fn test_named_file_ranges_status_code() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
         });
 
-        let request = srv.get()
+        let request = srv
+            .get()
             .uri(srv.url("/t%65st/Cargo.toml"))
             .header(header::RANGE, "bytes=10-20")
             .finish()
@@ -796,26 +792,41 @@ mod tests {
     #[test]
     fn test_named_file_ranges_headers() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").index_file("tests/test.binary"))
+            App::new().handler(
+                "test",
+                StaticFiles::new(".").index_file("tests/test.binary"),
+            )
         });
 
-        let request = srv.get()
+        let request = srv
+            .get()
             .uri(srv.url("/t%65st/tests/test.binary"))
             .header(header::RANGE, "bytes=10-20")
             .finish()
             .unwrap();
         let response = srv.execute(request.send()).unwrap();
-        let contentlength = response.headers().get(header::CONTENT_LENGTH).unwrap().to_str().unwrap();
+        let contentlength = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         assert_eq!(contentlength, "10");
 
-        let request = srv.get()
+        let request = srv
+            .get()
             .uri(srv.url("/t%65st/tests/test.binary"))
             .header(header::RANGE, "bytes=10-20")
             .finish()
             .unwrap();
         let response = srv.execute(request.send()).unwrap();
-        let range = response.headers().get(header::RANGE).unwrap().to_str().unwrap();
+        let range = response
+            .headers()
+            .get(header::RANGE)
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         assert_eq!(range, "bytes=10-20/100");
     }
@@ -841,7 +852,8 @@ mod tests {
     fn test_static_files() {
         let mut st = StaticFiles::new(".").show_files_listing();
         st.accessible = false;
-        let resp = st.handle(HttpRequest::default())
+        let resp = st
+            .handle(HttpRequest::default())
             .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
@@ -849,7 +861,8 @@ mod tests {
 
         st.accessible = true;
         st.show_index = false;
-        let resp = st.handle(HttpRequest::default())
+        let resp = st
+            .handle(HttpRequest::default())
             .respond_to(&HttpRequest::default())
             .unwrap();
         let resp = resp.as_msg();
@@ -859,9 +872,7 @@ mod tests {
         req.match_info_mut().add("tail", "");
 
         st.show_index = true;
-        let resp = st.handle(req)
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -877,9 +888,7 @@ mod tests {
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tests");
 
-        let resp = st.handle(req)
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -890,9 +899,7 @@ mod tests {
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tests/");
 
-        let resp = st.handle(req)
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -907,9 +914,7 @@ mod tests {
         let mut req = HttpRequest::default();
         req.match_info_mut().add("tail", "tools/wsload");
 
-        let resp = st.handle(req)
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -984,7 +989,8 @@ mod tests {
             App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
         });
 
-        let request = srv.get()
+        let request = srv
+            .get()
             .uri(srv.url("/test/%43argo.toml"))
             .finish()
             .unwrap();

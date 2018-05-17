@@ -267,9 +267,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     }
 
     fn response(
-        &self,
-        req: &mut HttpRequest<S>,
-        resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplCell>>() {
             s_box.0.borrow_mut().write(resp)
@@ -385,9 +383,7 @@ impl CookieSessionInner {
     }
 
     fn set_cookie(
-        &self,
-        resp: &mut HttpResponse,
-        state: &HashMap<String, String>,
+        &self, resp: &mut HttpResponse, state: &HashMap<String, String>,
     ) -> Result<()> {
         let value =
             serde_json::to_string(&state).map_err(CookieSessionError::Serialize)?;

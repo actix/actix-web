@@ -106,10 +106,7 @@ impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
     pub fn new(
-        method: Method,
-        uri: Uri,
-        version: Version,
-        headers: HeaderMap,
+        method: Method, uri: Uri, version: Version, headers: HeaderMap,
         payload: Option<Payload>,
     ) -> HttpRequest {
         let url = InnerUrl::new(uri);
@@ -304,9 +301,7 @@ impl<S> HttpRequest<S> {
     /// }
     /// ```
     pub fn url_for<U, I>(
-        &self,
-        name: &str,
-        elements: U,
+        &self, name: &str, elements: U,
     ) -> Result<Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,

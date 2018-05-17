@@ -33,8 +33,10 @@ mod request;
 mod response;
 mod writer;
 
-pub use self::connector::{ClientConnector, ClientConnectorError, ClientConnectorStats,
-                          Connect, Connection, Pause, Resume};
+pub use self::connector::{
+    ClientConnector, ClientConnectorError, ClientConnectorStats, Connect, Connection,
+    Pause, Resume,
+};
 pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
 pub use self::pipeline::{SendRequest, SendRequestError};
 pub use self::request::{ClientRequest, ClientRequestBuilder};

@@ -459,8 +459,7 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>,
-        mws: Rc<Vec<Box<Middleware<S>>>>,
+        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
         resource: Rc<UnsafeCell<ResourceHandler<S>>>,
         default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
     ) -> Self {
@@ -585,8 +584,7 @@ struct WaitingResponse<S> {
 impl<S: 'static> WaitingResponse<S> {
     #[inline]
     fn init(
-        info: &mut ComposeInfo<S>,
-        reply: AsyncResult<HttpResponse>,
+        info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
             AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),

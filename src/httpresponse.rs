@@ -600,8 +600,7 @@ impl HttpResponseBuilder {
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(
-    parts: &'a mut Option<Box<InnerHttpResponse>>,
-    err: &Option<HttpError>,
+    parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>,
 ) -> Option<&'a mut Box<InnerHttpResponse>> {
     if err.is_some() {
         return None;
@@ -648,7 +647,8 @@ impl Responder for &'static str {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self))
     }
@@ -667,7 +667,8 @@ impl Responder for &'static [u8] {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self))
     }
@@ -686,7 +687,8 @@ impl Responder for String {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self))
     }
@@ -705,7 +707,8 @@ impl<'a> Responder for &'a String {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self))
     }
@@ -724,7 +727,8 @@ impl Responder for Bytes {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self))
     }
@@ -743,7 +747,8 @@ impl Responder for BytesMut {
     type Error = Error;
 
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self))
     }
@@ -823,8 +828,7 @@ impl HttpResponsePool {
 
     #[inline]
     pub fn get_builder(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>,
-        status: StatusCode,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode,
     ) -> HttpResponseBuilder {
         let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
@@ -848,9 +852,7 @@ impl HttpResponsePool {
 
     #[inline]
     pub fn get_response(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>,
-        status: StatusCode,
-        body: Body,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, status: StatusCode, body: Body,
     ) -> HttpResponse {
         let p = unsafe { &mut *pool.as_ref().get() };
         if let Some(mut msg) = p.0.pop_front() {
@@ -876,8 +878,7 @@ impl HttpResponsePool {
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(boxed_local, inline_always))]
     fn release(
-        pool: &Rc<UnsafeCell<HttpResponsePool>>,
-        mut inner: Box<InnerHttpResponse>,
+        pool: &Rc<UnsafeCell<HttpResponsePool>>, mut inner: Box<InnerHttpResponse>,
     ) {
         let pool = unsafe { &mut *pool.as_ref().get() };
         if pool.0.len() < 128 {
@@ -942,7 +943,8 @@ mod tests {
             .del_cookie(&cookies[0])
             .finish();
 
-        let mut val: Vec<_> = resp.headers()
+        let mut val: Vec<_> = resp
+            .headers()
             .get_all("Set-Cookie")
             .iter()
             .map(|v| v.to_str().unwrap().to_owned())

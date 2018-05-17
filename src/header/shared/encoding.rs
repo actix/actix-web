@@ -1,8 +1,9 @@
 use std::fmt;
 use std::str;
 
-pub use self::Encoding::{Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip,
-                         Identity, Trailers};
+pub use self::Encoding::{
+    Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers,
+};
 
 /// A value to represent an encoding used in `Transfer-Encoding`
 /// or `Accept-Encoding` header.

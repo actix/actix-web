@@ -190,16 +190,8 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1", "", StatusCode::OK),
-            (
-                "/resource1/",
-                "/resource1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/resource2",
-                "/resource2/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
+            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
+            ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
             ("/resource2/", "", StatusCode::OK),
             ("/resource1?p1=1&p2=2", "", StatusCode::OK),
             (
@@ -222,11 +214,7 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers()
-                        .get(header::LOCATION)
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
                 );
             }
         }
@@ -276,16 +264,8 @@ mod tests {
         // trailing slashes
         let params = vec![
             ("/resource1/a/b", "", StatusCode::OK),
-            (
-                "/resource1/",
-                "/resource1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/resource1//",
-                "/resource1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
+            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
+            ("/resource1//", "/resource1", StatusCode::MOVED_PERMANENTLY),
             (
                 "//resource1//a//b",
                 "/resource1/a/b",
@@ -356,11 +336,7 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers()
-                        .get(header::LOCATION)
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
                 );
             }
         }
@@ -540,11 +516,7 @@ mod tests {
             if !target.is_empty() {
                 assert_eq!(
                     target,
-                    r.headers()
-                        .get(header::LOCATION)
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
                 );
             }
         }

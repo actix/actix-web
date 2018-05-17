@@ -27,9 +27,7 @@ impl<S> middleware::Middleware<S> for MiddlewareTest {
     }
 
     fn response(
-        &self,
-        _: &mut HttpRequest<S>,
-        resp: HttpResponse,
+        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         self.response
             .store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
@@ -450,9 +448,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     }
 
     fn response(
-        &self,
-        _: &mut HttpRequest<S>,
-        resp: HttpResponse,
+        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
 

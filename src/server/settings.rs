@@ -266,10 +266,7 @@ mod tests {
 
     #[test]
     fn test_date_len() {
-        assert_eq!(
-            DATE_VALUE_LENGTH,
-            "Sun, 06 Nov 1994 08:49:37 GMT".len()
-        );
+        assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
     #[test]

@@ -218,7 +218,10 @@ where
     /// and the user should be presented with an enumeration of which
     /// socket requires which protocol.
     pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
-        self.sockets.iter().map(|s| (s.addr, s.tp.scheme())).collect()
+        self.sockets
+            .iter()
+            .map(|s| (s.addr, s.tp.scheme()))
+            .collect()
     }
 
     /// Use listener for accepting incoming connection requests
@@ -254,7 +257,9 @@ where
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn listen_ssl(mut self, lst: net::TcpListener, mut builder: SslAcceptorBuilder) -> io::Result<Self> {
+    pub fn listen_ssl(
+        mut self, lst: net::TcpListener, mut builder: SslAcceptorBuilder,
+    ) -> io::Result<Self> {
         // alpn support
         if !self.no_http2 {
             configure_alpn(&mut builder)?;
@@ -814,12 +819,9 @@ fn start_accept_thread(
             }
 
             // Start listening for incoming commands
-            if let Err(err) = poll.register(
-                &reg,
-                CMD,
-                mio::Ready::readable(),
-                mio::PollOpt::edge(),
-            ) {
+            if let Err(err) =
+                poll.register(&reg, CMD, mio::Ready::readable(), mio::PollOpt::edge())
+            {
                 panic!("Can not register Registration: {}", err);
             }
 

@@ -179,7 +179,8 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
-        let fut = self.backend
+        let fut = self
+            .backend
             .from_request(&mut req)
             .then(move |res| match res {
                 Ok(id) => {

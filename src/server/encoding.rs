@@ -380,9 +380,7 @@ impl ContentEncoder {
     }
 
     pub fn for_server(
-        buf: SharedBytes,
-        req: &HttpInnerMessage,
-        resp: &mut HttpResponse,
+        buf: SharedBytes, req: &HttpInnerMessage, resp: &mut HttpResponse,
         response_encoding: ContentEncoding,
     ) -> ContentEncoder {
         let version = resp.version().unwrap_or_else(|| req.version);
@@ -522,9 +520,7 @@ impl ContentEncoder {
     }
 
     fn streaming_encoding(
-        buf: SharedBytes,
-        version: Version,
-        resp: &mut HttpResponse,
+        buf: SharedBytes, version: Version, resp: &mut HttpResponse,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
@@ -867,7 +863,8 @@ impl AcceptEncoding {
 
     /// Parse a raw Accept-Encoding header value into an ordered list.
     pub fn parse(raw: &str) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw.replace(' ', "")
+        let mut encodings: Vec<_> = raw
+            .replace(' ', "")
             .split(',')
             .map(|l| AcceptEncoding::new(l))
             .collect();

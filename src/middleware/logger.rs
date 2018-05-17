@@ -376,9 +376,7 @@ mod tests {
             headers,
             None,
         );
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close()
-            .finish();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {
@@ -399,9 +397,7 @@ mod tests {
             HeaderMap::new(),
             None,
         );
-        let resp = HttpResponse::build(StatusCode::OK)
-            .force_close()
-            .finish();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 
         let render = |fmt: &mut Formatter| {

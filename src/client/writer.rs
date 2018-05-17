@@ -12,8 +12,9 @@ use flate2::write::{DeflateEncoder, GzEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
 use futures::{Async, Poll};
-use http::header::{HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE,
-                   TRANSFER_ENCODING};
+use http::header::{
+    HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+};
 use http::{HttpTryFrom, Version};
 use time::{self, Duration};
 use tokio_io::AsyncWrite;
@@ -253,10 +254,8 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             }
             let mut b = BytesMut::new();
             let _ = write!(b, "{}", bytes.len());
-            req.headers_mut().insert(
-                CONTENT_LENGTH,
-                HeaderValue::try_from(b.freeze()).unwrap(),
-            );
+            req.headers_mut()
+                .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
             TransferEncoding::eof(buf)
         }
         Body::Streaming(_) | Body::Actor(_) => {

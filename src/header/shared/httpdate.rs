@@ -105,9 +105,7 @@ mod tests {
     #[test]
     fn test_date() {
         assert_eq!(
-            "Sun, 07 Nov 1994 08:48:37 GMT"
-                .parse::<HttpDate>()
-                .unwrap(),
+            "Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(),
             NOV_07
         );
         assert_eq!(
@@ -117,9 +115,7 @@ mod tests {
             NOV_07
         );
         assert_eq!(
-            "Sun Nov  7 08:48:37 1994"
-                .parse::<HttpDate>()
-                .unwrap(),
+            "Sun Nov  7 08:48:37 1994".parse::<HttpDate>().unwrap(),
             NOV_07
         );
         assert!("this-is-no-date".parse::<HttpDate>().is_err());

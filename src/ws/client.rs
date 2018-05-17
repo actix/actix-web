@@ -22,8 +22,10 @@ use header::IntoHeaderValue;
 use httpmessage::HttpMessage;
 use payload::PayloadHelper;
 
-use client::{ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
-             HttpResponseParserError, SendRequest, SendRequestError};
+use client::{
+    ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
+    HttpResponseParserError, SendRequest, SendRequestError,
+};
 
 use super::frame::Frame;
 use super::proto::{CloseReason, OpCode};
@@ -218,8 +220,7 @@ impl Client {
             self.request.upgrade();
             self.request.set_header(header::UPGRADE, "websocket");
             self.request.set_header(header::CONNECTION, "upgrade");
-            self.request
-                .set_header(header::SEC_WEBSOCKET_VERSION, "13");
+            self.request.set_header(header::SEC_WEBSOCKET_VERSION, "13");
             self.request.with_connector(self.conn.clone());
 
             if let Some(protocols) = self.protocols.take() {
@@ -235,7 +236,9 @@ impl Client {
                 return ClientHandshake::error(ClientError::InvalidUrl);
             }
             if let Some(scheme) = request.uri().scheme_part() {
-                if scheme != "http" && scheme != "https" && scheme != "ws"
+                if scheme != "http"
+                    && scheme != "https"
+                    && scheme != "ws"
                     && scheme != "wss"
                 {
                     return ClientHandshake::error(ClientError::InvalidUrl);
@@ -394,10 +397,7 @@ impl Future for ClientHandshake {
                     encoded,
                     key
                 );
-                return Err(ClientError::InvalidChallengeResponse(
-                    encoded,
-                    key.clone(),
-                ));
+                return Err(ClientError::InvalidChallengeResponse(encoded, key.clone()));
             }
         } else {
             trace!("Missing SEC-WEBSOCKET-ACCEPT header");
@@ -534,23 +534,13 @@ impl ClientWriter {
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Ping,
-            true,
-            true,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Ping, true, true));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
-            Vec::from(message),
-            OpCode::Pong,
-            true,
-            true,
-        ));
+        self.write(Frame::message(Vec::from(message), OpCode::Pong, true, true));
     }
 
     /// Send close frame

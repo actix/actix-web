@@ -63,11 +63,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
         match self.quality.0 {
             1000 => Ok(()),
             0 => f.write_str("; q=0"),
-            x => write!(
-                f,
-                "; q=0.{}",
-                format!("{:03}", x).trim_right_matches('0')
-            ),
+            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_right_matches('0')),
         }
     }
 }
@@ -295,10 +291,6 @@ mod tests {
     #[test]
     fn test_fuzzing_bugs() {
         assert!("99999;".parse::<QualityItem<String>>().is_err());
-        assert!(
-            "\x0d;;;=\u{d6aa}=="
-                .parse::<QualityItem<String>>()
-                .is_err()
-        )
+        assert!("\x0d;;;=\u{d6aa}==".parse::<QualityItem<String>>().is_err())
     }
 }

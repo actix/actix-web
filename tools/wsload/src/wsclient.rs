@@ -82,43 +82,40 @@ fn main() {
         let perf = perf_counters.clone();
         let addr = Arbiter::new(format!("test {}", t));
 
-        addr.do_send(actix::msgs::Execute::new(
-            move || -> Result<(), ()> {
-                for _ in 0..concurrency {
-                    let pl2 = pl.clone();
-                    let perf2 = perf.clone();
-                    let ws2 = ws.clone();
+        addr.do_send(actix::msgs::Execute::new(move || -> Result<(), ()> {
+            for _ in 0..concurrency {
+                let pl2 = pl.clone();
+                let perf2 = perf.clone();
+                let ws2 = ws.clone();
 
-                    Arbiter::handle().spawn(
-                        ws::Client::new(&ws)
-                            .write_buffer_capacity(0)
-                            .connect()
-                            .map_err(|e| {
-                                println!("Error: {}", e);
-                                //Arbiter::system().do_send(actix::msgs::SystemExit(0));
-                                ()
-                            })
-                            .map(move |(reader, writer)| {
-                                let addr: Addr<Syn, _> =
-                                    ChatClient::create(move |ctx| {
-                                        ChatClient::add_stream(reader, ctx);
-                                        ChatClient {
-                                            url: ws2,
-                                            conn: writer,
-                                            payload: pl2,
-                                            bin: bin,
-                                            ts: time::precise_time_ns(),
-                                            perf_counters: perf2,
-                                            sent: 0,
-                                            max_payload_size: max_payload_size,
-                                        }
-                                    });
-                            }),
-                    );
-                }
-                Ok(())
-            },
-        ));
+                Arbiter::handle().spawn(
+                    ws::Client::new(&ws)
+                        .write_buffer_capacity(0)
+                        .connect()
+                        .map_err(|e| {
+                            println!("Error: {}", e);
+                            //Arbiter::system().do_send(actix::msgs::SystemExit(0));
+                            ()
+                        })
+                        .map(move |(reader, writer)| {
+                            let addr: Addr<Syn, _> = ChatClient::create(move |ctx| {
+                                ChatClient::add_stream(reader, ctx);
+                                ChatClient {
+                                    url: ws2,
+                                    conn: writer,
+                                    payload: pl2,
+                                    bin: bin,
+                                    ts: time::precise_time_ns(),
+                                    perf_counters: perf2,
+                                    sent: 0,
+                                    max_payload_size: max_payload_size,
+                                }
+                            });
+                        }),
+                );
+            }
+            Ok(())
+        }));
     }
 
     let res = sys.run();
@@ -126,10 +123,7 @@ fn main() {
 
 fn parse_u64_default(input: Option<&str>, default: u64) -> u64 {
     input
-        .map(|v| {
-            v.parse()
-                .expect(&format!("not a valid number: {}", v))
-        })
+        .map(|v| v.parse().expect(&format!("not a valid number: {}", v)))
         .unwrap_or(default)
 }
 
@@ -314,7 +308,8 @@ impl PerfCounters {
         loop {
             let current = self.lat_max.load(Ordering::SeqCst);
             if current >= nanos
-                || self.lat_max
+                || self
+                    .lat_max
                     .compare_and_swap(current, nanos, Ordering::SeqCst)
                     == current
             {

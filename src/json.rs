@@ -121,7 +121,8 @@ impl<T: Serialize> Responder for Json<T> {
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         let body = serde_json::to_string(&self.0)?;
 
-        Ok(req.build_response(StatusCode::OK)
+        Ok(req
+            .build_response(StatusCode::OK)
             .content_type("application/json")
             .body(body))
     }
@@ -295,7 +296,8 @@ where
             }
 
             let limit = self.limit;
-            let fut = req.from_err()
+            let fut = req
+                .from_err()
                 .fold(BytesMut::new(), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(JsonPayloadError::Overflow)
@@ -362,10 +364,7 @@ mod tests {
     fn test_json_body() {
         let req = HttpRequest::default();
         let mut json = req.json::<MyObject>();
-        assert_eq!(
-            json.poll().err().unwrap(),
-            JsonPayloadError::ContentType
-        );
+        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(
@@ -373,10 +372,7 @@ mod tests {
             header::HeaderValue::from_static("application/text"),
         );
         let mut json = req.json::<MyObject>();
-        assert_eq!(
-            json.poll().err().unwrap(),
-            JsonPayloadError::ContentType
-        );
+        assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
         let mut req = HttpRequest::default();
         req.headers_mut().insert(
