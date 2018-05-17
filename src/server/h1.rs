@@ -162,7 +162,6 @@ where
                     entry.pipe.disconnected()
                 }
                 // kill keepalive
-                self.flags.remove(Flags::KEEPALIVE);
                 self.keepalive_timer.take();
 
                 // on parse error, stop reading stream but tasks need to be
@@ -352,7 +351,7 @@ where
                                         Ok(Async::NotReady) => {}
                                         Err(err) => {
                                             error!("Unhandled error: {}", err);
-                                            self.flags.intersects(Flags::ERROR);
+                                            self.flags.insert(Flags::ERROR);
                                             return;
                                         }
                                     }
