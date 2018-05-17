@@ -191,6 +191,24 @@ impl Session {
     }
 }
 
+/// Extractor implementation for Session type.
+///
+/// ```rust
+/// # use actix_web::*;
+/// use actix_web::middleware::session::Session;
+///
+/// fn index(session: Session) -> Result<&'static str> {
+///     // access session data
+///     if let Some(count) = session.get::<i32>("counter")? {
+///         session.set("counter", count+1)?;
+///     } else {
+///         session.set("counter", 1)?;
+///     }
+///
+///     Ok("Welcome!")
+/// }
+/// # fn main() {}
+/// ```
 impl<S> FromRequest<S> for Session {
     type Config = ();
     type Result = Session;
