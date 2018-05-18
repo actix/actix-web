@@ -1,5 +1,10 @@
 # Changes
 
+## 0.6.7 (2018-05-17)
+
+* Fix compilation with --no-default-features
+
+
 ## 0.6.6 (2018-05-17)
 
 * Panic during middleware execution #226

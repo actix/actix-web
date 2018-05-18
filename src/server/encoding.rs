@@ -33,6 +33,7 @@ pub(crate) enum PayloadType {
 }
 
 impl PayloadType {
+    #[cfg(any(feature = "brotli", feature = "flate2"))]
     pub fn new(headers: &HeaderMap, sender: PayloadSender) -> PayloadType {
         // check content-encoding
         let enc = if let Some(enc) = headers.get(CONTENT_ENCODING) {
@@ -51,6 +52,11 @@ impl PayloadType {
             }
             _ => PayloadType::Encoding(Box::new(EncodedPayload::new(sender, enc))),
         }
+    }
+
+    #[cfg(not(any(feature = "brotli", feature = "flate2")))]
+    pub fn new(headers: &HeaderMap, sender: PayloadSender) -> PayloadType {
+        PayloadType::Sender(sender)
     }
 }
 
@@ -399,6 +405,7 @@ impl ContentEncoder {
 
         // Enable content encoding only if response does not contain Content-Encoding
         // header
+        #[cfg(any(feature = "brotli", feature = "flate2"))]
         let mut encoding = if has_body {
             let encoding = match response_encoding {
                 ContentEncoding::Auto => {
@@ -425,6 +432,8 @@ impl ContentEncoder {
         } else {
             ContentEncoding::Identity
         };
+        #[cfg(not(any(feature = "brotli", feature = "flate2")))]
+        let mut encoding = ContentEncoding::Identity;
 
         #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let mut transfer = match resp.body() {
@@ -435,40 +444,42 @@ impl ContentEncoder {
                 TransferEncoding::length(0, buf)
             }
             &Body::Binary(_) => {
-                if !(encoding == ContentEncoding::Identity
-                    || encoding == ContentEncoding::Auto)
+                #[cfg(any(feature = "brotli", feature = "flate2"))]
                 {
-                    let tmp = SharedBytes::default();
-                    let transfer = TransferEncoding::eof(tmp.clone());
-                    let mut enc = match encoding {
-                        #[cfg(feature = "flate2")]
-                        ContentEncoding::Deflate => ContentEncoder::Deflate(
-                            DeflateEncoder::new(transfer, Compression::fast()),
-                        ),
-                        #[cfg(feature = "flate2")]
-                        ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
-                            transfer,
-                            Compression::fast(),
-                        )),
-                        #[cfg(feature = "brotli")]
-                        ContentEncoding::Br => {
-                            ContentEncoder::Br(BrotliEncoder::new(transfer, 3))
-                        }
-                        ContentEncoding::Identity | ContentEncoding::Auto => {
-                            unreachable!()
-                        }
-                    };
+                    if !(encoding == ContentEncoding::Identity
+                        || encoding == ContentEncoding::Auto)
+                    {
+                        let tmp = SharedBytes::default();
+                        let transfer = TransferEncoding::eof(tmp.clone());
+                        let mut enc = match encoding {
+                            #[cfg(feature = "flate2")]
+                            ContentEncoding::Deflate => ContentEncoder::Deflate(
+                                DeflateEncoder::new(transfer, Compression::fast()),
+                            ),
+                            #[cfg(feature = "flate2")]
+                            ContentEncoding::Gzip => ContentEncoder::Gzip(
+                                GzEncoder::new(transfer, Compression::fast()),
+                            ),
+                            #[cfg(feature = "brotli")]
+                            ContentEncoding::Br => {
+                                ContentEncoder::Br(BrotliEncoder::new(transfer, 3))
+                            }
+                            ContentEncoding::Identity | ContentEncoding::Auto => {
+                                unreachable!()
+                            }
+                        };
 
-                    let bin = resp.replace_body(Body::Empty).binary();
+                        let bin = resp.replace_body(Body::Empty).binary();
 
-                    // TODO return error!
-                    let _ = enc.write(bin);
-                    let _ = enc.write_eof();
-                    let body = tmp.take();
-                    len = body.len();
+                        // TODO return error!
+                        let _ = enc.write(bin);
+                        let _ = enc.write_eof();
+                        let body = tmp.take();
+                        len = body.len();
 
-                    encoding = ContentEncoding::Identity;
-                    resp.replace_body(Binary::from(body));
+                        encoding = ContentEncoding::Identity;
+                        resp.replace_body(Binary::from(body));
+                    }
                 }
 
                 if is_head {
