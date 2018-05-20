@@ -289,30 +289,28 @@ impl Responder for NamedFile {
                 resp.set(header::ETag(etag));
             });
 
-        // TODO: Debug, enabling "accept-ranges: bytes" causes problems with
-        // certain clients when not using the ranges header.
-        //resp.header(header::ACCEPT_RANGES, format!("bytes"));
+        resp.header(header::ACCEPT_RANGES, "bytes");
 
         let mut length = self.md.len();
         let mut offset = 0;
 
-        // check for ranges header
+        // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
             if let Ok(rangesheader) = ranges.to_str() {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
-                    length = rangesvec[0].length - 1;
+                    length = rangesvec[0].length;
                     offset = rangesvec[0].start;
                     resp.header(
-                        header::RANGE,
+                        header::CONTENT_RANGE,
                         format!(
-                            "bytes={}-{}/{}",
-                            offset,
-                            offset + length,
+                            "bytes {}-{}/{}", 
+                            offset, 
+                            offset + length - 1, 
                             self.md.len()
-                        ),
+                        )
                     );
                 } else {
-                    resp.header(header::RANGE, format!("*/{}", length));
+                    resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));
                     return Ok(resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish());
                 };
             } else {
@@ -778,6 +776,7 @@ mod tests {
             App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
         });
 
+        // Valid range header
         let request = srv
             .get()
             .uri(srv.url("/t%65st/Cargo.toml"))
@@ -787,10 +786,21 @@ mod tests {
         let response = srv.execute(request.send()).unwrap();
 
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+
+        // Invalid range header
+        let request = srv
+            .get()
+            .uri(srv.url("/t%65st/Cargo.toml"))
+            .header(header::RANGE, "bytes=1-0")
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
 
     #[test]
-    fn test_named_file_ranges_headers() {
+    fn test_named_file_content_range_headers() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
@@ -798,13 +808,64 @@ mod tests {
             )
         });
 
+        // Valid range header
         let request = srv
             .get()
             .uri(srv.url("/t%65st/tests/test.binary"))
             .header(header::RANGE, "bytes=10-20")
             .finish()
             .unwrap();
+
         let response = srv.execute(request.send()).unwrap();
+
+        let contentrange = response
+            .headers()
+            .get(header::CONTENT_RANGE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(contentrange, "bytes 10-20/100");
+
+        // Invalid range header
+        let request = srv
+            .get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .header(header::RANGE, "bytes=10-5")
+            .finish()
+            .unwrap();
+
+        let response = srv.execute(request.send()).unwrap();
+
+        let contentrange = response
+            .headers()
+            .get(header::CONTENT_RANGE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(contentrange, "bytes */100");
+    }
+
+    #[test]
+    fn test_named_file_content_length_headers() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new().handler(
+                "test",
+                StaticFiles::new(".").index_file("tests/test.binary"),
+            )
+        });
+
+        // Valid range header
+        let request = srv
+            .get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .header(header::RANGE, "bytes=10-20")
+            .finish()
+            .unwrap();
+
+        let response = srv.execute(request.send()).unwrap();
+
         let contentlength = response
             .headers()
             .get(header::CONTENT_LENGTH)
@@ -812,23 +873,44 @@ mod tests {
             .to_str()
             .unwrap();
 
-        assert_eq!(contentlength, "10");
+        assert_eq!(contentlength, "11");
 
+        // Invalid range header
         let request = srv
             .get()
             .uri(srv.url("/t%65st/tests/test.binary"))
-            .header(header::RANGE, "bytes=10-20")
+            .header(header::RANGE, "bytes=10-8")
             .finish()
             .unwrap();
+
         let response = srv.execute(request.send()).unwrap();
-        let range = response
+
+        let contentlength = response
             .headers()
-            .get(header::RANGE)
+            .get(header::CONTENT_LENGTH)
             .unwrap()
             .to_str()
             .unwrap();
 
-        assert_eq!(range, "bytes=10-20/100");
+        assert_eq!(contentlength, "0");
+
+        // Without range header
+        let request = srv
+            .get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .finish()
+            .unwrap();
+
+        let response = srv.execute(request.send()).unwrap();
+
+        let contentlength = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(contentlength, "100");
     }
 
     #[test]
