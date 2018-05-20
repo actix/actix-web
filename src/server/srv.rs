@@ -309,7 +309,7 @@ where
 
     /// The socket address to bind
     ///
-    /// To mind multiple addresses this method can be call multiple times.
+    /// To bind multiple addresses this method can be called multiple times.
     pub fn bind<S: net::ToSocketAddrs>(mut self, addr: S) -> io::Result<Self> {
         let sockets = self.bind2(addr)?;
         self.sockets.extend(sockets);
@@ -319,7 +319,7 @@ where
     #[cfg(feature = "tls")]
     /// The ssl socket address to bind
     ///
-    /// To mind multiple addresses this method can be call multiple times.
+    /// To bind multiple addresses this method can be called multiple times.
     pub fn bind_tls<S: net::ToSocketAddrs>(
         mut self, addr: S, acceptor: TlsAcceptor,
     ) -> io::Result<Self> {
