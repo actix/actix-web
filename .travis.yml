@@ -31,12 +31,12 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" != "beta" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" != "1.24.0" ]]; then
     cargo clean
     cargo test --features="alpn,tls" -- --nocapture
     fi
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "beta" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "1.24.0" ]]; then
     bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
     USE_SKEPTIC=1 cargo tarpaulin --out Xml --no-count
     bash <(curl -s https://codecov.io/bash)
