@@ -368,6 +368,80 @@ fn test_path_and_query_extractor2_async4() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
+#[test]
+fn test_scope_and_path_extractor() {
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/sc", |scope| {
+            scope.resource("/{num}/index.html", |r| {
+                r.route()
+                    .with(|p: Path<(usize,)>| {
+                        format!("Welcome {}!", p.0)
+                    })
+            })
+        })
+    });
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/sc/10/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"Welcome 10!"));
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/sc/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[test]
+fn test_nested_scope_and_path_extractor() {
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new().scope("/sc", |scope| {
+            scope.nested("/{num}", |scope| {
+                scope.resource("/{num}/index.html", |r| {
+                    r.route()
+                        .with(|p: Path<(usize, usize)>| {
+                            format!("Welcome {} {}!", p.0, p.1)
+                        })
+                })
+            })
+        })
+    });
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/sc/10/12/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"Welcome 10 12!"));
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/sc/10/test1/index.html"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
 #[cfg(actix_impl_trait)]
 fn test_impl_trait(
     data: (Json<Value>, Path<PParam>, Query<PParam>),

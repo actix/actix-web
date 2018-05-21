@@ -1,5 +1,8 @@
 # Changes
 
+* Fix scope resource path extractor #234
+
+
 ## 0.6.7 (2018-05-17)
 
 * Fix compilation with --no-default-features

@@ -336,6 +336,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
             if pattern.match_with_params(path, req.match_info_mut()) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
 
+                req.match_info_mut().remove("tail");
                 if self.middlewares.is_empty() {
                     let resource = unsafe { &mut *resource.get() };
                     return resource.handle(req, Some(default));

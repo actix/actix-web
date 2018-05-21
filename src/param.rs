@@ -58,6 +58,16 @@ impl<'a> Params<'a> {
         self.0.push((name, value));
     }
 
+    pub(crate) fn remove(&mut self, name: &str)
+    {
+        for idx in (0..self.0.len()).rev() {
+            if self.0[idx].0 == name {
+                self.0.remove(idx);
+                return
+            }
+        }
+    }
+
     /// Check if there are any matched patterns
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
