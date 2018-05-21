@@ -1,5 +1,7 @@
 # Changes
 
+## 0.6.8 (2018-05-20)
+
 * Fix scope resource path extractor #234
 
 * Re-use tcp listener on pause/resume

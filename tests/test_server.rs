@@ -86,7 +86,13 @@ fn test_start() {
     // pause
     let _ = srv_addr.send(server::PauseServer).wait();
     thread::sleep(time::Duration::from_millis(200));
-    assert!(net::TcpStream::connect(addr).is_err());
+    {
+        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+            .timeout(time::Duration::from_millis(200))
+            .finish()
+            .unwrap();
+        assert!(sys.run_until_complete(req.send()).is_err());
+    }
 
     // resume
     let _ = srv_addr.send(server::ResumeServer).wait();
