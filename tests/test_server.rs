@@ -96,8 +96,7 @@ fn test_start() {
 
     // resume
     let _ = srv_addr.send(server::ResumeServer).wait();
-    thread::sleep(time::Duration::from_millis(200));
-
+    thread::sleep(time::Duration::from_millis(400));
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
             .finish()
