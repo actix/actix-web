@@ -2,6 +2,8 @@
 
 * Fix scope resource path extractor #234
 
+* Re-use tcp listener on pause/resume
+
 
 ## 0.6.7 (2018-05-17)
 

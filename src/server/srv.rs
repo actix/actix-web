@@ -450,7 +450,6 @@ impl<H: IntoHttpHandler> HttpServer<H> {
                 self.accept.push(start_accept_thread(
                     token,
                     sock,
-                    self.backlog,
                     tx.clone(),
                     socks.clone(),
                     workers.clone(),
@@ -782,7 +781,7 @@ enum Command {
 }
 
 fn start_accept_thread(
-    token: usize, sock: Socket, backlog: i32, srv: mpsc::UnboundedSender<ServerCommand>,
+    token: usize, sock: Socket, srv: mpsc::UnboundedSender<ServerCommand>,
     socks: Slab<SocketInfo>,
     mut workers: Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)>,
 ) -> (mio::SetReadiness, sync_mpsc::Sender<Command>) {
@@ -892,8 +891,8 @@ fn start_accept_thread(
                         },
                         CMD => match rx.try_recv() {
                             Ok(cmd) => match cmd {
-                                Command::Pause => if let Some(server) = server.take() {
-                                    if let Err(err) = poll.deregister(&server) {
+                                Command::Pause => if let Some(ref server) = server {
+                                    if let Err(err) = poll.deregister(server) {
                                         error!(
                                             "Can not deregister server socket {}",
                                             err
@@ -906,15 +905,6 @@ fn start_accept_thread(
                                     }
                                 },
                                 Command::Resume => {
-                                    let lst = create_tcp_listener(addr, backlog)
-                                        .expect("Can not create net::TcpListener");
-
-                                    server = Some(
-                                        mio::net::TcpListener::from_std(lst).expect(
-                                            "Can not create mio::net::TcpListener",
-                                        ),
-                                    );
-
                                     if let Some(ref server) = server {
                                         if let Err(err) = poll.register(
                                             server,

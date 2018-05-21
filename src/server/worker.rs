@@ -239,9 +239,9 @@ impl StreamHandlerType {
         match *self {
             StreamHandlerType::Normal => "http",
             #[cfg(feature = "tls")]
-            StreamHandlerType::Tls(ref acceptor) => "https",
+            StreamHandlerType::Tls(_) => "https",
             #[cfg(feature = "alpn")]
-            StreamHandlerType::Alpn(ref acceptor) => "https",
+            StreamHandlerType::Alpn(_) => "https",
         }
     }
 }
