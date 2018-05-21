@@ -143,7 +143,7 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
 }
 
 /// NOTE: bytes object has to contain enough space
-pub(crate) fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
+pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
     if n < 10 {
         let mut buf: [u8; 21] = [
             b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',

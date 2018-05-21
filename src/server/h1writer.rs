@@ -1,6 +1,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use bytes::BufMut;
+use bytes::{BytesMut, BufMut};
 use futures::{Async, Poll};
 use std::io;
 use std::rc::Rc;
@@ -45,7 +45,7 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
     ) -> H1Writer<T, H> {
         H1Writer {
-            flags: Flags::empty(),
+            flags: Flags::KEEPALIVE,
             encoder: ContentEncoder::empty(buf.clone()),
             written: 0,
             headers_size: 0,
@@ -62,7 +62,7 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
 
     pub fn reset(&mut self) {
         self.written = 0;
-        self.flags = Flags::empty();
+        self.flags = Flags::KEEPALIVE;
     }
 
     pub fn disconnected(&mut self) {
@@ -100,6 +100,16 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         self.written
     }
 
+    #[inline]
+    fn set_date(&self, dst: &mut BytesMut) {
+        self.settings.set_date(dst)
+    }
+
+    #[inline]
+    fn buffer(&self) -> &mut BytesMut {
+        self.buffer.get_mut()
+    }
+
     fn start(
         &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
         encoding: ContentEncoding,
@@ -108,9 +118,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         self.encoder =
             ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
-            self.flags.insert(Flags::STARTED | Flags::KEEPALIVE);
+            self.flags = Flags::STARTED | Flags::KEEPALIVE;
         } else {
-            self.flags.insert(Flags::STARTED);
+            self.flags = Flags::STARTED;
         }
 
         // Connection upgrade

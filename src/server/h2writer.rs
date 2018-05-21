@@ -71,6 +71,16 @@ impl<H: 'static> Writer for H2Writer<H> {
         self.written
     }
 
+    #[inline]
+    fn set_date(&self, dst: &mut BytesMut) {
+        self.settings.set_date(dst)
+    }
+
+    #[inline]
+    fn buffer(&self) -> &mut BytesMut {
+        self.buffer.get_mut()
+    }
+
     fn start(
         &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
         encoding: ContentEncoding,

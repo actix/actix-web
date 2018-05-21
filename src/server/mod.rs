@@ -3,7 +3,8 @@ use std::net::Shutdown;
 use std::{io, time};
 
 use actix;
-use futures::Poll;
+use bytes::BytesMut;
+use futures::{Async, Poll};
 use tokio_core::net::TcpStream;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -23,6 +24,9 @@ mod worker;
 
 pub use self::settings::ServerSettings;
 pub use self::srv::HttpServer;
+
+#[doc(hidden)]
+pub use self::helpers::write_content_length;
 
 use body::Binary;
 use error::Error;
@@ -132,13 +136,15 @@ impl HttpHandler for Box<HttpHandler> {
 #[doc(hidden)]
 pub trait HttpHandlerTask {
     /// Poll task, this method is used before or after *io* object is available
-    fn poll(&mut self) -> Poll<(), Error>;
+    fn poll(&mut self) -> Poll<(), Error>{
+        Ok(Async::Ready(()))
+    }
 
     /// Poll task when *io* object is available
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
 
     /// Connection is disconnected
-    fn disconnected(&mut self);
+    fn disconnected(&mut self) {}
 }
 
 /// Conversion helper trait
@@ -168,7 +174,15 @@ pub enum WriterState {
 #[doc(hidden)]
 /// Stream writer
 pub trait Writer {
+    /// number of bytes written to the stream
     fn written(&self) -> u64;
+
+    #[doc(hidden)]
+    fn set_date(&self, st: &mut BytesMut);
+
+    #[doc(hidden)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    fn buffer(&self) -> &mut BytesMut;
 
     fn start(
         &mut self, req: &mut HttpInnerMessage, resp: &mut HttpResponse,
