@@ -20,7 +20,7 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use error::Error;
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
-use http::{HttpRange, Method, StatusCode};
+use http::{HttpRange, Method, StatusCode, ContentEncoding};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -300,6 +300,7 @@ impl Responder for NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;
                     offset = rangesvec[0].start;
+                    resp.content_encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
                         format!(
@@ -898,6 +899,7 @@ mod tests {
         let request = srv
             .get()
             .uri(srv.url("/t%65st/tests/test.binary"))
+            .no_default_headers()
             .finish()
             .unwrap();
 
@@ -911,6 +913,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(contentlength, "100");
+
+        // chunked
+        let request = srv
+            .get()
+            .uri(srv.url("/t%65st/tests/test.binary"))
+            .finish()
+            .unwrap();
+
+        let response = srv.execute(request.send()).unwrap();
+
+        let te = response
+            .headers()
+            .get(header::TRANSFER_ENCODING)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(te, "chunked");
     }
 
     #[test]

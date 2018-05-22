@@ -505,6 +505,11 @@ impl ContentEncoder {
                     }
                     TransferEncoding::eof(buf)
                 } else {
+                    if !(encoding == ContentEncoding::Identity
+                         || encoding == ContentEncoding::Auto)
+                    {
+                        resp.headers_mut().remove(CONTENT_LENGTH);
+                    }
                     ContentEncoder::streaming_encoding(buf, version, resp)
                 }
             }

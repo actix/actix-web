@@ -2,7 +2,9 @@
 
 ## 0.6.9 (2018-05-22)
 
-* Drop connection if request's payload is not fulle consumed #236
+* Drop connection if request's payload is not fully consumed #236
+
+* Fix streaming response with body compression
 
 
 ## 0.6.8 (2018-05-20)
