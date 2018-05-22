@@ -54,6 +54,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[test]
+#[cfg(unix)]
 fn test_start() {
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
