@@ -1,5 +1,8 @@
 # Changes
 
+* Drop connection if request's payload is not fulle consumed #236
+
+
 ## 0.6.8 (2018-05-20)
 
 * Fix scope resource path extractor #234

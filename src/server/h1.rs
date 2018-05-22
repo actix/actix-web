@@ -270,7 +270,12 @@ where
                     debug!("Error sending data: {}", err);
                     return Err(());
                 }
-                _ => (),
+                Ok(Async::Ready(_)) => {
+                    // non consumed payload in that case close connection
+                    if self.payload.is_some() && self.tasks.is_empty() {
+                        return Ok(Async::Ready(false))
+                    }
+                }
             }
         }
 
