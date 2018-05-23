@@ -374,9 +374,7 @@ fn test_scope_and_path_extractor() {
         App::new().scope("/sc", |scope| {
             scope.resource("/{num}/index.html", |r| {
                 r.route()
-                    .with(|p: Path<(usize,)>| {
-                        format!("Welcome {}!", p.0)
-                    })
+                    .with(|p: Path<(usize,)>| format!("Welcome {}!", p.0))
             })
         })
     });
@@ -410,10 +408,9 @@ fn test_nested_scope_and_path_extractor() {
         App::new().scope("/sc", |scope| {
             scope.nested("/{num}", |scope| {
                 scope.resource("/{num}/index.html", |r| {
-                    r.route()
-                        .with(|p: Path<(usize, usize)>| {
-                            format!("Welcome {} {}!", p.0, p.1)
-                        })
+                    r.route().with(|p: Path<(usize, usize)>| {
+                        format!("Welcome {} {}!", p.0, p.1)
+                    })
                 })
             })
         })

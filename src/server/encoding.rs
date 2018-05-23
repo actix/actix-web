@@ -506,7 +506,7 @@ impl ContentEncoder {
                     TransferEncoding::eof(buf)
                 } else {
                     if !(encoding == ContentEncoding::Identity
-                         || encoding == ContentEncoding::Auto)
+                        || encoding == ContentEncoding::Auto)
                     {
                         resp.headers_mut().remove(CONTENT_LENGTH);
                     }

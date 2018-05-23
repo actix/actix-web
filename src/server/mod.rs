@@ -136,7 +136,7 @@ impl HttpHandler for Box<HttpHandler> {
 #[doc(hidden)]
 pub trait HttpHandlerTask {
     /// Poll task, this method is used before or after *io* object is available
-    fn poll(&mut self) -> Poll<(), Error>{
+    fn poll(&mut self) -> Poll<(), Error> {
         Ok(Async::Ready(()))
     }
 

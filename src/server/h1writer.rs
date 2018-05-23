@@ -1,6 +1,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
-use bytes::{BytesMut, BufMut};
+use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
 use std::io;
 use std::rc::Rc;

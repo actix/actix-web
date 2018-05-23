@@ -311,8 +311,16 @@ impl Resource {
                     None
                 }
             }
-            PatternType::Prefix(ref s) => if path.starts_with(s) {
+            PatternType::Prefix(ref s) => if path == s {
                 Some(s.len())
+            } else if path.starts_with(s) && (s.ends_with('/') ||
+                                              path.split_at(s.len()).1.starts_with('/'))
+            {
+                if s.ends_with('/') {
+                    Some(s.len()-1)
+                } else {
+                    Some(s.len())
+                }
             } else {
                 None
             },
