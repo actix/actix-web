@@ -38,6 +38,7 @@ pub struct NamedFile {
     md: Metadata,
     modified: Option<SystemTime>,
     cpu_pool: Option<CpuPool>,
+    encoding: Option<ContentEncoding>,
     only_get: bool,
     status_code: StatusCode,
 }
@@ -58,12 +59,14 @@ impl NamedFile {
         let path = path.as_ref().to_path_buf();
         let modified = md.modified().ok();
         let cpu_pool = None;
+        let encoding = None;
         Ok(NamedFile {
             path,
             file,
             md,
             modified,
             cpu_pool,
+            encoding,
             only_get: false,
             status_code: StatusCode::OK,
         })
@@ -112,6 +115,19 @@ impl NamedFile {
     pub fn set_status_code(mut self, status: StatusCode) -> Self {
         self.status_code = status;
         self
+    }
+
+    // Set content encoding for serving this file
+    #[inline]
+    pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
+        self.encoding = Some(enc);
+        self
+    }
+
+    // Get content encoding used for serving this file
+    #[inline]
+    pub fn content_encoding(&self) -> Option<ContentEncoding> {
+        self.encoding
     }
 
     fn etag(&self) -> Option<header::EntityTag> {
@@ -219,6 +235,9 @@ impl Responder for NamedFile {
                     ),
                 );
             });
+            if let Some(current_encoding) = self.encoding {
+                resp.content_encoding(current_encoding);
+            }
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
@@ -264,6 +283,9 @@ impl Responder for NamedFile {
         };
 
         let mut resp = HttpResponse::build(self.status_code);
+        if let Some(current_encoding) = self.encoding {
+            resp.content_encoding(current_encoding);
+        }
 
         resp.if_some(self.path().extension(), |ext, resp| {
             resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
@@ -939,6 +961,20 @@ mod tests {
 
         let resp = file.only_get().respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_named_file_content_encoding() {
+        let req = TestRequest::default().method(Method::GET).finish();
+        let file = NamedFile::open("Cargo.toml").unwrap();
+
+        assert!(file.content_encoding().is_none());
+        let resp = file.set_content_encoding(ContentEncoding::Identity)
+            .respond_to(&req)
+            .unwrap();
+
+        assert!(resp.content_encoding().is_some());
+        assert_eq!(resp.content_encoding().unwrap().as_str(), "identity");
     }
 
     #[test]
