@@ -793,6 +793,40 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_root2() {
+        let mut app = App::new()
+            .scope("/app/", |scope| {
+                scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_root3() {
+        let mut app = App::new()
+            .scope("/app/", |scope| {
+                scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
     fn test_scope_route() {
         let mut app = App::new()
             .scope("app", |scope| {
@@ -914,6 +948,48 @@ mod tests {
         let req = TestRequest::with_uri("/app/t1/").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_scope_with_state_root2() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1/", State, |scope| {
+                    scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_with_state_root3() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1/", State, |scope| {
+                    scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
