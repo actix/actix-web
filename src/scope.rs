@@ -137,14 +137,6 @@ impl<S: 'static> Scope<S> {
         };
         let mut scope = f(scope);
 
-        let mut path = path.trim().trim_right_matches('/').to_owned();
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/')
-        }
-        if !path.ends_with('/') {
-            path.push('/');
-        }
-
         let state = Rc::new(state);
         let filters: Vec<Box<Predicate<S>>> = vec![Box::new(FiltersWrapper {
             state: Rc::clone(&state),
@@ -190,14 +182,6 @@ impl<S: 'static> Scope<S> {
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
         let mut scope = f(scope);
-
-        let mut path = path.trim().trim_right_matches('/').to_owned();
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/')
-        }
-        if !path.ends_with('/') {
-            path.push('/');
-        }
 
         let filters = scope.take_filters();
         self.nested.push((
@@ -253,7 +237,12 @@ impl<S: 'static> Scope<S> {
 
         let mut handler = ResourceHandler::default();
         handler.method(method).with(f);
-        let pattern = Resource::new(handler.get_name(), path);
+        let pattern = Resource::with_prefix(
+            handler.get_name(),
+            path,
+            if path.is_empty() { "" } else { "/" },
+            false,
+        );
         Rc::get_mut(&mut self.resources)
             .expect("Can not use after configuration")
             .push((pattern, Rc::new(UnsafeCell::new(handler))));
@@ -293,7 +282,12 @@ impl<S: 'static> Scope<S> {
         let mut handler = ResourceHandler::default();
         f(&mut handler);
 
-        let pattern = Resource::new(handler.get_name(), path);
+        let pattern = Resource::with_prefix(
+            handler.get_name(),
+            path,
+            if path.is_empty() { "" } else { "/" },
+            false,
+        );
         Rc::get_mut(&mut self.resources)
             .expect("Can not use after configuration")
             .push((pattern, Rc::new(UnsafeCell::new(handler))));
@@ -329,7 +323,6 @@ impl<S: 'static> Scope<S> {
 impl<S: 'static> RouteHandler<S> for Scope<S> {
     fn handle(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
-        let path = if path == "" { "/" } else { path };
 
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
@@ -364,16 +357,12 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
                         continue 'outer;
                     }
                 }
-                let prefix_len = len + prefix_len - 1;
+                let prefix_len = len + prefix_len;
                 let path: &'static str =
                     unsafe { &*(&req.path()[prefix_len..] as *const _) };
 
                 req.set_prefix_len(prefix_len as u16);
-                if path.is_empty() {
-                    req.match_info_mut().set("tail", "/");
-                } else {
-                    req.match_info_mut().set("tail", path);
-                }
+                req.match_info_mut().set("tail", path);
 
                 let hnd: &mut RouteHandler<_> =
                     unsafe { (&mut *(handler.get())).as_mut() };
@@ -785,6 +774,59 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_root() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope
+                    .resource("", |r| r.f(|_| HttpResponse::Ok()))
+                    .resource("/", |r| r.f(|_| HttpResponse::Created()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_scope_root2() {
+        let mut app = App::new()
+            .scope("/app/", |scope| {
+                scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_root3() {
+        let mut app = App::new()
+            .scope("/app/", |scope| {
+                scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
     fn test_scope_route() {
         let mut app = App::new()
             .scope("app", |scope| {
@@ -886,6 +928,71 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_with_state_root() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1", State, |scope| {
+                    scope
+                        .resource("", |r| r.f(|_| HttpResponse::Ok()))
+                        .resource("/", |r| r.f(|_| HttpResponse::Created()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_scope_with_state_root2() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1/", State, |scope| {
+                    scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_with_state_root3() {
+        struct State;
+
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.with_state("/t1/", State, |scope| {
+                    scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
     fn test_scope_with_state_filter() {
         struct State;
 
@@ -923,6 +1030,27 @@ mod tests {
             .finish();
 
         let req = TestRequest::with_uri("/app/t1/path1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_nested_scope_root() {
+        let mut app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/t1", |scope| {
+                    scope
+                        .resource("", |r| r.f(|_| HttpResponse::Ok()))
+                        .resource("/", |r| r.f(|_| HttpResponse::Created()))
+                })
+            })
+            .finish();
+
+        let req = TestRequest::with_uri("/app/t1").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/t1/").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
     }

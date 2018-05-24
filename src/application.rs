@@ -107,16 +107,12 @@ impl<S: 'static> HttpApplication<S> {
                                 }
                             }
 
-                            let prefix_len = inner.prefix + prefix_len - 1;
+                            let prefix_len = inner.prefix + prefix_len;
                             let path: &'static str =
                                 unsafe { &*(&req.path()[prefix_len..] as *const _) };
 
                             req.set_prefix_len(prefix_len as u16);
-                            if path.is_empty() {
-                                req.match_info_mut().set("tail", "/");
-                            } else {
-                                req.match_info_mut().set("tail", path);
-                            }
+                            req.match_info_mut().set("tail", path);
                             return HandlerType::Handler(idx);
                         }
                     }
@@ -369,14 +365,6 @@ where
     {
         {
             let mut scope = Box::new(f(Scope::new()));
-
-            let mut path = path.trim().trim_right_matches('/').to_owned();
-            if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/')
-            }
-            if !path.ends_with('/') {
-                path.push('/');
-            }
             let parts = self.parts.as_mut().expect("Use after finish");
 
             let filters = scope.take_filters();

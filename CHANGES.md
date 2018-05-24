@@ -1,5 +1,16 @@
 # Changes
 
+## [0.6.10] - 2018-05-xx
+
+### Added
+
+* Allow to use path without traling slashes for scope registration #241
+
+### Fixed
+
+* `TestServer::post()` actually sends `GET` request #240
+
+
 ## 0.6.9 (2018-05-22)
 
 * Drop connection if request's payload is not fully consumed #236

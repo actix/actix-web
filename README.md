@@ -2,12 +2,12 @@
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/book/actix-web/sec-12-http2.html) protocols
+* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/docs/http2/) protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
-* Client/server [WebSockets](https://actix.rs/book/actix-web/sec-11-websockets.html) support
+* Client/server [WebSockets](https://actix.rs/docs/websockets/) support
 * Transparent content compression/decompression (br, gzip, deflate)
-* Configurable [request routing](https://actix.rs/book/actix-web/sec-6-url-dispatch.html)
+* Configurable [request routing](https://actix.rs/docs/url-dispatch/)
 * Graceful server shutdown
 * Multipart streams
 * Static assets
@@ -18,12 +18,12 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
   [DefaultHeaders](https://actix.rs/book/actix-web/sec-9-middlewares.html#default-headers),
   [CORS](https://actix.rs/actix-web/actix_web/middleware/cors/index.html),
   [CSRF](https://actix.rs/actix-web/actix_web/middleware/csrf/index.html))
-* Includes an asynchronous [HTTP client](https://github.com/actix/actix-web/blob/master/src/client/mod.rs)
+* Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Built on top of [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation & community resources
 
-* [User Guide](https://actix.rs/book/actix-web/)
+* [User Guide](https://actix.rs/docs/)
 * [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
 * [API Documentation (Releases)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
@@ -34,9 +34,9 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 ```rust
 extern crate actix_web;
-use actix_web::{http, server, App, Path};
+use actix_web::{http, server, App, Path, Responder};
 
-fn index(info: Path<(u32, String)>) -> String {
+fn index(info: Path<(u32, String)>) -> impl Responder {
     format!("Hello {}! id:{}", info.1, info.0)
 }
 

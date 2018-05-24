@@ -217,7 +217,7 @@ impl TestServer {
 
     /// Create `POST` request
     pub fn post(&self) -> ClientRequestBuilder {
-        ClientRequest::get(self.url("/").as_str())
+        ClientRequest::post(self.url("/").as_str())
     }
 
     /// Create `HEAD` request

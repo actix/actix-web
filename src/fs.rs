@@ -20,7 +20,7 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use error::Error;
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
-use http::{HttpRange, Method, StatusCode, ContentEncoding};
+use http::{ContentEncoding, HttpRange, Method, StatusCode};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -326,11 +326,11 @@ impl Responder for NamedFile {
                     resp.header(
                         header::CONTENT_RANGE,
                         format!(
-                            "bytes {}-{}/{}", 
-                            offset, 
-                            offset + length - 1, 
+                            "bytes {}-{}/{}",
+                            offset,
+                            offset + length - 1,
                             self.md.len()
-                        )
+                        ),
                     );
                 } else {
                     resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));
