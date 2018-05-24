@@ -458,7 +458,6 @@ impl HttpResponseBuilder {
     ///                 .finish())
     ///         .finish()
     /// }
-    /// fn main() {}
     /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if self.cookies.is_none() {
@@ -471,8 +470,22 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Remove cookie, cookie has to be cookie from `HttpRequest::cookies()`
-    /// method.
+    /// Remove cookie
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
+    ///
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let mut builder = HttpResponse::Ok();
+    ///
+    ///     if let Some(cookie) = req.cookie("name") {
+    ///         builder.del_cookie(cookie);
+    ///     }
+    ///
+    ///     builder.finish()
+    /// }
+    /// ```
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
         {
             if self.cookies.is_none() {
