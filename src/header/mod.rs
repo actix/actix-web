@@ -40,7 +40,7 @@ pub trait IntoHeaderValue: Sized {
     /// The type returned in the event of a conversion error.
     type Error: Into<HttpError>;
 
-    /// Cast from PyObject to a concrete Python object type.
+    /// Try to convert value to a Header value.
     fn try_into(self) -> Result<HeaderValue, Self::Error>;
 }
 
