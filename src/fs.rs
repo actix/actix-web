@@ -117,17 +117,11 @@ impl NamedFile {
         self
     }
 
-    // Set content encoding for serving this file
+    /// Set content encoding for serving this file
     #[inline]
     pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
         self.encoding = Some(enc);
         self
-    }
-
-    // Get content encoding used for serving this file
-    #[inline]
-    pub fn content_encoding(&self) -> Option<ContentEncoding> {
-        self.encoding
     }
 
     fn etag(&self) -> Option<header::EntityTag> {
@@ -968,8 +962,9 @@ mod tests {
         let req = TestRequest::default().method(Method::GET).finish();
         let file = NamedFile::open("Cargo.toml").unwrap();
 
-        assert!(file.content_encoding().is_none());
-        let resp = file.set_content_encoding(ContentEncoding::Identity)
+        assert!(file.encoding.is_none());
+        let resp = file
+            .set_content_encoding(ContentEncoding::Identity)
             .respond_to(&req)
             .unwrap();
 

@@ -1,10 +1,12 @@
 # Changes
 
-## [0.6.10] - 2018-05-xx
+## [0.6.10] - 2018-05-24
 
 ### Added
 
 * Allow to use path without traling slashes for scope registration #241
+
+* Allow to set encoding for exact NamedFile #239
 
 ### Fixed
 
