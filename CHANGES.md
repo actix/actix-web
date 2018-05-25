@@ -6,6 +6,8 @@
 
 * Migrate to tokio
 
+* Min rustc version is 1.26
+
 
 ## [0.6.10] - 2018-05-24
 
