@@ -2,12 +2,11 @@ use std::collections::VecDeque;
 use std::io;
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use actix::Arbiter;
 use bytes::{BufMut, BytesMut};
 use futures::{Async, Future, Poll};
-use tokio_core::reactor::Timeout;
+use tokio_timer::Delay;
 
 use error::PayloadError;
 use httprequest::HttpRequest;
@@ -53,7 +52,7 @@ pub(crate) struct Http1<T: IoStream, H: 'static> {
     payload: Option<PayloadType>,
     buf: BytesMut,
     tasks: VecDeque<Entry>,
-    keepalive_timer: Option<Timeout>,
+    keepalive_timer: Option<Delay>,
 }
 
 struct Entry {
@@ -295,8 +294,7 @@ where
             if self.keepalive_timer.is_none() && keep_alive > 0 {
                 trace!("Start keep-alive timer");
                 let mut timer =
-                    Timeout::new(Duration::new(keep_alive, 0), Arbiter::handle())
-                        .unwrap();
+                    Delay::new(Instant::now() + Duration::new(keep_alive, 0));
                 // register timer
                 let _ = timer.poll();
                 self.keepalive_timer = Some(timer);

@@ -47,7 +47,8 @@ flate2-c = ["flate2/miniz-sys"]
 flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
-actix = "^0.5.5"
+#actix = "^0.6.0"
+actix = { git="https://github.com/actix/actix.git" }
 
 base64 = "0.9"
 bitflags = "1.0"
@@ -62,7 +63,7 @@ mime = "0.3"
 mime_guess = "2.0.0-alpha"
 num_cpus = "1.0"
 percent-encoding = "1.0"
-rand = "0.4"
+rand = "0.5"
 regex = "1.0"
 serde = "1.0"
 serde_json = "1.0"
@@ -86,8 +87,11 @@ byteorder = "1"
 futures = "0.1"
 futures-cpupool = "0.1"
 slab = "0.4"
+tokio = "0.1"
 tokio-io = "0.1"
-tokio-core = "0.1"
+tokio-tcp = "0.1"
+tokio-timer = "0.2"
+tokio-reactor = "0.1"
 
 # native-tls
 native-tls = { version="0.1", optional = true }

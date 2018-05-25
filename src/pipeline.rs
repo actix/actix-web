@@ -770,7 +770,7 @@ mod tests {
     use actix::*;
     use context::HttpContext;
     use futures::future::{lazy, result};
-    use tokio_core::reactor::Core;
+    use tokio::runtime::current_thread::Runtime;
 
     impl<S, H> PipelineState<S, H> {
         fn is_none(&self) -> Option<bool> {
@@ -796,9 +796,9 @@ mod tests {
 
     #[test]
     fn test_completed() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let mut info = PipelineInfo::new(HttpRequest::default());
                 Completed::<(), Inner<()>>::init(&mut info)
                     .is_none()

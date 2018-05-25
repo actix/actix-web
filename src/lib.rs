@@ -112,8 +112,11 @@ extern crate mio;
 extern crate net2;
 extern crate rand;
 extern crate slab;
-extern crate tokio_core;
+extern crate tokio;
 extern crate tokio_io;
+extern crate tokio_reactor;
+extern crate tokio_tcp;
+extern crate tokio_timer;
 extern crate url;
 #[macro_use]
 extern crate serde;

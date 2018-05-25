@@ -663,7 +663,7 @@ mod tests {
     use bytes::Bytes;
     use futures::future::{lazy, result};
     use payload::{Payload, PayloadWriter};
-    use tokio_core::reactor::Core;
+    use tokio::runtime::current_thread::Runtime;
 
     #[test]
     fn test_boundary() {
@@ -710,9 +710,9 @@ mod tests {
 
     #[test]
     fn test_multipart() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
 
                 let bytes = Bytes::from(

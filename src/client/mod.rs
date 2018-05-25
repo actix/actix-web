@@ -10,7 +10,7 @@
 //! fn main() {
 //!     let sys = actix::System::new("test");
 //!
-//!     actix::Arbiter::handle().spawn({
+//!     actix::Arbiter::spawn({
 //!         client::get("http://www.rust-lang.org")   // <- Create request builder
 //!             .header("User-Agent", "Actix-web")
 //!             .finish().unwrap()
@@ -70,7 +70,7 @@ impl ResponseError for SendRequestError {
 /// fn main() {
 ///     let sys = actix::System::new("test");
 ///
-///     actix::Arbiter::handle().spawn({
+///     actix::Arbiter::spawn({
 ///         client::get("http://www.rust-lang.org")   // <- Create request builder
 ///             .header("User-Agent", "Actix-web")
 ///             .finish().unwrap()

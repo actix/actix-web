@@ -34,7 +34,7 @@ use httprequest::HttpRequest;
 /// fn main() {
 ///     let sys = actix::System::new("test");
 ///
-///     actix::Arbiter::handle().spawn({
+///     actix::Arbiter::spawn({
 ///         ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
 ///             .header("User-Agent", "Actix-web")
 ///             .finish().unwrap()

@@ -5,8 +5,8 @@ use std::{io, time};
 use actix;
 use bytes::BytesMut;
 use futures::{Async, Poll};
-use tokio_core::net::TcpStream;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_tcp::TcpStream;
 
 mod channel;
 pub(crate) mod encoding;

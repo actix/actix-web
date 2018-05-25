@@ -4,21 +4,20 @@ extern crate bytes;
 extern crate futures;
 extern crate h2;
 extern crate http;
-extern crate tokio_core;
+extern crate tokio_timer;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use actix::*;
 use actix_web::*;
 use bytes::Bytes;
 use futures::Future;
 use http::StatusCode;
 use serde_json::Value;
-use tokio_core::reactor::Timeout;
+use tokio_timer::Delay;
 
 #[derive(Deserialize)]
 struct PParam {
@@ -75,8 +74,7 @@ fn test_async_extractor_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route().with(|data: Json<Value>| {
-                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                    .unwrap()
+                Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| Ok(format!("{}", data.0)))
                     .responder()
             })
@@ -171,8 +169,7 @@ fn test_path_and_query_extractor2_async() {
         app.resource("/{username}/index.html", |r| {
             r.route()
                 .with3(|p: Path<PParam>, _: Query<PParam>, data: Json<Value>| {
-                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                        .unwrap()
+                    Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
@@ -201,8 +198,7 @@ fn test_path_and_query_extractor3_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route().with2(|p: Path<PParam>, data: Json<Value>| {
-                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                    .unwrap()
+                Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
                     })
@@ -227,8 +223,7 @@ fn test_path_and_query_extractor4_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route().with2(|data: Json<Value>, p: Path<PParam>| {
-                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                    .unwrap()
+                Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
                     })
@@ -254,8 +249,7 @@ fn test_path_and_query_extractor2_async2() {
         app.resource("/{username}/index.html", |r| {
             r.route()
                 .with3(|p: Path<PParam>, data: Json<Value>, _: Query<PParam>| {
-                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                        .unwrap()
+                    Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
@@ -294,8 +288,7 @@ fn test_path_and_query_extractor2_async3() {
         app.resource("/{username}/index.html", |r| {
             r.route()
                 .with3(|data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
-                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                        .unwrap()
+                    Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
@@ -334,8 +327,7 @@ fn test_path_and_query_extractor2_async4() {
         app.resource("/{username}/index.html", |r| {
             r.route()
                 .with(|data: (Json<Value>, Path<PParam>, Query<PParam>)| {
-                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                        .unwrap()
+                    Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", data.1.username, (data.0).0))
                         })
@@ -443,8 +435,8 @@ fn test_nested_scope_and_path_extractor() {
 fn test_impl_trait(
     data: (Json<Value>, Path<PParam>, Query<PParam>),
 ) -> impl Future<Item = String, Error = io::Error> {
-    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-        .unwrap()
+    Delay::new(Instant::now() + Duration::from_millis(10))
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "timeout"))
         .and_then(move |_| Ok(format!("Welcome {} - {}!", data.1.username, (data.0).0)))
 }
 
@@ -452,8 +444,8 @@ fn test_impl_trait(
 fn test_impl_trait_err(
     _data: (Json<Value>, Path<PParam>, Query<PParam>),
 ) -> impl Future<Item = String, Error = io::Error> {
-    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-        .unwrap()
+    Delay::new(Instant::now() + Duration::from_millis(10))
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "timeout"))
         .and_then(move |_| Err(io::Error::new(io::ErrorKind::Other, "other")))
 }
 

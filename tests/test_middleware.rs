@@ -1,17 +1,16 @@
 extern crate actix;
 extern crate actix_web;
 extern crate futures;
-extern crate tokio_core;
+extern crate tokio_timer;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use actix::*;
 use actix_web::*;
 use futures::{future, Future};
-use tokio_core::reactor::Timeout;
+use tokio_timer::Delay;
 
 struct MiddlewareTest {
     start: Arc<AtomicUsize>,
@@ -245,8 +244,7 @@ fn test_middleware_async_handler() {
             })
             .resource("/", |r| {
                 r.route().a(|_| {
-                    Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                        .unwrap()
+                    Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(|_| Ok(HttpResponse::Ok()))
                 })
             })
@@ -281,8 +279,7 @@ fn test_resource_middleware_async_handler() {
         App::new().resource("/test", |r| {
             r.middleware(mw);
             r.route().a(|_| {
-                Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                    .unwrap()
+                Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(|_| Ok(HttpResponse::Ok()))
             })
         })
@@ -317,8 +314,7 @@ fn test_scope_middleware_async_handler() {
                 })
                 .resource("/test", |r| {
                     r.route().a(|_| {
-                        Timeout::new(Duration::from_millis(10), &Arbiter::handle())
-                            .unwrap()
+                        Delay::new(Instant::now() + Duration::from_millis(10))
                             .and_then(|_| Ok(HttpResponse::Ok()))
                     })
                 })
@@ -436,7 +432,7 @@ struct MiddlewareAsyncTest {
 
 impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
-        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+        let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let start = Arc::clone(&self.start);
         Ok(middleware::Started::Future(Box::new(
@@ -450,7 +446,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     fn response(
         &self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
-        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+        let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let response = Arc::clone(&self.response);
         Ok(middleware::Response::Future(Box::new(
@@ -462,7 +458,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     }
 
     fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
-        let to = Timeout::new(Duration::from_millis(10), &Arbiter::handle()).unwrap();
+        let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let finish = Arc::clone(&self.finish);
         middleware::Finished::Future(Box::new(to.from_err().and_then(move |_| {

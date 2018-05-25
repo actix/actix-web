@@ -2,9 +2,9 @@ use bytes::{Bytes, BytesMut};
 use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use http::header::CONTENT_ENCODING;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{io, mem};
-use tokio_core::reactor::Timeout;
+use tokio_timer::Delay;
 
 use actix::prelude::*;
 
@@ -71,7 +71,7 @@ pub struct SendRequest {
     conn: Addr<Unsync, ClientConnector>,
     conn_timeout: Duration,
     wait_timeout: Duration,
-    timeout: Option<Timeout>,
+    timeout: Option<Delay>,
 }
 
 impl SendRequest {
@@ -108,7 +108,7 @@ impl SendRequest {
     /// Request timeout is the total time before a response must be received.
     /// Default value is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(Timeout::new(timeout, Arbiter::handle()).unwrap());
+        self.timeout = Some(Delay::new(Instant::now() + timeout));
         self
     }
 
@@ -174,7 +174,7 @@ impl Future for SendRequest {
                     };
 
                     let timeout = self.timeout.take().unwrap_or_else(|| {
-                        Timeout::new(Duration::from_secs(5), Arbiter::handle()).unwrap()
+                        Delay::new(Instant::now() + Duration::from_secs(5))
                     });
 
                     let pl = Box::new(Pipeline {
@@ -229,7 +229,7 @@ pub(crate) struct Pipeline {
     decompress: Option<PayloadStream>,
     should_decompress: bool,
     write_state: RunningState,
-    timeout: Option<Timeout>,
+    timeout: Option<Delay>,
 }
 
 enum IoBody {

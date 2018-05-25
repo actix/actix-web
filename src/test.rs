@@ -11,8 +11,9 @@ use futures::Future;
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
-use tokio_core::net::TcpListener;
-use tokio_core::reactor::Core;
+use tokio::runtime::current_thread::Runtime;
+use tokio_reactor::Handle;
+use tokio_tcp::TcpListener;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptor;
@@ -112,8 +113,7 @@ impl TestServer {
             let sys = System::new("actix-test-server");
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
-            let tcp =
-                TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
+            let tcp = TcpListener::from_std(tcp, &Handle::default()).unwrap();
 
             HttpServer::new(factory)
                 .disable_signals()
@@ -289,8 +289,7 @@ impl<S: 'static> TestServerBuilder<S> {
 
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
-            let tcp =
-                TcpListener::from_listener(tcp, &local_addr, Arbiter::handle()).unwrap();
+            let tcp = TcpListener::from_std(tcp, &Handle::default()).unwrap();
 
             let state = self.state;
 
@@ -309,10 +308,9 @@ impl<S: 'static> TestServerBuilder<S> {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
                     srv.start_incoming(
-                        tcp.incoming().and_then(move |(sock, addr)| {
+                        tcp.incoming().and_then(move |sock| {
                             ssl.accept_async(sock)
                                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                                .map(move |s| (s, addr))
                         }),
                         false,
                     );
@@ -616,8 +614,8 @@ impl<S: 'static> TestRequest<S> {
         let req = self.finish();
         let fut = h(req.clone());
 
-        let mut core = Core::new().unwrap();
-        match core.run(fut) {
+        let mut core = Runtime::new().unwrap();
+        match core.block_on(fut) {
             Ok(r) => match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => Ok(resp),

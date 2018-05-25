@@ -9,16 +9,16 @@ use actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::fut::WrapFuture;
 use actix::registry::ArbiterService;
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Arbiter, AsyncContext, Context,
-    ContextFutureSpawner, Handler, Message, Recipient, Supervised, Syn,
+    fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context, ContextFutureSpawner,
+    Handler, Message, Recipient, Supervised, Syn,
 };
 
 use futures::task::{current as current_task, Task};
 use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use http::{Error as HttpError, HttpTryFrom, Uri};
-use tokio_core::reactor::Timeout;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_timer::Delay;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::{Error as OpensslError, SslConnector, SslMethod};
@@ -190,8 +190,8 @@ pub struct ClientConnector {
     available: HashMap<Key, VecDeque<Conn>>,
     to_close: Vec<Connection>,
     waiters: HashMap<Key, VecDeque<Waiter>>,
-    wait_timeout: Option<(Instant, Timeout)>,
-    paused: Option<Option<(Instant, Timeout)>>,
+    wait_timeout: Option<(Instant, Delay)>,
+    paused: Option<Option<(Instant, Delay)>>,
 }
 
 impl Actor for ClientConnector {
@@ -563,8 +563,7 @@ impl ClientConnector {
             }
         }
 
-        let mut timeout =
-            Timeout::new(time - Instant::now(), Arbiter::handle()).unwrap();
+        let mut timeout = Delay::new(time);
         let _ = timeout.poll();
         self.wait_timeout = Some((time, timeout));
     }
@@ -597,7 +596,7 @@ impl Handler<Pause> for ClientConnector {
     fn handle(&mut self, msg: Pause, _: &mut Self::Context) {
         if let Some(time) = msg.time {
             let when = Instant::now() + time;
-            let mut timeout = Timeout::new(time, Arbiter::handle()).unwrap();
+            let mut timeout = Delay::new(when);
             let _ = timeout.poll();
             self.paused = Some(Some((when, timeout)));
         } else if self.paused.is_none() {

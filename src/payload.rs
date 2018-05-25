@@ -524,7 +524,7 @@ mod tests {
     use failure::Fail;
     use futures::future::{lazy, result};
     use std::io;
-    use tokio_core::reactor::Core;
+    use tokio::runtime::current_thread::Runtime;
 
     #[test]
     fn test_error() {
@@ -542,9 +542,9 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (_, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -559,9 +559,9 @@ mod tests {
 
     #[test]
     fn test_eof() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -584,9 +584,9 @@ mod tests {
 
     #[test]
     fn test_err() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -602,9 +602,9 @@ mod tests {
 
     #[test]
     fn test_readany() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -631,9 +631,9 @@ mod tests {
 
     #[test]
     fn test_readexactly() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -665,9 +665,9 @@ mod tests {
 
     #[test]
     fn test_readuntil() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
                 let mut payload = PayloadHelper::new(payload);
 
@@ -699,9 +699,9 @@ mod tests {
 
     #[test]
     fn test_unread_data() {
-        Core::new()
+        Runtime::new()
             .unwrap()
-            .run(lazy(|| {
+            .block_on(lazy(|| {
                 let (_, mut payload) = Payload::new(false);
 
                 payload.unread_data(Bytes::from("data"));

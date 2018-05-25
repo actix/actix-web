@@ -4,17 +4,16 @@ use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{cmp, io, mem};
 
-use actix::Arbiter;
 use bytes::{Buf, Bytes};
 use futures::{Async, Future, Poll, Stream};
 use http2::server::{self, Connection, Handshake, SendResponse};
 use http2::{Reason, RecvStream};
 use modhttp::request::Parts;
-use tokio_core::reactor::Timeout;
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_timer::Delay;
 
 use error::PayloadError;
 use httpmessage::HttpMessage;
@@ -46,7 +45,7 @@ where
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry<H>>,
-    keepalive_timer: Option<Timeout>,
+    keepalive_timer: Option<Delay>,
 }
 
 enum State<T: AsyncRead + AsyncWrite> {
@@ -218,9 +217,10 @@ where
                                     let keep_alive = self.settings.keep_alive();
                                     if keep_alive > 0 && self.keepalive_timer.is_none() {
                                         trace!("Start keep-alive timer");
-                                        let mut timeout = Timeout::new(
-                                            Duration::new(keep_alive, 0),
-                                            Arbiter::handle()).unwrap();
+                                        let mut timeout = Delay::new(
+                                            Instant::now()
+                                                + Duration::new(keep_alive, 0),
+                                        );
                                         // register timeout
                                         let _ = timeout.poll();
                                         self.keepalive_timer = Some(timeout);

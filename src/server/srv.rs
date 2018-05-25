@@ -563,11 +563,10 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<T, A, S>(mut self, stream: S, secure: bool) -> Addr<Syn, Self>
+    pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> Addr<Syn, Self>
     where
-        S: Stream<Item = (T, A), Error = io::Error> + 'static,
+        S: Stream<Item = T, Error = io::Error> + 'static,
         T: AsyncRead + AsyncWrite + 'static,
-        A: 'static,
     {
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
@@ -581,7 +580,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         // start server
         let signals = self.subscribe_to_signals();
         let addr: Addr<Syn, _> = HttpServer::create(move |ctx| {
-            ctx.add_message_stream(stream.map_err(|_| ()).map(move |(t, _)| Conn {
+            ctx.add_message_stream(stream.map_err(|_| ()).map(move |t| Conn {
                 io: WrapperStream::new(t),
                 token: 0,
                 peer: None,
@@ -687,7 +686,7 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::handle().spawn(HttpChannel::new(
+        Arbiter::spawn(HttpChannel::new(
             Rc::clone(self.h.as_ref().unwrap()),
             msg.io,
             msg.peer,

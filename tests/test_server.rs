@@ -6,7 +6,9 @@ extern crate futures;
 extern crate h2;
 extern crate http as modhttp;
 extern crate rand;
-extern crate tokio_core;
+extern crate tokio;
+extern crate tokio_reactor;
+extern crate tokio_tcp;
 
 #[cfg(feature = "brotli")]
 extern crate brotli2;
@@ -25,8 +27,9 @@ use rand::Rng;
 use std::io::{Read, Write};
 use std::sync::{mpsc, Arc};
 use std::{net, thread, time};
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::Core;
+use tokio::executor::current_thread;
+use tokio::runtime::current_thread::Runtime;
+use tokio_tcp::TcpStream;
 
 use actix::System;
 use actix_web::*;
@@ -790,9 +793,8 @@ fn test_h2() {
     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
     let addr = srv.addr();
 
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-    let tcp = TcpStream::connect(&addr, &handle);
+    let mut core = Runtime::new().unwrap();
+    let tcp = TcpStream::connect(&addr);
 
     let tcp = tcp
         .then(|res| h2client::handshake(res.unwrap()))
@@ -806,7 +808,7 @@ fn test_h2() {
             let (response, _) = client.send_request(request, false).unwrap();
 
             // Spawn a task to run the conn...
-            handle.spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
+            current_thread::spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
 
             response.and_then(|response| {
                 assert_eq!(response.status(), http::StatusCode::OK);
@@ -819,7 +821,7 @@ fn test_h2() {
                 })
             })
         });
-    let _res = core.run(tcp);
+    let _res = core.block_on(tcp);
     // assert_eq!(_res.unwrap(), Bytes::from_static(STR.as_ref()));
 }
 
