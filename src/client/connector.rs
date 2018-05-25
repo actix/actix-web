@@ -286,9 +286,9 @@ impl ClientConnector {
     ///
     ///     // Start `ClientConnector` with custom `SslConnector`
     ///     let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
-    ///     let conn: Address<_> = ClientConnector::with_connector(ssl_conn).start();
+    ///     let conn: Addr<Unsync, _> = ClientConnector::with_connector(ssl_conn).start();
     ///
-    ///     Arbiter::handle().spawn({
+    ///     Arbiter::spawn(
     ///         conn.send(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
     ///                 .map_err(|_| ())
@@ -299,7 +299,7 @@ impl ClientConnector {
     /// #                   Arbiter::system().do_send(actix::msgs::SystemExit(0));
     ///                     Ok(())
     ///                 })
-    ///     });
+    ///     );
     ///
     ///     sys.run();
     /// }
