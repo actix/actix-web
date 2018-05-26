@@ -69,7 +69,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use cookie::{Cookie, CookieJar, Key};
+use cookie::{Cookie, CookieJar, Key, SameSite};
 use futures::future::{err as FutErr, ok as FutOk, FutureResult};
 use futures::Future;
 use http::header::{self, HeaderValue};
@@ -367,6 +367,7 @@ struct CookieSessionInner {
     domain: Option<String>,
     secure: bool,
     max_age: Option<Duration>,
+    same_site: Option<SameSite>,
 }
 
 impl CookieSessionInner {
@@ -379,6 +380,7 @@ impl CookieSessionInner {
             domain: None,
             secure: true,
             max_age: None,
+            same_site: None,
         }
     }
 
@@ -402,6 +404,10 @@ impl CookieSessionInner {
 
         if let Some(max_age) = self.max_age {
             cookie.set_max_age(max_age);
+        }
+
+        if let Some(same_site) = self.same_site {
+            cookie.set_same_site(same_site);
         }
 
         let mut jar = CookieJar::new();
@@ -528,6 +534,12 @@ impl CookieSessionBackend {
     /// connection is secure - i.e. `https`
     pub fn secure(mut self, value: bool) -> CookieSessionBackend {
         Rc::get_mut(&mut self.0).unwrap().secure = value;
+        self
+    }
+
+    /// Sets the `same_site` field in the session cookie being built.
+    pub fn same_site(mut self, value: SameSite) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().same_site = Some(value);
         self
     }
 
