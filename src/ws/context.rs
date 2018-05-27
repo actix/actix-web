@@ -3,11 +3,10 @@ use futures::unsync::oneshot;
 use futures::{Async, Poll};
 use smallvec::SmallVec;
 
-use actix::dev::{ContextImpl, SyncEnvelope, ToEnvelope};
+use actix::dev::{ContextImpl, Envelope, ToEnvelope};
 use actix::fut::ActorFuture;
 use actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
-    Syn, Unsync,
 };
 
 use body::{Binary, Body};
@@ -75,16 +74,9 @@ where
         self.inner.cancel_future(handle)
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn unsync_address(&mut self) -> Addr<Unsync, A> {
-        self.inner.unsync_address()
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    fn sync_address(&mut self) -> Addr<Syn, A> {
-        self.inner.sync_address()
+    fn address(&mut self) -> Addr<A> {
+        self.inner.address()
     }
 }
 
@@ -282,14 +274,14 @@ where
     }
 }
 
-impl<A, M, S> ToEnvelope<Syn, A, M> for WebsocketContext<A, S>
+impl<A, M, S> ToEnvelope<A, M> for WebsocketContext<A, S>
 where
     A: Actor<Context = WebsocketContext<A, S>> + Handler<M>,
     M: Message + Send + 'static,
     M::Result: Send,
 {
-    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> SyncEnvelope<A> {
-        SyncEnvelope::new(msg, tx)
+    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
+        Envelope::new(msg, tx)
     }
 }
 

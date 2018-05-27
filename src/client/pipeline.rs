@@ -56,7 +56,7 @@ impl From<ClientConnectorError> for SendRequestError {
 
 enum State {
     New,
-    Connect(actix::dev::Request<Unsync, ClientConnector, Connect>),
+    Connect(actix::dev::Request<ClientConnector, Connect>),
     Connection(Connection),
     Send(Box<Pipeline>),
     None,
@@ -68,7 +68,7 @@ enum State {
 pub struct SendRequest {
     req: ClientRequest,
     state: State,
-    conn: Addr<Unsync, ClientConnector>,
+    conn: Addr<ClientConnector>,
     conn_timeout: Duration,
     wait_timeout: Duration,
     timeout: Option<Delay>,
@@ -80,7 +80,7 @@ impl SendRequest {
     }
 
     pub(crate) fn with_connector(
-        req: ClientRequest, conn: Addr<Unsync, ClientConnector>,
+        req: ClientRequest, conn: Addr<ClientConnector>,
     ) -> SendRequest {
         SendRequest {
             req,

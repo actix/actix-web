@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix::{msgs, Actor, Addr, Arbiter, Syn, System, SystemRunner, Unsync};
+use actix::{msgs, Actor, Addr, Arbiter, System, SystemRunner};
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
@@ -64,9 +64,9 @@ pub struct TestServer {
     addr: net::SocketAddr,
     thread: Option<thread::JoinHandle<()>>,
     system: SystemRunner,
-    server_sys: Addr<Syn, System>,
+    server_sys: Addr<System>,
     ssl: bool,
-    conn: Addr<Unsync, ClientConnector>,
+    conn: Addr<ClientConnector>,
 }
 
 impl TestServer {
@@ -135,7 +135,7 @@ impl TestServer {
         }
     }
 
-    fn get_conn() -> Addr<Unsync, ClientConnector> {
+    fn get_conn() -> Addr<ClientConnector> {
         #[cfg(feature = "alpn")]
         {
             use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};

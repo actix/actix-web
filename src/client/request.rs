@@ -3,7 +3,7 @@ use std::io::Write;
 use std::time::Duration;
 use std::{fmt, mem};
 
-use actix::{Addr, Unsync};
+use actix::Addr;
 use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::Stream;
@@ -67,7 +67,7 @@ pub struct ClientRequest {
 
 enum ConnectionType {
     Default,
-    Connector(Addr<Unsync, ClientConnector>),
+    Connector(Addr<ClientConnector>),
     Connection(Connection),
 }
 
@@ -541,7 +541,7 @@ impl ClientRequestBuilder {
     }
 
     /// Send request using custom connector
-    pub fn with_connector(&mut self, conn: Addr<Unsync, ClientConnector>) -> &mut Self {
+    pub fn with_connector(&mut self, conn: Addr<ClientConnector>) -> &mut Self {
         if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.conn = ConnectionType::Connector(conn);
         }

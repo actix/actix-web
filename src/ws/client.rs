@@ -111,7 +111,7 @@ pub struct Client {
     http_err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
-    conn: Addr<Unsync, ClientConnector>,
+    conn: Addr<ClientConnector>,
     max_size: usize,
 }
 
@@ -122,9 +122,7 @@ impl Client {
     }
 
     /// Create new websocket connection with custom `ClientConnector`
-    pub fn with_connector<S: AsRef<str>>(
-        uri: S, conn: Addr<Unsync, ClientConnector>,
-    ) -> Client {
+    pub fn with_connector<S: AsRef<str>>(uri: S, conn: Addr<ClientConnector>) -> Client {
         let mut cl = Client {
             request: ClientRequest::build(),
             err: None,

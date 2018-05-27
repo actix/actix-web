@@ -1,20 +1,17 @@
-use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::net::Shutdown;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
 use actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::fut::WrapFuture;
-use actix::registry::ArbiterService;
+use actix::registry::SystemService;
 use actix::{
     fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context, ContextFutureSpawner,
-    Handler, Message, Recipient, Supervised, Syn,
+    Handler, Message, Recipient, StreamHandler, Supervised,
 };
 
-use futures::task::{current as current_task, Task};
-use futures::unsync::oneshot;
+use futures::sync::{mpsc, oneshot};
 use futures::{Async, Future, Poll};
 use http::{Error as HttpError, HttpTryFrom, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -167,6 +164,21 @@ struct Waiter {
     conn_timeout: Duration,
 }
 
+enum Paused {
+    No,
+    Yes,
+    Timeout(Instant, Delay),
+}
+
+impl Paused {
+    fn is_paused(&self) -> bool {
+        match *self {
+            Paused::No => false,
+            _ => true,
+        }
+    }
+}
+
 /// `ClientConnector` type is responsible for transport layer of a
 /// client connection.
 pub struct ClientConnector {
@@ -176,10 +188,10 @@ pub struct ClientConnector {
     connector: TlsConnector,
 
     stats: ClientConnectorStats,
-    subscriber: Option<Recipient<Syn, ClientConnectorStats>>,
+    subscriber: Option<Recipient<ClientConnectorStats>>,
 
-    pool: Rc<Pool>,
-    pool_modified: Rc<Cell<bool>>,
+    acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
+    acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
@@ -191,7 +203,7 @@ pub struct ClientConnector {
     to_close: Vec<Connection>,
     waiters: HashMap<Key, VecDeque<Waiter>>,
     wait_timeout: Option<(Instant, Delay)>,
-    paused: Option<Option<(Instant, Delay)>>,
+    paused: Paused,
 }
 
 impl Actor for ClientConnector {
@@ -199,17 +211,18 @@ impl Actor for ClientConnector {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.collect_periodic(ctx);
+        ctx.add_stream(self.acq_rx.take().unwrap());
         ctx.spawn(Maintenance);
     }
 }
 
 impl Supervised for ClientConnector {}
 
-impl ArbiterService for ClientConnector {}
+impl SystemService for ClientConnector {}
 
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
-        let _modified = Rc::new(Cell::new(false));
+        let (tx, rx) = mpsc::unbounded();
 
         #[cfg(all(feature = "alpn"))]
         {
@@ -222,8 +235,8 @@ impl Default for ClientConnector {
             ClientConnector {
                 stats: ClientConnectorStats::default(),
                 subscriber: None,
-                pool: Rc::new(Pool::new(Rc::clone(&_modified))),
-                pool_modified: _modified,
+                acq_tx: tx,
+                acq_rx: Some(rx),
                 connector: builder.build().unwrap(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
@@ -235,7 +248,7 @@ impl Default for ClientConnector {
                 to_close: Vec::new(),
                 waiters: HashMap::new(),
                 wait_timeout: None,
-                paused: None,
+                paused: Paused::No,
             }
         }
 
@@ -243,8 +256,8 @@ impl Default for ClientConnector {
         ClientConnector {
             stats: ClientConnectorStats::default(),
             subscriber: None,
-            pool: Rc::new(Pool::new(Rc::clone(&_modified))),
-            pool_modified: _modified,
+            acq_tx: tx,
+            acq_rx: Some(rx),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -255,7 +268,7 @@ impl Default for ClientConnector {
             to_close: Vec::new(),
             waiters: HashMap::new(),
             wait_timeout: None,
-            paused: None,
+            paused: Paused::No,
         }
     }
 }
@@ -286,7 +299,7 @@ impl ClientConnector {
     ///
     ///     // Start `ClientConnector` with custom `SslConnector`
     ///     let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
-    ///     let conn: Addr<Unsync, _> = ClientConnector::with_connector(ssl_conn).start();
+    ///     let conn = ClientConnector::with_connector(ssl_conn).start();
     ///
     ///     Arbiter::spawn(
     ///         conn.send(
@@ -305,13 +318,14 @@ impl ClientConnector {
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
-        let modified = Rc::new(Cell::new(false));
+        let (tx, rx) = mpsc::unbounded();
+
         ClientConnector {
             connector,
             stats: ClientConnectorStats::default(),
             subscriber: None,
-            pool: Rc::new(Pool::new(Rc::clone(&modified))),
-            pool_modified: modified,
+            pool_tx: tx,
+            pool_rx: Some(rx),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -322,7 +336,7 @@ impl ClientConnector {
             to_close: Vec::new(),
             waiters: HashMap::new(),
             wait_timeout: None,
-            paused: None,
+            paused: Paused::No,
         }
     }
 
@@ -366,7 +380,7 @@ impl ClientConnector {
     }
 
     /// Subscribe for connector stats. Only one subscriber is supported.
-    pub fn stats(mut self, subs: Recipient<Syn, ClientConnectorStats>) -> Self {
+    pub fn stats(mut self, subs: Recipient<ClientConnectorStats>) -> Self {
         self.subscriber = Some(subs);
         self
     }
@@ -448,75 +462,18 @@ impl ClientConnector {
         }
     }
 
-    fn collect(&mut self, periodic: bool) {
-        let now = Instant::now();
-
-        if self.pool_modified.get() {
-            // collect half acquire keys
-            if let Some(keys) = self.pool.collect_keys() {
-                for key in keys {
-                    self.release_key(&key);
-                }
-            }
-
-            // collect connections for close
-            if let Some(to_close) = self.pool.collect_close() {
-                for conn in to_close {
-                    self.release_key(&conn.key);
-                    self.to_close.push(conn);
-                    self.stats.closed += 1;
-                }
-            }
-
-            // connection connections
-            if let Some(to_release) = self.pool.collect_release() {
-                for conn in to_release {
-                    self.release_key(&conn.key);
-
-                    // check connection lifetime and the return to available pool
-                    if (now - conn.ts) < self.conn_lifetime {
-                        self.available
-                            .entry(conn.key.clone())
-                            .or_insert_with(VecDeque::new)
-                            .push_back(Conn(Instant::now(), conn));
-                    }
-                }
-            }
-        }
-
-        // check keep-alive
-        for conns in self.available.values_mut() {
-            while !conns.is_empty() {
-                if (now > conns[0].0) && (now - conns[0].0) > self.conn_keep_alive
-                    || (now - conns[0].1.ts) > self.conn_lifetime
-                {
-                    let conn = conns.pop_front().unwrap().1;
-                    self.to_close.push(conn);
-                    self.stats.closed += 1;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        // check connections for shutdown
-        if periodic {
-            let mut idx = 0;
-            while idx < self.to_close.len() {
-                match AsyncWrite::shutdown(&mut self.to_close[idx]) {
-                    Ok(Async::NotReady) => idx += 1,
-                    _ => {
-                        self.to_close.swap_remove(idx);
-                    }
-                }
-            }
-        }
-
-        self.pool_modified.set(false);
-    }
-
     fn collect_periodic(&mut self, ctx: &mut Context<Self>) {
-        self.collect(true);
+        // check connections for shutdown
+        let mut idx = 0;
+        while idx < self.to_close.len() {
+            match AsyncWrite::shutdown(&mut self.to_close[idx]) {
+                Ok(Async::NotReady) => idx += 1,
+                _ => {
+                    self.to_close.swap_remove(idx);
+                }
+            }
+        }
+
         // re-schedule next collect period
         ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect_periodic(ctx));
 
@@ -598,9 +555,9 @@ impl Handler<Pause> for ClientConnector {
             let when = Instant::now() + time;
             let mut timeout = Delay::new(when);
             let _ = timeout.poll();
-            self.paused = Some(Some((when, timeout)));
-        } else if self.paused.is_none() {
-            self.paused = Some(None);
+            self.paused = Paused::Timeout(when, timeout);
+        } else {
+            self.paused = Paused::Yes;
         }
     }
 }
@@ -609,7 +566,7 @@ impl Handler<Resume> for ClientConnector {
     type Result = ();
 
     fn handle(&mut self, _: Resume, _: &mut Self::Context) {
-        self.paused.take();
+        self.paused = Paused::No;
     }
 }
 
@@ -617,10 +574,6 @@ impl Handler<Connect> for ClientConnector {
     type Result = ActorResponse<ClientConnector, Connection, ClientConnectorError>;
 
     fn handle(&mut self, msg: Connect, _: &mut Self::Context) -> Self::Result {
-        if self.pool_modified.get() {
-            self.collect(false);
-        }
-
         let uri = &msg.uri;
         let wait_timeout = msg.wait_timeout;
         let conn_timeout = msg.conn_timeout;
@@ -646,11 +599,6 @@ impl Handler<Connect> for ClientConnector {
             return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported));
         }
 
-        // check if pool has task reference
-        if self.pool.task.borrow().is_none() {
-            *self.pool.task.borrow_mut() = Some(current_task());
-        }
-
         let host = uri.host().unwrap().to_owned();
         let port = uri.port().unwrap_or_else(|| proto.port());
         let key = Key {
@@ -660,7 +608,7 @@ impl Handler<Connect> for ClientConnector {
         };
 
         // check pause state
-        if self.paused.is_some() {
+        if self.paused.is_paused() {
             let rx = self.wait_for(key, wait_timeout, conn_timeout);
             self.stats.waits += 1;
             return ActorResponse::async(
@@ -678,7 +626,7 @@ impl Handler<Connect> for ClientConnector {
             match self.acquire(&key) {
                 Acquire::Acquired(mut conn) => {
                     // use existing connection
-                    conn.pool = Some(AcquiredConn(key, Some(Rc::clone(&self.pool))));
+                    conn.pool = Some(AcquiredConn(key, Some(self.acq_tx.clone())));
                     self.stats.reused += 1;
                     return ActorResponse::async(fut::ok(conn));
                 }
@@ -695,7 +643,7 @@ impl Handler<Connect> for ClientConnector {
                             }),
                     );
                 }
-                Acquire::Available => Some(Rc::clone(&self.pool)),
+                Acquire::Available => Some(self.acq_tx.clone()),
             }
         } else {
             None
@@ -801,6 +749,49 @@ impl Handler<Connect> for ClientConnector {
     }
 }
 
+impl StreamHandler<AcquiredConnOperation, ()> for ClientConnector {
+    fn handle(&mut self, msg: AcquiredConnOperation, _: &mut Context<Self>) {
+        let now = Instant::now();
+
+        match msg {
+            AcquiredConnOperation::Close(conn) => {
+                self.release_key(&conn.key);
+                self.to_close.push(conn);
+                self.stats.closed += 1;
+            }
+            AcquiredConnOperation::Release(conn) => {
+                self.release_key(&conn.key);
+
+                // check connection lifetime and the return to available pool
+                if (Instant::now() - conn.ts) < self.conn_lifetime {
+                    self.available
+                        .entry(conn.key.clone())
+                        .or_insert_with(VecDeque::new)
+                        .push_back(Conn(Instant::now(), conn));
+                }
+            }
+            AcquiredConnOperation::ReleaseKey(key) => {
+                self.release_key(&key);
+            }
+        }
+
+        // check keep-alive
+        for conns in self.available.values_mut() {
+            while !conns.is_empty() {
+                if (now > conns[0].0) && (now - conns[0].0) > self.conn_keep_alive
+                    || (now - conns[0].1.ts) > self.conn_lifetime
+                {
+                    let conn = conns.pop_front().unwrap().1;
+                    self.to_close.push(conn);
+                    self.stats.closed += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+}
+
 struct Maintenance;
 
 impl fut::ActorFuture for Maintenance {
@@ -812,18 +803,10 @@ impl fut::ActorFuture for Maintenance {
         &mut self, act: &mut ClientConnector, ctx: &mut Context<ClientConnector>,
     ) -> Poll<Self::Item, Self::Error> {
         // check pause duration
-        let done = if let Some(Some(ref pause)) = act.paused {
-            pause.0 <= Instant::now()
-        } else {
-            false
-        };
-        if done {
-            act.paused.take();
-        }
-
-        // collect connections
-        if act.pool_modified.get() {
-            act.collect(false);
+        if let Paused::Timeout(inst, _) = act.paused {
+            if inst <= Instant::now() {
+                act.paused = Paused::No;
+            }
         }
 
         // collect wait timers
@@ -843,7 +826,7 @@ impl fut::ActorFuture for Maintenance {
                         // use existing connection
                         act.stats.reused += 1;
                         conn.pool =
-                            Some(AcquiredConn(key.clone(), Some(Rc::clone(&act.pool))));
+                            Some(AcquiredConn(key.clone(), Some(act.acq_tx.clone())));
                         let _ = waiter.tx.send(Ok(conn));
                     }
                     Acquire::NotAvailable => {
@@ -851,7 +834,7 @@ impl fut::ActorFuture for Maintenance {
                         break;
                     }
                     Acquire::Available => {
-                        let conn = AcquiredConn(key.clone(), Some(Rc::clone(&act.pool)));
+                        let conn = AcquiredConn(key.clone(), Some(act.acq_tx.clone()));
 
                         fut::WrapFuture::<ClientConnector>::actfuture(
                             Connector::from_registry().send(
@@ -1050,100 +1033,38 @@ enum Acquire {
     NotAvailable,
 }
 
-struct AcquiredConn(Key, Option<Rc<Pool>>);
+enum AcquiredConnOperation {
+    Close(Connection),
+    Release(Connection),
+    ReleaseKey(Key),
+}
+
+struct AcquiredConn(Key, Option<mpsc::UnboundedSender<AcquiredConnOperation>>);
 
 impl AcquiredConn {
     fn close(&mut self, conn: Connection) {
-        if let Some(pool) = self.1.take() {
-            pool.close(conn);
+        if let Some(tx) = self.1.take() {
+            let _ = tx.unbounded_send(AcquiredConnOperation::Close(conn));
         }
     }
     fn release(&mut self, conn: Connection) {
-        if let Some(pool) = self.1.take() {
-            pool.release(conn);
+        if let Some(tx) = self.1.take() {
+            let _ = tx.unbounded_send(AcquiredConnOperation::Release(conn));
         }
     }
 }
 
 impl Drop for AcquiredConn {
     fn drop(&mut self) {
-        if let Some(pool) = self.1.take() {
-            pool.release_key(self.0.clone());
-        }
-    }
-}
-
-pub struct Pool {
-    keys: RefCell<Vec<Key>>,
-    to_close: RefCell<Vec<Connection>>,
-    to_release: RefCell<Vec<Connection>>,
-    task: RefCell<Option<Task>>,
-    modified: Rc<Cell<bool>>,
-}
-
-impl Pool {
-    fn new(modified: Rc<Cell<bool>>) -> Pool {
-        Pool {
-            modified,
-            keys: RefCell::new(Vec::new()),
-            to_close: RefCell::new(Vec::new()),
-            to_release: RefCell::new(Vec::new()),
-            task: RefCell::new(None),
-        }
-    }
-
-    fn collect_keys(&self) -> Option<Vec<Key>> {
-        if self.keys.borrow().is_empty() {
-            None
-        } else {
-            Some(mem::replace(&mut *self.keys.borrow_mut(), Vec::new()))
-        }
-    }
-
-    fn collect_close(&self) -> Option<Vec<Connection>> {
-        if self.to_close.borrow().is_empty() {
-            None
-        } else {
-            Some(mem::replace(&mut *self.to_close.borrow_mut(), Vec::new()))
-        }
-    }
-
-    fn collect_release(&self) -> Option<Vec<Connection>> {
-        if self.to_release.borrow().is_empty() {
-            None
-        } else {
-            Some(mem::replace(&mut *self.to_release.borrow_mut(), Vec::new()))
-        }
-    }
-
-    fn close(&self, conn: Connection) {
-        self.modified.set(true);
-        self.to_close.borrow_mut().push(conn);
-        if let Some(ref task) = *self.task.borrow() {
-            task.notify()
-        }
-    }
-
-    fn release(&self, conn: Connection) {
-        self.modified.set(true);
-        self.to_release.borrow_mut().push(conn);
-        if let Some(ref task) = *self.task.borrow() {
-            task.notify()
-        }
-    }
-
-    fn release_key(&self, key: Key) {
-        self.modified.set(true);
-        self.keys.borrow_mut().push(key);
-        if let Some(ref task) = *self.task.borrow() {
-            task.notify()
+        if let Some(tx) = self.1.take() {
+            let _ = tx.unbounded_send(AcquiredConnOperation::ReleaseKey(self.0.clone()));
         }
     }
 }
 
 pub struct Connection {
     key: Key,
-    stream: Box<IoStream>,
+    stream: Box<IoStream + Send>,
     pool: Option<AcquiredConn>,
     ts: Instant,
 }
@@ -1155,7 +1076,7 @@ impl fmt::Debug for Connection {
 }
 
 impl Connection {
-    fn new(key: Key, pool: Option<AcquiredConn>, stream: Box<IoStream>) -> Self {
+    fn new(key: Key, pool: Option<AcquiredConn>, stream: Box<IoStream + Send>) -> Self {
         Connection {
             key,
             stream,
@@ -1168,7 +1089,7 @@ impl Connection {
         &mut *self.stream
     }
 
-    pub fn from_stream<T: IoStream>(io: T) -> Connection {
+    pub fn from_stream<T: IoStream + Send>(io: T) -> Connection {
         Connection::new(Key::empty(), None, Box::new(io))
     }
 

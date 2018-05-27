@@ -51,12 +51,12 @@ where
     keep_alive: KeepAlive,
     factory: Arc<Fn() -> Vec<H> + Send + Sync>,
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
-    workers: Vec<(usize, Addr<Syn, Worker<H::Handler>>)>,
+    workers: Vec<(usize, Addr<Worker<H::Handler>>)>,
     sockets: Vec<Socket>,
     accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
     exit: bool,
     shutdown_timeout: u16,
-    signals: Option<Addr<Syn, signal::ProcessSignals>>,
+    signals: Option<Addr<signal::ProcessSignals>>,
     no_http2: bool,
     no_signals: bool,
 }
@@ -177,7 +177,7 @@ where
     }
 
     /// Set alternative address for `ProcessSignals` actor.
-    pub fn signals(mut self, addr: Addr<Syn, signal::ProcessSignals>) -> Self {
+    pub fn signals(mut self, addr: Addr<signal::ProcessSignals>) -> Self {
         self.signals = Some(addr);
         self
     }
@@ -380,12 +380,12 @@ where
     }
 
     // subscribe to os signals
-    fn subscribe_to_signals(&self) -> Option<Addr<Syn, signal::ProcessSignals>> {
+    fn subscribe_to_signals(&self) -> Option<Addr<signal::ProcessSignals>> {
         if !self.no_signals {
             if let Some(ref signals) = self.signals {
                 Some(signals.clone())
             } else {
-                Some(Arbiter::system_registry().get::<signal::ProcessSignals>())
+                Some(Arbiter::registry().get::<signal::ProcessSignals>())
             }
         } else {
             None
@@ -422,7 +422,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///    let _ = sys.run();  // <- Run actix system, this method actually starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> Addr<Syn, Self> {
+    pub fn start(mut self) -> Addr<Self> {
         if self.sockets.is_empty() {
             panic!("HttpServer::bind() has to be called before start()");
         } else {
@@ -458,7 +458,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
 
             // start http server actor
             let signals = self.subscribe_to_signals();
-            let addr: Addr<Syn, _> = Actor::create(move |ctx| {
+            let addr = Actor::create(move |ctx| {
                 ctx.add_stream(rx);
                 self
             });
@@ -510,7 +510,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
 )]
 impl<H: IntoHttpHandler> HttpServer<H> {
     /// Start listening for incoming tls connections.
-    pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<Addr<Syn, Self>> {
+    pub fn start_tls(mut self, acceptor: TlsAcceptor) -> io::Result<Addr<Self>> {
         for sock in &mut self.sockets {
             match sock.tp {
                 StreamHandlerType::Normal => (),
@@ -533,7 +533,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn start_ssl(
         mut self, mut builder: SslAcceptorBuilder,
-    ) -> io::Result<Addr<Syn, Self>> {
+    ) -> io::Result<Addr<Self>> {
         // alpn support
         if !self.no_http2 {
             builder.set_alpn_protos(b"\x02h2\x08http/1.1")?;
@@ -563,7 +563,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// Start listening for incoming connections from a stream.
     ///
     /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> Addr<Syn, Self>
+    pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> Addr<Self>
     where
         S: Stream<Item = T, Error = io::Error> + 'static,
         T: AsyncRead + AsyncWrite + 'static,
@@ -579,7 +579,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
 
         // start server
         let signals = self.subscribe_to_signals();
-        let addr: Addr<Syn, _> = HttpServer::create(move |ctx| {
+        let addr = HttpServer::create(move |ctx| {
             ctx.add_message_stream(stream.map_err(|_| ()).map(move |t| Conn {
                 io: WrapperStream::new(t),
                 token: 0,
