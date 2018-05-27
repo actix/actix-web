@@ -222,8 +222,6 @@ impl SystemService for ClientConnector {}
 
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
-        let (tx, rx) = mpsc::unbounded();
-
         #[cfg(all(feature = "alpn"))]
         {
             let builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -231,6 +229,7 @@ impl Default for ClientConnector {
         }
         #[cfg(all(feature = "tls", not(feature = "alpn")))]
         {
+            let (tx, rx) = mpsc::unbounded();
             let builder = TlsConnector::builder().unwrap();
             ClientConnector {
                 stats: ClientConnectorStats::default(),
@@ -253,22 +252,25 @@ impl Default for ClientConnector {
         }
 
         #[cfg(not(any(feature = "alpn", feature = "tls")))]
-        ClientConnector {
-            stats: ClientConnectorStats::default(),
-            subscriber: None,
-            acq_tx: tx,
-            acq_rx: Some(rx),
-            conn_lifetime: Duration::from_secs(75),
-            conn_keep_alive: Duration::from_secs(15),
-            limit: 100,
-            limit_per_host: 0,
-            acquired: 0,
-            acquired_per_host: HashMap::new(),
-            available: HashMap::new(),
-            to_close: Vec::new(),
-            waiters: HashMap::new(),
-            wait_timeout: None,
-            paused: Paused::No,
+        {
+            let (tx, rx) = mpsc::unbounded();
+            ClientConnector {
+                stats: ClientConnectorStats::default(),
+                subscriber: None,
+                acq_tx: tx,
+                acq_rx: Some(rx),
+                conn_lifetime: Duration::from_secs(75),
+                conn_keep_alive: Duration::from_secs(15),
+                limit: 100,
+                limit_per_host: 0,
+                acquired: 0,
+                acquired_per_host: HashMap::new(),
+                available: HashMap::new(),
+                to_close: Vec::new(),
+                waiters: HashMap::new(),
+                wait_timeout: None,
+                paused: Paused::No,
+            }
         }
     }
 }
@@ -324,8 +326,8 @@ impl ClientConnector {
             connector,
             stats: ClientConnectorStats::default(),
             subscriber: None,
-            pool_tx: tx,
-            pool_rx: Some(rx),
+            acq_tx: tx,
+            acq_rx: Some(rx),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
