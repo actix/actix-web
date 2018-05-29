@@ -343,7 +343,10 @@ fn test_client_streaming_explicit() {
 
     let body = once(Ok(Bytes::from_static(STR.as_ref())));
 
-    let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
+    let request = srv
+        .get()
+        .body(client::ClientBody::Streaming(Box::new(body)))
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 

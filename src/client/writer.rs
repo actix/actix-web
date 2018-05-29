@@ -19,13 +19,12 @@ use http::{HttpTryFrom, Version};
 use time::{self, Duration};
 use tokio_io::AsyncWrite;
 
-use body::{Binary, Body};
+use body::Binary;
 use header::ContentEncoding;
 use server::encoding::{ContentEncoder, TransferEncoding};
-use server::shared::SharedBytes;
 use server::WriterState;
 
-use client::ClientRequest;
+use client::{ClientBody, ClientRequest};
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -42,20 +41,20 @@ pub(crate) struct HttpClientWriter {
     flags: Flags,
     written: u64,
     headers_size: u32,
-    buffer: SharedBytes,
+    buffer: Box<BytesMut>,
     buffer_capacity: usize,
     encoder: ContentEncoder,
 }
 
 impl HttpClientWriter {
-    pub fn new(buffer: SharedBytes) -> HttpClientWriter {
-        let encoder = ContentEncoder::Identity(TransferEncoding::eof(buffer.clone()));
+    pub fn new() -> HttpClientWriter {
+        let encoder = ContentEncoder::Identity(TransferEncoding::eof());
         HttpClientWriter {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
             buffer_capacity: 0,
-            buffer,
+            buffer: Box::new(BytesMut::new()),
             encoder,
         }
     }
@@ -98,12 +97,23 @@ impl HttpClientWriter {
     }
 }
 
+pub struct Writer<'a>(pub &'a mut BytesMut);
+
+impl<'a> io::Write for Writer<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 impl HttpClientWriter {
     pub fn start(&mut self, msg: &mut ClientRequest) -> io::Result<()> {
         // prepare task
         self.flags.insert(Flags::STARTED);
-        self.encoder = content_encoder(self.buffer.clone(), msg);
-
+        self.encoder = content_encoder(self.buffer.as_mut(), msg);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
         }
@@ -112,7 +122,7 @@ impl HttpClientWriter {
         {
             // status line
             writeln!(
-                self.buffer,
+                Writer(&mut self.buffer),
                 "{} {} {:?}\r",
                 msg.method(),
                 msg.uri()
@@ -120,40 +130,41 @@ impl HttpClientWriter {
                     .map(|u| u.as_str())
                     .unwrap_or("/"),
                 msg.version()
-            )?;
+            ).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             // write headers
-            let mut buffer = self.buffer.get_mut();
-            if let Body::Binary(ref bytes) = *msg.body() {
-                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+            if let ClientBody::Binary(ref bytes) = *msg.body() {
+                self.buffer
+                    .reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
+                self.buffer
+                    .reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
             for (key, value) in msg.headers() {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
-                buffer.reserve(k.len() + v.len() + 4);
-                buffer.put_slice(k);
-                buffer.put_slice(b": ");
-                buffer.put_slice(v);
-                buffer.put_slice(b"\r\n");
+                self.buffer.reserve(k.len() + v.len() + 4);
+                self.buffer.put_slice(k);
+                self.buffer.put_slice(b": ");
+                self.buffer.put_slice(v);
+                self.buffer.put_slice(b"\r\n");
             }
 
             // set date header
             if !msg.headers().contains_key(DATE) {
-                buffer.extend_from_slice(b"date: ");
-                set_date(&mut buffer);
-                buffer.extend_from_slice(b"\r\n\r\n");
+                self.buffer.extend_from_slice(b"date: ");
+                set_date(&mut self.buffer);
+                self.buffer.extend_from_slice(b"\r\n\r\n");
             } else {
-                buffer.extend_from_slice(b"\r\n");
+                self.buffer.extend_from_slice(b"\r\n");
             }
-            self.headers_size = buffer.len() as u32;
+            self.headers_size = self.buffer.len() as u32;
 
             if msg.body().is_binary() {
-                if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
+                if let ClientBody::Binary(bytes) = msg.replace_body(ClientBody::Empty) {
                     self.written += bytes.len() as u64;
-                    self.encoder.write(bytes)?;
+                    self.encoder.write(bytes.as_ref())?;
                 }
             } else {
                 self.buffer_capacity = msg.write_buffer_capacity();
@@ -162,7 +173,7 @@ impl HttpClientWriter {
         Ok(())
     }
 
-    pub fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
+    pub fn write(&mut self, payload: &[u8]) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::UPGRADE) {
@@ -210,20 +221,21 @@ impl HttpClientWriter {
     }
 }
 
-fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder {
+fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncoder {
     let version = req.version();
-    let mut body = req.replace_body(Body::Empty);
+    let mut body = req.replace_body(ClientBody::Empty);
     let mut encoding = req.content_encoding();
 
-    let transfer = match body {
-        Body::Empty => {
+    let mut transfer = match body {
+        ClientBody::Empty => {
             req.headers_mut().remove(CONTENT_LENGTH);
-            TransferEncoding::length(0, buf)
+            TransferEncoding::length(0)
         }
-        Body::Binary(ref mut bytes) => {
+        ClientBody::Binary(ref mut bytes) => {
             if encoding.is_compression() {
-                let tmp = SharedBytes::default();
-                let transfer = TransferEncoding::eof(tmp.clone());
+                let mut tmp = BytesMut::new();
+                let mut transfer = TransferEncoding::eof();
+                transfer.set_buffer(&mut tmp);
                 let mut enc = match encoding {
                     #[cfg(feature = "flate2")]
                     ContentEncoding::Deflate => ContentEncoder::Deflate(
@@ -242,7 +254,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                     ContentEncoding::Auto => unreachable!(),
                 };
                 // TODO return error!
-                let _ = enc.write(bytes.clone());
+                let _ = enc.write(bytes.as_ref());
                 let _ = enc.write_eof();
                 *bytes = Binary::from(tmp.take());
 
@@ -256,9 +268,9 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             let _ = write!(b, "{}", bytes.len());
             req.headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
-            TransferEncoding::eof(buf)
+            TransferEncoding::eof()
         }
-        Body::Streaming(_) | Body::Actor(_) => {
+        ClientBody::Streaming(_) | ClientBody::Actor(_) => {
             if req.upgrade() {
                 if version == Version::HTTP_2 {
                     error!("Connection upgrade is forbidden for HTTP/2");
@@ -270,9 +282,9 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
                     encoding = ContentEncoding::Identity;
                     req.headers_mut().remove(CONTENT_ENCODING);
                 }
-                TransferEncoding::eof(buf)
+                TransferEncoding::eof()
             } else {
-                streaming_encoding(buf, version, req)
+                streaming_encoding(version, req)
             }
         }
     };
@@ -283,6 +295,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
             HeaderValue::from_static(encoding.as_str()),
         );
     }
+    transfer.set_buffer(buf);
 
     req.replace_body(body);
     match encoding {
@@ -303,19 +316,17 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> ContentEncoder 
     }
 }
 
-fn streaming_encoding(
-    buf: SharedBytes, version: Version, req: &mut ClientRequest,
-) -> TransferEncoding {
+fn streaming_encoding(version: Version, req: &mut ClientRequest) -> TransferEncoding {
     if req.chunked() {
         // Enable transfer encoding
         req.headers_mut().remove(CONTENT_LENGTH);
         if version == Version::HTTP_2 {
             req.headers_mut().remove(TRANSFER_ENCODING);
-            TransferEncoding::eof(buf)
+            TransferEncoding::eof()
         } else {
             req.headers_mut()
                 .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-            TransferEncoding::chunked(buf)
+            TransferEncoding::chunked()
         }
     } else {
         // if Content-Length is specified, then use it as length hint
@@ -338,9 +349,9 @@ fn streaming_encoding(
 
         if !chunked {
             if let Some(len) = len {
-                TransferEncoding::length(len, buf)
+                TransferEncoding::length(len)
             } else {
-                TransferEncoding::eof(buf)
+                TransferEncoding::eof()
             }
         } else {
             // Enable transfer encoding
@@ -348,11 +359,11 @@ fn streaming_encoding(
                 Version::HTTP_11 => {
                     req.headers_mut()
                         .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                    TransferEncoding::chunked(buf)
+                    TransferEncoding::chunked()
                 }
                 _ => {
                     req.headers_mut().remove(TRANSFER_ENCODING);
-                    TransferEncoding::eof(buf)
+                    TransferEncoding::eof()
                 }
             }
         }

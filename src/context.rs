@@ -1,5 +1,5 @@
+use futures::sync::oneshot;
 use futures::sync::oneshot::Sender;
-use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use smallvec::SmallVec;
 use std::marker::PhantomData;

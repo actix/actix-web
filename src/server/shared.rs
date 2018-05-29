@@ -48,10 +48,6 @@ impl Drop for SharedBytes {
 }
 
 impl SharedBytes {
-    pub fn empty() -> Self {
-        SharedBytes(None, None)
-    }
-
     pub fn new(bytes: Rc<BytesMut>, pool: Rc<SharedBytesPool>) -> SharedBytes {
         SharedBytes(Some(bytes), Some(pool))
     }
@@ -85,11 +81,6 @@ impl SharedBytes {
 
     pub fn take(&self) -> BytesMut {
         self.get_mut().take()
-    }
-
-    #[inline]
-    pub fn reserve(&self, cnt: usize) {
-        self.get_mut().reserve(cnt)
     }
 
     #[inline]

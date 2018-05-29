@@ -51,7 +51,7 @@ impl<H: 'static> H2Writer<H> {
             respond,
             settings,
             stream: None,
-            encoder: ContentEncoder::empty(buf.clone()),
+            encoder: ContentEncoder::empty(),
             flags: Flags::empty(),
             written: 0,
             buffer: buf,
@@ -88,7 +88,7 @@ impl<H: 'static> Writer for H2Writer<H> {
         // prepare response
         self.flags.insert(Flags::STARTED);
         self.encoder =
-            ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
+            ContentEncoder::for_server(self.buffer.get_mut(), req, msg, encoding);
         if let Body::Empty = *msg.body() {
             self.flags.insert(Flags::EOF);
         }
@@ -143,7 +143,7 @@ impl<H: 'static> Writer for H2Writer<H> {
         if let Body::Binary(bytes) = body {
             self.flags.insert(Flags::EOF);
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes)?;
+            self.encoder.write(bytes.as_ref())?;
             if let Some(ref mut stream) = self.stream {
                 self.flags.insert(Flags::RESERVED);
                 stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
@@ -162,7 +162,7 @@ impl<H: 'static> Writer for H2Writer<H> {
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
-                self.encoder.write(payload)?;
+                self.encoder.write(payload.as_ref())?;
             } else {
                 // might be response for EXCEPT
                 self.buffer.extend_from_slice(payload.as_ref())

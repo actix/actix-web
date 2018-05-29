@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{io, mem};
 
-use futures::unsync::oneshot;
+use futures::sync::oneshot;
 use futures::{Async, Future, Poll, Stream};
 use log::Level::Debug;
 

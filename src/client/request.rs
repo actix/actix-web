@@ -12,9 +12,9 @@ use serde::Serialize;
 use serde_json;
 use url::Url;
 
+use super::body::ClientBody;
 use super::connector::{ClientConnector, Connection};
 use super::pipeline::SendRequest;
-use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
 use http::header::{self, HeaderName, HeaderValue};
@@ -24,11 +24,13 @@ use httprequest::HttpRequest;
 
 /// An HTTP Client Request
 ///
-/// ```rust,ignore
+/// ```rust
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// # extern crate futures;
+/// # extern crate tokio;
 /// # use futures::Future;
+/// # use std::process;
 /// use actix_web::client::ClientRequest;
 ///
 /// fn main() {
@@ -40,6 +42,7 @@ use httprequest::HttpRequest;
 ///             .map_err(|_| ())
 ///             .and_then(|response| {                     // <- server http response
 ///                 println!("Response: {:?}", response);
+/// #               process::exit(0);
 ///                 Ok(())
 ///             })
 ///     );
@@ -50,7 +53,7 @@ pub struct ClientRequest {
     method: Method,
     version: Version,
     headers: HeaderMap,
-    body: Body,
+    body: ClientBody,
     chunked: bool,
     upgrade: bool,
     timeout: Option<Duration>,
@@ -73,7 +76,7 @@ impl Default for ClientRequest {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            body: Body::Empty,
+            body: ClientBody::Empty,
             chunked: false,
             upgrade: false,
             timeout: None,
@@ -217,17 +220,17 @@ impl ClientRequest {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &Body {
+    pub fn body(&self) -> &ClientBody {
         &self.body
     }
 
     /// Set a body
-    pub fn set_body<B: Into<Body>>(&mut self, body: B) {
+    pub fn set_body<B: Into<ClientBody>>(&mut self, body: B) {
         self.body = body.into();
     }
 
     /// Extract body, replace it with `Empty`
-    pub(crate) fn replace_body(&mut self, body: Body) -> Body {
+    pub(crate) fn replace_body(&mut self, body: ClientBody) -> ClientBody {
         mem::replace(&mut self.body, body)
     }
 
@@ -578,7 +581,9 @@ impl ClientRequestBuilder {
     /// Set a body and generate `ClientRequest`.
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<ClientRequest, Error> {
+    pub fn body<B: Into<ClientBody>>(
+        &mut self, body: B,
+    ) -> Result<ClientRequest, Error> {
         if let Some(e) = self.err.take() {
             return Err(e.into());
         }
@@ -644,17 +649,19 @@ impl ClientRequestBuilder {
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Result<ClientRequest, Error>
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Bytes, Error = E> + Send + 'static,
         E: Into<Error>,
     {
-        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
+        self.body(ClientBody::Streaming(Box::new(
+            stream.map_err(|e| e.into()),
+        )))
     }
 
     /// Set an empty body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn finish(&mut self) -> Result<ClientRequest, Error> {
-        self.body(Body::Empty)
+        self.body(ClientBody::Empty)
     }
 
     /// This method construct new `ClientRequestBuilder`

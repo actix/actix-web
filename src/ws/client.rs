@@ -7,7 +7,7 @@ use std::{fmt, io, str};
 use base64;
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::unsync::mpsc::{unbounded, UnboundedSender};
+use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures::{Async, Future, Poll, Stream};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, HttpTryFrom, StatusCode};
@@ -16,14 +16,14 @@ use sha1::Sha1;
 
 use actix::prelude::*;
 
-use body::{Binary, Body};
+use body::Binary;
 use error::{Error, UrlParseError};
 use header::IntoHeaderValue;
 use httpmessage::HttpMessage;
 use payload::PayloadHelper;
 
 use client::{
-    ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
+    ClientBody, ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
     HttpResponseParserError, SendRequest, SendRequestError,
 };
 
@@ -283,7 +283,7 @@ impl ClientHandshake {
         );
 
         let (tx, rx) = unbounded();
-        request.set_body(Body::Streaming(Box::new(rx.map_err(|_| {
+        request.set_body(ClientBody::Streaming(Box::new(rx.map_err(|_| {
             io::Error::new(io::ErrorKind::Other, "disconnected").into()
         }))));
 

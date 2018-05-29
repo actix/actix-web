@@ -1,5 +1,4 @@
-use futures::sync::oneshot::Sender;
-use futures::unsync::oneshot;
+use futures::sync::oneshot::{self, Sender};
 use futures::{Async, Poll};
 use smallvec::SmallVec;
 

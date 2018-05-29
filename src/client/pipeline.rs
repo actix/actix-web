@@ -1,5 +1,5 @@
 use bytes::{Bytes, BytesMut};
-use futures::unsync::oneshot;
+use futures::sync::oneshot;
 use futures::{Async, Future, Poll};
 use http::header::CONTENT_ENCODING;
 use std::time::{Duration, Instant};
@@ -8,18 +8,16 @@ use tokio_timer::Delay;
 
 use actix::prelude::*;
 
-use super::HttpClientWriter;
-use super::{ClientConnector, ClientConnectorError, Connect, Connection};
-use super::{ClientRequest, ClientResponse};
-use super::{HttpResponseParser, HttpResponseParserError};
-use body::{Body, BodyStream};
-use context::{ActorHttpContext, Frame};
+use super::{
+    ClientBody, ClientBodyStream, ClientConnector, ClientConnectorError, ClientRequest,
+    ClientResponse, Connect, Connection, HttpClientWriter, HttpResponseParser,
+    HttpResponseParserError,
+};
 use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
 use httpmessage::HttpMessage;
 use server::encoding::PayloadStream;
-use server::shared::SharedBytes;
 use server::WriterState;
 
 /// A set of errors that can occur during request sending and response reading
@@ -68,7 +66,7 @@ enum State {
 pub struct SendRequest {
     req: ClientRequest,
     state: State,
-    conn: Addr<ClientConnector>,
+    conn: Option<Addr<ClientConnector>>,
     conn_timeout: Duration,
     wait_timeout: Duration,
     timeout: Option<Delay>,
@@ -76,7 +74,14 @@ pub struct SendRequest {
 
 impl SendRequest {
     pub(crate) fn new(req: ClientRequest) -> SendRequest {
-        SendRequest::with_connector(req, ClientConnector::from_registry())
+        SendRequest {
+            req,
+            conn: None,
+            state: State::New,
+            timeout: None,
+            wait_timeout: Duration::from_secs(5),
+            conn_timeout: Duration::from_secs(1),
+        }
     }
 
     pub(crate) fn with_connector(
@@ -84,7 +89,7 @@ impl SendRequest {
     ) -> SendRequest {
         SendRequest {
             req,
-            conn,
+            conn: Some(conn),
             state: State::New,
             timeout: None,
             wait_timeout: Duration::from_secs(5),
@@ -96,7 +101,7 @@ impl SendRequest {
         SendRequest {
             req,
             state: State::Connection(conn),
-            conn: ClientConnector::from_registry(),
+            conn: None,
             timeout: None,
             wait_timeout: Duration::from_secs(5),
             conn_timeout: Duration::from_secs(1),
@@ -142,7 +147,12 @@ impl Future for SendRequest {
 
             match state {
                 State::New => {
-                    self.state = State::Connect(self.conn.send(Connect {
+                    let conn = if let Some(conn) = self.conn.take() {
+                        conn
+                    } else {
+                        ClientConnector::from_registry()
+                    };
+                    self.state = State::Connect(conn.send(Connect {
                         uri: self.req.uri().clone(),
                         wait_timeout: self.wait_timeout,
                         conn_timeout: self.conn_timeout,
@@ -160,16 +170,16 @@ impl Future for SendRequest {
                     Err(_) => {
                         return Err(SendRequestError::Connector(
                             ClientConnectorError::Disconnected,
-                        ))
+                        ));
                     }
                 },
                 State::Connection(conn) => {
-                    let mut writer = HttpClientWriter::new(SharedBytes::default());
+                    let mut writer = HttpClientWriter::new();
                     writer.start(&mut self.req)?;
 
-                    let body = match self.req.replace_body(Body::Empty) {
-                        Body::Streaming(stream) => IoBody::Payload(stream),
-                        Body::Actor(ctx) => IoBody::Actor(ctx),
+                    let body = match self.req.replace_body(ClientBody::Empty) {
+                        ClientBody::Streaming(stream) => IoBody::Payload(stream),
+                        ClientBody::Actor(_) => panic!("Client actor is not supported"),
                         _ => IoBody::Done,
                     };
 
@@ -208,7 +218,9 @@ impl Future for SendRequest {
                             self.state = State::Send(pl);
                             return Ok(Async::NotReady);
                         }
-                        Err(err) => return Err(SendRequestError::ParseError(err)),
+                        Err(err) => {
+                            return Err(SendRequestError::ParseError(err));
+                        }
                     }
                 }
                 State::None => unreachable!(),
@@ -233,8 +245,7 @@ pub(crate) struct Pipeline {
 }
 
 enum IoBody {
-    Payload(BodyStream),
-    Actor(Box<ActorHttpContext>),
+    Payload(ClientBodyStream),
     Done,
 }
 
@@ -380,10 +391,7 @@ impl Pipeline {
             match self.timeout.as_mut().unwrap().poll() {
                 Ok(Async::Ready(())) => return Err(SendRequestError::Timeout),
                 Ok(Async::NotReady) => (),
-                Err(e) => {
-                    println!("err: {:?}", e);
-                    return Err(SendRequestError::Timeout);
-                }
+                Err(_) => return Err(SendRequestError::Timeout),
             }
         }
         Ok(())
@@ -397,66 +405,24 @@ impl Pipeline {
 
         let mut done = false;
         if self.drain.is_none() && self.write_state != RunningState::Paused {
-            'outter: loop {
+            loop {
                 let result = match mem::replace(&mut self.body, IoBody::Done) {
-                    IoBody::Payload(mut body) => match body.poll()? {
+                    IoBody::Payload(mut stream) => match stream.poll()? {
                         Async::Ready(None) => {
                             self.writer.write_eof()?;
                             self.body_completed = true;
                             break;
                         }
                         Async::Ready(Some(chunk)) => {
-                            self.body = IoBody::Payload(body);
-                            self.writer.write(chunk.into())?
+                            self.body = IoBody::Payload(stream);
+                            self.writer.write(chunk.as_ref())?
                         }
                         Async::NotReady => {
                             done = true;
-                            self.body = IoBody::Payload(body);
+                            self.body = IoBody::Payload(stream);
                             break;
                         }
                     },
-                    IoBody::Actor(mut ctx) => {
-                        if self.disconnected {
-                            ctx.disconnected();
-                        }
-                        match ctx.poll()? {
-                            Async::Ready(Some(vec)) => {
-                                if vec.is_empty() {
-                                    self.body = IoBody::Actor(ctx);
-                                    break;
-                                }
-                                let mut res = None;
-                                for frame in vec {
-                                    match frame {
-                                        Frame::Chunk(None) => {
-                                            self.body_completed = true;
-                                            self.writer.write_eof()?;
-                                            break 'outter;
-                                        }
-                                        Frame::Chunk(Some(chunk)) => {
-                                            res = Some(self.writer.write(chunk)?)
-                                        }
-                                        Frame::Drain(fut) => self.drain = Some(fut),
-                                    }
-                                }
-                                self.body = IoBody::Actor(ctx);
-                                if self.drain.is_some() {
-                                    self.write_state.resume();
-                                    break;
-                                }
-                                res.unwrap()
-                            }
-                            Async::Ready(None) => {
-                                done = true;
-                                break;
-                            }
-                            Async::NotReady => {
-                                done = true;
-                                self.body = IoBody::Actor(ctx);
-                                break;
-                            }
-                        }
-                    }
                     IoBody::Done => {
                         self.body_completed = true;
                         done = true;

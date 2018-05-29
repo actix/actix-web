@@ -60,7 +60,6 @@ use ws;
 /// ```
 pub struct TestServer {
     addr: net::SocketAddr,
-    thread: Option<thread::JoinHandle<()>>,
     server_sys: Addr<System>,
     ssl: bool,
     conn: Addr<ClientConnector>,
@@ -107,7 +106,7 @@ impl TestServer {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
-        let join = thread::spawn(move || {
+        thread::spawn(move || {
             let sys = System::new("actix-test-server");
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
@@ -134,7 +133,6 @@ impl TestServer {
             server_sys,
             conn,
             ssl: false,
-            thread: Some(join),
             rt: Runtime::new().unwrap(),
         }
     }
@@ -190,10 +188,7 @@ impl TestServer {
 
     /// Stop http server
     fn stop(&mut self) {
-        if let Some(handle) = self.thread.take() {
-            self.server_sys.do_send(msgs::SystemExit(0));
-            let _ = handle.join();
-        }
+        self.server_sys.do_send(msgs::SystemExit(0));
     }
 
     /// Execute future on current core
@@ -287,7 +282,7 @@ impl<S: 'static> TestServerBuilder<S> {
         let ssl = false;
 
         // run server in separate thread
-        let join = thread::spawn(move || {
+        thread::spawn(move || {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
@@ -332,7 +327,6 @@ impl<S: 'static> TestServerBuilder<S> {
             ssl,
             conn,
             server_sys,
-            thread: Some(join),
             rt: Runtime::new().unwrap(),
         }
     }

@@ -801,7 +801,6 @@ mod tests {
             .finish()
             .unwrap();
         let response = srv.execute(request.send()).unwrap();
-
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
         // Invalid range header

@@ -46,7 +46,7 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
-            encoder: ContentEncoder::empty(buf.clone()),
+            encoder: ContentEncoder::empty(),
             written: 0,
             headers_size: 0,
             buffer: buf,
@@ -116,7 +116,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     ) -> io::Result<WriterState> {
         // prepare task
         self.encoder =
-            ContentEncoder::for_server(self.buffer.clone(), req, msg, encoding);
+            ContentEncoder::for_server(self.buffer.get_mut(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags = Flags::STARTED | Flags::KEEPALIVE;
         } else {
@@ -223,7 +223,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
         if let Body::Binary(bytes) = body {
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes)?;
+            self.encoder.write(bytes.as_ref())?;
         } else {
             // capacity, makes sense only for streaming or actor
             self.buffer_capacity = msg.write_buffer_capacity();
@@ -251,7 +251,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     }
                 } else {
                     // TODO: add warning, write after EOF
-                    self.encoder.write(payload)?;
+                    self.encoder.write(payload.as_ref())?;
                 }
             } else {
                 // could be response to EXCEPT header

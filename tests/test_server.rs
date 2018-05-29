@@ -32,7 +32,7 @@ use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
 
-use actix::System;
+use actix::{msgs::SystemExit, Arbiter, System};
 use actix_web::*;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -74,12 +74,11 @@ fn test_start() {
             let srv = srv.bind("127.0.0.1:0").unwrap();
             let addr = srv.addrs()[0];
             let srv_addr = srv.start();
-            let _ = tx.send((addr, srv_addr));
+            let _ = tx.send((addr, srv_addr, Arbiter::system()));
         });
     });
-    let (addr, srv_addr) = rx.recv().unwrap();
+    let (addr, srv_addr, sys) = rx.recv().unwrap();
 
-    let _sys = System::new("test-server");
     let mut rt = Runtime::new().unwrap();
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
@@ -102,7 +101,7 @@ fn test_start() {
 
     // resume
     let _ = srv_addr.send(server::ResumeServer).wait();
-    thread::sleep(time::Duration::from_millis(400));
+    thread::sleep(time::Duration::from_millis(200));
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
             .finish()
@@ -110,6 +109,8 @@ fn test_start() {
         let response = rt.block_on(req.send()).unwrap();
         assert!(response.status().is_success());
     }
+
+    let _ = sys.send(SystemExit(0)).wait();
 }
 
 #[test]
@@ -129,12 +130,11 @@ fn test_shutdown() {
             let srv = srv.bind("127.0.0.1:0").unwrap();
             let addr = srv.addrs()[0];
             let srv_addr = srv.shutdown_timeout(1).start();
-            let _ = tx.send((addr, srv_addr));
+            let _ = tx.send((addr, srv_addr, Arbiter::system()));
         });
     });
-    let (addr, srv_addr) = rx.recv().unwrap();
+    let (addr, srv_addr, sys) = rx.recv().unwrap();
 
-    let _sys = System::new("test-server");
     let mut rt = Runtime::new().unwrap();
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
@@ -147,6 +147,8 @@ fn test_shutdown() {
 
     thread::sleep(time::Duration::from_millis(1000));
     assert!(net::TcpStream::connect(addr).is_err());
+
+    let _ = sys.send(SystemExit(0)).wait();
 }
 
 #[test]

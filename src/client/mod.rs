@@ -1,11 +1,12 @@
 //! Http client api
 //!
-//! ```rust,ignore
+//! ```rust
 //! # extern crate actix;
 //! # extern crate actix_web;
 //! # extern crate futures;
 //! # extern crate tokio;
 //! # use futures::Future;
+//! # use std::process;
 //! use actix_web::client;
 //!
 //! fn main() {
@@ -17,11 +18,14 @@
 //!             .map_err(|_| ())
 //!             .and_then(|response| {                // <- server http response
 //!                 println!("Response: {:?}", response);
+//! #               process::exit(0);
 //!                 Ok(())
 //!             })
 //!     });
 //! }
 //! ```
+
+mod body;
 mod connector;
 mod parser;
 mod pipeline;
@@ -29,6 +33,7 @@ mod request;
 mod response;
 mod writer;
 
+pub use self::body::{ClientBody, ClientBodyStream};
 pub use self::connector::{
     ClientConnector, ClientConnectorError, ClientConnectorStats, Connect, Connection,
     Pause, Resume,
@@ -56,11 +61,15 @@ impl ResponseError for SendRequestError {
 
 /// Create request builder for `GET` requests
 ///
-/// ```rust,ignore
+///
+/// ```rust
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// # extern crate futures;
-/// # use futures::{future, Future};
+/// # extern crate tokio;
+/// # extern crate env_logger;
+/// # use futures::Future;
+/// # use std::process;
 /// use actix_web::client;
 ///
 /// fn main() {
@@ -72,6 +81,7 @@ impl ResponseError for SendRequestError {
 ///             .map_err(|_| ())
 ///             .and_then(|response| {                // <- server http response
 ///                 println!("Response: {:?}", response);
+/// #               process::exit(0);
 ///                 Ok(())
 ///             }));
 /// }

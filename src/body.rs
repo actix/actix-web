@@ -1,6 +1,5 @@
 use bytes::{Bytes, BytesMut};
 use futures::Stream;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::{fmt, mem};
 
@@ -35,10 +34,8 @@ pub enum Binary {
     /// Static slice
     Slice(&'static [u8]),
     /// Shared string body
-    SharedString(Rc<String>),
-    /// Shared string body
     #[doc(hidden)]
-    ArcSharedString(Arc<String>),
+    SharedString(Arc<String>),
     /// Shared vec body
     SharedVec(Arc<Vec<u8>>),
 }
@@ -140,7 +137,6 @@ impl Binary {
             Binary::Bytes(ref bytes) => bytes.len(),
             Binary::Slice(slice) => slice.len(),
             Binary::SharedString(ref s) => s.len(),
-            Binary::ArcSharedString(ref s) => s.len(),
             Binary::SharedVec(ref s) => s.len(),
         }
     }
@@ -162,7 +158,6 @@ impl Clone for Binary {
             Binary::Bytes(ref bytes) => Binary::Bytes(bytes.clone()),
             Binary::Slice(slice) => Binary::Bytes(Bytes::from(slice)),
             Binary::SharedString(ref s) => Binary::SharedString(s.clone()),
-            Binary::ArcSharedString(ref s) => Binary::ArcSharedString(s.clone()),
             Binary::SharedVec(ref s) => Binary::SharedVec(s.clone()),
         }
     }
@@ -174,7 +169,6 @@ impl Into<Bytes> for Binary {
             Binary::Bytes(bytes) => bytes,
             Binary::Slice(slice) => Bytes::from(slice),
             Binary::SharedString(s) => Bytes::from(s.as_str()),
-            Binary::ArcSharedString(s) => Bytes::from(s.as_str()),
             Binary::SharedVec(s) => Bytes::from(AsRef::<[u8]>::as_ref(s.as_ref())),
         }
     }
@@ -222,27 +216,15 @@ impl From<BytesMut> for Binary {
     }
 }
 
-impl From<Rc<String>> for Binary {
-    fn from(body: Rc<String>) -> Binary {
-        Binary::SharedString(body)
-    }
-}
-
-impl<'a> From<&'a Rc<String>> for Binary {
-    fn from(body: &'a Rc<String>) -> Binary {
-        Binary::SharedString(Rc::clone(body))
-    }
-}
-
 impl From<Arc<String>> for Binary {
     fn from(body: Arc<String>) -> Binary {
-        Binary::ArcSharedString(body)
+        Binary::SharedString(body)
     }
 }
 
 impl<'a> From<&'a Arc<String>> for Binary {
     fn from(body: &'a Arc<String>) -> Binary {
-        Binary::ArcSharedString(Arc::clone(body))
+        Binary::SharedString(Arc::clone(body))
     }
 }
 
@@ -265,7 +247,6 @@ impl AsRef<[u8]> for Binary {
             Binary::Bytes(ref bytes) => bytes.as_ref(),
             Binary::Slice(slice) => slice,
             Binary::SharedString(ref s) => s.as_bytes(),
-            Binary::ArcSharedString(ref s) => s.as_bytes(),
             Binary::SharedVec(ref s) => s.as_ref().as_ref(),
         }
     }
@@ -322,22 +303,6 @@ mod tests {
     fn test_bytes() {
         assert_eq!(Binary::from(Bytes::from("test")).len(), 4);
         assert_eq!(Binary::from(Bytes::from("test")).as_ref(), b"test");
-    }
-
-    #[test]
-    fn test_ref_string() {
-        let b = Rc::new("test".to_owned());
-        assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), b"test");
-    }
-
-    #[test]
-    fn test_rc_string() {
-        let b = Rc::new("test".to_owned());
-        assert_eq!(Binary::from(b.clone()).len(), 4);
-        assert_eq!(Binary::from(b.clone()).as_ref(), b"test");
-        assert_eq!(Binary::from(&b).len(), 4);
-        assert_eq!(Binary::from(&b).as_ref(), b"test");
     }
 
     #[test]
