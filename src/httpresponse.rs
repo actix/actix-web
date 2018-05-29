@@ -86,7 +86,7 @@ impl HttpResponse {
         HttpResponsePool::with_body(status, body.into())
     }
 
-    /// Constructs a error response
+    /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> HttpResponse {
         let mut resp = error.cause().error_response();
