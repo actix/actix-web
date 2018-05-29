@@ -192,7 +192,7 @@ impl StreamHandlerType {
                 let io = TcpStream::from_std(io, &Handle::default())
                     .expect("failed to associate TCP stream");
 
-                Arbiter::spawn(TlsAcceptorExt::accept_async(acceptor, io).then(
+                current_thread::spawn(TlsAcceptorExt::accept_async(acceptor, io).then(
                     move |res| {
                         match res {
                             Ok(io) => current_thread::spawn(HttpChannel::new(
@@ -213,7 +213,7 @@ impl StreamHandlerType {
                 let io = TcpStream::from_std(io, &Handle::default())
                     .expect("failed to associate TCP stream");
 
-                Arbiter::spawn(SslAcceptorExt::accept_async(acceptor, io).then(
+                current_thread::spawn(SslAcceptorExt::accept_async(acceptor, io).then(
                     move |res| {
                         match res {
                             Ok(io) => {

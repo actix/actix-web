@@ -227,7 +227,7 @@ fn test_ws_server_ssl() {
         .set_certificate_chain_file("tests/cert.pem")
         .unwrap();
 
-    let mut srv = test::TestServer::build().ssl(builder.build()).start(|app| {
+    let mut srv = test::TestServer::build().ssl(builder).start(|app| {
         app.handler(|req| {
             ws::start(
                 req,

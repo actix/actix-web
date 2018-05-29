@@ -14,7 +14,7 @@ use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
 
 #[cfg(feature = "alpn")]
-use openssl::ssl::SslAcceptor;
+use openssl::ssl::SslAcceptorBuilder;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -251,7 +251,7 @@ impl Drop for TestServer {
 pub struct TestServerBuilder<S> {
     state: Box<Fn() -> S + Sync + Send + 'static>,
     #[cfg(feature = "alpn")]
-    ssl: Option<SslAcceptor>,
+    ssl: Option<SslAcceptorBuilder>,
 }
 
 impl<S: 'static> TestServerBuilder<S> {
@@ -268,7 +268,7 @@ impl<S: 'static> TestServerBuilder<S> {
 
     #[cfg(feature = "alpn")]
     /// Create ssl server
-    pub fn ssl(mut self, ssl: SslAcceptor) -> Self {
+    pub fn ssl(mut self, ssl: SslAcceptorBuilder) -> Self {
         self.ssl = Some(ssl);
         self
     }
@@ -291,10 +291,9 @@ impl<S: 'static> TestServerBuilder<S> {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            let state = self.state;
-
             System::new("actix-test-server")
                 .config(move || {
+                    let state = self.state;
                     let srv = HttpServer::new(move || {
                         let mut app = TestApp::new(state());
                         config(&mut app);
@@ -311,22 +310,11 @@ impl<S: 'static> TestServerBuilder<S> {
 
                     #[cfg(feature = "alpn")]
                     {
-                        use futures::Stream;
-                        use std::io;
-                        use tokio_openssl::SslAcceptorExt;
-
                         let ssl = self.ssl.take();
                         if let Some(ssl) = ssl {
-                            srv.start_incoming(
-                                tcp.incoming().and_then(move |sock| {
-                                    ssl.accept_async(sock).map_err(|e| {
-                                        io::Error::new(io::ErrorKind::Other, e)
-                                    })
-                                }),
-                                false,
-                            );
+                            srv.listen_ssl(tcp, ssl).unwrap().start();
                         } else {
-                            srv.start_incoming(tcp.incoming(), false);
+                            srv.listen(tcp).start();
                         }
                     }
                     #[cfg(not(feature = "alpn"))]
