@@ -7,6 +7,7 @@ extern crate rand;
 
 use bytes::Bytes;
 use futures::Stream;
+use rand::distributions::Alphanumeric;
 use rand::Rng;
 
 #[cfg(feature = "alpn")]
@@ -86,7 +87,7 @@ fn test_close_description() {
 #[test]
 fn test_large_text() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&Alphanumeric)
         .take(65_536)
         .collect::<String>();
 
@@ -104,7 +105,7 @@ fn test_large_text() {
 #[test]
 fn test_large_bin() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&Alphanumeric)
         .take(65_536)
         .collect::<String>();
 

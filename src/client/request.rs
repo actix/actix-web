@@ -24,7 +24,7 @@ use httprequest::HttpRequest;
 
 /// An HTTP Client Request
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate actix;
 /// # extern crate actix_web;
 /// # extern crate futures;
@@ -32,22 +32,17 @@ use httprequest::HttpRequest;
 /// use actix_web::client::ClientRequest;
 ///
 /// fn main() {
-///     let sys = actix::System::new("test");
-///
-///     actix::Arbiter::spawn({
+///     tokio::run(
 ///         ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
 ///             .header("User-Agent", "Actix-web")
 ///             .finish().unwrap()
 ///             .send()                                    // <- Send http request
 ///             .map_err(|_| ())
-///             .and_then(|response| {  // <- server http response
+///             .and_then(|response| {                     // <- server http response
 ///                 println!("Response: {:?}", response);
-/// #               actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
 ///                 Ok(())
 ///             })
-///     });
-///
-///     sys.run();
+///     );
 /// }
 /// ```
 pub struct ClientRequest {

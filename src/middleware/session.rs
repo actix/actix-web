@@ -50,17 +50,17 @@
 //! }
 //!
 //! fn main() {
-//!     let sys = actix::System::new("basic-example");
-//!     server::new(
-//!       || App::new().middleware(
-//!           SessionStorage::new(          // <- create session middleware
-//!             CookieSessionBackend::signed(&[0; 32]) // <- create signed cookie session backend
-//!                 .secure(false)
-//!          )))
-//!         .bind("127.0.0.1:59880").unwrap()
-//!         .start();
-//! #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
-//!     let _ = sys.run();
+//!     actix::System::run(|| {
+//!         server::new(
+//!           || App::new().middleware(
+//!               SessionStorage::new(          // <- create session middleware
+//!                 CookieSessionBackend::signed(&[0; 32]) // <- create signed cookie session backend
+//!                     .secure(false)
+//!              )))
+//!             .bind("127.0.0.1:59880").unwrap()
+//!             .start();
+//! #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//!     });
 //! }
 //! ```
 use std::cell::RefCell;

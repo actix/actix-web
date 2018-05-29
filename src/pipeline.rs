@@ -805,7 +805,7 @@ mod tests {
                     .unwrap();
 
                 let req = HttpRequest::default();
-                let mut ctx = HttpContext::new(req.clone(), MyActor);
+                let ctx = HttpContext::new(req.clone(), MyActor);
                 let addr = ctx.address();
                 let mut info = PipelineInfo::new(req);
                 info.context = Some(Box::new(ctx));

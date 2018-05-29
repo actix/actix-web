@@ -90,7 +90,7 @@ where
         self.inner.cancel_future(handle)
     }
     #[inline]
-    fn address(&mut self) -> Addr<A> {
+    fn address(&self) -> Addr<A> {
         self.inner.address()
     }
 }

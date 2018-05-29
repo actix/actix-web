@@ -410,16 +410,16 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// use actix_web::{server, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let sys = actix::System::new("example");  // <- create Actix system
+    ///     // Run actix system, this method actually starts all async processes
+    ///     actix::System::run(|| {
     ///
-    ///     server::new(
-    ///         || App::new()
-    ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
-    ///         .start();
+    ///         server::new(
+    ///             || App::new()
+    ///                  .resource("/", |r| r.h(|_| HttpResponse::Ok())))
+    ///             .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
+    ///             .start();
     /// #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
-    ///
-    ///    let _ = sys.run();  // <- Run actix system, this method actually starts all async processes
+    ///    });
     /// }
     /// ```
     pub fn start(mut self) -> Addr<Self> {
@@ -496,9 +496,11 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         self.no_signals = false;
 
         let _ = thread::spawn(move || {
-            let sys = System::new("http-server");
-            self.start();
-            let _ = sys.run();
+            System::new("http-server")
+                .config(|| {
+                    self.start();
+                })
+                .run();
         }).join();
     }
 }
@@ -565,7 +567,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// This method uses only one thread for handling incoming connections.
     pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> Addr<Self>
     where
-        S: Stream<Item = T, Error = io::Error> + 'static,
+        S: Stream<Item = T, Error = io::Error> + Send + 'static,
         T: AsyncRead + AsyncWrite + 'static,
     {
         // set server settings
@@ -588,6 +590,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
             }));
             self
         });
+
         if let Some(signals) = signals {
             signals.do_send(signal::Subscribe(addr.clone().recipient()))
         }
@@ -686,12 +689,13 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::spawn(HttpChannel::new(
+        unimplemented!();
+        /*Arbiter::spawn(HttpChannel::new(
             Rc::clone(self.h.as_ref().unwrap()),
             msg.io,
             msg.peer,
             msg.http2,
-        ));
+        ));*/
     }
 }
 

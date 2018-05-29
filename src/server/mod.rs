@@ -48,16 +48,16 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// use actix_web::{server, App, HttpResponse};
 ///
 /// fn main() {
-///     let sys = actix::System::new("guide");
+///     actix::System::run(|| {
 ///
-///     server::new(
-///         || App::new()
-///             .resource("/", |r| r.f(|_| HttpResponse::Ok())))
-///         .bind("127.0.0.1:59090").unwrap()
-///         .start();
+///         server::new(
+///             || App::new()
+///                 .resource("/", |r| r.f(|_| HttpResponse::Ok())))
+///             .bind("127.0.0.1:59090").unwrap()
+///             .start();
 ///
 ///     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
-///     let _ = sys.run();
+///     });
 /// }
 /// ```
 pub fn new<F, U, H>(factory: F) -> HttpServer<H>

@@ -380,7 +380,10 @@ impl Pipeline {
             match self.timeout.as_mut().unwrap().poll() {
                 Ok(Async::Ready(())) => return Err(SendRequestError::Timeout),
                 Ok(Async::NotReady) => (),
-                Err(_) => unreachable!(),
+                Err(e) => {
+                    println!("err: {:?}", e);
+                    return Err(SendRequestError::Timeout);
+                }
             }
         }
         Ok(())

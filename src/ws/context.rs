@@ -75,7 +75,7 @@ where
     }
 
     #[inline]
-    fn address(&mut self) -> Addr<A> {
+    fn address(&self) -> Addr<A> {
         self.inner.address()
     }
 }

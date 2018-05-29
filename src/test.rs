@@ -5,15 +5,13 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix::{msgs, Actor, Addr, Arbiter, System, SystemRunner};
+use actix::{msgs, Actor, Addr, Arbiter, System};
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
-use tokio_reactor::Handle;
-use tokio_tcp::TcpListener;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptor;
@@ -63,10 +61,10 @@ use ws;
 pub struct TestServer {
     addr: net::SocketAddr,
     thread: Option<thread::JoinHandle<()>>,
-    system: SystemRunner,
     server_sys: Addr<System>,
     ssl: bool,
     conn: Addr<ClientConnector>,
+    rt: Runtime,
 }
 
 impl TestServer {
@@ -113,25 +111,31 @@ impl TestServer {
             let sys = System::new("actix-test-server");
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
-            let tcp = TcpListener::from_std(tcp, &Handle::default()).unwrap();
 
-            HttpServer::new(factory)
-                .disable_signals()
-                .start_incoming(tcp.incoming(), false);
+            sys.config(move || {
+                HttpServer::new(factory)
+                    .disable_signals()
+                    .listen(tcp)
+                    .start();
 
-            tx.send((Arbiter::system(), local_addr)).unwrap();
-            let _ = sys.run();
+                tx.send((
+                    Arbiter::system(),
+                    local_addr,
+                    TestServer::get_conn(),
+                    Arbiter::registry().clone(),
+                )).unwrap();
+            }).run();
         });
 
-        let sys = System::new("actix-test");
-        let (server_sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr, conn, reg) = rx.recv().unwrap();
+        Arbiter::set_system_reg(reg);
         TestServer {
             addr,
             server_sys,
+            conn,
             ssl: false,
-            conn: TestServer::get_conn(),
             thread: Some(join),
-            system: sys,
+            rt: Runtime::new().unwrap(),
         }
     }
 
@@ -197,7 +201,7 @@ impl TestServer {
     where
         F: Future<Item = I, Error = E>,
     {
-        self.system.run_until_complete(fut)
+        self.rt.block_on(fut)
     }
 
     /// Connect to websocket server
@@ -205,9 +209,8 @@ impl TestServer {
         &mut self,
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url("/");
-        self.system.run_until_complete(
-            ws::Client::with_connector(url, self.conn.clone()).connect(),
-        )
+        self.rt
+            .block_on(ws::Client::with_connector(url, self.conn.clone()).connect())
     }
 
     /// Create `GET` request
@@ -285,57 +288,64 @@ impl<S: 'static> TestServerBuilder<S> {
 
         // run server in separate thread
         let join = thread::spawn(move || {
-            let sys = System::new("actix-test-server");
-
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
-            let tcp = TcpListener::from_std(tcp, &Handle::default()).unwrap();
 
             let state = self.state;
 
-            let srv = HttpServer::new(move || {
-                let mut app = TestApp::new(state());
-                config(&mut app);
-                vec![app]
-            }).disable_signals();
+            System::new("actix-test-server")
+                .config(move || {
+                    let srv = HttpServer::new(move || {
+                        let mut app = TestApp::new(state());
+                        config(&mut app);
+                        vec![app]
+                    }).workers(1)
+                        .disable_signals();
 
-            #[cfg(feature = "alpn")]
-            {
-                use futures::Stream;
-                use std::io;
-                use tokio_openssl::SslAcceptorExt;
+                    tx.send((
+                        Arbiter::system(),
+                        local_addr,
+                        TestServer::get_conn(),
+                        Arbiter::registry().clone(),
+                    )).unwrap();
 
-                let ssl = self.ssl.take();
-                if let Some(ssl) = ssl {
-                    srv.start_incoming(
-                        tcp.incoming().and_then(move |sock| {
-                            ssl.accept_async(sock)
-                                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                        }),
-                        false,
-                    );
-                } else {
-                    srv.start_incoming(tcp.incoming(), false);
-                }
-            }
-            #[cfg(not(feature = "alpn"))]
-            {
-                srv.start_incoming(tcp.incoming(), false);
-            }
+                    #[cfg(feature = "alpn")]
+                    {
+                        use futures::Stream;
+                        use std::io;
+                        use tokio_openssl::SslAcceptorExt;
 
-            tx.send((Arbiter::system(), local_addr)).unwrap();
-            let _ = sys.run();
+                        let ssl = self.ssl.take();
+                        if let Some(ssl) = ssl {
+                            srv.start_incoming(
+                                tcp.incoming().and_then(move |sock| {
+                                    ssl.accept_async(sock).map_err(|e| {
+                                        io::Error::new(io::ErrorKind::Other, e)
+                                    })
+                                }),
+                                false,
+                            );
+                        } else {
+                            srv.start_incoming(tcp.incoming(), false);
+                        }
+                    }
+                    #[cfg(not(feature = "alpn"))]
+                    {
+                        srv.listen(tcp).start();
+                    }
+                })
+                .run();
         });
 
-        let system = System::new("actix-test");
-        let (server_sys, addr) = rx.recv().unwrap();
+        let (server_sys, addr, conn, reg) = rx.recv().unwrap();
+        Arbiter::set_system_reg(reg);
         TestServer {
             addr,
-            server_sys,
             ssl,
-            system,
-            conn: TestServer::get_conn(),
+            conn,
+            server_sys,
             thread: Some(join),
+            rt: Runtime::new().unwrap(),
         }
     }
 }

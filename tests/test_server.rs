@@ -1,5 +1,7 @@
 extern crate actix;
 extern crate actix_web;
+#[cfg(feature = "brotli")]
+extern crate brotli2;
 extern crate bytes;
 extern crate flate2;
 extern crate futures;
@@ -10,8 +12,9 @@ extern crate tokio;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 
-#[cfg(feature = "brotli")]
-extern crate brotli2;
+use std::io::{Read, Write};
+use std::sync::{mpsc, Arc};
+use std::{net, thread, time};
 
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -23,10 +26,8 @@ use futures::stream::once;
 use futures::{Future, Stream};
 use h2::client as h2client;
 use modhttp::Request;
+use rand::distributions::Alphanumeric;
 use rand::Rng;
-use std::io::{Read, Write};
-use std::sync::{mpsc, Arc};
-use std::{net, thread, time};
 use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
@@ -62,28 +63,29 @@ fn test_start() {
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
-    thread::spawn(move || {
-        let sys = System::new("test");
-        let srv = server::new(|| {
-            vec![App::new().resource("/", |r| {
-                r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-            })]
-        });
+    thread::spawn(|| {
+        System::run(move || {
+            let srv = server::new(|| {
+                vec![App::new().resource("/", |r| {
+                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                })]
+            });
 
-        let srv = srv.bind("127.0.0.1:0").unwrap();
-        let addr = srv.addrs()[0];
-        let srv_addr = srv.start();
-        let _ = tx.send((addr, srv_addr));
-        sys.run();
+            let srv = srv.bind("127.0.0.1:0").unwrap();
+            let addr = srv.addrs()[0];
+            let srv_addr = srv.start();
+            let _ = tx.send((addr, srv_addr));
+        });
     });
     let (addr, srv_addr) = rx.recv().unwrap();
 
-    let mut sys = System::new("test-server");
+    let _sys = System::new("test-server");
+    let mut rt = Runtime::new().unwrap();
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
             .finish()
             .unwrap();
-        let response = sys.run_until_complete(req.send()).unwrap();
+        let response = rt.block_on(req.send()).unwrap();
         assert!(response.status().is_success());
     }
 
@@ -95,7 +97,7 @@ fn test_start() {
             .timeout(time::Duration::from_millis(200))
             .finish()
             .unwrap();
-        assert!(sys.run_until_complete(req.send()).is_err());
+        assert!(rt.block_on(req.send()).is_err());
     }
 
     // resume
@@ -105,7 +107,7 @@ fn test_start() {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
             .finish()
             .unwrap();
-        let response = sys.run_until_complete(req.send()).unwrap();
+        let response = rt.block_on(req.send()).unwrap();
         assert!(response.status().is_success());
     }
 }
@@ -116,29 +118,29 @@ fn test_shutdown() {
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
-    thread::spawn(move || {
-        let sys = System::new("test");
-        let srv = server::new(|| {
-            vec![App::new().resource("/", |r| {
-                r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-            })]
-        });
+    thread::spawn(|| {
+        System::run(move || {
+            let srv = server::new(|| {
+                vec![App::new().resource("/", |r| {
+                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                })]
+            });
 
-        let srv = srv.bind("127.0.0.1:0").unwrap();
-        let addr = srv.addrs()[0];
-        let srv_addr = srv.shutdown_timeout(1).start();
-        let _ = tx.send((addr, srv_addr));
-        sys.run();
+            let srv = srv.bind("127.0.0.1:0").unwrap();
+            let addr = srv.addrs()[0];
+            let srv_addr = srv.shutdown_timeout(1).start();
+            let _ = tx.send((addr, srv_addr));
+        });
     });
     let (addr, srv_addr) = rx.recv().unwrap();
 
-    let mut sys = System::new("test-server");
-
+    let _sys = System::new("test-server");
+    let mut rt = Runtime::new().unwrap();
     {
         let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
             .finish()
             .unwrap();
-        let response = sys.run_until_complete(req.send()).unwrap();
+        let response = rt.block_on(req.send()).unwrap();
         srv_addr.do_send(server::StopServer { graceful: true });
         assert!(response.status().is_success());
     }
@@ -263,7 +265,7 @@ fn test_body_gzip_large() {
 #[test]
 fn test_body_gzip_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&Alphanumeric)
         .take(70_000)
         .collect::<String>();
     let srv_data = Arc::new(data.clone());
@@ -583,7 +585,7 @@ fn test_gzip_encoding_large() {
 #[test]
 fn test_reading_gzip_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&Alphanumeric)
         .take(60_000)
         .collect::<String>();
 
@@ -686,7 +688,7 @@ fn test_reading_deflate_encoding_large() {
 #[test]
 fn test_reading_deflate_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&Alphanumeric)
         .take(160_000)
         .collect::<String>();
 

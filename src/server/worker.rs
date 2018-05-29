@@ -1,9 +1,10 @@
-use futures::unsync::oneshot;
+use futures::sync::oneshot;
 use futures::Future;
 use net2::TcpStreamExt;
 use slab::Slab;
 use std::rc::Rc;
 use std::{net, time};
+use tokio::executor::current_thread;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
@@ -180,7 +181,7 @@ impl StreamHandlerType {
                 let io = TcpStream::from_std(msg.io, &Handle::default())
                     .expect("failed to associate TCP stream");
 
-                Arbiter::spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
+                current_thread::spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
             }
             #[cfg(feature = "tls")]
             StreamHandlerType::Tls(ref acceptor) => {
@@ -194,9 +195,9 @@ impl StreamHandlerType {
                 Arbiter::spawn(TlsAcceptorExt::accept_async(acceptor, io).then(
                     move |res| {
                         match res {
-                            Ok(io) => {
-                                Arbiter::spawn(HttpChannel::new(h, io, peer, http2))
-                            }
+                            Ok(io) => current_thread::spawn(HttpChannel::new(
+                                h, io, peer, http2,
+                            )),
                             Err(err) => {
                                 trace!("Error during handling tls connection: {}", err)
                             }
@@ -223,7 +224,9 @@ impl StreamHandlerType {
                                 } else {
                                     false
                                 };
-                                Arbiter::spawn(HttpChannel::new(h, io, peer, http2));
+                                current_thread::spawn(HttpChannel::new(
+                                    h, io, peer, http2,
+                                ));
                             }
                             Err(err) => {
                                 trace!("Error during handling tls connection: {}", err)
