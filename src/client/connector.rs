@@ -289,7 +289,7 @@ impl ClientConnector {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # extern crate tokio;
-    /// # use futures::Future;
+    /// # use futures::{future, Future};
     /// # use std::io::Write;
     /// # use std::process;
     /// extern crate openssl;
@@ -299,7 +299,7 @@ impl ClientConnector {
     /// use openssl::ssl::{SslMethod, SslConnector};
     ///
     /// fn main() {
-    ///     tokio::run(future::lazy(||
+    ///     tokio::run(future::lazy(|| {
     ///
     ///         // Start `ClientConnector` with custom `SslConnector`
     ///         let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
@@ -315,7 +315,7 @@ impl ClientConnector {
     /// #                   process::exit(0);
     ///                     Ok(())
     ///                 })
-    ///     );
+    ///     }));
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
