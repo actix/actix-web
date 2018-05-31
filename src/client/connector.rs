@@ -1,12 +1,14 @@
+extern crate actix;
+
 use std::collections::{HashMap, VecDeque};
 use std::net::Shutdown;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
-use actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
-use actix::fut::WrapFuture;
-use actix::registry::SystemService;
-use actix::{
+use self::actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
+use self::actix::fut::WrapFuture;
+use self::actix::registry::SystemService;
+use self::actix::{
     fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context, ContextFutureSpawner,
     Handler, Message, Recipient, StreamHandler, Supervised,
 };

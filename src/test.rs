@@ -1,11 +1,13 @@
 //! Various helpers for Actix applications to use during testing.
 
+extern crate actix;
+
 use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix::{msgs, Actor, Addr, Arbiter, System};
+use self::actix::{msgs, Actor, Addr, Arbiter, System};
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
@@ -40,7 +42,6 @@ use ws;
 /// # Examples
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// # use actix_web::*;
 /// #

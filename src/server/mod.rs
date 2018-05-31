@@ -1,8 +1,9 @@
 //! Http server
+extern crate actix;
+
 use std::net::Shutdown;
 use std::{io, time};
 
-use actix;
 use bytes::BytesMut;
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -42,9 +43,8 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// This is shortcut for `server::HttpServer::new()` method.
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
-/// use actix::*;
+/// use actix_web::actix::*;
 /// use actix_web::{server, App, HttpResponse};
 ///
 /// fn main() {

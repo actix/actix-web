@@ -1,7 +1,6 @@
 //! Http client api
 //!
 //! ```rust
-//! # extern crate actix;
 //! # extern crate actix_web;
 //! # extern crate futures;
 //! # extern crate tokio;
@@ -63,7 +62,6 @@ impl ResponseError for SendRequestError {
 ///
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # extern crate tokio;

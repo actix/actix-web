@@ -25,7 +25,6 @@ use httprequest::HttpRequest;
 /// An HTTP Client Request
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # extern crate tokio;

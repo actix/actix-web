@@ -1,3 +1,5 @@
+extern crate actix;
+
 use futures::sync::oneshot;
 use futures::Future;
 use net2::TcpStreamExt;
@@ -21,8 +23,8 @@ use openssl::ssl::SslAcceptor;
 #[cfg(feature = "alpn")]
 use tokio_openssl::SslAcceptorExt;
 
-use actix::msgs::StopArbiter;
-use actix::*;
+use self::actix::msgs::StopArbiter;
+use self::actix::*;
 
 use server::channel::HttpChannel;
 use server::settings::WorkerSettings;

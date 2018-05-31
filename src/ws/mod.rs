@@ -7,9 +7,8 @@
 //! ## Example
 //!
 //! ```rust
-//! # extern crate actix;
 //! # extern crate actix_web;
-//! # use actix::*;
+//! # use actix_web::actix::*;
 //! # use actix_web::*;
 //! use actix_web::{ws, HttpRequest, HttpResponse};
 //!
@@ -43,11 +42,13 @@
 //! #      .finish();
 //! # }
 //! ```
+extern crate actix;
+
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
 
-use actix::{Actor, AsyncContext, StreamHandler};
+use self::actix::{Actor, AsyncContext, StreamHandler};
 
 use body::Binary;
 use error::{Error, PayloadError, ResponseError};

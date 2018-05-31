@@ -229,7 +229,6 @@ unsafe impl Sync for SessionImplCell {}
 /// Session storage middleware
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// use actix_web::App;
 /// use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
