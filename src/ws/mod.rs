@@ -7,9 +7,8 @@
 //! ## Example
 //!
 //! ```rust
-//! # extern crate actix;
 //! # extern crate actix_web;
-//! # use actix::*;
+//! # use actix_web::actix::*;
 //! # use actix_web::*;
 //! use actix_web::{ws, HttpRequest, HttpResponse};
 //!

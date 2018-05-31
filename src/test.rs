@@ -40,7 +40,6 @@ use ws;
 /// # Examples
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// # use actix_web::*;
 /// #

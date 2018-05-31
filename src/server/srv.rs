@@ -405,9 +405,8 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// This method requires to run within properly configured `Actix` system.
     ///
     /// ```rust
-    /// extern crate actix;
     /// extern crate actix_web;
-    /// use actix_web::{server, App, HttpResponse};
+    /// use actix_web::{actix, server, App, HttpResponse};
     ///
     /// fn main() {
     ///     // Run actix system, this method actually starts all async processes
@@ -478,7 +477,6 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///
     /// ```rust,ignore
     /// # extern crate futures;
-    /// # extern crate actix;
     /// # extern crate actix_web;
     /// # use futures::Future;
     /// use actix_web::*;

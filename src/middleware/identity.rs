@@ -143,7 +143,6 @@ pub trait IdentityPolicy<S>: Sized + 'static {
 /// Request identity middleware
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// use actix_web::App;
 /// use actix_web::middleware::identity::{IdentityService, CookieIdentityPolicy};

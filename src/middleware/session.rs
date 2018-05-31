@@ -32,10 +32,10 @@
 //! session data.
 //!
 //! ```rust
-//! # extern crate actix;
 //! # extern crate actix_web;
 //! use actix_web::{server, App, HttpRequest, Result};
 //! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
+//! use actix_web::actix;
 //!
 //! fn index(req: HttpRequest) -> Result<&'static str> {
 //!     // access session data
@@ -229,7 +229,6 @@ unsafe impl Sync for SessionImplCell {}
 /// Session storage middleware
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
 /// use actix_web::App;
 /// use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};

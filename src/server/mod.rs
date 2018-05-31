@@ -42,9 +42,8 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// This is shortcut for `server::HttpServer::new()` method.
 ///
 /// ```rust
-/// # extern crate actix;
 /// # extern crate actix_web;
-/// use actix::*;
+/// use actix_web::actix::*;
 /// use actix_web::{server, App, HttpResponse};
 ///
 /// fn main() {

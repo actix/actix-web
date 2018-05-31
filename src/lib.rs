@@ -194,6 +194,7 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+pub use actix;
 
 #[doc(hidden)]
 #[deprecated(since = "0.6.2", note = "please use `use actix_web::ws::WsWriter`")]
