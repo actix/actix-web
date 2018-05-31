@@ -287,6 +287,7 @@ impl ClientConnector {
     ///
     /// ```rust
     /// # #![cfg(feature="alpn")]
+    /// # extern crate actix;
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # extern crate tokio;
@@ -294,7 +295,7 @@ impl ClientConnector {
     /// # use std::io::Write;
     /// # use std::process;
     /// extern crate openssl;
-    /// use actix_web::actix::prelude::*;
+    /// use actix::prelude::*;
     /// use actix_web::client::{Connect, ClientConnector};
     ///
     /// use openssl::ssl::{SslMethod, SslConnector};
