@@ -1,10 +1,12 @@
+extern crate actix;
+
 use futures::sync::oneshot::{self, Sender};
 use futures::{Async, Poll};
 use smallvec::SmallVec;
 
-use actix::dev::{ContextImpl, Envelope, ToEnvelope};
-use actix::fut::ActorFuture;
-use actix::{
+use self::actix::dev::{ContextImpl, Envelope, ToEnvelope};
+use self::actix::fut::ActorFuture;
+use self::actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
 };
 

@@ -1,8 +1,9 @@
 //! Http server
+extern crate actix;
+
 use std::net::Shutdown;
 use std::{io, time};
 
-use actix;
 use bytes::BytesMut;
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};

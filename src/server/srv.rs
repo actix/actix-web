@@ -1,10 +1,12 @@
+extern crate actix;
+
 use std::rc::Rc;
 use std::sync::{mpsc as sync_mpsc, Arc};
 use std::time::Duration;
 use std::{io, net, thread};
 
-use actix::actors::signal;
-use actix::prelude::*;
+use self::actix::actors::signal;
+use self::actix::prelude::*;
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use mio;
@@ -19,7 +21,7 @@ use native_tls::TlsAcceptor;
 #[cfg(feature = "alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
-use super::channel::{HttpChannel, WrapperStream};
+use super::channel::{WrapperStream};
 use super::settings::{ServerSettings, WorkerSettings};
 use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
@@ -406,7 +408,8 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///
     /// ```rust
     /// extern crate actix_web;
-    /// use actix_web::{actix, server, App, HttpResponse};
+    /// extern crate actix;
+    /// use actix_web::{server, App, HttpResponse};
     ///
     /// fn main() {
     ///     // Run actix system, this method actually starts all async processes

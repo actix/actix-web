@@ -42,11 +42,13 @@
 //! #      .finish();
 //! # }
 //! ```
+extern crate actix;
+
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
 
-use actix::{Actor, AsyncContext, StreamHandler};
+use self::actix::{Actor, AsyncContext, StreamHandler};
 
 use body::Binary;
 use error::{Error, PayloadError, ResponseError};

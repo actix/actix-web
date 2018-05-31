@@ -1,3 +1,5 @@
+extern crate actix;
+
 use bytes::{Bytes, BytesMut};
 use futures::sync::oneshot;
 use futures::{Async, Future, Poll};
@@ -6,7 +8,7 @@ use std::time::{Duration, Instant};
 use std::{io, mem};
 use tokio_timer::Delay;
 
-use actix::prelude::*;
+use self::actix::prelude::*;
 
 use super::{
     ClientBody, ClientBodyStream, ClientConnector, ClientConnectorError, ClientRequest,

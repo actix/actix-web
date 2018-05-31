@@ -132,7 +132,7 @@ extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate smallvec;
 #[macro_use]
-extern crate actix;
+pub extern crate actix as actix_inner;
 
 #[cfg(test)]
 #[macro_use]
@@ -194,8 +194,11 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+
 pub mod actix {
-    use super::actix::prelude::*;
+    //! Re-exports [actix's](https://docs.rs/actix) prelude
+
+    pub use actix_inner::prelude::*;
 }
 
 #[doc(hidden)]
