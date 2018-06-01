@@ -289,6 +289,7 @@ impl ClientConnector {
     /// # use futures::{future, Future};
     /// # use std::io::Write;
     /// # use std::process;
+    /// # use actix_web::actix::Actor;
     /// extern crate openssl;
     /// use actix_web::client::{ClientConnector, Connect};
     ///
