@@ -128,6 +128,14 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add method check to route.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.method(http::Method::GET).f(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
     /// ```rust
@@ -143,6 +151,14 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add handler object.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn handler(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.h(handler));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
     /// ```rust
@@ -157,6 +173,14 @@ impl<S: 'static> ResourceHandler<S> {
     }
 
     /// Register a new route and add handler function.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.f(index));
+    /// ```
     ///
     /// This is shortcut for:
     ///
@@ -177,6 +201,14 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add handler.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.with(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
     /// ```rust
@@ -196,6 +228,19 @@ impl<S: 'static> ResourceHandler<S> {
     }
 
     /// Register a new route and add async handler.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// use actix_web::*;
+    /// use futures::future::Future;
+    ///
+    /// fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// App::new().resource("/", |r| r.with_async(index));
+    /// ```
     ///
     /// This is shortcut for:
     ///
