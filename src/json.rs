@@ -32,11 +32,11 @@ use httpresponse::HttpResponse;
 /// ## Example
 ///
 /// ```rust
-/// //#### # extern crate actix_web;
-/// //#### #[macro_use] extern crate serde_derive;
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Json, Result, http};
 ///
-/// //#### #[derive(Deserialize)]
+/// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }

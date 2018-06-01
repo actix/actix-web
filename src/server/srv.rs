@@ -418,7 +418,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///             .bind("127.0.0.1:0")
     ///             .expect("Can not bind to 127.0.0.1:0")
     ///             .start();
-    ///         //#### #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+    /// #           actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
     ///     });
     /// }
     /// ```

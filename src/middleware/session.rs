@@ -32,8 +32,8 @@
 //! session data.
 //!
 //! ```rust
-//! //#### # extern crate actix_web;
-//! use actix_web::{server, App, HttpRequest, Result};
+//! # extern crate actix_web;
+//! use actix_web::{actix, server, App, HttpRequest, Result};
 //! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 //!
 //! fn index(req: HttpRequest) -> Result<&'static str> {
@@ -58,7 +58,7 @@
 //!              )))
 //!             .bind("127.0.0.1:59880").unwrap()
 //!             .start();
-//! //#### #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//! #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
 //!     });
 //! }
 //! ```

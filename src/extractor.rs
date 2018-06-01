@@ -120,13 +120,13 @@ where
 /// ## Example
 ///
 /// ```rust
-/// //#### # extern crate bytes;
-/// //#### # extern crate actix_web;
-/// //#### # extern crate futures;
-/// //#### #[macro_use] extern crate serde_derive;
+/// # extern crate bytes;
+/// # extern crate actix_web;
+/// # extern crate futures;
+/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Query, http};
 ///
-/// //#### #[derive(Deserialize)]
+/// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }

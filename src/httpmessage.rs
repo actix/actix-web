@@ -231,7 +231,7 @@ pub trait HttpMessage {
     /// # extern crate futures;
     /// # use std::str;
     /// # use actix_web::*;
-    /// # use actix_web::actix::*;
+    /// # use actix_web::actix::fut::FinishStream;
     /// # use futures::{Future, Stream};
     /// # use futures::future::{ok, result, Either};
     /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {

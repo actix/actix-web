@@ -42,7 +42,7 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// This is shortcut for `server::HttpServer::new()` method.
 ///
 /// ```rust
-/// //#### # extern crate actix_web;
+/// # extern crate actix_web;
 /// use actix_web::{actix, server, App, HttpResponse};
 ///
 /// fn main() {
@@ -54,7 +54,7 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 ///             .bind("127.0.0.1:59090").unwrap()
 ///             .start();
 ///
-/// //####     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+/// #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
 ///     });
 /// }
 /// ```

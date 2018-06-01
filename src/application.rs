@@ -634,7 +634,7 @@ where
     /// struct State2;
     ///
     /// fn main() {
-    ///     //#### # thread::spawn(|| {
+    /// # thread::spawn(|| {
     ///     server::new(|| {
     ///         vec![
     ///             App::with_state(State1)
@@ -649,7 +649,7 @@ where
     ///     }).bind("127.0.0.1:8080")
     ///         .unwrap()
     ///         .run()
-    ///     //#### # });
+    /// # });
     /// }
     /// ```
     pub fn boxed(mut self) -> Box<HttpHandler> {

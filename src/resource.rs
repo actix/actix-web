@@ -24,7 +24,7 @@ use route::Route;
 /// predicates route route considered matched and route handler get called.
 ///
 /// ```rust
-/// //#### # extern crate actix_web;
+/// # extern crate actix_web;
 /// use actix_web::{App, HttpResponse, http};
 ///
 /// fn main() {

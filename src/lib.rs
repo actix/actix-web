@@ -10,13 +10,13 @@
 //! }
 //!
 //! fn main() {
-//!     //#### # thread::spawn(|| {
+//!     # thread::spawn(|| {
 //!     server::new(|| {
 //!         App::new().resource("/{name}/{id}/index.html", |r| r.with(index))
 //!     }).bind("127.0.0.1:8080")
 //!         .unwrap()
 //!         .run();
-//!     //#### # });
+//!     # });
 //! }
 //! ```
 //!

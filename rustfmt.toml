@@ -1,5 +1,5 @@
 max_width = 89
 reorder_imports = true
-wrap_comments = true
+#wrap_comments = true
 fn_args_density = "Compressed"
 #use_small_heuristics = false
