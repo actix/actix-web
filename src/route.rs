@@ -17,7 +17,7 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
-use with::{ExtractorConfig, With, With2, With3, WithAsync};
+use with::{ExtractorConfig, With, WithAsync};
 
 /// Resource route definition
 ///
@@ -215,85 +215,6 @@ impl<S: 'static> Route<S> {
         let cfg = ExtractorConfig::default();
         self.h(WithAsync::new(handler, Clone::clone(&cfg)));
         cfg
-    }
-
-    #[doc(hidden)]
-    /// Set handler function, use request extractor for both parameters.
-    ///
-    /// ```rust
-    /// # extern crate bytes;
-    /// # extern crate actix_web;
-    /// # extern crate futures;
-    /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{http, App, Path, Query, Result};
-    ///
-    /// #[derive(Deserialize)]
-    /// struct PParam {
-    ///     username: String,
-    /// }
-    ///
-    /// #[derive(Deserialize)]
-    /// struct QParam {
-    ///     count: u32,
-    /// }
-    ///
-    /// /// extract path and query information using serde
-    /// fn index(p: Path<PParam>, q: Query<QParam>) -> Result<String> {
-    ///     Ok(format!("Welcome {}!", p.username))
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().resource(
-    ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.method(http::Method::GET).with2(index),
-    ///     ); // <- use `with` extractor
-    /// }
-    /// ```
-    pub fn with2<T1, T2, F, R>(
-        &mut self, handler: F,
-    ) -> (ExtractorConfig<S, T1>, ExtractorConfig<S, T2>)
-    where
-        F: Fn(T1, T2) -> R + 'static,
-        R: Responder + 'static,
-        T1: FromRequest<S> + 'static,
-        T2: FromRequest<S> + 'static,
-    {
-        let cfg1 = ExtractorConfig::default();
-        let cfg2 = ExtractorConfig::default();
-        self.h(With2::new(
-            handler,
-            Clone::clone(&cfg1),
-            Clone::clone(&cfg2),
-        ));
-        (cfg1, cfg2)
-    }
-
-    #[doc(hidden)]
-    /// Set handler function, use request extractor for all parameters.
-    pub fn with3<T1, T2, T3, F, R>(
-        &mut self, handler: F,
-    ) -> (
-        ExtractorConfig<S, T1>,
-        ExtractorConfig<S, T2>,
-        ExtractorConfig<S, T3>,
-    )
-    where
-        F: Fn(T1, T2, T3) -> R + 'static,
-        R: Responder + 'static,
-        T1: FromRequest<S> + 'static,
-        T2: FromRequest<S> + 'static,
-        T3: FromRequest<S> + 'static,
-    {
-        let cfg1 = ExtractorConfig::default();
-        let cfg2 = ExtractorConfig::default();
-        let cfg3 = ExtractorConfig::default();
-        self.h(With3::new(
-            handler,
-            Clone::clone(&cfg1),
-            Clone::clone(&cfg2),
-            Clone::clone(&cfg3),
-        ));
-        (cfg1, cfg2, cfg3)
     }
 }
 

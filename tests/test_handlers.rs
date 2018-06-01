@@ -100,7 +100,7 @@ fn test_async_extractor_async() {
 fn test_path_and_query_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with2(|p: Path<PParam>, q: Query<PParam>| {
+            r.route().with(|(p, q): (Path<PParam>, Query<PParam>)| {
                 format!("Welcome {} - {}!", p.username, q.username)
             })
         });
@@ -134,7 +134,7 @@ fn test_path_and_query_extractor2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route()
-                .with3(|_: HttpRequest, p: Path<PParam>, q: Query<PParam>| {
+                .with(|(_r, p, q): (HttpRequest, Path<PParam>, Query<PParam>)| {
                     format!("Welcome {} - {}!", p.username, q.username)
                 })
         });
@@ -167,14 +167,15 @@ fn test_path_and_query_extractor2() {
 fn test_path_and_query_extractor2_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route()
-                .with3(|p: Path<PParam>, _: Query<PParam>, data: Json<Value>| {
+            r.route().with(
+                |(p, _q, data): (Path<PParam>, Query<PParam>, Json<Value>)| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                })
+                },
+            )
         });
     });
 
@@ -197,7 +198,7 @@ fn test_path_and_query_extractor2_async() {
 fn test_path_and_query_extractor3_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with2(|p: Path<PParam>, data: Json<Value>| {
+            r.route().with(|(p, data): (Path<PParam>, Json<Value>)| {
                 Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
@@ -222,7 +223,7 @@ fn test_path_and_query_extractor3_async() {
 fn test_path_and_query_extractor4_async() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with2(|data: Json<Value>, p: Path<PParam>| {
+            r.route().with(|(data, p): (Json<Value>, Path<PParam>)| {
                 Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
@@ -247,14 +248,15 @@ fn test_path_and_query_extractor4_async() {
 fn test_path_and_query_extractor2_async2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route()
-                .with3(|p: Path<PParam>, data: Json<Value>, _: Query<PParam>| {
+            r.route().with(
+                |(p, data, _q): (Path<PParam>, Json<Value>, Query<PParam>)| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                })
+                },
+            )
         });
     });
 
@@ -286,14 +288,15 @@ fn test_path_and_query_extractor2_async2() {
 fn test_path_and_query_extractor2_async3() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route()
-                .with3(|data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
+            r.route().with(
+                |(data, p, _q): (Json<Value>, Path<PParam>, Query<PParam>)| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
                         })
                         .responder()
-                })
+                },
+            )
         });
     });
 

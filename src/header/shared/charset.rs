@@ -1,5 +1,3 @@
-#![allow(unused, deprecated)]
-use std::ascii::AsciiExt;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
