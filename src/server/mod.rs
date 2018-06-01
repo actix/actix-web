@@ -1,6 +1,4 @@
 //! Http server
-extern crate actix;
-
 use std::net::Shutdown;
 use std::{io, time};
 
@@ -29,6 +27,7 @@ pub use self::srv::HttpServer;
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
 
+use actix::Message;
 use body::Binary;
 use error::Error;
 use header::ContentEncoding;
@@ -43,9 +42,8 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 /// This is shortcut for `server::HttpServer::new()` method.
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use actix_web::actix::*;
-/// use actix_web::{server, App, HttpResponse};
+/// //#### # extern crate actix_web;
+/// use actix_web::{actix, server, App, HttpResponse};
 ///
 /// fn main() {
 ///     actix::System::run(|| {
@@ -56,7 +54,7 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 ///             .bind("127.0.0.1:59090").unwrap()
 ///             .start();
 ///
-///     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+/// //####     #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
 ///     });
 /// }
 /// ```
@@ -116,7 +114,7 @@ pub struct StopServer {
     pub graceful: bool,
 }
 
-impl actix::Message for StopServer {
+impl Message for StopServer {
     type Result = Result<(), ()>;
 }
 

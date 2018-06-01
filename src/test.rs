@@ -1,13 +1,11 @@
 //! Various helpers for Actix applications to use during testing.
-
-extern crate actix;
-
 use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use self::actix::{msgs, Actor, Addr, Arbiter, System};
+use actix_inner::{msgs, Actor, Addr, Arbiter, System};
+
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
@@ -409,11 +407,11 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn main() {
 ///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(index).unwrap();
+///         .run(index)
+///         .unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
-///     let resp = TestRequest::default()
-///         .run(index).unwrap();
+///     let resp = TestRequest::default().run(index).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```

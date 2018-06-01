@@ -32,8 +32,7 @@
 //! session data.
 //!
 //! ```rust
-//! # extern crate actix;
-//! # extern crate actix_web;
+//! //#### # extern crate actix_web;
 //! use actix_web::{server, App, HttpRequest, Result};
 //! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 //!
@@ -59,7 +58,7 @@
 //!              )))
 //!             .bind("127.0.0.1:59880").unwrap()
 //!             .start();
-//! #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//! //#### #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
 //!     });
 //! }
 //! ```
@@ -88,13 +87,13 @@ use middleware::{Middleware, Response, Started};
 /// The helper trait to obtain your session data from a request.
 ///
 /// ```rust
-/// use actix_web::*;
 /// use actix_web::middleware::session::RequestSession;
+/// use actix_web::*;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
 ///     if let Some(count) = req.session().get::<i32>("counter")? {
-///         req.session().set("counter", count+1)?;
+///         req.session().set("counter", count + 1)?;
 ///     } else {
 ///         req.session().set("counter", 1)?;
 ///     }
@@ -123,13 +122,13 @@ impl<S> RequestSession for HttpRequest<S> {
 /// method. `RequestSession` trait is implemented for `HttpRequest`.
 ///
 /// ```rust
-/// use actix_web::*;
 /// use actix_web::middleware::session::RequestSession;
+/// use actix_web::*;
 ///
 /// fn index(mut req: HttpRequest) -> Result<&'static str> {
 ///     // access session data
 ///     if let Some(count) = req.session().get::<i32>("counter")? {
-///         req.session().set("counter", count+1)?;
+///         req.session().set("counter", count + 1)?;
 ///     } else {
 ///         req.session().set("counter", 1)?;
 ///     }
@@ -200,7 +199,7 @@ impl Session {
 /// fn index(session: Session) -> Result<&'static str> {
 ///     // access session data
 ///     if let Some(count) = session.get::<i32>("counter")? {
-///         session.set("counter", count+1)?;
+///         session.set("counter", count + 1)?;
 ///     } else {
 ///         session.set("counter", 1)?;
 ///     }
@@ -230,15 +229,15 @@ unsafe impl Sync for SessionImplCell {}
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// use actix_web::middleware::session::{CookieSessionBackend, SessionStorage};
 /// use actix_web::App;
-/// use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 ///
 /// fn main() {
-///    let app = App::new().middleware(
-///        SessionStorage::new(                      // <- create session middleware
-///            CookieSessionBackend::signed(&[0; 32]) // <- create cookie session backend
-///               .secure(false))
-///    );
+///     let app = App::new().middleware(SessionStorage::new(
+///         // <- create session middleware
+///         CookieSessionBackend::signed(&[0; 32]) // <- create cookie session backend
+///               .secure(false),
+///     ));
 /// }
 /// ```
 pub struct SessionStorage<T, S>(T, PhantomData<S>);

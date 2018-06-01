@@ -1,6 +1,4 @@
 //! Http client request
-extern crate actix;
-
 use std::cell::UnsafeCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -16,7 +14,7 @@ use http::{Error as HttpError, HttpTryFrom, StatusCode};
 use rand;
 use sha1::Sha1;
 
-use self::actix::prelude::*;
+use actix::{Addr, SystemService};
 
 use body::Binary;
 use error::{Error, UrlParseError};

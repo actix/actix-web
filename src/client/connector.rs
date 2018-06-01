@@ -1,16 +1,12 @@
-extern crate actix;
-
 use std::collections::{HashMap, VecDeque};
 use std::net::Shutdown;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
-use self::actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
-use self::actix::fut::WrapFuture;
-use self::actix::registry::SystemService;
-use self::actix::{
+use actix::resolver::{Connect as ResolveConnect, Connector, ConnectorError};
+use actix::{
     fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context, ContextFutureSpawner,
-    Handler, Message, Recipient, StreamHandler, Supervised,
+    Handler, Message, Recipient, StreamHandler, Supervised, SystemService, WrapFuture,
 };
 
 use futures::sync::{mpsc, oneshot};
@@ -287,7 +283,6 @@ impl ClientConnector {
     ///
     /// ```rust
     /// # #![cfg(feature="alpn")]
-    /// # extern crate actix;
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # extern crate tokio;
@@ -295,14 +290,12 @@ impl ClientConnector {
     /// # use std::io::Write;
     /// # use std::process;
     /// extern crate openssl;
-    /// use actix::prelude::*;
-    /// use actix_web::client::{Connect, ClientConnector};
+    /// use actix_web::client::{ClientConnector, Connect};
     ///
-    /// use openssl::ssl::{SslMethod, SslConnector};
+    /// use openssl::ssl::{SslConnector, SslMethod};
     ///
     /// fn main() {
     ///     tokio::run(future::lazy(|| {
-    ///
     ///         // Start `ClientConnector` with custom `SslConnector`
     ///         let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
     ///         let conn = ClientConnector::with_connector(ssl_conn).start();

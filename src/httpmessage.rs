@@ -118,10 +118,11 @@ pub trait HttpMessage {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # #[macro_use] extern crate serde_derive;
+    /// use actix_web::{
+    ///     AsyncResponder, FutureResponse, HttpMessage, HttpRequest, HttpResponse,
+    /// };
     /// use bytes::Bytes;
     /// use futures::future::Future;
-    /// use actix_web::{HttpMessage, HttpRequest, HttpResponse,
-    ///                 FutureResponse, AsyncResponder};
     ///
     /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
     ///     req.body()                     // <- get Body future
@@ -158,7 +159,7 @@ pub trait HttpMessage {
     /// # extern crate futures;
     /// # use futures::Future;
     /// # use std::collections::HashMap;
-    /// use actix_web::{HttpMessage, HttpRequest, HttpResponse, FutureResponse};
+    /// use actix_web::{FutureResponse, HttpMessage, HttpRequest, HttpResponse};
     ///
     /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
     ///     Box::new(
@@ -167,7 +168,8 @@ pub trait HttpMessage {
     ///            .and_then(|params| {  // <- url encoded parameters
     ///                println!("==== BODY ==== {:?}", params);
     ///                Ok(HttpResponse::Ok().into())
-    ///           }))
+    ///           }),
+    ///     )
     /// }
     /// # fn main() {}
     /// ```
@@ -193,14 +195,14 @@ pub trait HttpMessage {
     /// # extern crate futures;
     /// # #[macro_use] extern crate serde_derive;
     /// use actix_web::*;
-    /// use futures::future::{Future, ok};
+    /// use futures::future::{ok, Future};
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct MyObj {
     ///     name: String,
     /// }
     ///
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
     ///     req.json()                   // <- get JsonBody future
     ///        .from_err()
     ///        .and_then(|val: MyObj| {  // <- deserialized value
@@ -224,16 +226,15 @@ pub trait HttpMessage {
     /// ## Server example
     ///
     /// ```rust
-    /// # extern crate actix;
     /// # extern crate actix_web;
     /// # extern crate env_logger;
     /// # extern crate futures;
     /// # use std::str;
     /// # use actix_web::*;
-    /// # use actix::*;
+    /// # use actix_web::actix::*;
     /// # use futures::{Future, Stream};
     /// # use futures::future::{ok, result, Either};
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
     ///     req.multipart().from_err()       // <- get multipart stream for current request
     ///        .and_then(|item| match item { // <- iterate over multipart items
     ///            multipart::MultipartItem::Field(field) => {

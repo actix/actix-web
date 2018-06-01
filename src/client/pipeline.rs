@@ -1,5 +1,3 @@
-extern crate actix;
-
 use bytes::{Bytes, BytesMut};
 use futures::sync::oneshot;
 use futures::{Async, Future, Poll};
@@ -8,7 +6,7 @@ use std::time::{Duration, Instant};
 use std::{io, mem};
 use tokio_timer::Delay;
 
-use self::actix::prelude::*;
+use actix::{Addr, Request, SystemService};
 
 use super::{
     ClientBody, ClientBodyStream, ClientConnector, ClientConnectorError, ClientRequest,
@@ -56,7 +54,7 @@ impl From<ClientConnectorError> for SendRequestError {
 
 enum State {
     New,
-    Connect(actix::dev::Request<ClientConnector, Connect>),
+    Connect(Request<ClientConnector, Connect>),
     Connection(Connection),
     Send(Box<Pipeline>),
     None,

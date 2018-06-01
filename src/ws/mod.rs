@@ -25,7 +25,6 @@
 //!
 //! // Handler for ws::Message messages
 //! impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
-//!
 //!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
 //!         match msg {
 //!             ws::Message::Ping(msg) => ctx.pong(&msg),
@@ -42,13 +41,11 @@
 //! #      .finish();
 //! # }
 //! ```
-extern crate actix;
-
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
 
-use self::actix::{Actor, AsyncContext, StreamHandler};
+use super::actix::{Actor, AsyncContext, StreamHandler};
 
 use body::Binary;
 use error::{Error, PayloadError, ResponseError};

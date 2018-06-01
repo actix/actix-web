@@ -1,12 +1,13 @@
-extern crate actix;
-
 use std::rc::Rc;
 use std::sync::{mpsc as sync_mpsc, Arc};
 use std::time::Duration;
 use std::{io, net, thread};
 
-use self::actix::actors::signal;
-use self::actix::prelude::*;
+use actix::{
+    fut, msgs, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context,
+    ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
+};
+
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
 use mio;
@@ -21,7 +22,7 @@ use native_tls::TlsAcceptor;
 #[cfg(feature = "alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
-use super::channel::{WrapperStream};
+use super::channel::WrapperStream;
 use super::settings::{ServerSettings, WorkerSettings};
 use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
@@ -408,20 +409,17 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///
     /// ```rust
     /// extern crate actix_web;
-    /// extern crate actix;
-    /// use actix_web::{server, App, HttpResponse};
+    /// use actix_web::{actix, server, App, HttpResponse};
     ///
     /// fn main() {
     ///     // Run actix system, this method actually starts all async processes
     ///     actix::System::run(|| {
-    ///
-    ///         server::new(
-    ///             || App::new()
-    ///                  .resource("/", |r| r.h(|_| HttpResponse::Ok())))
-    ///             .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
+    ///         server::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
+    ///             .bind("127.0.0.1:0")
+    ///             .expect("Can not bind to 127.0.0.1:0")
     ///             .start();
-    /// #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
-    ///    });
+    ///         //#### #  actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+    ///     });
     /// }
     /// ```
     pub fn start(mut self) -> Addr<Self> {
@@ -485,10 +483,9 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     HttpServer::new(
-    ///         || App::new()
-    ///              .resource("/", |r| r.h(|_| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0").expect("Can not bind to 127.0.0.1:0")
+    ///     HttpServer::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
+    ///         .bind("127.0.0.1:0")
+    ///         .expect("Can not bind to 127.0.0.1:0")
     ///         .run();
     /// }
     /// ```
@@ -723,7 +720,7 @@ impl<H: IntoHttpHandler> Handler<ResumeServer> for HttpServer<H> {
 }
 
 impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
-    type Result = actix::Response<(), ()>;
+    type Result = Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
         // stop accept threads
@@ -754,11 +751,11 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
                         // we need to stop system if server was spawned
                         if slf.exit {
                             ctx.run_later(Duration::from_millis(300), |_, _| {
-                                Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                                Arbiter::system().do_send(msgs::SystemExit(0))
                             });
                         }
                     }
-                    actix::fut::ok(())
+                    fut::ok(())
                 })
                 .spawn(ctx);
         }
@@ -769,7 +766,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
             // we need to stop system if server was spawned
             if self.exit {
                 ctx.run_later(Duration::from_millis(300), |_, _| {
-                    Arbiter::system().do_send(actix::msgs::SystemExit(0))
+                    Arbiter::system().do_send(msgs::SystemExit(0))
                 });
             }
             Response::reply(Ok(()))

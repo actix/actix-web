@@ -6,17 +6,17 @@
 //! # use std::thread;
 //!
 //! fn index(info: Path<(String, u32)>) -> String {
-//!    format!("Hello {}! id:{}", info.0, info.1)
+//!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
 //! fn main() {
-//! # thread::spawn(|| {
-//!     server::new(
-//!         || App::new()
-//!             .resource("/{name}/{id}/index.html", |r| r.with(index)))
-//!         .bind("127.0.0.1:8080").unwrap()
+//!     //#### # thread::spawn(|| {
+//!     server::new(|| {
+//!         App::new().resource("/{name}/{id}/index.html", |r| r.with(index))
+//!     }).bind("127.0.0.1:8080")
+//!         .unwrap()
 //!         .run();
-//! # });
+//!     //#### # });
 //! }
 //! ```
 //!
@@ -198,12 +198,12 @@ pub use scope::Scope;
 pub mod actix {
     //! Re-exports [actix's](https://docs.rs/actix) prelude
 
+    pub use actix_inner::actors::resolver;
+    pub use actix_inner::actors::signal;
+    pub use actix_inner::fut;
+    pub use actix_inner::msgs;
     pub use actix_inner::prelude::*;
 }
-
-#[doc(hidden)]
-#[deprecated(since = "0.6.2", note = "please use `use actix_web::ws::WsWriter`")]
-pub use ws::WsWriter;
 
 #[cfg(feature = "openssl")]
 pub(crate) const HAS_OPENSSL: bool = true;
