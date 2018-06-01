@@ -8,6 +8,10 @@
 
 * Min rustc version is 1.26
 
+### Removed
+
+* Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+
 
 ## [0.6.10] - 2018-05-24
 
