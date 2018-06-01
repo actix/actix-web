@@ -32,7 +32,7 @@ use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
 
-use actix::{msgs::SystemExit, Arbiter, System};
+use actix::{msgs, Arbiter, System};
 use actix_web::*;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -110,7 +110,7 @@ fn test_start() {
         assert!(response.status().is_success());
     }
 
-    let _ = sys.send(SystemExit(0)).wait();
+    let _ = sys.send(msgs::SystemExit(0)).wait();
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn test_shutdown() {
     thread::sleep(time::Duration::from_millis(1000));
     assert!(net::TcpStream::connect(addr).is_err());
 
-    let _ = sys.send(SystemExit(0)).wait();
+    let _ = sys.send(msgs::SystemExit(0)).wait();
 }
 
 #[test]
