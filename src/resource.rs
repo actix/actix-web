@@ -128,10 +128,21 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add method check to route.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.method(http::Method::GET).f(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// Application::resource("/", |r| r.route().filter(pred::Get()).f(index)
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// App::new().resource("/", |r| r.route().filter(pred::Get()).f(index));
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
         self.routes.push(Route::default());
@@ -140,10 +151,21 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add handler object.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn handler(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.h(handler));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// Application::resource("/", |r| r.route().h(handler)
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn handler(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// App::new().resource("/", |r| r.route().h(handler));
     /// ```
     pub fn h<H: Handler<S>>(&mut self, handler: H) {
         self.routes.push(Route::default());
@@ -152,10 +174,21 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add handler function.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.f(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// Application::resource("/", |r| r.route().f(index)
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// App::new().resource("/", |r| r.route().f(index));
     /// ```
     pub fn f<F, R>(&mut self, handler: F)
     where
@@ -168,10 +201,21 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add handler.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::*;
+    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    ///
+    /// App::new().resource("/", |r| r.with(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// Application::resource("/", |r| r.route().with(index)
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// App::new().resource("/", |r| r.route().with(index));
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F)
     where
@@ -185,10 +229,30 @@ impl<S: 'static> ResourceHandler<S> {
 
     /// Register a new route and add async handler.
     ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// use actix_web::*;
+    /// use futures::future::Future;
+    ///
+    /// fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// App::new().resource("/", |r| r.with_async(index));
+    /// ```
+    ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// Application::resource("/", |r| r.route().with_async(index)
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// # use actix_web::*;
+    /// # use futures::future::Future;
+    /// # fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// #     unimplemented!()
+    /// # }
+    /// App::new().resource("/", |r| r.route().with_async(index));
     /// ```
     pub fn with_async<T, F, R, I, E>(&mut self, handler: F)
     where
