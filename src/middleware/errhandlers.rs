@@ -18,23 +18,25 @@ type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// use actix_web::middleware::{ErrorHandlers, Response};
 /// use actix_web::{http, App, HttpRequest, HttpResponse, Result};
-/// use actix_web::middleware::{Response, ErrorHandlers};
 ///
 /// fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
-///    let mut builder = resp.into_builder();
-///    builder.header(http::header::CONTENT_TYPE, "application/json");
-///    Ok(Response::Done(builder.into()))
+///     let mut builder = resp.into_builder();
+///     builder.header(http::header::CONTENT_TYPE, "application/json");
+///     Ok(Response::Done(builder.into()))
 /// }
 ///
 /// fn main() {
 ///     let app = App::new()
 ///         .middleware(
 ///             ErrorHandlers::new()
-///                 .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500))
+///                 .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
+///         )
 ///         .resource("/test", |r| {
-///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+///             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+///             r.method(http::Method::HEAD)
+///                 .f(|_| HttpResponse::MethodNotAllowed());
 ///         })
 ///         .finish();
 /// }

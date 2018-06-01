@@ -24,7 +24,7 @@ use route::Route;
 /// predicates route route considered matched and route handler get called.
 ///
 /// ```rust
-/// # extern crate actix_web;
+/// //#### # extern crate actix_web;
 /// use actix_web::{App, HttpResponse, http};
 ///
 /// fn main() {
@@ -82,11 +82,12 @@ impl<S: 'static> ResourceHandler<S> {
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource(
-    ///             "/", |r| r.route()
-    ///                  .filter(pred::Any(pred::Get()).or(pred::Put()))
-    ///                  .filter(pred::Header("Content-Type", "text/plain"))
-    ///                  .f(|r| HttpResponse::Ok()))
+    ///         .resource("/", |r| {
+    ///             r.route()
+    ///                 .filter(pred::Any(pred::Get()).or(pred::Put()))
+    ///                 .filter(pred::Header("Content-Type", "text/plain"))
+    ///                 .f(|r| HttpResponse::Ok())
+    ///         })
     ///         .finish();
     /// }
     /// ```

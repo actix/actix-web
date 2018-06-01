@@ -81,7 +81,8 @@ impl ResponseError for SendRequestError {
 ///                 println!("Response: {:?}", response);
 /// #               process::exit(0);
 ///                 Ok(())
-///             }));
+///             }),
+///     );
 /// }
 /// ```
 pub fn get<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {

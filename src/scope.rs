@@ -38,12 +38,12 @@ type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 /// use actix_web::{http, App, HttpRequest, HttpResponse};
 ///
 /// fn main() {
-///     let app = App::new()
-///         .scope("/{project_id}/", |scope| {
-///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
-///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
-///         });
+///     let app = App::new().scope("/{project_id}/", |scope| {
+///         scope
+///             .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+///             .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+///             .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+///     });
 /// }
 /// ```
 ///
@@ -89,13 +89,14 @@ impl<S: 'static> Scope<S> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/app", |scope| {
-    ///             scope.filter(pred::Header("content-type", "text/plain"))
-    ///                .route("/test1", http::Method::GET, index)
-    ///                .route("/test2", http::Method::POST,
-    ///                    |_: HttpRequest| HttpResponse::MethodNotAllowed())
-    ///         });
+    ///     let app = App::new().scope("/app", |scope| {
+    ///         scope
+    ///             .filter(pred::Header("content-type", "text/plain"))
+    ///             .route("/test1", http::Method::GET, index)
+    ///             .route("/test2", http::Method::POST, |_: HttpRequest| {
+    ///                 HttpResponse::MethodNotAllowed()
+    ///             })
+    ///     });
     /// }
     /// ```
     pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> Self {
@@ -116,12 +117,11 @@ impl<S: 'static> Scope<S> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/app", |scope| {
-    ///             scope.with_state("/state2", AppState, |scope| {
-    ///                scope.resource("/test1", |r| r.f(index))
-    ///             })
-    ///         });
+    ///     let app = App::new().scope("/app", |scope| {
+    ///         scope.with_state("/state2", AppState, |scope| {
+    ///             scope.resource("/test1", |r| r.f(index))
+    ///         })
+    ///     });
     /// }
     /// ```
     pub fn with_state<F, T: 'static>(mut self, path: &str, state: T, f: F) -> Scope<S>
@@ -162,12 +162,9 @@ impl<S: 'static> Scope<S> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::with_state(AppState)
-    ///         .scope("/app", |scope| {
-    ///             scope.nested("/v1", |scope| {
-    ///                scope.resource("/test1", |r| r.f(index))
-    ///             })
-    ///         });
+    ///     let app = App::with_state(AppState).scope("/app", |scope| {
+    ///         scope.nested("/v1", |scope| scope.resource("/test1", |r| r.f(index)))
+    ///     });
     /// }
     /// ```
     pub fn nested<F>(mut self, path: &str, f: F) -> Scope<S>
@@ -211,12 +208,13 @@ impl<S: 'static> Scope<S> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/app", |scope| {
-    ///             scope.route("/test1", http::Method::GET, index)
-    ///                .route("/test2", http::Method::POST,
-    ///                    |_: HttpRequest| HttpResponse::MethodNotAllowed())
-    ///         });
+    ///     let app = App::new().scope("/app", |scope| {
+    ///         scope.route("/test1", http::Method::GET, index).route(
+    ///             "/test2",
+    ///             http::Method::POST,
+    ///             |_: HttpRequest| HttpResponse::MethodNotAllowed(),
+    ///         )
+    ///     });
     /// }
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> Scope<S>
@@ -261,17 +259,16 @@ impl<S: 'static> Scope<S> {
     /// use actix_web::*;
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/api", |scope| {
-    ///             scope.resource("/users/{userid}/{friend}", |r| {
-    ///                 r.get().f(|_| HttpResponse::Ok());
-    ///                 r.head().f(|_| HttpResponse::MethodNotAllowed());
-    ///                 r.route()
-    ///                    .filter(pred::Any(pred::Get()).or(pred::Put()))
-    ///                    .filter(pred::Header("Content-Type", "text/plain"))
-    ///                    .f(|_| HttpResponse::Ok())
-    ///             })
-    ///         });
+    ///     let app = App::new().scope("/api", |scope| {
+    ///         scope.resource("/users/{userid}/{friend}", |r| {
+    ///             r.get().f(|_| HttpResponse::Ok());
+    ///             r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///             r.route()
+    ///                 .filter(pred::Any(pred::Get()).or(pred::Put()))
+    ///                 .filter(pred::Header("Content-Type", "text/plain"))
+    ///                 .f(|_| HttpResponse::Ok())
+    ///         })
+    ///     });
     /// }
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> Scope<S>

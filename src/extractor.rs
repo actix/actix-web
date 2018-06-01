@@ -24,7 +24,7 @@ use httprequest::HttpRequest;
 /// # extern crate bytes;
 /// # extern crate actix_web;
 /// # extern crate futures;
-/// use actix_web::{App, Path, Result, http};
+/// use actix_web::{http, App, Path, Result};
 ///
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
@@ -35,8 +35,9 @@ use httprequest::HttpRequest;
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/{username}/{count}/index.html",              // <- define path parameters
-///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
+///         "/{username}/{count}/index.html", // <- define path parameters
+///         |r| r.method(http::Method::GET).with(index),
+///     ); // <- use `with` extractor
 /// }
 /// ```
 ///
@@ -48,7 +49,7 @@ use httprequest::HttpRequest;
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Path, Result, http};
+/// use actix_web::{http, App, Path, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -62,8 +63,9 @@ use httprequest::HttpRequest;
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/{username}/index.html",                // <- define path parameters
-///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
+///         "/{username}/index.html", // <- define path parameters
+///         |r| r.method(http::Method::GET).with(index),
+///     ); // <- use `with` extractor
 /// }
 /// ```
 pub struct Path<T> {
@@ -118,13 +120,13 @@ where
 /// ## Example
 ///
 /// ```rust
-/// # extern crate bytes;
-/// # extern crate actix_web;
-/// # extern crate futures;
-/// #[macro_use] extern crate serde_derive;
+/// //#### # extern crate bytes;
+/// //#### # extern crate actix_web;
+/// //#### # extern crate futures;
+/// //#### #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Query, http};
 ///
-/// #[derive(Deserialize)]
+/// //#### #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
@@ -255,7 +257,7 @@ where
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Form, Result, http};
+/// use actix_web::{http, App, Form, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -270,10 +272,10 @@ where
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/index.html", |r| {
-///            r.method(http::Method::GET)
-///              .with(index)
-///              .limit(4096);} // <- change form extractor configuration
+///         "/index.html",
+///         |r| {
+///             r.method(http::Method::GET).with(index).limit(4096);
+///         }, // <- change form extractor configuration
 ///     );
 /// }
 /// ```
@@ -315,9 +317,8 @@ impl Default for FormConfig {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html", |r|
-///            r.method(http::Method::GET).with(index));
+///     let app = App::new()
+///         .resource("/index.html", |r| r.method(http::Method::GET).with(index));
 /// }
 /// ```
 impl<S: 'static> FromRequest<S> for Bytes {
@@ -354,12 +355,11 @@ impl<S: 'static> FromRequest<S> for Bytes {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html", |r| {
-///            r.method(http::Method::GET)
+///     let app = App::new().resource("/index.html", |r| {
+///         r.method(http::Method::GET)
 ///                .with(index)   // <- register handler with extractor params
-///                .limit(4096);  // <- limit size of the payload
-///        });
+///                .limit(4096); // <- limit size of the payload
+///     });
 /// }
 /// ```
 impl<S: 'static> FromRequest<S> for String {

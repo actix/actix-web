@@ -62,8 +62,8 @@ use middleware::{Middleware, Response, Started};
 /// The helper trait to obtain your identity from a request.
 ///
 /// ```rust
-/// use actix_web::*;
 /// use actix_web::middleware::identity::RequestIdentity;
+/// use actix_web::*;
 ///
 /// fn index(req: HttpRequest) -> Result<String> {
 ///     // access request identity
@@ -80,7 +80,7 @@ use middleware::{Middleware, Response, Started};
 /// }
 ///
 /// fn logout(mut req: HttpRequest) -> HttpResponse {
-///     req.forget();                     // <- remove identity
+///     req.forget(); // <- remove identity
 ///     HttpResponse::Ok().finish()
 /// }
 /// # fn main() {}
@@ -144,16 +144,16 @@ pub trait IdentityPolicy<S>: Sized + 'static {
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 /// use actix_web::App;
-/// use actix_web::middleware::identity::{IdentityService, CookieIdentityPolicy};
 ///
 /// fn main() {
-///    let app = App::new().middleware(
-///        IdentityService::new(                      // <- create identity middleware
-///            CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
+///     let app = App::new().middleware(IdentityService::new(
+///         // <- create identity middleware
+///         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
 ///               .name("auth-cookie")
-///               .secure(false))
-///    );
+///               .secure(false),
+///     ));
 /// }
 /// ```
 pub struct IdentityService<T> {
@@ -317,17 +317,18 @@ impl CookieIdentityInner {
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 /// use actix_web::App;
-/// use actix_web::middleware::identity::{IdentityService, CookieIdentityPolicy};
 ///
 /// fn main() {
-///    let app = App::new().middleware(
-///        IdentityService::new(                    // <- create identity middleware
-///            CookieIdentityPolicy::new(&[0; 32])  // <- construct cookie policy
+///     let app = App::new().middleware(IdentityService::new(
+///         // <- create identity middleware
+///         CookieIdentityPolicy::new(&[0; 32])  // <- construct cookie policy
 ///                .domain("www.rust-lang.org")
 ///                .name("actix_auth")
 ///                .path("/")
-///                .secure(true)));
+///                .secure(true),
+///     ));
 /// }
 /// ```
 pub struct CookieIdentityPolicy(Rc<CookieIdentityInner>);

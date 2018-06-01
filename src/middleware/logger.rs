@@ -31,8 +31,8 @@ use middleware::{Finished, Middleware, Started};
 /// ```rust
 /// # extern crate actix_web;
 /// extern crate env_logger;
-/// use actix_web::App;
 /// use actix_web::middleware::Logger;
+/// use actix_web::App;
 ///
 /// fn main() {
 ///     std::env::set_var("RUST_LOG", "actix_web=info");

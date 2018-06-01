@@ -297,11 +297,13 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{HttpRequest, HttpResponse, Result, http};
+    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
     ///     Ok(HttpResponse::Ok()
-    ///         .set(http::header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
+    ///         .set(http::header::IfModifiedSince(
+    ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
+    ///         ))
     ///         .finish())
     /// }
     /// fn main() {}
@@ -455,7 +457,8 @@ impl HttpResponseBuilder {
     ///                 .path("/")
     ///                 .secure(true)
     ///                 .http_only(true)
-    ///                 .finish())
+    ///                 .finish(),
+    ///         )
     ///         .finish()
     /// }
     /// ```

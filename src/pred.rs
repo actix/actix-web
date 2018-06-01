@@ -22,10 +22,11 @@ pub trait Predicate<S> {
 /// use actix_web::{pred, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new()
-///         .resource("/index.html", |r| r.route()
+///     App::new().resource("/index.html", |r| {
+///         r.route()
 ///             .filter(pred::Any(pred::Get()).or(pred::Post()))
-///             .f(|r| HttpResponse::MethodNotAllowed()));
+///             .f(|r| HttpResponse::MethodNotAllowed())
+///     });
 /// }
 /// ```
 pub fn Any<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AnyPredicate<S> {
@@ -61,11 +62,14 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 /// use actix_web::{pred, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new()
-///         .resource("/index.html", |r| r.route()
-///            .filter(pred::All(pred::Get())
-///                 .and(pred::Header("content-type", "plain/text")))
-///            .f(|_| HttpResponse::MethodNotAllowed()));
+///     App::new().resource("/index.html", |r| {
+///         r.route()
+///             .filter(
+///                 pred::All(pred::Get())
+///                     .and(pred::Header("content-type", "plain/text")),
+///             )
+///             .f(|_| HttpResponse::MethodNotAllowed())
+///     });
 /// }
 /// ```
 pub fn All<S: 'static, P: Predicate<S> + 'static>(pred: P) -> AllPredicate<S> {

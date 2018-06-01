@@ -19,7 +19,7 @@ use httpresponse::HttpResponse;
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Form, Result, http};
+/// use actix_web::{http, App, Form, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -32,10 +32,10 @@ use httpresponse::HttpResponse;
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/index.html", |r| {
-///            r.method(http::Method::GET)
-///              .with(index)
-///              .limit(4096);} // <- change form extractor configuration
+///         "/index.html",
+///         |r| {
+///             r.method(http::Method::GET).with(index).limit(4096);
+///         }, // <- change form extractor configuration
 ///     );
 /// }
 /// ```
@@ -45,7 +45,7 @@ use httpresponse::HttpResponse;
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Form, Path, Result, http};
+/// use actix_web::{http, App, Form, Path, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -58,10 +58,10 @@ use httpresponse::HttpResponse;
 ///
 /// fn main() {
 ///     let app = App::new().resource(
-///        "/index.html", |r| {
-///            r.method(http::Method::GET)
-///              .with(index)
-///              .1.limit(4096);} // <- change form extractor configuration
+///         "/index.html",
+///         |r| {
+///             r.method(http::Method::GET).with(index).1.limit(4096);
+///         }, // <- change form extractor configuration
 ///     );
 /// }
 /// ```

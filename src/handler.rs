@@ -61,22 +61,24 @@ pub trait FromRequest<S>: Sized {
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # use futures::future::Future;
+/// use actix_web::{AsyncResponder, Either, Error, HttpRequest, HttpResponse};
 /// use futures::future::result;
-/// use actix_web::{Either, Error, HttpRequest, HttpResponse, AsyncResponder};
 ///
-/// type RegisterResult = Either<HttpResponse, Box<Future<Item=HttpResponse, Error=Error>>>;
-///
+/// type RegisterResult =
+///     Either<HttpResponse, Box<Future<Item = HttpResponse, Error = Error>>>;
 ///
 /// fn index(req: HttpRequest) -> RegisterResult {
-///     if is_a_variant() { // <- choose variant A
-///         Either::A(
-///             HttpResponse::BadRequest().body("Bad data"))
+///     if is_a_variant() {
+///         // <- choose variant A
+///         Either::A(HttpResponse::BadRequest().body("Bad data"))
 ///     } else {
-///         Either::B(      // <- variant B
+///         Either::B(
+///             // <- variant B
 ///             result(Ok(HttpResponse::Ok()
-///                    .content_type("text/html")
-///                    .body("Hello!")))
-///                    .responder())
+///                 .content_type("text/html")
+///                 .body("Hello!")))
+///                 .responder(),
+///         )
 ///     }
 /// }
 /// # fn is_a_variant() -> bool { true }
@@ -138,16 +140,17 @@ where
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
-/// use futures::future::Future;
 /// use actix_web::{
-///     App, HttpRequest, HttpResponse, HttpMessage, Error, AsyncResponder};
+///     App, AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse,
+/// };
+/// use futures::future::Future;
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {
 ///     name: String,
 /// }
 ///
-/// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+/// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
 ///     req.json()                   // <- get JsonBody future
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
@@ -479,10 +482,12 @@ where
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Path, State, http};
+/// use actix_web::{http, App, Path, State};
 ///
 /// /// Application state
-/// struct MyApp {msg: &'static str}
+/// struct MyApp {
+///     msg: &'static str,
+/// }
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -496,9 +501,10 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::with_state(MyApp{msg: "Welcome"}).resource(
-///        "/{username}/index.html",                      // <- define path parameters
-///        |r| r.method(http::Method::GET).with(index));  // <- use `with` extractor
+///     let app = App::with_state(MyApp { msg: "Welcome" }).resource(
+///         "/{username}/index.html", // <- define path parameters
+///         |r| r.method(http::Method::GET).with(index),
+///     ); // <- use `with` extractor
 /// }
 /// ```
 pub struct State<S>(HttpRequest<S>);

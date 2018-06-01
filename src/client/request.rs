@@ -43,7 +43,7 @@ use httprequest::HttpRequest;
 ///                 println!("Response: {:?}", response);
 /// #               process::exit(0);
 ///                 Ok(())
-///             })
+///             }),
 ///     );
 /// }
 /// ```
@@ -344,7 +344,8 @@ impl ClientRequestBuilder {
     ///     let req = client::ClientRequest::build()
     ///         .set(http::header::Date::now())
     ///         .set(http::header::ContentType(mime::TEXT_HTML))
-    ///         .finish().unwrap();
+    ///         .finish()
+    ///         .unwrap();
     /// }
     /// ```
     #[doc(hidden)]
@@ -376,7 +377,8 @@ impl ClientRequestBuilder {
     ///     let req = ClientRequest::build()
     ///         .header("X-TEST", "value")
     ///         .header(header::CONTENT_TYPE, "application/json")
-    ///         .finish().unwrap();
+    ///         .finish()
+    ///         .unwrap();
     /// }
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
@@ -486,8 +488,10 @@ impl ClientRequestBuilder {
     ///                 .path("/")
     ///                 .secure(true)
     ///                 .http_only(true)
-    ///                 .finish())
-    ///         .finish().unwrap();
+    ///                 .finish(),
+    ///         )
+    ///         .finish()
+    ///         .unwrap();
     /// }
     /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {

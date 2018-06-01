@@ -17,12 +17,11 @@ use middleware::{Middleware, Response};
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .middleware(
-///             middleware::DefaultHeaders::new()
-///                 .header("X-Version", "0.2"))
+///         .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
 ///         .resource("/test", |r| {
-///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-///              r.method(http::Method::HEAD).f(|_| HttpResponse::MethodNotAllowed());
+///             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+///             r.method(http::Method::HEAD)
+///                 .f(|_| HttpResponse::MethodNotAllowed());
 ///         })
 ///         .finish();
 /// }

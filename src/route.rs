@@ -66,13 +66,12 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn main() {
-    /// App::new()
-    ///    .resource("/path", |r|
-    ///       r.route()
-    ///          .filter(pred::Get())
-    ///          .filter(pred::Header("content-type", "text/plain"))
-    ///          .f(|req| HttpResponse::Ok())
-    ///       )
+    /// App::new().resource("/path", |r| {
+    ///     r.route()
+    ///         .filter(pred::Get())
+    ///         .filter(pred::Header("content-type", "text/plain"))
+    ///         .f(|req| HttpResponse::Ok())
+    /// })
     /// #      .finish();
     /// # }
     /// ```
@@ -115,7 +114,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{App, Path, Result, http};
+    /// use actix_web::{http, App, Path, Result};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -129,8 +128,9 @@ impl<S: 'static> Route<S> {
     ///
     /// fn main() {
     ///     let app = App::new().resource(
-    ///        "/{username}/index.html",                     // <- define path parameters
-    ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
+    ///         "/{username}/index.html", // <- define path parameters
+    ///         |r| r.method(http::Method::GET).with(index),
+    ///     ); // <- use `with` extractor
     /// }
     /// ```
     ///
@@ -143,7 +143,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
     /// # use std::collections::HashMap;
-    /// use actix_web::{http, App, Query, Path, Result, Json};
+    /// use actix_web::{http, App, Json, Path, Query, Result};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -151,14 +151,17 @@ impl<S: 'static> Route<S> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>)) -> Result<String> {
+    /// fn index(
+    ///     info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>),
+    /// ) -> Result<String> {
     ///     Ok(format!("Welcome {}!", info.0.username))
     /// }
     ///
     /// fn main() {
     ///     let app = App::new().resource(
-    ///        "/{username}/index.html",                     // <- define path parameters
-    ///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
+    ///         "/{username}/index.html", // <- define path parameters
+    ///         |r| r.method(http::Method::GET).with(index),
+    ///     ); // <- use `with` extractor
     /// }
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
@@ -181,7 +184,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{App, Path, Error, http};
+    /// use actix_web::{http, App, Error, Path};
     /// use futures::Future;
     ///
     /// #[derive(Deserialize)]
@@ -190,15 +193,15 @@ impl<S: 'static> Route<S> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: Path<Info>) -> Box<Future<Item=&'static str, Error=Error>> {
+    /// fn index(info: Path<Info>) -> Box<Future<Item = &'static str, Error = Error>> {
     ///     unimplemented!()
     /// }
     ///
     /// fn main() {
     ///     let app = App::new().resource(
-    ///        "/{username}/index.html",           // <- define path parameters
-    ///        |r| r.method(http::Method::GET)
-    ///               .with_async(index));         // <- use `with` extractor
+    ///         "/{username}/index.html", // <- define path parameters
+    ///         |r| r.method(http::Method::GET).with_async(index),
+    ///     ); // <- use `with` extractor
     /// }
     /// ```
     pub fn with_async<T, F, R, I, E>(&mut self, handler: F) -> ExtractorConfig<S, T>
@@ -222,7 +225,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{App, Query, Path, Result, http};
+    /// use actix_web::{http, App, Path, Query, Result};
     ///
     /// #[derive(Deserialize)]
     /// struct PParam {
@@ -241,8 +244,9 @@ impl<S: 'static> Route<S> {
     ///
     /// fn main() {
     ///     let app = App::new().resource(
-    ///        "/{username}/index.html",                      // <- define path parameters
-    ///        |r| r.method(http::Method::GET).with2(index)); // <- use `with` extractor
+    ///         "/{username}/index.html", // <- define path parameters
+    ///         |r| r.method(http::Method::GET).with2(index),
+    ///     ); // <- use `with` extractor
     /// }
     /// ```
     pub fn with2<T1, T2, F, R>(

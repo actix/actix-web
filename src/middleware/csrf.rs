@@ -22,8 +22,8 @@
 //!
 //! ```
 //! # extern crate actix_web;
-//! use actix_web::{http, App, HttpRequest, HttpResponse};
 //! use actix_web::middleware::csrf;
+//! use actix_web::{http, App, HttpRequest, HttpResponse};
 //!
 //! fn handle_post(_: HttpRequest) -> &'static str {
 //!     "This action should only be triggered with requests from the same site"
@@ -32,8 +32,8 @@
 //! fn main() {
 //!     let app = App::new()
 //!         .middleware(
-//!             csrf::CsrfFilter::new()
-//!                 .allowed_origin("https://www.example.com"))
+//!             csrf::CsrfFilter::new().allowed_origin("https://www.example.com"),
+//!         )
 //!         .resource("/", |r| {
 //!             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
 //!             r.method(http::Method::POST).f(handle_post);
@@ -120,13 +120,12 @@ fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
 /// # Example
 ///
 /// ```
-/// use actix_web::App;
 /// use actix_web::middleware::csrf;
+/// use actix_web::App;
 ///
 /// # fn main() {
-///    let app = App::new().middleware(
-///        csrf::CsrfFilter::new()
-///            .allowed_origin("https://www.example.com"));
+/// let app = App::new()
+///     .middleware(csrf::CsrfFilter::new().allowed_origin("https://www.example.com"));
 /// # }
 /// ```
 #[derive(Default)]

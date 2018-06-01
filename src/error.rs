@@ -552,8 +552,8 @@ impl From<UrlParseError> for UrlGenerationError {
 /// use actix_web::fs::NamedFile;
 ///
 /// fn index(req: HttpRequest) -> Result<fs::NamedFile> {
-///    let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
-///    Ok(f)
+///     let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
+///     Ok(f)
 /// }
 /// # fn main() {}
 /// ```

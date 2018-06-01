@@ -96,8 +96,8 @@ impl<'a> Params<'a> {
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// fn index(req: HttpRequest) -> Result<String> {
-    ///    let ivalue: isize = req.match_info().query("val")?;
-    ///    Ok(format!("isuze value: {:?}", ivalue))
+    ///     let ivalue: isize = req.match_info().query("val")?;
+    ///     Ok(format!("isuze value: {:?}", ivalue))
     /// }
     /// # fn main() {}
     /// ```

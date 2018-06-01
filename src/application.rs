@@ -267,8 +267,8 @@ where
     ///     let app = App::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///             r.get().f(|_| HttpResponse::Ok());
+    ///             r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         })
     ///         .finish();
     /// }
@@ -300,10 +300,12 @@ where
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .route("/test", http::Method::GET,
-    ///                |_: HttpRequest| HttpResponse::Ok())
-    ///         .route("/test", http::Method::POST,
-    ///                |_: HttpRequest| HttpResponse::MethodNotAllowed());
+    ///         .route("/test", http::Method::GET, |_: HttpRequest| {
+    ///             HttpResponse::Ok()
+    ///         })
+    ///         .route("/test", http::Method::POST, |_: HttpRequest| {
+    ///             HttpResponse::MethodNotAllowed()
+    ///         });
     /// }
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
@@ -345,12 +347,12 @@ where
     /// use actix_web::{http, App, HttpRequest, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/{project_id}", |scope| {
-    ///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-    ///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
-    ///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
-    ///         });
+    ///     let app = App::new().scope("/{project_id}", |scope| {
+    ///         scope
+    ///             .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+    ///             .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+    ///             .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+    ///     });
     /// }
     /// ```
     ///
@@ -402,11 +404,10 @@ where
     /// use actix_web::{http, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .resource("/users/{userid}/{friend}", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
-    ///         });
+    ///     let app = App::new().resource("/users/{userid}/{friend}", |r| {
+    ///         r.get().f(|_| HttpResponse::Ok());
+    ///         r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///     });
     /// }
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> App<S>
@@ -469,9 +470,9 @@ where
     /// use actix_web::{App, HttpRequest, HttpResponse, Result};
     ///
     /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
-    ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
-    ///    assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    ///    Ok(HttpResponse::Ok().into())
+    ///     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
+    ///     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+    ///     Ok(HttpResponse::Ok().into())
     /// }
     ///
     /// fn main() {
@@ -514,13 +515,11 @@ where
     /// use actix_web::{http, App, HttpRequest, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .handler("/app", |req: HttpRequest| {
-    ///             match *req.method() {
-    ///                 http::Method::GET => HttpResponse::Ok(),
-    ///                 http::Method::POST => HttpResponse::MethodNotAllowed(),
-    ///                 _ => HttpResponse::NotFound(),
-    ///         }});
+    ///     let app = App::new().handler("/app", |req: HttpRequest| match *req.method() {
+    ///         http::Method::GET => HttpResponse::Ok(),
+    ///         http::Method::POST => HttpResponse::MethodNotAllowed(),
+    ///         _ => HttpResponse::NotFound(),
+    ///     });
     /// }
     /// ```
     pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S> {
@@ -561,15 +560,14 @@ where
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{App, HttpResponse, fs, middleware};
+    /// use actix_web::{fs, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
     /// fn config(app: App) -> App {
-    ///     app
-    ///         .resource("/test", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
-    ///         })
+    ///     app.resource("/test", |r| {
+    ///         r.get().f(|_| HttpResponse::Ok());
+    ///         r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///     })
     /// }
     ///
     /// fn main() {
@@ -636,19 +634,22 @@ where
     /// struct State2;
     ///
     /// fn main() {
-    /// # thread::spawn(|| {
-    ///     server::new(|| { vec![
-    ///         App::with_state(State1)
-    ///              .prefix("/app1")
-    ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///              .boxed(),
-    ///         App::with_state(State2)
-    ///              .prefix("/app2")
-    ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///              .boxed() ]})
-    ///         .bind("127.0.0.1:8080").unwrap()
+    ///     //#### # thread::spawn(|| {
+    ///     server::new(|| {
+    ///         vec![
+    ///             App::with_state(State1)
+    ///                 .prefix("/app1")
+    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    ///                 .boxed(),
+    ///             App::with_state(State2)
+    ///                 .prefix("/app2")
+    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    ///                 .boxed(),
+    ///         ]
+    ///     }).bind("127.0.0.1:8080")
+    ///         .unwrap()
     ///         .run()
-    /// # });
+    ///     //#### # });
     /// }
     /// ```
     pub fn boxed(mut self) -> Box<HttpHandler> {

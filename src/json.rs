@@ -32,11 +32,11 @@ use httpresponse::HttpResponse;
 /// ## Example
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
+/// //#### # extern crate actix_web;
+/// //#### #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Json, Result, http};
 ///
-/// #[derive(Deserialize)]
+/// //#### #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
@@ -69,7 +69,9 @@ use httpresponse::HttpResponse;
 /// }
 ///
 /// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
-///     Ok(Json(MyObj{name: req.match_info().query("name")?}))
+///     Ok(Json(MyObj {
+///         name: req.match_info().query("name")?,
+///     }))
 /// }
 /// # fn main() {}
 /// ```
@@ -154,7 +156,7 @@ where
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Json, HttpResponse, Result, http, error};
+/// use actix_web::{error, http, App, HttpResponse, Json, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -167,16 +169,15 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html", |r| {
-///            r.method(http::Method::POST)
+///     let app = App::new().resource("/index.html", |r| {
+///         r.method(http::Method::POST)
 ///               .with(index)
 ///               .limit(4096)   // <- change json extractor configuration
 ///               .error_handler(|err, req| {  // <- create custom error response
 ///                   error::InternalError::from_response(
 ///                      err, HttpResponse::Conflict().finish()).into()
 ///               });
-///        });
+///     });
 /// }
 /// ```
 pub struct JsonConfig<S> {
@@ -223,15 +224,15 @@ impl<S> Default for JsonConfig<S> {
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
+/// use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 /// use futures::future::Future;
-/// use actix_web::{AsyncResponder, HttpRequest, HttpResponse, HttpMessage, Error};
 ///
 /// #[derive(Deserialize, Debug)]
 /// struct MyObj {
 ///     name: String,
 /// }
 ///
-/// fn index(mut req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+/// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
 ///     req.json()                   // <- get JsonBody future
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
