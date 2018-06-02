@@ -424,7 +424,10 @@ impl<S> Middleware<S> for Cors {
                     .finish(),
             ))
         } else {
-            self.validate_origin(req)?;
+            // Only check requests with a origin header.
+            if req.headers().contains_key(header::ORIGIN) {
+                self.validate_origin(req)?;
+            }
 
             Ok(Started::Done)
         }
