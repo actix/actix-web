@@ -180,8 +180,11 @@ impl From<u16> for CloseCode {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
+/// Reason for closing the connection
 pub struct CloseReason {
+    /// Exit code
     pub code: CloseCode,
+    /// Optional description of the exit code
     pub description: Option<String>,
 }
 

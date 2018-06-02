@@ -162,6 +162,7 @@ where
 /// # fn main() {}
 /// ```
 pub trait AsyncResponder<I, E>: Sized {
+    /// Convert to a boxed future
     fn responder(self) -> Box<Future<Item = I, Error = E>>;
 }
 

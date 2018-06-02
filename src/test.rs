@@ -249,6 +249,7 @@ pub struct TestServerBuilder<S> {
 }
 
 impl<S: 'static> TestServerBuilder<S> {
+    /// Create a new test server
     pub fn new<F>(state: F) -> TestServerBuilder<S>
     where
         F: Fn() -> S + Sync + Send + 'static,

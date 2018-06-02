@@ -82,6 +82,7 @@
     feature = "cargo-clippy",
     allow(decimal_literal_representation, suspicious_arithmetic_impl)
 )]
+#![warn(missing_docs)]
 
 #[macro_use]
 extern crate log;
@@ -255,6 +256,7 @@ pub mod http {
 
     pub use helpers::NormalizePath;
 
+    /// Various http headers
     pub mod header {
         pub use header::*;
     }

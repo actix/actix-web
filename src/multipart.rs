@@ -399,10 +399,12 @@ where
         }
     }
 
+    /// Get a map of headers
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
+    /// Get the content type of the field
     pub fn content_type(&self) -> &mime::Mime {
         &self.ct
     }

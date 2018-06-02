@@ -127,11 +127,13 @@ impl From<Box<ActorHttpContext>> for Body {
 
 impl Binary {
     #[inline]
+    /// Returns `true` if body is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     #[inline]
+    /// Length of body in bytes
     pub fn len(&self) -> usize {
         match *self {
             Binary::Bytes(ref bytes) => bytes.len(),

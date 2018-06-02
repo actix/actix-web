@@ -31,11 +31,17 @@ use {HAS_OPENSSL, HAS_TLS};
 /// Client connector usage stats
 #[derive(Default, Message)]
 pub struct ClientConnectorStats {
+    /// Number of waited-on connections
     pub waits: usize,
+    /// Number of reused connections
     pub reused: usize,
+    /// Number of opened connections
     pub opened: usize,
+    /// Number of closed connections
     pub closed: usize,
+    /// Number of connections with errors
     pub errors: usize,
+    /// Number of connection timeouts
     pub timeouts: usize,
 }
 
@@ -1059,6 +1065,7 @@ impl Drop for AcquiredConn {
     }
 }
 
+/// HTTP client connection
 pub struct Connection {
     key: Key,
     stream: Box<IoStream + Send>,
@@ -1082,20 +1089,24 @@ impl Connection {
         }
     }
 
+    /// Raw IO stream
     pub fn stream(&mut self) -> &mut IoStream {
         &mut *self.stream
     }
 
+    /// Create a new connection from an IO Stream
     pub fn from_stream<T: IoStream + Send>(io: T) -> Connection {
         Connection::new(Key::empty(), None, Box::new(io))
     }
 
+    /// Close connection pool
     pub fn close(mut self) {
         if let Some(mut pool) = self.pool.take() {
             pool.close(self)
         }
     }
 
+    /// Release this connection from the connection pool
     pub fn release(mut self) {
         if let Some(mut pool) = self.pool.take() {
             pool.release(self)

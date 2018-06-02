@@ -34,32 +34,46 @@ use super::{Message, ProtocolError, WsWriter};
 /// Websocket client error
 #[derive(Fail, Debug)]
 pub enum ClientError {
+    /// Invalid url
     #[fail(display = "Invalid url")]
     InvalidUrl,
+    /// Invalid response status
     #[fail(display = "Invalid response status")]
     InvalidResponseStatus(StatusCode),
+    /// Invalid upgrade header
     #[fail(display = "Invalid upgrade header")]
     InvalidUpgradeHeader,
+    /// Invalid connection header
     #[fail(display = "Invalid connection header")]
     InvalidConnectionHeader(HeaderValue),
+    /// Missing CONNECTION header
     #[fail(display = "Missing CONNECTION header")]
     MissingConnectionHeader,
+    /// Missing SEC-WEBSOCKET-ACCEPT header
     #[fail(display = "Missing SEC-WEBSOCKET-ACCEPT header")]
     MissingWebSocketAcceptHeader,
+    /// Invalid challenge response
     #[fail(display = "Invalid challenge response")]
     InvalidChallengeResponse(String, HeaderValue),
+    /// Http parsing error
     #[fail(display = "Http parsing error")]
     Http(Error),
+    /// Url parsing error
     #[fail(display = "Url parsing error")]
     Url(UrlParseError),
+    /// Response parsing error
     #[fail(display = "Response parsing error")]
     ResponseParseError(HttpResponseParserError),
+    /// Send request error
     #[fail(display = "{}", _0)]
     SendRequest(SendRequestError),
+    /// Protocol error
     #[fail(display = "{}", _0)]
     Protocol(#[cause] ProtocolError),
+    /// IO Error
     #[fail(display = "{}", _0)]
     Io(io::Error),
+    /// "Disconnected"
     #[fail(display = "Disconnected")]
     Disconnected,
 }
@@ -419,6 +433,7 @@ impl Future for ClientHandshake {
     }
 }
 
+/// Websocket reader client
 pub struct ClientReader {
     inner: Rc<UnsafeCell<Inner>>,
     max_size: usize,
@@ -497,6 +512,7 @@ impl Stream for ClientReader {
     }
 }
 
+/// Websocket writer client
 pub struct ClientWriter {
     inner: Rc<UnsafeCell<Inner>>,
 }

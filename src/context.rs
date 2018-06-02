@@ -102,9 +102,12 @@ where
     A: Actor<Context = Self>,
 {
     #[inline]
+    /// Create a new HTTP Context from a request and an actor
     pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
         HttpContext::from_request(req).actor(actor)
     }
+
+    /// Create a new HTTP Context from a request
     pub fn from_request(req: HttpRequest<S>) -> HttpContext<A, S> {
         HttpContext {
             inner: ContextImpl::new(None),
@@ -113,7 +116,9 @@ where
             disconnected: false,
         }
     }
+
     #[inline]
+    /// Set the actor of this context
     pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
         self.inner.set_actor(actor);
         self
@@ -239,12 +244,14 @@ where
     }
 }
 
+/// Consume a future
 pub struct Drain<A> {
     fut: oneshot::Receiver<()>,
     _a: PhantomData<A>,
 }
 
 impl<A> Drain<A> {
+    /// Create a drain from a future
     pub fn new(fut: oneshot::Receiver<()>) -> Self {
         Drain {
             fut,
