@@ -311,6 +311,7 @@ impl<S> HttpRequest<S> {
             Err(UrlGenerationError::RouterNotAvailable)
         } else {
             let path = self.router().unwrap().resource_path(name, elements)?;
+            println!("==== {:?}", path);
             if path.starts_with('/') {
                 let conn = self.connection_info();
                 Ok(Url::parse(&format!(
@@ -323,6 +324,15 @@ impl<S> HttpRequest<S> {
                 Ok(Url::parse(&path)?)
             }
         }
+    }
+
+    /// Generate url for named resource
+    ///
+    /// This method is similar to `HttpRequest::url_for()` but it can be used
+    /// for urls that do not contain variable parts.
+    pub fn url_for_static(&self, name: &str) -> Result<Url, UrlGenerationError> {
+        const NO_PARAMS: [&str; 0] = [];
+        self.url_for(name, &NO_PARAMS)
     }
 
     /// This method returns reference to current `Router` object.
@@ -695,17 +705,35 @@ mod tests {
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
-        let routes =
-            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![(Resource::new("index", "/user/{name}.html"), Some(resource))];
         let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
         assert!(router.has_route("/user/test.html"));
         assert!(!router.has_route("/prefix/user/test.html"));
 
         let req = req.with_state(Rc::new(()), router);
-        let url = req.url_for("index", &["test", "html"]);
+        let url = req.url_for("index", &["test"]);
         assert_eq!(
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/prefix/user/test.html"
+        );
+    }
+
+    #[test]
+    fn test_url_for_static() {
+        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org").finish();
+
+        let mut resource = ResourceHandler::<()>::default();
+        resource.name("index");
+        let routes = vec![(Resource::new("index", "/index.html"), Some(resource))];
+        let (router, _) = Router::new("/prefix/", ServerSettings::default(), routes);
+        assert!(router.has_route("/index.html"));
+        assert!(!router.has_route("/prefix/index.html"));
+
+        let req = req.with_state(Rc::new(()), router);
+        let url = req.url_for_static("index");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.rust-lang.org/prefix/index.html"
         );
     }
 
