@@ -1,5 +1,12 @@
 # Changes
 
+## [0.6.11] - 2018-06-xx
+
+### Fixed
+
+* `HttpRequest::url_for()` for a named route with no variables segments #265
+
+
 ## [0.6.10] - 2018-05-24
 
 ### Added
