@@ -24,13 +24,27 @@
     }
     ```
 
-* Middleware trait uses `&mut self` instead of `&self`.
+* [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
+  trait uses `&mut self` instead of `&self`.
 
 * Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+    
+    instead of 
 
-  `fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder`
+    ```rust
+    fn index(query: Query<..>, info: Json<MyStruct) -> impl Responder {}
+    ```
 
-* Removed deprecated `HttpServer::threads()`, use `HttpServer::workers()` instead.
+    use tuple of extractors:
+
+    ```rust
+    fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder {}
+    ```
+
+* Removed deprecated `HttpServer::threads()`, use 
+  [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
+
+   
 
 
 ## 0.6
