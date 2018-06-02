@@ -149,7 +149,6 @@ pub trait HttpMessage {
     /// Returns error:
     ///
     /// * content type is not `application/x-www-form-urlencoded`
-    /// * transfer encoding is `chunked`.
     /// * content-length is greater than 256k
     ///
     /// ## Server example
@@ -367,9 +366,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(req) = self.req.take() {
-            if req.chunked().unwrap_or(false) {
-                return Err(UrlencodedError::Chunked);
-            } else if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
+            if let Some(len) = req.headers().get(header::CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
                     if let Ok(len) = s.parse::<u64>() {
                         if len > 262_144 {
@@ -577,13 +574,6 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let req =
-            TestRequest::with_header(header::TRANSFER_ENCODING, "chunked").finish();
-        assert_eq!(
-            req.urlencoded::<Info>().poll().err().unwrap(),
-            UrlencodedError::Chunked
-        );
-
         let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
