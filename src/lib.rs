@@ -133,7 +133,7 @@ extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate smallvec;
 #[macro_use]
-pub extern crate actix as actix_inner;
+extern crate actix as actix_inner;
 
 #[cfg(test)]
 #[macro_use]
@@ -197,13 +197,14 @@ pub use json::Json;
 pub use scope::Scope;
 
 pub mod actix {
-    //! Re-exports [actix's](https://docs.rs/actix) prelude
+    //! Re-exports [actix's](https://docs.rs/actix/) prelude
 
-    pub use actix_inner::actors::resolver;
-    pub use actix_inner::actors::signal;
-    pub use actix_inner::fut;
-    pub use actix_inner::msgs;
-    pub use actix_inner::prelude::*;
+    extern crate actix;
+    pub use self::actix::actors::resolver;
+    pub use self::actix::actors::signal;
+    pub use self::actix::fut;
+    pub use self::actix::msgs;
+    pub use self::actix::prelude::*;
 }
 
 #[cfg(feature = "openssl")]
