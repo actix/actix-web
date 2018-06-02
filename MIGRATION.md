@@ -35,7 +35,7 @@
     fn index(query: Query<..>, info: Json<MyStruct) -> impl Responder {}
     ```
 
-    use tuple of extractors:
+    use tuple of extractors and use `.with()` for registration:
 
     ```rust
     fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder {}

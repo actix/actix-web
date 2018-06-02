@@ -6,18 +6,26 @@
 
 * Re-export `actix::prelude::*` as `actix_web::actix` module.
 
+* `HttpRequest::url_for_static()` for a named route with no variables segments
+
 
 ### Changed
 
-* Migrate to tokio
-
 * Min rustc version is 1.26
 
+* Use tokio instead of tokio-core
+
 * Use `&mut self` instead of `&self` for Middleware trait
+
 
 ### Removed
 
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+
+
+### Fixed
+
+* `HttpRequest::url_for()` for a named route with no variables segments #265
 
 
 ## [0.6.10] - 2018-05-24
