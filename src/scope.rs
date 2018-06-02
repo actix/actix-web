@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
@@ -56,7 +56,7 @@ type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 pub struct Scope<S: 'static> {
     filters: Vec<Box<Predicate<S>>>,
     nested: Vec<NestedInfo<S>>,
-    middlewares: Rc<Vec<Box<Middleware<S>>>>,
+    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     default: Rc<UnsafeCell<ResourceHandler<S>>>,
     resources: ScopeResources<S>,
 }
@@ -68,7 +68,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(Vec::new()),
+            middlewares: Rc::new(RefCell::new(Vec::new())),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         }
     }
@@ -132,7 +132,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(Vec::new()),
+            middlewares: Rc::new(RefCell::new(Vec::new())),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
         let mut scope = f(scope);
@@ -175,7 +175,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(Vec::new()),
+            middlewares: Rc::new(RefCell::new(Vec::new())),
             default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
         };
         let mut scope = f(scope);
@@ -312,6 +312,7 @@ impl<S: 'static> Scope<S> {
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Scope<S> {
         Rc::get_mut(&mut self.middlewares)
             .expect("Can not use after configuration")
+            .borrow_mut()
             .push(Box::new(mw));
         self
     }
@@ -327,7 +328,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
                 let default = unsafe { &mut *self.default.as_ref().get() };
 
                 req.match_info_mut().remove("tail");
-                if self.middlewares.is_empty() {
+                if self.middlewares.borrow().is_empty() {
                     let resource = unsafe { &mut *resource.get() };
                     return resource.handle(req, Some(default));
                 } else {
@@ -369,7 +370,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
 
         // default handler
         let default = unsafe { &mut *self.default.as_ref().get() };
-        if self.middlewares.is_empty() {
+        if self.middlewares.borrow().is_empty() {
             default.handle(req, None)
         } else {
             AsyncResult::async(Box::new(Compose::new(
@@ -419,7 +420,7 @@ struct Compose<S: 'static> {
 struct ComposeInfo<S: 'static> {
     count: usize,
     req: HttpRequest<S>,
-    mws: Rc<Vec<Box<Middleware<S>>>>,
+    mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
     resource: Rc<UnsafeCell<ResourceHandler<S>>>,
 }
@@ -446,7 +447,7 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
         resource: Rc<UnsafeCell<ResourceHandler<S>>>,
         default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
     ) -> Self {
@@ -492,7 +493,7 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 
 impl<S: 'static> StartMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>) -> ComposeState<S> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
         loop {
             if info.count == len {
                 let resource = unsafe { &mut *info.resource.get() };
@@ -504,7 +505,8 @@ impl<S: 'static> StartMiddlewares<S> {
                 };
                 return WaitingResponse::init(info, reply);
             } else {
-                match info.mws[info.count].start(&mut info.req) {
+                let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                match state {
                     Ok(MiddlewareStarted::Done) => info.count += 1,
                     Ok(MiddlewareStarted::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
@@ -522,7 +524,7 @@ impl<S: 'static> StartMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return None,
@@ -542,7 +544,8 @@ impl<S: 'static> StartMiddlewares<S> {
                             };
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            match info.mws[info.count].start(&mut info.req) {
+                            let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                            match state {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
@@ -602,10 +605,11 @@ struct RunMiddlewares<S> {
 impl<S: 'static> RunMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>, mut resp: HttpResponse) -> ComposeState<S> {
         let mut curr = 0;
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
-            resp = match info.mws[curr].response(&mut info.req, resp) {
+            let state = info.mws.borrow_mut()[curr].response(&mut info.req, resp);
+            resp = match state {
                 Err(err) => {
                     info.count = curr + 1;
                     return FinishingMiddlewares::init(info, err.into());
@@ -630,7 +634,7 @@ impl<S: 'static> RunMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
             // poll latest fut
@@ -647,7 +651,8 @@ impl<S: 'static> RunMiddlewares<S> {
                 if self.curr == len {
                     return Some(FinishingMiddlewares::init(info, resp));
                 } else {
-                    match info.mws[self.curr].response(&mut info.req, resp) {
+                    let state = info.mws.borrow_mut()[self.curr].response(&mut info.req, resp);
+                    match state {
                         Err(err) => {
                             return Some(FinishingMiddlewares::init(info, err.into()))
                         }
@@ -715,9 +720,9 @@ impl<S: 'static> FinishingMiddlewares<S> {
             }
 
             info.count -= 1;
-            match info.mws[info.count as usize]
-                .finish(&mut info.req, self.resp.as_ref().unwrap())
-            {
+            let state = info.mws.borrow_mut()[info.count as usize]
+                .finish(&mut info.req, self.resp.as_ref().unwrap());
+            match state {
                 MiddlewareFinished::Done => {
                     if info.count == 0 {
                         return Some(Response::init(self.resp.take().unwrap()));

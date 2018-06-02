@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{io, mem};
@@ -71,7 +71,7 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
 struct PipelineInfo<S> {
     req: UnsafeCell<HttpRequest<S>>,
     count: u16,
-    mws: Rc<Vec<Box<Middleware<S>>>>,
+    mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     context: Option<Box<ActorHttpContext>>,
     error: Option<Error>,
     disconnected: Option<bool>,
@@ -83,7 +83,7 @@ impl<S> PipelineInfo<S> {
         PipelineInfo {
             req: UnsafeCell::new(req),
             count: 0,
-            mws: Rc::new(Vec::new()),
+            mws: Rc::new(RefCell::new(Vec::new())),
             error: None,
             context: None,
             disconnected: None,
@@ -120,7 +120,7 @@ impl<S> PipelineInfo<S> {
 
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
     pub fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
         handler: Rc<UnsafeCell<H>>, htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
@@ -243,13 +243,14 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
-        let len = info.mws.len() as u16;
+        let len = info.mws.borrow().len() as u16;
         loop {
             if info.count == len {
                 let reply = unsafe { &mut *hnd.get() }.handle(info.req().clone(), htype);
                 return WaitingResponse::init(info, reply);
             } else {
-                match info.mws[info.count as usize].start(info.req_mut()) {
+                let state = info.mws.borrow_mut()[info.count as usize].start(info.req_mut());
+                match state {
                     Ok(Started::Done) => info.count += 1,
                     Ok(Started::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
@@ -269,7 +270,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     }
 
     fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
-        let len = info.mws.len() as u16;
+        let len = info.mws.borrow().len() as u16;
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return None,
@@ -284,7 +285,9 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                                 .handle(info.req().clone(), self.htype);
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            match info.mws[info.count as usize].start(info.req_mut()) {
+                            let state = info.mws.borrow_mut()[info.count as usize]
+                                .start(info.req_mut());
+                            match state {
                                 Ok(Started::Done) => info.count += 1,
                                 Ok(Started::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
@@ -353,10 +356,11 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
             return ProcessResponse::init(resp);
         }
         let mut curr = 0;
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
-            resp = match info.mws[curr].response(info.req_mut(), resp) {
+            let state = info.mws.borrow_mut()[curr].response(info.req_mut(), resp);
+            resp = match state {
                 Err(err) => {
                     info.count = (curr + 1) as u16;
                     return ProcessResponse::init(err.into());
@@ -382,7 +386,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
     }
 
     fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
             // poll latest fut
@@ -399,7 +403,8 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                 if self.curr == len {
                     return Some(ProcessResponse::init(resp));
                 } else {
-                    match info.mws[self.curr].response(info.req_mut(), resp) {
+                    let state = info.mws.borrow_mut()[self.curr].response(info.req_mut(), resp);
+                    match state {
                         Err(err) => return Some(ProcessResponse::init(err.into())),
                         Ok(Response::Done(r)) => {
                             self.curr += 1;
@@ -723,7 +728,9 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             }
 
             info.count -= 1;
-            match info.mws[info.count as usize].finish(info.req_mut(), &self.resp) {
+            let state = info.mws.borrow_mut()[info.count as usize]
+                .finish(info.req_mut(), &self.resp);
+            match state {
                 Finished::Done => {
                     if info.count == 0 {
                         return Some(Completed::init(info));

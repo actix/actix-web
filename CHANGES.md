@@ -8,6 +8,8 @@
 
 * Min rustc version is 1.26
 
+* Use `&mut self` instead of `&self` for Middleware trait
+
 ### Removed
 
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.

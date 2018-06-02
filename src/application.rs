@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -22,7 +22,7 @@ pub struct HttpApplication<S = ()> {
     prefix_len: usize,
     router: Router,
     inner: Rc<UnsafeCell<Inner<S>>>,
-    middlewares: Rc<Vec<Box<Middleware<S>>>>,
+    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
 }
 
 pub(crate) struct Inner<S> {
@@ -612,7 +612,7 @@ where
         HttpApplication {
             state: Rc::new(parts.state),
             router: router.clone(),
-            middlewares: Rc::new(parts.middlewares),
+            middlewares: Rc::new(RefCell::new(parts.middlewares)),
             prefix,
             prefix_len,
             inner,
