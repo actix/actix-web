@@ -283,9 +283,9 @@ impl<S> HttpRequest<S> {
     /// Generate url for named resource
     ///
     /// ```rust
-    /// # extern crate actix_web;
-    /// # use actix_web::{App, HttpRequest, HttpResponse, http};
-    /// #
+    /// //#### # extern crate actix_web;
+    /// //#### # use actix_web::{App, HttpRequest, HttpResponse, http};
+    /// //#### #
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
     ///     HttpResponse::Ok().into()
@@ -311,7 +311,6 @@ impl<S> HttpRequest<S> {
             Err(UrlGenerationError::RouterNotAvailable)
         } else {
             let path = self.router().unwrap().resource_path(name, elements)?;
-            println!("==== {:?}", path);
             if path.starts_with('/') {
                 let conn = self.connection_info();
                 Ok(Url::parse(&format!(
