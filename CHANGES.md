@@ -2,6 +2,11 @@
 
 ## [0.7.0] - 2018-xx-xx
 
+### Added
+
+* Re-export `actix::prelude::*` as `actix_web::actix` module.
+
+
 ### Changed
 
 * Migrate to tokio
