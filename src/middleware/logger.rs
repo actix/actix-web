@@ -124,14 +124,14 @@ impl Logger {
 }
 
 impl<S> Middleware<S> for Logger {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
         if !self.exclude.contains(req.path()) {
             req.extensions_mut().insert(StartTime(time::now()));
         }
         Ok(Started::Done)
     }
 
-    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&mut self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         self.log(req, resp);
         Finished::Done
     }
@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_logger() {
-        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
+        let mut logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
         let mut headers = HeaderMap::new();
         headers.insert(

@@ -183,7 +183,7 @@ unsafe impl Send for IdentityBox {}
 unsafe impl Sync for IdentityBox {}
 
 impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
         let fut = self
@@ -200,7 +200,7 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     }
 
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(mut id) = req.extensions_mut().remove::<IdentityBox>() {
             id.0.write(resp)

@@ -71,7 +71,7 @@ impl<S> ErrorHandlers<S> {
 
 impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
     fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(handler) = self.handlers.get(&resp.status()) {
             handler(req, resp)
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mw =
+        let mut mw =
             ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mut req = HttpRequest::default();

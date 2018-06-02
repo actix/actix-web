@@ -19,21 +19,21 @@ struct MiddlewareTest {
 }
 
 impl<S> middleware::Middleware<S> for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+    fn start(&mut self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
         self.start
             .store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Started::Done)
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &mut self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         self.response
             .store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Response::Done(resp))
     }
 
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(&mut self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         self.finish
             .store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middleware::Finished::Done
@@ -431,7 +431,7 @@ struct MiddlewareAsyncTest {
 }
 
 impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+    fn start(&mut self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let start = Arc::clone(&self.start);
@@ -444,7 +444,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &mut self, _: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
@@ -457,7 +457,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
         )))
     }
 
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(&mut self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let finish = Arc::clone(&self.finish);

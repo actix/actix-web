@@ -75,7 +75,7 @@ impl DefaultHeaders {
 
 impl<S> Middleware<S> for DefaultHeaders {
     fn response(
-        &self, _: &mut HttpRequest<S>, mut resp: HttpResponse,
+        &mut self, _: &mut HttpRequest<S>, mut resp: HttpResponse,
     ) -> Result<Response> {
         for (key, value) in self.headers.iter() {
             if !resp.headers().contains_key(key) {
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_default_headers() {
-        let mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
+        let mut mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
 
         let mut req = HttpRequest::default();
 

@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -55,7 +55,7 @@ impl<S: 'static> Route<S> {
 
     #[inline]
     pub(crate) fn compose(
-        &mut self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
+        &mut self, req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     ) -> AsyncResult<HttpResponse> {
         AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
@@ -263,7 +263,7 @@ struct Compose<S: 'static> {
 struct ComposeInfo<S: 'static> {
     count: usize,
     req: HttpRequest<S>,
-    mws: Rc<Vec<Box<Middleware<S>>>>,
+    mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     handler: InnerHandler<S>,
 }
 
@@ -289,7 +289,7 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: InnerHandler<S>,
+        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>, handler: InnerHandler<S>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -332,13 +332,14 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 
 impl<S: 'static> StartMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>) -> ComposeState<S> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
         loop {
             if info.count == len {
                 let reply = info.handler.handle(info.req.clone());
                 return WaitingResponse::init(info, reply);
             } else {
-                match info.mws[info.count].start(&mut info.req) {
+                let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                match state {
                     Ok(MiddlewareStarted::Done) => info.count += 1,
                     Ok(MiddlewareStarted::Response(resp)) => {
                         return RunMiddlewares::init(info, resp)
@@ -356,7 +357,7 @@ impl<S: 'static> StartMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return None,
@@ -370,7 +371,8 @@ impl<S: 'static> StartMiddlewares<S> {
                             let reply = info.handler.handle(info.req.clone());
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            match info.mws[info.count].start(&mut info.req) {
+                            let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                            match state {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
@@ -435,10 +437,11 @@ struct RunMiddlewares<S> {
 impl<S: 'static> RunMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>, mut resp: HttpResponse) -> ComposeState<S> {
         let mut curr = 0;
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
-            resp = match info.mws[curr].response(&mut info.req, resp) {
+            let state = info.mws.borrow_mut()[curr].response(&mut info.req, resp);
+            resp = match state {
                 Err(err) => {
                     info.count = curr + 1;
                     return FinishingMiddlewares::init(info, err.into());
@@ -463,7 +466,7 @@ impl<S: 'static> RunMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.len();
+        let len = info.mws.borrow().len();
 
         loop {
             // poll latest fut
@@ -480,7 +483,8 @@ impl<S: 'static> RunMiddlewares<S> {
                 if self.curr == len {
                     return Some(FinishingMiddlewares::init(info, resp));
                 } else {
-                    match info.mws[self.curr].response(&mut info.req, resp) {
+                    let state = info.mws.borrow_mut()[self.curr].response(&mut info.req, resp);
+                    match state {
                         Err(err) => {
                             return Some(FinishingMiddlewares::init(info, err.into()))
                         }
@@ -548,9 +552,10 @@ impl<S: 'static> FinishingMiddlewares<S> {
             }
 
             info.count -= 1;
-            match info.mws[info.count as usize]
-                .finish(&mut info.req, self.resp.as_ref().unwrap())
-            {
+
+            let state = info.mws.borrow_mut()[info.count as usize]
+                .finish(&mut info.req, self.resp.as_ref().unwrap());
+            match state {
                 MiddlewareFinished::Done => {
                     if info.count == 0 {
                         return Some(Response::init(self.resp.take().unwrap()));
