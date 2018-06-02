@@ -293,8 +293,18 @@ impl From<IoError> for PayloadError {
     }
 }
 
-/// `InternalServerError` for `PayloadError`
-impl ResponseError for PayloadError {}
+/// `PayloadError` returns two possible results:
+///
+/// - `Overflow` returns `PayloadTooLarge`
+/// - Other errors returns `BadRequest`
+impl ResponseError for PayloadError {
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            PayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
+            _ => HttpResponse::new(StatusCode::BAD_REQUEST)
+        }
+    }
+}
 
 /// Return `BadRequest` for `cookie::ParseError`
 impl ResponseError for cookie::ParseError {
