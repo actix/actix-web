@@ -25,6 +25,8 @@
 
 ### Fixed
 
+* Support chunked encoding for UrlEncoded body #262
+
 * `HttpRequest::url_for()` for a named route with no variables segments #265
 
 
