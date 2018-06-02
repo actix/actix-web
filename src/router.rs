@@ -211,8 +211,6 @@ impl Resource {
         let (pattern, elements, is_dynamic, len) =
             Resource::parse(path, prefix, for_prefix);
 
-        println!("ELEMENT: {:?} {:?} {:?}", pattern, elements, is_dynamic);
-
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
                 Ok(re) => re,
@@ -347,7 +345,6 @@ impl Resource {
                 let mut path = String::new();
                 let mut iter = elements.into_iter();
                 for el in &self.elements {
-                    println!("EL: {:?}", el);
                     match *el {
                         PatternElement::Str(ref s) => path.push_str(s),
                         PatternElement::Var(_) => {
