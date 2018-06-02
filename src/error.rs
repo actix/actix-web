@@ -293,7 +293,10 @@ impl From<IoError> for PayloadError {
     }
 }
 
-/// `InternalServerError` for `PayloadError`
+/// `PayloadError` returns two possible results:
+///
+/// - `Overflow` returns `PayloadTooLarge`
+/// - Other errors returns `BadRequest`
 impl ResponseError for PayloadError {
     fn error_response(&self) -> HttpResponse {
         match *self {
