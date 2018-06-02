@@ -211,6 +211,8 @@ impl Resource {
         let (pattern, elements, is_dynamic, len) =
             Resource::parse(path, prefix, for_prefix);
 
+        println!("ELEMENT: {:?} {:?} {:?}", pattern, elements, is_dynamic);
+
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
                 Ok(re) => re,
@@ -338,22 +340,42 @@ impl Resource {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        let mut iter = elements.into_iter();
-        let mut path = if self.rtp != ResourceType::External {
-            format!("{}/", router.prefix())
-        } else {
-            String::new()
-        };
-        for el in &self.elements {
-            match *el {
-                PatternElement::Str(ref s) => path.push_str(s),
-                PatternElement::Var(_) => {
-                    if let Some(val) = iter.next() {
-                        path.push_str(val.as_ref())
-                    } else {
-                        return Err(UrlGenerationError::NotEnoughElements);
+        let mut path = match self.tp {
+            PatternType::Prefix(ref p) => p.to_owned(),
+            PatternType::Static(ref p) => p.to_owned(),
+            PatternType::Dynamic(..) => {
+                let mut path = String::new();
+                let mut iter = elements.into_iter();
+                for el in &self.elements {
+                    println!("EL: {:?}", el);
+                    match *el {
+                        PatternElement::Str(ref s) => path.push_str(s),
+                        PatternElement::Var(_) => {
+                            if let Some(val) = iter.next() {
+                                path.push_str(val.as_ref())
+                            } else {
+                                return Err(UrlGenerationError::NotEnoughElements);
+                            }
+                        }
                     }
                 }
+                path
+            }
+        };
+
+        if self.rtp != ResourceType::External {
+            let prefix = router.prefix();
+            if prefix.ends_with('/') {
+                if path.starts_with('/') {
+                    path.insert_str(0, &prefix[..prefix.len() - 1]);
+                } else {
+                    path.insert_str(0, prefix);
+                }
+            } else {
+                if !path.starts_with('/') {
+                    path.insert(0, '/');
+                }
+                path.insert_str(0, prefix);
             }
         }
         Ok(path)
@@ -418,6 +440,10 @@ impl Resource {
             }
         }
 
+        if !el.is_empty() {
+            elems.push(PatternElement::Str(el.clone()));
+        }
+
         let re = if is_dynamic {
             if !for_prefix {
                 re1.push('$');
@@ -450,7 +476,7 @@ mod tests {
     use test::TestRequest;
 
     #[test]
-    fn test_recognizer() {
+    fn test_recognizer10() {
         let routes = vec![
             (Resource::new("", "/name"), Some(ResourceHandler::default())),
             (
@@ -471,6 +497,10 @@ mod tests {
             ),
             (
                 Resource::new("", "/v/{tail:.*}"),
+                Some(ResourceHandler::default()),
+            ),
+            (
+                Resource::new("", "/test2/{test}.html"),
                 Some(ResourceHandler::default()),
             ),
             (
@@ -510,8 +540,12 @@ mod tests {
             "blah-blah/index.html"
         );
 
-        let mut req = TestRequest::with_uri("/bbb/index.html").finish();
+        let mut req = TestRequest::with_uri("/test2/index.html").finish();
         assert_eq!(rec.recognize(&mut req), Some(6));
+        assert_eq!(req.match_info().get("test").unwrap(), "index");
+
+        let mut req = TestRequest::with_uri("/bbb/index.html").finish();
+        assert_eq!(rec.recognize(&mut req), Some(7));
         assert_eq!(req.match_info().get("test").unwrap(), "bbb");
     }
 
