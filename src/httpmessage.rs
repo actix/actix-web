@@ -341,6 +341,7 @@ pub struct UrlEncoded<T, U> {
 }
 
 impl<T, U> UrlEncoded<T, U> {
+    /// Create a new future to URL encode a request
     pub fn new(req: T) -> UrlEncoded<T, U> {
         UrlEncoded {
             req: Some(req),

@@ -86,10 +86,12 @@ where
     A: Actor<Context = Self>,
 {
     #[inline]
+    /// Create a new Websocket context from a request and an actor
     pub fn new(req: HttpRequest<S>, actor: A) -> WebsocketContext<A, S> {
         WebsocketContext::from_request(req).actor(actor)
     }
 
+    /// Create a new Websocket context from a request
     pub fn from_request(req: HttpRequest<S>) -> WebsocketContext<A, S> {
         WebsocketContext {
             inner: ContextImpl::new(None),
@@ -100,6 +102,7 @@ where
     }
 
     #[inline]
+    /// Set actor for this execution context
     pub fn actor(mut self, actor: A) -> WebsocketContext<A, S> {
         self.inner.set_actor(actor);
         self

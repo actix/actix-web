@@ -256,6 +256,7 @@ pub mod http {
 
     pub use helpers::NormalizePath;
 
+    /// Various http headers
     pub mod header {
         pub use header::*;
     }

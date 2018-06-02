@@ -158,10 +158,15 @@ impl ResponseError for HandshakeError {
 /// `WebSocket` Message
 #[derive(Debug, PartialEq, Message)]
 pub enum Message {
+    /// Text message
     Text(String),
+    /// Binary message
     Binary(Binary),
+    /// Ping message
     Ping(String),
+    /// Pong message
     Pong(String),
+    /// Close message with optional reason
     Close(Option<CloseReason>),
 }
 
