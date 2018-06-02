@@ -2,20 +2,21 @@
 
 * `actix::System` has new api.
 
-    Instead of 
+    Instead of
     
-    ```run
+    ```rust
     fn main() {
         let sys = actix::System::new(..);
         
         HttpServer::new(|| ...).start()
+        
         sys.run();
     }
     ```
 
     Server must be initialized within system run closure:
 
-    ```run
+    ```rust
     fn main() {
         actix::System::run(|| {
             HttpServer::new(|| ...).start()
@@ -32,7 +33,7 @@
 * Removed deprecated `HttpServer::threads()`, use `HttpServer::workers()` instead.
 
 
-## Migration from 0.5 to 0.6
+## 0.6
 
 * `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
 
@@ -84,7 +85,7 @@
   you need to use `use actix_web::ws::WsWriter`
 
 
-## Migration from 0.4 to 0.5
+## 0.5
 
 * `HttpResponseBuilder::body()`, `.finish()`, `.json()`
    methods return `HttpResponse` instead of `Result<HttpResponse>`
