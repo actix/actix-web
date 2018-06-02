@@ -1,3 +1,14 @@
+## 0.7
+
+* Middleware trait uses `&mut self` instead of `&self`.
+
+* Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+
+  `fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder`
+
+* Removed deprecated `HttpServer::threads()`, use `HttpServer::workers()` instead.
+
+
 ## Migration from 0.5 to 0.6
 
 * `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
