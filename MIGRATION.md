@@ -1,5 +1,28 @@
 ## 0.7
 
+* `actix::System` has new api.
+
+    Instead of 
+    
+    ```run
+    fn main() {
+        let sys = actix::System::new(..);
+        
+        HttpServer::new(|| ...).start()
+        sys.run();
+    }
+    ```
+
+    Server must be initialized within system run closure:
+
+    ```run
+    fn main() {
+        actix::System::run(|| {
+            HttpServer::new(|| ...).start()
+        });
+    }
+    ```
+
 * Middleware trait uses `&mut self` instead of `&self`.
 
 * Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
