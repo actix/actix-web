@@ -63,6 +63,8 @@ pub struct Scope<S: 'static> {
 
 #[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 impl<S: 'static> Scope<S> {
+    /// Create a new scope
+    // TODO: Why is this not exactly the default impl?
     pub fn new() -> Scope<S> {
         Scope {
             filters: Vec::new(),

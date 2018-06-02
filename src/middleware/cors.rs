@@ -207,6 +207,7 @@ impl Default for Cors {
 }
 
 impl Cors {
+    /// Build a new CORS middleware instance
     pub fn build() -> CorsBuilder<()> {
         CorsBuilder {
             cors: Some(Inner {

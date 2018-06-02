@@ -103,6 +103,7 @@ use middleware::{Middleware, Response, Started};
 /// # fn main() {}
 /// ```
 pub trait RequestSession {
+    /// Get the session from the request
     fn session(&self) -> Session;
 }
 

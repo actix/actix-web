@@ -127,6 +127,7 @@ pub enum ContentEncoding {
 
 impl ContentEncoding {
     #[inline]
+    /// Is the content compressed?
     pub fn is_compression(&self) -> bool {
         match *self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
@@ -135,6 +136,7 @@ impl ContentEncoding {
     }
 
     #[inline]
+    /// Convert content encoding to string
     pub fn as_str(&self) -> &'static str {
         match *self {
             #[cfg(feature = "brotli")]

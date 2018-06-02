@@ -111,6 +111,7 @@ pub struct ResumeServer;
 ///
 /// If server starts with `spawn()` method, then spawned thread get terminated.
 pub struct StopServer {
+    /// Whether to try and shut down gracefully
     pub graceful: bool,
 }
 

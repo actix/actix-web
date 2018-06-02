@@ -35,6 +35,7 @@ header! {
 }
 
 impl Date {
+    /// Create a date instance set to the current system time
     pub fn now() -> Date {
         Date(SystemTime::now().into())
     }

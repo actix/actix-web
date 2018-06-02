@@ -251,6 +251,7 @@ impl Resource {
         &self.pattern
     }
 
+    /// Is this path a match against this resource?
     pub fn is_match(&self, path: &str) -> bool {
         match self.tp {
             PatternType::Static(ref s) => s == path,
@@ -259,6 +260,7 @@ impl Resource {
         }
     }
 
+    /// Are the given path and parameters a match against this resource?
     pub fn match_with_params<'a>(
         &'a self, path: &'a str, params: &'a mut Params<'a>,
     ) -> bool {
@@ -284,6 +286,7 @@ impl Resource {
         }
     }
 
+    /// Is the given path a prefix match and do the parameters match against this resource?
     pub fn match_prefix_with_params<'a>(
         &'a self, path: &'a str, params: &'a mut Params<'a>,
     ) -> Option<usize> {

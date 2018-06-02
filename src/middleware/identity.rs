@@ -121,10 +121,15 @@ impl<S> RequestIdentity for HttpRequest<S> {
 
 /// An identity
 pub trait Identity: 'static {
+    /// Return the claimed identity of the user associated request or
+    /// ``None`` if no identity can be found associated with the request.
     fn identity(&self) -> Option<&str>;
 
+    /// Remember identity.
     fn remember(&mut self, key: String);
 
+    /// This method is used to 'forget' the current identity on subsequent
+    /// requests.
     fn forget(&mut self);
 
     /// Write session to storage backend.
@@ -133,7 +138,10 @@ pub trait Identity: 'static {
 
 /// Identity policy definition.
 pub trait IdentityPolicy<S>: Sized + 'static {
+    /// The associated identity
     type Identity: Identity;
+
+    /// The return type of the middleware
     type Future: Future<Item = Self::Identity, Error = Error>;
 
     /// Parse the session from request and load data from a service identity.

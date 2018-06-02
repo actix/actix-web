@@ -422,15 +422,19 @@ type DirectoryRenderer<S> =
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
 pub struct Directory {
+    /// Base directory
     pub base: PathBuf,
+    /// Path of subdirectory to generate listing for
     pub path: PathBuf,
 }
 
 impl Directory {
+    /// Create a new directory
     pub fn new(base: PathBuf, path: PathBuf) -> Directory {
         Directory { base, path }
     }
 
+    /// Is this entry visible from this directory?
     pub fn is_visible(&self, entry: &io::Result<DirEntry>) -> bool {
         if let Ok(ref entry) = *entry {
             if let Some(name) = entry.file_name().to_str() {

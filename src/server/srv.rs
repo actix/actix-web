@@ -686,7 +686,7 @@ where
 {
     type Result = ();
 
-    fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
         unimplemented!();
         /*Arbiter::spawn(HttpChannel::new(
             Rc::clone(self.h.as_ref().unwrap()),
