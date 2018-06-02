@@ -82,6 +82,7 @@
     feature = "cargo-clippy",
     allow(decimal_literal_representation, suspicious_arithmetic_impl)
 )]
+#![warn(missing_docs)]
 
 #[macro_use]
 extern crate log;
