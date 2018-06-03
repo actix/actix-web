@@ -506,7 +506,7 @@ impl ClientRequestBuilder {
     }
 
     /// Do not add default request headers.
-    /// By default `Accept-Encoding` header is set.
+    /// By default `Accept-Encoding` and `User-Agent` headers are set.
     pub fn no_default_headers(&mut self) -> &mut Self {
         self.default_headers = false;
         self
@@ -607,6 +607,15 @@ impl ClientRequestBuilder {
                 self.header(header::ACCEPT_ENCODING, "br, gzip, deflate");
             } else {
                 self.header(header::ACCEPT_ENCODING, "gzip, deflate");
+            }
+
+            let contains = if let Some(parts) = parts(&mut self.request, &self.err) {
+                parts.headers.contains_key(header::USER_AGENT)
+            } else {
+                true
+            };
+            if !contains {
+                self.header(header::USER_AGENT, "Actix-web");
             }
         }
 
