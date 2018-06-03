@@ -3,7 +3,7 @@
 //! [**IdentityService**](struct.IdentityService.html) middleware can be
 //! used with different policies types to store identity information.
 //!
-//! Bu default, only cookie identity policy is implemented. Other backend
+//! By default, only cookie identity policy is implemented. Other backend
 //! implementations can be added separately.
 //!
 //! [**CookieIdentityPolicy**](struct.CookieIdentityPolicy.html)
