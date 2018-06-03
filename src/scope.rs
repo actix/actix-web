@@ -1188,4 +1188,27 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
+
+    #[test]
+    fn test_default_resource_propagation() {
+        let mut app = App::new()
+            .scope("/app1", |scope| {
+                scope.default_resource(|r| r.f(|_| HttpResponse::BadRequest()))
+            })
+            .scope("/app2", |scope| scope)
+            .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
+            .finish();
+
+        let req = TestRequest::with_uri("/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let req = TestRequest::with_uri("/app1/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/app2/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
 }
