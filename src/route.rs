@@ -289,7 +289,8 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>, handler: InnerHandler<S>,
+        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+        handler: InnerHandler<S>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -350,7 +351,7 @@ impl<S: 'static> StartMiddlewares<S> {
                             _s: PhantomData,
                         })
                     }
-                    Err(err) => return FinishingMiddlewares::init(info, err.into()),
+                    Err(err) => return RunMiddlewares::init(info, err.into()),
                 }
             }
         }
@@ -371,7 +372,8 @@ impl<S: 'static> StartMiddlewares<S> {
                             let reply = info.handler.handle(info.req.clone());
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                            let state =
+                                info.mws.borrow_mut()[info.count].start(&mut info.req);
                             match state {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -382,16 +384,13 @@ impl<S: 'static> StartMiddlewares<S> {
                                     continue 'outer;
                                 }
                                 Err(err) => {
-                                    return Some(FinishingMiddlewares::init(
-                                        info,
-                                        err.into(),
-                                    ))
+                                    return Some(RunMiddlewares::init(info, err.into()))
                                 }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(FinishingMiddlewares::init(info, err.into())),
+                Err(err) => return Some(RunMiddlewares::init(info, err.into())),
             }
         }
     }
@@ -483,7 +482,8 @@ impl<S: 'static> RunMiddlewares<S> {
                 if self.curr == len {
                     return Some(FinishingMiddlewares::init(info, resp));
                 } else {
-                    let state = info.mws.borrow_mut()[self.curr].response(&mut info.req, resp);
+                    let state =
+                        info.mws.borrow_mut()[self.curr].response(&mut info.req, resp);
                     match state {
                         Err(err) => {
                             return Some(FinishingMiddlewares::init(info, err.into()))

@@ -84,8 +84,12 @@ impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use error::{Error, ErrorInternalServerError};
     use http::header::CONTENT_TYPE;
     use http::StatusCode;
+    use httpmessage::HttpMessage;
+    use middleware::Started;
+    use test;
 
     fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         let mut builder = resp.into_builder();
@@ -112,5 +116,28 @@ mod tests {
             _ => panic!(),
         };
         assert!(!resp.headers().contains_key(CONTENT_TYPE));
+    }
+
+    struct MiddlewareOne;
+
+    impl<S> Middleware<S> for MiddlewareOne {
+        fn start(&mut self, _req: &mut HttpRequest<S>) -> Result<Started, Error> {
+            Err(ErrorInternalServerError("middleware error"))
+        }
+    }
+
+    #[test]
+    fn test_middleware_start_error() {
+        let mut srv = test::TestServer::new(move |app| {
+            app.middleware(
+                ErrorHandlers::new()
+                    .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+            ).middleware(MiddlewareOne)
+                .handler(|_| HttpResponse::Ok())
+        });
+
+        let request = srv.get().finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

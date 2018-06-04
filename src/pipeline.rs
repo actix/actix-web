@@ -249,7 +249,8 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                 let reply = unsafe { &mut *hnd.get() }.handle(info.req().clone(), htype);
                 return WaitingResponse::init(info, reply);
             } else {
-                let state = info.mws.borrow_mut()[info.count as usize].start(info.req_mut());
+                let state =
+                    info.mws.borrow_mut()[info.count as usize].start(info.req_mut());
                 match state {
                     Ok(Started::Done) => info.count += 1,
                     Ok(Started::Response(resp)) => {
@@ -263,7 +264,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                             _s: PhantomData,
                         })
                     }
-                    Err(err) => return ProcessResponse::init(err.into()),
+                    Err(err) => return RunMiddlewares::init(info, err.into()),
                 }
             }
         }
@@ -297,13 +298,13 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                                     continue 'outer;
                                 }
                                 Err(err) => {
-                                    return Some(ProcessResponse::init(err.into()))
+                                    return Some(RunMiddlewares::init(info, err.into()))
                                 }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(ProcessResponse::init(err.into())),
+                Err(err) => return Some(RunMiddlewares::init(info, err.into())),
             }
         }
     }
@@ -403,7 +404,8 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                 if self.curr == len {
                     return Some(ProcessResponse::init(resp));
                 } else {
-                    let state = info.mws.borrow_mut()[self.curr].response(info.req_mut(), resp);
+                    let state =
+                        info.mws.borrow_mut()[self.curr].response(info.req_mut(), resp);
                     match state {
                         Err(err) => return Some(ProcessResponse::init(err.into())),
                         Ok(Response::Done(r)) => {
