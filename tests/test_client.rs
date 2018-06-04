@@ -432,3 +432,29 @@ fn test_client_cookie_handling() {
     let c2 = response.cookie("cookie2").expect("Missing cookie2");
     assert_eq!(c2, &cookie2);
 }
+
+#[test]
+fn test_default_headers() {
+    let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+
+    let request = srv.get().finish().unwrap();
+    let repr = format!("{:?}", request);
+    assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
+    assert!(repr.contains(concat!(
+        "\"user-agent\": \"Actix-web/",
+        env!("CARGO_PKG_VERSION"),
+        "\""
+    )));
+
+    let request_override = srv.get()
+        .header("User-Agent", "test")
+        .finish()
+        .unwrap();
+    let repr_override = format!("{:?}", request_override);
+    assert!(repr_override.contains("\"user-agent\": \"test\""));
+    assert!(!repr_override.contains(concat!(
+        "\"user-agent\": \"Actix-web/",
+        env!("CARGO_PKG_VERSION"),
+        "\""
+    )));
+}
