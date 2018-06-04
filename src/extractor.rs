@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::str;
+use std::{fmt, str};
 
 use bytes::Bytes;
 use encoding::all::UTF_8;
@@ -115,6 +115,18 @@ where
     }
 }
 
+impl<T: fmt::Debug> fmt::Debug for Path<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Path<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
 /// Extract typed information from from the request's query.
 ///
 /// ## Example
@@ -175,10 +187,21 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        let req = req.clone();
         serde_urlencoded::from_str::<T>(req.query_string())
             .map_err(|e| e.into())
             .map(Query)
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Query<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Query<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -249,6 +272,18 @@ where
                 .from_err()
                 .map(Form),
         )
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Form<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Form<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

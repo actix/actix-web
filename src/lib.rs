@@ -2,10 +2,10 @@
 //! for Rust.
 //!
 //! ```rust
-//! use actix_web::{server, App, Path};
+//! use actix_web::{server, App, Path, Responder};
 //! # use std::thread;
 //!
-//! fn index(info: Path<(String, u32)>) -> String {
+//! fn index(info: Path<(String, u32)>) -> impl Responder {
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!

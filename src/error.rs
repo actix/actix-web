@@ -293,8 +293,18 @@ impl From<IoError> for PayloadError {
     }
 }
 
-/// `InternalServerError` for `PayloadError`
-impl ResponseError for PayloadError {}
+/// `PayloadError` returns two possible results:
+///
+/// - `Overflow` returns `PayloadTooLarge`
+/// - Other errors returns `BadRequest`
+impl ResponseError for PayloadError {
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            PayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
+            _ => HttpResponse::new(StatusCode::BAD_REQUEST),
+        }
+    }
+}
 
 /// Return `BadRequest` for `cookie::ParseError`
 impl ResponseError for cookie::ParseError {
@@ -417,8 +427,10 @@ pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding
     #[fail(display = "Can not decode chunked transfer encoding")]
     Chunked,
-    /// Payload size is bigger than 256k
-    #[fail(display = "Payload size is bigger than 256k")]
+    /// Payload size is bigger than allowed. (default: 256kB)
+    #[fail(
+        display = "Urlencoded payload size is bigger than allowed. (default: 256kB)"
+    )]
     Overflow,
     /// Payload size is now known
     #[fail(display = "Payload size is now known")]
@@ -458,8 +470,8 @@ impl From<PayloadError> for UrlencodedError {
 /// A set of errors that can occur during parsing json payloads
 #[derive(Fail, Debug)]
 pub enum JsonPayloadError {
-    /// Payload size is bigger than 256k
-    #[fail(display = "Payload size is bigger than 256k")]
+    /// Payload size is bigger than allowed. (default: 256kB)
+    #[fail(display = "Json payload size is bigger than allowed. (default: 256kB)")]
     Overflow,
     /// Content type error
     #[fail(display = "Content type error")]
