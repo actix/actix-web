@@ -615,7 +615,10 @@ impl ClientRequestBuilder {
                 true
             };
             if !contains {
-                self.header(header::USER_AGENT, "Actix-web");
+                self.header(
+                    header::USER_AGENT,
+                    concat!("Actix-web/", env!("CARGO_PKG_VERSION")),
+                );
             }
         }
 

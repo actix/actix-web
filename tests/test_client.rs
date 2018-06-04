@@ -440,7 +440,11 @@ fn test_default_headers() {
     let request = srv.get().finish().unwrap();
     let repr = format!("{:?}", request);
     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
-    assert!(repr.contains("\"user-agent\": \"Actix-web\""));
+    assert!(repr.contains(concat!(
+        "\"user-agent\": \"Actix-web/",
+        env!("CARGO_PKG_VERSION"),
+        "\""
+    )));
 
     let request_override = srv.get()
         .header("User-Agent", "test")
@@ -448,5 +452,9 @@ fn test_default_headers() {
         .unwrap();
     let repr_override = format!("{:?}", request_override);
     assert!(repr_override.contains("\"user-agent\": \"test\""));
-    assert!(!repr_override.contains("\"user-agent\": \"Actix-web\""));
+    assert!(!repr_override.contains(concat!(
+        "\"user-agent\": \"Actix-web/",
+        env!("CARGO_PKG_VERSION"),
+        "\""
+    )));
 }
