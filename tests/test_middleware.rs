@@ -9,6 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use actix_web::*;
+use actix_web::middleware::{Middleware, Started};
 use futures::{future, Future};
 use tokio_timer::Delay;
 
@@ -33,7 +34,9 @@ impl<S> middleware::Middleware<S> for MiddlewareTest {
         Ok(middleware::Response::Done(resp))
     }
 
-    fn finish(&mut self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(
+        &mut self, _: &mut HttpRequest<S>, _: &HttpResponse,
+    ) -> middleware::Finished {
         self.finish
             .store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middleware::Finished::Done
@@ -97,6 +100,45 @@ fn test_middleware_multiple() {
     assert_eq!(num1.load(Ordering::Relaxed), 2);
     assert_eq!(num2.load(Ordering::Relaxed), 2);
     assert_eq!(num3.load(Ordering::Relaxed), 2);
+}
+
+// TODO: Refactor `MiddlewareTest` to be able (optionally) provide functions to be run at each
+// stage: `start`, `response`, and `finish`. The current method of counting invokations of each
+// function should remain.
+struct MwStartError;
+
+impl<S> Middleware<S> for MwStartError {
+    fn start(&mut self, _req: &mut HttpRequest<S>) -> Result<Started, Error> {
+        Err(error::ErrorInternalServerError(""))
+    }
+}
+
+#[test]
+fn test_middleware_start_err() {
+    let num1 = Arc::new(AtomicUsize::new(0));
+    let num2 = Arc::new(AtomicUsize::new(0));
+    let num3 = Arc::new(AtomicUsize::new(0));
+
+    let act_num1 = Arc::clone(&num1);
+    let act_num2 = Arc::clone(&num2);
+    let act_num3 = Arc::clone(&num3);
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.middleware(MiddlewareTest {
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).middleware(MwStartError)
+            .handler(|_| HttpResponse::Ok())
+    });
+
+    let request = srv.get().finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_server_error());
+
+    assert_eq!(num1.load(Ordering::Relaxed), 1);
+    assert_eq!(num2.load(Ordering::Relaxed), 1);
+    assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
 
 #[test]
@@ -457,7 +499,9 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
         )))
     }
 
-    fn finish(&mut self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(
+        &mut self, _: &mut HttpRequest<S>, _: &HttpResponse,
+    ) -> middleware::Finished {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let finish = Arc::clone(&self.finish);
