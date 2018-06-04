@@ -17,6 +17,7 @@
 
 * Use `&mut self` instead of `&self` for Middleware trait
 
+* Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
 ### Removed
 
