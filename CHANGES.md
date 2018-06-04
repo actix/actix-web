@@ -29,6 +29,8 @@
 
 * `HttpRequest::url_for()` for a named route with no variables segments #265
 
+* `Middleware::response()` is not invoked if error result was returned by another `Middleware::start()` #255
+
 
 ## [0.6.10] - 2018-05-24
 
