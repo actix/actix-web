@@ -262,7 +262,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                             _s: PhantomData,
                         })
                     }
-                    Err(err) => return ProcessResponse::init(err.into()),
+                    Err(err) => return RunMiddlewares::init(info, err.into()),
                 }
             }
         }
@@ -294,13 +294,13 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                                     continue 'outer;
                                 }
                                 Err(err) => {
-                                    return Some(ProcessResponse::init(err.into()))
+                                    return Some(RunMiddlewares::init(info, err.into()))
                                 }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(ProcessResponse::init(err.into())),
+                Err(err) => return Some(RunMiddlewares::init(info, err.into())),
             }
         }
     }
