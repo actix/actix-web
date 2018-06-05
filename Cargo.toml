@@ -46,6 +46,9 @@ flate2-c = ["flate2/miniz-sys"]
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
 
+[package.metadata.docs.rs]
+features = ["tls", "alpn", "session", "brotli", "flate2-c"]
+
 [dependencies]
 #actix = "^0.6.0"
 actix = { git="https://github.com/actix/actix.git" }
