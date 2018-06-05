@@ -24,7 +24,7 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 
-### Fixed
+## [0.6.11] - 2018-06-xx
 
 * Support chunked encoding for UrlEncoded body #262
 
@@ -33,6 +33,8 @@
 * `Middleware::response()` is not invoked if error result was returned by another `Middleware::start()` #255
 
 * CORS: Do not validate Origin header on non-OPTION requests #271
+
+* Fix multipart upload "Incomplete" error #282
 
 
 ## [0.6.10] - 2018-05-24
