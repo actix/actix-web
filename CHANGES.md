@@ -24,7 +24,7 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 
-## [0.6.11] - 2018-06-xx
+## [0.6.11] - 2018-06-05
 
 * Support chunked encoding for UrlEncoded body #262
 
