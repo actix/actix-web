@@ -513,7 +513,7 @@ where
                     match payload.read_exact(boundary.len() + 4)? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(None) => Err(MultipartError::Incomplete),
-                        Async::Ready(Some(chunk)) => {
+                        Async::Ready(Some(mut chunk)) => {
                             if &chunk[..2] == b"\r\n"
                                 && &chunk[2..4] == b"--"
                                 && &chunk[4..] == boundary.as_bytes()
@@ -521,7 +521,10 @@ where
                                 payload.unread_data(chunk);
                                 Ok(Async::Ready(None))
                             } else {
-                                Ok(Async::Ready(Some(chunk)))
+                                // \r might be part of data stream
+                                let ch = chunk.split_to(1);
+                                payload.unread_data(chunk);
+                                Ok(Async::Ready(Some(ch)))
                             }
                         }
                     }
