@@ -32,6 +32,8 @@
 
 * `Middleware::response()` is not invoked if error result was returned by another `Middleware::start()` #255
 
+* CORS: Do not validate Origin header on non-OPTION requests #271
+
 
 ## [0.6.10] - 2018-05-24
 
