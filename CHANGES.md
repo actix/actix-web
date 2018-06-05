@@ -12,6 +12,8 @@
 
 * CORS: Do not validate Origin header on non-OPTION requests #271
 
+* Fix multipart upload "Incomplete" error #282
+
 
 ## [0.6.10] - 2018-05-24
 
