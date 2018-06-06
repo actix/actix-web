@@ -7,7 +7,7 @@ use std::{cmp, fmt};
 use bytes::Bytes;
 use futures::task::{current as current_task, Task};
 use futures::{Async, Poll, Stream};
-use http::header::{self, HeaderMap, HeaderName, HeaderValue};
+use http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
 use http::HttpTryFrom;
 use httparse;
 use mime;
@@ -362,7 +362,7 @@ where
                     headers,
                     mt,
                     field,
-                )))))
+                )?))))
             }
         }
     }
@@ -378,6 +378,7 @@ impl<S> Drop for InnerMultipart<S> {
 /// A single field in a multipart stream
 pub struct Field<S> {
     ct: mime::Mime,
+    cd: ContentDisposition,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField<S>>>,
     safety: Safety,
@@ -390,13 +391,20 @@ where
     fn new(
         safety: Safety, headers: HeaderMap, ct: mime::Mime,
         inner: Rc<RefCell<InnerField<S>>>,
-    ) -> Self {
-        Field {
+    ) -> Result<Self, MultipartError> {
+        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
+        // where the disposition type is "form-data".'
+        let cd = ContentDisposition::from_raw(
+            headers.get(::http::header::CONTENT_DISPOSITION)
+        ).map_err(|_| MultipartError::ParseContentDisposition)?;
+
+        Ok(Field {
             ct,
+            cd,
             headers,
             inner,
             safety,
-        }
+        })
     }
 
     /// Get a map of headers
@@ -407,6 +415,11 @@ where
     /// Get the content type of the field
     pub fn content_type(&self) -> &mime::Mime {
         &self.ct
+    }
+
+    /// Get the content disposition of the field
+    pub fn content_disposition(&self) -> &ContentDisposition {
+        &self.cd
     }
 }
 

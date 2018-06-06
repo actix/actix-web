@@ -118,6 +118,7 @@ extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+extern crate unicase;
 extern crate url;
 #[macro_use]
 extern crate serde;
@@ -128,6 +129,7 @@ extern crate encoding;
 extern crate flate2;
 extern crate h2 as http2;
 extern crate num_cpus;
+#[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate serde_urlencoded;
