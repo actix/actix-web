@@ -379,3 +379,78 @@ mod percent_encoding_http {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use header::shared::Charset;
+    use super::{ExtendedValue, parse_extended_value};
+    use language_tags::LanguageTag;
+
+    #[test]
+    fn test_parse_extended_value_with_encoding_and_language_tag() {
+        let expected_language_tag = "en".parse::<LanguageTag>().unwrap();
+        // RFC 5987, Section 3.2.2
+        // Extended notation, using the Unicode character U+00A3 (POUND SIGN)
+        let result = parse_extended_value("iso-8859-1'en'%A3%20rates");
+        assert!(result.is_ok());
+        let extended_value = result.unwrap();
+        assert_eq!(Charset::Iso_8859_1, extended_value.charset);
+        assert!(extended_value.language_tag.is_some());
+        assert_eq!(expected_language_tag, extended_value.language_tag.unwrap());
+        assert_eq!(vec![163, b' ', b'r', b'a', b't', b'e', b's'], extended_value.value);
+    }
+
+    #[test]
+    fn test_parse_extended_value_with_encoding() {
+        // RFC 5987, Section 3.2.2
+        // Extended notation, using the Unicode characters U+00A3 (POUND SIGN)
+        // and U+20AC (EURO SIGN)
+        let result = parse_extended_value("UTF-8''%c2%a3%20and%20%e2%82%ac%20rates");
+        assert!(result.is_ok());
+        let extended_value = result.unwrap();
+        assert_eq!(Charset::Ext("UTF-8".to_string()), extended_value.charset);
+        assert!(extended_value.language_tag.is_none());
+        assert_eq!(vec![194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a', b't', b'e', b's'], extended_value.value);
+    }
+
+    #[test]
+    fn test_parse_extended_value_missing_language_tag_and_encoding() {
+        // From: https://greenbytes.de/tech/tc2231/#attwithfn2231quot2
+        let result = parse_extended_value("foo%20bar.html");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_extended_value_partially_formatted() {
+        let result = parse_extended_value("UTF-8'missing third part");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_extended_value_partially_formatted_blank() {
+        let result = parse_extended_value("blank second part'");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fmt_extended_value_with_encoding_and_language_tag() {
+        let extended_value = ExtendedValue {
+            charset: Charset::Iso_8859_1,
+            language_tag: Some("en".parse().expect("Could not parse language tag")),
+            value: vec![163, b' ', b'r', b'a', b't', b'e', b's'],
+        };
+        assert_eq!("ISO-8859-1'en'%A3%20rates", format!("{}", extended_value));
+    }
+
+    #[test]
+    fn test_fmt_extended_value_with_encoding() {
+        let extended_value = ExtendedValue {
+            charset: Charset::Ext("UTF-8".to_string()),
+            language_tag: None,
+            value: vec![194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
+                        b't', b'e', b's'],
+        };
+        assert_eq!("UTF-8''%C2%A3%20and%20%E2%82%AC%20rates",
+                   format!("{}", extended_value));
+    }
+}
