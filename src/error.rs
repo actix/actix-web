@@ -353,9 +353,6 @@ pub enum MultipartError {
     /// Can not parse Content-Type header
     #[fail(display = "Can not parse Content-Type header")]
     ParseContentType,
-    /// Can not parse Content-Disposition header
-    #[fail(display = "Can not parse Content-Disposition header")]
-    ParseContentDisposition,
     /// Multipart boundary is not found
     #[fail(display = "Multipart boundary is not found")]
     Boundary,

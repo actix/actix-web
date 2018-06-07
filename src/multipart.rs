@@ -317,15 +317,6 @@ where
                 return Ok(Async::NotReady);
             };
 
-            // content disposition
-            // RFC 7578: 'Each part MUST contain a Content-Disposition header field
-            // where the disposition type is "form-data".'
-            let cd = match headers.get(::http::header::CONTENT_DISPOSITION) {
-                Some(content_disposition) => ContentDisposition::from_raw(content_disposition)
-                    .map_err(|_| MultipartError::ParseContentDisposition)?,
-                None => return Err(MultipartError::ParseContentDisposition)
-            };
-
             // content type
             let mut mt = mime::APPLICATION_OCTET_STREAM;
             if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
@@ -369,7 +360,6 @@ where
                 Ok(Async::Ready(Some(MultipartItem::Field(Field::new(
                     safety.clone(),
                     headers,
-                    cd,
                     mt,
                     field,
                 )))))
@@ -387,7 +377,6 @@ impl<S> Drop for InnerMultipart<S> {
 
 /// A single field in a multipart stream
 pub struct Field<S> {
-    cd: ContentDisposition,
     ct: mime::Mime,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField<S>>>,
@@ -399,11 +388,10 @@ where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
     fn new(
-        safety: Safety, headers: HeaderMap, cd: ContentDisposition, ct: mime::Mime,
+        safety: Safety, headers: HeaderMap, ct: mime::Mime,
         inner: Rc<RefCell<InnerField<S>>>,
     ) -> Self {
         Field {
-            cd,
             ct,
             headers,
             inner,
@@ -421,9 +409,15 @@ where
         &self.ct
     }
 
-    /// Get the content disposition of the field
-    pub fn content_disposition(&self) -> &ContentDisposition {
-        &self.cd
+    /// Get the content disposition of the field, if it exists
+    pub fn content_disposition(&self) -> Option<ContentDisposition> {
+        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
+        // where the disposition type is "form-data".'
+        if let Some(content_disposition) = self.headers.get(::http::header::CONTENT_DISPOSITION) {
+            ContentDisposition::from_raw(content_disposition).ok()
+        } else {
+            None
+        }
     }
 }
 
@@ -744,7 +738,6 @@ mod tests {
                  Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
                  test\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-                 Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
                  Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
                  data\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n");
@@ -759,7 +752,7 @@ mod tests {
                         MultipartItem::Field(mut field) => {
                             {
                                 use http::header::{DispositionType, DispositionParam};
-                                let cd = field.content_disposition();
+                                let cd = field.content_disposition().unwrap();
                                 assert_eq!(cd.disposition, DispositionType::Ext("form-data".into()));
                                 assert_eq!(cd.parameters[0], DispositionParam::Ext("name".into(), "file".into()));
                             }
