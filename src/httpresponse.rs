@@ -89,7 +89,7 @@ impl HttpResponse {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> HttpResponse {
-        let mut resp = error.cause().error_response();
+        let mut resp = error.as_response_error().error_response();
         resp.get_mut().error = Some(error);
         resp
     }
