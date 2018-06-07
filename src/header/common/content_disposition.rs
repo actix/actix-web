@@ -213,7 +213,7 @@ mod tests {
     fn test_from_raw() {
         assert!(ContentDisposition::from_raw(Some(&HeaderValue::from_static(""))).is_err());
 
-        let a = HeaderValue::from_static("form-data; dummy=3; name=upload;\r\n filename=\"sample.png\"");
+        let a = HeaderValue::from_static("form-data; dummy=3; name=upload; filename=\"sample.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Ext("form-data".to_owned()),
