@@ -4,6 +4,9 @@
 
 ### Added
 
+* Add `.content_disposition()` method to parse Content-Disposition of
+  multipart fields
+
 * Re-export `actix::prelude::*` as `actix_web::actix` module.
 
 * `HttpRequest::url_for_static()` for a named route with no variables segments
