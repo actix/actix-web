@@ -320,9 +320,11 @@ where
             // content disposition
             // RFC 7578: 'Each part MUST contain a Content-Disposition header field
             // where the disposition type is "form-data".'
-            let cd = ContentDisposition::from_raw(
-                headers.get(::http::header::CONTENT_DISPOSITION)
-            ).map_err(|_| MultipartError::ParseContentDisposition)?;
+            let cd = match headers.get(::http::header::CONTENT_DISPOSITION) {
+                Some(content_disposition) => ContentDisposition::from_raw(content_disposition)
+                    .map_err(|_| MultipartError::ParseContentDisposition)?,
+                None => return Err(MultipartError::ParseContentDisposition)
+            };
 
             // content type
             let mut mt = mime::APPLICATION_OCTET_STREAM;

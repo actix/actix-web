@@ -89,8 +89,8 @@ pub struct ContentDisposition {
 }
 impl ContentDisposition {
     /// Parse a raw Content-Disposition header value
-    pub fn from_raw(hv: Option<&header::HeaderValue>) -> Result<Self, ::error::ParseError> {
-        header::from_one_raw_str(hv).and_then(|s: String| {
+    pub fn from_raw(hv: &header::HeaderValue) -> Result<Self, ::error::ParseError> {
+        header::from_one_raw_str(Some(hv)).and_then(|s: String| {
             let mut sections = s.split(';');
             let disposition = match sections.next() {
                 Some(s) => s.trim(),
@@ -158,7 +158,11 @@ impl Header for ContentDisposition {
     }
 
     fn parse<T: ::HttpMessage>(msg: &T) -> Result<Self, ::error::ParseError> {
-        Self::from_raw(msg.headers().get(Self::name()))
+        if let Some(h) = msg.headers().get(Self::name()) {
+            Self::from_raw(&h)
+        } else {
+            Err(::error::ParseError::Header)
+        }
     }
 }
 
@@ -209,10 +213,10 @@ mod tests {
     use header::shared::Charset;
     #[test]
     fn test_from_raw() {
-        assert!(ContentDisposition::from_raw(Some(&HeaderValue::from_static(""))).is_err());
+        assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());
 
         let a = HeaderValue::from_static("form-data; dummy=3; name=upload; filename=\"sample.png\"");
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Ext("form-data".to_owned()),
             parameters: vec![
@@ -226,7 +230,7 @@ mod tests {
         assert_eq!(a, b);
 
         let a = HeaderValue::from_static("attachment; filename=\"image.jpg\"");
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![
@@ -238,7 +242,7 @@ mod tests {
         assert_eq!(a, b);
 
         let a = HeaderValue::from_static("attachment; filename*=UTF-8''%c2%a3%20and%20%e2%82%ac%20rates");
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![
@@ -255,17 +259,17 @@ mod tests {
     fn test_display() {
         let as_string = "attachment; filename*=UTF-8'en'%C2%A3%20and%20%E2%82%AC%20rates";
         let a = HeaderValue::from_static(as_string);
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let display_rendered = format!("{}",a);
         assert_eq!(as_string, display_rendered);
 
         let a = HeaderValue::from_static("attachment; filename*=UTF-8''black%20and%20white.csv");
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let display_rendered = format!("{}",a);
         assert_eq!("attachment; filename=\"black and white.csv\"".to_owned(), display_rendered);
 
         let a = HeaderValue::from_static("attachment; filename=colourful.csv");
-        let a: ContentDisposition = ContentDisposition::from_raw(Some(&a)).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let display_rendered = format!("{}",a);
         assert_eq!("attachment; filename=\"colourful.csv\"".to_owned(), display_rendered);
     }
