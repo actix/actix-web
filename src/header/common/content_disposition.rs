@@ -7,8 +7,6 @@
 // IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
 
 use language_tags::LanguageTag;
-use unicase;
-
 use header;
 use header::{Header, IntoHeaderValue, Writer};
 use header::shared::Charset;
@@ -100,9 +98,9 @@ impl ContentDisposition {
             };
 
             let mut cd = ContentDisposition {
-                disposition: if unicase::eq_ascii(&*disposition, "inline") {
+                disposition: if disposition.eq_ignore_ascii_case("inline") {
                     DispositionType::Inline
-                } else if unicase::eq_ascii(&*disposition, "attachment") {
+                } else if disposition.eq_ignore_ascii_case("attachment") {
                     DispositionType::Attachment
                 } else {
                     DispositionType::Ext(disposition.to_owned())
@@ -126,11 +124,11 @@ impl ContentDisposition {
                 };
 
                 cd.parameters.push(
-                    if unicase::eq_ascii(&*key, "filename") {
+                    if key.eq_ignore_ascii_case("filename") {
                         DispositionParam::Filename(
                             Charset::Ext("UTF-8".to_owned()), None,
                             val.trim_matches('"').as_bytes().to_owned())
-                    } else if unicase::eq_ascii(&*key, "filename*") {
+                    } else if key.eq_ignore_ascii_case("filename*") {
                         let extended_value = try!(header::parse_extended_value(val));
                         DispositionParam::Filename(extended_value.charset, extended_value.language_tag, extended_value.value)
                     } else {
@@ -177,7 +175,7 @@ impl fmt::Display for ContentDisposition {
                     let mut use_simple_format: bool = false;
                     if opt_lang.is_none() {
                         if let Charset::Ext(ref ext) = *charset {
-                            if unicase::eq_ascii(&**ext, "utf-8") {
+                            if ext.eq_ignore_ascii_case("utf-8") {
                                 use_simple_format = true;
                             }
                         }
