@@ -50,13 +50,19 @@ pub struct Error {
 }
 
 impl Error {
+    /// Deprecated way to reference the underlying response error.
+    #[deprecated(since = "0.6.0", note = "please use `Error::as_response_error()` instead")]
+    pub fn cause(&self) -> &ResponseError {
+        self.cause.as_ref()
+    }
+
     /// Returns a reference to the underlying cause of this `Error` as `Fail`
-    pub fn cause(&self) -> &Fail {
+    pub fn as_fail(&self) -> &Fail {
         self.cause.as_fail()
     }
 
     /// Returns the reference to the underlying `ResponseError`.
-    pub fn response_error(&self) -> &ResponseError {
+    pub fn as_response_error(&self) -> &ResponseError {
         self.cause.as_ref()
     }
 
@@ -919,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cause() {
+    fn test_as_fail() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let desc = orig.description().to_owned();
         let e = ParseError::Io(orig);
@@ -937,7 +943,7 @@ mod tests {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let desc = orig.description().to_owned();
         let e = Error::from(orig);
-        assert_eq!(format!("{}", e.cause()), desc);
+        assert_eq!(format!("{}", e.as_fail()), desc);
     }
 
     #[test]
