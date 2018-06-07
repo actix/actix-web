@@ -317,6 +317,13 @@ where
                 return Ok(Async::NotReady);
             };
 
+            // content disposition
+            // RFC 7578: 'Each part MUST contain a Content-Disposition header field
+            // where the disposition type is "form-data".'
+            let cd = ContentDisposition::from_raw(
+                headers.get(::http::header::CONTENT_DISPOSITION)
+            ).map_err(|_| MultipartError::ParseContentDisposition)?;
+
             // content type
             let mut mt = mime::APPLICATION_OCTET_STREAM;
             if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
@@ -360,9 +367,10 @@ where
                 Ok(Async::Ready(Some(MultipartItem::Field(Field::new(
                     safety.clone(),
                     headers,
+                    cd,
                     mt,
                     field,
-                )?))))
+                )))))
             }
         }
     }
@@ -377,8 +385,8 @@ impl<S> Drop for InnerMultipart<S> {
 
 /// A single field in a multipart stream
 pub struct Field<S> {
-    ct: mime::Mime,
     cd: ContentDisposition,
+    ct: mime::Mime,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField<S>>>,
     safety: Safety,
@@ -389,22 +397,16 @@ where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
     fn new(
-        safety: Safety, headers: HeaderMap, ct: mime::Mime,
+        safety: Safety, headers: HeaderMap, cd: ContentDisposition, ct: mime::Mime,
         inner: Rc<RefCell<InnerField<S>>>,
-    ) -> Result<Self, MultipartError> {
-        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
-        // where the disposition type is "form-data".'
-        let cd = ContentDisposition::from_raw(
-            headers.get(::http::header::CONTENT_DISPOSITION)
-        ).map_err(|_| MultipartError::ParseContentDisposition)?;
-
-        Ok(Field {
-            ct,
+    ) -> Self {
+        Field {
             cd,
+            ct,
             headers,
             inner,
             safety,
-        })
+        }
     }
 
     /// Get a map of headers
