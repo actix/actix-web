@@ -68,17 +68,16 @@ pub enum DispositionParam {
 /// # Example
 ///
 /// ```
-/// use hyper::header::{Headers, ContentDisposition, DispositionType, DispositionParam, Charset};
+/// use actix_web::http::header::{ContentDisposition, DispositionType, DispositionParam, Charset};
 ///
-/// let mut headers = Headers::new();
-/// headers.set(ContentDisposition {
+/// let cd = ContentDisposition {
 ///     disposition: DispositionType::Attachment,
 ///     parameters: vec![DispositionParam::Filename(
 ///       Charset::Iso_8859_1, // The character set for the bytes of the filename
 ///       None, // The optional language tag (see `language-tag` crate)
 ///       b"\xa9 Copyright 1989.txt".to_vec() // the actual bytes of the filename
 ///     )]
-/// });
+/// };
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
