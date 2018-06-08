@@ -23,7 +23,7 @@ pub struct HttpApplication<S = ()> {
     router: Router,
     inner: Rc<UnsafeCell<Inner<S>>>,
     filters: Option<Vec<Box<Predicate<S>>>>,
-    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 pub(crate) struct Inner<S> {

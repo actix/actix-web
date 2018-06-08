@@ -4,6 +4,10 @@
 
 ### Added
 
+* Add `Host` filter #287
+
+* Allow to filter applications
+
 * Improved failure interoperability with downcasting #285
 
 
