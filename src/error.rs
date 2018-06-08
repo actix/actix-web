@@ -36,7 +36,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
-/// An actix web error is used to carry errors from `failure` or `std::error` 
+/// An actix web error is used to carry errors from `failure` or `std::error`
 /// through actix in a convenient way.  It can be created through through
 /// converting errors with `into()`.
 ///
@@ -51,7 +51,9 @@ pub struct Error {
 
 impl Error {
     /// Deprecated way to reference the underlying response error.
-    #[deprecated(since = "0.6.0", note = "please use `Error::as_response_error()` instead")]
+    #[deprecated(
+        since = "0.6.0", note = "please use `Error::as_response_error()` instead"
+    )]
     pub fn cause(&self) -> &ResponseError {
         self.cause.as_ref()
     }
@@ -97,14 +99,14 @@ impl Error {
         //
         // This currently requires a transmute.  This could be avoided if failure
         // provides a deref: https://github.com/rust-lang-nursery/failure/pull/213
-        let compat: Option<&failure::Compat<failure::Error>> = Fail::downcast_ref(self.cause.as_fail());
+        let compat: Option<&failure::Compat<failure::Error>> =
+            Fail::downcast_ref(self.cause.as_fail());
         if let Some(compat) = compat {
             pub struct CompatWrappedError {
                 error: failure::Error,
             }
-            let compat: &CompatWrappedError = unsafe {
-                ::std::mem::transmute(compat)
-            };
+            let compat: &CompatWrappedError =
+                unsafe { &*(compat as *const _ as *const CompatWrappedError) };
             compat.error.downcast_ref()
         } else {
             None
@@ -126,8 +128,12 @@ pub trait InternalResponseErrorAsFail {
 
 #[doc(hidden)]
 impl<T: ResponseError> InternalResponseErrorAsFail for T {
-    fn as_fail(&self) -> &Fail { self }
-    fn as_mut_fail(&mut self) -> &mut Fail { self }
+    fn as_fail(&self) -> &Fail {
+        self
+    }
+    fn as_mut_fail(&mut self) -> &mut Fail {
+        self
+    }
 }
 
 /// Error that can be converted to `HttpResponse`
