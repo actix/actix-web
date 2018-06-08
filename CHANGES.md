@@ -1,5 +1,17 @@
 # Changes
 
+## [0.6.12] - 2018-06-07
+
+### Added
+
+* Improved failure interoperability with downcasting #285
+
+
+### Deprecated
+
+* `Error::cause()` and introduces failure interoperability functions and downcasting.
+
+
 ## [0.6.11] - 2018-06-05
 
 ### Fixed
