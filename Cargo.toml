@@ -50,7 +50,7 @@ flate2-rust = ["flate2/rust_backend"]
 features = ["tls", "alpn", "session", "brotli", "flate2-c"]
 
 [dependencies]
-actix = "^0.5.5"
+actix = "^0.5.8"
 
 base64 = "0.9"
 bitflags = "1.0"

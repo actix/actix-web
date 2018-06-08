@@ -9,8 +9,8 @@ use actix::actors::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::fut::WrapFuture;
 use actix::registry::ArbiterService;
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Arbiter, AsyncContext, Context,
-    ContextFutureSpawner, Handler, Message, Recipient, Supervised, Syn,
+    fut, Actor, ActorFuture, ActorResponse, Addr, Arbiter, AsyncContext, Context,
+    ContextFutureSpawner, Handler, Message, Recipient, Supervised, Syn, Unsync,
 };
 
 use futures::task::{current as current_task, Task};
@@ -181,6 +181,7 @@ pub struct ClientConnector {
     pool: Rc<Pool>,
     pool_modified: Rc<Cell<bool>>,
 
+    resolver: Addr<Unsync, Connector>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -225,6 +226,7 @@ impl Default for ClientConnector {
                 pool: Rc::new(Pool::new(Rc::clone(&_modified))),
                 pool_modified: _modified,
                 connector: builder.build().unwrap(),
+                resolver: Connector::from_registry(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
                 limit: 100,
@@ -245,6 +247,7 @@ impl Default for ClientConnector {
             subscriber: None,
             pool: Rc::new(Pool::new(Rc::clone(&_modified))),
             pool_modified: _modified,
+            resolver: Connector::from_registry(),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -277,9 +280,9 @@ impl ClientConnector {
     /// # use std::io::Write;
     /// extern crate openssl;
     /// use actix::prelude::*;
-    /// use actix_web::client::{Connect, ClientConnector};
+    /// use actix_web::client::{ClientConnector, Connect};
     ///
-    /// use openssl::ssl::{SslMethod, SslConnector};
+    /// use openssl::ssl::{SslConnector, SslMethod};
     ///
     /// fn main() {
     ///     let sys = System::new("test");
@@ -312,6 +315,7 @@ impl ClientConnector {
             subscriber: None,
             pool: Rc::new(Pool::new(Rc::clone(&modified))),
             pool_modified: modified,
+            resolver: Connector::from_registry(),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -368,6 +372,12 @@ impl ClientConnector {
     /// Subscribe for connector stats. Only one subscriber is supported.
     pub fn stats(mut self, subs: Recipient<Syn, ClientConnectorStats>) -> Self {
         self.subscriber = Some(subs);
+        self
+    }
+
+    /// Use custom resolver actor
+    pub fn resolver(mut self, addr: Addr<Unsync, Connector>) -> Self {
+        self.resolver = addr;
         self
     }
 
@@ -705,7 +715,7 @@ impl Handler<Connect> for ClientConnector {
 
         {
             ActorResponse::async(
-                Connector::from_registry()
+                self.resolver
                     .send(
                         ResolveConnect::host_and_port(&conn.0.host, port)
                             .timeout(conn_timeout),

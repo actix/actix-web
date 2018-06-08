@@ -10,6 +10,8 @@
 
 * Improved failure interoperability with downcasting #285
 
+* Allow to use custom resolver for `ClientConnector`
+
 
 ### Deprecated
 
