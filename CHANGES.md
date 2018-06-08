@@ -19,9 +19,21 @@
 
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
+
 ### Removed
 
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+
+
+## [0.6.12] - 2018-06-07
+
+### Added
+
+* Add `Host` filter #287
+
+* Allow to filter applications
+
+* Improved failure interoperability with downcasting #285
 
 
 ## [0.6.11] - 2018-06-05
