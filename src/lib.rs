@@ -128,6 +128,7 @@ extern crate encoding;
 extern crate flate2;
 extern crate h2 as http2;
 extern crate num_cpus;
+#[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate serde_urlencoded;

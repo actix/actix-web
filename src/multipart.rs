@@ -7,7 +7,7 @@ use std::{cmp, fmt};
 use bytes::Bytes;
 use futures::task::{current as current_task, Task};
 use futures::{Async, Poll, Stream};
-use http::header::{self, HeaderMap, HeaderName, HeaderValue};
+use http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
 use http::HttpTryFrom;
 use httparse;
 use mime;
@@ -408,6 +408,17 @@ where
     pub fn content_type(&self) -> &mime::Mime {
         &self.ct
     }
+
+    /// Get the content disposition of the field, if it exists
+    pub fn content_disposition(&self) -> Option<ContentDisposition> {
+        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
+        // where the disposition type is "form-data".'
+        if let Some(content_disposition) = self.headers.get(::http::header::CONTENT_DISPOSITION) {
+            ContentDisposition::from_raw(content_disposition).ok()
+        } else {
+            None
+        }
+    }
 }
 
 impl<S> Stream for Field<S>
@@ -723,6 +734,7 @@ mod tests {
                 let bytes = Bytes::from(
                 "testasdadsad\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                 Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
                  Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
                  test\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
@@ -738,6 +750,12 @@ mod tests {
                 match multipart.poll() {
                     Ok(Async::Ready(Some(item))) => match item {
                         MultipartItem::Field(mut field) => {
+                            {
+                                use http::header::{DispositionType, DispositionParam};
+                                let cd = field.content_disposition().unwrap();
+                                assert_eq!(cd.disposition, DispositionType::Ext("form-data".into()));
+                                assert_eq!(cd.parameters[0], DispositionParam::Ext("name".into(), "file".into()));
+                            }
                             assert_eq!(field.content_type().type_(), mime::TEXT);
                             assert_eq!(field.content_type().subtype(), mime::PLAIN);
 
