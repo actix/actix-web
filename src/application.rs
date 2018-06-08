@@ -306,7 +306,7 @@ where
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new()
-    ///     .filter(pred::Get())
+    ///     .filter(pred::Hoat("www.rust-lang.org"))
     ///     .resource("/path", |r| r.f(|_| HttpResponse::Ok()))
     /// #      .finish();
     /// # }
