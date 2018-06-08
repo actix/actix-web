@@ -22,6 +22,7 @@ pub struct HttpApplication<S = ()> {
     prefix_len: usize,
     router: Router,
     inner: Rc<UnsafeCell<Inner<S>>>,
+    filters: Option<Vec<Box<Predicate<S>>>>,
     middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
 }
 
@@ -143,11 +144,21 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
                     || path.split_at(self.prefix_len).1.starts_with('/'))
         };
         if m {
-            let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
-            let tp = self.get_handler(&mut req);
+            let mut req2 =
+                req.clone_with_state(Rc::clone(&self.state), self.router.clone());
+
+            if let Some(ref filters) = self.filters {
+                for filter in filters {
+                    if !filter.check(&mut req2) {
+                        return Err(req);
+                    }
+                }
+            }
+
+            let tp = self.get_handler(&mut req2);
             let inner = Rc::clone(&self.inner);
             Ok(Box::new(Pipeline::new(
-                req,
+                req2,
                 Rc::clone(&self.middlewares),
                 inner,
                 tp,
@@ -168,6 +179,7 @@ struct ApplicationParts<S> {
     external: HashMap<String, Resource>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
+    filters: Vec<Box<Predicate<S>>>,
 }
 
 /// Structure that follows the builder pattern for building application
@@ -190,6 +202,7 @@ impl App<()> {
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 encoding: ContentEncoding::Auto,
+                filters: Vec::new(),
                 middlewares: Vec::new(),
             }),
         }
@@ -229,6 +242,7 @@ where
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
+                filters: Vec::new(),
                 encoding: ContentEncoding::Auto,
             }),
         }
@@ -281,6 +295,26 @@ where
                 prefix.insert(0, '/')
             }
             parts.prefix = prefix;
+        }
+        self
+    }
+
+    /// Add match predicate to application.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn main() {
+    /// App::new()
+    ///     .filter(pred::Get())
+    ///     .resource("/path", |r| r.f(|_| HttpResponse::Ok()))
+    /// #      .finish();
+    /// # }
+    /// ```
+    pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> App<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.filters.push(Box::new(p));
         }
         self
     }
@@ -608,6 +642,11 @@ where
             handlers: parts.handlers,
             resources,
         }));
+        let filters = if parts.filters.is_empty() {
+            None
+        } else {
+            Some(parts.filters)
+        };
 
         HttpApplication {
             state: Rc::new(parts.state),
@@ -616,6 +655,7 @@ where
             prefix,
             prefix_len,
             inner,
+            filters,
         }
     }
 
@@ -700,7 +740,8 @@ mod tests {
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
-    use test::TestRequest;
+    use pred;
+    use test::{TestRequest, TestServer};
 
     #[test]
     fn test_default_resource() {
@@ -898,5 +939,22 @@ mod tests {
         let req = TestRequest::with_uri("/app/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_filter() {
+        let mut srv = TestServer::with_factory(|| {
+            App::new()
+                .filter(pred::Get())
+                .handler("/test", |_| HttpResponse::Ok())
+        });
+
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let request = srv.post().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

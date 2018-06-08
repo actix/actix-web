@@ -141,6 +141,12 @@ impl HttpRequest<()> {
     pub fn with_state<S>(self, state: Rc<S>, router: Router) -> HttpRequest<S> {
         HttpRequest(self.0, Some(state), Some(router))
     }
+
+    pub(crate) fn clone_with_state<S>(
+        &self, state: Rc<S>, router: Router,
+    ) -> HttpRequest<S> {
+        HttpRequest(self.0.clone(), Some(state), Some(router))
+    }
 }
 
 impl<S> HttpMessage for HttpRequest<S> {
