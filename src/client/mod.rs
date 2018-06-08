@@ -31,6 +31,7 @@ mod pipeline;
 mod request;
 mod response;
 mod writer;
+pub mod sync;
 
 pub use self::body::{ClientBody, ClientBodyStream};
 pub use self::connector::{

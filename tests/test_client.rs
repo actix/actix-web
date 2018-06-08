@@ -458,3 +458,18 @@ fn test_default_headers() {
         "\""
     )));
 }
+
+#[test]
+fn test_sync_client() {
+    use actix_web::client::sync;
+
+    actix::System::run(|| {
+        actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+
+        let client = sync::Client::new().expect("To create sync client");
+        let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+        let request = srv.get().finish().expect("To create request");
+        //TODO: seems to fail to spawn job
+        let response = client.send(request).expect("To get successful response");
+    });
+}

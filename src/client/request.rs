@@ -250,6 +250,11 @@ impl ClientRequest {
             send
         }
     }
+
+    /// Transforms request into synchronous.
+    pub fn sync(self) -> super::sync::ClientRequest {
+        super::sync::ClientRequest(self)
+    }
 }
 
 impl fmt::Debug for ClientRequest {
