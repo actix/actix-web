@@ -69,7 +69,7 @@ You may consider checking out
 
 ## Benchmarks
 
-* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext)
+* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=plaintext)
 
 * Some basic benchmarks could be found in this [repository](https://github.com/fafhrd91/benchmarks).
 
