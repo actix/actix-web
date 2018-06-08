@@ -22,7 +22,8 @@ pub struct HttpApplication<S = ()> {
     prefix_len: usize,
     router: Router,
     inner: Rc<UnsafeCell<Inner<S>>>,
-    middlewares: Rc<Vec<Box<Middleware<S>>>>,
+    filters: Option<Vec<Box<Predicate<S>>>>,
+    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
 }
 
 pub(crate) struct Inner<S> {
@@ -143,11 +144,21 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
                     || path.split_at(self.prefix_len).1.starts_with('/'))
         };
         if m {
-            let mut req = req.with_state(Rc::clone(&self.state), self.router.clone());
-            let tp = self.get_handler(&mut req);
+            let mut req2 =
+                req.clone_with_state(Rc::clone(&self.state), self.router.clone());
+
+            if let Some(ref filters) = self.filters {
+                for filter in filters {
+                    if !filter.check(&mut req2) {
+                        return Err(req);
+                    }
+                }
+            }
+
+            let tp = self.get_handler(&mut req2);
             let inner = Rc::clone(&self.inner);
             Ok(Box::new(Pipeline::new(
-                req,
+                req2,
                 Rc::clone(&self.middlewares),
                 inner,
                 tp,
@@ -168,6 +179,7 @@ struct ApplicationParts<S> {
     external: HashMap<String, Resource>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
+    filters: Vec<Box<Predicate<S>>>,
 }
 
 /// Structure that follows the builder pattern for building application
@@ -190,6 +202,7 @@ impl App<()> {
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 encoding: ContentEncoding::Auto,
+                filters: Vec::new(),
                 middlewares: Vec::new(),
             }),
         }
@@ -229,6 +242,7 @@ where
                 handlers: Vec::new(),
                 external: HashMap::new(),
                 middlewares: Vec::new(),
+                filters: Vec::new(),
                 encoding: ContentEncoding::Auto,
             }),
         }
@@ -267,8 +281,8 @@ where
     ///     let app = App::new()
     ///         .prefix("/app")
     ///         .resource("/test", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///             r.get().f(|_| HttpResponse::Ok());
+    ///             r.head().f(|_| HttpResponse::MethodNotAllowed());
     ///         })
     ///         .finish();
     /// }
@@ -281,6 +295,26 @@ where
                 prefix.insert(0, '/')
             }
             parts.prefix = prefix;
+        }
+        self
+    }
+
+    /// Add match predicate to application.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::*;
+    /// # fn main() {
+    /// App::new()
+    ///     .filter(pred::Get())
+    ///     .resource("/path", |r| r.f(|_| HttpResponse::Ok()))
+    /// #      .finish();
+    /// # }
+    /// ```
+    pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> App<S> {
+        {
+            let parts = self.parts.as_mut().expect("Use after finish");
+            parts.filters.push(Box::new(p));
         }
         self
     }
@@ -300,10 +334,12 @@ where
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .route("/test", http::Method::GET,
-    ///                |_: HttpRequest| HttpResponse::Ok())
-    ///         .route("/test", http::Method::POST,
-    ///                |_: HttpRequest| HttpResponse::MethodNotAllowed());
+    ///         .route("/test", http::Method::GET, |_: HttpRequest| {
+    ///             HttpResponse::Ok()
+    ///         })
+    ///         .route("/test", http::Method::POST, |_: HttpRequest| {
+    ///             HttpResponse::MethodNotAllowed()
+    ///         });
     /// }
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
@@ -345,12 +381,12 @@ where
     /// use actix_web::{http, App, HttpRequest, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .scope("/{project_id}", |scope| {
-    ///              scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-    ///                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
-    ///                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
-    ///         });
+    ///     let app = App::new().scope("/{project_id}", |scope| {
+    ///         scope
+    ///             .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+    ///             .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+    ///             .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+    ///     });
     /// }
     /// ```
     ///
@@ -402,11 +438,10 @@ where
     /// use actix_web::{http, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .resource("/users/{userid}/{friend}", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
-    ///         });
+    ///     let app = App::new().resource("/users/{userid}/{friend}", |r| {
+    ///         r.get().f(|_| HttpResponse::Ok());
+    ///         r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///     });
     /// }
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> App<S>
@@ -469,9 +504,9 @@ where
     /// use actix_web::{App, HttpRequest, HttpResponse, Result};
     ///
     /// fn index(mut req: HttpRequest) -> Result<HttpResponse> {
-    ///    let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
-    ///    assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    ///    Ok(HttpResponse::Ok().into())
+    ///     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
+    ///     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+    ///     Ok(HttpResponse::Ok().into())
     /// }
     ///
     /// fn main() {
@@ -514,13 +549,11 @@ where
     /// use actix_web::{http, App, HttpRequest, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new()
-    ///         .handler("/app", |req: HttpRequest| {
-    ///             match *req.method() {
-    ///                 http::Method::GET => HttpResponse::Ok(),
-    ///                 http::Method::POST => HttpResponse::MethodNotAllowed(),
-    ///                 _ => HttpResponse::NotFound(),
-    ///         }});
+    ///     let app = App::new().handler("/app", |req: HttpRequest| match *req.method() {
+    ///         http::Method::GET => HttpResponse::Ok(),
+    ///         http::Method::POST => HttpResponse::MethodNotAllowed(),
+    ///         _ => HttpResponse::NotFound(),
+    ///     });
     /// }
     /// ```
     pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> App<S> {
@@ -561,15 +594,14 @@ where
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{App, HttpResponse, fs, middleware};
+    /// use actix_web::{fs, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
     /// fn config(app: App) -> App {
-    ///     app
-    ///         .resource("/test", |r| {
-    ///              r.get().f(|_| HttpResponse::Ok());
-    ///              r.head().f(|_| HttpResponse::MethodNotAllowed());
-    ///         })
+    ///     app.resource("/test", |r| {
+    ///         r.get().f(|_| HttpResponse::Ok());
+    ///         r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///     })
     /// }
     ///
     /// fn main() {
@@ -610,6 +642,11 @@ where
             handlers: parts.handlers,
             resources,
         }));
+        let filters = if parts.filters.is_empty() {
+            None
+        } else {
+            Some(parts.filters)
+        };
 
         HttpApplication {
             state: Rc::new(parts.state),
@@ -618,6 +655,7 @@ where
             prefix,
             prefix_len,
             inner,
+            filters,
         }
     }
 
@@ -636,19 +674,22 @@ where
     /// struct State2;
     ///
     /// fn main() {
-    /// # thread::spawn(|| {
-    ///     server::new(|| { vec![
-    ///         App::with_state(State1)
-    ///              .prefix("/app1")
-    ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///              .boxed(),
-    ///         App::with_state(State2)
-    ///              .prefix("/app2")
-    ///              .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///              .boxed() ]})
-    ///         .bind("127.0.0.1:8080").unwrap()
+    ///     //#### # thread::spawn(|| {
+    ///     server::new(|| {
+    ///         vec![
+    ///             App::with_state(State1)
+    ///                 .prefix("/app1")
+    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    ///                 .boxed(),
+    ///             App::with_state(State2)
+    ///                 .prefix("/app2")
+    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    ///                 .boxed(),
+    ///         ]
+    ///     }).bind("127.0.0.1:8080")
+    ///         .unwrap()
     ///         .run()
-    /// # });
+    ///     //#### # });
     /// }
     /// ```
     pub fn boxed(mut self) -> Box<HttpHandler> {
@@ -699,7 +740,8 @@ mod tests {
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
-    use test::TestRequest;
+    use pred;
+    use test::{TestRequest, TestServer};
 
     #[test]
     fn test_default_resource() {
@@ -897,5 +939,22 @@ mod tests {
         let req = TestRequest::with_uri("/app/blah").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_filter() {
+        let mut srv = TestServer::with_factory(|| {
+            App::new()
+                .filter(pred::Get())
+                .handler("/test", |_| HttpResponse::Ok())
+        });
+
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let request = srv.post().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }
