@@ -196,6 +196,45 @@ impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
     }
 }
 
+/// Return predicate that matches if request contains specified Host name.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::{pred, App, HttpResponse};
+///
+/// fn main() {
+///     App::new().resource("/index.html", |r| {
+///         r.route()
+///             .filter(pred::Host("www.rust-lang.org"))
+///             .f(|_| HttpResponse::MethodNotAllowed())
+///     });
+/// }
+/// ```
+pub fn Host<S: 'static, H: AsRef<str>>(host: H) -> HostPredicate<S> {
+    HostPredicate(host.as_ref().to_string(), None, PhantomData)
+}
+
+#[doc(hidden)]
+pub struct HostPredicate<S>(String, Option<String>, PhantomData<S>);
+
+impl<S> HostPredicate<S> {
+    /// Set reuest scheme to match
+    pub fn scheme<H: AsRef<str>>(&mut self, scheme: H) {
+        self.1 = Some(scheme.as_ref().to_string())
+    }
+}
+
+impl<S: 'static> Predicate<S> for HostPredicate<S> {
+    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+        let info = req.connection_info();
+        if let Some(ref scheme) = self.1 {
+            self.0 == info.host() && scheme == info.scheme()
+        } else {
+            self.0 == info.host()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +264,28 @@ mod tests {
         assert!(!pred.check(&mut req));
 
         let pred = Header("content-type", "other");
+        assert!(!pred.check(&mut req));
+    }
+
+    #[test]
+    fn test_host() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::HOST,
+            header::HeaderValue::from_static("www.rust-lang.org"),
+        );
+        let mut req = HttpRequest::new(
+            Method::GET,
+            Uri::from_str("/").unwrap(),
+            Version::HTTP_11,
+            headers,
+            None,
+        );
+
+        let pred = Host("www.rust-lang.org");
+        assert!(pred.check(&mut req));
+
+        let pred = Host("localhost");
         assert!(!pred.check(&mut req));
     }
 
