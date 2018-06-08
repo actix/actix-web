@@ -28,7 +28,7 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 
-## [0.6.12] - 2018-06-07
+## [0.6.12] - 2018-06-08
 
 ### Added
 
@@ -37,6 +37,8 @@
 * Allow to filter applications
 
 * Improved failure interoperability with downcasting #285
+
+* Allow to use custom resolver for `ClientConnector`
 
 
 ## [0.6.11] - 2018-06-05

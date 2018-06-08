@@ -5,8 +5,9 @@ use std::{fmt, io, mem, time};
 
 use actix::resolver::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context, ContextFutureSpawner,
-    Handler, Message, Recipient, StreamHandler, Supervised, SystemService, WrapFuture,
+    fut, Actor, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
+    ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
+    SystemService, WrapFuture,
 };
 
 use futures::sync::{mpsc, oneshot};
@@ -197,6 +198,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
+    resolver: Addr<Connector>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -240,6 +242,7 @@ impl Default for ClientConnector {
                 subscriber: None,
                 acq_tx: tx,
                 acq_rx: Some(rx),
+                resolver: Connector::from_registry(),
                 connector: builder.build().unwrap(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
@@ -263,6 +266,7 @@ impl Default for ClientConnector {
                 subscriber: None,
                 acq_tx: tx,
                 acq_rx: Some(rx),
+                resolver: Connector::from_registry(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
                 limit: 100,
@@ -329,6 +333,7 @@ impl ClientConnector {
             subscriber: None,
             acq_tx: tx,
             acq_rx: Some(rx),
+            resolver: Connector::from_registry(),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -385,6 +390,12 @@ impl ClientConnector {
     /// Subscribe for connector stats. Only one subscriber is supported.
     pub fn stats(mut self, subs: Recipient<ClientConnectorStats>) -> Self {
         self.subscriber = Some(subs);
+        self
+    }
+
+    /// Use custom resolver actor
+    pub fn resolver(mut self, addr: Addr<Connector>) -> Self {
+        self.resolver = addr;
         self
     }
 
@@ -655,7 +666,7 @@ impl Handler<Connect> for ClientConnector {
 
         {
             ActorResponse::async(
-                Connector::from_registry()
+                self.resolver
                     .send(
                         ResolveConnect::host_and_port(&conn.0.host, port)
                             .timeout(conn_timeout),
