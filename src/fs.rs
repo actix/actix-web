@@ -29,6 +29,14 @@ use param::FromParam;
 /// Env variable for default cpu pool size for `StaticFiles`
 const ENV_CPU_POOL_VAR: &str = "ACTIX_FS_POOL";
 
+/// Return the MIME type associated with a filename extension (case-insensitive).
+/// If `ext` is empty or no associated type for the extension was found, returns
+/// the type `application/octet-stream`.
+#[inline]
+pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
+    get_mime_type(ext)
+}
+
 /// A file with an associated name; responds with the Content-Type based on the
 /// file extension.
 #[derive(Debug)]
@@ -691,6 +699,18 @@ mod tests {
     use application::App;
     use http::{header, Method, StatusCode};
     use test::{self, TestRequest};
+
+    #[test]
+    fn test_file_extension_to_mime() {
+        let m = file_extension_to_mime("jpg");
+        assert_eq!(m, mime::IMAGE_JPEG);
+
+        let m = file_extension_to_mime("invalid extension!!");
+        assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+
+        let m = file_extension_to_mime("");
+        assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+    }
 
     #[test]
     fn test_named_file_text() {
