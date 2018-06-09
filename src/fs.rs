@@ -68,8 +68,7 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let content_type;
-        let content_disposition;
+        let (content_type, content_disposition) =
         {
             let filename = match path.file_name() {
                 Some(name) => name.to_string_lossy(),
@@ -78,12 +77,12 @@ impl NamedFile {
                     "Provided path has no filename")),
             };
 
-            content_type = guess_mime_type(&path);
-            let disposition_type = match content_type.type_() {
+            let ct = guess_mime_type(&path);
+            let disposition_type = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
             };
-            content_disposition = ContentDisposition {
+            let cd = ContentDisposition {
                 disposition: disposition_type,
                 parameters: vec![
                     DispositionParam::Filename(
@@ -93,7 +92,8 @@ impl NamedFile {
                     )
                 ],
             };
-        }
+            (ct, cd)
+        };
 
         let file = File::open(&path)?;
         let md = file.metadata()?;
@@ -275,9 +275,8 @@ impl Responder for NamedFile {
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
-
-            resp.set(header::ContentType(self.content_type.clone()));
-            resp.header("Content-Disposition", format!("{}", &self.content_disposition));
+            resp.set(header::ContentType(self.content_type.clone()))
+                .header("Content-Disposition", format!("{}", &self.content_disposition));
 
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
@@ -327,12 +326,12 @@ impl Responder for NamedFile {
         };
 
         let mut resp = HttpResponse::build(self.status_code);
+        resp.set(header::ContentType(self.content_type.clone()))
+            .header("Content-Disposition", format!("{}", &self.content_disposition));
+
         if let Some(current_encoding) = self.encoding {
             resp.content_encoding(current_encoding);
         }
-
-        resp.set(header::ContentType(self.content_type.clone()));
-        resp.header("Content-Disposition", format!("{}", &self.content_disposition));
 
         resp
             .if_some(last_modified, |lm, resp| {
