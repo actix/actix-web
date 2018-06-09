@@ -5,7 +5,7 @@ use std::{fmt, io, mem, time};
 
 use actix::resolver::{Connect as ResolveConnect, Connector, ConnectorError};
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
+    fut, Actor, ActorContext, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
     SystemService, WrapFuture,
 };
@@ -198,7 +198,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
-    resolver: Addr<Connector>,
+    resolver: Option<Addr<Connector>>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -216,6 +216,9 @@ impl Actor for ClientConnector {
     type Context = Context<ClientConnector>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        if self.resolver.is_none() {
+            self.resolver = Some(Connector::from_registry())
+        }
         self.collect_periodic(ctx);
         ctx.add_stream(self.acq_rx.take().unwrap());
         ctx.spawn(Maintenance);
@@ -242,7 +245,7 @@ impl Default for ClientConnector {
                 subscriber: None,
                 acq_tx: tx,
                 acq_rx: Some(rx),
-                resolver: Connector::from_registry(),
+                resolver: None,
                 connector: builder.build().unwrap(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
@@ -266,7 +269,7 @@ impl Default for ClientConnector {
                 subscriber: None,
                 acq_tx: tx,
                 acq_rx: Some(rx),
-                resolver: Connector::from_registry(),
+                resolver: None,
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
                 limit: 100,
@@ -333,7 +336,7 @@ impl ClientConnector {
             subscriber: None,
             acq_tx: tx,
             acq_rx: Some(rx),
-            resolver: Connector::from_registry(),
+            resolver: None,
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             limit: 100,
@@ -395,7 +398,7 @@ impl ClientConnector {
 
     /// Use custom resolver actor
     pub fn resolver(mut self, addr: Addr<Connector>) -> Self {
-        self.resolver = addr;
+        self.resolver = Some(addr);
         self
     }
 
@@ -667,6 +670,8 @@ impl Handler<Connect> for ClientConnector {
         {
             ActorResponse::async(
                 self.resolver
+                    .as_ref()
+                    .unwrap()
                     .send(
                         ResolveConnect::host_and_port(&conn.0.host, port)
                             .timeout(conn_timeout),
@@ -764,16 +769,19 @@ impl Handler<Connect> for ClientConnector {
 }
 
 impl StreamHandler<AcquiredConnOperation, ()> for ClientConnector {
-    fn handle(&mut self, msg: AcquiredConnOperation, _: &mut Context<Self>) {
+    fn handle(
+        &mut self, msg: Result<Option<AcquiredConnOperation>, ()>,
+        ctx: &mut Context<Self>,
+    ) {
         let now = Instant::now();
 
         match msg {
-            AcquiredConnOperation::Close(conn) => {
+            Ok(Some(AcquiredConnOperation::Close(conn))) => {
                 self.release_key(&conn.key);
                 self.to_close.push(conn);
                 self.stats.closed += 1;
             }
-            AcquiredConnOperation::Release(conn) => {
+            Ok(Some(AcquiredConnOperation::Release(conn))) => {
                 self.release_key(&conn.key);
 
                 // check connection lifetime and the return to available pool
@@ -784,9 +792,10 @@ impl StreamHandler<AcquiredConnOperation, ()> for ClientConnector {
                         .push_back(Conn(Instant::now(), conn));
                 }
             }
-            AcquiredConnOperation::ReleaseKey(key) => {
+            Ok(Some(AcquiredConnOperation::ReleaseKey(key))) => {
                 self.release_key(&key);
             }
+            _ => ctx.stop(),
         }
 
         // check keep-alive

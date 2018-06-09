@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::{io, net, thread};
 
 use actix::{
-    fut, msgs, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context,
-    ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
+    fut, msgs, signal, Actor, ActorContext, ActorFuture, Addr, Arbiter, AsyncContext,
+    Context, ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
 };
 
 use futures::sync::mpsc;
@@ -626,10 +626,11 @@ impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H> {
 
 /// Commands from accept threads
 impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
-    fn finished(&mut self, _: &mut Context<Self>) {}
-    fn handle(&mut self, msg: ServerCommand, _: &mut Context<Self>) {
+    fn handle(
+        &mut self, msg: Result<Option<ServerCommand>, ()>, ctx: &mut Context<Self>,
+    ) {
         match msg {
-            ServerCommand::WorkerDied(idx, socks) => {
+            Ok(Some(ServerCommand::WorkerDied(idx, socks))) => {
                 let mut found = false;
                 for i in 0..self.workers.len() {
                     if self.workers[i].0 == idx {
@@ -675,6 +676,7 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
                     self.workers.push((new_idx, addr));
                 }
             }
+            _ => ctx.stop(),
         }
     }
 }
