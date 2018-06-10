@@ -44,7 +44,8 @@
 * Removed deprecated `HttpServer::threads()`, use 
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 
-   
+* Renamed `client::ClientConnectorError::Connector` to
+  `client::ClientConnectorError::Resolver`
 
 
 ## 0.6

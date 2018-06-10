@@ -137,9 +137,9 @@ pub enum ClientConnectorError {
     #[fail(display = "{}", _0)]
     SslError(#[cause] TlsError),
 
-    /// Connection error
+    /// Resolver error
     #[fail(display = "{}", _0)]
-    Connector(#[cause] ResolverError),
+    Resolver(#[cause] ResolverError),
 
     /// Connection took too long
     #[fail(display = "Timeout while establishing connection")]
@@ -158,7 +158,7 @@ impl From<ResolverError> for ClientConnectorError {
     fn from(err: ResolverError) -> ClientConnectorError {
         match err {
             ResolverError::Timeout => ClientConnectorError::Timeout,
-            _ => ClientConnectorError::Connector(err),
+            _ => ClientConnectorError::Resolver(err),
         }
     }
 }
