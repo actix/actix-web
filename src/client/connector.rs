@@ -3,7 +3,7 @@ use std::net::Shutdown;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
-use actix::resolver::{Connect as ResolveConnect, Connector, ConnectorError};
+use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
 use actix::{
     fut, Actor, ActorContext, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
@@ -139,7 +139,7 @@ pub enum ClientConnectorError {
 
     /// Connection error
     #[fail(display = "{}", _0)]
-    Connector(#[cause] ConnectorError),
+    Connector(#[cause] ResolverError),
 
     /// Connection took too long
     #[fail(display = "Timeout while establishing connection")]
@@ -154,10 +154,10 @@ pub enum ClientConnectorError {
     IoError(#[cause] io::Error),
 }
 
-impl From<ConnectorError> for ClientConnectorError {
-    fn from(err: ConnectorError) -> ClientConnectorError {
+impl From<ResolverError> for ClientConnectorError {
+    fn from(err: ResolverError) -> ClientConnectorError {
         match err {
-            ConnectorError::Timeout => ClientConnectorError::Timeout,
+            ResolverError::Timeout => ClientConnectorError::Timeout,
             _ => ClientConnectorError::Connector(err),
         }
     }
@@ -198,7 +198,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
-    resolver: Option<Addr<Connector>>,
+    resolver: Option<Addr<Resolver>>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -217,7 +217,7 @@ impl Actor for ClientConnector {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if self.resolver.is_none() {
-            self.resolver = Some(Connector::from_registry())
+            self.resolver = Some(Resolver::from_registry())
         }
         self.collect_periodic(ctx);
         ctx.add_stream(self.acq_rx.take().unwrap());
@@ -397,7 +397,7 @@ impl ClientConnector {
     }
 
     /// Use custom resolver actor
-    pub fn resolver(mut self, addr: Addr<Connector>) -> Self {
+    pub fn resolver(mut self, addr: Addr<Resolver>) -> Self {
         self.resolver = Some(addr);
         self
     }
@@ -860,7 +860,7 @@ impl fut::ActorFuture for Maintenance {
                         let conn = AcquiredConn(key.clone(), Some(act.acq_tx.clone()));
 
                         fut::WrapFuture::<ClientConnector>::actfuture(
-                            Connector::from_registry().send(
+                            Resolver::from_registry().send(
                                 ResolveConnect::host_and_port(&conn.0.host, conn.0.port)
                                     .timeout(waiter.conn_timeout),
                             ),
