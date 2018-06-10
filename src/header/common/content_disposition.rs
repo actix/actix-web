@@ -70,12 +70,21 @@ pub enum DispositionParam {
 /// ```
 /// use actix_web::http::header::{ContentDisposition, DispositionType, DispositionParam, Charset};
 ///
-/// let cd = ContentDisposition {
+/// let cd1 = ContentDisposition {
 ///     disposition: DispositionType::Attachment,
 ///     parameters: vec![DispositionParam::Filename(
 ///       Charset::Iso_8859_1, // The character set for the bytes of the filename
 ///       None, // The optional language tag (see `language-tag` crate)
 ///       b"\xa9 Copyright 1989.txt".to_vec() // the actual bytes of the filename
+///     )]
+/// };
+///
+/// let cd2 = ContentDisposition {
+///     disposition: DispositionType::Inline,
+///     parameters: vec![DispositionParam::Filename(
+///       Charset::Ext("UTF-8".to_owned()),
+///       None,
+///       "\u{2764}".as_bytes().to_vec()
 ///     )]
 /// };
 /// ```

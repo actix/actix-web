@@ -29,12 +29,21 @@ use param::FromParam;
 /// Env variable for default cpu pool size for `StaticFiles`
 const ENV_CPU_POOL_VAR: &str = "ACTIX_FS_POOL";
 
-/// A file with an associated name; responds with the Content-Type based on the
-/// file extension.
+/// Return the MIME type associated with a filename extension (case-insensitive).
+/// If `ext` is empty or no associated type for the extension was found, returns
+/// the type `application/octet-stream`.
+#[inline]
+pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
+    get_mime_type(ext)
+}
+
+/// A file with an associated name.
 #[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,
     file: File,
+    content_type: mime::Mime,
+    content_disposition: header::ContentDisposition,
     md: Metadata,
     modified: Option<SystemTime>,
     cpu_pool: Option<CpuPool>,
@@ -54,15 +63,48 @@ impl NamedFile {
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        let file = File::open(path.as_ref())?;
-        let md = file.metadata()?;
+        use header::{ContentDisposition, DispositionType, DispositionParam};
         let path = path.as_ref().to_path_buf();
+
+        // Get the name of the file and use it to construct default Content-Type
+        // and Content-Disposition values
+        let (content_type, content_disposition) =
+        {
+            let filename = match path.file_name() {
+                Some(name) => name.to_string_lossy(),
+                None => return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Provided path has no filename")),
+            };
+
+            let ct = guess_mime_type(&path);
+            let disposition_type = match ct.type_() {
+                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+                _ => DispositionType::Attachment,
+            };
+            let cd = ContentDisposition {
+                disposition: disposition_type,
+                parameters: vec![
+                    DispositionParam::Filename(
+                        header::Charset::Ext("UTF-8".to_owned()),
+                        None,
+                        filename.as_bytes().to_vec(),
+                    )
+                ],
+            };
+            (ct, cd)
+        };
+
+        let file = File::open(&path)?;
+        let md = file.metadata()?;
         let modified = md.modified().ok();
         let cpu_pool = None;
         let encoding = None;
         Ok(NamedFile {
             path,
             file,
+            content_type,
+            content_disposition,
             md,
             modified,
             cpu_pool,
@@ -114,6 +156,27 @@ impl NamedFile {
     /// Set response **Status Code**
     pub fn set_status_code(mut self, status: StatusCode) -> Self {
         self.status_code = status;
+        self
+    }
+
+    /// Set the MIME Content-Type for serving this file. By default
+    /// the Content-Type is inferred from the filename extension.
+    #[inline]
+    pub fn set_content_type(mut self, mime_type: mime::Mime) -> Self {
+        self.content_type = mime_type;
+        self
+    }
+
+    /// Set the Content-Disposition for serving this file. This allows
+    /// changing the inline/attachment disposition as well as the filename
+    /// sent to the peer. By default the disposition is `inline` for text,
+    /// image, and video content types, and `attachment` otherwise, and
+    /// the filename is taken from the path provided in the `open` method
+    /// after converting it to UTF-8 using
+    /// [to_string_lossy](https://doc.rust-lang.org/std/ffi/struct.OsStr.html#method.to_string_lossy).
+    #[inline]
+    pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
+        self.content_disposition = cd;
         self
     }
 
@@ -212,23 +275,9 @@ impl Responder for NamedFile {
     fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
-            resp.if_some(self.path().extension(), |ext, resp| {
-                resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
-            }).if_some(self.path().file_name(), |file_name, resp| {
-                let mime_type = guess_mime_type(self.path());
-                let inline_or_attachment = match mime_type.type_() {
-                    mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
-                    _ => "attachment",
-                };
-                resp.header(
-                    "Content-Disposition",
-                    format!(
-                        "{inline_or_attachment}; filename={filename}",
-                        inline_or_attachment = inline_or_attachment,
-                        filename = file_name.to_string_lossy()
-                    ),
-                );
-            });
+            resp.set(header::ContentType(self.content_type.clone()))
+                .header("Content-Disposition", format!("{}", &self.content_disposition));
+
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
             }
@@ -277,27 +326,14 @@ impl Responder for NamedFile {
         };
 
         let mut resp = HttpResponse::build(self.status_code);
+        resp.set(header::ContentType(self.content_type.clone()))
+            .header("Content-Disposition", format!("{}", &self.content_disposition));
+
         if let Some(current_encoding) = self.encoding {
             resp.content_encoding(current_encoding);
         }
 
-        resp.if_some(self.path().extension(), |ext, resp| {
-            resp.set(header::ContentType(get_mime_type(&ext.to_string_lossy())));
-        }).if_some(self.path().file_name(), |file_name, resp| {
-                let mime_type = guess_mime_type(self.path());
-                let inline_or_attachment = match mime_type.type_() {
-                    mime::IMAGE | mime::TEXT | mime::VIDEO => "inline",
-                    _ => "attachment",
-                };
-                resp.header(
-                    "Content-Disposition",
-                    format!(
-                        "{inline_or_attachment}; filename={filename}",
-                        inline_or_attachment = inline_or_attachment,
-                        filename = file_name.to_string_lossy()
-                    ),
-                );
-            })
+        resp
             .if_some(last_modified, |lm, resp| {
                 resp.set(header::LastModified(lm));
             })
@@ -693,6 +729,18 @@ mod tests {
     use test::{self, TestRequest};
 
     #[test]
+    fn test_file_extension_to_mime() {
+        let m = file_extension_to_mime("jpg");
+        assert_eq!(m, mime::IMAGE_JPEG);
+
+        let m = file_extension_to_mime("invalid extension!!");
+        assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+
+        let m = file_extension_to_mime("");
+        assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+    }
+
+    #[test]
     fn test_named_file_text() {
         assert!(NamedFile::open("test--").is_err());
         let mut file = NamedFile::open("Cargo.toml")
@@ -713,7 +761,32 @@ mod tests {
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=Cargo.toml"
+            "inline; filename=\"Cargo.toml\""
+        );
+    }
+
+    #[test]
+    fn test_named_file_set_content_type() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_content_type(mime::TEXT_XML)
+            .set_cpu_pool(CpuPool::new(1));
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/xml"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"Cargo.toml\""
         );
     }
 
@@ -737,7 +810,43 @@ mod tests {
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=test.png"
+            "inline; filename=\"test.png\""
+        );
+    }
+
+    #[test]
+    fn test_named_file_image_attachment() {
+        use header::{ContentDisposition, DispositionType, DispositionParam};
+        let cd = ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![
+                DispositionParam::Filename(
+                    header::Charset::Ext("UTF-8".to_owned()),
+                    None,
+                    "test.png".as_bytes().to_vec(),
+                )
+            ],
+        };
+        let mut file = NamedFile::open("tests/test.png")
+            .unwrap()
+            .set_content_disposition(cd)
+            .set_cpu_pool(CpuPool::new(1));
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"test.png\""
         );
     }
 
@@ -761,7 +870,7 @@ mod tests {
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "attachment; filename=test.binary"
+            "attachment; filename=\"test.binary\""
         );
     }
 
@@ -786,7 +895,7 @@ mod tests {
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=Cargo.toml"
+            "inline; filename=\"Cargo.toml\""
         );
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }

@@ -4,6 +4,12 @@
 
 ### Added
 
+* Add `.set_content_type()` and `.set_content_disposition()` methods
+  to `fs::NamedFile` to allow overriding the values inferred by default
+
+* Add `fs::file_extension_to_mime()` helper function to get the MIME
+  type for a file extension
+
 * Add `.content_disposition()` method to parse Content-Disposition of
   multipart fields
 
