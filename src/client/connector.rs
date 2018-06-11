@@ -865,7 +865,7 @@ impl fut::ActorFuture for Maintenance {
                         let conn = AcquiredConn(key.clone(), Some(Rc::clone(&act.pool)));
 
                         fut::WrapFuture::<ClientConnector>::actfuture(
-                            Connector::from_registry().send(
+                            act.resolver.send(
                                 ResolveConnect::host_and_port(&conn.0.host, conn.0.port)
                                     .timeout(waiter.conn_timeout),
                             ),
