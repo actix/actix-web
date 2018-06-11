@@ -77,6 +77,7 @@
 //!
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
+    extern_prelude,
 ))]
 #![cfg_attr(
     feature = "cargo-clippy",
