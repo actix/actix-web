@@ -737,6 +737,7 @@ impl<S: 'static> Iterator for App<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use body::{Body, Binary};
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
@@ -956,5 +957,22 @@ mod tests {
         let request = srv.post().uri(srv.url("/test")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_option_responder() {
+        let mut app = App::new()
+            .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
+            .resource("/some", |r| r.f(|_| Some("some")))
+            .finish();
+
+        let req = TestRequest::with_uri("/none").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/some").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
     }
 }

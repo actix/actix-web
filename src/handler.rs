@@ -5,6 +5,7 @@ use futures::future::{err, ok, Future};
 use futures::{Async, Poll};
 
 use error::Error;
+use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
@@ -128,6 +129,26 @@ where
         match *self {
             Either::A(ref mut fut) => fut.poll(),
             Either::B(ref mut fut) => fut.poll(),
+        }
+    }
+}
+
+impl<T> Responder for Option<T>
+where
+    T: Responder,
+{
+    type Item = AsyncResult<HttpResponse>;
+    type Error = Error;
+
+    fn respond_to<S: 'static>(
+        self, req: &HttpRequest<S>,
+    ) -> Result<AsyncResult<HttpResponse>, Error> {
+        match self {
+            Some(t) => match t.respond_to(req) {
+                Ok(val) => Ok(val.into()),
+                Err(err) => Err(err.into()),
+            },
+            None => Ok(req.build_response(StatusCode::NOT_FOUND).finish().into()),
         }
     }
 }
