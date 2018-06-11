@@ -6,15 +6,15 @@
 //! # use std::thread;
 //!
 //! fn index(info: Path<(String, u32)>) -> String {
-//!    format!("Hello {}! id:{}", info.0, info.1)
+//!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
 //! fn main() {
 //! # thread::spawn(|| {
-//!     server::new(
-//!         || App::new()
-//!             .resource("/{name}/{id}/index.html", |r| r.with(index)))
-//!         .bind("127.0.0.1:8080").unwrap()
+//!     server::new(|| {
+//!         App::new().resource("/{name}/{id}/index.html", |r| r.with(index))
+//!     }).bind("127.0.0.1:8080")
+//!         .unwrap()
 //!         .run();
 //! # });
 //! }
@@ -77,6 +77,7 @@
 //!
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
+    extern_prelude,
 ))]
 #![cfg_attr(
     feature = "cargo-clippy",

@@ -1,5 +1,10 @@
 # Changes
 
+## [0.6.13] - 2018-06-xx
+
+* Fix docs.rs build
+
+
 ## [0.6.12] - 2018-06-08
 
 ### Added
