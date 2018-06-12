@@ -96,7 +96,7 @@ fn test_async_extractor_async() {
     assert_eq!(bytes, Bytes::from_static(b"{\"test\":1}"));
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct FormData {
     username: String,
 }
