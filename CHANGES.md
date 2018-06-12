@@ -34,6 +34,13 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 
+## [0.6.13] - 2018-06-11
+
+* http/2 end-of-frame is not set if body is empty bytes #307
+
+* InternalError can trigger memory unsafety #301
+
+
 ## [0.6.12] - 2018-06-08
 
 ### Added
