@@ -4,6 +4,8 @@
 
 ### Fixed
 
+* http/2 end-of-frame is not set if body is empty bytes #307
+
 * InternalError can trigger memory unsafety #301
 
 * Fix docs.rs build
