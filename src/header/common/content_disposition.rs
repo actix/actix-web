@@ -193,8 +193,9 @@ impl fmt::Display for ContentDisposition {
                         }
                     }
                     if use_simple_format {
+                        use std::str;
                         try!(write!(f, "; filename=\"{}\"",
-                                    match String::from_utf8(bytes.clone()) {
+                                    match str::from_utf8(bytes) {
                                         Ok(s) => s,
                                         Err(_) => return Err(fmt::Error),
                                     }));
