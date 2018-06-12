@@ -590,47 +590,6 @@ impl From<JsonError> for JsonPayloadError {
     }
 }
 
-/// A set of errors that can occur during parsing json payloads
-#[derive(Fail, Debug)]
-pub enum FormPayloadError {
-    /// Payload size is bigger than allowed. (default: 256kB)
-    #[fail(display = "Form payload size is bigger than allowed. (default: 256kB)")]
-    Overflow,
-    /// Content type error
-    #[fail(display = "Content type error")]
-    ContentType,
-    /// Deserialize error
-    #[fail(display = "Form deserialize error: {}", _0)]
-    Deserialize(#[cause] FormError),
-    /// Payload error
-    #[fail(display = "Error that occur during reading payload: {}", _0)]
-    Payload(#[cause] PayloadError),
-}
-
-/// Return `BadRequest` for `UrlencodedError`
-impl ResponseError for FormPayloadError {
-    fn error_response(&self) -> HttpResponse {
-        match *self {
-            FormPayloadError::Overflow => {
-                HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE)
-            }
-            _ => HttpResponse::new(StatusCode::BAD_REQUEST),
-        }
-    }
-}
-
-impl From<PayloadError> for FormPayloadError {
-    fn from(err: PayloadError) -> FormPayloadError {
-        FormPayloadError::Payload(err)
-    }
-}
-
-impl From<FormError> for FormPayloadError {
-    fn from(err: FormError) -> FormPayloadError {
-        FormPayloadError::Deserialize(err)
-    }
-}
-
 /// Errors which can occur when attempting to interpret a segment string as a
 /// valid path segment.
 #[derive(Fail, Debug, PartialEq)]
