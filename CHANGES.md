@@ -4,6 +4,10 @@
 
 ### Added
 
+* Add `ClientRequestBuilder::form()` for sending `application/x-www-form-urlencoded` requests.
+
+* Add methods to `HttpResponse` to retrieve, add, and delete cookies
+
 * Add `.set_content_type()` and `.set_content_disposition()` methods
   to `fs::NamedFile` to allow overriding the values inferred by default
 
@@ -21,6 +25,9 @@
 ### Changed
 
 * Min rustc version is 1.26
+
+* `HttpResponse::into_builder()` now moves cookies into the builder
+  instead of dropping them
 
 * Use tokio instead of tokio-core
 

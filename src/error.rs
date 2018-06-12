@@ -16,6 +16,7 @@ use http_range::HttpRangeParseError;
 use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
+use serde_urlencoded::ser::Error as FormError;
 use tokio_timer::Error as TimerError;
 pub use url::ParseError as UrlParseError;
 
@@ -204,6 +205,9 @@ impl From<failure::Error> for Error {
 
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
+
+/// `InternalServerError` for `FormError`
+impl ResponseError for FormError {}
 
 /// `InternalServerError` for `TimerError`
 impl ResponseError for TimerError {}
