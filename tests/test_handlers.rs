@@ -106,7 +106,7 @@ fn test_form_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route().with(|form: Form<FormData>| {
-                Ok(format!("{}", form.username))
+                format!("{}", form.username)
             })
         });
     });
