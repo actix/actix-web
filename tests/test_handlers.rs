@@ -115,7 +115,7 @@ fn test_form_extractor() {
     let request = srv
         .post()
         .uri(srv.url("/test1/index.html"))
-        .form(FormData{username: "test".into_string()})
+        .form(FormData{username: "test".to_string()})
         .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
