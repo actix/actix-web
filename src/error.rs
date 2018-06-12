@@ -1,8 +1,8 @@
 //! Error and Result module
-use std::cell::RefCell;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
+use std::sync::Mutex;
 use std::{fmt, io, result};
 
 use actix::MailboxError;
@@ -24,7 +24,7 @@ pub use cookie::ParseError as CookieParseError;
 
 use handler::Responder;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use httpresponse::{HttpResponse, InnerHttpResponse};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -80,7 +80,8 @@ impl Error {
         }
     }
 
-    /// Attempts to downcast this `Error` to a particular `Fail` type by reference.
+    /// Attempts to downcast this `Error` to a particular `Fail` type by
+    /// reference.
     ///
     /// If the underlying error is not of type `T`, this will return `None`.
     pub fn downcast_ref<T: Fail>(&self) -> Option<&T> {
@@ -116,8 +117,8 @@ impl Error {
 
 /// Helper trait to downcast a response error into a fail.
 ///
-/// This is currently not exposed because it's unclear if this is the best way to
-/// achieve the downcasting on `Error` for which this is needed.
+/// This is currently not exposed because it's unclear if this is the best way
+/// to achieve the downcasting on `Error` for which this is needed.
 #[doc(hidden)]
 pub trait InternalResponseErrorAsFail {
     #[doc(hidden)]
@@ -190,11 +191,9 @@ impl<T: ResponseError> From<T> for Error {
 }
 
 /// Compatibility for `failure::Error`
-impl<T> ResponseError for failure::Compat<T>
-where
-    T: fmt::Display + fmt::Debug + Sync + Send + 'static,
-{
-}
+impl<T> ResponseError for failure::Compat<T> where
+    T: fmt::Display + fmt::Debug + Sync + Send + 'static
+{}
 
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
@@ -657,12 +656,9 @@ pub struct InternalError<T> {
     backtrace: Backtrace,
 }
 
-unsafe impl<T> Sync for InternalError<T> {}
-unsafe impl<T> Send for InternalError<T> {}
-
 enum InternalErrorType {
     Status(StatusCode),
-    Response(RefCell<Option<HttpResponse>>),
+    Response(Mutex<Option<Box<InnerHttpResponse>>>),
 }
 
 impl<T> InternalError<T> {
@@ -679,7 +675,7 @@ impl<T> InternalError<T> {
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
         InternalError {
             cause,
-            status: InternalErrorType::Response(RefCell::new(Some(response))),
+            status: InternalErrorType::Response(Mutex::new(Some(response.into_inner()))),
             backtrace: Backtrace::new(),
         }
     }
@@ -720,8 +716,8 @@ where
         match self.status {
             InternalErrorType::Status(st) => HttpResponse::new(st),
             InternalErrorType::Response(ref resp) => {
-                if let Some(resp) = resp.borrow_mut().take() {
-                    resp
+                if let Some(resp) = resp.lock().unwrap().take() {
+                    HttpResponse::from_inner(resp)
                 } else {
                     HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
