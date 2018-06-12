@@ -276,7 +276,7 @@ impl Responder for NamedFile {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))
-                .header("Content-Disposition", format!("{}", &self.content_disposition));
+                .header(header::CONTENT_DISPOSITION, self.content_disposition.to_string());
 
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
@@ -327,7 +327,7 @@ impl Responder for NamedFile {
 
         let mut resp = HttpResponse::build(self.status_code);
         resp.set(header::ContentType(self.content_type.clone()))
-            .header("Content-Disposition", format!("{}", &self.content_disposition));
+            .header(header::CONTENT_DISPOSITION, self.content_disposition.to_string());
 
         if let Some(current_encoding) = self.encoding {
             resp.content_encoding(current_encoding);
