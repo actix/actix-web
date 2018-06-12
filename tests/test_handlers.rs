@@ -96,6 +96,35 @@ fn test_async_extractor_async() {
     assert_eq!(bytes, Bytes::from_static(b"{\"test\":1}"));
 }
 
+#[derive(Deserialize)]
+struct FormData {
+    username: String,
+}
+
+#[test]
+fn test_form_extractor() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with(|form: Form<FormData>| {
+                Ok(format!("{}", form.username))
+            })
+        });
+    });
+
+    // client request
+    let request = srv
+        .post()
+        .uri(srv.url("/test1/index.html"))
+        .form(FormData{username: "test".into_string()})
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"test"));
+}
+
 #[test]
 fn test_path_and_query_extractor() {
     let mut srv = test::TestServer::new(|app| {
