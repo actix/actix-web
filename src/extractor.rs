@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::{fmt, str};
+use std::rc::Rc;
 
 use bytes::Bytes;
 use encoding::all::UTF_8;
@@ -11,7 +12,7 @@ use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
-use error::{Error, ErrorBadRequest, ErrorNotFound};
+use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
@@ -261,15 +262,17 @@ where
     T: DeserializeOwned + 'static,
     S: 'static,
 {
-    type Config = FormConfig;
+    type Config = FormConfig<S>;
     type Result = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        let req = req.clone();
+        let err = Rc::clone(&cfg.ehandler);
         Box::new(
             UrlEncoded::new(req.clone())
                 .limit(cfg.limit)
-                .from_err()
+                .map_err(move |e| (*err)(e, req))
                 .map(Form),
         )
     }
@@ -314,21 +317,34 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///     );
 /// }
 /// ```
-pub struct FormConfig {
+pub struct FormConfig<S> {
     limit: usize,
+    ehandler: Rc<Fn(UrlencodedError, HttpRequest<S>) -> Error>,
 }
 
-impl FormConfig {
+impl<S> FormConfig<S> {
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(&mut self, limit: usize) -> &mut Self {
         self.limit = limit;
         self
     }
+    
+    /// Set custom error handler
+    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(UrlencodedError, HttpRequest<S>) -> Error + 'static,
+    {
+        self.ehandler = Rc::new(f);
+        self
+    }
 }
 
-impl Default for FormConfig {
+impl<S> Default for FormConfig<S> {
     fn default() -> Self {
-        FormConfig { limit: 262_144 }
+        FormConfig {
+            limit: 262_144,
+            ehandler: Rc::new(|e, _| e.into()),
+        }
     }
 }
 

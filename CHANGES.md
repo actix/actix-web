@@ -6,6 +6,8 @@
 
 * Add `ClientRequestBuilder::form()` for sending `application/x-www-form-urlencoded` requests.
 
+* Add method to configure custom error handler to Form extractor.
+
 * Add methods to `HttpResponse` to retrieve, add, and delete cookies
 
 * Add `.set_content_type()` and `.set_content_disposition()` methods
