@@ -89,9 +89,6 @@ impl<H: 'static> Writer for H2Writer<H> {
         self.flags.insert(Flags::STARTED);
         self.encoder =
             ContentEncoder::for_server(self.buffer.get_mut(), req, msg, encoding);
-        if let Body::Empty = *msg.body() {
-            self.flags.insert(Flags::EOF);
-        }
 
         // http2 specific
         msg.headers_mut().remove(CONNECTION);
@@ -108,15 +105,22 @@ impl<H: 'static> Writer for H2Writer<H> {
         let body = msg.replace_body(Body::Empty);
         match body {
             Body::Binary(ref bytes) => {
-                let mut val = BytesMut::new();
-                helpers::convert_usize(bytes.len(), &mut val);
-                let l = val.len();
-                msg.headers_mut().insert(
-                    CONTENT_LENGTH,
-                    HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
-                );
+                if bytes.is_empty() {
+                    msg.headers_mut()
+                        .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                    self.flags.insert(Flags::EOF);
+                } else {
+                    let mut val = BytesMut::new();
+                    helpers::convert_usize(bytes.len(), &mut val);
+                    let l = val.len();
+                    msg.headers_mut().insert(
+                        CONTENT_LENGTH,
+                        HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
+                    );
+                }
             }
             Body::Empty => {
+                self.flags.insert(Flags::EOF);
                 msg.headers_mut()
                     .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
             }
@@ -141,14 +145,18 @@ impl<H: 'static> Writer for H2Writer<H> {
         trace!("Response: {:?}", msg);
 
         if let Body::Binary(bytes) = body {
-            self.flags.insert(Flags::EOF);
-            self.written = bytes.len() as u64;
-            self.encoder.write(bytes.as_ref())?;
-            if let Some(ref mut stream) = self.stream {
-                self.flags.insert(Flags::RESERVED);
-                stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
+            if bytes.is_empty() {
+                Ok(WriterState::Done)
+            } else {
+                self.flags.insert(Flags::EOF);
+                self.written = bytes.len() as u64;
+                self.encoder.write(bytes.as_ref())?;
+                if let Some(ref mut stream) = self.stream {
+                    self.flags.insert(Flags::RESERVED);
+                    stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
+                }
+                Ok(WriterState::Pause)
             }
-            Ok(WriterState::Pause)
         } else {
             msg.replace_body(body);
             self.buffer_capacity = msg.write_buffer_capacity();
@@ -177,10 +185,8 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     fn write_eof(&mut self) -> io::Result<WriterState> {
-        self.encoder.write_eof()?;
-
         self.flags.insert(Flags::EOF);
-        if !self.encoder.is_eof() {
+        if !self.encoder.write_eof()? {
             Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Last payload item, but eof is not reached",
