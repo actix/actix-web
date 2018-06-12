@@ -10,6 +10,7 @@ use futures::Stream;
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use serde::Serialize;
 use serde_json;
+use serde_urlencoded;
 use url::Url;
 
 use super::body::ClientBody;
@@ -656,6 +657,24 @@ impl ClientRequestBuilder {
             self.header(header::CONTENT_TYPE, "application/json");
         }
 
+        self.body(body)
+    }
+    
+    /// Set a urlencoded body and generate `ClientRequest`
+    ///
+    /// `ClientRequestBuilder` can not be used after this call.
+    pub fn form<T: Serialize>(&mut self, value: T) -> Result<ClientRequest, Error> {
+        let body = serde_urlencoded::to_string(&value)?;
+        
+        let contains = if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+        if !contains {
+            self.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        }
+        
         self.body(body)
     }
 
