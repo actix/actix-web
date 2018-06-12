@@ -1,6 +1,10 @@
 # Changes
 
-## [0.6.13] - 2018-06-xx
+## [0.6.13] - 2018-06-11
+
+### Fixed
+
+* InternalError can trigger memory unsafety #301
 
 * Fix docs.rs build
 
