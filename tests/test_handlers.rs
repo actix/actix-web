@@ -126,6 +126,30 @@ fn test_form_extractor() {
 }
 
 #[test]
+fn test_form_extractor2() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with(|form: Form<FormData>| {
+                format!("{}", form.username)
+            }).error_handler(|err, res| {
+                error::InternalError::from_response(
+                    err, HttpResponse::Conflict().finish()).into()
+            });
+        });
+    });
+
+    // client request
+    let request = srv
+        .post()
+        .uri(srv.url("/test1/index.html"))
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body("918237129hdk:D:D:D:D:D:DjASHDKJhaswkjeq")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_client_error());
+}
+
+#[test]
 fn test_path_and_query_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
