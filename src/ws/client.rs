@@ -118,7 +118,7 @@ impl From<HttpResponseParserError> for ClientError {
 ///
 /// Example of `WebSocket` client usage is available in
 /// [websocket example](
-/// https://github.com/actix/actix-web/blob/master/examples/websocket/src/client.rs#L24)
+/// https://github.com/actix/examples/blob/master/websocket/src/client.rs#L24)
 pub struct Client {
     request: ClientRequestBuilder,
     err: Option<ClientError>,
