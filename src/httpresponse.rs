@@ -97,14 +97,25 @@ impl HttpResponse {
     /// Convert `HttpResponse` to a `HttpResponseBuilder`
     #[inline]
     pub fn into_builder(mut self) -> HttpResponseBuilder {
+        // If this response has cookies, load them into a jar
+        let mut jar: Option<CookieJar> = None;
+        for c in self.cookies() {
+            if let Some(ref mut j) = jar {
+                j.add_original(c.into_owned());
+            } else {
+                let mut j = CookieJar::new();
+                j.add_original(c.into_owned());
+                jar = Some(j);
+            }
+        }
+
         let response = self.0.take();
         let pool = Some(Rc::clone(&self.1));
-
         HttpResponseBuilder {
             response,
             pool,
             err: None,
-            cookies: None, // TODO: convert set-cookie headers
+            cookies: jar,
         }
     }
 
@@ -130,6 +141,49 @@ impl HttpResponse {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.get_mut().headers
+    }
+
+    /// Get an iterator for the cookies set by this response
+    #[inline]
+    pub fn cookies(&self) -> CookieIter {
+        CookieIter {
+            iter: self.get_ref().headers.get_all(header::SET_COOKIE).iter()
+        }
+    }
+
+    /// Add a cookie to this response
+    #[inline]
+    pub fn add_cookie(&mut self, cookie: Cookie) -> Result<(), HttpError> {
+        let h = &mut self.get_mut().headers;
+        HeaderValue::from_str(&cookie.to_string())
+            .map(|c| { h.append(header::SET_COOKIE, c); })
+            .map_err(|e| e.into())
+    }
+
+    /// Remove all cookies with the given name from this response. Returns
+    /// the number of cookies removed.
+    #[inline]
+    pub fn del_cookie(&mut self, name: &str) -> usize {
+        let h = &mut self.get_mut().headers;
+        let vals: Vec<HeaderValue> = h.get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_owned())
+            .collect();
+        h.remove(header::SET_COOKIE);
+
+        let mut count: usize = 0;
+        for v in vals {
+            if let Ok(s) = v.to_str() {
+                if let Ok(c) = Cookie::parse(s) {
+                    if c.name() == name {
+                        count += 1;
+                        continue;
+                    }
+                }
+            }
+            h.append(header::SET_COOKIE, v);
+        }
+        return count;
     }
 
     /// Get the response status code
@@ -266,6 +320,24 @@ impl fmt::Debug for HttpResponse {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
+    }
+}
+
+pub struct CookieIter<'a> {
+    iter: header::ValueIter<'a, HeaderValue>,
+}
+
+impl<'a> Iterator for CookieIter<'a> {
+    type Item = Cookie<'a>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Cookie<'a>> {
+        for v in self.iter.by_ref() {
+            if let Some(c) = (|| Cookie::parse(v.to_str().ok()?).ok())() {
+                return Some(c);
+            }
+        }
+        None
     }
 }
 
@@ -984,6 +1056,27 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn test_update_response_cookies() {
+        let mut r = HttpResponse::Ok()
+            .cookie(http::Cookie::new("original", "val100"))
+            .finish();
+
+        r.add_cookie(http::Cookie::new("cookie2", "val200")).unwrap();
+        r.add_cookie(http::Cookie::new("cookie2", "val250")).unwrap();
+        r.add_cookie(http::Cookie::new("cookie3", "val300")).unwrap();
+
+        assert_eq!(r.cookies().count(), 4);
+        r.del_cookie("cookie2");
+
+        let mut iter = r.cookies();
+        let v = iter.next().unwrap();
+        assert_eq!((v.name(), v.value()), ("original", "val100"));
+        let v = iter.next().unwrap();
+        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
+    }
+
     #[test]
     fn test_basic_builder() {
         let resp = HttpResponse::Ok()
@@ -1191,11 +1284,16 @@ mod tests {
 
     #[test]
     fn test_into_builder() {
-        let resp: HttpResponse = "test".into();
+        let mut resp: HttpResponse = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
+
+        resp.add_cookie(http::Cookie::new("cookie1", "val100")).unwrap();
 
         let mut builder = resp.into_builder();
         let resp = builder.status(StatusCode::BAD_REQUEST).finish();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let cookie = resp.cookies().next().unwrap();
+        assert_eq!((cookie.name(), cookie.value()), ("cookie1", "val100"));
     }
 }
