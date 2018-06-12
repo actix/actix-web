@@ -3,7 +3,7 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Mutex;
-use std::{fmt, io, result};
+use std::{fmt, io, mem, result};
 
 use actix::MailboxError;
 use cookie;
@@ -22,6 +22,7 @@ pub use url::ParseError as UrlParseError;
 // re-exports
 pub use cookie::ParseError as CookieParseError;
 
+use body::Body;
 use handler::Responder;
 use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, InnerHttpResponse};
@@ -673,9 +674,21 @@ impl<T> InternalError<T> {
 
     /// Create `InternalError` with predefined `HttpResponse`.
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
+        let mut resp = response.into_inner();
+        let body = mem::replace(&mut resp.body, Body::Empty);
+        match body {
+            Body::Empty => (),
+            Body::Binary(mut bin) => {
+                resp.body = Body::Binary(bin.take().into());
+            }
+            Body::Streaming(_) | Body::Actor(_) => {
+                error!("Streaming or Actor body is not support by error response");
+            }
+        }
+
         InternalError {
             cause,
-            status: InternalErrorType::Response(Mutex::new(Some(response.into_inner()))),
+            status: InternalErrorType::Response(Mutex::new(Some(resp))),
             backtrace: Backtrace::new(),
         }
     }

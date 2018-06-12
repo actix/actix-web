@@ -810,7 +810,7 @@ pub(crate) struct InnerHttpResponse {
     headers: HeaderMap,
     status: StatusCode,
     reason: Option<&'static str>,
-    body: Body,
+    pub(crate) body: Body,
     chunked: Option<bool>,
     encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
