@@ -1,8 +1,8 @@
 //! Error and Result module
-use std::cell::RefCell;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
+use std::sync::Mutex;
 use std::{fmt, io, result};
 
 use actix::MailboxError;
@@ -23,7 +23,7 @@ pub use cookie::ParseError as CookieParseError;
 
 use handler::Responder;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use httpresponse::{HttpResponse, InnerHttpResponse};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -35,7 +35,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
-/// An actix web error is used to carry errors from `failure` or `std::error` 
+/// An actix web error is used to carry errors from `failure` or `std::error`
 /// through actix in a convenient way.  It can be created through through
 /// converting errors with `into()`.
 ///
@@ -50,7 +50,9 @@ pub struct Error {
 
 impl Error {
     /// Deprecated way to reference the underlying response error.
-    #[deprecated(since = "0.6.0", note = "please use `Error::as_response_error()` instead")]
+    #[deprecated(
+        since = "0.6.0", note = "please use `Error::as_response_error()` instead"
+    )]
     pub fn cause(&self) -> &ResponseError {
         self.cause.as_ref()
     }
@@ -77,7 +79,8 @@ impl Error {
         }
     }
 
-    /// Attempts to downcast this `Error` to a particular `Fail` type by reference.
+    /// Attempts to downcast this `Error` to a particular `Fail` type by
+    /// reference.
     ///
     /// If the underlying error is not of type `T`, this will return `None`.
     pub fn downcast_ref<T: Fail>(&self) -> Option<&T> {
@@ -96,14 +99,13 @@ impl Error {
         //
         // This currently requires a transmute.  This could be avoided if failure
         // provides a deref: https://github.com/rust-lang-nursery/failure/pull/213
-        let compat: Option<&failure::Compat<failure::Error>> = Fail::downcast_ref(self.cause.as_fail());
+        let compat: Option<&failure::Compat<failure::Error>> =
+            Fail::downcast_ref(self.cause.as_fail());
         if let Some(compat) = compat {
             pub struct CompatWrappedError {
                 error: failure::Error,
             }
-            let compat: &CompatWrappedError = unsafe {
-                ::std::mem::transmute(compat)
-            };
+            let compat: &CompatWrappedError = unsafe { ::std::mem::transmute(compat) };
             compat.error.downcast_ref()
         } else {
             None
@@ -113,8 +115,8 @@ impl Error {
 
 /// Helper trait to downcast a response error into a fail.
 ///
-/// This is currently not exposed because it's unclear if this is the best way to
-/// achieve the downcasting on `Error` for which this is needed.
+/// This is currently not exposed because it's unclear if this is the best way
+/// to achieve the downcasting on `Error` for which this is needed.
 #[doc(hidden)]
 pub trait InternalResponseErrorAsFail {
     #[doc(hidden)]
@@ -125,8 +127,12 @@ pub trait InternalResponseErrorAsFail {
 
 #[doc(hidden)]
 impl<T: ResponseError> InternalResponseErrorAsFail for T {
-    fn as_fail(&self) -> &Fail { self }
-    fn as_mut_fail(&mut self) -> &mut Fail { self }
+    fn as_fail(&self) -> &Fail {
+        self
+    }
+    fn as_mut_fail(&mut self) -> &mut Fail {
+        self
+    }
 }
 
 /// Error that can be converted to `HttpResponse`
@@ -183,11 +189,9 @@ impl<T: ResponseError> From<T> for Error {
 }
 
 /// Compatibility for `failure::Error`
-impl<T> ResponseError for failure::Compat<T>
-where
-    T: fmt::Display + fmt::Debug + Sync + Send + 'static,
-{
-}
+impl<T> ResponseError for failure::Compat<T> where
+    T: fmt::Display + fmt::Debug + Sync + Send + 'static
+{}
 
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
@@ -620,8 +624,8 @@ impl From<UrlParseError> for UrlGenerationError {
 /// use actix_web::fs::NamedFile;
 ///
 /// fn index(req: HttpRequest) -> Result<fs::NamedFile> {
-///    let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
-///    Ok(f)
+///     let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
+///     Ok(f)
 /// }
 /// # fn main() {}
 /// ```
@@ -631,12 +635,9 @@ pub struct InternalError<T> {
     backtrace: Backtrace,
 }
 
-unsafe impl<T> Sync for InternalError<T> {}
-unsafe impl<T> Send for InternalError<T> {}
-
 enum InternalErrorType {
     Status(StatusCode),
-    Response(RefCell<Option<HttpResponse>>),
+    Response(Mutex<Option<Box<InnerHttpResponse>>>),
 }
 
 impl<T> InternalError<T> {
@@ -653,7 +654,7 @@ impl<T> InternalError<T> {
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
         InternalError {
             cause,
-            status: InternalErrorType::Response(RefCell::new(Some(response))),
+            status: InternalErrorType::Response(Mutex::new(Some(response.into_inner()))),
             backtrace: Backtrace::new(),
         }
     }
@@ -694,8 +695,8 @@ where
         match self.status {
             InternalErrorType::Status(st) => HttpResponse::new(st),
             InternalErrorType::Response(ref resp) => {
-                if let Some(resp) = resp.borrow_mut().take() {
-                    resp
+                if let Some(resp) = resp.lock().unwrap().take() {
+                    HttpResponse::from_inner(resp)
                 } else {
                     HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }

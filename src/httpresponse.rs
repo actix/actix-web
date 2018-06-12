@@ -241,6 +241,14 @@ impl HttpResponse {
     pub fn set_write_buffer_capacity(&mut self, cap: usize) {
         self.get_mut().write_capacity = cap;
     }
+
+    pub(crate) fn into_inner(mut self) -> Box<InnerHttpResponse> {
+        self.0.take().unwrap()
+    }
+
+    pub(crate) fn from_inner(inner: Box<InnerHttpResponse>) -> HttpResponse {
+        HttpResponse(Some(inner), HttpResponsePool::pool())
+    }
 }
 
 impl fmt::Debug for HttpResponse {
@@ -297,11 +305,13 @@ impl HttpResponseBuilder {
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{HttpRequest, HttpResponse, Result, http};
+    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
     ///
     /// fn index(req: HttpRequest) -> Result<HttpResponse> {
     ///     Ok(HttpResponse::Ok()
-    ///         .set(http::header::IfModifiedSince("Sun, 07 Nov 1994 08:48:37 GMT".parse()?))
+    ///         .set(http::header::IfModifiedSince(
+    ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
+    ///         ))
     ///         .finish())
     /// }
     /// fn main() {}
@@ -455,7 +465,8 @@ impl HttpResponseBuilder {
     ///                 .path("/")
     ///                 .secure(true)
     ///                 .http_only(true)
-    ///                 .finish())
+    ///                 .finish(),
+    ///         )
     ///         .finish()
     /// }
     /// fn main() {}
@@ -781,7 +792,7 @@ impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
 }
 
 #[derive(Debug)]
-struct InnerHttpResponse {
+pub(crate) struct InnerHttpResponse {
     version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
@@ -794,6 +805,9 @@ struct InnerHttpResponse {
     response_size: u64,
     error: Option<Error>,
 }
+
+unsafe impl Sync for InnerHttpResponse {}
+unsafe impl Send for InnerHttpResponse {}
 
 impl InnerHttpResponse {
     #[inline]
