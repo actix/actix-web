@@ -192,20 +192,7 @@ impl App<()> {
     /// Create application with empty state. Application can
     /// be configured with a builder-like pattern.
     pub fn new() -> App<()> {
-        App {
-            parts: Some(ApplicationParts {
-                state: (),
-                prefix: "/".to_owned(),
-                settings: ServerSettings::default(),
-                default: ResourceHandler::default_not_found(),
-                resources: Vec::new(),
-                handlers: Vec::new(),
-                external: HashMap::new(),
-                encoding: ContentEncoding::Auto,
-                filters: Vec::new(),
-                middlewares: Vec::new(),
-            }),
-        }
+        App::with_state(())
     }
 }
 
@@ -737,7 +724,7 @@ impl<S: 'static> Iterator for App<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use body::{Body, Binary};
+    use body::{Binary, Body};
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
@@ -811,7 +798,9 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
+        let mut app = App::new()
+            .handler("/test", |_| HttpResponse::Ok())
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -836,7 +825,9 @@ mod tests {
 
     #[test]
     fn test_handler2() {
-        let mut app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
+        let mut app = App::new()
+            .handler("test", |_| HttpResponse::Ok())
+            .finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -890,21 +881,29 @@ mod tests {
     #[test]
     fn test_route() {
         let mut app = App::new()
-            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
+            .route("/test", Method::GET, |_: HttpRequest| {
+                HttpResponse::Ok()
+            })
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
             })
             .finish();
 
-        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
-        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
+        let req = TestRequest::with_uri("/test")
+            .method(Method::HEAD)
+            .finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
@@ -973,6 +972,9 @@ mod tests {
         let req = TestRequest::with_uri("/some").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
-        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
+        assert_eq!(
+            resp.as_msg().body(),
+            &Body::Binary(Binary::Slice(b"some"))
+        );
     }
 }
