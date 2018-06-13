@@ -592,21 +592,19 @@ impl From<JsonError> for JsonPayloadError {
 
 /// Error type returned when reading body as lines.
 pub enum ReadlinesError {
+    /// Error when decoding a line.
     EncodingError,
+    /// Payload error.
     PayloadError(PayloadError),
+    /// Line limit exceeded.
     LimitOverflow,
+    /// ContentType error.
     ContentTypeError(ContentTypeError),
 }
 
 impl From<PayloadError> for ReadlinesError {
     fn from(err: PayloadError) -> Self {
         ReadlinesError::PayloadError(err)
-    }
-}
-
-impl From<Error> for ReadlinesError {
-    fn from(_: Error) -> Self {
-        ReadlinesError::EncodingError
     }
 }
 
