@@ -34,7 +34,7 @@
 /// use middleware::etaghasher::{EtagHasher, DefaultHasher, DefaultFilter};
 ///
 /// fn main() {
-///     let eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+///     let eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
 ///     let app = App::new()
 ///         .middleware(eh)
 ///         .resource("/test", |r| {
@@ -82,7 +82,7 @@ use std::marker::PhantomData;
 /// is converted to an ETag.
 pub trait Hasher {
     /// Produce an ETag value given a byte slice.
-    fn hash(&self, input: &[u8]) -> String;
+    fn hash(&mut self, input: &[u8]) -> String;
 }
 /// Can test a (request, response) pair and return `true` or `false`
 pub trait RequestFilter<S> {
@@ -93,8 +93,8 @@ pub trait RequestFilter<S> {
 }
 
 // Closure implementations
-impl<F: Fn(&[u8]) -> String> Hasher for F {
-    fn hash(&self, input: &[u8]) -> String {
+impl<F: FnMut(&[u8]) -> String> Hasher for F {
+    fn hash(&mut self, input: &[u8]) -> String {
         self(input)
     }
 }
@@ -107,13 +107,22 @@ impl<S, F: Fn(&HttpRequest<S>, &HttpResponse) -> bool> RequestFilter<S> for F {
 // Defaults
 /// Computes an ETag value from a byte slice using a default cryptographic hash
 /// function.
-pub struct DefaultHasher;
+pub struct DefaultHasher {
+    hashstate: ::sha1::Sha1,
+}
+impl DefaultHasher {
+    /// Create a new instance.
+    pub fn new() -> Self {
+        DefaultHasher {
+            hashstate: ::sha1::Sha1::new()
+        }
+    }
+}
 impl Hasher for DefaultHasher {
-    fn hash(&self, input: &[u8]) -> String {
-        use sha1;
-        let mut h = sha1::Sha1::new();
-        h.update(input);
-        h.digest().to_string()
+    fn hash(&mut self, input: &[u8]) -> String {
+        self.hashstate.reset();
+        self.hashstate.update(input);
+        self.hashstate.digest().to_string()
     }
 }
 
@@ -257,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_default_create_etag() {
-        let mut eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+        let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::default().finish();
         let res = HttpResponse::Ok().body("test");
         let res = mwres(eh.response(&mut req, res));
@@ -267,7 +276,7 @@ mod tests {
     #[test]
     fn test_default_with_state_create_etag() {
         let state = TestState { _state: 0 };
-        let mut eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+        let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_state(state).finish();
         let res = HttpResponse::Ok().body("test");
         let res = mwres(eh.response(&mut req, res));
@@ -276,7 +285,7 @@ mod tests {
     }
     #[test]
     fn test_default_none_match() {
-        let mut eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+        let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_header("If-None-Match", "_").finish();
         let res = HttpResponse::Ok().body("test");
         let res = mwres(eh.response(&mut req, res));
@@ -285,7 +294,7 @@ mod tests {
     }
     #[test]
     fn test_default_match() {
-        let mut eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+        let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_header("If-None-Match", TEST_ETAG).finish();
         let res = HttpResponse::Ok().body("test");
         let res = mwres(eh.response(&mut req, res));
@@ -306,7 +315,7 @@ mod tests {
     fn test_srv_default_create_etag() {
         let mut srv =
             TestServer::build_with_state(|| TestState { _state: 0 }).start(|app| {
-                let eh = EtagHasher::new(DefaultHasher, DefaultFilter);
+                let eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
                 app.middleware(eh).handler(test_index)
             });
 
