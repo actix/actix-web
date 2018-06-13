@@ -4,6 +4,8 @@
 
 ### Added
 
+* Add `HttpMessage::readlines()` for reading line by line.
+
 * Add `ClientRequestBuilder::form()` for sending `application/x-www-form-urlencoded` requests.
 
 * Add method to configure custom error handler to Form extractor.
