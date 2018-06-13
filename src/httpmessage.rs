@@ -288,7 +288,7 @@ where
     fn new(req: T) -> Self {
         Readlines {
             req,
-            buff: Vec::with_capacity(256),
+            buff: Vec::with_capacity(262_144),
             limit: 262_144,
         }
     }
