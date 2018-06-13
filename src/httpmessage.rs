@@ -13,7 +13,7 @@ use std::str;
 
 use error::{
     ContentTypeError, HttpRangeError, ParseError, PayloadError, UrlencodedError,
-    Error, ErrorBadRequest
+    Error, ErrorBadRequest, ReadlinesError
 };
 use header::Header;
 use json::JsonBody;
@@ -391,31 +391,6 @@ where
             },
             Err(e) => Err(ReadlinesError::from(e)),
         }
-    }
-}
-
-pub enum ReadlinesError {
-    EncodingError,
-    PayloadError(PayloadError),
-    LimitOverflow,
-    ContentTypeError(ContentTypeError),
-}
-
-impl From<PayloadError> for ReadlinesError {
-    fn from(err: PayloadError) -> Self {
-        ReadlinesError::PayloadError(err)
-    }
-}
-
-impl From<Error> for ReadlinesError {
-    fn from(_: Error) -> Self {
-        ReadlinesError::EncodingError
-    }
-}
-
-impl From<ContentTypeError> for ReadlinesError {
-    fn from(err: ContentTypeError) -> Self {
-        ReadlinesError::ContentTypeError(err)
     }
 }
 
