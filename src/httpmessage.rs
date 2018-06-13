@@ -13,6 +13,7 @@ use std::str;
 
 use error::{
     ContentTypeError, HttpRangeError, ParseError, PayloadError, UrlencodedError,
+    Error, ErrorBadRequest
 };
 use header::Header;
 use json::JsonBody;
@@ -276,7 +277,7 @@ where
     T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     req: T,
-    buff: Vec<u8>,
+    buff: BytesMut,
     limit: usize,
 }
 
@@ -288,12 +289,12 @@ where
     fn new(req: T) -> Self {
         Readlines {
             req,
-            buff: Vec::with_capacity(262_144),
+            buff: BytesMut::with_capacity(262_144),
             limit: 262_144,
         }
     }
     
-    /// Change max size of payload. By default max size is 256Kb
+    /// Change max line size. By default max size is 256Kb
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -308,21 +309,63 @@ where
     type Error = ReadlinesError;
     
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        let encoding = self.req.encoding()?;
+        // check if there is a newline in the buffer
+        let mut found: Option<usize> = None;
+        for (ind, b) in self.buff.iter().enumerate() {
+            if *b == '\n' as u8 {
+                found = Some(ind);
+                break;
+            }
+        }
+        if let Some(ind) = found {
+            // check if line is longer than limit
+            if ind+1 > self.limit {
+                return Err(ReadlinesError::LimitOverflow);
+            }
+            let enc: *const Encoding = encoding as *const Encoding;
+            let line = if enc == UTF_8 {
+                str::from_utf8(&self.buff.split_to(ind+1))
+                    .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                    .to_owned()
+            } else {
+                encoding
+                    .decode(&self.buff.split_to(ind+1), DecoderTrap::Strict)
+                    .map_err(|_| ErrorBadRequest("Can not decode body"))?
+            };
+            return Ok(Async::Ready(Some(line)));
+        }
+        // poll req for more bytes
         match self.req.poll() {
-            Ok(Async::Ready(Some(bytes))) => {
-                for b in bytes.iter() {
+            Ok(Async::Ready(Some(mut bytes))) => {
+                // check if there is a newline in bytes
+                let mut found: Option<usize> = None;
+                for (ind, b) in bytes.iter().enumerate() {
                     if *b == '\n' as u8 {
-                        self.buff.push(*b);
-                        let line = str::from_utf8(&*self.buff)?.to_owned();
-                        self.buff.clear();
-                        return Ok(Async::Ready(Some(line)));
-                    } else {
-                        self.buff.push(*b);
-                    }
-                    if self.limit < self.buff.len() {
-                        return Err(ReadlinesError::LimitOverflow);
+                        found = Some(ind);
+                        break;
                     }
                 }
+                if let Some(ind) = found {
+                    // check if line is longer than limit
+                    if ind+1 > self.limit {
+                        return Err(ReadlinesError::LimitOverflow);
+                    }
+                    let enc: *const Encoding = encoding as *const Encoding;
+                    let line = if enc == UTF_8 {
+                        str::from_utf8(&bytes.split_to(ind+1))
+                            .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                            .to_owned()
+                    } else {
+                        encoding
+                            .decode(&bytes.split_to(ind+1), DecoderTrap::Strict)
+                            .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                    };
+                    // extend buffer with rest of the bytes;
+                    self.buff.extend_from_slice(&bytes);
+                    return Ok(Async::Ready(Some(line)));
+                }
+                self.buff.extend_from_slice(&bytes);
                 Ok(Async::NotReady)
             },
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -330,7 +373,19 @@ where
                 if self.buff.len() == 0 {
                     return Ok(Async::Ready(None));
                 }
-                let line = str::from_utf8(&*self.buff)?.to_owned();
+                if self.buff.len() > self.limit {
+                    return Err(ReadlinesError::LimitOverflow);
+                }
+                let enc: *const Encoding = encoding as *const Encoding;
+                let line = if enc == UTF_8 {
+                    str::from_utf8(&self.buff)
+                        .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                        .to_owned()
+                } else {
+                    encoding
+                        .decode(&self.buff, DecoderTrap::Strict)
+                        .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                };
                 self.buff.clear();
                 return Ok(Async::Ready(Some(line)))
             },
@@ -343,6 +398,7 @@ pub enum ReadlinesError {
     EncodingError,
     PayloadError(PayloadError),
     LimitOverflow,
+    ContentTypeError(ContentTypeError),
 }
 
 impl From<PayloadError> for ReadlinesError {
@@ -351,9 +407,15 @@ impl From<PayloadError> for ReadlinesError {
     }
 }
 
-impl From<str::Utf8Error> for ReadlinesError {
-    fn from(_: str::Utf8Error) -> Self {
+impl From<Error> for ReadlinesError {
+    fn from(_: Error) -> Self {
         ReadlinesError::EncodingError
+    }
+}
+
+impl From<ContentTypeError> for ReadlinesError {
+    fn from(err: ContentTypeError) -> Self {
+        ReadlinesError::ContentTypeError(err)
     }
 }
 
