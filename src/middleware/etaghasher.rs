@@ -266,12 +266,13 @@ mod tests {
     use middleware::Middleware;
     use test::{TestRequest, TestServer};
 
+    const TEST_BODY: &'static str = "test";
     const TEST_ETAG: &'static str = "\"a94a8fe5ccb19ba61c4c0873d391e987982fbbd3\"";
     struct TestState {
         _state: u32,
     }
     fn test_index<S>(_req: HttpRequest<S>) -> &'static str {
-        "test"
+        TEST_BODY
     }
 
     fn mwres(r: Result<middleware::Response>) -> HttpResponse {
@@ -285,7 +286,7 @@ mod tests {
     fn test_default_create_etag() {
         let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::default().finish();
-        let res = HttpResponse::Ok().body("test");
+        let res = HttpResponse::Ok().body(TEST_BODY);
         let res = mwres(eh.response(&mut req, res));
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.headers().get(ETAG).unwrap(), TEST_ETAG);
@@ -295,7 +296,7 @@ mod tests {
         let state = TestState { _state: 0 };
         let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_state(state).finish();
-        let res = HttpResponse::Ok().body("test");
+        let res = HttpResponse::Ok().body(TEST_BODY);
         let res = mwres(eh.response(&mut req, res));
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.headers().get(ETAG).unwrap(), TEST_ETAG);
@@ -304,7 +305,7 @@ mod tests {
     fn test_default_none_match() {
         let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_header("If-None-Match", "_").finish();
-        let res = HttpResponse::Ok().body("test");
+        let res = HttpResponse::Ok().body(TEST_BODY);
         let res = mwres(eh.response(&mut req, res));
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.headers().get(ETAG).unwrap(), TEST_ETAG);
@@ -313,7 +314,7 @@ mod tests {
     fn test_default_match() {
         let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
         let mut req = TestRequest::with_header("If-None-Match", TEST_ETAG).finish();
-        let res = HttpResponse::Ok().body("test");
+        let res = HttpResponse::Ok().body(TEST_BODY);
         let res = mwres(eh.response(&mut req, res));
         assert_eq!(res.status(), StatusCode::NOT_MODIFIED);
     }
@@ -324,7 +325,7 @@ mod tests {
             |_req: &HttpRequest<()>, _res: &HttpResponse| true,
         );
         let mut req = TestRequest::with_header("If-None-Match", "\"static\"").finish();
-        let res = HttpResponse::Ok().body("test");
+        let res = HttpResponse::Ok().body(TEST_BODY);
         let res = mwres(eh.response(&mut req, res));
         assert_eq!(res.status(), StatusCode::NOT_MODIFIED);
     }
