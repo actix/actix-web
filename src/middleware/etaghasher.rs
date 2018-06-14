@@ -319,6 +319,37 @@ mod tests {
         assert_eq!(res.status(), StatusCode::NOT_MODIFIED);
     }
     #[test]
+    fn test_unsupported_messages_unchanged() {
+        use http;
+        use Body;
+        let mut eh = EtagHasher::new(DefaultHasher::new(), DefaultFilter);
+
+        let mut req = TestRequest::default().method(http::Method::HEAD).finish();
+        let res = HttpResponse::Ok().body(TEST_BODY);
+        let res = mwres(eh.response(&mut req, res));
+        assert!(res.headers().get(ETAG).is_none());
+
+        let mut req = TestRequest::default().method(http::Method::POST).finish();
+        let res = HttpResponse::Ok().body(TEST_BODY);
+        let res = mwres(eh.response(&mut req, res));
+        assert!(res.headers().get(ETAG).is_none());
+
+        let mut req = TestRequest::default().method(http::Method::PUT).finish();
+        let res = HttpResponse::Ok().body(TEST_BODY);
+        let res = mwres(eh.response(&mut req, res));
+        assert!(res.headers().get(ETAG).is_none());
+
+        let mut req = TestRequest::default().method(http::Method::PATCH).finish();
+        let res = HttpResponse::Ok().body(TEST_BODY);
+        let res = mwres(eh.response(&mut req, res));
+        assert!(res.headers().get(ETAG).is_none());
+
+        let mut req = TestRequest::default().method(http::Method::GET).finish();
+        let res = HttpResponse::Ok().body(Body::Empty);
+        let res = mwres(eh.response(&mut req, res));
+        assert!(res.headers().get(ETAG).is_none());
+    }
+    #[test]
     fn test_custom_match() {
         let mut eh = EtagHasher::new(
             |_input: &[u8]| "static".to_string(),
