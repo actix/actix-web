@@ -90,7 +90,7 @@ pub trait Hasher {
     fn hash(&mut self, input: &[u8]) -> String;
 }
 /// Can test a (request, response) pair and return `true` or `false`
-pub trait RequestFilter<S> {
+pub trait Filter<S> {
     /// Return `true` if ETag processing should be applied to this
     /// `(request, response)` pair and `false` otherwise. A `false` return
     /// value will immediately return the original response unchanged.
@@ -103,7 +103,7 @@ impl<F: FnMut(&[u8]) -> String> Hasher for F {
         self(input)
     }
 }
-impl<S, F: Fn(&HttpRequest<S>, &HttpResponse) -> bool> RequestFilter<S> for F {
+impl<S, F: Fn(&HttpRequest<S>, &HttpResponse) -> bool> Filter<S> for F {
     fn filter(&self, req: &HttpRequest<S>, res: &HttpResponse) -> bool {
         self(req, res)
     }
@@ -134,7 +134,7 @@ impl Hasher for DefaultHasher {
 /// Returns `true` when the request method is `GET` or `HEAD` and the
 /// original response status is `200 OK`, and `false` otherwise.
 pub struct DefaultFilter;
-impl<S> RequestFilter<S> for DefaultFilter {
+impl<S> Filter<S> for DefaultFilter {
     fn filter(&self, req: &HttpRequest<S>, res: &HttpResponse) -> bool {
         use http::{Method, StatusCode};
         (*req.method() == Method::GET || *req.method() == Method::HEAD)
@@ -154,7 +154,7 @@ pub struct EtagHasher<S, H, F>
 where
     S: 'static,
     H: Hasher + 'static,
-    F: RequestFilter<S> + 'static,
+    F: Filter<S> + 'static,
 {
     hasher: H,
     filter: F,
@@ -165,9 +165,9 @@ impl<S, H, F> EtagHasher<S, H, F>
 where
     S: 'static,
     H: Hasher + 'static,
-    F: RequestFilter<S> + 'static,
+    F: Filter<S> + 'static,
 {
-    /// Create a new middleware struct with the given Hasher and RequestFilter.
+    /// Create a new middleware struct with the given Hasher and Filter.
     pub fn new(hasher: H, filter: F) -> Self {
         EtagHasher {
             hasher,
@@ -181,7 +181,7 @@ impl<S, H, F> middleware::Middleware<S> for EtagHasher<S, H, F>
 where
     S: 'static,
     H: Hasher + 'static,
-    F: RequestFilter<S> + 'static,
+    F: Filter<S> + 'static,
 {
     fn response(
         &mut self, req: &mut HttpRequest<S>, mut res: HttpResponse,
