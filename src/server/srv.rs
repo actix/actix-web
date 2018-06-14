@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::{io, net, thread};
 
 use actix::{
-    fut, msgs, signal, Actor, ActorContext, ActorFuture, Addr, Arbiter, AsyncContext,
-    Context, ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
+    fut, signal, Actor, ActorContext, ActorFuture, Addr, Arbiter, AsyncContext, Context,
+    ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
 };
 
 use futures::sync::mpsc;
@@ -64,16 +64,8 @@ where
     no_signals: bool,
 }
 
-unsafe impl<H> Sync for HttpServer<H>
-where
-    H: IntoHttpHandler,
-{
-}
-unsafe impl<H> Send for HttpServer<H>
-where
-    H: IntoHttpHandler,
-{
-}
+unsafe impl<H> Sync for HttpServer<H> where H: IntoHttpHandler {}
+unsafe impl<H> Send for HttpServer<H> where H: IntoHttpHandler {}
 
 enum ServerCommand {
     WorkerDied(usize, Slab<SocketInfo>),
@@ -170,10 +162,9 @@ where
         self
     }
 
-    /// Send `SystemExit` message to actix system
+    /// Stop actix system.
     ///
-    /// `SystemExit` message stops currently running system arbiter and all
-    /// nested arbiters.
+    /// `SystemExit` message stops currently running system.
     pub fn system_exit(mut self) -> Self {
         self.exit = true;
         self
@@ -388,7 +379,7 @@ where
             if let Some(ref signals) = self.signals {
                 Some(signals.clone())
             } else {
-                Some(Arbiter::registry().get::<signal::ProcessSignals>())
+                Some(System::current().registry().get::<signal::ProcessSignals>())
             }
         } else {
             None
@@ -418,7 +409,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///             .bind("127.0.0.1:0")
     ///             .expect("Can not bind to 127.0.0.1:0")
     ///             .start();
-    /// #           actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+    /// #       actix::System::current().stop();
     ///     });
     /// }
     /// ```
@@ -597,7 +588,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
 }
 
 /// Signals support
-/// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and send `SystemExit(0)`
+/// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
 /// message to `System` actor.
 impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H> {
     type Result = ();
@@ -753,7 +744,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
                         // we need to stop system if server was spawned
                         if slf.exit {
                             ctx.run_later(Duration::from_millis(300), |_, _| {
-                                Arbiter::system().do_send(msgs::SystemExit(0))
+                                System::current().stop();
                             });
                         }
                     }
@@ -768,7 +759,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
             // we need to stop system if server was spawned
             if self.exit {
                 ctx.run_later(Duration::from_millis(300), |_, _| {
-                    Arbiter::system().do_send(msgs::SystemExit(0))
+                    System::current().stop();
                 });
             }
             Response::reply(Ok(()))

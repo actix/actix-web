@@ -105,9 +105,8 @@ struct FormData {
 fn test_form_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with(|form: Form<FormData>| {
-                format!("{}", form.username)
-            })
+            r.route()
+                .with(|form: Form<FormData>| format!("{}", form.username))
         });
     });
 
@@ -115,7 +114,9 @@ fn test_form_extractor() {
     let request = srv
         .post()
         .uri(srv.url("/test1/index.html"))
-        .form(FormData{username: "test".to_string()})
+        .form(FormData {
+            username: "test".to_string(),
+        })
         .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
@@ -129,12 +130,14 @@ fn test_form_extractor() {
 fn test_form_extractor2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with(|form: Form<FormData>| {
-                format!("{}", form.username)
-            }).error_handler(|err, res| {
-                error::InternalError::from_response(
-                    err, HttpResponse::Conflict().finish()).into()
-            });
+            r.route()
+                .with(|form: Form<FormData>| format!("{}", form.username))
+                .error_handler(|err, _| {
+                    error::InternalError::from_response(
+                        err,
+                        HttpResponse::Conflict().finish(),
+                    ).into()
+                });
         });
     });
 

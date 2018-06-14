@@ -839,7 +839,7 @@ fn test_middleware_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
@@ -869,7 +869,7 @@ fn test_middleware_async_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
@@ -901,7 +901,7 @@ fn test_scope_middleware_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
@@ -933,7 +933,7 @@ fn test_scope_middleware_async_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/scope/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
@@ -964,7 +964,7 @@ fn test_resource_middleware_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);
@@ -995,7 +995,7 @@ fn test_resource_middleware_async_chain_with_error() {
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    srv.execute(request.send()).unwrap();
 
     assert_eq!(num1.load(Ordering::Relaxed), 1);
     assert_eq!(num2.load(Ordering::Relaxed), 1);

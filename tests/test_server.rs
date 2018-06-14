@@ -32,7 +32,7 @@ use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
 
-use actix::{msgs, Arbiter, System};
+use actix::System;
 use actix_web::*;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -74,10 +74,11 @@ fn test_start() {
             let srv = srv.bind("127.0.0.1:0").unwrap();
             let addr = srv.addrs()[0];
             let srv_addr = srv.start();
-            let _ = tx.send((addr, srv_addr, Arbiter::system()));
+            let _ = tx.send((addr, srv_addr, System::current()));
         });
     });
     let (addr, srv_addr, sys) = rx.recv().unwrap();
+    System::set_current(sys.clone());
 
     let mut rt = Runtime::new().unwrap();
     {
@@ -110,7 +111,7 @@ fn test_start() {
         assert!(response.status().is_success());
     }
 
-    let _ = sys.send(msgs::SystemExit(0)).wait();
+    let _ = sys.stop();
 }
 
 #[test]
@@ -130,10 +131,11 @@ fn test_shutdown() {
             let srv = srv.bind("127.0.0.1:0").unwrap();
             let addr = srv.addrs()[0];
             let srv_addr = srv.shutdown_timeout(1).start();
-            let _ = tx.send((addr, srv_addr, Arbiter::system()));
+            let _ = tx.send((addr, srv_addr, System::current()));
         });
     });
     let (addr, srv_addr, sys) = rx.recv().unwrap();
+    System::set_current(sys.clone());
 
     let mut rt = Runtime::new().unwrap();
     {
@@ -148,7 +150,7 @@ fn test_shutdown() {
     thread::sleep(time::Duration::from_millis(1000));
     assert!(net::TcpStream::connect(addr).is_err());
 
-    let _ = sys.send(msgs::SystemExit(0)).wait();
+    let _ = sys.stop();
 }
 
 #[test]

@@ -95,14 +95,14 @@ impl<H: HttpHandler + 'static> Worker<H> {
             let num = slf.settings.num_channels();
             if num == 0 {
                 let _ = tx.send(true);
-                Arbiter::arbiter().do_send(StopArbiter(0));
+                Arbiter::current().do_send(StopArbiter(0));
             } else if let Some(d) = dur.checked_sub(time::Duration::new(1, 0)) {
                 slf.shutdown_timeout(ctx, tx, d);
             } else {
                 info!("Force shutdown http worker, {} connections", num);
                 slf.settings.head().traverse::<TcpStream, H>();
                 let _ = tx.send(false);
-                Arbiter::arbiter().do_send(StopArbiter(0));
+                Arbiter::current().do_send(StopArbiter(0));
             }
         });
     }

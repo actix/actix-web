@@ -54,7 +54,7 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 ///             .bind("127.0.0.1:59090").unwrap()
 ///             .start();
 ///
-/// #     actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+/// #       actix::System::current().stop();
 ///     });
 /// }
 /// ```

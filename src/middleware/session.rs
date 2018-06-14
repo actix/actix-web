@@ -58,7 +58,7 @@
 //!              )))
 //!             .bind("127.0.0.1:59880").unwrap()
 //!             .start();
-//! #         actix::Arbiter::system().do_send(actix::msgs::SystemExit(0));
+//! #         actix::System::current().stop();
 //!     });
 //! }
 //! ```

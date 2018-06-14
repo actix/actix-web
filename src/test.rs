@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix_inner::{msgs, Actor, Addr, Arbiter, System};
+use actix_inner::{Actor, Addr, System};
 
 use cookie::Cookie;
 use futures::Future;
@@ -59,7 +59,6 @@ use ws;
 /// ```
 pub struct TestServer {
     addr: net::SocketAddr,
-    server_sys: Addr<System>,
     ssl: bool,
     conn: Addr<ClientConnector>,
     rt: Runtime,
@@ -116,20 +115,15 @@ impl TestServer {
                     .listen(tcp)
                     .start();
 
-                tx.send((
-                    Arbiter::system(),
-                    local_addr,
-                    TestServer::get_conn(),
-                    Arbiter::registry().clone(),
-                )).unwrap();
+                tx.send((System::current(), local_addr, TestServer::get_conn()))
+                    .unwrap();
             }).run();
         });
 
-        let (server_sys, addr, conn, reg) = rx.recv().unwrap();
-        Arbiter::set_system_reg(reg);
+        let (system, addr, conn) = rx.recv().unwrap();
+        System::set_current(system);
         TestServer {
             addr,
-            server_sys,
             conn,
             ssl: false,
             rt: Runtime::new().unwrap(),
@@ -187,7 +181,7 @@ impl TestServer {
 
     /// Stop http server
     fn stop(&mut self) {
-        self.server_sys.do_send(msgs::SystemExit(0));
+        System::current().stop();
     }
 
     /// Execute future on current core
@@ -296,12 +290,8 @@ impl<S: 'static> TestServerBuilder<S> {
                     }).workers(1)
                         .disable_signals();
 
-                    tx.send((
-                        Arbiter::system(),
-                        local_addr,
-                        TestServer::get_conn(),
-                        Arbiter::registry().clone(),
-                    )).unwrap();
+                    tx.send((System::current(), local_addr, TestServer::get_conn()))
+                        .unwrap();
 
                     #[cfg(feature = "alpn")]
                     {
@@ -320,13 +310,12 @@ impl<S: 'static> TestServerBuilder<S> {
                 .run();
         });
 
-        let (server_sys, addr, conn, reg) = rx.recv().unwrap();
-        Arbiter::set_system_reg(reg);
+        let (system, addr, conn) = rx.recv().unwrap();
+        System::set_current(system);
         TestServer {
             addr,
             ssl,
             conn,
-            server_sys,
             rt: Runtime::new().unwrap(),
         }
     }
