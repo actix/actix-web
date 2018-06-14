@@ -200,33 +200,35 @@ where
             return Ok(middleware::Response::Done(res));
         }
 
-        let e = if let Body::Binary(b) = res.body() {
-            Some(EntityTag::strong(self.hasher.hash(b.as_ref())))
-        } else {
-            None
+        // This double match is because we can't do the return in the first match
+        // as res is still borrowed
+        let etag = match match res.body() {
+            Body::Binary(b) => Some(EntityTag::strong(self.hasher.hash(b.as_ref()))),
+            _ => None,
+        } {
+            Some(tag) => tag,
+            None => return Ok(middleware::Response::Done(res)),
         };
 
-        if let Some(etag) = e {
-            if !none_match(&etag, req) {
-                let mut not_modified =
-                    HttpResponse::NotModified().set(header::ETag(etag)).finish();
+        if !none_match(&etag, req) {
+            let mut not_modified =
+                HttpResponse::NotModified().set(header::ETag(etag)).finish();
 
-                // RFC 7232 requires copying over these headers:
-                copy_header(header::CACHE_CONTROL, &res, &mut not_modified);
-                copy_header(header::CONTENT_LOCATION, &res, &mut not_modified);
-                copy_header(header::DATE, &res, &mut not_modified);
-                copy_header(header::EXPIRES, &res, &mut not_modified);
-                copy_header(header::VARY, &res, &mut not_modified);
+            // RFC 7232 requires copying over these headers:
+            copy_header(header::CACHE_CONTROL, &res, &mut not_modified);
+            copy_header(header::CONTENT_LOCATION, &res, &mut not_modified);
+            copy_header(header::DATE, &res, &mut not_modified);
+            copy_header(header::EXPIRES, &res, &mut not_modified);
+            copy_header(header::VARY, &res, &mut not_modified);
 
-                return Ok(middleware::Response::Done(not_modified));
-            }
-            etag.to_string()
-                .parse::<header::HeaderValue>()
-                .map(|v| {
-                    res.headers_mut().insert(header::ETAG, v);
-                })
-                .unwrap_or(());
+            return Ok(middleware::Response::Done(not_modified));
         }
+        etag.to_string()
+            .parse::<header::HeaderValue>()
+            .map(|v| {
+                res.headers_mut().insert(header::ETAG, v);
+            })
+            .unwrap_or(());
         Ok(middleware::Response::Done(res))
     }
 }
