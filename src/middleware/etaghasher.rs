@@ -1,6 +1,7 @@
 //! ETag header and `304 Not Modified` support for HTTP responses
 ///
-/// The `EtagHasher` middleware generates RFC 7232 ETag headers for HTTP
+/// The `EtagHasher` middleware generates [RFC
+/// 7232](https://tools.ietf.org/html/rfc7232) ETag headers for HTTP
 /// responses, and checks the ETag for a response against those provided
 /// in the `If-None-Match` header of the request, if present.  In the
 /// event of a match, instead of returning the original response, an
@@ -14,6 +15,13 @@
 /// overhead is incurred by having to compute a hash for each response
 /// body, but in return one avoids sending response bodies to requesters
 /// that already have the body content cached.
+///
+/// This approach is most useful for dynamically generated responses
+/// that don't correspond to a specific external resource (e.g. a
+/// file). For such external resources, it's better to generate ETags
+/// based on the inherent properties of the resource rather than by
+/// hashing the bytes of an HTTP response corresponding to its
+/// serialized representation as this middleware does.
 ///
 /// An `EtagHasher` instance makes use of two functions, `hash` and
 /// `filter`. The `hash` function takes the bytes of the original
@@ -72,9 +80,6 @@ use httpresponse::HttpResponse;
 use middleware;
 
 use std::marker::PhantomData;
-
-/// `Middleware` for generating ETag headers and returning `304 Not Modified`
-/// responses upon receipt of a matching `If-None-Match` request header.
 
 /// Can produce an ETag value from a byte slice. Per RFC 7232, **must only
 /// produce** bytes with hex values `21`, `23-7E`, or greater than or equal
@@ -137,9 +142,14 @@ impl<S> RequestFilter<S> for DefaultFilter {
     }
 }
 
-/// The middleware struct. Contains a Hasher to compute ETag values for byte
-/// slices and a filter to determine whether ETag computation and checking
-/// should be applied to a particular (request, response) pair.
+/// Middleware for [RFC 7232](https://tools.ietf.org/html/rfc7232) ETag
+/// generation and comparison.
+///
+/// The `EtagHasher` struct contains a Hasher to compute ETag values for
+/// byte slices and a Filter to determine whether ETag computation and
+/// checking should be applied to a particular (request, response)
+/// pair. Only response [Body](enum.Body.html)s of type `Binary` are
+/// supported; responses with other body types will be left unchanged.
 pub struct EtagHasher<S, H, F>
 where
     S: 'static,
