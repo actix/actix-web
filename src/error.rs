@@ -590,6 +590,30 @@ impl From<JsonError> for JsonPayloadError {
     }
 }
 
+/// Error type returned when reading body as lines.
+pub enum ReadlinesError {
+    /// Error when decoding a line.
+    EncodingError,
+    /// Payload error.
+    PayloadError(PayloadError),
+    /// Line limit exceeded.
+    LimitOverflow,
+    /// ContentType error.
+    ContentTypeError(ContentTypeError),
+}
+
+impl From<PayloadError> for ReadlinesError {
+    fn from(err: PayloadError) -> Self {
+        ReadlinesError::PayloadError(err)
+    }
+}
+
+impl From<ContentTypeError> for ReadlinesError {
+    fn from(err: ContentTypeError) -> Self {
+        ReadlinesError::ContentTypeError(err)
+    }
+}
+
 /// Errors which can occur when attempting to interpret a segment string as a
 /// valid path segment.
 #[derive(Fail, Debug, PartialEq)]

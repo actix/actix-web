@@ -3,7 +3,7 @@ use encoding::all::UTF_8;
 use encoding::label::encoding_from_whatwg_label;
 use encoding::types::{DecoderTrap, Encoding};
 use encoding::EncodingRef;
-use futures::{Future, Poll, Stream};
+use futures::{Future, Poll, Stream, Async};
 use http::{header, HeaderMap};
 use http_range::HttpRange;
 use mime::Mime;
@@ -13,6 +13,7 @@ use std::str;
 
 use error::{
     ContentTypeError, HttpRangeError, ParseError, PayloadError, UrlencodedError,
+    ReadlinesError
 };
 use header::Header;
 use json::JsonBody;
@@ -259,6 +260,143 @@ pub trait HttpMessage {
     {
         let boundary = Multipart::boundary(self.headers());
         Multipart::new(boundary, self)
+    }
+    
+    /// Return stream of lines.
+    fn readlines(self) -> Readlines<Self>
+    where
+        Self: Stream<Item = Bytes, Error = PayloadError> + Sized,
+    {
+        Readlines::new(self)
+    }
+}
+
+/// Stream to read request line by line.
+pub struct Readlines<T>
+where
+    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
+    req: T,
+    buff: BytesMut,
+    limit: usize,
+    checked_buff: bool,
+}
+
+impl<T> Readlines<T>
+where
+    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
+    /// Create a new stream to read request line by line.
+    fn new(req: T) -> Self {
+        Readlines {
+            req,
+            buff: BytesMut::with_capacity(262_144),
+            limit: 262_144,
+            checked_buff: true,
+        }
+    }
+    
+    /// Change max line size. By default max size is 256Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+}
+
+impl<T> Stream for Readlines<T>
+where
+    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
+    type Item = String;
+    type Error = ReadlinesError;
+    
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        let encoding = self.req.encoding()?;
+        // check if there is a newline in the buffer
+        if !self.checked_buff {
+            let mut found: Option<usize> = None;
+            for (ind, b) in self.buff.iter().enumerate() {
+                if *b == '\n' as u8 {
+                    found = Some(ind);
+                    break;
+                }
+            }
+            if let Some(ind) = found {
+                // check if line is longer than limit
+                if ind+1 > self.limit {
+                    return Err(ReadlinesError::LimitOverflow);
+                }
+                let enc: *const Encoding = encoding as *const Encoding;
+                let line = if enc == UTF_8 {
+                    str::from_utf8(&self.buff.split_to(ind+1))
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                        .to_owned()
+                } else {
+                    encoding
+                        .decode(&self.buff.split_to(ind+1), DecoderTrap::Strict)
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                };
+                return Ok(Async::Ready(Some(line)));
+            }
+            self.checked_buff = true;
+        }
+        // poll req for more bytes
+        match self.req.poll() {
+            Ok(Async::Ready(Some(mut bytes))) => {
+                // check if there is a newline in bytes
+                let mut found: Option<usize> = None;
+                for (ind, b) in bytes.iter().enumerate() {
+                    if *b == '\n' as u8 {
+                        found = Some(ind);
+                        break;
+                    }
+                }
+                if let Some(ind) = found {
+                    // check if line is longer than limit
+                    if ind+1 > self.limit {
+                        return Err(ReadlinesError::LimitOverflow);
+                    }
+                    let enc: *const Encoding = encoding as *const Encoding;
+                    let line = if enc == UTF_8 {
+                        str::from_utf8(&bytes.split_to(ind+1))
+                            .map_err(|_| ReadlinesError::EncodingError)?
+                            .to_owned()
+                    } else {
+                        encoding
+                            .decode(&bytes.split_to(ind+1), DecoderTrap::Strict)
+                            .map_err(|_| ReadlinesError::EncodingError)?
+                    };
+                    // extend buffer with rest of the bytes;
+                    self.buff.extend_from_slice(&bytes);
+                    self.checked_buff = false;
+                    return Ok(Async::Ready(Some(line)));
+                }
+                self.buff.extend_from_slice(&bytes);
+                Ok(Async::NotReady)
+            },
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(None)) => {
+                if self.buff.len() == 0 {
+                    return Ok(Async::Ready(None));
+                }
+                if self.buff.len() > self.limit {
+                    return Err(ReadlinesError::LimitOverflow);
+                }
+                let enc: *const Encoding = encoding as *const Encoding;
+                let line = if enc == UTF_8 {
+                    str::from_utf8(&self.buff)
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                        .to_owned()
+                } else {
+                    encoding
+                        .decode(&self.buff, DecoderTrap::Strict)
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                };
+                self.buff.clear();
+                return Ok(Async::Ready(Some(line)))
+            },
+            Err(e) => Err(ReadlinesError::from(e)),
+        }
     }
 }
 
@@ -664,6 +802,32 @@ mod tests {
             .unread_data(Bytes::from_static(b"11111111111111"));
         match req.body().limit(5).poll().err().unwrap() {
             PayloadError::Overflow => (),
+            _ => unreachable!("error"),
+        }
+    }
+    
+    #[test]
+    fn test_readlines() {
+        let mut req = HttpRequest::default();
+        req.payload_mut().unread_data(Bytes::from_static(
+            b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
+            industry. Lorem Ipsum has been the industry's standard dummy\n\
+            Contrary to popular belief, Lorem Ipsum is not simply random text."
+        ));
+        let mut r = Readlines::new(req);
+        match r.poll().ok().unwrap() {
+            Async::Ready(Some(s)) => assert_eq!(s,
+                "Lorem Ipsum is simply dummy text of the printing and typesetting\n"),
+            _ => unreachable!("error"),
+        }
+        match r.poll().ok().unwrap() {
+            Async::Ready(Some(s)) => assert_eq!(s,
+                "industry. Lorem Ipsum has been the industry's standard dummy\n"),
+            _ => unreachable!("error"),
+        }
+        match r.poll().ok().unwrap() {
+            Async::Ready(Some(s)) => assert_eq!(s,
+                "Contrary to popular belief, Lorem Ipsum is not simply random text."),
             _ => unreachable!("error"),
         }
     }
