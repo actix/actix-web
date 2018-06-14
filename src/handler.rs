@@ -13,7 +13,7 @@ use httpresponse::HttpResponse;
 #[allow(unused_variables)]
 pub trait Handler<S>: 'static {
     /// The type of value that handler will return.
-    type Result: Responder;
+    type Result: Responder<S>;
 
     /// Handle request
     fn handle(&mut self, req: HttpRequest<S>) -> Self::Result;
@@ -22,7 +22,7 @@ pub trait Handler<S>: 'static {
 /// Trait implemented by types that generate responses for clients.
 ///
 /// Types that implement this trait can be used as the return type of a handler.
-pub trait Responder {
+pub trait Responder<S> {
     /// The associated item which can be returned.
     type Item: Into<AsyncResult<HttpResponse>>;
 
@@ -30,9 +30,7 @@ pub trait Responder {
     type Error: Into<Error>;
 
     /// Convert itself to `AsyncResult` or `Error`.
-    fn respond_to<S: 'static>(
-        self, req: &HttpRequest<S>,
-    ) -> Result<Self::Item, Self::Error>;
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<Self::Item, Self::Error>;
 }
 
 /// Trait implemented by types that can be extracted from request.
@@ -93,15 +91,15 @@ pub enum Either<A, B> {
     B(B),
 }
 
-impl<A, B> Responder for Either<A, B>
+impl<A, B, S> Responder<S> for Either<A, B>
 where
-    A: Responder,
-    B: Responder,
+    A: Responder<S>,
+    B: Responder<S>,
 {
     type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
-    fn respond_to<S: 'static>(
+    fn respond_to(
         self, req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         match self {
@@ -133,14 +131,14 @@ where
     }
 }
 
-impl<T> Responder for Option<T>
+impl<T, S> Responder<S> for Option<T>
 where
-    T: Responder,
+    T: Responder<S>,
 {
     type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
-    fn respond_to<S: 'static>(
+    fn respond_to(
         self, req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         match self {
@@ -190,7 +188,7 @@ pub trait AsyncResponder<I, E>: Sized {
 impl<F, I, E> AsyncResponder<I, E> for F
 where
     F: Future<Item = I, Error = E> + 'static,
-    I: Responder + 'static,
+    I: 'static,
     E: Into<Error> + 'static,
 {
     fn responder(self) -> Box<Future<Item = I, Error = E>> {
@@ -202,7 +200,7 @@ where
 impl<F, R, S> Handler<S> for F
 where
     F: Fn(HttpRequest<S>) -> R + 'static,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
 {
     type Result = R;
 
@@ -287,25 +285,21 @@ impl<I, E> AsyncResult<I, E> {
     }
 }
 
-impl Responder for AsyncResult<HttpResponse> {
+impl<S> Responder<S> for AsyncResult<HttpResponse> {
     type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
-    fn respond_to<S>(
-        self, _: &HttpRequest<S>,
-    ) -> Result<AsyncResult<HttpResponse>, Error> {
+    fn respond_to(self, _: &HttpRequest<S>) -> Result<AsyncResult<HttpResponse>, Error> {
         Ok(self)
     }
 }
 
-impl Responder for HttpResponse {
+impl<S> Responder<S> for HttpResponse {
     type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to<S>(
-        self, _: &HttpRequest<S>,
-    ) -> Result<AsyncResult<HttpResponse>, Error> {
+    fn respond_to(self, _: &HttpRequest<S>) -> Result<AsyncResult<HttpResponse>, Error> {
         Ok(AsyncResult(Some(AsyncResultItem::Ok(self))))
     }
 }
@@ -317,11 +311,11 @@ impl<T> From<T> for AsyncResult<T> {
     }
 }
 
-impl<T: Responder, E: Into<Error>> Responder for Result<T, E> {
-    type Item = <T as Responder>::Item;
+impl<S, T: Responder<S>, E: Into<Error>> Responder<S> for Result<T, E> {
+    type Item = <T as Responder<S>>::Item;
     type Error = Error;
 
-    fn respond_to<S: 'static>(self, req: &HttpRequest<S>) -> Result<Self::Item, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<Self::Item, Error> {
         match self {
             Ok(val) => match val.respond_to(req) {
                 Ok(val) => Ok(val),
@@ -374,16 +368,16 @@ impl<T> From<Box<Future<Item = T, Error = Error>>> for AsyncResult<T> {
 /// Convenience type alias
 pub type FutureResponse<I, E = Error> = Box<Future<Item = I, Error = E>>;
 
-impl<I, E> Responder for Box<Future<Item = I, Error = E>>
+impl<S: 'static, I, E> Responder<S> for Box<Future<Item = I, Error = E>>
 where
-    I: Responder + 'static,
+    I: Responder<S> + 'static,
     E: Into<Error> + 'static,
 {
     type Item = AsyncResult<HttpResponse>;
     type Error = Error;
 
     #[inline]
-    fn respond_to<S: 'static>(
+    fn respond_to(
         self, req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         let req = req.clone();
@@ -409,7 +403,7 @@ pub(crate) trait RouteHandler<S>: 'static {
 pub(crate) struct WrapHandler<S, H, R>
 where
     H: Handler<S, Result = R>,
-    R: Responder,
+    R: Responder<S>,
     S: 'static,
 {
     h: H,
@@ -419,7 +413,7 @@ where
 impl<S, H, R> WrapHandler<S, H, R>
 where
     H: Handler<S, Result = R>,
-    R: Responder,
+    R: Responder<S>,
     S: 'static,
 {
     pub fn new(h: H) -> Self {
@@ -430,7 +424,7 @@ where
 impl<S, H, R> RouteHandler<S> for WrapHandler<S, H, R>
 where
     H: Handler<S, Result = R>,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     S: 'static,
 {
     fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
@@ -446,7 +440,7 @@ pub(crate) struct AsyncHandler<S, H, F, R, E>
 where
     H: Fn(HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     E: Into<Error> + 'static,
     S: 'static,
 {
@@ -458,7 +452,7 @@ impl<S, H, F, R, E> AsyncHandler<S, H, F, R, E>
 where
     H: Fn(HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     E: Into<Error> + 'static,
     S: 'static,
 {
@@ -474,7 +468,7 @@ impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 where
     H: Fn(HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     E: Into<Error> + 'static,
     S: 'static,
 {

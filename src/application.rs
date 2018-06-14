@@ -345,7 +345,7 @@ where
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
     where
         F: Fn(T) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         T: FromRequest<S> + 'static,
     {
         {
@@ -737,7 +737,7 @@ impl<S: 'static> Iterator for App<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use body::{Body, Binary};
+    use body::{Binary, Body};
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;

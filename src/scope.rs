@@ -222,7 +222,7 @@ impl<S: 'static> Scope<S> {
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> Scope<S>
     where
         F: Fn(T) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         T: FromRequest<S> + 'static,
     {
         // get resource handler

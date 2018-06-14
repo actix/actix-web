@@ -28,10 +28,12 @@
 
 * Min rustc version is 1.26
 
+* Use tokio instead of tokio-core
+
+* `Responder` trait refactored. It is generic over `S`
+
 * `HttpResponse::into_builder()` now moves cookies into the builder
   instead of dropping them
-
-* Use tokio instead of tokio-core
 
 * Use `&mut self` instead of `&self` for Middleware trait
 

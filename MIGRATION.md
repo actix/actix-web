@@ -24,6 +24,9 @@
     }
     ```
 
+* `Responder` trait is changed. It is generic over `S` - `Responder<S>`.
+  `Responder::respond_to()` is not generic.
+
 * [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
   trait uses `&mut self` instead of `&self`.
 

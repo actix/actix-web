@@ -589,7 +589,7 @@ impl<S: 'static> TestRequest<S> {
     where
         H: Fn(HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,
-        R: Responder<Error = E> + 'static,
+        R: Responder<S, Error = E> + 'static,
         E: Into<Error> + 'static,
     {
         let req = self.finish();

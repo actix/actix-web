@@ -134,7 +134,7 @@ where
 impl<T, S, F, R> Handler<S> for With<T, S, F, R>
 where
     F: Fn(T) -> R + 'static,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     T: FromRequest<S> + 'static,
     S: 'static,
 {
@@ -161,7 +161,7 @@ where
 struct WithHandlerFut<T, S, F, R>
 where
     F: Fn(T) -> R,
-    R: Responder,
+    R: Responder<S>,
     T: FromRequest<S> + 'static,
     S: 'static,
 {
@@ -176,7 +176,7 @@ where
 impl<T, S, F, R> Future for WithHandlerFut<T, S, F, R>
 where
     F: Fn(T) -> R,
-    R: Responder + 'static,
+    R: Responder<S> + 'static,
     T: FromRequest<S> + 'static,
     S: 'static,
 {
@@ -227,7 +227,7 @@ pub struct WithAsync<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E>,
-    I: Responder,
+    I: Responder<S>,
     E: Into<E>,
     T: FromRequest<S>,
     S: 'static,
@@ -241,7 +241,7 @@ impl<T, S, F, R, I, E> WithAsync<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E>,
-    I: Responder,
+    I: Responder<S>,
     E: Into<Error>,
     T: FromRequest<S>,
     S: 'static,
@@ -259,7 +259,7 @@ impl<T, S, F, R, I, E> Handler<S> for WithAsync<T, S, F, R, I, E>
 where
     F: Fn(T) -> R + 'static,
     R: Future<Item = I, Error = E> + 'static,
-    I: Responder + 'static,
+    I: Responder<S> + 'static,
     E: Into<Error> + 'static,
     T: FromRequest<S> + 'static,
     S: 'static,
@@ -289,7 +289,7 @@ struct WithAsyncHandlerFut<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E> + 'static,
-    I: Responder + 'static,
+    I: Responder<S> + 'static,
     E: Into<Error> + 'static,
     T: FromRequest<S> + 'static,
     S: 'static,
@@ -307,7 +307,7 @@ impl<T, S, F, R, I, E> Future for WithAsyncHandlerFut<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E> + 'static,
-    I: Responder + 'static,
+    I: Responder<S> + 'static,
     E: Into<Error> + 'static,
     T: FromRequest<S> + 'static,
     S: 'static,

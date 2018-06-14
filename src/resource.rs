@@ -1,6 +1,6 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use futures::Future;
 use http::{Method, StatusCode};
@@ -194,7 +194,7 @@ impl<S: 'static> ResourceHandler<S> {
     pub fn f<F, R>(&mut self, handler: F)
     where
         F: Fn(HttpRequest<S>) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
     {
         self.routes.push(Route::default());
         self.routes.last_mut().unwrap().f(handler)
@@ -221,7 +221,7 @@ impl<S: 'static> ResourceHandler<S> {
     pub fn with<T, F, R>(&mut self, handler: F)
     where
         F: Fn(T) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         T: FromRequest<S> + 'static,
     {
         self.routes.push(Route::default());
@@ -259,7 +259,7 @@ impl<S: 'static> ResourceHandler<S> {
     where
         F: Fn(T) -> R + 'static,
         R: Future<Item = I, Error = E> + 'static,
-        I: Responder + 'static,
+        I: Responder<S> + 'static,
         E: Into<Error> + 'static,
         T: FromRequest<S> + 'static,
     {

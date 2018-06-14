@@ -723,12 +723,12 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl Responder for HttpResponseBuilder {
+impl<S> Responder<S> for HttpResponseBuilder {
     type Item = HttpResponse;
     type Error = Error;
 
     #[inline]
-    fn respond_to<S>(mut self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(mut self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(self.finish())
     }
 }
@@ -741,11 +741,11 @@ impl From<&'static str> for HttpResponse {
     }
 }
 
-impl Responder for &'static str {
+impl<S> Responder<S> for &'static str {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
@@ -761,11 +761,11 @@ impl From<&'static [u8]> for HttpResponse {
     }
 }
 
-impl Responder for &'static [u8] {
+impl<S> Responder<S> for &'static [u8] {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("application/octet-stream")
@@ -781,11 +781,11 @@ impl From<String> for HttpResponse {
     }
 }
 
-impl Responder for String {
+impl<S> Responder<S> for String {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
@@ -801,11 +801,11 @@ impl<'a> From<&'a String> for HttpResponse {
     }
 }
 
-impl<'a> Responder for &'a String {
+impl<'a, S> Responder<S> for &'a String {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
@@ -821,11 +821,11 @@ impl From<Bytes> for HttpResponse {
     }
 }
 
-impl Responder for Bytes {
+impl<S> Responder<S> for Bytes {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("application/octet-stream")
@@ -841,11 +841,11 @@ impl From<BytesMut> for HttpResponse {
     }
 }
 
-impl Responder for BytesMut {
+impl<S> Responder<S> for BytesMut {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Ok(req
             .build_response(StatusCode::OK)
             .content_type("application/octet-stream")

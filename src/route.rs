@@ -91,7 +91,7 @@ impl<S: 'static> Route<S> {
     pub fn f<F, R>(&mut self, handler: F)
     where
         F: Fn(HttpRequest<S>) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
     {
         self.handler = InnerHandler::new(handler);
     }
@@ -101,7 +101,7 @@ impl<S: 'static> Route<S> {
     where
         H: Fn(HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         E: Into<Error> + 'static,
     {
         self.handler = InnerHandler::async(handler);
@@ -167,7 +167,7 @@ impl<S: 'static> Route<S> {
     pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
     where
         F: Fn(T) -> R + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         T: FromRequest<S> + 'static,
     {
         let cfg = ExtractorConfig::default();
@@ -208,7 +208,7 @@ impl<S: 'static> Route<S> {
     where
         F: Fn(T) -> R + 'static,
         R: Future<Item = I, Error = E> + 'static,
-        I: Responder + 'static,
+        I: Responder<S> + 'static,
         E: Into<Error> + 'static,
         T: FromRequest<S> + 'static,
     {
@@ -233,7 +233,7 @@ impl<S: 'static> InnerHandler<S> {
     where
         H: Fn(HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,
-        R: Responder + 'static,
+        R: Responder<S> + 'static,
         E: Into<Error> + 'static,
     {
         InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(h)))))

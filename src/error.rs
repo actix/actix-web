@@ -743,14 +743,14 @@ where
     }
 }
 
-impl<T> Responder for InternalError<T>
+impl<T, S> Responder<S> for InternalError<T>
 where
     T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     type Item = HttpResponse;
     type Error = Error;
 
-    fn respond_to<S>(self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
+    fn respond_to(self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
         Err(self.into())
     }
 }

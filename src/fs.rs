@@ -63,18 +63,20 @@ impl NamedFile {
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        use header::{ContentDisposition, DispositionType, DispositionParam};
+        use header::{ContentDisposition, DispositionParam, DispositionType};
         let path = path.as_ref().to_path_buf();
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) =
-        {
+        let (content_type, content_disposition) = {
             let filename = match path.file_name() {
                 Some(name) => name.to_string_lossy(),
-                None => return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Provided path has no filename")),
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Provided path has no filename",
+                    ))
+                }
             };
 
             let ct = guess_mime_type(&path);
@@ -84,13 +86,11 @@ impl NamedFile {
             };
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![
-                    DispositionParam::Filename(
-                        header::Charset::Ext("UTF-8".to_owned()),
-                        None,
-                        filename.as_bytes().to_vec(),
-                    )
-                ],
+                parameters: vec![DispositionParam::Filename(
+                    header::Charset::Ext("UTF-8".to_owned()),
+                    None,
+                    filename.as_bytes().to_vec(),
+                )],
             };
             (ct, cd)
         };
@@ -268,15 +268,18 @@ fn none_match<S>(etag: Option<&header::EntityTag>, req: &HttpRequest<S>) -> bool
     }
 }
 
-impl Responder for NamedFile {
+impl<S> Responder<S> for NamedFile {
     type Item = HttpResponse;
     type Error = io::Error;
 
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
+    fn respond_to(self, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))
-                .header(header::CONTENT_DISPOSITION, self.content_disposition.to_string());
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    self.content_disposition.to_string(),
+                );
 
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
@@ -327,19 +330,20 @@ impl Responder for NamedFile {
 
         let mut resp = HttpResponse::build(self.status_code);
         resp.set(header::ContentType(self.content_type.clone()))
-            .header(header::CONTENT_DISPOSITION, self.content_disposition.to_string());
+            .header(
+                header::CONTENT_DISPOSITION,
+                self.content_disposition.to_string(),
+            );
 
         if let Some(current_encoding) = self.encoding {
             resp.content_encoding(current_encoding);
         }
 
-        resp
-            .if_some(last_modified, |lm, resp| {
-                resp.set(header::LastModified(lm));
-            })
-            .if_some(etag, |etag, resp| {
-                resp.set(header::ETag(etag));
-            });
+        resp.if_some(last_modified, |lm, resp| {
+            resp.set(header::LastModified(lm));
+        }).if_some(etag, |etag, resp| {
+            resp.set(header::ETag(etag));
+        });
 
         resp.header(header::ACCEPT_RANGES, "bytes");
 
@@ -816,16 +820,14 @@ mod tests {
 
     #[test]
     fn test_named_file_image_attachment() {
-        use header::{ContentDisposition, DispositionType, DispositionParam};
+        use header::{ContentDisposition, DispositionParam, DispositionType};
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
-            parameters: vec![
-                DispositionParam::Filename(
-                    header::Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    "test.png".as_bytes().to_vec(),
-                )
-            ],
+            parameters: vec![DispositionParam::Filename(
+                header::Charset::Ext("UTF-8".to_owned()),
+                None,
+                "test.png".as_bytes().to_vec(),
+            )],
         };
         let mut file = NamedFile::open("tests/test.png")
             .unwrap()
