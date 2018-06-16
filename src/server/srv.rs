@@ -615,54 +615,51 @@ impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H> {
 /// Commands from accept threads
 impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
     fn handle(&mut self, msg: Result<Option<ServerCommand>, ()>, _: &mut Context<Self>) {
-        match msg {
-            Ok(Some(ServerCommand::WorkerDied(idx, socks))) => {
-                let mut found = false;
-                for i in 0..self.workers.len() {
-                    if self.workers[i].0 == idx {
-                        self.workers.swap_remove(i);
-                        found = true;
-                        break;
-                    }
-                }
-
-                if found {
-                    error!("Worker has died {:?}, restarting", idx);
-                    let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
-
-                    let mut new_idx = self.workers.len();
-                    'found: loop {
-                        for i in 0..self.workers.len() {
-                            if self.workers[i].0 == new_idx {
-                                new_idx += 1;
-                                continue 'found;
-                            }
-                        }
-                        break;
-                    }
-
-                    let ka = self.keep_alive;
-                    let factory = Arc::clone(&self.factory);
-                    let settings =
-                        ServerSettings::new(Some(socks[0].addr), &self.host, false);
-
-                    let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                        let apps: Vec<_> = (*factory)()
-                            .into_iter()
-                            .map(|h| h.into_handler(settings.clone()))
-                            .collect();
-                        ctx.add_message_stream(rx);
-                        Worker::new(apps, socks, ka)
-                    });
-                    for item in &self.accept {
-                        let _ = item.1.send(Command::Worker(new_idx, tx.clone()));
-                        let _ = item.0.set_readiness(mio::Ready::readable());
-                    }
-
-                    self.workers.push((new_idx, addr));
+        if let Ok(Some(ServerCommand::WorkerDied(idx, socks))) = msg {
+            let mut found = false;
+            for i in 0..self.workers.len() {
+                if self.workers[i].0 == idx {
+                    self.workers.swap_remove(i);
+                    found = true;
+                    break;
                 }
             }
-            _ => (),
+
+            if found {
+                error!("Worker has died {:?}, restarting", idx);
+                let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
+
+                let mut new_idx = self.workers.len();
+                'found: loop {
+                    for i in 0..self.workers.len() {
+                        if self.workers[i].0 == new_idx {
+                            new_idx += 1;
+                            continue 'found;
+                        }
+                    }
+                    break;
+                }
+
+                let ka = self.keep_alive;
+                let factory = Arc::clone(&self.factory);
+                let settings =
+                    ServerSettings::new(Some(socks[0].addr), &self.host, false);
+
+                let addr = Arbiter::start(move |ctx: &mut Context<_>| {
+                    let apps: Vec<_> = (*factory)()
+                        .into_iter()
+                        .map(|h| h.into_handler(settings.clone()))
+                        .collect();
+                    ctx.add_message_stream(rx);
+                    Worker::new(apps, socks, ka)
+                });
+                for item in &self.accept {
+                    let _ = item.1.send(Command::Worker(new_idx, tx.clone()));
+                    let _ = item.0.set_readiness(mio::Ready::readable());
+                }
+
+                self.workers.push((new_idx, addr));
+            }
         }
     }
 }
