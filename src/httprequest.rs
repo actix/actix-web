@@ -9,12 +9,13 @@ use cookie::Cookie;
 use failure;
 use futures::{Async, Poll, Stream};
 use futures_cpupool::CpuPool;
-use http::{header, Extensions, HeaderMap, Method, StatusCode, Uri, Version};
+use http::{header, HeaderMap, Method, StatusCode, Uri, Version};
 use tokio_io::AsyncRead;
 use url::{form_urlencoded, Url};
 
 use body::Body;
 use error::{CookieParseError, PayloadError, UrlGenerationError};
+use extensions::Extensions;
 use handler::FromRequest;
 use httpmessage::HttpMessage;
 use httpresponse::{HttpResponse, HttpResponseBuilder};

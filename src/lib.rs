@@ -97,6 +97,7 @@ extern crate time;
 extern crate bitflags;
 #[macro_use]
 extern crate failure;
+extern crate fnv;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -155,6 +156,7 @@ mod application;
 mod body;
 mod context;
 mod de;
+mod extensions;
 mod extractor;
 mod handler;
 mod header;
@@ -188,6 +190,7 @@ pub use application::App;
 pub use body::{Binary, Body};
 pub use context::HttpContext;
 pub use error::{Error, ResponseError, Result};
+pub use extensions::Extensions;
 pub use extractor::{Form, Path, Query};
 pub use handler::{
     AsyncResponder, Either, FromRequest, FutureResponse, Responder, State,
