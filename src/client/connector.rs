@@ -298,7 +298,6 @@ impl ClientConnector {
     /// # #![cfg(feature="alpn")]
     /// # extern crate actix_web;
     /// # extern crate futures;
-    /// # extern crate tokio;
     /// # use futures::{future, Future};
     /// # use std::io::Write;
     /// # use std::process;
@@ -309,11 +308,13 @@ impl ClientConnector {
     /// use openssl::ssl::{SslConnector, SslMethod};
     ///
     /// fn main() {
-    ///     tokio::run(future::lazy(|| {
-    ///         // Start `ClientConnector` with custom `SslConnector`
-    ///         let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
-    ///         let conn = ClientConnector::with_connector(ssl_conn).start();
+    ///     let mut sys = actix_web::actix::System::new("test");
     ///
+    ///     // Start `ClientConnector` with custom `SslConnector`
+    ///     let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
+    ///     let conn = ClientConnector::with_connector(ssl_conn).start();
+    ///
+    ///     sys.block_on(
     ///         conn.send(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
     ///                 .map_err(|_| ())
@@ -321,10 +322,9 @@ impl ClientConnector {
     ///                     if let Ok(mut stream) = res {
     ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
     ///                     }
-    /// #                   process::exit(0);
     ///                     Ok(())
     ///                 })
-    ///     }));
+    ///     );
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {

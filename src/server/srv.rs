@@ -402,14 +402,14 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// use actix_web::{actix, server, App, HttpResponse};
     ///
     /// fn main() {
-    ///     // Run actix system, this method actually starts all async processes
-    ///     actix::System::run(|| {
-    ///         server::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
-    ///             .bind("127.0.0.1:0")
-    ///             .expect("Can not bind to 127.0.0.1:0")
-    ///             .start();
-    /// #       actix::System::current().stop();
-    ///     });
+    ///     let sys = actix::System::new("example");  // <- create Actix system
+    ///
+    ///     server::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
+    ///         .bind("127.0.0.1:0")
+    ///         .expect("Can not bind to 127.0.0.1:0")
+    ///         .start();
+    /// #   actix::System::current().stop();
+    ///    sys.run();  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
     pub fn start(mut self) -> Addr<Self> {

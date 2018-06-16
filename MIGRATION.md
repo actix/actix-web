@@ -1,29 +1,5 @@
 ## 0.7
 
-* `actix::System` has new api.
-
-    Instead of
-    
-    ```rust
-    fn main() {
-        let sys = actix::System::new(..);
-        
-        HttpServer::new(|| ...).start()
-        
-        sys.run();
-    }
-    ```
-
-    Server must be initialized within system run closure:
-
-    ```rust
-    fn main() {
-        actix::System::run(|| {
-            HttpServer::new(|| ...).start()
-        });
-    }
-    ```
-
 * [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
   trait uses `&mut self` instead of `&self`.
 

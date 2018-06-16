@@ -9,7 +9,9 @@
 //! use actix_web::client;
 //!
 //! fn main() {
-//!     tokio::run({
+//!     let mut sys = actix_web::actix::System::new("test");
+//!
+//!     sys.block_on(
 //!         client::get("http://www.rust-lang.org")   // <- Create request builder
 //!             .header("User-Agent", "Actix-web")
 //!             .finish().unwrap()
@@ -17,13 +19,11 @@
 //!             .map_err(|_| ())
 //!             .and_then(|response| {                // <- server http response
 //!                 println!("Response: {:?}", response);
-//! #               process::exit(0);
 //!                 Ok(())
 //!             })
-//!     });
+//!     );
 //! }
 //! ```
-
 mod body;
 mod connector;
 mod parser;
