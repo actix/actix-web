@@ -65,6 +65,8 @@ where
     tcp_ka: Option<time::Duration>,
 }
 
+unsafe impl<H: HttpHandler + 'static> Send for Worker<H> {}
+
 impl<H: HttpHandler + 'static> Worker<H> {
     pub(crate) fn new(
         h: Vec<H>, socks: Slab<SocketInfo>, keep_alive: KeepAlive,

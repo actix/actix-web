@@ -105,7 +105,7 @@ pub struct HttpRequest<S = ()>(SharedHttpInnerMessage, Option<Rc<S>>, Option<Rou
 impl HttpRequest<()> {
     /// Construct a new Request.
     #[inline]
-    pub fn new(
+    pub(crate) fn new(
         method: Method, uri: Uri, version: Version, headers: HeaderMap,
         payload: Option<Payload>,
     ) -> HttpRequest {

@@ -109,15 +109,14 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            sys.config(move || {
-                HttpServer::new(factory)
-                    .disable_signals()
-                    .listen(tcp)
-                    .start();
+            HttpServer::new(factory)
+                .disable_signals()
+                .listen(tcp)
+                .start();
 
-                tx.send((System::current(), local_addr, TestServer::get_conn()))
-                    .unwrap();
-            }).run();
+            tx.send((System::current(), local_addr, TestServer::get_conn()))
+                .unwrap();
+            sys.run();
         });
 
         let (system, addr, conn) = rx.recv().unwrap();
@@ -280,34 +279,32 @@ impl<S: 'static> TestServerBuilder<S> {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            System::new("actix-test-server")
-                .config(move || {
-                    let state = self.state;
-                    let srv = HttpServer::new(move || {
-                        let mut app = TestApp::new(state());
-                        config(&mut app);
-                        vec![app]
-                    }).workers(1)
-                        .disable_signals();
+            let sys = System::new("actix-test-server");
+            let state = self.state;
+            let srv = HttpServer::new(move || {
+                let mut app = TestApp::new(state());
+                config(&mut app);
+                vec![app]
+            }).workers(1)
+                .disable_signals();
 
-                    tx.send((System::current(), local_addr, TestServer::get_conn()))
-                        .unwrap();
+            tx.send((System::current(), local_addr, TestServer::get_conn()))
+                .unwrap();
 
-                    #[cfg(feature = "alpn")]
-                    {
-                        let ssl = self.ssl.take();
-                        if let Some(ssl) = ssl {
-                            srv.listen_ssl(tcp, ssl).unwrap().start();
-                        } else {
-                            srv.listen(tcp).start();
-                        }
-                    }
-                    #[cfg(not(feature = "alpn"))]
-                    {
-                        srv.listen(tcp).start();
-                    }
-                })
-                .run();
+            #[cfg(feature = "alpn")]
+            {
+                let ssl = self.ssl.take();
+                if let Some(ssl) = ssl {
+                    srv.listen_ssl(tcp, ssl).unwrap().start();
+                } else {
+                    srv.listen(tcp).start();
+                }
+            }
+            #[cfg(not(feature = "alpn"))]
+            {
+                srv.listen(tcp).start();
+            }
+            sys.run();
         });
 
         let (system, addr, conn) = rx.recv().unwrap();

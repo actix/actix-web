@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::{io, net, thread};
 
 use actix::{
-    fut, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context,
-    ContextFutureSpawner, Handler, Response, StreamHandler, System, WrapFuture,
+    fut, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
+    Response, StreamHandler, System, WrapFuture,
 };
 
 use futures::sync::mpsc;
@@ -64,8 +64,7 @@ where
     no_signals: bool,
 }
 
-unsafe impl<H> Sync for HttpServer<H> where H: IntoHttpHandler {}
-unsafe impl<H> Send for HttpServer<H> where H: IntoHttpHandler {}
+unsafe impl<H: IntoHttpHandler + 'static> Send for HttpServer<H> {}
 
 enum ServerCommand {
     WorkerDied(usize, Slab<SocketInfo>),
@@ -485,11 +484,9 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         self.no_signals = false;
 
         let _ = thread::spawn(move || {
-            System::new("http-server")
-                .config(|| {
-                    self.start();
-                })
-                .run();
+            let sys = System::new("http-server");
+            self.start();
+            sys.run();
         }).join();
     }
 }
@@ -557,7 +554,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     pub fn start_incoming<T, S>(mut self, stream: S, secure: bool) -> Addr<Self>
     where
         S: Stream<Item = T, Error = io::Error> + Send + 'static,
-        T: AsyncRead + AsyncWrite + 'static,
+        T: AsyncRead + AsyncWrite + Send + 'static,
     {
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
@@ -730,25 +727,26 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
         };
         for worker in &self.workers {
             let tx2 = tx.clone();
-            worker
-                .1
-                .send(StopWorker { graceful: dur })
-                .into_actor(self)
-                .then(move |_, slf, ctx| {
-                    slf.workers.pop();
-                    if slf.workers.is_empty() {
-                        let _ = tx2.send(());
+            ctx.spawn(
+                worker
+                    .1
+                    .send(StopWorker { graceful: dur })
+                    .into_actor(self)
+                    .then(move |_, slf, ctx| {
+                        slf.workers.pop();
+                        if slf.workers.is_empty() {
+                            let _ = tx2.send(());
 
-                        // we need to stop system if server was spawned
-                        if slf.exit {
-                            ctx.run_later(Duration::from_millis(300), |_, _| {
-                                System::current().stop();
-                            });
+                            // we need to stop system if server was spawned
+                            if slf.exit {
+                                ctx.run_later(Duration::from_millis(300), |_, _| {
+                                    System::current().stop();
+                                });
+                            }
                         }
-                    }
-                    fut::ok(())
-                })
-                .spawn(ctx);
+                        fut::ok(())
+                    }),
+            );
         }
 
         if !self.workers.is_empty() {
