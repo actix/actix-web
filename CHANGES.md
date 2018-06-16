@@ -39,6 +39,8 @@
 
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
+* port `Extensions` type from http create, we dont need `Send + Sync`
+
 
 ### Removed
 
