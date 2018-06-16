@@ -88,24 +88,29 @@ where
     #[inline]
     /// Create a new Websocket context from a request and an actor
     pub fn new(req: HttpRequest<S>, actor: A) -> WebsocketContext<A, S> {
-        WebsocketContext::from_request(req).actor(actor)
-    }
-
-    /// Create a new Websocket context from a request
-    pub fn from_request(req: HttpRequest<S>) -> WebsocketContext<A, S> {
         WebsocketContext {
-            inner: ContextImpl::new(None),
+            inner: ContextImpl::new(Some(actor)),
             stream: None,
             request: req,
             disconnected: false,
         }
     }
 
-    #[inline]
-    /// Set actor for this execution context
-    pub fn actor(mut self, actor: A) -> WebsocketContext<A, S> {
-        self.inner.set_actor(actor);
-        self
+    /// Create a new Websocket context
+    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> Self
+    where
+        F: FnOnce(&mut Self) -> A + 'static,
+    {
+        let mut ctx = WebsocketContext {
+            inner: ContextImpl::new(None),
+            stream: None,
+            request: req,
+            disconnected: false,
+        };
+
+        let act = f(&mut ctx);
+        ctx.inner.set_actor(act);
+        ctx
     }
 }
 

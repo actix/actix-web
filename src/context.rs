@@ -104,24 +104,29 @@ where
     #[inline]
     /// Create a new HTTP Context from a request and an actor
     pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
-        HttpContext::from_request(req).actor(actor)
-    }
-
-    /// Create a new HTTP Context from a request
-    pub fn from_request(req: HttpRequest<S>) -> HttpContext<A, S> {
         HttpContext {
-            inner: ContextImpl::new(None),
+            inner: ContextImpl::new(Some(actor)),
             stream: None,
             request: req,
             disconnected: false,
         }
     }
 
-    #[inline]
-    /// Set the actor of this context
-    pub fn actor(mut self, actor: A) -> HttpContext<A, S> {
-        self.inner.set_actor(actor);
-        self
+    /// Create a new HTTP Context
+    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> HttpContext<A, S>
+    where
+        F: FnOnce(&mut Self) -> A + 'static,
+    {
+        let mut ctx = HttpContext {
+            inner: ContextImpl::new(None),
+            stream: None,
+            request: req,
+            disconnected: false,
+        };
+
+        let act = f(&mut ctx);
+        ctx.inner.set_actor(act);
+        ctx
     }
 }
 
