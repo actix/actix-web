@@ -51,6 +51,14 @@ impl ClientResponse {
         self.1 = Some(pl);
     }
 
+    pub(crate) fn into_parts(self) -> (Rc<UnsafeCell<ClientMessage>>, Option<Box<Pipeline>>) {
+        (self.0, self.1)
+    }
+
+    pub(crate) fn from_parts(msg: ClientMessage, pipeline: Option<Box<Pipeline>>) -> Self {
+        ClientResponse(Rc::new(UnsafeCell::new(msg)), pipeline)
+    }
+
     #[inline]
     fn as_ref(&self) -> &ClientMessage {
         unsafe { &*self.0.get() }
