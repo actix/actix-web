@@ -11,7 +11,7 @@ use super::{h1, h2, utils, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
-enum HttpProtocol<T: IoStream, H: 'static> {
+enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
     Unknown(Rc<WorkerSettings<H>>, Option<SocketAddr>, T, BytesMut),

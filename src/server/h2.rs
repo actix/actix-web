@@ -15,7 +15,7 @@ use modhttp::request::Parts;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
-use error::PayloadError;
+use error::{Error, PayloadError};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -38,7 +38,7 @@ bitflags! {
 pub(crate) struct Http2<T, H>
 where
     T: AsyncRead + AsyncWrite + 'static,
-    H: 'static,
+    H: HttpHandler + 'static,
 {
     flags: Flags,
     settings: Rc<WorkerSettings<H>>,
@@ -142,7 +142,7 @@ where
                             break;
                         }
                     } else if !item.flags.contains(EntryFlags::FINISHED) {
-                        match item.task.poll() {
+                        match item.task.poll_completed() {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
                                 not_ready = false;
@@ -288,15 +288,41 @@ bitflags! {
     }
 }
 
-struct Entry<H: 'static> {
-    task: Box<HttpHandlerTask>,
+enum EntryPipe<H: HttpHandler> {
+    Task(H::Task),
+    Error(Box<HttpHandlerTask>),
+}
+
+impl<H: HttpHandler> EntryPipe<H> {
+    fn disconnected(&mut self) {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.disconnected(),
+            EntryPipe::Error(ref mut task) => task.disconnected(),
+        }
+    }
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.poll_io(io),
+            EntryPipe::Error(ref mut task) => task.poll_io(io),
+        }
+    }
+    fn poll_completed(&mut self) -> Poll<(), Error> {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.poll_completed(),
+            EntryPipe::Error(ref mut task) => task.poll_completed(),
+        }
+    }
+}
+
+struct Entry<H: HttpHandler + 'static> {
+    task: EntryPipe<H>,
     payload: PayloadType,
     recv: RecvStream,
     stream: H2Writer<H>,
     flags: EntryFlags,
 }
 
-impl<H: 'static> Entry<H> {
+impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
         parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
         addr: Option<SocketAddr>, settings: &Rc<WorkerSettings<H>>,
@@ -333,7 +359,9 @@ impl<H: 'static> Entry<H> {
         }
 
         Entry {
-            task: task.unwrap_or_else(|| Pipeline::error(HttpResponse::NotFound())),
+            task: task.map(EntryPipe::Task).unwrap_or_else(|| {
+                EntryPipe::Error(Pipeline::error(HttpResponse::NotFound()))
+            }),
             payload: psender,
             stream: H2Writer::new(
                 resp,

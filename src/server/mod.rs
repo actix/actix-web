@@ -122,20 +122,25 @@ impl Message for StopServer {
 /// Low level http request handler
 #[allow(unused_variables)]
 pub trait HttpHandler: 'static {
+    /// Request handling task
+    type Task: HttpHandlerTask;
+
     /// Handle request
-    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest>;
+    fn handle(&mut self, req: HttpRequest) -> Result<Self::Task, HttpRequest>;
 }
 
-impl HttpHandler for Box<HttpHandler> {
+impl HttpHandler for Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
+    type Task = Box<HttpHandlerTask>;
+
     fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
         self.as_mut().handle(req)
     }
 }
 
-#[doc(hidden)]
+/// Low level http request handler
 pub trait HttpHandlerTask {
     /// Poll task, this method is used before or after *io* object is available
-    fn poll(&mut self) -> Poll<(), Error> {
+    fn poll_completed(&mut self) -> Poll<(), Error> {
         Ok(Async::Ready(()))
     }
 
@@ -144,6 +149,12 @@ pub trait HttpHandlerTask {
 
     /// Connection is disconnected
     fn disconnected(&mut self) {}
+}
+
+impl HttpHandlerTask for Box<HttpHandlerTask> {
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
+        self.as_mut().poll_io(io)
+    }
 }
 
 /// Conversion helper trait

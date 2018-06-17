@@ -8,7 +8,7 @@ use bytes::{BufMut, BytesMut};
 use futures::{Async, Future, Poll};
 use tokio_timer::Delay;
 
-use error::PayloadError;
+use error::{Error, PayloadError};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
@@ -43,7 +43,7 @@ bitflags! {
     }
 }
 
-pub(crate) struct Http1<T: IoStream, H: 'static> {
+pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
     flags: Flags,
     settings: Rc<WorkerSettings<H>>,
     addr: Option<SocketAddr>,
@@ -51,12 +51,38 @@ pub(crate) struct Http1<T: IoStream, H: 'static> {
     decoder: H1Decoder,
     payload: Option<PayloadType>,
     buf: BytesMut,
-    tasks: VecDeque<Entry>,
+    tasks: VecDeque<Entry<H>>,
     keepalive_timer: Option<Delay>,
 }
 
-struct Entry {
-    pipe: Box<HttpHandlerTask>,
+enum EntryPipe<H: HttpHandler> {
+    Task(H::Task),
+    Error(Box<HttpHandlerTask>),
+}
+
+impl<H: HttpHandler> EntryPipe<H> {
+    fn disconnected(&mut self) {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.disconnected(),
+            EntryPipe::Error(ref mut task) => task.disconnected(),
+        }
+    }
+    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.poll_io(io),
+            EntryPipe::Error(ref mut task) => task.poll_io(io),
+        }
+    }
+    fn poll_completed(&mut self) -> Poll<(), Error> {
+        match *self {
+            EntryPipe::Task(ref mut task) => task.poll_completed(),
+            EntryPipe::Error(ref mut task) => task.poll_completed(),
+        }
+    }
+}
+
+struct Entry<H: HttpHandler> {
+    pipe: EntryPipe<H>,
     flags: EntryFlags,
 }
 
@@ -181,7 +207,7 @@ where
         let mut io = false;
         let mut idx = 0;
         while idx < self.tasks.len() {
-            let item: &mut Entry = unsafe { &mut *(&mut self.tasks[idx] as *mut _) };
+            let item: &mut Entry<H> = unsafe { &mut *(&mut self.tasks[idx] as *mut _) };
 
             // only one task can do io operation in http/1
             if !io && !item.flags.contains(EntryFlags::EOF) {
@@ -232,7 +258,7 @@ where
                     }
                 }
             } else if !item.flags.contains(EntryFlags::FINISHED) {
-                match item.pipe.poll() {
+                match item.pipe.poll_completed() {
                     Ok(Async::NotReady) => (),
                     Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
                     Err(err) => {
@@ -342,7 +368,7 @@ where
 
                                             if !ready {
                                                 let item = Entry {
-                                                    pipe,
+                                                    pipe: EntryPipe::Task(pipe),
                                                     flags: EntryFlags::EOF,
                                                 };
                                                 self.tasks.push_back(item);
@@ -358,7 +384,7 @@ where
                                     }
                                 }
                                 self.tasks.push_back(Entry {
-                                    pipe,
+                                    pipe: EntryPipe::Task(pipe),
                                     flags: EntryFlags::empty(),
                                 });
                                 continue 'outer;
@@ -369,7 +395,9 @@ where
 
                     // handler is not found
                     self.tasks.push_back(Entry {
-                        pipe: Pipeline::error(HttpResponse::NotFound()),
+                        pipe: EntryPipe::Error(
+                            Pipeline::error(HttpResponse::NotFound()),
+                        ),
                         flags: EntryFlags::empty(),
                     });
                 }

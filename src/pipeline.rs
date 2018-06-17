@@ -18,14 +18,16 @@ use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Response, Started};
 use server::{HttpHandlerTask, Writer, WriterState};
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum HandlerType {
+pub enum HandlerType {
     Normal(usize),
     Handler(usize),
     Default,
 }
 
-pub(crate) trait PipelineHandler<S> {
+#[doc(hidden)]
+pub trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
     fn handle(
@@ -33,7 +35,8 @@ pub(crate) trait PipelineHandler<S> {
     ) -> AsyncResult<HttpResponse>;
 }
 
-pub(crate) struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
+#[doc(hidden)]
+pub struct Pipeline<S, H>(PipelineInfo<S>, PipelineState<S, H>);
 
 enum PipelineState<S, H> {
     None,
@@ -207,7 +210,7 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
         }
     }
 
-    fn poll(&mut self) -> Poll<(), Error> {
+    fn poll_completed(&mut self) -> Poll<(), Error> {
         let info: &mut PipelineInfo<_> = unsafe { &mut *(&mut self.0 as *mut _) };
 
         loop {

@@ -26,7 +26,8 @@ pub struct HttpApplication<S = ()> {
     middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
 }
 
-pub(crate) struct Inner<S> {
+#[doc(hidden)]
+pub struct Inner<S> {
     prefix: usize,
     default: ResourceHandler<S>,
     encoding: ContentEncoding,
@@ -136,7 +137,11 @@ impl<S: 'static> HttpApplication<S> {
 }
 
 impl<S: 'static> HttpHandler for HttpApplication<S> {
-    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+    type Task = Pipeline<S, Inner<S>>;
+
+    fn handle(
+        &mut self, req: HttpRequest,
+    ) -> Result<Pipeline<S, Inner<S>>, HttpRequest> {
         let m = {
             let path = req.path();
             path.starts_with(&self.prefix)
@@ -157,12 +162,7 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 
             let tp = self.get_handler(&mut req2);
             let inner = Rc::clone(&self.inner);
-            Ok(Box::new(Pipeline::new(
-                req2,
-                Rc::clone(&self.middlewares),
-                inner,
-                tp,
-            )))
+            Ok(Pipeline::new(req2, Rc::clone(&self.middlewares), inner, tp))
         } else {
             Err(req)
         }
@@ -679,8 +679,23 @@ where
     /// # });
     /// }
     /// ```
-    pub fn boxed(mut self) -> Box<HttpHandler> {
-        Box::new(self.finish())
+    pub fn boxed(mut self) -> Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
+        Box::new(BoxedApplication { app: self.finish() })
+    }
+}
+
+struct BoxedApplication<S> {
+    app: HttpApplication<S>,
+}
+
+impl<S: 'static> HttpHandler for BoxedApplication<S> {
+    type Task = Box<HttpHandlerTask>;
+
+    fn handle(&mut self, req: HttpRequest) -> Result<Self::Task, HttpRequest> {
+        self.app.handle(req).map(|t| {
+            let task: Self::Task = Box::new(t);
+            task
+        })
     }
 }
 
@@ -798,9 +813,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = App::new()
-            .handler("/test", |_| HttpResponse::Ok())
-            .finish();
+        let mut app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -825,9 +838,7 @@ mod tests {
 
     #[test]
     fn test_handler2() {
-        let mut app = App::new()
-            .handler("test", |_| HttpResponse::Ok())
-            .finish();
+        let mut app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -881,29 +892,21 @@ mod tests {
     #[test]
     fn test_route() {
         let mut app = App::new()
-            .route("/test", Method::GET, |_: HttpRequest| {
-                HttpResponse::Ok()
-            })
+            .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
             })
             .finish();
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::GET)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::GET).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::POST)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::POST).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::HEAD)
-            .finish();
+        let req = TestRequest::with_uri("/test").method(Method::HEAD).finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
@@ -972,9 +975,6 @@ mod tests {
         let req = TestRequest::with_uri("/some").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::OK);
-        assert_eq!(
-            resp.as_msg().body(),
-            &Body::Binary(Binary::Slice(b"some"))
-        );
+        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
     }
 }
