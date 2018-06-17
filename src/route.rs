@@ -170,8 +170,8 @@ impl<S: 'static> Route<S> {
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        let cfg = ExtractorConfig::default();
-        self.h(With::new(handler, Clone::clone(&cfg)));
+        let cfg = ExtractorConfig::<S, T>::default();
+        self.h(With::new(handler, cfg.clone()));
         cfg
     }
 
@@ -212,8 +212,8 @@ impl<S: 'static> Route<S> {
         E: Into<Error> + 'static,
         T: FromRequest<S> + 'static,
     {
-        let cfg = ExtractorConfig::default();
-        self.h(WithAsync::new(handler, Clone::clone(&cfg)));
+        let cfg = ExtractorConfig::<S, T>::default();
+        self.h(WithAsync::new(handler, cfg.clone()));
         cfg
     }
 }

@@ -77,8 +77,8 @@ impl<S: 'static, T: FromRequest<S>> Default for ExtractorConfig<S, T> {
     }
 }
 
-impl<S: 'static, T: FromRequest<S>> Clone for ExtractorConfig<S, T> {
-    fn clone(&self) -> Self {
+impl<S: 'static, T: FromRequest<S>> ExtractorConfig<S, T> {
+    pub(crate) fn clone(&self) -> Self {
         ExtractorConfig {
             cfg: Rc::clone(&self.cfg),
         }
