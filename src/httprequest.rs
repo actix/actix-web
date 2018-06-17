@@ -265,7 +265,7 @@ impl<S> HttpRequest<S> {
     ///
     ///This is intended to be used by middleware.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+    pub(crate) fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.as_mut().headers
     }
 
@@ -450,7 +450,7 @@ impl<S> HttpRequest<S> {
 
     /// Get mutable reference to request's Params.
     #[inline]
-    pub fn match_info_mut(&mut self) -> &mut Params {
+    pub(crate) fn match_info_mut(&mut self) -> &mut Params {
         unsafe { mem::transmute(&mut self.as_mut().params) }
     }
 
