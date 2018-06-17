@@ -1,11 +1,11 @@
-use bytes::BytesMut;
-use futures_cpupool::{Builder, CpuPool};
-use http::StatusCode;
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::fmt::Write;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::{fmt, mem, net};
+
+use bytes::BytesMut;
+use futures_cpupool::{Builder, CpuPool};
+use http::StatusCode;
 use time;
 
 use super::channel::Node;
@@ -20,12 +20,9 @@ pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
     host: String,
-    cpu_pool: Arc<InnerCpuPool>,
+    cpu_pool: UnsafeCell<Option<CpuPool>>,
     responses: Rc<UnsafeCell<HttpResponsePool>>,
 }
-
-unsafe impl Sync for ServerSettings {}
-unsafe impl Send for ServerSettings {}
 
 impl Clone for ServerSettings {
     fn clone(&self) -> Self {
@@ -33,40 +30,11 @@ impl Clone for ServerSettings {
             addr: self.addr,
             secure: self.secure,
             host: self.host.clone(),
-            cpu_pool: self.cpu_pool.clone(),
+            cpu_pool: UnsafeCell::new(None),
             responses: HttpResponsePool::pool(),
         }
     }
 }
-
-struct InnerCpuPool {
-    cpu_pool: UnsafeCell<Option<CpuPool>>,
-}
-
-impl fmt::Debug for InnerCpuPool {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CpuPool")
-    }
-}
-
-impl InnerCpuPool {
-    fn new() -> Self {
-        InnerCpuPool {
-            cpu_pool: UnsafeCell::new(None),
-        }
-    }
-    fn cpu_pool(&self) -> &CpuPool {
-        unsafe {
-            let val = &mut *self.cpu_pool.get();
-            if val.is_none() {
-                *val = Some(Builder::new().create());
-            }
-            val.as_ref().unwrap()
-        }
-    }
-}
-
-unsafe impl Sync for InnerCpuPool {}
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -75,7 +43,7 @@ impl Default for ServerSettings {
             secure: false,
             host: "localhost:8080".to_owned(),
             responses: HttpResponsePool::pool(),
-            cpu_pool: Arc::new(InnerCpuPool::new()),
+            cpu_pool: UnsafeCell::new(None),
         }
     }
 }
@@ -92,7 +60,7 @@ impl ServerSettings {
         } else {
             "localhost".to_owned()
         };
-        let cpu_pool = Arc::new(InnerCpuPool::new());
+        let cpu_pool = UnsafeCell::new(None);
         let responses = HttpResponsePool::pool();
         ServerSettings {
             addr,
@@ -100,6 +68,21 @@ impl ServerSettings {
             host,
             cpu_pool,
             responses,
+        }
+    }
+
+    pub(crate) fn parts(&self) -> (Option<net::SocketAddr>, String, bool) {
+        (self.addr, self.host.clone(), self.secure)
+    }
+
+    pub(crate) fn from_parts(parts: (Option<net::SocketAddr>, String, bool)) -> Self {
+        let (addr, host, secure) = parts;
+        ServerSettings {
+            addr,
+            host,
+            secure,
+            cpu_pool: UnsafeCell::new(None),
+            responses: HttpResponsePool::pool(),
         }
     }
 
@@ -120,7 +103,13 @@ impl ServerSettings {
 
     /// Returns default `CpuPool` for server
     pub fn cpu_pool(&self) -> &CpuPool {
-        self.cpu_pool.cpu_pool()
+        unsafe {
+            let val = &mut *self.cpu_pool.get();
+            if val.is_none() {
+                *val = Some(Builder::new().pool_size(2).create());
+            }
+            val.as_ref().unwrap()
+        }
     }
 
     #[inline]

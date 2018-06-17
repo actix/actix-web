@@ -351,13 +351,15 @@ where
         // start workers
         let mut workers = Vec::new();
         for idx in 0..self.threads {
-            let s = settings.clone();
             let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
 
             let ka = self.keep_alive;
             let socks = sockets.clone();
             let factory = Arc::clone(&self.factory);
+            let parts = settings.parts();
+
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
+                let s = ServerSettings::from_parts(parts);
                 let apps: Vec<_> = (*factory)()
                     .into_iter()
                     .map(|h| h.into_handler(s.clone()))
@@ -642,10 +644,11 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
 
                 let ka = self.keep_alive;
                 let factory = Arc::clone(&self.factory);
-                let settings =
-                    ServerSettings::new(Some(socks[0].addr), &self.host, false);
+                let host = self.host.clone();
+                let addr = socks[0].addr;
 
                 let addr = Arbiter::start(move |ctx: &mut Context<_>| {
+                    let settings = ServerSettings::new(Some(addr), &host, false);
                     let apps: Vec<_> = (*factory)()
                         .into_iter()
                         .map(|h| h.into_handler(settings.clone()))
