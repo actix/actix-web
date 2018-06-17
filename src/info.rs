@@ -1,24 +1,25 @@
+use std::str::FromStr;
+
 use http::header::{self, HeaderName};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
-use std::str::FromStr;
 
 const X_FORWARDED_FOR: &str = "X-FORWARDED-FOR";
 const X_FORWARDED_HOST: &str = "X-FORWARDED-HOST";
 const X_FORWARDED_PROTO: &str = "X-FORWARDED-PROTO";
 
 /// `HttpRequest` connection information
-pub struct ConnectionInfo<'a> {
-    scheme: &'a str,
-    host: &'a str,
-    remote: Option<&'a str>,
+pub struct ConnectionInfo {
+    scheme: String,
+    host: String,
+    remote: Option<String>,
     peer: Option<String>,
 }
 
-impl<'a> ConnectionInfo<'a> {
+impl ConnectionInfo {
     /// Create *ConnectionInfo* instance for a request.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    pub fn new<S>(req: &'a HttpRequest<S>) -> ConnectionInfo<'a> {
+    pub fn new<S>(req: &HttpRequest<S>) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
@@ -115,9 +116,9 @@ impl<'a> ConnectionInfo<'a> {
         }
 
         ConnectionInfo {
-            scheme: scheme.unwrap_or("http"),
-            host: host.unwrap_or("localhost"),
-            remote,
+            scheme: scheme.unwrap_or("http").to_owned(),
+            host: host.unwrap_or("localhost").to_owned(),
+            remote: remote.map(|s| s.to_owned()),
             peer,
         }
     }
@@ -131,7 +132,7 @@ impl<'a> ConnectionInfo<'a> {
     /// - Uri
     #[inline]
     pub fn scheme(&self) -> &str {
-        self.scheme
+        &self.scheme
     }
 
     /// Hostname of the request.
@@ -144,7 +145,7 @@ impl<'a> ConnectionInfo<'a> {
     /// - Uri
     /// - Server hostname
     pub fn host(&self) -> &str {
-        self.host
+        &self.host
     }
 
     /// Remote IP of client initiated HTTP request.
@@ -156,7 +157,7 @@ impl<'a> ConnectionInfo<'a> {
     /// - peer name of opened socket
     #[inline]
     pub fn remote(&self) -> Option<&str> {
-        if let Some(r) = self.remote {
+        if let Some(ref r) = self.remote {
             Some(r)
         } else if let Some(ref peer) = self.peer {
             Some(peer)

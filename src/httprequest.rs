@@ -43,13 +43,13 @@ pub struct HttpInnerMessage {
     pub params: Params<'static>,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
-    pub info: Option<ConnectionInfo<'static>>,
     pub prefix: u16,
     resource: RouterResource,
 }
 
 struct Query(HashMap<String, String>);
 struct Cookies(Vec<Cookie<'static>>);
+struct Info(ConnectionInfo);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum RouterResource {
@@ -69,7 +69,6 @@ impl Default for HttpInnerMessage {
             addr: None,
             payload: None,
             extensions: Extensions::new(),
-            info: None,
             prefix: 0,
             resource: RouterResource::Notset,
         }
@@ -89,7 +88,6 @@ impl HttpInnerMessage {
         self.extensions.clear();
         self.params.clear();
         self.addr = None;
-        self.info = None;
         self.flags = MessageFlags::empty();
         self.payload = None;
         self.prefix = 0;
@@ -122,7 +120,6 @@ impl HttpRequest<()> {
                 params: Params::new(),
                 extensions: Extensions::new(),
                 addr: None,
-                info: None,
                 prefix: 0,
                 flags: MessageFlags::empty(),
                 resource: RouterResource::Notset,
@@ -280,12 +277,12 @@ impl<S> HttpRequest<S> {
 
     /// Get *ConnectionInfo* for correct request.
     pub fn connection_info(&self) -> &ConnectionInfo {
-        if self.as_ref().info.is_none() {
-            let info: ConnectionInfo<'static> =
-                unsafe { mem::transmute(ConnectionInfo::new(self)) };
-            self.as_mut().info = Some(info);
+        if self.extensions().get::<Info>().is_none() {
+            self.as_mut()
+                .extensions
+                .insert(Info(ConnectionInfo::new(self)));
         }
-        self.as_ref().info.as_ref().unwrap()
+        &self.extensions().get::<Info>().unwrap().0
     }
 
     /// Generate url for named resource
@@ -380,7 +377,6 @@ impl<S> HttpRequest<S> {
         self.as_mut().addr = addr;
     }
 
-    #[doc(hidden)]
     /// url query parameters.
     pub fn query(&self) -> &HashMap<String, String> {
         if self.extensions().get::<Query>().is_none() {
