@@ -264,7 +264,7 @@ impl<S> HttpRequest<S> {
     ///Returns mutable Request's headers.
     ///
     ///This is intended to be used by middleware.
-    #[inline]
+    #[cfg(test)]
     pub(crate) fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.as_mut().headers
     }
