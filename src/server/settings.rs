@@ -1,11 +1,12 @@
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::fmt::Write;
 use std::rc::Rc;
-use std::{fmt, mem, net};
+use std::{env, fmt, mem, net};
 
 use bytes::BytesMut;
-use futures_cpupool::{Builder, CpuPool};
+use futures_cpupool::CpuPool;
 use http::StatusCode;
+use parking_lot::Mutex;
 use time;
 
 use super::channel::Node;
@@ -14,6 +15,26 @@ use super::shared::{SharedBytes, SharedBytesPool};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
+
+/// Env variable for default cpu pool size
+const ENV_CPU_POOL_VAR: &str = "ACTIX_CPU_POOL";
+
+lazy_static! {
+    pub(crate) static ref DEFAULT_CPUPOOL: Mutex<CpuPool> = {
+        let default = match env::var(ENV_CPU_POOL_VAR) {
+            Ok(val) => {
+                if let Ok(val) = val.parse() {
+                    val
+                } else {
+                    error!("Can not parse ACTIX_CPU_POOL value");
+                    20
+                }
+            }
+            Err(_) => 20,
+        };
+        Mutex::new(CpuPool::new(default))
+    };
+}
 
 /// Various server settings
 pub struct ServerSettings {
@@ -106,7 +127,8 @@ impl ServerSettings {
         unsafe {
             let val = &mut *self.cpu_pool.get();
             if val.is_none() {
-                *val = Some(Builder::new().pool_size(2).create());
+                let pool = DEFAULT_CPUPOOL.lock().clone();
+                *val = Some(pool);
             }
             val.as_ref().unwrap()
         }

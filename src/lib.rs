@@ -112,6 +112,7 @@ extern crate mime;
 extern crate mime_guess;
 extern crate mio;
 extern crate net2;
+extern crate parking_lot;
 extern crate rand;
 extern crate slab;
 extern crate tokio;
