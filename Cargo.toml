@@ -119,5 +119,4 @@ codegen-units = 1
 [workspace]
 members = [
   "./",
-  "tools/wsload/",
 ]
