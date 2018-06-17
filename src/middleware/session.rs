@@ -221,11 +221,6 @@ impl<S> FromRequest<S> for Session {
 
 struct SessionImplCell(RefCell<Box<SessionImpl>>);
 
-#[doc(hidden)]
-unsafe impl Send for SessionImplCell {}
-#[doc(hidden)]
-unsafe impl Sync for SessionImplCell {}
-
 /// Session storage middleware
 ///
 /// ```rust

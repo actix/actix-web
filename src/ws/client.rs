@@ -445,20 +445,13 @@ impl fmt::Debug for ClientReader {
     }
 }
 
-impl ClientReader {
-    #[inline]
-    fn as_mut(&mut self) -> &mut Inner {
-        unsafe { &mut *self.inner.get() }
-    }
-}
-
 impl Stream for ClientReader {
     type Item = Message;
     type Error = ProtocolError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let max_size = self.max_size;
-        let inner = self.as_mut();
+        let inner: &mut Inner = unsafe { &mut *self.inner.get() };
         if inner.closed {
             return Ok(Async::Ready(None));
         }
@@ -521,16 +514,12 @@ impl ClientWriter {
     /// Write payload
     #[inline]
     fn write(&mut self, mut data: Binary) {
-        if !self.as_mut().closed {
-            let _ = self.as_mut().tx.unbounded_send(data.take());
+        let inner: &mut Inner = unsafe { &mut *self.inner.get() };
+        if !inner.closed {
+            let _ = inner.tx.unbounded_send(data.take());
         } else {
             warn!("Trying to write to disconnected response");
         }
-    }
-
-    #[inline]
-    fn as_mut(&mut self) -> &mut Inner {
-        unsafe { &mut *self.inner.get() }
     }
 
     /// Send text frame

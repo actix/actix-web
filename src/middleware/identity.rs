@@ -177,11 +177,6 @@ impl<T> IdentityService<T> {
 
 struct IdentityBox(Box<Identity>);
 
-#[doc(hidden)]
-unsafe impl Send for IdentityBox {}
-#[doc(hidden)]
-unsafe impl Sync for IdentityBox {}
-
 impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
