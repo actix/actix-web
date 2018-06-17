@@ -41,6 +41,8 @@
 
 * port `Extensions` type from http create, we dont need `Send + Sync`
 
+* `HttpRequest::query()` returns `&HashMap<String, String>`
+
 
 ### Removed
 

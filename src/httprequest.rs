@@ -1,5 +1,6 @@
 //! HTTP Request message related code.
 #![cfg_attr(feature = "cargo-clippy", allow(transmute_ptr_to_ptr))]
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{cmp, fmt, io, mem, str};
@@ -47,7 +48,7 @@ pub struct HttpInnerMessage {
     resource: RouterResource,
 }
 
-struct Query(Params<'static>);
+struct Query(HashMap<String, String>);
 struct Cookies(Vec<Cookie<'static>>);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -382,18 +383,15 @@ impl<S> HttpRequest<S> {
     #[doc(hidden)]
     /// Get a reference to the Params object.
     /// Params is a container for url query parameters.
-    pub fn query<'a>(&'a self) -> &'a Params {
+    pub fn query(&self) -> &HashMap<String, String> {
         if self.extensions().get::<Query>().is_none() {
-            let mut params: Params<'a> = Params::new();
+            let mut query = HashMap::new();
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
-                params.add(key, val);
+                query.insert(key.as_ref().to_string(), val.to_string());
             }
-            let params: Params<'static> = unsafe { mem::transmute(params) };
-            self.as_mut().extensions.insert(Query(params));
+            self.as_mut().extensions.insert(Query(query));
         }
-        let params: &Params<'a> =
-            unsafe { mem::transmute(&self.extensions().get::<Query>().unwrap().0) };
-        params
+        &self.extensions().get::<Query>().unwrap().0
     }
 
     /// The query string in the URL.
