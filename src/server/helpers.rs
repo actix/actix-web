@@ -74,16 +74,13 @@ impl SharedHttpInnerMessage {
         SharedHttpInnerMessage(Some(msg), Some(pool))
     }
 
-    #[inline(always)]
-    #[allow(mutable_transmutes)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    pub fn get_mut(&self) -> &mut HttpInnerMessage {
+    #[inline]
+    pub fn get_mut(&mut self) -> &mut HttpInnerMessage {
         let r: &HttpInnerMessage = self.0.as_ref().unwrap().as_ref();
         unsafe { &mut *(r as *const _ as *mut _) }
     }
 
-    #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[inline]
     pub fn get_ref(&self) -> &HttpInnerMessage {
         self.0.as_ref().unwrap()
     }

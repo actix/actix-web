@@ -307,7 +307,7 @@ impl<H: 'static> Entry<H> {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
-        let msg = settings.get_http_message();
+        let mut msg = settings.get_http_message();
         msg.get_mut().url = Url::new(parts.uri);
         msg.get_mut().method = parts.method;
         msg.get_mut().version = parts.version;

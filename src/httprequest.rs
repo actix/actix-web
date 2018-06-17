@@ -170,21 +170,14 @@ impl<S> HttpRequest<S> {
 
     /// get mutable reference for inner message
     /// mutable reference should not be returned as result for request's method
-    #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    pub(crate) fn as_mut(&self) -> &mut HttpInnerMessage {
+    #[inline]
+    pub(crate) fn as_mut(&mut self) -> &mut HttpInnerMessage {
         self.0.get_mut()
     }
 
-    #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
+    #[inline]
     fn as_ref(&self) -> &HttpInnerMessage {
         self.0.get_ref()
-    }
-
-    #[inline]
-    pub(crate) fn get_inner(&mut self) -> &mut HttpInnerMessage {
-        self.as_mut()
     }
 
     /// Shared application state
@@ -278,7 +271,8 @@ impl<S> HttpRequest<S> {
     /// Get *ConnectionInfo* for correct request.
     pub fn connection_info(&self) -> &ConnectionInfo {
         if self.extensions().get::<Info>().is_none() {
-            self.as_mut()
+            let mut req = self.clone();
+            req.as_mut()
                 .extensions
                 .insert(Info(ConnectionInfo::new(self)));
         }
@@ -384,7 +378,8 @@ impl<S> HttpRequest<S> {
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 query.insert(key.as_ref().to_string(), val.to_string());
             }
-            self.as_mut().extensions.insert(Query(query));
+            let mut req = self.clone();
+            req.as_mut().extensions.insert(Query(query));
         }
         &self.extensions().get::<Query>().unwrap().0
     }
@@ -404,7 +399,8 @@ impl<S> HttpRequest<S> {
     /// Load request cookies.
     pub fn cookies(&self) -> Result<&Vec<Cookie<'static>>, CookieParseError> {
         if self.extensions().get::<Query>().is_none() {
-            let msg = self.as_mut();
+            let mut req = self.clone();
+            let msg = req.as_mut();
             let mut cookies = Vec::new();
             for hdr in msg.headers.get_all(header::COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
@@ -479,7 +475,7 @@ impl<S> HttpRequest<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn payload(&self) -> &Payload {
+    pub(crate) fn payload(&mut self) -> &Payload {
         let msg = self.as_mut();
         if msg.payload.is_none() {
             msg.payload = Some(Payload::empty());

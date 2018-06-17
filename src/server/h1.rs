@@ -306,7 +306,7 @@ where
     pub fn parse(&mut self) {
         'outer: loop {
             match self.decoder.decode(&mut self.buf, &self.settings) {
-                Ok(Some(Message::Message { msg, payload })) => {
+                Ok(Some(Message::Message { mut msg, payload })) => {
                     self.flags.insert(Flags::STARTED);
 
                     if payload {

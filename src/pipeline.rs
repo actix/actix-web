@@ -487,7 +487,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 self.resp.content_encoding().unwrap_or(info.encoding);
 
                             let result = match io.start(
-                                info.req_mut().get_inner(),
+                                info.req_mut().as_mut(),
                                 &mut self.resp,
                                 encoding,
                             ) {

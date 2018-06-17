@@ -1251,16 +1251,16 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let mut st = StaticFiles::new(".").index_file("Cargo.toml");
+        let mut st = StaticFiles::new(".").index_file("mod.rs");
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "tools/wsload");
+        req.match_info_mut().add("tail", "src/client");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
-            "/tools/wsload/Cargo.toml"
+            "/src/client/mod.rs"
         );
     }
 

@@ -120,7 +120,7 @@ impl H1Decoder {
             let slice = buf.split_to(len).freeze();
 
             // convert headers
-            let msg = settings.get_http_message();
+            let mut msg = settings.get_http_message();
             {
                 let msg_mut = msg.get_mut();
                 msg_mut
