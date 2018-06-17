@@ -5,15 +5,13 @@ use encoding::types::{DecoderTrap, Encoding};
 use encoding::EncodingRef;
 use futures::{Async, Future, Poll, Stream};
 use http::{header, HeaderMap};
-use http_range::HttpRange;
 use mime::Mime;
 use serde::de::DeserializeOwned;
 use serde_urlencoded;
 use std::str;
 
 use error::{
-    ContentTypeError, HttpRangeError, ParseError, PayloadError, ReadlinesError,
-    UrlencodedError,
+    ContentTypeError, ParseError, PayloadError, ReadlinesError, UrlencodedError,
 };
 use header::Header;
 use json::JsonBody;
@@ -92,17 +90,6 @@ pub trait HttpMessage {
             }
         } else {
             Ok(false)
-        }
-    }
-
-    /// Parses Range HTTP header string as per RFC 2616.
-    /// `size` is full size of response (file).
-    fn range(&self, size: u64) -> Result<Vec<HttpRange>, HttpRangeError> {
-        if let Some(range) = self.headers().get(header::RANGE) {
-            HttpRange::parse(unsafe { str::from_utf8_unchecked(range.as_bytes()) }, size)
-                .map_err(|e| e.into())
-        } else {
-            Ok(Vec::new())
         }
     }
 
@@ -635,22 +622,6 @@ mod tests {
             Some(ContentTypeError::UnknownEncoding),
             req.encoding().err()
         );
-    }
-
-    #[test]
-    fn test_no_request_range_header() {
-        let req = HttpRequest::default();
-        let ranges = req.range(100).unwrap();
-        assert!(ranges.is_empty());
-    }
-
-    #[test]
-    fn test_request_range_header() {
-        let req = TestRequest::with_header(header::RANGE, "bytes=0-4").finish();
-        let ranges = req.range(100).unwrap();
-        assert_eq!(ranges.len(), 1);
-        assert_eq!(ranges[0].start, 0);
-        assert_eq!(ranges[0].length, 5);
     }
 
     #[test]

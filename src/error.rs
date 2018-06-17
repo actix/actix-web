@@ -12,7 +12,6 @@ use futures::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use http2::Error as Http2Error;
-use http_range::HttpRangeParseError;
 use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
@@ -392,37 +391,6 @@ impl ResponseError for PayloadError {
 impl ResponseError for cookie::ParseError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::BAD_REQUEST)
-    }
-}
-
-/// Http range header parsing error
-#[derive(Fail, PartialEq, Debug)]
-pub enum HttpRangeError {
-    /// Returned if range is invalid.
-    #[fail(display = "Range header is invalid")]
-    InvalidRange,
-    /// Returned if first-byte-pos of all of the byte-range-spec
-    /// values is greater than the content size.
-    /// See `https://github.com/golang/go/commit/aa9b3d7`
-    #[fail(
-        display = "First-byte-pos of all of the byte-range-spec values is greater than the content size"
-    )]
-    NoOverlap,
-}
-
-/// Return `BadRequest` for `HttpRangeError`
-impl ResponseError for HttpRangeError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(StatusCode::BAD_REQUEST, "Invalid Range header provided")
-    }
-}
-
-impl From<HttpRangeParseError> for HttpRangeError {
-    fn from(err: HttpRangeParseError) -> HttpRangeError {
-        match err {
-            HttpRangeParseError::InvalidRange => HttpRangeError::InvalidRange,
-            HttpRangeParseError::NoOverlap => HttpRangeError::NoOverlap,
-        }
     }
 }
 
@@ -953,9 +921,6 @@ mod tests {
         let resp: HttpResponse = ParseError::Incomplete.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let resp: HttpResponse = HttpRangeError::InvalidRange.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-
         let resp: HttpResponse = CookieParseError::EmptyName.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
@@ -1003,14 +968,6 @@ mod tests {
         let e = Error::from(orig);
         let resp: HttpResponse = e.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[test]
-    fn test_range_error() {
-        let e: HttpRangeError = HttpRangeParseError::InvalidRange.into();
-        assert_eq!(e, HttpRangeError::InvalidRange);
-        let e: HttpRangeError = HttpRangeParseError::NoOverlap.into();
-        assert_eq!(e, HttpRangeError::NoOverlap);
     }
 
     #[test]

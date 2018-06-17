@@ -105,7 +105,6 @@ extern crate futures;
 extern crate cookie;
 extern crate futures_cpupool;
 extern crate http as modhttp;
-extern crate http_range;
 extern crate httparse;
 extern crate language_tags;
 extern crate libc;
@@ -258,7 +257,6 @@ pub mod http {
     pub use modhttp::{uri, Error, Extensions, HeaderMap, HttpTryFrom, Uri};
 
     pub use cookie::{Cookie, CookieBuilder};
-    pub use http_range::HttpRange;
 
     pub use helpers::NormalizePath;
 

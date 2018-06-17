@@ -46,6 +46,8 @@
 
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
+* Remove `HttpMessage::range()`
+
 
 ## [0.6.13] - 2018-06-11
 
