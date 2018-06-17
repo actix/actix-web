@@ -381,8 +381,7 @@ impl<S> HttpRequest<S> {
     }
 
     #[doc(hidden)]
-    /// Get a reference to the Params object.
-    /// Params is a container for url query parameters.
+    /// url query parameters.
     pub fn query(&self) -> &HashMap<String, String> {
         if self.extensions().get::<Query>().is_none() {
             let mut query = HashMap::new();
