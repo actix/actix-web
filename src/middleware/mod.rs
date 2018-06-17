@@ -9,6 +9,7 @@ mod logger;
 
 pub mod cors;
 pub mod csrf;
+pub mod etaghasher;
 mod defaultheaders;
 mod errhandlers;
 #[cfg(feature = "session")]
