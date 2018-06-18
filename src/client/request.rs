@@ -131,7 +131,7 @@ impl ClientRequest {
         ClientRequestBuilder {
             request: Some(ClientRequest::default()),
             err: None,
-            cookies: None,
+            cookies: CookieJar::new(),
             default_headers: true,
         }
     }
@@ -274,7 +274,7 @@ impl fmt::Debug for ClientRequest {
 pub struct ClientRequestBuilder {
     request: Option<ClientRequest>,
     err: Option<HttpError>,
-    cookies: Option<CookieJar>,
+    cookies: CookieJar,
     default_headers: bool,
 }
 
@@ -496,13 +496,7 @@ impl ClientRequestBuilder {
     /// }
     /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies.add(cookie.into_owned());
         self
     }
 
@@ -626,13 +620,13 @@ impl ClientRequestBuilder {
         let mut request = self.request.take().expect("cannot reuse request builder");
 
         // set cookies
-        if let Some(ref mut jar) = self.cookies {
-            let mut cookie = String::new();
-            for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
-            }
+        let mut cookie = String::new();
+        for c in self.cookies.delta() {
+            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+            let _ = write!(&mut cookie, "; {}={}", name, value);
+        }
+        if !cookie.is_empty() {
             request.headers.insert(
                 header::COOKIE,
                 HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
@@ -659,13 +653,13 @@ impl ClientRequestBuilder {
 
         self.body(body)
     }
-    
+
     /// Set a urlencoded body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn form<T: Serialize>(&mut self, value: T) -> Result<ClientRequest, Error> {
         let body = serde_urlencoded::to_string(&value)?;
-        
+
         let contains = if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.headers.contains_key(header::CONTENT_TYPE)
         } else {
@@ -674,7 +668,7 @@ impl ClientRequestBuilder {
         if !contains {
             self.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
         }
-        
+
         self.body(body)
     }
 
@@ -703,7 +697,7 @@ impl ClientRequestBuilder {
         ClientRequestBuilder {
             request: self.request.take(),
             err: self.err.take(),
-            cookies: self.cookies.take(),
+            cookies: mem::replace(&mut self.cookies, CookieJar::new()),
             default_headers: self.default_headers,
         }
     }
