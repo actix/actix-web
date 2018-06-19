@@ -1,8 +1,9 @@
-use bytes::{BufMut, BytesMut};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::io;
 use std::rc::Rc;
+
+use bytes::BytesMut;
 
 use body::Binary;
 
@@ -80,31 +81,13 @@ impl SharedBytes {
     #[inline]
     pub fn extend(&mut self, data: &Binary) {
         let buf = self.get_mut();
-        let data = data.as_ref();
-        buf.reserve(data.len());
-        SharedBytes::put_slice(buf, data);
+        buf.extend_from_slice(data.as_ref());
     }
 
     #[inline]
     pub fn extend_from_slice(&mut self, data: &[u8]) {
         let buf = self.get_mut();
-        buf.reserve(data.len());
-        SharedBytes::put_slice(buf, data);
-    }
-
-    #[inline]
-    pub(crate) fn put_slice(buf: &mut BytesMut, src: &[u8]) {
-        let len = src.len();
-        unsafe {
-            buf.bytes_mut()[..len].copy_from_slice(src);
-            buf.advance_mut(len);
-        }
-    }
-
-    #[inline]
-    pub(crate) fn extend_from_slice_(buf: &mut BytesMut, data: &[u8]) {
-        buf.reserve(data.len());
-        SharedBytes::put_slice(buf, data);
+        buf.extend_from_slice(data);
     }
 }
 

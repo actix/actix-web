@@ -1,9 +1,9 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use futures::Future;
-use http::{Method, StatusCode};
+use http::Method;
 use smallvec::SmallVec;
 
 use error::Error;
@@ -282,21 +282,18 @@ impl<S: 'static> ResourceHandler<S> {
     }
 
     pub(crate) fn handle(
-        &mut self, mut req: HttpRequest<S>, default: Option<&mut ResourceHandler<S>>,
-    ) -> AsyncResult<HttpResponse> {
+        &mut self, mut req: HttpRequest<S>,
+    ) -> Result<AsyncResult<HttpResponse>, HttpRequest<S>> {
         for route in &mut self.routes {
             if route.check(&mut req) {
                 return if self.middlewares.borrow().is_empty() {
-                    route.handle(req)
+                    Ok(route.handle(req))
                 } else {
-                    route.compose(req, Rc::clone(&self.middlewares))
+                    Ok(route.compose(req, Rc::clone(&self.middlewares)))
                 };
             }
         }
-        if let Some(resource) = default {
-            resource.handle(req, None)
-        } else {
-            AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
-        }
+
+        Err(req)
     }
 }

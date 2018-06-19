@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use handler::{AsyncResult, FromRequest, Handler, Responder, RouteHandler, WrapHandler};
 use header::ContentEncoding;
-use http::Method;
+use http::{Method, StatusCode};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
@@ -49,14 +49,21 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         &mut self, req: HttpRequest<S>, htype: HandlerType,
     ) -> AsyncResult<HttpResponse> {
         match htype {
-            HandlerType::Normal(idx) => {
-                self.resources[idx].handle(req, Some(&mut self.default))
-            }
+            HandlerType::Normal(idx) => match self.resources[idx].handle(req) {
+                Ok(result) => result,
+                Err(req) => match self.default.handle(req) {
+                    Ok(result) => result,
+                    Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
+                },
+            },
             HandlerType::Handler(idx) => match self.handlers[idx] {
                 PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
                 PrefixHandlerType::Scope(_, ref mut hnd, _) => hnd.handle(req),
             },
-            HandlerType::Default => self.default.handle(req, None),
+            HandlerType::Default => match self.default.handle(req) {
+                Ok(result) => result,
+                Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
+            },
         }
     }
 }

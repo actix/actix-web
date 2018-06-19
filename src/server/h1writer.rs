@@ -163,18 +163,18 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);
-            SharedBytes::extend_from_slice_(buffer, reason);
+            buffer.extend_from_slice(reason);
 
             match body {
                 Body::Empty => if req.method != Method::HEAD {
-                    SharedBytes::put_slice(buffer, b"\r\ncontent-length: 0\r\n");
+                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
                 } else {
-                    SharedBytes::put_slice(buffer, b"\r\n");
+                    buffer.extend_from_slice(b"\r\n");
                 },
                 Body::Binary(ref bytes) => {
                     helpers::write_content_length(bytes.len(), &mut buffer)
                 }
-                _ => SharedBytes::put_slice(buffer, b"\r\n"),
+                _ => buffer.extend_from_slice(b"\r\n"),
             }
 
             // write headers
@@ -218,7 +218,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 self.settings.set_date(&mut buffer);
             } else {
                 // msg eof
-                SharedBytes::extend_from_slice_(buffer, b"\r\n");
+                buffer.extend_from_slice(b"\r\n");
             }
             self.headers_size = buffer.len() as u32;
         }

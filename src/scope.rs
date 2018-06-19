@@ -7,7 +7,7 @@ use futures::{Async, Future, Poll};
 
 use error::Error;
 use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler};
-use http::Method;
+use http::{Method, StatusCode};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{
@@ -18,8 +18,9 @@ use pred::Predicate;
 use resource::ResourceHandler;
 use router::Resource;
 
+type ScopeResource<S> = Rc<RefCell<ResourceHandler<S>>>;
 type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
-type ScopeResources<S> = Rc<Vec<(Resource, Rc<UnsafeCell<ResourceHandler<S>>>)>>;
+type ScopeResources<S> = Rc<Vec<(Resource, ScopeResource<S>)>>;
 type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 
 /// Resources scope
@@ -57,7 +58,7 @@ pub struct Scope<S: 'static> {
     filters: Vec<Box<Predicate<S>>>,
     nested: Vec<NestedInfo<S>>,
     middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-    default: Rc<UnsafeCell<ResourceHandler<S>>>,
+    default: Option<ScopeResource<S>>,
     resources: ScopeResources<S>,
 }
 
@@ -71,7 +72,7 @@ impl<S: 'static> Scope<S> {
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(RefCell::new(Vec::new())),
-            default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
+            default: None,
         }
     }
 
@@ -135,7 +136,7 @@ impl<S: 'static> Scope<S> {
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(RefCell::new(Vec::new())),
-            default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
+            default: None,
         };
         let mut scope = f(scope);
 
@@ -178,7 +179,7 @@ impl<S: 'static> Scope<S> {
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
             middlewares: Rc::new(RefCell::new(Vec::new())),
-            default: Rc::new(UnsafeCell::new(ResourceHandler::default_not_found())),
+            default: None,
         };
         let mut scope = f(scope);
 
@@ -229,8 +230,7 @@ impl<S: 'static> Scope<S> {
         let slf: &Scope<S> = unsafe { &*(&self as *const _) };
         for &(ref pattern, ref resource) in slf.resources.iter() {
             if pattern.pattern() == path {
-                let resource = unsafe { &mut *resource.get() };
-                resource.method(method).with(f);
+                resource.borrow_mut().method(method).with(f);
                 return self;
             }
         }
@@ -245,7 +245,7 @@ impl<S: 'static> Scope<S> {
         );
         Rc::get_mut(&mut self.resources)
             .expect("Can not use after configuration")
-            .push((pattern, Rc::new(UnsafeCell::new(handler))));
+            .push((pattern, Rc::new(RefCell::new(handler))));
 
         self
     }
@@ -289,18 +289,21 @@ impl<S: 'static> Scope<S> {
         );
         Rc::get_mut(&mut self.resources)
             .expect("Can not use after configuration")
-            .push((pattern, Rc::new(UnsafeCell::new(handler))));
+            .push((pattern, Rc::new(RefCell::new(handler))));
 
         self
     }
 
     /// Default resource to be used if no matching route could be found.
-    pub fn default_resource<F, R>(self, f: F) -> Scope<S>
+    pub fn default_resource<F, R>(mut self, f: F) -> Scope<S>
     where
         F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
     {
-        let default = unsafe { &mut *self.default.as_ref().get() };
-        f(default);
+        if self.default.is_none() {
+            self.default =
+                Some(Rc::new(RefCell::new(ResourceHandler::default_not_found())));
+        }
+        f(&mut *self.default.as_ref().unwrap().borrow_mut());
         self
     }
 
@@ -327,17 +330,27 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(&mut req, tail, false) {
-                let default = unsafe { &mut *self.default.as_ref().get() };
-
                 if self.middlewares.borrow().is_empty() {
-                    let resource = unsafe { &mut *resource.get() };
-                    return resource.handle(req, Some(default));
+                    return match resource.borrow_mut().handle(req) {
+                        Ok(result) => result,
+                        Err(req) => {
+                            if let Some(ref default) = self.default {
+                                match default.borrow_mut().handle(req) {
+                                    Ok(result) => result,
+                                    Err(_) => AsyncResult::ok(HttpResponse::new(
+                                        StatusCode::NOT_FOUND,
+                                    )),
+                                }
+                            } else {
+                                AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
+                            }
+                        }
+                    };
                 } else {
                     return AsyncResult::async(Box::new(Compose::new(
                         req,
                         Rc::clone(&self.middlewares),
                         Rc::clone(&resource),
-                        Some(Rc::clone(&self.default)),
                     )));
                 }
             }
@@ -365,16 +378,23 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         }
 
         // default handler
-        let default = unsafe { &mut *self.default.as_ref().get() };
         if self.middlewares.borrow().is_empty() {
-            default.handle(req, None)
-        } else {
+            if let Some(ref default) = self.default {
+                match default.borrow_mut().handle(req) {
+                    Ok(result) => result,
+                    Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
+                }
+            } else {
+                AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
+            }
+        } else if let Some(ref default) = self.default {
             AsyncResult::async(Box::new(Compose::new(
                 req,
                 Rc::clone(&self.middlewares),
-                Rc::clone(&self.default),
-                None,
+                Rc::clone(default),
             )))
+        } else {
+            unimplemented!()
         }
     }
 }
@@ -417,8 +437,7 @@ struct ComposeInfo<S: 'static> {
     count: usize,
     req: HttpRequest<S>,
     mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-    default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
-    resource: Rc<UnsafeCell<ResourceHandler<S>>>,
+    resource: Rc<RefCell<ResourceHandler<S>>>,
 }
 
 enum ComposeState<S: 'static> {
@@ -444,15 +463,13 @@ impl<S: 'static> ComposeState<S> {
 impl<S: 'static> Compose<S> {
     fn new(
         req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-        resource: Rc<UnsafeCell<ResourceHandler<S>>>,
-        default: Option<Rc<UnsafeCell<ResourceHandler<S>>>>,
+        resource: Rc<RefCell<ResourceHandler<S>>>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
             req,
             mws,
             resource,
-            default,
         };
         let state = StartMiddlewares::init(&mut info);
 
@@ -492,12 +509,10 @@ impl<S: 'static> StartMiddlewares<S> {
         let len = info.mws.borrow().len();
         loop {
             if info.count == len {
-                let resource = unsafe { &mut *info.resource.get() };
-                let reply = if let Some(ref default) = info.default {
-                    let d = unsafe { &mut *default.as_ref().get() };
-                    resource.handle(info.req.clone(), Some(d))
-                } else {
-                    resource.handle(info.req.clone(), None)
+                let reply = {
+                    let req = info.req.clone();
+                    let mut resource = info.resource.borrow_mut();
+                    resource.handle(req).unwrap()
                 };
                 return WaitingResponse::init(info, reply);
             } else {
@@ -531,12 +546,10 @@ impl<S: 'static> StartMiddlewares<S> {
                     }
                     loop {
                         if info.count == len {
-                            let resource = unsafe { &mut *info.resource.get() };
-                            let reply = if let Some(ref default) = info.default {
-                                let d = unsafe { &mut *default.as_ref().get() };
-                                resource.handle(info.req.clone(), Some(d))
-                            } else {
-                                resource.handle(info.req.clone(), None)
+                            let reply = {
+                                let req = info.req.clone();
+                                let mut resource = info.resource.borrow_mut();
+                                resource.handle(req).unwrap()
                             };
                             return Some(WaitingResponse::init(info, reply));
                         } else {
