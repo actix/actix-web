@@ -336,8 +336,7 @@ impl Pipeline {
 
         // need read?
         if self.parser.is_some() {
-            let conn: &mut Connection =
-                unsafe { &mut *(self.conn.as_mut().unwrap() as *mut _) };
+            let conn: &mut Connection = self.conn.as_mut().unwrap();
 
             loop {
                 match self
