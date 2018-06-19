@@ -1,5 +1,5 @@
 #![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-use byteorder::{BigEndian, ByteOrder, NetworkEndian};
+use byteorder::{ByteOrder, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use rand;
@@ -312,20 +312,12 @@ impl Frame {
         } else if payload_len <= 65_535 {
             let mut buf = BytesMut::with_capacity(p_len + 4);
             buf.put_slice(&[one, two | 126]);
-            {
-                let buf_mut = unsafe { buf.bytes_mut() };
-                BigEndian::write_u16(&mut buf_mut[..2], payload_len as u16);
-            }
-            unsafe { buf.advance_mut(2) };
+            buf.put_u16_be(payload_len as u16);
             buf
         } else {
             let mut buf = BytesMut::with_capacity(p_len + 10);
             buf.put_slice(&[one, two | 127]);
-            {
-                let buf_mut = unsafe { buf.bytes_mut() };
-                BigEndian::write_u64(&mut buf_mut[..8], payload_len as u64);
-            }
-            unsafe { buf.advance_mut(8) };
+            buf.put_u64_be(payload_len as u64);
             buf
         };
 
