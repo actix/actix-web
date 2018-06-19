@@ -294,7 +294,7 @@ impl ClientConnector {
     /// With `with_connector` method it is possible to use a custom
     /// `SslConnector` object.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # #![cfg(feature="alpn")]
     /// # extern crate actix_web;
     /// # extern crate futures;
