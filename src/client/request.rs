@@ -13,9 +13,9 @@ use serde_json;
 use serde_urlencoded;
 use url::Url;
 
-use super::body::ClientBody;
 use super::connector::{ClientConnector, Connection};
 use super::pipeline::SendRequest;
+use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
 use http::header::{self, HeaderName, HeaderValue};
@@ -34,7 +34,9 @@ use httprequest::HttpRequest;
 /// use actix_web::client::ClientRequest;
 ///
 /// fn main() {
-///     tokio::run(
+///     let mut sys = actix_web::actix::System::new("test");
+///
+///     sys.block_on(
 ///         ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
 ///             .header("User-Agent", "Actix-web")
 ///             .finish().unwrap()
@@ -42,7 +44,6 @@ use httprequest::HttpRequest;
 ///             .map_err(|_| ())
 ///             .and_then(|response| {                     // <- server http response
 ///                 println!("Response: {:?}", response);
-/// #               process::exit(0);
 ///                 Ok(())
 ///             }),
 ///     );
@@ -53,7 +54,7 @@ pub struct ClientRequest {
     method: Method,
     version: Version,
     headers: HeaderMap,
-    body: ClientBody,
+    body: Body,
     chunked: bool,
     upgrade: bool,
     timeout: Option<Duration>,
@@ -76,7 +77,7 @@ impl Default for ClientRequest {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            body: ClientBody::Empty,
+            body: Body::Empty,
             chunked: false,
             upgrade: false,
             timeout: None,
@@ -220,17 +221,17 @@ impl ClientRequest {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &ClientBody {
+    pub fn body(&self) -> &Body {
         &self.body
     }
 
     /// Set a body
-    pub fn set_body<B: Into<ClientBody>>(&mut self, body: B) {
+    pub fn set_body<B: Into<Body>>(&mut self, body: B) {
         self.body = body.into();
     }
 
     /// Extract body, replace it with `Empty`
-    pub(crate) fn replace_body(&mut self, body: ClientBody) -> ClientBody {
+    pub(crate) fn replace_body(&mut self, body: Body) -> Body {
         mem::replace(&mut self.body, body)
     }
 
@@ -585,9 +586,7 @@ impl ClientRequestBuilder {
     /// Set a body and generate `ClientRequest`.
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn body<B: Into<ClientBody>>(
-        &mut self, body: B,
-    ) -> Result<ClientRequest, Error> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Result<ClientRequest, Error> {
         if let Some(e) = self.err.take() {
             return Err(e.into());
         }
@@ -659,13 +658,13 @@ impl ClientRequestBuilder {
 
         self.body(body)
     }
-    
+
     /// Set a urlencoded body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn form<T: Serialize>(&mut self, value: T) -> Result<ClientRequest, Error> {
         let body = serde_urlencoded::to_string(&value)?;
-        
+
         let contains = if let Some(parts) = parts(&mut self.request, &self.err) {
             parts.headers.contains_key(header::CONTENT_TYPE)
         } else {
@@ -674,7 +673,7 @@ impl ClientRequestBuilder {
         if !contains {
             self.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
         }
-        
+
         self.body(body)
     }
 
@@ -683,19 +682,17 @@ impl ClientRequestBuilder {
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Result<ClientRequest, Error>
     where
-        S: Stream<Item = Bytes, Error = E> + Send + 'static,
+        S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error>,
     {
-        self.body(ClientBody::Streaming(Box::new(
-            stream.map_err(|e| e.into()),
-        )))
+        self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
     /// Set an empty body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn finish(&mut self) -> Result<ClientRequest, Error> {
-        self.body(ClientBody::Empty)
+        self.body(Body::Empty)
     }
 
     /// This method construct new `ClientRequestBuilder`

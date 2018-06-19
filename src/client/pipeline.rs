@@ -9,10 +9,11 @@ use tokio_timer::Delay;
 use actix::{Addr, Request, SystemService};
 
 use super::{
-    ClientBody, ClientBodyStream, ClientConnector, ClientConnectorError, ClientRequest,
-    ClientResponse, Connect, Connection, HttpClientWriter, HttpResponseParser,
-    HttpResponseParserError,
+    ClientConnector, ClientConnectorError, ClientRequest, ClientResponse, Connect,
+    Connection, HttpClientWriter, HttpResponseParser, HttpResponseParserError,
 };
+use body::{Body, BodyStream};
+use context::{ActorHttpContext, Frame};
 use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
@@ -177,9 +178,9 @@ impl Future for SendRequest {
                     let mut writer = HttpClientWriter::new();
                     writer.start(&mut self.req)?;
 
-                    let body = match self.req.replace_body(ClientBody::Empty) {
-                        ClientBody::Streaming(stream) => IoBody::Payload(stream),
-                        ClientBody::Actor(_) => panic!("Client actor is not supported"),
+                    let body = match self.req.replace_body(Body::Empty) {
+                        Body::Streaming(stream) => IoBody::Payload(stream),
+                        Body::Actor(ctx) => IoBody::Actor(ctx),
                         _ => IoBody::Done,
                     };
 
@@ -245,7 +246,8 @@ pub(crate) struct Pipeline {
 }
 
 enum IoBody {
-    Payload(ClientBodyStream),
+    Payload(BodyStream),
+    Actor(Box<ActorHttpContext>),
     Done,
 }
 
@@ -405,24 +407,67 @@ impl Pipeline {
 
         let mut done = false;
         if self.drain.is_none() && self.write_state != RunningState::Paused {
-            loop {
+            'outter: loop {
                 let result = match mem::replace(&mut self.body, IoBody::Done) {
-                    IoBody::Payload(mut stream) => match stream.poll()? {
+                    IoBody::Payload(mut body) => match body.poll()? {
                         Async::Ready(None) => {
                             self.writer.write_eof()?;
                             self.body_completed = true;
                             break;
                         }
                         Async::Ready(Some(chunk)) => {
-                            self.body = IoBody::Payload(stream);
+                            self.body = IoBody::Payload(body);
                             self.writer.write(chunk.as_ref())?
                         }
                         Async::NotReady => {
                             done = true;
-                            self.body = IoBody::Payload(stream);
+                            self.body = IoBody::Payload(body);
                             break;
                         }
                     },
+                    IoBody::Actor(mut ctx) => {
+                        if self.disconnected {
+                            ctx.disconnected();
+                        }
+                        match ctx.poll()? {
+                            Async::Ready(Some(vec)) => {
+                                if vec.is_empty() {
+                                    self.body = IoBody::Actor(ctx);
+                                    break;
+                                }
+                                let mut res = None;
+                                for frame in vec {
+                                    match frame {
+                                        Frame::Chunk(None) => {
+                                            self.body_completed = true;
+                                            self.writer.write_eof()?;
+                                            break 'outter;
+                                        }
+                                        Frame::Chunk(Some(chunk)) => {
+                                            res =
+                                                Some(self.writer.write(chunk.as_ref())?)
+                                        }
+                                        Frame::Drain(fut) => self.drain = Some(fut),
+                                    }
+                                }
+                                self.body = IoBody::Actor(ctx);
+                                if self.drain.is_some() {
+                                    self.write_state.resume();
+                                    break;
+                                }
+                                res.unwrap()
+                            }
+                            Async::Ready(None) => {
+                                done = true;
+                                break;
+                            }
+                            Async::NotReady => {
+                                done = true;
+                                self.body = IoBody::Actor(ctx);
+                                break;
+                            }
+                        }
+                    }
                     IoBody::Done => {
                         self.body_completed = true;
                         done = true;

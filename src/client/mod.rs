@@ -24,7 +24,6 @@
 //!     );
 //! }
 //! ```
-mod body;
 mod connector;
 mod parser;
 mod pipeline;
@@ -32,7 +31,6 @@ mod request;
 mod response;
 mod writer;
 
-pub use self::body::{ClientBody, ClientBodyStream};
 pub use self::connector::{
     ClientConnector, ClientConnectorError, ClientConnectorStats, Connect, Connection,
     Pause, Resume,
@@ -71,7 +69,9 @@ impl ResponseError for SendRequestError {
 /// use actix_web::client;
 ///
 /// fn main() {
-///     tokio::run(
+///     let mut sys = actix_web::actix::System::new("test");
+///
+///     sys.block_on(
 ///         client::get("http://www.rust-lang.org")   // <- Create request builder
 ///             .header("User-Agent", "Actix-web")
 ///             .finish().unwrap()
@@ -79,7 +79,6 @@ impl ResponseError for SendRequestError {
 ///             .map_err(|_| ())
 ///             .and_then(|response| {                // <- server http response
 ///                 println!("Response: {:?}", response);
-/// #               process::exit(0);
 ///                 Ok(())
 ///             }),
 ///     );

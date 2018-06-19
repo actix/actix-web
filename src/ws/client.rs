@@ -16,14 +16,14 @@ use sha1::Sha1;
 
 use actix::{Addr, SystemService};
 
-use body::Binary;
+use body::{Binary, Body};
 use error::{Error, UrlParseError};
 use header::IntoHeaderValue;
 use httpmessage::HttpMessage;
 use payload::PayloadHelper;
 
 use client::{
-    ClientBody, ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
+    ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
     HttpResponseParserError, SendRequest, SendRequestError,
 };
 
@@ -297,7 +297,7 @@ impl ClientHandshake {
         );
 
         let (tx, rx) = unbounded();
-        request.set_body(ClientBody::Streaming(Box::new(rx.map_err(|_| {
+        request.set_body(Body::Streaming(Box::new(rx.map_err(|_| {
             io::Error::new(io::ErrorKind::Other, "disconnected").into()
         }))));
 

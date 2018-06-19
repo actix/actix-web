@@ -19,12 +19,12 @@ use http::{HttpTryFrom, Version};
 use time::{self, Duration};
 use tokio_io::AsyncWrite;
 
-use body::Binary;
+use body::{Binary, Body};
 use header::ContentEncoding;
 use server::encoding::{ContentEncoder, TransferEncoding};
 use server::WriterState;
 
-use client::{ClientBody, ClientRequest};
+use client::ClientRequest;
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -133,7 +133,7 @@ impl HttpClientWriter {
             ).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             // write headers
-            if let ClientBody::Binary(ref bytes) = *msg.body() {
+            if let Body::Binary(ref bytes) = *msg.body() {
                 self.buffer
                     .reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
@@ -162,7 +162,7 @@ impl HttpClientWriter {
             self.headers_size = self.buffer.len() as u32;
 
             if msg.body().is_binary() {
-                if let ClientBody::Binary(bytes) = msg.replace_body(ClientBody::Empty) {
+                if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
                     self.written += bytes.len() as u64;
                     self.encoder.write(bytes.as_ref())?;
                 }
@@ -223,15 +223,15 @@ impl HttpClientWriter {
 
 fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncoder {
     let version = req.version();
-    let mut body = req.replace_body(ClientBody::Empty);
+    let mut body = req.replace_body(Body::Empty);
     let mut encoding = req.content_encoding();
 
     let mut transfer = match body {
-        ClientBody::Empty => {
+        Body::Empty => {
             req.headers_mut().remove(CONTENT_LENGTH);
             TransferEncoding::length(0)
         }
-        ClientBody::Binary(ref mut bytes) => {
+        Body::Binary(ref mut bytes) => {
             if encoding.is_compression() {
                 let mut tmp = BytesMut::new();
                 let mut transfer = TransferEncoding::eof();
@@ -270,7 +270,7 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
                 .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
             TransferEncoding::eof()
         }
-        ClientBody::Streaming(_) | ClientBody::Actor(_) => {
+        Body::Streaming(_) | Body::Actor(_) => {
             if req.upgrade() {
                 if version == Version::HTTP_2 {
                     error!("Connection upgrade is forbidden for HTTP/2");
