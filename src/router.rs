@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::mem;
 use std::rc::Rc;
 
 use regex::{escape, Regex};
+use smallvec::SmallVec;
 
 use error::UrlGenerationError;
 use httprequest::HttpRequest;
@@ -264,9 +264,9 @@ impl Resource {
     pub fn match_with_params<S>(
         &self, req: &mut HttpRequest<S>, plen: usize, insert: bool,
     ) -> bool {
-        let mut segments: [ParamItem; 24] = unsafe { mem::uninitialized() };
+        let mut segments: SmallVec<[ParamItem; 5]> = SmallVec::new();
 
-        let (names, segments_len) = {
+        let names = {
             let path = &req.path()[plen..];
             if insert {
                 if path.is_empty() {
@@ -282,7 +282,6 @@ impl Resource {
                 PatternType::Static(ref s) => return s == path,
                 PatternType::Dynamic(ref re, ref names, _) => {
                     if let Some(captures) = re.captures(path) {
-                        let mut idx = 0;
                         let mut passed = false;
                         for capture in captures.iter() {
                             if let Some(ref m) = capture {
@@ -290,14 +289,13 @@ impl Resource {
                                     passed = true;
                                     continue;
                                 }
-                                segments[idx] = ParamItem::UrlSegment(
+                                segments.push(ParamItem::UrlSegment(
                                     (plen + m.start()) as u16,
                                     (plen + m.end()) as u16,
-                                );
-                                idx += 1;
+                                ));
                             }
                         }
-                        (names, idx)
+                        names
                     } else {
                         return false;
                     }
@@ -309,9 +307,11 @@ impl Resource {
         let len = req.path().len();
         let params = req.match_info_mut();
         params.set_tail(len as u16);
-        for idx in 0..segments_len {
+        for (idx, segment) in segments.iter().enumerate() {
+            // reason: Router is part of App, which is unique per thread
+            // app is alive during whole life of tthread
             let name = unsafe { &*(names[idx].as_str() as *const _) };
-            params.add(name, segments[idx]);
+            params.add(name, *segment);
         }
         true
     }
@@ -320,9 +320,9 @@ impl Resource {
     pub fn match_prefix_with_params<S>(
         &self, req: &mut HttpRequest<S>, plen: usize,
     ) -> Option<usize> {
-        let mut segments: [ParamItem; 24] = unsafe { mem::uninitialized() };
+        let mut segments: SmallVec<[ParamItem; 5]> = SmallVec::new();
 
-        let (names, segments_len, tail_len) = {
+        let (names, tail_len) = {
             let path = &req.path()[plen..];
             let path = if path.is_empty() { "/" } else { path };
 
@@ -334,7 +334,6 @@ impl Resource {
                 },
                 PatternType::Dynamic(ref re, ref names, len) => {
                     if let Some(captures) = re.captures(path) {
-                        let mut idx = 0;
                         let mut pos = 0;
                         let mut passed = false;
                         for capture in captures.iter() {
@@ -344,15 +343,14 @@ impl Resource {
                                     continue;
                                 }
 
-                                segments[idx] = ParamItem::UrlSegment(
+                                segments.push(ParamItem::UrlSegment(
                                     (plen + m.start()) as u16,
                                     (plen + m.end()) as u16,
-                                );
-                                idx += 1;
+                                ));
                                 pos = m.end();
                             }
                         }
-                        (names, idx, pos + len)
+                        (names, pos + len)
                     } else {
                         return None;
                     }
@@ -378,9 +376,11 @@ impl Resource {
 
         let params = req.match_info_mut();
         params.set_tail(tail_len as u16);
-        for idx in 0..segments_len {
+        for (idx, segment) in segments.iter().enumerate() {
+            // reason: Router is part of App, which is unique per thread
+            // app is alive during whole life of tthread
             let name = unsafe { &*(names[idx].as_str() as *const _) };
-            params.add(name, segments[idx]);
+            params.add(name, *segment);
         }
         Some(tail_len)
     }

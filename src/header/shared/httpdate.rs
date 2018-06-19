@@ -64,11 +64,7 @@ impl IntoHeaderValue for HttpDate {
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(wrt, "{}", self.0.rfc822()).unwrap();
-        unsafe {
-            Ok(HeaderValue::from_shared_unchecked(
-                wrt.get_mut().take().freeze(),
-            ))
-        }
+        HeaderValue::from_shared(wrt.get_mut().take().freeze())
     }
 }
 

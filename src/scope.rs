@@ -226,27 +226,35 @@ impl<S: 'static> Scope<S> {
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        // get resource handler
-        let slf: &Scope<S> = unsafe { &*(&self as *const _) };
-        for &(ref pattern, ref resource) in slf.resources.iter() {
+        // check if we have resource handler
+        let mut found = false;
+        for &(ref pattern, _) in self.resources.iter() {
             if pattern.pattern() == path {
-                resource.borrow_mut().method(method).with(f);
-                return self;
+                found = true;
+                break;
             }
         }
 
-        let mut handler = ResourceHandler::default();
-        handler.method(method).with(f);
-        let pattern = Resource::with_prefix(
-            handler.get_name(),
-            path,
-            if path.is_empty() { "" } else { "/" },
-            false,
-        );
-        Rc::get_mut(&mut self.resources)
-            .expect("Can not use after configuration")
-            .push((pattern, Rc::new(RefCell::new(handler))));
-
+        if found {
+            for &(ref pattern, ref resource) in self.resources.iter() {
+                if pattern.pattern() == path {
+                    resource.borrow_mut().method(method).with(f);
+                    break;
+                }
+            }
+        } else {
+            let mut handler = ResourceHandler::default();
+            handler.method(method).with(f);
+            let pattern = Resource::with_prefix(
+                handler.get_name(),
+                path,
+                if path.is_empty() { "" } else { "/" },
+                false,
+            );
+            Rc::get_mut(&mut self.resources)
+                .expect("Can not use after configuration")
+                .push((pattern, Rc::new(RefCell::new(handler))));
+        }
         self
     }
 

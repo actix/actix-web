@@ -161,7 +161,7 @@ impl IntoHeaderValue for EntityTag {
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = Writer::new();
         write!(wrt, "{}", self).unwrap();
-        unsafe { Ok(HeaderValue::from_shared_unchecked(wrt.take())) }
+        HeaderValue::from_shared(wrt.take())
     }
 }
 

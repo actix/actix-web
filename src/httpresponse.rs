@@ -894,7 +894,9 @@ pub(crate) struct InnerHttpResponse {
     error: Option<Error>,
 }
 
+/// This is here only because `failure::Fail: Send + Sync` which looks insane to me
 unsafe impl Sync for InnerHttpResponse {}
+/// This is here only because `failure::Fail: Send + Sync` which looks insane to me
 unsafe impl Send for InnerHttpResponse {}
 
 impl InnerHttpResponse {
@@ -912,6 +914,20 @@ impl InnerHttpResponse {
             response_size: 0,
             write_capacity: MAX_WRITE_BUFFER_SIZE,
             error: None,
+        }
+    }
+
+    /// This is for failure, we can not have Send + Sync on Streaming and Actor response
+    pub(crate) fn drop_unsupported_body(&mut self) {
+        let body = mem::replace(&mut self.body, Body::Empty);
+        match body {
+            Body::Empty => (),
+            Body::Binary(mut bin) => {
+                self.body = Body::Binary(bin.take().into());
+            }
+            Body::Streaming(_) | Body::Actor(_) => {
+                error!("Streaming or Actor body is not support by error response");
+            }
         }
     }
 }

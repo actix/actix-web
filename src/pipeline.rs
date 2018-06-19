@@ -124,7 +124,7 @@ impl<S> PipelineInfo<S> {
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
     pub fn new(
         req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-        handler: Rc<UnsafeCell<H>>, htype: HandlerType,
+        handler: Rc<RefCell<H>>, htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
             mws,
@@ -133,7 +133,7 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
             error: None,
             context: None,
             disconnected: None,
-            encoding: unsafe { &*handler.get() }.encoding(),
+            encoding: handler.borrow().encoding(),
         };
         let state = StartMiddlewares::init(&mut info, handler, htype);
 
@@ -171,13 +171,12 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
     }
 
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
-        let info: &mut PipelineInfo<_> = unsafe { &mut *(&mut self.0 as *mut _) };
+        let mut state = mem::replace(&mut self.1, PipelineState::None);
 
         loop {
-            if self.1.is_response() {
-                let state = mem::replace(&mut self.1, PipelineState::None);
+            if state.is_response() {
                 if let PipelineState::Response(st) = state {
-                    match st.poll_io(io, info) {
+                    match st.poll_io(io, &mut self.0) {
                         Ok(state) => {
                             self.1 = state;
                             if let Some(error) = self.0.error.take() {
@@ -193,7 +192,7 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
                     }
                 }
             }
-            match self.1 {
+            match state {
                 PipelineState::None => return Ok(Async::Ready(true)),
                 PipelineState::Error => {
                     return Err(
@@ -203,27 +202,32 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
                 _ => (),
             }
 
-            match self.1.poll(info) {
-                Some(state) => self.1 = state,
-                None => return Ok(Async::NotReady),
+            match state.poll(&mut self.0) {
+                Some(st) => state = st,
+                None => {
+                    return {
+                        self.1 = state;
+                        Ok(Async::NotReady)
+                    }
+                }
             }
         }
     }
 
     fn poll_completed(&mut self) -> Poll<(), Error> {
-        let info: &mut PipelineInfo<_> = unsafe { &mut *(&mut self.0 as *mut _) };
-
+        let mut state = mem::replace(&mut self.1, PipelineState::None);
         loop {
-            match self.1 {
+            match state {
                 PipelineState::None | PipelineState::Error => {
                     return Ok(Async::Ready(()))
                 }
                 _ => (),
             }
 
-            if let Some(state) = self.1.poll(info) {
-                self.1 = state;
+            if let Some(st) = state.poll(&mut self.0) {
+                state = st;
             } else {
+                self.1 = state;
                 return Ok(Async::NotReady);
             }
         }
@@ -234,7 +238,7 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 
 /// Middlewares start executor
 struct StartMiddlewares<S, H> {
-    hnd: Rc<UnsafeCell<H>>,
+    hnd: Rc<RefCell<H>>,
     htype: HandlerType,
     fut: Option<Fut>,
     _s: PhantomData<S>,
@@ -242,14 +246,14 @@ struct StartMiddlewares<S, H> {
 
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(
-        info: &mut PipelineInfo<S>, hnd: Rc<UnsafeCell<H>>, htype: HandlerType,
+        info: &mut PipelineInfo<S>, hnd: Rc<RefCell<H>>, htype: HandlerType,
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
         let len = info.mws.borrow().len() as u16;
         loop {
             if info.count == len {
-                let reply = unsafe { &mut *hnd.get() }.handle(info.req().clone(), htype);
+                let reply = hnd.borrow_mut().handle(info.req().clone(), htype);
                 return WaitingResponse::init(info, reply);
             } else {
                 let state =
@@ -285,7 +289,9 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     }
                     loop {
                         if info.count == len {
-                            let reply = unsafe { &mut *self.hnd.get() }
+                            let reply = self
+                                .hnd
+                                .borrow_mut()
                                 .handle(info.req().clone(), self.htype);
                             return Some(WaitingResponse::init(info, reply));
                         } else {

@@ -1,9 +1,10 @@
-use http::StatusCode;
-use smallvec::SmallVec;
 use std;
 use std::ops::Index;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use http::StatusCode;
+use smallvec::SmallVec;
 
 use error::{InternalError, ResponseError, UriSegmentError};
 use uri::Url;

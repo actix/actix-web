@@ -7,7 +7,7 @@ use std::ptr::copy_nonoverlapping;
 /// Mask/unmask a frame.
 #[inline]
 pub fn apply_mask(buf: &mut [u8], mask: u32) {
-    apply_mask_fast32(buf, mask)
+    unsafe { apply_mask_fast32(buf, mask) }
 }
 
 /// A safe unoptimized mask application.
@@ -20,9 +20,11 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
 }
 
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
+///
+/// unsafe because uses pointer math and bit operations for performance
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
-fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
+unsafe fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
     let mut ptr = buf.as_mut_ptr();
     let mut len = buf.len();
 
@@ -32,10 +34,8 @@ fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
         let n = if head > 4 { head - 4 } else { head };
 
         let mask_u32 = if n > 0 {
-            unsafe {
-                xor_mem(ptr, mask_u32, n);
-                ptr = ptr.offset(head as isize);
-            }
+            xor_mem(ptr, mask_u32, n);
+            ptr = ptr.offset(head as isize);
             len -= n;
             if cfg!(target_endian = "big") {
                 mask_u32.rotate_left(8 * n as u32)
@@ -47,11 +47,9 @@ fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
         };
 
         if head > 4 {
-            unsafe {
-                *(ptr as *mut u32) ^= mask_u32;
-                ptr = ptr.offset(4);
-                len -= 4;
-            }
+            *(ptr as *mut u32) ^= mask_u32;
+            ptr = ptr.offset(4);
+            len -= 4;
         }
         mask_u32
     } else {
@@ -68,27 +66,21 @@ fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
         mask_u64 = mask_u64 << 32 | mask_u32 as u64;
 
         while len >= 8 {
-            unsafe {
-                *(ptr as *mut u64) ^= mask_u64;
-                ptr = ptr.offset(8);
-                len -= 8;
-            }
+            *(ptr as *mut u64) ^= mask_u64;
+            ptr = ptr.offset(8);
+            len -= 8;
         }
     }
 
     while len >= 4 {
-        unsafe {
-            *(ptr as *mut u32) ^= mask_u32;
-            ptr = ptr.offset(4);
-            len -= 4;
-        }
+        *(ptr as *mut u32) ^= mask_u32;
+        ptr = ptr.offset(4);
+        len -= 4;
     }
 
     // Possible last block.
     if len > 0 {
-        unsafe {
-            xor_mem(ptr, mask_u32, len);
-        }
+        xor_mem(ptr, mask_u32, len);
     }
 }
 
@@ -107,7 +99,7 @@ unsafe fn xor_mem(ptr: *mut u8, mask: u32, len: usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_mask_fallback, apply_mask_fast32};
+    use super::{apply_mask, apply_mask_fallback};
     use std::ptr;
 
     #[test]
@@ -126,7 +118,7 @@ mod tests {
             apply_mask_fallback(&mut masked, &mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast, mask_u32);
+            apply_mask(&mut masked_fast, mask_u32);
 
             assert_eq!(masked, masked_fast);
         }
@@ -137,7 +129,7 @@ mod tests {
             apply_mask_fallback(&mut masked[1..], &mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast[1..], mask_u32);
+            apply_mask(&mut masked_fast[1..], mask_u32);
 
             assert_eq!(masked, masked_fast);
         }

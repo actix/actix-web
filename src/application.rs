@@ -1,4 +1,4 @@
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -21,7 +21,7 @@ pub struct HttpApplication<S = ()> {
     prefix: String,
     prefix_len: usize,
     router: Router,
-    inner: Rc<UnsafeCell<Inner<S>>>,
+    inner: Rc<RefCell<Inner<S>>>,
     filters: Option<Vec<Box<Predicate<S>>>>,
     middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
 }
@@ -70,16 +70,11 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
 
 impl<S: 'static> HttpApplication<S> {
     #[inline]
-    fn as_ref(&self) -> &Inner<S> {
-        unsafe { &*self.inner.get() }
-    }
-
-    #[inline]
     fn get_handler(&self, req: &mut HttpRequest<S>) -> HandlerType {
         if let Some(idx) = self.router.recognize(req) {
             HandlerType::Normal(idx)
         } else {
-            let inner = self.as_ref();
+            let inner = self.inner.borrow();
             req.match_info_mut().set_tail(0);
 
             'outer: for idx in 0..inner.handlers.len() {
@@ -131,7 +126,7 @@ impl<S: 'static> HttpApplication<S> {
     #[cfg(test)]
     pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let tp = self.get_handler(&mut req);
-        unsafe { &mut *self.inner.get() }.handle(req, tp)
+        self.inner.borrow_mut().handle(req, tp)
     }
 
     #[cfg(test)]
@@ -340,24 +335,32 @@ where
         T: FromRequest<S> + 'static,
     {
         {
-            let parts: &mut ApplicationParts<S> = unsafe {
-                &mut *(self.parts.as_mut().expect("Use after finish") as *mut _)
-            };
+            let parts = self.parts.as_mut().expect("Use after finish");
 
             // get resource handler
-            for &mut (ref pattern, ref mut handler) in &mut parts.resources {
-                if let Some(ref mut handler) = *handler {
-                    if pattern.pattern() == path {
-                        handler.method(method).with(f);
-                        return self;
-                    }
+            let mut found = false;
+            for &mut (ref pattern, ref handler) in &mut parts.resources {
+                if handler.is_some() && pattern.pattern() == path {
+                    found = true;
+                    break;
                 }
             }
 
-            let mut handler = ResourceHandler::default();
-            handler.method(method).with(f);
-            let pattern = Resource::new(handler.get_name(), path);
-            parts.resources.push((pattern, Some(handler)));
+            if !found {
+                let mut handler = ResourceHandler::default();
+                handler.method(method).with(f);
+                let pattern = Resource::new(handler.get_name(), path);
+                parts.resources.push((pattern, Some(handler)));
+            } else {
+                for &mut (ref pattern, ref mut handler) in &mut parts.resources {
+                    if let Some(ref mut handler) = *handler {
+                        if pattern.pattern() == path {
+                            handler.method(method).with(f);
+                            break;
+                        }
+                    }
+                }
+            }
         }
         self
     }
@@ -626,7 +629,7 @@ where
 
         let (router, resources) = Router::new(&prefix, parts.settings, resources);
 
-        let inner = Rc::new(UnsafeCell::new(Inner {
+        let inner = Rc::new(RefCell::new(Inner {
             prefix: prefix_len,
             default: parts.default,
             encoding: parts.encoding,
