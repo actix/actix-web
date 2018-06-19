@@ -408,7 +408,7 @@ pub struct TestRequest<S> {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    params: Params<'static>,
+    params: Params,
     cookies: Option<Vec<Cookie<'static>>>,
     payload: Option<Payload>,
 }
@@ -508,7 +508,7 @@ impl<S: 'static> TestRequest<S> {
 
     /// Set request path pattern parameter
     pub fn param(mut self, name: &'static str, value: &'static str) -> Self {
-        self.params.add(name, value);
+        self.params.add_static(name, value);
         self
     }
 

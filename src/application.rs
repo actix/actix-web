@@ -73,35 +73,32 @@ impl<S: 'static> HttpApplication<S> {
             HandlerType::Normal(idx)
         } else {
             let inner = self.as_ref();
-            let path: &'static str =
-                unsafe { &*(&req.path()[inner.prefix..] as *const _) };
-            let path_len = path.len();
+            req.match_info_mut().set_tail(0);
+
             'outer: for idx in 0..inner.handlers.len() {
                 match inner.handlers[idx] {
                     PrefixHandlerType::Handler(ref prefix, _) => {
                         let m = {
+                            let path = &req.path()[inner.prefix..];
+                            let path_len = path.len();
+
                             path.starts_with(prefix)
                                 && (path_len == prefix.len()
                                     || path.split_at(prefix.len()).1.starts_with('/'))
                         };
 
                         if m {
-                            let prefix_len = inner.prefix + prefix.len();
-                            let path: &'static str =
-                                unsafe { &*(&req.path()[prefix_len..] as *const _) };
-
-                            req.set_prefix_len(prefix_len as u16);
-                            if path.is_empty() {
-                                req.match_info_mut().add("tail", "/");
-                            } else {
-                                req.match_info_mut().add("tail", path);
-                            }
+                            let prefix_len = (inner.prefix + prefix.len()) as u16;
+                            let url = req.url().clone();
+                            req.set_prefix_len(prefix_len);
+                            req.match_info_mut().set_url(url);
+                            req.match_info_mut().set_tail(prefix_len);
                             return HandlerType::Handler(idx);
                         }
                     }
                     PrefixHandlerType::Scope(ref pattern, _, ref filters) => {
                         if let Some(prefix_len) =
-                            pattern.match_prefix_with_params(path, req.match_info_mut())
+                            pattern.match_prefix_with_params(req, inner.prefix)
                         {
                             for filter in filters {
                                 if !filter.check(req) {
@@ -109,12 +106,12 @@ impl<S: 'static> HttpApplication<S> {
                                 }
                             }
 
-                            let prefix_len = inner.prefix + prefix_len;
-                            let path: &'static str =
-                                unsafe { &*(&req.path()[prefix_len..] as *const _) };
-
-                            req.set_prefix_len(prefix_len as u16);
-                            req.match_info_mut().set("tail", path);
+                            let prefix_len = (inner.prefix + prefix_len) as u16;
+                            let url = req.url().clone();
+                            req.set_prefix_len(prefix_len);
+                            let params = req.match_info_mut();
+                            params.set_tail(prefix_len);
+                            params.set_url(url);
                             return HandlerType::Handler(idx);
                         }
                     }

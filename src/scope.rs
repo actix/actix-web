@@ -322,14 +322,13 @@ impl<S: 'static> Scope<S> {
 
 impl<S: 'static> RouteHandler<S> for Scope<S> {
     fn handle(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        let path = unsafe { &*(&req.match_info()["tail"] as *const _) };
+        let tail = req.match_info().tail as usize;
 
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
-            if pattern.match_with_params(path, req.match_info_mut()) {
+            if pattern.match_with_params(&mut req, tail, false) {
                 let default = unsafe { &mut *self.default.as_ref().get() };
 
-                req.match_info_mut().remove("tail");
                 if self.middlewares.borrow().is_empty() {
                     let resource = unsafe { &mut *resource.get() };
                     return resource.handle(req, Some(default));
@@ -346,23 +345,18 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
 
         // nested scopes
         let len = req.prefix_len() as usize;
-        let path: &'static str = unsafe { &*(&req.path()[len..] as *const _) };
-
         'outer: for &(ref prefix, ref handler, ref filters) in &self.nested {
-            if let Some(prefix_len) =
-                prefix.match_prefix_with_params(path, req.match_info_mut())
-            {
+            if let Some(prefix_len) = prefix.match_prefix_with_params(&mut req, len) {
                 for filter in filters {
                     if !filter.check(&mut req) {
                         continue 'outer;
                     }
                 }
-                let prefix_len = len + prefix_len;
-                let path: &'static str =
-                    unsafe { &*(&req.path()[prefix_len..] as *const _) };
-
-                req.set_prefix_len(prefix_len as u16);
-                req.match_info_mut().set("tail", path);
+                let url = req.url().clone();
+                let prefix_len = (len + prefix_len) as u16;
+                req.set_prefix_len(prefix_len);
+                req.match_info_mut().set_tail(prefix_len);
+                req.match_info_mut().set_url(url);
 
                 let hnd: &mut RouteHandler<_> =
                     unsafe { (&mut *(handler.get())).as_mut() };
