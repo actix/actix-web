@@ -1190,7 +1190,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "");
+        req.match_info_mut().add_static("tail", "");
 
         st.show_index = true;
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
@@ -1207,7 +1207,7 @@ mod tests {
     fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".").index_file("index.html");
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "tests");
+        req.match_info_mut().add_static("tail", "tests");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
@@ -1218,7 +1218,7 @@ mod tests {
         );
 
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "tests/");
+        req.match_info_mut().add_static("tail", "tests/");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
@@ -1233,7 +1233,7 @@ mod tests {
     fn test_redirect_to_index_nested() {
         let mut st = StaticFiles::new(".").index_file("mod.rs");
         let mut req = HttpRequest::default();
-        req.match_info_mut().add("tail", "src/client");
+        req.match_info_mut().add_static("tail", "src/client");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();

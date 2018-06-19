@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::mem;
 use std::rc::Rc;
 
 use regex::{escape, Regex};
 
 use error::UrlGenerationError;
 use httprequest::HttpRequest;
-use param::Params;
+use param::ParamItem;
 use resource::ResourceHandler;
 use server::ServerSettings;
 
@@ -78,11 +79,10 @@ impl Router {
         if self.0.prefix_len > req.path().len() {
             return None;
         }
-        let path = unsafe { &*(&req.path()[self.0.prefix_len..] as *const str) };
-        let route_path = if path.is_empty() { "/" } else { path };
-
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
-            if pattern.match_with_params(route_path, req.match_info_mut()) {
+            if pattern.match_with_params(req, self.0.prefix_len, true) {
+                let url = req.url().clone();
+                req.match_info_mut().set_url(url);
                 req.set_resource(idx);
                 req.set_prefix_len(self.0.prefix_len as u16);
                 return Some(idx);
@@ -261,73 +261,128 @@ impl Resource {
     }
 
     /// Are the given path and parameters a match against this resource?
-    pub fn match_with_params<'a>(
-        &'a self, path: &'a str, params: &'a mut Params<'a>,
+    pub fn match_with_params<S>(
+        &self, req: &mut HttpRequest<S>, plen: usize, insert: bool,
     ) -> bool {
-        match self.tp {
-            PatternType::Static(ref s) => s == path,
-            PatternType::Dynamic(ref re, ref names, _) => {
-                if let Some(captures) = re.captures(path) {
-                    let mut idx = 0;
-                    for capture in captures.iter() {
-                        if let Some(ref m) = capture {
-                            if idx != 0 {
-                                params.add(names[idx - 1].as_str(), m.as_str());
-                            }
-                            idx += 1;
-                        }
-                    }
-                    true
+        let mut segments: [ParamItem; 24] = unsafe { mem::uninitialized() };
+
+        let (names, segments_len) = {
+            let path = &req.path()[plen..];
+            if insert {
+                if path.is_empty() {
+                    "/"
                 } else {
-                    false
+                    path
                 }
+            } else {
+                path
+            };
+
+            match self.tp {
+                PatternType::Static(ref s) => return s == path,
+                PatternType::Dynamic(ref re, ref names, _) => {
+                    if let Some(captures) = re.captures(path) {
+                        let mut idx = 0;
+                        let mut passed = false;
+                        for capture in captures.iter() {
+                            if let Some(ref m) = capture {
+                                if !passed {
+                                    passed = true;
+                                    continue;
+                                }
+                                segments[idx] = ParamItem::UrlSegment(
+                                    (plen + m.start()) as u16,
+                                    (plen + m.end()) as u16,
+                                );
+                                idx += 1;
+                            }
+                        }
+                        (names, idx)
+                    } else {
+                        return false;
+                    }
+                }
+                PatternType::Prefix(ref s) => return path.starts_with(s),
             }
-            PatternType::Prefix(ref s) => path.starts_with(s),
+        };
+
+        let len = req.path().len();
+        let params = req.match_info_mut();
+        params.set_tail(len as u16);
+        for idx in 0..segments_len {
+            let name = unsafe { &*(names[idx].as_str() as *const _) };
+            params.add(name, segments[idx]);
         }
+        true
     }
 
     /// Is the given path a prefix match and do the parameters match against this resource?
-    pub fn match_prefix_with_params<'a>(
-        &'a self, path: &'a str, params: &'a mut Params<'a>,
+    pub fn match_prefix_with_params<S>(
+        &self, req: &mut HttpRequest<S>, plen: usize,
     ) -> Option<usize> {
-        match self.tp {
-            PatternType::Static(ref s) => if s == path {
-                Some(s.len())
-            } else {
-                None
-            },
-            PatternType::Dynamic(ref re, ref names, len) => {
-                if let Some(captures) = re.captures(path) {
-                    let mut idx = 0;
-                    let mut pos = 0;
-                    for capture in captures.iter() {
-                        if let Some(ref m) = capture {
-                            if idx != 0 {
-                                params.add(names[idx - 1].as_str(), m.as_str());
-                            }
-                            idx += 1;
-                            pos = m.end();
-                        }
-                    }
-                    Some(pos + len)
+        let mut segments: [ParamItem; 24] = unsafe { mem::uninitialized() };
+
+        let (names, segments_len, tail_len) = {
+            let path = &req.path()[plen..];
+            let path = if path.is_empty() { "/" } else { path };
+
+            match self.tp {
+                PatternType::Static(ref s) => if s == path {
+                    return Some(s.len());
                 } else {
-                    None
+                    return None;
+                },
+                PatternType::Dynamic(ref re, ref names, len) => {
+                    if let Some(captures) = re.captures(path) {
+                        let mut idx = 0;
+                        let mut pos = 0;
+                        let mut passed = false;
+                        for capture in captures.iter() {
+                            if let Some(ref m) = capture {
+                                if !passed {
+                                    passed = true;
+                                    continue;
+                                }
+
+                                segments[idx] = ParamItem::UrlSegment(
+                                    (plen + m.start()) as u16,
+                                    (plen + m.end()) as u16,
+                                );
+                                idx += 1;
+                                pos = m.end();
+                            }
+                        }
+                        (names, idx, pos + len)
+                    } else {
+                        return None;
+                    }
+                }
+                PatternType::Prefix(ref s) => {
+                    return if path == s {
+                        Some(s.len())
+                    } else if path.starts_with(s)
+                        && (s.ends_with('/')
+                            || path.split_at(s.len()).1.starts_with('/'))
+                    {
+                        if s.ends_with('/') {
+                            Some(s.len() - 1)
+                        } else {
+                            Some(s.len())
+                        }
+                    } else {
+                        None
+                    }
                 }
             }
-            PatternType::Prefix(ref s) => if path == s {
-                Some(s.len())
-            } else if path.starts_with(s)
-                && (s.ends_with('/') || path.split_at(s.len()).1.starts_with('/'))
-            {
-                if s.ends_with('/') {
-                    Some(s.len() - 1)
-                } else {
-                    Some(s.len())
-                }
-            } else {
-                None
-            },
+        };
+
+        let params = req.match_info_mut();
+        params.set_tail(tail_len as u16);
+        for idx in 0..segments_len {
+            let name = unsafe { &*(names[idx].as_str() as *const _) };
+            params.add(name, segments[idx]);
         }
+        Some(tail_len)
     }
 
     /// Build resource path.
@@ -634,20 +689,22 @@ mod tests {
 
     #[test]
     fn test_parse_param() {
-        let mut req = HttpRequest::default();
-
         let re = Resource::new("test", "/user/{id}");
         assert!(re.is_match("/user/profile"));
         assert!(re.is_match("/user/2345"));
         assert!(!re.is_match("/user/2345/"));
         assert!(!re.is_match("/user/2345/sdg"));
 
-        req.match_info_mut().clear();
-        assert!(re.match_with_params("/user/profile", req.match_info_mut()));
+        let mut req = TestRequest::with_uri("/user/profile").finish();
+        let url = req.url().clone();
+        req.match_info_mut().set_url(url);
+        assert!(re.match_with_params(&mut req, 0, true));
         assert_eq!(req.match_info().get("id").unwrap(), "profile");
 
-        req.match_info_mut().clear();
-        assert!(re.match_with_params("/user/1245125", req.match_info_mut()));
+        let mut req = TestRequest::with_uri("/user/1245125").finish();
+        let url = req.url().clone();
+        req.match_info_mut().set_url(url);
+        assert!(re.match_with_params(&mut req, 0, true));
         assert_eq!(req.match_info().get("id").unwrap(), "1245125");
 
         let re = Resource::new("test", "/v{version}/resource/{id}");
@@ -655,8 +712,10 @@ mod tests {
         assert!(!re.is_match("/v/resource/1"));
         assert!(!re.is_match("/resource"));
 
-        req.match_info_mut().clear();
-        assert!(re.match_with_params("/v151/resource/adahg32", req.match_info_mut()));
+        let mut req = TestRequest::with_uri("/v151/resource/adahg32").finish();
+        let url = req.url().clone();
+        req.match_info_mut().set_url(url);
+        assert!(re.match_with_params(&mut req, 0, true));
         assert_eq!(req.match_info().get("version").unwrap(), "151");
         assert_eq!(req.match_info().get("id").unwrap(), "adahg32");
     }
@@ -684,15 +743,16 @@ mod tests {
         assert!(!re.is_match("/name"));
 
         let mut req = TestRequest::with_uri("/test2/").finish();
-        assert!(re.match_with_params("/test2/", req.match_info_mut()));
+        let url = req.url().clone();
+        req.match_info_mut().set_url(url);
+        assert!(re.match_with_params(&mut req, 0, true));
         assert_eq!(&req.match_info()["name"], "test2");
 
         let mut req =
             TestRequest::with_uri("/test2/subpath1/subpath2/index.html").finish();
-        assert!(re.match_with_params(
-            "/test2/subpath1/subpath2/index.html",
-            req.match_info_mut()
-        ));
+        let url = req.url().clone();
+        req.match_info_mut().set_url(url);
+        assert!(re.match_with_params(&mut req, 0, true));
         assert_eq!(&req.match_info()["name"], "test2");
     }
 
