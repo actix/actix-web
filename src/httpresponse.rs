@@ -98,15 +98,9 @@ impl HttpResponse {
     #[inline]
     pub fn into_builder(mut self) -> HttpResponseBuilder {
         // If this response has cookies, load them into a jar
-        let mut jar: Option<CookieJar> = None;
+        let mut jar = CookieJar::new();
         for c in self.cookies() {
-            if let Some(ref mut j) = jar {
-                j.add_original(c.into_owned());
-            } else {
-                let mut j = CookieJar::new();
-                j.add_original(c.into_owned());
-                jar = Some(j);
-            }
+            jar.add_original(c.into_owned());
         }
 
         let response = self.0.take();
@@ -352,7 +346,7 @@ pub struct HttpResponseBuilder {
     response: Option<Box<InnerHttpResponse>>,
     pool: Option<Rc<UnsafeCell<HttpResponsePool>>>,
     err: Option<HttpError>,
-    cookies: Option<CookieJar>,
+    cookies: CookieJar,
 }
 
 impl HttpResponseBuilder {
@@ -546,13 +540,7 @@ impl HttpResponseBuilder {
     /// }
     /// ```
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
+        self.cookies.add(cookie.into_owned());
         self
     }
 
@@ -573,15 +561,9 @@ impl HttpResponseBuilder {
     /// }
     /// ```
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        {
-            if self.cookies.is_none() {
-                self.cookies = Some(CookieJar::new())
-            }
-            let jar = self.cookies.as_mut().unwrap();
-            let cookie = cookie.clone().into_owned();
-            jar.add_original(cookie.clone());
-            jar.remove(cookie);
-        }
+        let cookie = cookie.clone().into_owned();
+        self.cookies.add_original(cookie.clone());
+        self.cookies.remove(cookie);
         self
     }
 
@@ -631,13 +613,11 @@ impl HttpResponseBuilder {
             return Error::from(e).into();
         }
         let mut response = self.response.take().expect("cannot reuse response builder");
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
-                    Err(e) => return Error::from(e).into(),
-                };
-            }
+        for cookie in self.cookies.delta() {
+            match HeaderValue::from_str(&cookie.to_string()) {
+                Ok(val) => response.headers.append(header::SET_COOKIE, val),
+                Err(e) => return Error::from(e).into(),
+            };
         }
         response.body = body.into();
         HttpResponse(Some(response), self.pool.take().unwrap())
@@ -691,7 +671,7 @@ impl HttpResponseBuilder {
             response: self.response.take(),
             pool: self.pool.take(),
             err: self.err.take(),
-            cookies: self.cookies.take(),
+            cookies: mem::replace(&mut self.cookies, CookieJar::new()),
         }
     }
 }
@@ -939,7 +919,7 @@ impl HttpResponsePool {
                 response: Some(msg),
                 pool: Some(Rc::clone(pool)),
                 err: None,
-                cookies: None,
+                cookies: CookieJar::new(),
             }
         } else {
             let msg = Box::new(InnerHttpResponse::new(status, Body::Empty));
@@ -947,7 +927,7 @@ impl HttpResponsePool {
                 response: Some(msg),
                 pool: Some(Rc::clone(pool)),
                 err: None,
-                cookies: None,
+                cookies: CookieJar::new(),
             }
         }
     }
