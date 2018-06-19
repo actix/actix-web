@@ -64,8 +64,6 @@ where
     no_signals: bool,
 }
 
-unsafe impl<H: IntoHttpHandler + 'static> Send for HttpServer<H> {}
-
 enum ServerCommand {
     WorkerDied(usize, Slab<SocketInfo>),
 }
@@ -485,11 +483,9 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         self.exit = true;
         self.no_signals = false;
 
-        let _ = thread::spawn(move || {
-            let sys = System::new("http-server");
-            self.start();
-            sys.run();
-        }).join();
+        let sys = System::new("http-server");
+        self.start();
+        sys.run();
     }
 }
 

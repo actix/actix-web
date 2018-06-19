@@ -106,7 +106,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     }
 
     #[inline]
-    fn buffer(&self) -> &mut BytesMut {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.buffer.get_mut()
     }
 
@@ -181,35 +181,37 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let mut pos = 0;
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
-            let mut buf = unsafe { &mut *(buffer.bytes_mut() as *mut [u8]) };
-            for (key, value) in msg.headers() {
-                if is_bin && key == CONTENT_LENGTH {
-                    is_bin = false;
-                    continue;
-                }
-                has_date = has_date || key == DATE;
-                let v = value.as_ref();
-                let k = key.as_str().as_bytes();
-                let len = k.len() + v.len() + 4;
-                if len > remaining {
-                    unsafe { buffer.advance_mut(pos) };
-                    pos = 0;
-                    buffer.reserve(len);
-                    remaining = buffer.remaining_mut();
-                    buf = unsafe { &mut *(buffer.bytes_mut() as *mut _) };
-                }
+            unsafe {
+                let mut buf = &mut *(buffer.bytes_mut() as *mut [u8]);
+                for (key, value) in msg.headers() {
+                    if is_bin && key == CONTENT_LENGTH {
+                        is_bin = false;
+                        continue;
+                    }
+                    has_date = has_date || key == DATE;
+                    let v = value.as_ref();
+                    let k = key.as_str().as_bytes();
+                    let len = k.len() + v.len() + 4;
+                    if len > remaining {
+                        buffer.advance_mut(pos);
+                        pos = 0;
+                        buffer.reserve(len);
+                        remaining = buffer.remaining_mut();
+                        buf = &mut *(buffer.bytes_mut() as *mut _);
+                    }
 
-                buf[pos..pos + k.len()].copy_from_slice(k);
-                pos += k.len();
-                buf[pos..pos + 2].copy_from_slice(b": ");
-                pos += 2;
-                buf[pos..pos + v.len()].copy_from_slice(v);
-                pos += v.len();
-                buf[pos..pos + 2].copy_from_slice(b"\r\n");
-                pos += 2;
-                remaining -= len;
+                    buf[pos..pos + k.len()].copy_from_slice(k);
+                    pos += k.len();
+                    buf[pos..pos + 2].copy_from_slice(b": ");
+                    pos += 2;
+                    buf[pos..pos + v.len()].copy_from_slice(v);
+                    pos += v.len();
+                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                    pos += 2;
+                    remaining -= len;
+                }
+                buffer.advance_mut(pos);
             }
-            unsafe { buffer.advance_mut(pos) };
 
             // optimized date header, set_date writes \r\n
             if !has_date {
@@ -233,7 +235,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         Ok(WriterState::Done)
     }
 
-    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
+    fn write(&mut self, payload: &Binary) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {

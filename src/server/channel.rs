@@ -203,7 +203,6 @@ impl<T> Node<T> {
     }
 
     fn insert<I>(&self, next: &Node<I>) {
-        #[allow(mutable_transmutes)]
         unsafe {
             if let Some(ref next2) = self.next {
                 let n: &mut Node<()> =

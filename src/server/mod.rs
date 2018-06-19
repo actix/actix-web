@@ -191,15 +191,14 @@ pub trait Writer {
     fn set_date(&self, st: &mut BytesMut);
 
     #[doc(hidden)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    fn buffer(&self) -> &mut BytesMut;
+    fn buffer(&mut self) -> &mut BytesMut;
 
     fn start(
         &mut self, req: &mut HttpInnerMessage, resp: &mut HttpResponse,
         encoding: ContentEncoding,
     ) -> io::Result<WriterState>;
 
-    fn write(&mut self, payload: Binary) -> io::Result<WriterState>;
+    fn write(&mut self, payload: &Binary) -> io::Result<WriterState>;
 
     fn write_eof(&mut self) -> io::Result<WriterState>;
 

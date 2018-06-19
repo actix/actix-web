@@ -77,7 +77,7 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     #[inline]
-    fn buffer(&self) -> &mut BytesMut {
+    fn buffer(&mut self) -> &mut BytesMut {
         self.buffer.get_mut()
     }
 
@@ -164,7 +164,7 @@ impl<H: 'static> Writer for H2Writer<H> {
         }
     }
 
-    fn write(&mut self, payload: Binary) -> io::Result<WriterState> {
+    fn write(&mut self, payload: &Binary) -> io::Result<WriterState> {
         self.written = payload.len() as u64;
 
         if !self.flags.contains(Flags::DISCONNECTED) {

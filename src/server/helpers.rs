@@ -7,7 +7,7 @@ use std::{mem, ptr, slice};
 
 use httprequest::HttpInnerMessage;
 
-/// Internal use only! unsafe
+/// Internal use only!
 pub(crate) struct SharedMessagePool(RefCell<VecDeque<Rc<HttpInnerMessage>>>);
 
 impl SharedMessagePool {
@@ -189,14 +189,14 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
 }
 
 pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
-    let mut curr: isize = 39;
-    let mut buf: [u8; 41] = unsafe { mem::uninitialized() };
-    buf[39] = b'\r';
-    buf[40] = b'\n';
-    let buf_ptr = buf.as_mut_ptr();
-    let lut_ptr = DEC_DIGITS_LUT.as_ptr();
-
     unsafe {
+        let mut curr: isize = 39;
+        let mut buf: [u8; 41] = mem::uninitialized();
+        buf[39] = b'\r';
+        buf[40] = b'\n';
+        let buf_ptr = buf.as_mut_ptr();
+        let lut_ptr = DEC_DIGITS_LUT.as_ptr();
+
         // eagerly decode 4 characters at a time
         while n >= 10_000 {
             let rem = (n % 10_000) as isize;
@@ -229,9 +229,7 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
             curr -= 2;
             ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
         }
-    }
 
-    unsafe {
         bytes.extend_from_slice(slice::from_raw_parts(
             buf_ptr.offset(curr),
             41 - curr as usize,

@@ -6,58 +6,52 @@ use std::rc::Rc;
 
 use body::Binary;
 
-/// Internal use only! unsafe
 #[derive(Debug)]
-pub(crate) struct SharedBytesPool(RefCell<VecDeque<Rc<BytesMut>>>);
+pub(crate) struct SharedBytesPool(RefCell<VecDeque<BytesMut>>);
 
 impl SharedBytesPool {
     pub fn new() -> SharedBytesPool {
         SharedBytesPool(RefCell::new(VecDeque::with_capacity(128)))
     }
 
-    pub fn get_bytes(&self) -> Rc<BytesMut> {
+    pub fn get_bytes(&self) -> BytesMut {
         if let Some(bytes) = self.0.borrow_mut().pop_front() {
             bytes
         } else {
-            Rc::new(BytesMut::new())
+            BytesMut::new()
         }
     }
 
-    pub fn release_bytes(&self, mut bytes: Rc<BytesMut>) {
+    pub fn release_bytes(&self, mut bytes: BytesMut) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            Rc::get_mut(&mut bytes).unwrap().clear();
+            bytes.clear();
             v.push_front(bytes);
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct SharedBytes(Option<Rc<BytesMut>>, Option<Rc<SharedBytesPool>>);
+pub(crate) struct SharedBytes(Option<BytesMut>, Option<Rc<SharedBytesPool>>);
 
 impl Drop for SharedBytes {
     fn drop(&mut self) {
         if let Some(pool) = self.1.take() {
             if let Some(bytes) = self.0.take() {
-                if Rc::strong_count(&bytes) == 1 {
-                    pool.release_bytes(bytes);
-                }
+                pool.release_bytes(bytes);
             }
         }
     }
 }
 
 impl SharedBytes {
-    pub fn new(bytes: Rc<BytesMut>, pool: Rc<SharedBytesPool>) -> SharedBytes {
+    pub fn new(bytes: BytesMut, pool: Rc<SharedBytesPool>) -> SharedBytes {
         SharedBytes(Some(bytes), Some(pool))
     }
 
-    #[inline(always)]
-    #[allow(mutable_transmutes)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref, inline_always))]
-    pub(crate) fn get_mut(&self) -> &mut BytesMut {
-        let r: &BytesMut = self.0.as_ref().unwrap().as_ref();
-        unsafe { &mut *(r as *const _ as *mut _) }
+    #[inline]
+    pub(crate) fn get_mut(&mut self) -> &mut BytesMut {
+        self.0.as_mut().unwrap()
     }
 
     #[inline]
@@ -75,17 +69,16 @@ impl SharedBytes {
         self.0.as_ref().unwrap().as_ref()
     }
 
-    pub fn split_to(&self, n: usize) -> BytesMut {
+    pub fn split_to(&mut self, n: usize) -> BytesMut {
         self.get_mut().split_to(n)
     }
 
-    pub fn take(&self) -> BytesMut {
+    pub fn take(&mut self) -> BytesMut {
         self.get_mut().take()
     }
 
     #[inline]
-    #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
-    pub fn extend(&self, data: Binary) {
+    pub fn extend(&mut self, data: &Binary) {
         let buf = self.get_mut();
         let data = data.as_ref();
         buf.reserve(data.len());
@@ -93,7 +86,7 @@ impl SharedBytes {
     }
 
     #[inline]
-    pub fn extend_from_slice(&self, data: &[u8]) {
+    pub fn extend_from_slice(&mut self, data: &[u8]) {
         let buf = self.get_mut();
         buf.reserve(data.len());
         SharedBytes::put_slice(buf, data);
@@ -117,13 +110,7 @@ impl SharedBytes {
 
 impl Default for SharedBytes {
     fn default() -> Self {
-        SharedBytes(Some(Rc::new(BytesMut::new())), None)
-    }
-}
-
-impl Clone for SharedBytes {
-    fn clone(&self) -> SharedBytes {
-        SharedBytes(self.0.clone(), self.1.clone())
+        SharedBytes(Some(BytesMut::new()), None)
     }
 }
 

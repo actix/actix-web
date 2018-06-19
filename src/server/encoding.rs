@@ -701,8 +701,6 @@ pub(crate) struct TransferEncoding {
     kind: TransferEncodingKind,
 }
 
-unsafe impl Send for TransferEncoding {}
-
 #[derive(Debug, PartialEq, Clone)]
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
