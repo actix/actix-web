@@ -303,18 +303,16 @@ impl ClientConnector {
     /// # use std::process;
     /// # use actix_web::actix::Actor;
     /// extern crate openssl;
-    /// use actix_web::client::{ClientConnector, Connect};
+    /// use actix_web::{actix, client::ClientConnector, client::Connect};
     ///
     /// use openssl::ssl::{SslConnector, SslMethod};
     ///
     /// fn main() {
-    ///     let mut sys = actix_web::actix::System::new("test");
+    ///     actix::run(|| {
+    ///         // Start `ClientConnector` with custom `SslConnector`
+    ///         let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
+    ///         let conn = ClientConnector::with_connector(ssl_conn).start();
     ///
-    ///     // Start `ClientConnector` with custom `SslConnector`
-    ///     let ssl_conn = SslConnector::builder(SslMethod::tls()).unwrap().build();
-    ///     let conn = ClientConnector::with_connector(ssl_conn).start();
-    ///
-    ///     sys.block_on(
     ///         conn.send(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
     ///                 .map_err(|_| ())
@@ -322,6 +320,7 @@ impl ClientConnector {
     ///                     if let Ok(mut stream) = res {
     ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
     ///                     }
+    /// #                   actix::System::current().stop();
     ///                     Ok(())
     ///                 })
     ///     );

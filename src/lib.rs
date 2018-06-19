@@ -210,6 +210,7 @@ pub mod actix {
     pub use self::actix::fut;
     pub use self::actix::msgs;
     pub use self::actix::prelude::*;
+    pub use self::actix::{run, spawn};
 }
 
 #[cfg(feature = "openssl")]
