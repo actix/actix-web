@@ -634,13 +634,11 @@ mod tests {
         assert!(req.chunked().unwrap());
 
         let mut headers = HeaderMap::new();
-        let s = unsafe {
-            str::from_utf8_unchecked(b"some va\xadscc\xacas0xsdasdlue".as_ref())
-        };
+        let hdr = Bytes::from_static(b"some va\xadscc\xacas0xsdasdlue");
 
         headers.insert(
             header::TRANSFER_ENCODING,
-            header::HeaderValue::from_str(s).unwrap(),
+            header::HeaderValue::from_shared(hdr).unwrap(),
         );
         let req = HttpRequest::new(
             Method::GET,

@@ -1,9 +1,8 @@
 //! HTTP Request message related code.
-#![cfg_attr(feature = "cargo-clippy", allow(transmute_ptr_to_ptr))]
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::{cmp, fmt, io, mem, str};
+use std::{cmp, fmt, io, str};
 
 use bytes::Bytes;
 use cookie::Cookie;
@@ -446,13 +445,13 @@ impl<S> HttpRequest<S> {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Params {
-        unsafe { mem::transmute(&self.as_ref().params) }
+        &self.as_ref().params
     }
 
     /// Get mutable reference to request's Params.
     #[inline]
     pub(crate) fn match_info_mut(&mut self) -> &mut Params {
-        unsafe { mem::transmute(&mut self.as_mut().params) }
+        &mut self.as_mut().params
     }
 
     /// Checks if a connection should be kept alive.

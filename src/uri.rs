@@ -146,6 +146,8 @@ impl Quoter {
         }
 
         if let Some(data) = cloned {
+            // we get data from http::Uri, which does utf-8 checks already
+            // this code only decodes valid pct encoded values
             Some(unsafe { Rc::new(String::from_utf8_unchecked(data)) })
         } else {
             None

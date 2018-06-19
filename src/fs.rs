@@ -10,7 +10,7 @@ use std::{cmp, io};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
 use mime;
@@ -439,14 +439,13 @@ impl Stream for ChunkedReadFile {
             self.fut = Some(self.cpu_pool.spawn_fn(move || {
                 let max_bytes: usize;
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
-                let mut buf = BytesMut::from(Vec::with_capacity(max_bytes));
+                let mut buf = Vec::with_capacity(max_bytes);
                 file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes = file.read(unsafe { buf.bytes_mut() })?;
+                let nbytes = file.read(buf.as_mut_slice())?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
-                unsafe { buf.advance_mut(nbytes) };
-                Ok((file, buf.freeze()))
+                Ok((file, Bytes::from(buf)))
             }));
             self.poll()
         }
