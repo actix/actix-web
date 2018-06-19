@@ -40,7 +40,7 @@ pub struct HttpInnerMessage {
     pub(crate) flags: MessageFlags,
     pub headers: HeaderMap,
     pub extensions: Extensions,
-    pub params: Params<'static>,
+    pub params: Params,
     pub addr: Option<SocketAddr>,
     pub payload: Option<Payload>,
     pub prefix: u16,
@@ -266,6 +266,11 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn path(&self) -> &str {
         self.as_ref().url.path()
+    }
+
+    #[inline]
+    pub(crate) fn url(&self) -> &InnerUrl {
+        &self.as_ref().url
     }
 
     /// Get *ConnectionInfo* for correct request.

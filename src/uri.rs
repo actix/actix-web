@@ -1,4 +1,5 @@
 use http::Uri;
+use std::rc::Rc;
 
 #[allow(dead_code)]
 const GEN_DELIMS: &[u8] = b":/?#[]@";
@@ -34,10 +35,10 @@ lazy_static! {
     static ref DEFAULT_QUOTER: Quoter = { Quoter::new(b"@:", b"/+") };
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub(crate) struct Url {
     uri: Uri,
-    path: Option<String>,
+    path: Option<Rc<String>>,
 }
 
 impl Url {
@@ -95,7 +96,7 @@ impl Quoter {
         q
     }
 
-    pub fn requote(&self, val: &[u8]) -> Option<String> {
+    pub fn requote(&self, val: &[u8]) -> Option<Rc<String>> {
         let mut has_pct = 0;
         let mut pct = [b'%', 0, 0];
         let mut idx = 0;
@@ -145,7 +146,7 @@ impl Quoter {
         }
 
         if let Some(data) = cloned {
-            Some(unsafe { String::from_utf8_unchecked(data) })
+            Some(unsafe { Rc::new(String::from_utf8_unchecked(data)) })
         } else {
             None
         }

@@ -1,13 +1,12 @@
 use http::StatusCode;
 use smallvec::SmallVec;
 use std;
-use std::borrow::Cow;
 use std::ops::Index;
 use std::path::PathBuf;
-use std::slice::Iter;
 use std::str::FromStr;
 
 use error::{InternalError, ResponseError, UriSegmentError};
+use uri::Url;
 
 /// A trait to abstract the idea of creating a new instance of a type from a
 /// path parameter.
@@ -19,72 +18,78 @@ pub trait FromParam: Sized {
     fn from_param(s: &str) -> Result<Self, Self::Err>;
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ParamItem {
+    Static(&'static str),
+    UrlSegment(u16, u16),
+}
+
 /// Route match information
 ///
 /// If resource path contains variable patterns, `Params` stores this variables.
 #[derive(Debug)]
-pub struct Params<'a>(SmallVec<[(Cow<'a, str>, Cow<'a, str>); 3]>);
+pub struct Params {
+    url: Url,
+    pub(crate) tail: u16,
+    segments: SmallVec<[(&'static str, ParamItem); 3]>,
+}
 
-impl<'a> Params<'a> {
-    pub(crate) fn new() -> Params<'a> {
-        Params(SmallVec::new())
+impl Params {
+    pub(crate) fn new() -> Params {
+        Params {
+            url: Url::default(),
+            tail: 0,
+            segments: SmallVec::new(),
+        }
     }
 
     pub(crate) fn clear(&mut self) {
-        self.0.clear();
+        self.segments.clear();
     }
 
-    pub(crate) fn add<N, V>(&mut self, name: N, value: V)
-    where
-        N: Into<Cow<'a, str>>,
-        V: Into<Cow<'a, str>>,
-    {
-        self.0.push((name.into(), value.into()));
+    pub(crate) fn set_url(&mut self, url: Url) {
+        self.url = url;
     }
 
-    pub(crate) fn set<N, V>(&mut self, name: N, value: V)
-    where
-        N: Into<Cow<'a, str>>,
-        V: Into<Cow<'a, str>>,
-    {
-        let name = name.into();
-        let value = value.into();
-        for item in &mut self.0 {
-            if item.0 == name {
-                item.1 = value;
-                return;
-            }
-        }
-        self.0.push((name, value));
+    pub(crate) fn set_tail(&mut self, tail: u16) {
+        self.tail = tail;
     }
 
-    pub(crate) fn remove(&mut self, name: &str) {
-        for idx in (0..self.0.len()).rev() {
-            if self.0[idx].0 == name {
-                self.0.remove(idx);
-                return;
-            }
-        }
+    pub(crate) fn add(&mut self, name: &'static str, value: ParamItem) {
+        self.segments.push((name, value));
+    }
+
+    pub(crate) fn add_static(&mut self, name: &'static str, value: &'static str) {
+        self.segments.push((name, ParamItem::Static(value)));
     }
 
     /// Check if there are any matched patterns
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.segments.is_empty()
     }
 
     /// Check number of extracted parameters
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.segments.len()
     }
 
     /// Get matched parameter by name without type conversion
-    pub fn get(&'a self, key: &str) -> Option<&'a str> {
-        for item in self.0.iter() {
+    pub fn get(&self, key: &str) -> Option<&str> {
+        for item in self.segments.iter() {
             if key == item.0 {
-                return Some(item.1.as_ref());
+                return match item.1 {
+                    ParamItem::Static(s) => Some(s),
+                    ParamItem::UrlSegment(s, e) => {
+                        Some(&self.url.path()[(s as usize)..(e as usize)])
+                    }
+                };
             }
         }
-        None
+        if key == "tail" {
+            Some(&self.url.path()[(self.tail as usize)..])
+        } else {
+            None
+        }
     }
 
     /// Get matched `FromParam` compatible parameter by name.
@@ -101,7 +106,7 @@ impl<'a> Params<'a> {
     /// }
     /// # fn main() {}
     /// ```
-    pub fn query<T: FromParam>(&'a self, key: &str) -> Result<T, <T as FromParam>::Err> {
+    pub fn query<T: FromParam>(&self, key: &str) -> Result<T, <T as FromParam>::Err> {
         if let Some(s) = self.get(key) {
             T::from_param(s)
         } else {
@@ -110,12 +115,41 @@ impl<'a> Params<'a> {
     }
 
     /// Return iterator to items in parameter container
-    pub fn iter(&self) -> Iter<(Cow<'a, str>, Cow<'a, str>)> {
-        self.0.iter()
+    pub fn iter(&self) -> ParamsIter {
+        ParamsIter {
+            idx: 0,
+            params: self,
+        }
     }
 }
 
-impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
+#[derive(Debug)]
+pub struct ParamsIter<'a> {
+    idx: usize,
+    params: &'a Params,
+}
+
+impl<'a> Iterator for ParamsIter<'a> {
+    type Item = (&'a str, &'a str);
+
+    #[inline]
+    fn next(&mut self) -> Option<(&'a str, &'a str)> {
+        if self.idx < self.params.len() {
+            let idx = self.idx;
+            let res = match self.params.segments[idx].1 {
+                ParamItem::Static(s) => s,
+                ParamItem::UrlSegment(s, e) => {
+                    &self.params.url.path()[(s as usize)..(e as usize)]
+                }
+            };
+            self.idx += 1;
+            return Some((self.params.segments[idx].0, res));
+        }
+        None
+    }
+}
+
+impl<'a, 'b> Index<&'b str> for &'a Params {
     type Output = str;
 
     fn index(&self, name: &'b str) -> &str {
@@ -124,11 +158,14 @@ impl<'a, 'b, 'c: 'a> Index<&'b str> for &'c Params<'a> {
     }
 }
 
-impl<'a, 'c: 'a> Index<usize> for &'c Params<'a> {
+impl<'a> Index<usize> for &'a Params {
     type Output = str;
 
     fn index(&self, idx: usize) -> &str {
-        self.0[idx].1.as_ref()
+        match self.segments[idx].1 {
+            ParamItem::Static(s) => s,
+            ParamItem::UrlSegment(s, e) => &self.url.path()[(s as usize)..(e as usize)],
+        }
     }
 }
 

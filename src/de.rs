@@ -1,9 +1,7 @@
 use serde::de::{self, Deserializer, Error as DeError, Visitor};
-use std::borrow::Cow;
-use std::convert::AsRef;
-use std::slice::Iter;
 
 use httprequest::HttpRequest;
+use param::ParamsIter;
 
 macro_rules! unsupported_type {
     ($trait_fn:ident, $name:expr) => {
@@ -191,7 +189,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
 }
 
 struct ParamsDeserializer<'de> {
-    params: Iter<'de, (Cow<'de, str>, Cow<'de, str>)>,
+    params: ParamsIter<'de>,
     current: Option<(&'de str, &'de str)>,
 }
 
@@ -202,10 +200,7 @@ impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        self.current = self
-            .params
-            .next()
-            .map(|&(ref k, ref v)| (k.as_ref(), v.as_ref()));
+        self.current = self.params.next().map(|ref item| (item.0, item.1));
         match self.current {
             Some((key, _)) => Ok(Some(seed.deserialize(Key { key })?)),
             None => Ok(None),
@@ -381,7 +376,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
 }
 
 struct ParamsSeq<'de> {
-    params: Iter<'de, (Cow<'de, str>, Cow<'de, str>)>,
+    params: ParamsIter<'de>,
 }
 
 impl<'de> de::SeqAccess<'de> for ParamsSeq<'de> {
@@ -392,9 +387,7 @@ impl<'de> de::SeqAccess<'de> for ParamsSeq<'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.params.next() {
-            Some(item) => Ok(Some(seed.deserialize(Value {
-                value: item.1.as_ref(),
-            })?)),
+            Some(item) => Ok(Some(seed.deserialize(Value { value: item.1 })?)),
             None => Ok(None),
         }
     }
