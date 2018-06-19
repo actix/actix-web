@@ -317,9 +317,6 @@ impl Pipeline {
         if self.conn.is_none() {
             return Ok(Async::Ready(None));
         }
-        let conn: &mut Connection =
-            unsafe { &mut *(self.conn.as_mut().unwrap() as *mut _) };
-
         let mut need_run = false;
 
         // need write?
@@ -337,6 +334,9 @@ impl Pipeline {
 
         // need read?
         if self.parser.is_some() {
+            let conn: &mut Connection =
+                unsafe { &mut *(self.conn.as_mut().unwrap() as *mut _) };
+
             loop {
                 match self
                     .parser

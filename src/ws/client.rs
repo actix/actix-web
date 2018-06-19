@@ -1,5 +1,5 @@
 //! Http client request
-use std::cell::UnsafeCell;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use std::{fmt, io, str};
@@ -422,7 +422,7 @@ impl Future for ClientHandshake {
             closed: false,
         };
 
-        let inner = Rc::new(UnsafeCell::new(inner));
+        let inner = Rc::new(RefCell::new(inner));
         Ok(Async::Ready((
             ClientReader {
                 inner: Rc::clone(&inner),
@@ -435,7 +435,7 @@ impl Future for ClientHandshake {
 
 /// Websocket reader client
 pub struct ClientReader {
-    inner: Rc<UnsafeCell<Inner>>,
+    inner: Rc<RefCell<Inner>>,
     max_size: usize,
 }
 
@@ -451,7 +451,7 @@ impl Stream for ClientReader {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let max_size = self.max_size;
-        let inner: &mut Inner = unsafe { &mut *self.inner.get() };
+        let mut inner = self.inner.borrow_mut();
         if inner.closed {
             return Ok(Async::Ready(None));
         }
@@ -507,14 +507,14 @@ impl Stream for ClientReader {
 
 /// Websocket writer client
 pub struct ClientWriter {
-    inner: Rc<UnsafeCell<Inner>>,
+    inner: Rc<RefCell<Inner>>,
 }
 
 impl ClientWriter {
     /// Write payload
     #[inline]
     fn write(&mut self, mut data: Binary) {
-        let inner: &mut Inner = unsafe { &mut *self.inner.get() };
+        let inner = self.inner.borrow_mut();
         if !inner.closed {
             let _ = inner.tx.unbounded_send(data.take());
         } else {

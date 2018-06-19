@@ -48,7 +48,6 @@ impl Extensions {
     /// If a extension of this type existed, it will be returned.
     pub fn remove<T: 'static>(&mut self) -> Option<T> {
         self.map.remove(&TypeId::of::<T>()).and_then(|boxed| {
-            //TODO: we can use unsafe and remove double checking the type id
             (boxed as Box<Any + 'static>)
                 .downcast()
                 .ok()
