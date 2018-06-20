@@ -676,10 +676,6 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     // TODO: It'd be nice if there were a good usable URL manipulation
                     // library
                     let mut new_path: String = req.path().to_owned();
-                    for el in relpath.iter() {
-                        new_path.push_str(&el.to_string_lossy());
-                        new_path.push('/');
-                    }
                     if !new_path.ends_with('/') {
                         new_path.push('/');
                     }
@@ -1205,10 +1201,11 @@ mod tests {
     #[test]
     fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".").index_file("index.html");
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/tests").finish();
         req.match_info_mut().add_static("tail", "tests");
+        let req2 = req.clone();
 
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(req).respond_to(&req2).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -1216,10 +1213,11 @@ mod tests {
             "/tests/index.html"
         );
 
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/tests/").finish();
         req.match_info_mut().add_static("tail", "tests/");
+        let req2 = req.clone();
 
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(req).respond_to(&req2).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -1231,10 +1229,11 @@ mod tests {
     #[test]
     fn test_redirect_to_index_nested() {
         let mut st = StaticFiles::new(".").index_file("mod.rs");
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/src/client").finish();
         req.match_info_mut().add_static("tail", "src/client");
+        let req2 = req.clone();
 
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(req).respond_to(&req2).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
