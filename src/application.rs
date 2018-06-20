@@ -335,33 +335,34 @@ where
         T: FromRequest<S> + 'static,
     {
         {
-            let parts = self.parts.as_mut().expect("Use after finish");
+            let parts: &mut ApplicationParts<S> = self.parts.as_mut().expect("Use after finish");
 
-            // get resource handler
-            let mut found = false;
-            for &mut (ref pattern, ref handler) in &mut parts.resources {
-                if handler.is_some() && pattern.pattern() == path {
-                    found = true;
-                    break;
-                }
-            }
+            let out = {
+                // get resource handler
+                let mut iterator = parts.resources.iter_mut();
 
-            if !found {
-                let mut handler = ResourceHandler::default();
-                handler.method(method).with(f);
-                let pattern = Resource::new(handler.get_name(), path);
-                parts.resources.push((pattern, Some(handler)));
-            } else {
-                for &mut (ref pattern, ref mut handler) in &mut parts.resources {
-                    if let Some(ref mut handler) = *handler {
-                        if pattern.pattern() == path {
-                            handler.method(method).with(f);
-                            break;
+                loop {
+                    if let Some(&mut (ref pattern, ref mut handler)) = iterator.next() {
+                        if let Some(ref mut handler) = *handler {
+                            if pattern.pattern() == path {
+                                handler.method(method).with(f);
+                                break None;
+                            }
                         }
+                    } else {
+                        let mut handler = ResourceHandler::default();
+                        handler.method(method).with(f);
+                        let pattern = Resource::new(handler.get_name(), path);
+                        break Some((pattern, Some(handler)));
                     }
                 }
+            };
+
+            if let Some(out) = out {
+                parts.resources.push(out);
             }
         }
+
         self
     }
 

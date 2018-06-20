@@ -73,12 +73,11 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }
 
-    fn write_data(&mut self, data: &[u8]) -> io::Result<usize> {
+    fn write_data(stream: &mut T, data: &[u8]) -> io::Result<usize> {
         let mut written = 0;
         while written < data.len() {
-            match self.stream.write(&data[written..]) {
+            match stream.write(&data[written..]) {
                 Ok(0) => {
-                    self.disconnected();
                     return Err(io::Error::new(io::ErrorKind::WriteZero, ""));
                 }
                 Ok(n) => {
@@ -243,7 +242,16 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 if self.flags.contains(Flags::UPGRADE) {
                     if self.buffer.is_empty() {
                         let pl: &[u8] = payload.as_ref();
-                        let n = self.write_data(pl)?;
+                        let n = match Self::write_data(&mut self.stream, pl) {
+                            Err(err) => {
+                                if err.kind() == io::ErrorKind::WriteZero {
+                                    self.disconnected();
+                                }
+
+                                return Err(err);
+                            }
+                            Ok(val) => val,
+                        };
                         if n < pl.len() {
                             self.buffer.extend_from_slice(&pl[n..]);
                             return Ok(WriterState::Done);
@@ -284,9 +292,18 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
-            let buf: &[u8] =
-                unsafe { &mut *(self.buffer.as_ref() as *const _ as *mut _) };
-            let written = self.write_data(buf)?;
+            let written = {
+                match Self::write_data(&mut self.stream, self.buffer.as_ref()) {
+                    Err(err) => {
+                        if err.kind() == io::ErrorKind::WriteZero {
+                            self.disconnected();
+                        }
+    
+                        return Err(err);
+                    }
+                    Ok(val) => val,
+                }
+            };
             let _ = self.buffer.split_to(written);
             if shutdown && !self.buffer.is_empty()
                 || (self.buffer.len() > self.buffer_capacity)
