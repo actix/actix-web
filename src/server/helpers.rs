@@ -76,8 +76,7 @@ impl SharedHttpInnerMessage {
 
     #[inline]
     pub fn get_mut(&mut self) -> &mut HttpInnerMessage {
-        let r: &HttpInnerMessage = self.0.as_ref().unwrap().as_ref();
-        unsafe { &mut *(r as *const _ as *mut _) }
+        Rc::get_mut(self.0.as_mut().unwrap()).expect("cannot get mutable reference while object is immutably borrowed")
     }
 
     #[inline]
