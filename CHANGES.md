@@ -50,6 +50,10 @@
 
 * Remove `HttpMessage::range()`
 
+## [0.6.14] - 2018-06-21
+
+* Allow to disable masking for websockets client
+
 
 ## [0.6.13] - 2018-06-11
 
