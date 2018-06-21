@@ -23,16 +23,13 @@ impl Actor for Ws {
 }
 
 impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
-    fn handle(
-        &mut self, msg: Result<Option<ws::Message>, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
-            Ok(Some(ws::Message::Ping(msg))) => ctx.pong(&msg),
-            Ok(Some(ws::Message::Text(text))) => ctx.text(text),
-            Ok(Some(ws::Message::Binary(bin))) => ctx.binary(bin),
-            Ok(Some(ws::Message::Close(reason))) => ctx.close(reason),
-            _ => ctx.stop(),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
+            ws::Message::Close(reason) => ctx.close(reason),
+            _ => (),
         }
     }
 }
@@ -156,16 +153,13 @@ impl Ws2 {
 }
 
 impl StreamHandler<ws::Message, ws::ProtocolError> for Ws2 {
-    fn handle(
-        &mut self, msg: Result<Option<ws::Message>, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
-            Ok(Some(ws::Message::Ping(msg))) => ctx.pong(&msg),
-            Ok(Some(ws::Message::Text(text))) => ctx.text(text),
-            Ok(Some(ws::Message::Binary(bin))) => ctx.binary(bin),
-            Ok(Some(ws::Message::Close(reason))) => ctx.close(reason),
-            _ => ctx.stop(),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
+            ws::Message::Close(reason) => ctx.close(reason),
+            _ => (),
         }
     }
 }

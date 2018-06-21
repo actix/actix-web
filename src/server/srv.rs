@@ -5,7 +5,7 @@ use std::{io, net, thread};
 
 use actix::{
     fut, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
-    Response, StreamHandler, System, WrapFuture,
+    Response, StreamHandler2, System, WrapFuture,
 };
 
 use futures::sync::mpsc;
@@ -449,7 +449,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
             // start http server actor
             let signals = self.subscribe_to_signals();
             let addr = Actor::create(move |ctx| {
-                ctx.add_stream(rx);
+                ctx.add_stream2(rx);
                 self
             });
             if let Some(signals) = signals {
@@ -611,7 +611,7 @@ impl<H: IntoHttpHandler> Handler<signal::Signal> for HttpServer<H> {
 }
 
 /// Commands from accept threads
-impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
+impl<H: IntoHttpHandler> StreamHandler2<ServerCommand, ()> for HttpServer<H> {
     fn handle(&mut self, msg: Result<Option<ServerCommand>, ()>, _: &mut Context<Self>) {
         if let Ok(Some(ServerCommand::WorkerDied(idx, socks))) = msg {
             let mut found = false;

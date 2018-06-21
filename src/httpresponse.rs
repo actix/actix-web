@@ -972,7 +972,7 @@ impl InnerHttpResponse {
     }
 }
 
-/// Internal use only! unsafe
+/// Internal use only!
 pub(crate) struct HttpResponsePool(VecDeque<Box<InnerHttpResponse>>);
 
 thread_local!(static POOL: Rc<UnsafeCell<HttpResponsePool>> = HttpResponsePool::pool());
