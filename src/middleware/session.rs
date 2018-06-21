@@ -246,7 +246,7 @@ impl<S, T: SessionBackend<S>> SessionStorage<T, S> {
 }
 
 impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
         let fut = self.0.from_request(&mut req).then(move |res| match res {
@@ -261,7 +261,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
     }
 
     fn response(
-        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(s_box) = req.extensions_mut().remove::<Arc<SessionImplCell>>() {
             s_box.0.borrow_mut().write(resp)

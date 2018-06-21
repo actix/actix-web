@@ -564,7 +564,7 @@ impl<S: 'static> TestRequest<S> {
     /// with generated request.
     ///
     /// This method panics is handler returns actor or async result.
-    pub fn run<H: Handler<S>>(self, h: H) -> Result<HttpResponse, Error> {
+    pub fn run<H: Handler<S>>(self, h: &H) -> Result<HttpResponse, Error> {
         let req = self.finish();
         let resp = h.handle(req.clone());
 

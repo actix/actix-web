@@ -1204,7 +1204,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index() {
-        let mut st = StaticFiles::new(".").index_file("index.html");
+        let st = StaticFiles::new(".").index_file("index.html");
         let mut req = HttpRequest::default();
         req.match_info_mut().add_static("tail", "tests");
 
@@ -1230,7 +1230,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let mut st = StaticFiles::new(".").index_file("mod.rs");
+        let st = StaticFiles::new(".").index_file("mod.rs");
         let mut req = HttpRequest::default();
         req.match_info_mut().add_static("tail", "src/client");
 

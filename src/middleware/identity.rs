@@ -178,7 +178,7 @@ impl<T> IdentityService<T> {
 struct IdentityBox(Box<Identity>);
 
 impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         let mut req = req.clone();
 
         let fut = self
@@ -195,7 +195,7 @@ impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
     }
 
     fn response(
-        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(mut id) = req.extensions_mut().remove::<IdentityBox>() {
             id.0.write(resp)

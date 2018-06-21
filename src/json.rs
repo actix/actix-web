@@ -412,7 +412,7 @@ mod tests {
     fn test_with_json() {
         let mut cfg = JsonConfig::default();
         cfg.limit(4096);
-        let mut handler = With::new(|data: Json<MyObject>| data, cfg);
+        let handler = With::new(|data: Json<MyObject>| data, cfg);
 
         let req = HttpRequest::default();
         assert!(handler.handle(req).as_err().is_some());

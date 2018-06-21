@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -38,7 +37,7 @@ pub struct ResourceHandler<S = ()> {
     name: String,
     state: PhantomData<S>,
     routes: SmallVec<[Route<S>; 3]>,
-    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 impl<S> Default for ResourceHandler<S> {
@@ -47,7 +46,7 @@ impl<S> Default for ResourceHandler<S> {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
-            middlewares: Rc::new(RefCell::new(Vec::new())),
+            middlewares: Rc::new(Vec::new()),
         }
     }
 }
@@ -58,7 +57,7 @@ impl<S> ResourceHandler<S> {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
-            middlewares: Rc::new(RefCell::new(Vec::new())),
+            middlewares: Rc::new(Vec::new()),
         }
     }
 
@@ -277,7 +276,6 @@ impl<S: 'static> ResourceHandler<S> {
     pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
         Rc::get_mut(&mut self.middlewares)
             .unwrap()
-            .borrow_mut()
             .push(Box::new(mw));
     }
 
@@ -286,7 +284,7 @@ impl<S: 'static> ResourceHandler<S> {
     ) -> Result<AsyncResult<HttpResponse>, HttpRequest<S>> {
         for route in &self.routes {
             if route.check(&mut req) {
-                return if self.middlewares.borrow().is_empty() {
+                return if self.middlewares.is_empty() {
                     Ok(route.handle(req))
                 } else {
                     Ok(route.compose(req, Rc::clone(&self.middlewares)))

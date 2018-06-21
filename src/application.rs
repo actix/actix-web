@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -21,9 +20,9 @@ pub struct HttpApplication<S = ()> {
     prefix: String,
     prefix_len: usize,
     router: Router,
-    inner: Rc<RefCell<Inner<S>>>,
+    inner: Rc<Inner<S>>,
     filters: Option<Vec<Box<Predicate<S>>>>,
-    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 #[doc(hidden)]
@@ -41,12 +40,13 @@ enum PrefixHandlerType<S> {
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
+    #[inline]
     fn encoding(&self) -> ContentEncoding {
         self.encoding
     }
 
     fn handle(
-        &mut self, req: HttpRequest<S>, htype: HandlerType,
+        &self, req: HttpRequest<S>, htype: HandlerType,
     ) -> AsyncResult<HttpResponse> {
         match htype {
             HandlerType::Normal(idx) => match self.resources[idx].handle(req) {
@@ -57,8 +57,8 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                 },
             },
             HandlerType::Handler(idx) => match self.handlers[idx] {
-                PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
-                PrefixHandlerType::Scope(_, ref mut hnd, _) => hnd.handle(req),
+                PrefixHandlerType::Handler(_, ref hnd) => hnd.handle(req),
+                PrefixHandlerType::Scope(_, ref hnd, _) => hnd.handle(req),
             },
             HandlerType::Default => match self.default.handle(req) {
                 Ok(result) => result,
@@ -74,14 +74,13 @@ impl<S: 'static> HttpApplication<S> {
         if let Some(idx) = self.router.recognize(req) {
             HandlerType::Normal(idx)
         } else {
-            let inner = self.inner.borrow();
             req.match_info_mut().set_tail(0);
 
-            'outer: for idx in 0..inner.handlers.len() {
-                match inner.handlers[idx] {
+            'outer: for idx in 0..self.inner.handlers.len() {
+                match self.inner.handlers[idx] {
                     PrefixHandlerType::Handler(ref prefix, _) => {
                         let m = {
-                            let path = &req.path()[inner.prefix..];
+                            let path = &req.path()[self.inner.prefix..];
                             let path_len = path.len();
 
                             path.starts_with(prefix)
@@ -90,7 +89,7 @@ impl<S: 'static> HttpApplication<S> {
                         };
 
                         if m {
-                            let prefix_len = (inner.prefix + prefix.len()) as u16;
+                            let prefix_len = (self.inner.prefix + prefix.len()) as u16;
                             let url = req.url().clone();
                             req.set_prefix_len(prefix_len);
                             req.match_info_mut().set_url(url);
@@ -100,7 +99,7 @@ impl<S: 'static> HttpApplication<S> {
                     }
                     PrefixHandlerType::Scope(ref pattern, _, ref filters) => {
                         if let Some(prefix_len) =
-                            pattern.match_prefix_with_params(req, inner.prefix)
+                            pattern.match_prefix_with_params(req, self.inner.prefix)
                         {
                             for filter in filters {
                                 if !filter.check(req) {
@@ -108,7 +107,7 @@ impl<S: 'static> HttpApplication<S> {
                                 }
                             }
 
-                            let prefix_len = (inner.prefix + prefix_len) as u16;
+                            let prefix_len = (self.inner.prefix + prefix_len) as u16;
                             let url = req.url().clone();
                             req.set_prefix_len(prefix_len);
                             let params = req.match_info_mut();
@@ -124,9 +123,9 @@ impl<S: 'static> HttpApplication<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn run(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    pub(crate) fn run(&self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let tp = self.get_handler(&mut req);
-        self.inner.borrow_mut().handle(req, tp)
+        self.inner.handle(req, tp)
     }
 
     #[cfg(test)]
@@ -629,7 +628,7 @@ where
             resources.push((pattern, None));
         }
 
-        for ref mut handler in parts.handlers.iter_mut() {
+        for handler in &mut parts.handlers {
             if let PrefixHandlerType::Scope(_, ref mut route_handler, _) = handler {
                 if !route_handler.has_default_resource() {
                     route_handler.default_resource(Rc::clone(&parts.default));
@@ -639,13 +638,13 @@ where
 
         let (router, resources) = Router::new(&prefix, parts.settings, resources);
 
-        let inner = Rc::new(RefCell::new(Inner {
+        let inner = Rc::new(Inner {
             prefix: prefix_len,
             default: Rc::clone(&parts.default),
             encoding: parts.encoding,
             handlers: parts.handlers,
             resources,
-        }));
+        });
         let filters = if parts.filters.is_empty() {
             None
         } else {
@@ -655,7 +654,7 @@ where
         HttpApplication {
             state: Rc::new(parts.state),
             router: router.clone(),
-            middlewares: Rc::new(RefCell::new(parts.middlewares)),
+            middlewares: Rc::new(parts.middlewares),
             prefix,
             prefix_len,
             inner,
@@ -765,7 +764,7 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
 
@@ -777,7 +776,7 @@ mod tests {
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
-        let mut app = App::new()
+        let app = App::new()
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").finish();
@@ -787,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_unhandled_prefix() {
-        let mut app = App::new()
+        let app = App::new()
             .prefix("/test")
             .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
@@ -796,7 +795,7 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let mut app = App::with_state(10)
+        let app = App::with_state(10)
             .resource("/", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
         let req =
@@ -807,7 +806,7 @@ mod tests {
 
     #[test]
     fn test_prefix() {
-        let mut app = App::new()
+        let app = App::new()
             .prefix("/test")
             .resource("/blah", |r| r.f(|_| HttpResponse::Ok()))
             .finish();
@@ -830,7 +829,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
+        let app = App::new().handler("/test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -855,7 +854,7 @@ mod tests {
 
     #[test]
     fn test_handler2() {
-        let mut app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
+        let app = App::new().handler("test", |_| HttpResponse::Ok()).finish();
 
         let req = TestRequest::with_uri("/test").finish();
         let resp = app.run(req);
@@ -880,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_handler_with_prefix() {
-        let mut app = App::new()
+        let app = App::new()
             .prefix("prefix")
             .handler("/test", |_| HttpResponse::Ok())
             .finish();
@@ -908,7 +907,7 @@ mod tests {
 
     #[test]
     fn test_route() {
-        let mut app = App::new()
+        let app = App::new()
             .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
@@ -930,7 +929,7 @@ mod tests {
 
     #[test]
     fn test_handler_prefix() {
-        let mut app = App::new()
+        let app = App::new()
             .prefix("/app")
             .handler("/test", |_| HttpResponse::Ok())
             .finish();
@@ -980,7 +979,7 @@ mod tests {
 
     #[test]
     fn test_option_responder() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
             .resource("/some", |r| r.f(|_| Some("some")))
             .finish();

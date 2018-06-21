@@ -71,7 +71,7 @@ impl<S> ErrorHandlers<S> {
 
 impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
     fn response(
-        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         if let Some(handler) = self.handlers.get(&resp.status()) {
             handler(req, resp)
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let mut mw =
+        let mw =
             ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mut req = HttpRequest::default();
@@ -121,7 +121,7 @@ mod tests {
     struct MiddlewareOne;
 
     impl<S> Middleware<S> for MiddlewareOne {
-        fn start(&mut self, _req: &mut HttpRequest<S>) -> Result<Started, Error> {
+        fn start(&self, _req: &mut HttpRequest<S>) -> Result<Started, Error> {
             Err(ErrorInternalServerError("middleware error"))
         }
     }

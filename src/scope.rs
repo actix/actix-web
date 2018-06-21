@@ -1,4 +1,4 @@
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
@@ -57,7 +57,7 @@ type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 pub struct Scope<S: 'static> {
     filters: Vec<Box<Predicate<S>>>,
     nested: Vec<NestedInfo<S>>,
-    middlewares: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+    middlewares: Rc<Vec<Box<Middleware<S>>>>,
     default: Option<ScopeResource<S>>,
     resources: ScopeResources<S>,
 }
@@ -71,7 +71,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(RefCell::new(Vec::new())),
+            middlewares: Rc::new(Vec::new()),
             default: None,
         }
     }
@@ -135,7 +135,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(RefCell::new(Vec::new())),
+            middlewares: Rc::new(Vec::new()),
             default: None,
         };
         let mut scope = f(scope);
@@ -178,7 +178,7 @@ impl<S: 'static> Scope<S> {
             filters: Vec::new(),
             nested: Vec::new(),
             resources: Rc::new(Vec::new()),
-            middlewares: Rc::new(RefCell::new(Vec::new())),
+            middlewares: Rc::new(Vec::new()),
             default: None,
         };
         let mut scope = f(scope);
@@ -332,7 +332,6 @@ impl<S: 'static> Scope<S> {
     pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> Scope<S> {
         Rc::get_mut(&mut self.middlewares)
             .expect("Can not use after configuration")
-            .borrow_mut()
             .push(Box::new(mw));
         self
     }
@@ -345,7 +344,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(&mut req, tail, false) {
-                if self.middlewares.borrow().is_empty() {
+                if self.middlewares.is_empty() {
                     return match resource.handle(req) {
                         Ok(result) => result,
                         Err(req) => {
@@ -393,7 +392,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         }
 
         // default handler
-        if self.middlewares.borrow().is_empty() {
+        if self.middlewares.is_empty() {
             if let Some(ref default) = self.default {
                 match default.handle(req) {
                     Ok(result) => result,
@@ -459,7 +458,7 @@ struct Compose<S: 'static> {
 struct ComposeInfo<S: 'static> {
     count: usize,
     req: HttpRequest<S>,
-    mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+    mws: Rc<Vec<Box<Middleware<S>>>>,
     resource: Rc<ResourceHandler<S>>,
 }
 
@@ -485,7 +484,7 @@ impl<S: 'static> ComposeState<S> {
 
 impl<S: 'static> Compose<S> {
     fn new(
-        req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+        req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
         resource: Rc<ResourceHandler<S>>,
     ) -> Self {
         let mut info = ComposeInfo {
@@ -529,7 +528,7 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 
 impl<S: 'static> StartMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>) -> ComposeState<S> {
-        let len = info.mws.borrow().len();
+        let len = info.mws.len();
         loop {
             if info.count == len {
                 let reply = {
@@ -538,7 +537,7 @@ impl<S: 'static> StartMiddlewares<S> {
                 };
                 return WaitingResponse::init(info, reply);
             } else {
-                let state = info.mws.borrow_mut()[info.count].start(&mut info.req);
+                let state = info.mws[info.count].start(&mut info.req);
                 match state {
                     Ok(MiddlewareStarted::Done) => info.count += 1,
                     Ok(MiddlewareStarted::Response(resp)) => {
@@ -557,7 +556,7 @@ impl<S: 'static> StartMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.borrow().len();
+        let len = info.mws.len();
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => return None,
@@ -574,8 +573,7 @@ impl<S: 'static> StartMiddlewares<S> {
                             };
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            let state =
-                                info.mws.borrow_mut()[info.count].start(&mut info.req);
+                            let state = info.mws[info.count].start(&mut info.req);
                             match state {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
@@ -638,10 +636,10 @@ struct RunMiddlewares<S> {
 impl<S: 'static> RunMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>, mut resp: HttpResponse) -> ComposeState<S> {
         let mut curr = 0;
-        let len = info.mws.borrow().len();
+        let len = info.mws.len();
 
         loop {
-            let state = info.mws.borrow_mut()[curr].response(&mut info.req, resp);
+            let state = info.mws[curr].response(&mut info.req, resp);
             resp = match state {
                 Err(err) => {
                     info.count = curr + 1;
@@ -667,7 +665,7 @@ impl<S: 'static> RunMiddlewares<S> {
     }
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
-        let len = info.mws.borrow().len();
+        let len = info.mws.len();
 
         loop {
             // poll latest fut
@@ -684,8 +682,7 @@ impl<S: 'static> RunMiddlewares<S> {
                 if self.curr == len {
                     return Some(FinishingMiddlewares::init(info, resp));
                 } else {
-                    let state =
-                        info.mws.borrow_mut()[self.curr].response(&mut info.req, resp);
+                    let state = info.mws[self.curr].response(&mut info.req, resp);
                     match state {
                         Err(err) => {
                             return Some(FinishingMiddlewares::init(info, err.into()))
@@ -754,7 +751,7 @@ impl<S: 'static> FinishingMiddlewares<S> {
             }
 
             info.count -= 1;
-            let state = info.mws.borrow_mut()[info.count as usize]
+            let state = info.mws[info.count as usize]
                 .finish(&mut info.req, self.resp.as_ref().unwrap());
             match state {
                 MiddlewareFinished::Done => {
@@ -798,7 +795,7 @@ mod tests {
 
     #[test]
     fn test_scope() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
             })
@@ -811,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_scope_root() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope
                     .resource("", |r| r.f(|_| HttpResponse::Ok()))
@@ -830,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_scope_root2() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
             })
@@ -847,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_scope_root3() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
             })
@@ -864,7 +861,7 @@ mod tests {
 
     #[test]
     fn test_scope_route() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("app", |scope| {
                 scope
                     .route("/path1", Method::GET, |_: HttpRequest<_>| {
@@ -895,7 +892,7 @@ mod tests {
 
     #[test]
     fn test_scope_filter() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope
                     .filter(pred::Get())
@@ -918,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_scope_variable_segment() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/ab-{project}", |scope| {
                 scope.resource("/path1", |r| {
                     r.f(|r| {
@@ -950,7 +947,7 @@ mod tests {
     fn test_scope_with_state() {
         struct State;
 
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.with_state("/t1", State, |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
@@ -967,7 +964,7 @@ mod tests {
     fn test_scope_with_state_root() {
         struct State;
 
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.with_state("/t1", State, |scope| {
                     scope
@@ -990,7 +987,7 @@ mod tests {
     fn test_scope_with_state_root2() {
         struct State;
 
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.with_state("/t1/", State, |scope| {
                     scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
@@ -1011,7 +1008,7 @@ mod tests {
     fn test_scope_with_state_root3() {
         struct State;
 
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.with_state("/t1/", State, |scope| {
                     scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
@@ -1032,7 +1029,7 @@ mod tests {
     fn test_scope_with_state_filter() {
         struct State;
 
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.with_state("/t1", State, |scope| {
                     scope
@@ -1057,7 +1054,7 @@ mod tests {
 
     #[test]
     fn test_nested_scope() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
@@ -1072,7 +1069,7 @@ mod tests {
 
     #[test]
     fn test_nested_scope_root() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
                     scope
@@ -1093,7 +1090,7 @@ mod tests {
 
     #[test]
     fn test_nested_scope_filter() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
                     scope
@@ -1118,7 +1115,7 @@ mod tests {
 
     #[test]
     fn test_nested_scope_with_variable_segment() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/{project_id}", |scope| {
                     scope.resource("/path1", |r| {
@@ -1148,7 +1145,7 @@ mod tests {
 
     #[test]
     fn test_nested2_scope_with_variable_segment() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/{project}", |scope| {
                     scope.nested("/{id}", |scope| {
@@ -1185,7 +1182,7 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app", |scope| {
                 scope
                     .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
@@ -1204,7 +1201,7 @@ mod tests {
 
     #[test]
     fn test_default_resource_propagation() {
-        let mut app = App::new()
+        let app = App::new()
             .scope("/app1", |scope| {
                 scope.default_resource(|r| r.f(|_| HttpResponse::BadRequest()))
             })

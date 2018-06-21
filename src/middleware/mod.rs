@@ -51,20 +51,20 @@ pub enum Finished {
 pub trait Middleware<S>: 'static {
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         Ok(Started::Done)
     }
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
     fn response(
-        &mut self, req: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
     ) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 
     /// Method is called after body stream get sent to peer.
-    fn finish(&mut self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
         Finished::Done
     }
 }

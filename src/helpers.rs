@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_trailing_slashes_disabled() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .default_resource(|r| {
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_slashes() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
             .default_resource(|r| r.h(NormalizePath::default()))
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_normalize_path_merge_and_append_slashes() {
-        let mut app = App::new()
+        let app = App::new()
             .resource("/resource1", |r| r.method(Method::GET).f(index))
             .resource("/resource2/", |r| r.method(Method::GET).f(index))
             .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))

@@ -356,7 +356,7 @@ impl Cors {
 }
 
 impl<S> Middleware<S> for Cors {
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         if self.inner.preflight && Method::OPTIONS == *req.method() {
             self.validate_origin(req)?;
             self.validate_allowed_method(req)?;
@@ -434,7 +434,7 @@ impl<S> Middleware<S> for Cors {
     }
 
     fn response(
-        &mut self, req: &mut HttpRequest<S>, mut resp: HttpResponse,
+        &self, req: &mut HttpRequest<S>, mut resp: HttpResponse,
     ) -> Result<Response> {
         match self.inner.origins {
             AllOrSome::All => {
@@ -944,7 +944,7 @@ mod tests {
 
     #[test]
     fn validate_origin_allows_all_origins() {
-        let mut cors = Cors::default();
+        let cors = Cors::default();
         let mut req =
             TestRequest::with_header("Origin", "https://www.example.com").finish();
 
@@ -1013,7 +1013,7 @@ mod tests {
     // #[test]
     // #[should_panic(expected = "MissingOrigin")]
     // fn test_validate_missing_origin() {
-    //    let mut cors = Cors::build()
+    //    let cors = Cors::build()
     //        .allowed_origin("https://www.example.com")
     //        .finish();
     //    let mut req = HttpRequest::default();
@@ -1023,7 +1023,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "OriginNotAllowed")]
     fn test_validate_not_allowed_origin() {
-        let mut cors = Cors::build()
+        let cors = Cors::build()
             .allowed_origin("https://www.example.com")
             .finish();
 
@@ -1035,7 +1035,7 @@ mod tests {
 
     #[test]
     fn test_validate_origin() {
-        let mut cors = Cors::build()
+        let cors = Cors::build()
             .allowed_origin("https://www.example.com")
             .finish();
 
@@ -1048,7 +1048,7 @@ mod tests {
 
     #[test]
     fn test_no_origin_response() {
-        let mut cors = Cors::build().finish();
+        let cors = Cors::build().finish();
 
         let mut req = TestRequest::default().method(Method::GET).finish();
         let resp: HttpResponse = HttpResponse::Ok().into();
@@ -1074,7 +1074,7 @@ mod tests {
 
     #[test]
     fn test_response() {
-        let mut cors = Cors::build()
+        let cors = Cors::build()
             .send_wildcard()
             .disable_preflight()
             .max_age(3600)
@@ -1109,7 +1109,7 @@ mod tests {
             resp.headers().get(header::VARY).unwrap().as_bytes()
         );
 
-        let mut cors = Cors::build()
+        let cors = Cors::build()
             .disable_vary_header()
             .allowed_origin("https://www.example.com")
             .finish();

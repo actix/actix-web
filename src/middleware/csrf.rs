@@ -209,7 +209,7 @@ impl CsrfFilter {
 }
 
 impl<S> Middleware<S> for CsrfFilter {
-    fn start(&mut self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
         self.validate(req)?;
         Ok(Started::Done)
     }
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_safe() {
-        let mut csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::HEAD)
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_csrf() {
-        let mut csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::POST)
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_referer() {
-        let mut csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
+        let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
         let mut req = TestRequest::with_header(
             "Referer",
@@ -258,9 +258,9 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let mut strict_csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
+        let strict_csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let mut lax_csrf = CsrfFilter::new()
+        let lax_csrf = CsrfFilter::new()
             .allowed_origin("https://www.example.com")
             .allow_upgrade();
 
