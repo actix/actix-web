@@ -25,6 +25,8 @@
 
 * `HttpRequest::url_for_static()` for a named route with no variables segments
 
+* Propagation of the application's default resource to scopes that haven't set a default resource.
+
 
 ### Changed
 

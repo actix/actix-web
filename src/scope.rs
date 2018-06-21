@@ -405,6 +405,14 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
             unimplemented!()
         }
     }
+
+    fn has_default_resource(&self) -> bool {
+        self.default.is_some()
+    }
+
+    fn default_resource(&mut self, default: ScopeResource<S>) {
+        self.default = Some(default);
+    }
 }
 
 struct Wrapper<S: 'static> {
@@ -1187,5 +1195,28 @@ mod tests {
         let req = TestRequest::with_uri("/path2").finish();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_default_resource_propagation() {
+        let mut app = App::new()
+            .scope("/app1", |scope| {
+                scope.default_resource(|r| r.f(|_| HttpResponse::BadRequest()))
+            })
+            .scope("/app2", |scope| scope)
+            .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
+            .finish();
+
+        let req = TestRequest::with_uri("/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let req = TestRequest::with_uri("/app1/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/app2/non-exist").finish();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 }
