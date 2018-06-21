@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
@@ -19,7 +18,7 @@ use resource::ResourceHandler;
 use router::Resource;
 
 type ScopeResource<S> = Rc<ResourceHandler<S>>;
-type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
+type Route<S> = Box<RouteHandler<S>>;
 type ScopeResources<S> = Rc<Vec<(Resource, ScopeResource<S>)>>;
 type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
 
@@ -145,7 +144,7 @@ impl<S: 'static> Scope<S> {
             state: Rc::clone(&state),
             filters: scope.take_filters(),
         })];
-        let handler = UnsafeCell::new(Box::new(Wrapper { scope, state }));
+        let handler = Box::new(Wrapper { scope, state });
         self.nested
             .push((Resource::prefix("", &path), handler, filters));
 
@@ -184,11 +183,8 @@ impl<S: 'static> Scope<S> {
         let mut scope = f(scope);
 
         let filters = scope.take_filters();
-        self.nested.push((
-            Resource::prefix("", &path),
-            UnsafeCell::new(Box::new(scope)),
-            filters,
-        ));
+        self.nested
+            .push((Resource::prefix("", &path), Box::new(scope), filters));
 
         self
     }
@@ -384,10 +380,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
                 req.set_prefix_len(prefix_len);
                 req.match_info_mut().set_tail(prefix_len);
                 req.match_info_mut().set_url(url);
-
-                let hnd: &mut RouteHandler<_> =
-                    unsafe { (&mut *(handler.get())).as_mut() };
-                return hnd.handle(req);
+                return handler.handle(req);
             }
         }
 

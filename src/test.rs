@@ -394,11 +394,11 @@ impl<S: 'static> Iterator for TestApp<S> {
 ///
 /// fn main() {
 ///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(index)
+///         .run(&index)
 ///         .unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
-///     let resp = TestRequest::default().run(index).unwrap();
+///     let resp = TestRequest::default().run(&index).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```

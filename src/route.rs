@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -297,12 +296,12 @@ impl<S: 'static> Route<S> {
 
 /// `RouteHandler` wrapper. This struct is required because it needs to be
 /// shared for resource level middlewares.
-struct InnerHandler<S>(Rc<UnsafeCell<Box<RouteHandler<S>>>>);
+struct InnerHandler<S>(Rc<Box<RouteHandler<S>>>);
 
 impl<S: 'static> InnerHandler<S> {
     #[inline]
     fn new<H: Handler<S>>(h: H) -> Self {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(WrapHandler::new(h)))))
+        InnerHandler(Rc::new(Box::new(WrapHandler::new(h))))
     }
 
     #[inline]
@@ -313,14 +312,12 @@ impl<S: 'static> InnerHandler<S> {
         R: Responder + 'static,
         E: Into<Error> + 'static,
     {
-        InnerHandler(Rc::new(UnsafeCell::new(Box::new(AsyncHandler::new(h)))))
+        InnerHandler(Rc::new(Box::new(AsyncHandler::new(h))))
     }
 
     #[inline]
     pub fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        // reason: handler is unique per thread, handler get called from sync code only
-        let h = unsafe { &mut *self.0.as_ref().get() };
-        h.handle(req)
+        self.0.handle(req)
     }
 }
 
