@@ -39,7 +39,7 @@
 
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
-* port `Extensions` type from http create, we dont need `Send + Sync`
+* port `Extensions` type from http create, we don't need `Send + Sync`
 
 * `HttpRequest::query()` returns `&HashMap<String, String>`
 
@@ -88,7 +88,7 @@
 
 ### Added
 
-* Allow to use path without traling slashes for scope registration #241
+* Allow to use path without trailing slashes for scope registration #241
 
 * Allow to set encoding for exact NamedFile #239
 
@@ -449,7 +449,7 @@
 
 * Server multi-threading
 
-* Gracefull shutdown support
+* Graceful shutdown support
 
 
 ## 0.2.1 (2017-11-03)
