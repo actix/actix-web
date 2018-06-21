@@ -171,12 +171,13 @@ where
 /// fn main() {
 ///     let app = App::new().resource("/index.html", |r| {
 ///         r.method(http::Method::POST)
-///               .with(index)
-///               .limit(4096)   // <- change json extractor configuration
-///               .error_handler(|err, req| {  // <- create custom error response
-///                   error::InternalError::from_response(
-///                      err, HttpResponse::Conflict().finish()).into()
-///               });
+///               .with_config(index, |cfg| {
+///                   cfg.limit(4096)   // <- change json extractor configuration
+///                      .error_handler(|err, req| {  // <- create custom error response
+///                          error::InternalError::from_response(
+///                              err, HttpResponse::Conflict().finish()).into()
+///                          });
+///               })
 ///     });
 /// }
 /// ```
@@ -326,7 +327,7 @@ mod tests {
     use http::header;
 
     use handler::Handler;
-    use with::{ExtractorConfig, With};
+    use with::With;
 
     impl PartialEq for JsonPayloadError {
         fn eq(&self, other: &JsonPayloadError) -> bool {
@@ -409,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_with_json() {
-        let mut cfg = ExtractorConfig::<_, Json<MyObject>>::default();
+        let mut cfg = JsonConfig::default();
         cfg.limit(4096);
         let mut handler = With::new(|data: Json<MyObject>| data, cfg);
 

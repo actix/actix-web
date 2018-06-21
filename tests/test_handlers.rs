@@ -152,14 +152,17 @@ fn test_form_extractor() {
 fn test_form_extractor2() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route()
-                .with(|form: Form<FormData>| format!("{}", form.username))
-                .error_handler(|err, _| {
-                    error::InternalError::from_response(
-                        err,
-                        HttpResponse::Conflict().finish(),
-                    ).into()
-                });
+            r.route().with_config(
+                |form: Form<FormData>| format!("{}", form.username),
+                |cfg| {
+                    cfg.error_handler(|err, _| {
+                        error::InternalError::from_response(
+                            err,
+                            HttpResponse::Conflict().finish(),
+                        ).into()
+                    });
+                },
+            );
         });
     });
 

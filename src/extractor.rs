@@ -312,8 +312,10 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///     let app = App::new().resource(
 ///         "/index.html",
 ///         |r| {
-///             r.method(http::Method::GET).with(index).limit(4096);
-///         }, // <- change form extractor configuration
+///             r.method(http::Method::GET)
+///                 // register form handler and change form extractor configuration
+///                 .with_config(index, |cfg| {cfg.limit(4096);})
+///         },
 ///     );
 /// }
 /// ```

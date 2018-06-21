@@ -257,7 +257,7 @@ impl<S: 'static> Route<S> {
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{http, App, Error, Path};
+    /// use actix_web::{http, App, Error, Form};
     /// use futures::Future;
     ///
     /// #[derive(Deserialize)]
@@ -318,7 +318,7 @@ impl<S: 'static> InnerHandler<S> {
 
     #[inline]
     pub fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        // reason: handler is unique per thread, handler get called from async code only
+        // reason: handler is unique per thread, handler get called from sync code only
         let h = unsafe { &mut *self.0.as_ref().get() };
         h.handle(req)
     }
