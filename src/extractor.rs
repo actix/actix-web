@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::{fmt, str};
 use std::rc::Rc;
+use std::{fmt, str};
 
 use bytes::Bytes;
 use encoding::all::UTF_8;
@@ -328,7 +328,7 @@ impl<S> FormConfig<S> {
         self.limit = limit;
         self
     }
-    
+
     /// Set custom error handler
     pub fn error_handler<F>(&mut self, f: F) -> &mut Self
     where
@@ -408,8 +408,9 @@ impl<S: 'static> FromRequest<S> for Bytes {
 /// fn main() {
 ///     let app = App::new().resource("/index.html", |r| {
 ///         r.method(http::Method::GET)
-///                .with(index)   // <- register handler with extractor params
-///                .limit(4096); // <- limit size of the payload
+///                .with_config(index, |cfg| { // <- register handler with extractor params
+///                   cfg.limit(4096);  // <- limit size of the payload
+///                 })
 ///     });
 /// }
 /// ```

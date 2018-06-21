@@ -17,7 +17,7 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
-use with::{ExtractorConfig, With, WithAsync};
+use with::{With, WithAsync};
 
 /// Resource route definition
 ///
@@ -164,15 +164,49 @@ impl<S: 'static> Route<S> {
     ///     ); // <- use `with` extractor
     /// }
     /// ```
-    pub fn with<T, F, R>(&mut self, handler: F) -> ExtractorConfig<S, T>
+    pub fn with<T, F, R>(&mut self, handler: F)
     where
         F: Fn(T) -> R + 'static,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        let cfg = ExtractorConfig::<S, T>::default();
-        self.h(With::new(handler, cfg.clone()));
-        cfg
+        self.h(With::new(handler, <T::Config as Default>::default()));
+    }
+
+    /// Set handler function. Same as `.with()` but it allows to configure
+    /// extractor.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{http, App, Path, Result};
+    ///
+    /// /// extract text data from request
+    /// fn index(body: String) -> Result<String> {
+    ///     Ok(format!("Body {}!", body))
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource("/index.html", |r| {
+    ///         r.method(http::Method::GET)
+    ///                .with_config(index, |cfg| { // <- register handler
+    ///                   cfg.limit(4096);  // <- limit size of the payload
+    ///                 })
+    ///     });
+    /// }
+    /// ```
+    pub fn with_config<T, F, R, C>(&mut self, handler: F, cfg_f: C)
+    where
+        F: Fn(T) -> R + 'static,
+        R: Responder + 'static,
+        T: FromRequest<S> + 'static,
+        C: FnOnce(&mut T::Config),
+    {
+        let mut cfg = <T::Config as Default>::default();
+        cfg_f(&mut cfg);
+        self.h(With::new(handler, cfg));
     }
 
     /// Set async handler function, use request extractor for parameters.
@@ -204,7 +238,7 @@ impl<S: 'static> Route<S> {
     ///     ); // <- use `with` extractor
     /// }
     /// ```
-    pub fn with_async<T, F, R, I, E>(&mut self, handler: F) -> ExtractorConfig<S, T>
+    pub fn with_async<T, F, R, I, E>(&mut self, handler: F)
     where
         F: Fn(T) -> R + 'static,
         R: Future<Item = I, Error = E> + 'static,
@@ -212,9 +246,52 @@ impl<S: 'static> Route<S> {
         E: Into<Error> + 'static,
         T: FromRequest<S> + 'static,
     {
-        let cfg = ExtractorConfig::<S, T>::default();
-        self.h(WithAsync::new(handler, cfg.clone()));
-        cfg
+        self.h(WithAsync::new(handler, <T::Config as Default>::default()));
+    }
+
+    /// Set async handler function, use request extractor for parameters.
+    /// This method allows to configure extractor.
+    ///
+    /// ```rust
+    /// # extern crate bytes;
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// #[macro_use] extern crate serde_derive;
+    /// use actix_web::{http, App, Error, Path};
+    /// use futures::Future;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Info {
+    ///     username: String,
+    /// }
+    ///
+    /// /// extract path info using serde
+    /// fn index(info: Form<Info>) -> Box<Future<Item = &'static str, Error = Error>> {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource(
+    ///         "/{username}/index.html", // <- define path parameters
+    ///         |r| r.method(http::Method::GET)
+    ///            .with_async_config(index, |cfg| {
+    ///                cfg.limit(4096);
+    ///            }),
+    ///     ); // <- use `with` extractor
+    /// }
+    /// ```
+    pub fn with_async_config<T, F, R, I, E, C>(&mut self, handler: F, cfg: C)
+    where
+        F: Fn(T) -> R + 'static,
+        R: Future<Item = I, Error = E> + 'static,
+        I: Responder + 'static,
+        E: Into<Error> + 'static,
+        T: FromRequest<S> + 'static,
+        C: FnOnce(&mut T::Config),
+    {
+        let mut extractor_cfg = <T::Config as Default>::default();
+        cfg(&mut extractor_cfg);
+        self.h(WithAsync::new(handler, extractor_cfg));
     }
 }
 

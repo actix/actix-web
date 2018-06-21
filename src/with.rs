@@ -1,7 +1,6 @@
 use futures::{Async, Future, Poll};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use error::Error;
@@ -9,110 +8,14 @@ use handler::{AsyncResult, AsyncResultItem, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-/// Extractor configuration
-///
-/// `Route::with()` and `Route::with_async()` returns instance
-/// of the `ExtractorConfig` type. It could be used for extractor configuration.
-///
-/// In this example `Form<FormData>` configured.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Form, Result};
-///
-/// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
-/// }
-///
-/// fn index(form: Form<FormData>) -> Result<String> {
-///     Ok(format!("Welcome {}!", form.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource(
-///         "/index.html",
-///         |r| {
-///             r.method(http::Method::GET).with(index).limit(4096);
-///         }, // <- change form extractor configuration
-///     );
-/// }
-/// ```
-///
-/// Same could be donce with multiple extractors
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Form, Path, Result};
-///
-/// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
-/// }
-///
-/// fn index(data: (Path<(String,)>, Form<FormData>)) -> Result<String> {
-///     Ok(format!("Welcome {}!", data.1.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource(
-///         "/index.html",
-///         |r| {
-///             r.method(http::Method::GET).with(index).1.limit(4096);
-///         }, // <- change form extractor configuration
-///     );
-/// }
-/// ```
-pub struct ExtractorConfig<S: 'static, T: FromRequest<S>> {
-    cfg: Rc<UnsafeCell<T::Config>>,
-}
-
-impl<S: 'static, T: FromRequest<S>> Default for ExtractorConfig<S, T> {
-    fn default() -> Self {
-        ExtractorConfig {
-            cfg: Rc::new(UnsafeCell::new(T::Config::default())),
-        }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> ExtractorConfig<S, T> {
-    pub(crate) fn clone(&self) -> Self {
-        ExtractorConfig {
-            cfg: Rc::clone(&self.cfg),
-        }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> AsRef<T::Config> for ExtractorConfig<S, T> {
-    fn as_ref(&self) -> &T::Config {
-        unsafe { &*self.cfg.get() }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> Deref for ExtractorConfig<S, T> {
-    type Target = T::Config;
-
-    fn deref(&self) -> &T::Config {
-        unsafe { &*self.cfg.get() }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> DerefMut for ExtractorConfig<S, T> {
-    fn deref_mut(&mut self) -> &mut T::Config {
-        unsafe { &mut *self.cfg.get() }
-    }
-}
-
-pub struct With<T, S, F, R>
+pub(crate) struct With<T, S, F, R>
 where
     F: Fn(T) -> R,
     T: FromRequest<S>,
     S: 'static,
 {
     hnd: Rc<WithHnd<T, S, F, R>>,
-    cfg: ExtractorConfig<S, T>,
+    cfg: Rc<T::Config>,
 }
 
 pub struct WithHnd<T, S, F, R>
@@ -132,9 +35,9 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
+    pub fn new(f: F, cfg: T::Config) -> Self {
         With {
-            cfg,
+            cfg: Rc::new(cfg),
             hnd: Rc::new(WithHnd {
                 hnd: Rc::new(UnsafeCell::new(f)),
                 _t: PhantomData,
@@ -180,7 +83,7 @@ where
 {
     started: bool,
     hnd: Rc<WithHnd<T, S, F, R>>,
-    cfg: ExtractorConfig<S, T>,
+    cfg: Rc<T::Config>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
     fut2: Option<Box<Future<Item = HttpResponse, Error = Error>>>,
@@ -244,7 +147,7 @@ where
     }
 }
 
-pub struct WithAsync<T, S, F, R, I, E>
+pub(crate) struct WithAsync<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E>,
@@ -254,7 +157,7 @@ where
     S: 'static,
 {
     hnd: Rc<WithHnd<T, S, F, R>>,
-    cfg: ExtractorConfig<S, T>,
+    cfg: Rc<T::Config>,
 }
 
 impl<T, S, F, R, I, E> WithAsync<T, S, F, R, I, E>
@@ -266,9 +169,9 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
+    pub fn new(f: F, cfg: T::Config) -> Self {
         WithAsync {
-            cfg,
+            cfg: Rc::new(cfg),
             hnd: Rc::new(WithHnd {
                 hnd: Rc::new(UnsafeCell::new(f)),
                 _s: PhantomData,
@@ -294,7 +197,7 @@ where
             req,
             started: false,
             hnd: Rc::clone(&self.hnd),
-            cfg: self.cfg.clone(),
+            cfg: Rc::clone(&self.cfg),
             fut1: None,
             fut2: None,
             fut3: None,
@@ -319,7 +222,7 @@ where
 {
     started: bool,
     hnd: Rc<WithHnd<T, S, F, R>>,
-    cfg: ExtractorConfig<S, T>,
+    cfg: Rc<T::Config>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
     fut2: Option<R>,
