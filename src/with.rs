@@ -111,8 +111,18 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    hnd: Rc<UnsafeCell<F>>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
     cfg: ExtractorConfig<S, T>,
+}
+
+pub struct WithHnd<T, S, F, R>
+where
+    F: Fn(T) -> R,
+    T: FromRequest<S>,
+    S: 'static,
+{
+    hnd: Rc<UnsafeCell<F>>,
+    _t: PhantomData<T>,
     _s: PhantomData<S>,
 }
 
@@ -125,8 +135,11 @@ where
     pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
         With {
             cfg,
-            hnd: Rc::new(UnsafeCell::new(f)),
-            _s: PhantomData,
+            hnd: Rc::new(WithHnd {
+                hnd: Rc::new(UnsafeCell::new(f)),
+                _t: PhantomData,
+                _s: PhantomData,
+            }),
         }
     }
 }
@@ -166,7 +179,7 @@ where
     S: 'static,
 {
     started: bool,
-    hnd: Rc<UnsafeCell<F>>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
     cfg: ExtractorConfig<S, T>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
@@ -206,20 +219,28 @@ where
             }
         };
 
-        let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(item).respond_to(&self.req) {
-            Ok(item) => item.into(),
-            Err(e) => return Err(e.into()),
-        };
-
-        match item.into() {
-            AsyncResultItem::Err(err) => Err(err),
-            AsyncResultItem::Ok(resp) => Ok(Async::Ready(resp)),
-            AsyncResultItem::Future(fut) => {
-                self.fut2 = Some(fut);
-                self.poll()
+        let fut = {
+            // clone handler, inicrease ref counter
+            let h = self.hnd.as_ref().hnd.clone();
+            // Enforce invariants before entering unsafe code.
+            // Only two references could exists With struct owns one, and line above
+            if Rc::weak_count(&h) != 0 && Rc::strong_count(&h) != 2 {
+                panic!("Multiple copies of handler are in use")
             }
-        }
+            let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
+            let item = match (*hnd)(item).respond_to(&self.req) {
+                Ok(item) => item.into(),
+                Err(e) => return Err(e.into()),
+            };
+
+            match item.into() {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                AsyncResultItem::Future(fut) => fut,
+            }
+        };
+        self.fut2 = Some(fut);
+        self.poll()
     }
 }
 
@@ -232,9 +253,8 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    hnd: Rc<UnsafeCell<F>>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
     cfg: ExtractorConfig<S, T>,
-    _s: PhantomData<S>,
 }
 
 impl<T, S, F, R, I, E> WithAsync<T, S, F, R, I, E>
@@ -249,8 +269,11 @@ where
     pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
         WithAsync {
             cfg,
-            hnd: Rc::new(UnsafeCell::new(f)),
-            _s: PhantomData,
+            hnd: Rc::new(WithHnd {
+                hnd: Rc::new(UnsafeCell::new(f)),
+                _s: PhantomData,
+                _t: PhantomData,
+            }),
         }
     }
 }
@@ -295,7 +318,7 @@ where
     S: 'static,
 {
     started: bool,
-    hnd: Rc<UnsafeCell<F>>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
     cfg: ExtractorConfig<S, T>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
@@ -356,8 +379,17 @@ where
             }
         };
 
-        let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        self.fut2 = Some((*hnd)(item));
+        self.fut2 = {
+            // clone handler, inicrease ref counter
+            let h = self.hnd.as_ref().hnd.clone();
+            // Enforce invariants before entering unsafe code.
+            // Only two references could exists With struct owns one, and line above
+            if Rc::weak_count(&h) != 0 && Rc::strong_count(&h) != 2 {
+                panic!("Multiple copies of handler are in use")
+            }
+            let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
+            Some((*hnd)(item))
+        };
         self.poll()
     }
 }

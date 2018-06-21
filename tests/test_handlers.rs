@@ -43,6 +43,28 @@ fn test_path_extractor() {
 }
 
 #[test]
+fn test_async_handler() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/{username}/index.html", |r| {
+            r.route().with(|p: Path<PParam>| {
+                Delay::new(Instant::now() + Duration::from_millis(10))
+                    .and_then(move |_| Ok(format!("Welcome {}!", p.username)))
+                    .responder()
+            })
+        });
+    });
+
+    // client request
+    let request = srv.get().uri(srv.url("/test/index.html")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"Welcome test!"));
+}
+
+#[test]
 fn test_query_extractor() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/index.html", |r| {
