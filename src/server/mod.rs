@@ -126,14 +126,14 @@ pub trait HttpHandler: 'static {
     type Task: HttpHandlerTask;
 
     /// Handle request
-    fn handle(&mut self, req: HttpRequest) -> Result<Self::Task, HttpRequest>;
+    fn handle(&self, req: HttpRequest) -> Result<Self::Task, HttpRequest>;
 }
 
 impl HttpHandler for Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
     type Task = Box<HttpHandlerTask>;
 
-    fn handle(&mut self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
-        self.as_mut().handle(req)
+    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+        self.as_ref().handle(req)
     }
 }
 

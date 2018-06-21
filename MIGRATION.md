@@ -17,6 +17,8 @@
     fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder {}
     ```
 
+* `Handler::handle()` uses `&self` instead of `&mut self`
+
 * Removed deprecated `HttpServer::threads()`, use 
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 

@@ -282,9 +282,9 @@ impl<S: 'static> ResourceHandler<S> {
     }
 
     pub(crate) fn handle(
-        &mut self, mut req: HttpRequest<S>,
+        &self, mut req: HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, HttpRequest<S>> {
-        for route in &mut self.routes {
+        for route in &self.routes {
             if route.check(&mut req) {
                 return if self.middlewares.borrow().is_empty() {
                     Ok(route.handle(req))

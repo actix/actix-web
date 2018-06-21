@@ -49,13 +49,13 @@ impl<S: 'static> Route<S> {
     }
 
     #[inline]
-    pub(crate) fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    pub(crate) fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         self.handler.handle(req)
     }
 
     #[inline]
     pub(crate) fn compose(
-        &mut self, req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
+        &self, req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
     ) -> AsyncResult<HttpResponse> {
         AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
     }

@@ -654,7 +654,7 @@ impl<S: 'static> StaticFiles<S> {
 impl<S: 'static> Handler<S> for StaticFiles<S> {
     type Result = Result<AsyncResult<HttpResponse>, Error>;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         if !self.accessible {
             Ok(self.default.handle(req))
         } else {

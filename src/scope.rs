@@ -18,7 +18,7 @@ use pred::Predicate;
 use resource::ResourceHandler;
 use router::Resource;
 
-type ScopeResource<S> = Rc<RefCell<ResourceHandler<S>>>;
+type ScopeResource<S> = Rc<ResourceHandler<S>>;
 type Route<S> = UnsafeCell<Box<RouteHandler<S>>>;
 type ScopeResources<S> = Rc<Vec<(Resource, ScopeResource<S>)>>;
 type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
@@ -236,9 +236,13 @@ impl<S: 'static> Scope<S> {
         }
 
         if found {
-            for &(ref pattern, ref resource) in self.resources.iter() {
+            let resources = Rc::get_mut(&mut self.resources)
+                .expect("Multiple scope references are not allowed");
+            for &mut (ref pattern, ref mut resource) in resources.iter_mut() {
                 if pattern.pattern() == path {
-                    resource.borrow_mut().method(method).with(f);
+                    let res = Rc::get_mut(resource)
+                        .expect("Multiple scope references are not allowed");
+                    res.method(method).with(f);
                     break;
                 }
             }
@@ -253,7 +257,7 @@ impl<S: 'static> Scope<S> {
             );
             Rc::get_mut(&mut self.resources)
                 .expect("Can not use after configuration")
-                .push((pattern, Rc::new(RefCell::new(handler))));
+                .push((pattern, Rc::new(handler)));
         }
         self
     }
@@ -297,7 +301,7 @@ impl<S: 'static> Scope<S> {
         );
         Rc::get_mut(&mut self.resources)
             .expect("Can not use after configuration")
-            .push((pattern, Rc::new(RefCell::new(handler))));
+            .push((pattern, Rc::new(handler)));
 
         self
     }
@@ -308,10 +312,13 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
     {
         if self.default.is_none() {
-            self.default =
-                Some(Rc::new(RefCell::new(ResourceHandler::default_not_found())));
+            self.default = Some(Rc::new(ResourceHandler::default_not_found()));
         }
-        f(&mut *self.default.as_ref().unwrap().borrow_mut());
+        {
+            let default = Rc::get_mut(self.default.as_mut().unwrap())
+                .expect("Multiple copies of default handler");
+            f(default);
+        }
         self
     }
 
@@ -332,18 +339,18 @@ impl<S: 'static> Scope<S> {
 }
 
 impl<S: 'static> RouteHandler<S> for Scope<S> {
-    fn handle(&mut self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    fn handle(&self, mut req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let tail = req.match_info().tail as usize;
 
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if pattern.match_with_params(&mut req, tail, false) {
                 if self.middlewares.borrow().is_empty() {
-                    return match resource.borrow_mut().handle(req) {
+                    return match resource.handle(req) {
                         Ok(result) => result,
                         Err(req) => {
                             if let Some(ref default) = self.default {
-                                match default.borrow_mut().handle(req) {
+                                match default.handle(req) {
                                     Ok(result) => result,
                                     Err(_) => AsyncResult::ok(HttpResponse::new(
                                         StatusCode::NOT_FOUND,
@@ -388,7 +395,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         // default handler
         if self.middlewares.borrow().is_empty() {
             if let Some(ref default) = self.default {
-                match default.borrow_mut().handle(req) {
+                match default.handle(req) {
                     Ok(result) => result,
                     Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
                 }
@@ -421,7 +428,7 @@ struct Wrapper<S: 'static> {
 }
 
 impl<S: 'static, S2: 'static> RouteHandler<S2> for Wrapper<S> {
-    fn handle(&mut self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
+    fn handle(&self, req: HttpRequest<S2>) -> AsyncResult<HttpResponse> {
         self.scope.handle(req.change_state(Rc::clone(&self.state)))
     }
 }
@@ -453,7 +460,7 @@ struct ComposeInfo<S: 'static> {
     count: usize,
     req: HttpRequest<S>,
     mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-    resource: Rc<RefCell<ResourceHandler<S>>>,
+    resource: Rc<ResourceHandler<S>>,
 }
 
 enum ComposeState<S: 'static> {
@@ -479,7 +486,7 @@ impl<S: 'static> ComposeState<S> {
 impl<S: 'static> Compose<S> {
     fn new(
         req: HttpRequest<S>, mws: Rc<RefCell<Vec<Box<Middleware<S>>>>>,
-        resource: Rc<RefCell<ResourceHandler<S>>>,
+        resource: Rc<ResourceHandler<S>>,
     ) -> Self {
         let mut info = ComposeInfo {
             count: 0,
@@ -527,8 +534,7 @@ impl<S: 'static> StartMiddlewares<S> {
             if info.count == len {
                 let reply = {
                     let req = info.req.clone();
-                    let mut resource = info.resource.borrow_mut();
-                    resource.handle(req).unwrap()
+                    info.resource.handle(req).unwrap()
                 };
                 return WaitingResponse::init(info, reply);
             } else {
@@ -564,8 +570,7 @@ impl<S: 'static> StartMiddlewares<S> {
                         if info.count == len {
                             let reply = {
                                 let req = info.req.clone();
-                                let mut resource = info.resource.borrow_mut();
-                                resource.handle(req).unwrap()
+                                info.resource.handle(req).unwrap()
                             };
                             return Some(WaitingResponse::init(info, reply));
                         } else {

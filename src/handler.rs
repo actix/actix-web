@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -19,7 +18,7 @@ pub trait Handler<S>: 'static {
     type Result: Responder;
 
     /// Handle request
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result;
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result;
 }
 
 /// Trait implemented by types that generate responses for clients.
@@ -209,7 +208,7 @@ where
 {
     type Result = R;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> R {
+    fn handle(&self, req: HttpRequest<S>) -> R {
         (self)(req)
     }
 }
@@ -405,13 +404,13 @@ where
 
 // /// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse>;
+    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse>;
 
     fn has_default_resource(&self) -> bool {
         false
     }
 
-    fn default_resource(&mut self, default: Rc<RefCell<ResourceHandler<S>>>) {
+    fn default_resource(&mut self, _: Rc<ResourceHandler<S>>) {
         unimplemented!()
     }
 }
@@ -444,7 +443,7 @@ where
     R: Responder + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         match self.h.handle(req.clone()).respond_to(&req) {
             Ok(reply) => reply.into(),
             Err(err) => AsyncResult::err(err.into()),
@@ -489,7 +488,7 @@ where
     E: Into<Error> + 'static,
     S: 'static,
 {
-    fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let fut = (self.h)(req.clone()).map_err(|e| e.into()).then(move |r| {
             match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {

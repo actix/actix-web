@@ -56,7 +56,7 @@ where
 {
     type Result = AsyncResult<HttpResponse>;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         let mut fut = WithHandlerFut {
             req,
             started: false,
@@ -192,7 +192,7 @@ where
 {
     type Result = AsyncResult<HttpResponse>;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         let mut fut = WithAsyncHandlerFut {
             req,
             started: false,

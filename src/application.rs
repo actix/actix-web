@@ -29,7 +29,7 @@ pub struct HttpApplication<S = ()> {
 #[doc(hidden)]
 pub struct Inner<S> {
     prefix: usize,
-    default: Rc<RefCell<ResourceHandler<S>>>,
+    default: Rc<ResourceHandler<S>>,
     encoding: ContentEncoding,
     resources: Vec<ResourceHandler<S>>,
     handlers: Vec<PrefixHandlerType<S>>,
@@ -51,7 +51,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         match htype {
             HandlerType::Normal(idx) => match self.resources[idx].handle(req) {
                 Ok(result) => result,
-                Err(req) => match self.default.borrow_mut().handle(req) {
+                Err(req) => match self.default.handle(req) {
                     Ok(result) => result,
                     Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
                 },
@@ -60,7 +60,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                 PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
                 PrefixHandlerType::Scope(_, ref mut hnd, _) => hnd.handle(req),
             },
-            HandlerType::Default => match self.default.borrow_mut().handle(req) {
+            HandlerType::Default => match self.default.handle(req) {
                 Ok(result) => result,
                 Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
             },
@@ -138,9 +138,7 @@ impl<S: 'static> HttpApplication<S> {
 impl<S: 'static> HttpHandler for HttpApplication<S> {
     type Task = Pipeline<S, Inner<S>>;
 
-    fn handle(
-        &mut self, req: HttpRequest,
-    ) -> Result<Pipeline<S, Inner<S>>, HttpRequest> {
+    fn handle(&self, req: HttpRequest) -> Result<Pipeline<S, Inner<S>>, HttpRequest> {
         let m = {
             let path = req.path();
             path.starts_with(&self.prefix)
@@ -172,7 +170,7 @@ struct ApplicationParts<S> {
     state: S,
     prefix: String,
     settings: ServerSettings,
-    default: Rc<RefCell<ResourceHandler<S>>>,
+    default: Rc<ResourceHandler<S>>,
     resources: Vec<(Resource, Option<ResourceHandler<S>>)>,
     handlers: Vec<PrefixHandlerType<S>>,
     external: HashMap<String, Resource>,
@@ -223,7 +221,7 @@ where
                 state,
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
-                default: Rc::new(RefCell::new(ResourceHandler::default_not_found())),
+                default: Rc::new(ResourceHandler::default_not_found()),
                 resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
@@ -335,7 +333,8 @@ where
         T: FromRequest<S> + 'static,
     {
         {
-            let parts: &mut ApplicationParts<S> = self.parts.as_mut().expect("Use after finish");
+            let parts: &mut ApplicationParts<S> =
+                self.parts.as_mut().expect("Use after finish");
 
             let out = {
                 // get resource handler
@@ -474,7 +473,9 @@ where
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
-            f(&mut parts.default.borrow_mut());
+            let default = Rc::get_mut(&mut parts.default)
+                .expect("Multiple App instance references are not allowed");
+            f(default);
         }
         self
     }
@@ -707,7 +708,7 @@ struct BoxedApplication<S> {
 impl<S: 'static> HttpHandler for BoxedApplication<S> {
     type Task = Box<HttpHandlerTask>;
 
-    fn handle(&mut self, req: HttpRequest) -> Result<Self::Task, HttpRequest> {
+    fn handle(&self, req: HttpRequest) -> Result<Self::Task, HttpRequest> {
         self.app.handle(req).map(|t| {
             let task: Self::Task = Box::new(t);
             task

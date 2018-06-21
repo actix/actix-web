@@ -37,7 +37,7 @@
 
 * Use tokio instead of tokio-core
 
-* Use `&mut self` instead of `&self` for Middleware trait
+* For safety and performance reasons `Handler::handle()` uses `&self` instead of `&mut self`
 
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 

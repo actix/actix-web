@@ -86,7 +86,7 @@ impl NormalizePath {
 impl<S> Handler<S> for NormalizePath {
     type Result = HttpResponse;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
         if let Some(router) = req.router() {
             let query = req.query_string();
             if self.merge {
