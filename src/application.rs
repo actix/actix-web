@@ -29,7 +29,7 @@ pub struct HttpApplication<S = ()> {
 #[doc(hidden)]
 pub struct Inner<S> {
     prefix: usize,
-    default: ResourceHandler<S>,
+    default: Rc<RefCell<ResourceHandler<S>>>,
     encoding: ContentEncoding,
     resources: Vec<ResourceHandler<S>>,
     handlers: Vec<PrefixHandlerType<S>>,
@@ -51,7 +51,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         match htype {
             HandlerType::Normal(idx) => match self.resources[idx].handle(req) {
                 Ok(result) => result,
-                Err(req) => match self.default.handle(req) {
+                Err(req) => match self.default.borrow_mut().handle(req) {
                     Ok(result) => result,
                     Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
                 },
@@ -60,7 +60,7 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
                 PrefixHandlerType::Handler(_, ref mut hnd) => hnd.handle(req),
                 PrefixHandlerType::Scope(_, ref mut hnd, _) => hnd.handle(req),
             },
-            HandlerType::Default => match self.default.handle(req) {
+            HandlerType::Default => match self.default.borrow_mut().handle(req) {
                 Ok(result) => result,
                 Err(_) => AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND)),
             },
@@ -172,7 +172,7 @@ struct ApplicationParts<S> {
     state: S,
     prefix: String,
     settings: ServerSettings,
-    default: ResourceHandler<S>,
+    default: Rc<RefCell<ResourceHandler<S>>>,
     resources: Vec<(Resource, Option<ResourceHandler<S>>)>,
     handlers: Vec<PrefixHandlerType<S>>,
     external: HashMap<String, Resource>,
@@ -223,7 +223,7 @@ where
                 state,
                 prefix: "/".to_owned(),
                 settings: ServerSettings::default(),
-                default: ResourceHandler::default_not_found(),
+                default: Rc::new(RefCell::new(ResourceHandler::default_not_found())),
                 resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
@@ -473,7 +473,7 @@ where
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
-            f(&mut parts.default);
+            f(&mut parts.default.borrow_mut());
         }
         self
     }
@@ -614,7 +614,7 @@ where
 
     /// Finish application configuration and create `HttpHandler` object.
     pub fn finish(&mut self) -> HttpApplication<S> {
-        let parts = self.parts.take().expect("Use after finish");
+        let mut parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
         let (prefix, prefix_len) = if prefix.is_empty() {
             ("/".to_owned(), 0)
@@ -627,11 +627,19 @@ where
             resources.push((pattern, None));
         }
 
+        for ref mut handler in parts.handlers.iter_mut() {
+            if let PrefixHandlerType::Scope(_, ref mut route_handler, _) = handler {
+                if !route_handler.has_default_resource() {
+                    route_handler.default_resource(Rc::clone(&parts.default));
+                }
+            };
+        }
+
         let (router, resources) = Router::new(&prefix, parts.settings, resources);
 
         let inner = Rc::new(RefCell::new(Inner {
             prefix: prefix_len,
-            default: parts.default,
+            default: Rc::clone(&parts.default),
             encoding: parts.encoding,
             handlers: parts.handlers,
             resources,

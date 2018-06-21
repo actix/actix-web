@@ -405,6 +405,14 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
             unimplemented!()
         }
     }
+
+    fn has_default_resource(&self) -> bool {
+        self.default.is_some()
+    }
+
+    fn default_resource(&mut self, default: ScopeResource<S>) {
+        self.default = Some(default);
+    }
 }
 
 struct Wrapper<S: 'static> {
