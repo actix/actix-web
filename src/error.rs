@@ -654,7 +654,7 @@ pub struct InternalError<T> {
 
 enum InternalErrorType {
     Status(StatusCode),
-    Response(Mutex<Option<HttpResponseParts>>),
+    Response(Box<Mutex<Option<HttpResponseParts>>>),
 }
 
 impl<T> InternalError<T> {
@@ -672,7 +672,7 @@ impl<T> InternalError<T> {
         let resp = response.into_parts();
         InternalError {
             cause,
-            status: InternalErrorType::Response(Mutex::new(Some(resp))),
+            status: InternalErrorType::Response(Box::new(Mutex::new(Some(resp)))),
             backtrace: Backtrace::new(),
         }
     }
