@@ -2,7 +2,13 @@
 
 ## [0.6.14] - 2018-06-21
 
+### Added
+
 * Allow to disable masking for websockets client
+
+### Fixed
+
+* SendRequest execution fails with the "internal error: entered unreachable code" #329
 
 
 ## [0.6.13] - 2018-06-13
