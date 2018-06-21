@@ -299,12 +299,15 @@ impl HttpResponse {
         self.get_mut().write_capacity = cap;
     }
 
-    pub(crate) fn into_inner(mut self) -> Box<InnerHttpResponse> {
-        self.0.take().unwrap()
+    pub(crate) fn into_parts(mut self) -> HttpResponseParts {
+        self.0.take().unwrap().into_parts()
     }
 
-    pub(crate) fn from_inner(inner: Box<InnerHttpResponse>) -> HttpResponse {
-        HttpResponse(Some(inner), HttpResponsePool::pool())
+    pub(crate) fn from_parts(parts: HttpResponseParts) -> HttpResponse {
+        HttpResponse(
+            Some(Box::new(InnerHttpResponse::from_parts(parts))),
+            HttpResponsePool::pool(),
+        )
     }
 }
 
@@ -880,12 +883,12 @@ impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
 }
 
 #[derive(Debug)]
-pub(crate) struct InnerHttpResponse {
+struct InnerHttpResponse {
     version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
     reason: Option<&'static str>,
-    pub(crate) body: Body,
+    body: Body,
     chunked: Option<bool>,
     encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
@@ -894,10 +897,16 @@ pub(crate) struct InnerHttpResponse {
     error: Option<Error>,
 }
 
-/// This is here only because `failure::Fail: Send + Sync` which looks insane to me
-unsafe impl Sync for InnerHttpResponse {}
-/// This is here only because `failure::Fail: Send + Sync` which looks insane to me
-unsafe impl Send for InnerHttpResponse {}
+pub(crate) struct HttpResponseParts {
+    version: Option<Version>,
+    headers: HeaderMap,
+    status: StatusCode,
+    reason: Option<&'static str>,
+    body: Option<Bytes>,
+    encoding: Option<ContentEncoding>,
+    connection_type: Option<ConnectionType>,
+    error: Option<Error>,
+}
 
 impl InnerHttpResponse {
     #[inline]
@@ -918,16 +927,47 @@ impl InnerHttpResponse {
     }
 
     /// This is for failure, we can not have Send + Sync on Streaming and Actor response
-    pub(crate) fn drop_unsupported_body(&mut self) {
-        let body = mem::replace(&mut self.body, Body::Empty);
-        match body {
-            Body::Empty => (),
-            Body::Binary(mut bin) => {
-                self.body = Body::Binary(bin.take().into());
-            }
+    fn into_parts(mut self) -> HttpResponseParts {
+        let body = match mem::replace(&mut self.body, Body::Empty) {
+            Body::Empty => None,
+            Body::Binary(mut bin) => Some(bin.take()),
             Body::Streaming(_) | Body::Actor(_) => {
                 error!("Streaming or Actor body is not support by error response");
+                None
             }
+        };
+
+        HttpResponseParts {
+            body,
+            version: self.version,
+            headers: self.headers,
+            status: self.status,
+            reason: self.reason,
+            encoding: self.encoding,
+            connection_type: self.connection_type,
+            error: self.error,
+        }
+    }
+
+    fn from_parts(parts: HttpResponseParts) -> InnerHttpResponse {
+        let body = if let Some(ref body) = parts.body {
+            Body::Binary(body.clone().into())
+        } else {
+            Body::Empty
+        };
+
+        InnerHttpResponse {
+            body,
+            status: parts.status,
+            version: parts.version,
+            headers: parts.headers,
+            reason: parts.reason,
+            chunked: None,
+            encoding: parts.encoding,
+            connection_type: parts.connection_type,
+            response_size: 0,
+            write_capacity: MAX_WRITE_BUFFER_SIZE,
+            error: parts.error,
         }
     }
 }

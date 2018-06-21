@@ -24,7 +24,7 @@ pub use cookie::ParseError as CookieParseError;
 
 use handler::Responder;
 use httprequest::HttpRequest;
-use httpresponse::{HttpResponse, InnerHttpResponse};
+use httpresponse::{HttpResponse, HttpResponseParts};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -654,7 +654,7 @@ pub struct InternalError<T> {
 
 enum InternalErrorType {
     Status(StatusCode),
-    Response(Mutex<Option<Box<InnerHttpResponse>>>),
+    Response(Mutex<Option<HttpResponseParts>>),
 }
 
 impl<T> InternalError<T> {
@@ -669,9 +669,7 @@ impl<T> InternalError<T> {
 
     /// Create `InternalError` with predefined `HttpResponse`.
     pub fn from_response(cause: T, response: HttpResponse) -> Self {
-        let mut resp = response.into_inner();
-        resp.drop_unsupported_body();
-
+        let resp = response.into_parts();
         InternalError {
             cause,
             status: InternalErrorType::Response(Mutex::new(Some(resp))),
@@ -716,7 +714,7 @@ where
             InternalErrorType::Status(st) => HttpResponse::new(st),
             InternalErrorType::Response(ref resp) => {
                 if let Some(resp) = resp.lock().unwrap().take() {
-                    HttpResponse::from_inner(resp)
+                    HttpResponse::from_parts(resp)
                 } else {
                     HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
