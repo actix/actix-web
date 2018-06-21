@@ -1,7 +1,6 @@
 use futures::{Async, Future, Poll};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use error::Error;
@@ -9,110 +8,24 @@ use handler::{AsyncResult, AsyncResultItem, FromRequest, Handler, Responder};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
-/// Extractor configuration
-///
-/// `Route::with()` and `Route::with_async()` returns instance
-/// of the `ExtractorConfig` type. It could be used for extractor configuration.
-///
-/// In this example `Form<FormData>` configured.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Form, Result};
-///
-/// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
-/// }
-///
-/// fn index(form: Form<FormData>) -> Result<String> {
-///     Ok(format!("Welcome {}!", form.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource(
-///         "/index.html",
-///         |r| {
-///             r.method(http::Method::GET).with(index).limit(4096);
-///         }, // <- change form extractor configuration
-///     );
-/// }
-/// ```
-///
-/// Same could be donce with multiple extractors
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Form, Path, Result};
-///
-/// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
-/// }
-///
-/// fn index(data: (Path<(String,)>, Form<FormData>)) -> Result<String> {
-///     Ok(format!("Welcome {}!", data.1.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource(
-///         "/index.html",
-///         |r| {
-///             r.method(http::Method::GET).with(index).1.limit(4096);
-///         }, // <- change form extractor configuration
-///     );
-/// }
-/// ```
-pub struct ExtractorConfig<S: 'static, T: FromRequest<S>> {
-    cfg: Rc<UnsafeCell<T::Config>>,
+pub(crate) struct With<T, S, F, R>
+where
+    F: Fn(T) -> R,
+    T: FromRequest<S>,
+    S: 'static,
+{
+    hnd: Rc<WithHnd<T, S, F, R>>,
+    cfg: Rc<T::Config>,
 }
 
-impl<S: 'static, T: FromRequest<S>> Default for ExtractorConfig<S, T> {
-    fn default() -> Self {
-        ExtractorConfig {
-            cfg: Rc::new(UnsafeCell::new(T::Config::default())),
-        }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> ExtractorConfig<S, T> {
-    pub(crate) fn clone(&self) -> Self {
-        ExtractorConfig {
-            cfg: Rc::clone(&self.cfg),
-        }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> AsRef<T::Config> for ExtractorConfig<S, T> {
-    fn as_ref(&self) -> &T::Config {
-        unsafe { &*self.cfg.get() }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> Deref for ExtractorConfig<S, T> {
-    type Target = T::Config;
-
-    fn deref(&self) -> &T::Config {
-        unsafe { &*self.cfg.get() }
-    }
-}
-
-impl<S: 'static, T: FromRequest<S>> DerefMut for ExtractorConfig<S, T> {
-    fn deref_mut(&mut self) -> &mut T::Config {
-        unsafe { &mut *self.cfg.get() }
-    }
-}
-
-pub struct With<T, S, F, R>
+pub struct WithHnd<T, S, F, R>
 where
     F: Fn(T) -> R,
     T: FromRequest<S>,
     S: 'static,
 {
     hnd: Rc<UnsafeCell<F>>,
-    cfg: ExtractorConfig<S, T>,
+    _t: PhantomData<T>,
     _s: PhantomData<S>,
 }
 
@@ -122,11 +35,14 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
+    pub fn new(f: F, cfg: T::Config) -> Self {
         With {
-            cfg,
-            hnd: Rc::new(UnsafeCell::new(f)),
-            _s: PhantomData,
+            cfg: Rc::new(cfg),
+            hnd: Rc::new(WithHnd {
+                hnd: Rc::new(UnsafeCell::new(f)),
+                _t: PhantomData,
+                _s: PhantomData,
+            }),
         }
     }
 }
@@ -166,8 +82,8 @@ where
     S: 'static,
 {
     started: bool,
-    hnd: Rc<UnsafeCell<F>>,
-    cfg: ExtractorConfig<S, T>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
+    cfg: Rc<T::Config>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
     fut2: Option<Box<Future<Item = HttpResponse, Error = Error>>>,
@@ -206,24 +122,32 @@ where
             }
         };
 
-        let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        let item = match (*hnd)(item).respond_to(&self.req) {
-            Ok(item) => item.into(),
-            Err(e) => return Err(e.into()),
-        };
-
-        match item.into() {
-            AsyncResultItem::Err(err) => Err(err),
-            AsyncResultItem::Ok(resp) => Ok(Async::Ready(resp)),
-            AsyncResultItem::Future(fut) => {
-                self.fut2 = Some(fut);
-                self.poll()
+        let fut = {
+            // clone handler, inicrease ref counter
+            let h = self.hnd.as_ref().hnd.clone();
+            // Enforce invariants before entering unsafe code.
+            // Only two references could exists With struct owns one, and line above
+            if Rc::weak_count(&h) != 0 || Rc::strong_count(&h) != 2 {
+                panic!("Multiple copies of handler are in use")
             }
-        }
+            let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
+            let item = match (*hnd)(item).respond_to(&self.req) {
+                Ok(item) => item.into(),
+                Err(e) => return Err(e.into()),
+            };
+
+            match item.into() {
+                AsyncResultItem::Err(err) => return Err(err),
+                AsyncResultItem::Ok(resp) => return Ok(Async::Ready(resp)),
+                AsyncResultItem::Future(fut) => fut,
+            }
+        };
+        self.fut2 = Some(fut);
+        self.poll()
     }
 }
 
-pub struct WithAsync<T, S, F, R, I, E>
+pub(crate) struct WithAsync<T, S, F, R, I, E>
 where
     F: Fn(T) -> R,
     R: Future<Item = I, Error = E>,
@@ -232,9 +156,8 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    hnd: Rc<UnsafeCell<F>>,
-    cfg: ExtractorConfig<S, T>,
-    _s: PhantomData<S>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
+    cfg: Rc<T::Config>,
 }
 
 impl<T, S, F, R, I, E> WithAsync<T, S, F, R, I, E>
@@ -246,11 +169,14 @@ where
     T: FromRequest<S>,
     S: 'static,
 {
-    pub fn new(f: F, cfg: ExtractorConfig<S, T>) -> Self {
+    pub fn new(f: F, cfg: T::Config) -> Self {
         WithAsync {
-            cfg,
-            hnd: Rc::new(UnsafeCell::new(f)),
-            _s: PhantomData,
+            cfg: Rc::new(cfg),
+            hnd: Rc::new(WithHnd {
+                hnd: Rc::new(UnsafeCell::new(f)),
+                _s: PhantomData,
+                _t: PhantomData,
+            }),
         }
     }
 }
@@ -271,7 +197,7 @@ where
             req,
             started: false,
             hnd: Rc::clone(&self.hnd),
-            cfg: self.cfg.clone(),
+            cfg: Rc::clone(&self.cfg),
             fut1: None,
             fut2: None,
             fut3: None,
@@ -295,8 +221,8 @@ where
     S: 'static,
 {
     started: bool,
-    hnd: Rc<UnsafeCell<F>>,
-    cfg: ExtractorConfig<S, T>,
+    hnd: Rc<WithHnd<T, S, F, R>>,
+    cfg: Rc<T::Config>,
     req: HttpRequest<S>,
     fut1: Option<Box<Future<Item = T, Error = Error>>>,
     fut2: Option<R>,
@@ -356,8 +282,17 @@ where
             }
         };
 
-        let hnd: &mut F = unsafe { &mut *self.hnd.get() };
-        self.fut2 = Some((*hnd)(item));
+        self.fut2 = {
+            // clone handler, inicrease ref counter
+            let h = self.hnd.as_ref().hnd.clone();
+            // Enforce invariants before entering unsafe code.
+            // Only two references could exists With struct owns one, and line above
+            if Rc::weak_count(&h) != 0 || Rc::strong_count(&h) != 2 {
+                panic!("Multiple copies of handler are in use")
+            }
+            let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
+            Some((*hnd)(item))
+        };
         self.poll()
     }
 }

@@ -50,7 +50,8 @@ flate2-rust = ["flate2/rust_backend"]
 features = ["tls", "alpn", "session", "brotli", "flate2-c"]
 
 [dependencies]
-actix = "0.6.1"
+# actix = "0.6.1"
+actix = { git="https://github.com/actix/actix.git" }
 
 base64 = "0.9"
 bitflags = "1.0"

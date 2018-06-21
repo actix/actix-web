@@ -23,6 +23,38 @@
 * Renamed `client::ClientConnectorError::Connector` to
   `client::ClientConnectorError::Resolver`
 
+* `Route::with()` does not return `ExtractorConfig`, to configure
+  extractor use `Route::with_config()`
+
+    instead of 
+
+    ```rust
+    fn main() {
+         let app = App::new().resource("/index.html", |r| {
+             r.method(http::Method::GET)
+                    .with(index)
+                    .limit(4096);  // <- limit size of the payload
+         });
+    }
+    ```
+    
+    use 
+    
+    ```rust
+  
+    fn main() {
+         let app = App::new().resource("/index.html", |r| {
+             r.method(http::Method::GET)
+                    .with_config(index, |cfg| { // <- register handler
+                       cfg.limit(4096);  // <- limit size of the payload
+                     })
+         });
+    }
+    ```
+
+* `Route::with_async()` does not return `ExtractorConfig`, to configure
+  extractor use `Route::with_async_config()`
+
 
 ## 0.6
 

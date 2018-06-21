@@ -309,7 +309,7 @@ impl Resource {
         params.set_tail(len as u16);
         for (idx, segment) in segments.iter().enumerate() {
             // reason: Router is part of App, which is unique per thread
-            // app is alive during whole life of tthread
+            // app is alive during whole life of a thread
             let name = unsafe { &*(names[idx].as_str() as *const _) };
             params.add(name, *segment);
         }
@@ -378,7 +378,7 @@ impl Resource {
         params.set_tail(tail_len as u16);
         for (idx, segment) in segments.iter().enumerate() {
             // reason: Router is part of App, which is unique per thread
-            // app is alive during whole life of tthread
+            // app is alive during whole life of a thread
             let name = unsafe { &*(names[idx].as_str() as *const _) };
             params.add(name, *segment);
         }

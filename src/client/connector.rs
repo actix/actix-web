@@ -6,7 +6,7 @@ use std::{fmt, io, mem, time};
 use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
 use actix::{
     fut, Actor, ActorContext, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
-    ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
+    ContextFutureSpawner, Handler, Message, Recipient, StreamHandler2, Supervised,
     SystemService, WrapFuture,
 };
 
@@ -220,7 +220,7 @@ impl Actor for ClientConnector {
             self.resolver = Some(Resolver::from_registry())
         }
         self.collect_periodic(ctx);
-        ctx.add_stream(self.acq_rx.take().unwrap());
+        ctx.add_stream2(self.acq_rx.take().unwrap());
         ctx.spawn(Maintenance);
     }
 }
@@ -767,7 +767,7 @@ impl Handler<Connect> for ClientConnector {
     }
 }
 
-impl StreamHandler<AcquiredConnOperation, ()> for ClientConnector {
+impl StreamHandler2<AcquiredConnOperation, ()> for ClientConnector {
     fn handle(
         &mut self, msg: Result<Option<AcquiredConnOperation>, ()>,
         ctx: &mut Context<Self>,

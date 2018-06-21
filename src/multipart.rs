@@ -1,5 +1,5 @@
 //! Multipart requests support
-use std::cell::RefCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{cmp, fmt};
@@ -590,7 +590,7 @@ where
 }
 
 struct PayloadRef<S> {
-    payload: Rc<PayloadHelper<S>>,
+    payload: Rc<UnsafeCell<PayloadHelper<S>>>,
 }
 
 impl<S> PayloadRef<S>
@@ -599,7 +599,7 @@ where
 {
     fn new(payload: PayloadHelper<S>) -> PayloadRef<S> {
         PayloadRef {
-            payload: Rc::new(payload),
+            payload: Rc::new(payload.into()),
         }
     }
 
@@ -609,7 +609,7 @@ where
     {
         if s.current() {
             let payload: &mut PayloadHelper<S> =
-                unsafe { &mut *(self.payload.as_ref() as *const _ as *mut _) };
+                unsafe { &mut *self.payload.get() };
             Some(payload)
         } else {
             None

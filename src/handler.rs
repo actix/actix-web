@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::rc::Rc;
 
 use futures::future::{err, ok, Future};
 use futures::{Async, Poll};
@@ -8,6 +10,7 @@ use error::Error;
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use resource::ResourceHandler;
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
@@ -403,6 +406,14 @@ where
 // /// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
     fn handle(&mut self, req: HttpRequest<S>) -> AsyncResult<HttpResponse>;
+
+    fn has_default_resource(&self) -> bool {
+        false
+    }
+
+    fn default_resource(&mut self, default: Rc<RefCell<ResourceHandler<S>>>) {
+        unimplemented!()
+    }
 }
 
 /// Route handler wrapper for Handler

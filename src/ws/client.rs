@@ -127,6 +127,7 @@ pub struct Client {
     protocols: Option<String>,
     conn: Addr<ClientConnector>,
     max_size: usize,
+    no_masking: bool,
 }
 
 impl Client {
@@ -144,6 +145,7 @@ impl Client {
             origin: None,
             protocols: None,
             max_size: 65_536,
+            no_masking: false,
             conn,
         };
         cl.request.uri(uri.as_ref());
@@ -195,6 +197,12 @@ impl Client {
     /// Default buffer capacity is 32kb
     pub fn write_buffer_capacity(mut self, cap: usize) -> Self {
         self.request.write_buffer_capacity(cap);
+        self
+    }
+
+    /// Disable payload masking. By default ws client masks frame payload.
+    pub fn no_masking(mut self) -> Self {
+        self.no_masking = true;
         self
     }
 
@@ -260,7 +268,7 @@ impl Client {
             }
 
             // start handshake
-            ClientHandshake::new(request, self.max_size)
+            ClientHandshake::new(request, self.max_size, self.no_masking)
         }
     }
 }
@@ -281,10 +289,13 @@ pub struct ClientHandshake {
     key: String,
     error: Option<ClientError>,
     max_size: usize,
+    no_masking: bool,
 }
 
 impl ClientHandshake {
-    fn new(mut request: ClientRequest, max_size: usize) -> ClientHandshake {
+    fn new(
+        mut request: ClientRequest, max_size: usize, no_masking: bool,
+    ) -> ClientHandshake {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
         // when decoded, is 16 bytes in length (RFC 6455)
@@ -304,6 +315,7 @@ impl ClientHandshake {
         ClientHandshake {
             key,
             max_size,
+            no_masking,
             request: Some(request.send()),
             tx: Some(tx),
             error: None,
@@ -317,6 +329,7 @@ impl ClientHandshake {
             tx: None,
             error: Some(err),
             max_size: 0,
+            no_masking: false,
         }
     }
 
@@ -427,6 +440,7 @@ impl Future for ClientHandshake {
             ClientReader {
                 inner: Rc::clone(&inner),
                 max_size: self.max_size,
+                no_masking: self.no_masking,
             },
             ClientWriter { inner },
         )))
@@ -437,6 +451,7 @@ impl Future for ClientHandshake {
 pub struct ClientReader {
     inner: Rc<RefCell<Inner>>,
     max_size: usize,
+    no_masking: bool,
 }
 
 impl fmt::Debug for ClientReader {
@@ -451,13 +466,14 @@ impl Stream for ClientReader {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let max_size = self.max_size;
+        let no_masking = self.no_masking;
         let mut inner = self.inner.borrow_mut();
         if inner.closed {
             return Ok(Async::Ready(None));
         }
 
         // read
-        match Frame::parse(&mut inner.rx, false, max_size) {
+        match Frame::parse(&mut inner.rx, no_masking, max_size) {
             Ok(Async::Ready(Some(frame))) => {
                 let (_finished, opcode, payload) = frame.unpack();
 

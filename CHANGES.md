@@ -25,6 +25,8 @@
 
 * `HttpRequest::url_for_static()` for a named route with no variables segments
 
+* Propagation of the application's default resource to scopes that haven't set a default resource.
+
 
 ### Changed
 
@@ -39,7 +41,7 @@
 
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
-* port `Extensions` type from http create, we dont need `Send + Sync`
+* port `Extensions` type from http create, we don't need `Send + Sync`
 
 * `HttpRequest::query()` returns `&HashMap<String, String>`
 
@@ -49,6 +51,16 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 * Remove `HttpMessage::range()`
+
+## [0.6.14] - 2018-06-21
+
+### Added
+
+* Allow to disable masking for websockets client
+
+### Fixed
+
+* SendRequest execution fails with the "internal error: entered unreachable code" #329
 
 
 ## [0.6.13] - 2018-06-11
@@ -88,7 +100,7 @@
 
 ### Added
 
-* Allow to use path without traling slashes for scope registration #241
+* Allow to use path without trailing slashes for scope registration #241
 
 * Allow to set encoding for exact NamedFile #239
 
@@ -449,7 +461,7 @@
 
 * Server multi-threading
 
-* Gracefull shutdown support
+* Graceful shutdown support
 
 
 ## 0.2.1 (2017-11-03)

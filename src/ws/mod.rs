@@ -25,12 +25,12 @@
 //!
 //! // Handler for ws::Message messages
 //! impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
-//!     fn handle(&mut self, msg: Result<Option<ws::Message>, ws::ProtocolError>, ctx: &mut Self::Context) {
+//!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
 //!         match msg {
-//!             Ok(Some(ws::Message::Ping(msg))) => ctx.pong(&msg),
-//!             Ok(Some(ws::Message::Text(text))) => ctx.text(text),
-//!             Ok(Some(ws::Message::Binary(bin))) => ctx.binary(bin),
-//!             _ => ctx.stop(),
+//!             ws::Message::Ping(msg) => ctx.pong(&msg),
+//!             ws::Message::Text(text) => ctx.text(text),
+//!             ws::Message::Binary(bin) => ctx.binary(bin),
+//!             _ => (),
 //!         }
 //!     }
 //! }
