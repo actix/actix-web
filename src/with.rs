@@ -224,7 +224,7 @@ where
             let h = self.hnd.as_ref().hnd.clone();
             // Enforce invariants before entering unsafe code.
             // Only two references could exists With struct owns one, and line above
-            if Rc::weak_count(&h) != 0 && Rc::strong_count(&h) != 2 {
+            if Rc::weak_count(&h) != 0 || Rc::strong_count(&h) != 2 {
                 panic!("Multiple copies of handler are in use")
             }
             let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
@@ -384,7 +384,7 @@ where
             let h = self.hnd.as_ref().hnd.clone();
             // Enforce invariants before entering unsafe code.
             // Only two references could exists With struct owns one, and line above
-            if Rc::weak_count(&h) != 0 && Rc::strong_count(&h) != 2 {
+            if Rc::weak_count(&h) != 0 || Rc::strong_count(&h) != 2 {
                 panic!("Multiple copies of handler are in use")
             }
             let hnd: &mut F = unsafe { &mut *h.as_ref().get() };
