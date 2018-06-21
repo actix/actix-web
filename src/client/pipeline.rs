@@ -392,7 +392,7 @@ impl Pipeline {
             match self.timeout.as_mut().unwrap().poll() {
                 Ok(Async::Ready(())) => return Err(SendRequestError::Timeout),
                 Ok(Async::NotReady) => (),
-                Err(_) => return Err(SendRequestError::Timeout),
+                Err(e) => return Err(e.into()),
             }
         }
         Ok(())
