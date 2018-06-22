@@ -2,7 +2,7 @@
 use std::net::Shutdown;
 use std::{io, time};
 
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
@@ -18,7 +18,6 @@ pub(crate) mod helpers;
 pub(crate) mod settings;
 pub(crate) mod shared;
 mod srv;
-pub(crate) mod utils;
 mod worker;
 
 pub use self::settings::ServerSettings;
@@ -36,6 +35,9 @@ use httpresponse::HttpResponse;
 
 /// max buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
+
+const LW_BUFFER_SIZE: usize = 4096;
+const HW_BUFFER_SIZE: usize = 32_768;
 
 /// Create new http server with application factory.
 ///
@@ -213,6 +215,27 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
+
+    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<usize, io::Error> {
+        unsafe {
+            if buf.remaining_mut() < LW_BUFFER_SIZE {
+                buf.reserve(HW_BUFFER_SIZE);
+            }
+            match self.read(buf.bytes_mut()) {
+                Ok(n) => {
+                    buf.advance_mut(n);
+                    Ok(Async::Ready(n))
+                }
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::WouldBlock {
+                        Ok(Async::NotReady)
+                    } else {
+                        Err(e)
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl IoStream for TcpStream {

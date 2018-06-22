@@ -8,7 +8,7 @@ use std::mem;
 use error::{ParseError, PayloadError};
 
 use server::h1decoder::EncodingDecoder;
-use server::{utils, IoStream};
+use server::IoStream;
 
 use super::response::ClientMessage;
 use super::ClientResponse;
@@ -39,7 +39,7 @@ impl HttpResponseParser {
     {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         if buf.is_empty() {
-            match utils::read_from_io(io, buf) {
+            match io.read_available(buf) {
                 Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
@@ -59,7 +59,7 @@ impl HttpResponseParser {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
-                    match utils::read_from_io(io, buf) {
+                    match io.read_available(buf) {
                         Ok(Async::Ready(0)) => {
                             return Err(HttpResponseParserError::Disconnect)
                         }
@@ -83,7 +83,7 @@ impl HttpResponseParser {
         if self.decoder.is_some() {
             loop {
                 // read payload
-                let (not_ready, stream_finished) = match utils::read_from_io(io, buf) {
+                let (not_ready, stream_finished) = match io.read_available(buf) {
                     Ok(Async::Ready(0)) => (false, true),
                     Err(err) => return Err(err.into()),
                     Ok(Async::NotReady) => (true, false),

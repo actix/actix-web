@@ -7,7 +7,7 @@ use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::settings::WorkerSettings;
-use super::{h1, h2, utils, HttpHandler, IoStream};
+use super::{h1, h2, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
@@ -139,7 +139,7 @@ where
                 ref mut io,
                 ref mut buf,
             )) => {
-                match utils::read_from_io(io, buf) {
+                match io.read_available(buf) {
                     Ok(Async::Ready(0)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
                         settings.remove_channel();
