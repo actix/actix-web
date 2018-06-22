@@ -140,7 +140,7 @@ where
                 ref mut buf,
             )) => {
                 match io.read_available(buf) {
-                    Ok(Async::Ready(0)) | Err(_) => {
+                    Ok(Async::Ready(true)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
                         settings.remove_channel();
                         if let Some(n) = self.node.as_mut() {

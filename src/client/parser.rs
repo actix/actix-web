@@ -40,8 +40,10 @@ impl HttpResponseParser {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         if buf.is_empty() {
             match io.read_available(buf) {
-                Ok(Async::Ready(0)) => return Err(HttpResponseParserError::Disconnect),
-                Ok(Async::Ready(_)) => (),
+                Ok(Async::Ready(true)) => {
+                    return Err(HttpResponseParserError::Disconnect)
+                }
+                Ok(Async::Ready(false)) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => return Err(HttpResponseParserError::Error(err.into())),
             }
@@ -60,10 +62,10 @@ impl HttpResponseParser {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
                     match io.read_available(buf) {
-                        Ok(Async::Ready(0)) => {
+                        Ok(Async::Ready(true)) => {
                             return Err(HttpResponseParserError::Disconnect)
                         }
-                        Ok(Async::Ready(_)) => (),
+                        Ok(Async::Ready(false)) => (),
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Err(err) => {
                             return Err(HttpResponseParserError::Error(err.into()))
@@ -84,10 +86,10 @@ impl HttpResponseParser {
             loop {
                 // read payload
                 let (not_ready, stream_finished) = match io.read_available(buf) {
-                    Ok(Async::Ready(0)) => (false, true),
-                    Err(err) => return Err(err.into()),
+                    Ok(Async::Ready(true)) => (false, true),
+                    Ok(Async::Ready(false)) => (false, false),
                     Ok(Async::NotReady) => (true, false),
-                    _ => (false, false),
+                    Err(err) => return Err(err.into()),
                 };
 
                 match self.decoder.as_mut().unwrap().decode(buf) {

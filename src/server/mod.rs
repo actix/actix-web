@@ -216,21 +216,32 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 
-    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<usize, io::Error> {
-        unsafe {
-            if buf.remaining_mut() < LW_BUFFER_SIZE {
-                buf.reserve(HW_BUFFER_SIZE);
-            }
-            match self.read(buf.bytes_mut()) {
-                Ok(n) => {
-                    buf.advance_mut(n);
-                    Ok(Async::Ready(n))
+    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<bool, io::Error> {
+        let mut read_some = false;
+        loop {
+            unsafe {
+                if buf.remaining_mut() < LW_BUFFER_SIZE {
+                    buf.reserve(HW_BUFFER_SIZE);
                 }
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        Ok(Async::NotReady)
-                    } else {
-                        Err(e)
+                match self.read(buf.bytes_mut()) {
+                    Ok(n) => {
+                        if n == 0 {
+                            return Ok(Async::Ready(!read_some));
+                        } else {
+                            read_some = true;
+                            buf.advance_mut(n);
+                        }
+                    }
+                    Err(e) => {
+                        return if e.kind() == io::ErrorKind::WouldBlock {
+                            if read_some {
+                                Ok(Async::Ready(false))
+                            } else {
+                                Ok(Async::NotReady)
+                            }
+                        } else {
+                            Err(e)
+                        };
                     }
                 }
             }
