@@ -2,9 +2,8 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 use std::fmt;
-use std::hash::BuildHasherDefault;
 
-pub(crate) struct IdHasher {
+struct IdHasher {
     id: u64,
 }
 
