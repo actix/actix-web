@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::mem;
 use std::rc::Rc;
 
 use regex::{escape, Regex};
@@ -11,6 +10,8 @@ use httprequest::HttpRequest;
 use param::ParamItem;
 use resource::ResourceHandler;
 use server::ServerSettings;
+
+use string_cache::DefaultAtom as Atom;
 
 /// Interface for application router.
 pub struct Router(Rc<Inner>);
@@ -144,7 +145,7 @@ enum PatternElement {
 enum PatternType {
     Static(String),
     Prefix(String),
-    Dynamic(Regex, Vec<&'static str>, usize),
+    Dynamic(Regex, Vec<Atom>, usize),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -221,12 +222,7 @@ impl Resource {
             let names = re
                 .capture_names()
                 .filter_map(|name| {
-                    name.map(|name| {
-                        let name = name.to_owned();
-                        let s: &'static str = unsafe { mem::transmute(name.as_str()) };
-                        mem::forget(name);
-                        s
-                    })
+                    name.map(|name| Atom::from(name))
                 })
                 .collect();
             PatternType::Dynamic(re, names, len)
@@ -316,8 +312,8 @@ impl Resource {
         let len = req.path().len();
         let params = req.match_info_mut();
         params.set_tail(len as u16);
-        for (idx, segment) in segments.iter().enumerate() {
-            params.add(names[idx], *segment);
+        for (idx, segment) in segments.into_iter().enumerate() {
+            params.add(names[idx].clone(), segment);
         }
         true
     }
@@ -382,8 +378,8 @@ impl Resource {
 
         let params = req.match_info_mut();
         params.set_tail(tail_len as u16);
-        for (idx, segment) in segments.iter().enumerate() {
-            params.add(names[idx], *segment);
+        for (idx, segment) in segments.into_iter().enumerate() {
+            params.add(names[idx].clone(), segment);
         }
         Some(tail_len)
     }
