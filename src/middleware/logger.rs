@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use std::env;
 use std::fmt::{self, Display, Formatter};
 
-use libc;
 use regex::Regex;
 use time;
 
@@ -52,8 +51,6 @@ use middleware::{Finished, Middleware, Started};
 /// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
 ///
 /// `%t`  Time when the request was started to process
-///
-/// `%P`  The process ID of the child that serviced the request
 ///
 /// `%r`  First line of request
 ///
@@ -181,7 +178,6 @@ impl Format {
                     "%" => FormatText::Percent,
                     "a" => FormatText::RemoteAddr,
                     "t" => FormatText::RequestTime,
-                    "P" => FormatText::Pid,
                     "r" => FormatText::RequestLine,
                     "s" => FormatText::ResponseStatus,
                     "b" => FormatText::ResponseSize,
@@ -205,7 +201,6 @@ impl Format {
 #[derive(Debug, Clone)]
 pub enum FormatText {
     Str(String),
-    Pid,
     Percent,
     RequestLine,
     RequestTime,
@@ -247,7 +242,6 @@ impl FormatText {
             }
             FormatText::ResponseStatus => resp.status().as_u16().fmt(fmt),
             FormatText::ResponseSize => resp.response_size().fmt(fmt),
-            FormatText::Pid => unsafe { libc::getpid().fmt(fmt) },
             FormatText::Time => {
                 let rt = time::now() - entry_time;
                 let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000_000.0;

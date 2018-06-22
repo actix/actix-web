@@ -107,7 +107,6 @@ extern crate futures_cpupool;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
-extern crate libc;
 extern crate mime;
 extern crate mime_guess;
 extern crate mio;
