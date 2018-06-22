@@ -97,7 +97,6 @@ extern crate time;
 extern crate bitflags;
 #[macro_use]
 extern crate failure;
-extern crate fnv;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

@@ -1,11 +1,35 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 use std::fmt;
-use std::hash::BuildHasherDefault;
 
-use fnv::FnvHasher;
+struct IdHasher {
+    id: u64,
+}
 
-type AnyMap = HashMap<TypeId, Box<Any>, BuildHasherDefault<FnvHasher>>;
+impl Default for IdHasher {
+    fn default() -> IdHasher {
+        IdHasher { id: 0 }
+    }
+}
+
+impl Hasher for IdHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for &x in bytes {
+            self.id.wrapping_add(x as u64);
+        }
+    }
+
+    fn write_u64(&mut self, u: u64) {
+        self.id = u;
+    }
+
+    fn finish(&self) -> u64 {
+        self.id
+    }
+}
+
+type AnyMap = HashMap<TypeId, Box<Any>, BuildHasherDefault<IdHasher>>;
 
 /// A type map of request extensions.
 pub struct Extensions {
