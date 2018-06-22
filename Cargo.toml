@@ -16,6 +16,9 @@ license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
+[package.metadata.docs.rs]
+features = ["tls", "alpn", "session", "brotli", "flate2-c"]
+
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
 appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
@@ -45,9 +48,6 @@ flate2-c = ["flate2/miniz-sys"]
 
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
-
-[package.metadata.docs.rs]
-features = ["tls", "alpn", "session", "brotli", "flate2-c"]
 
 [dependencies]
 # actix = "0.6.1"
@@ -103,6 +103,7 @@ tokio-tls = { version="0.1", optional = true }
 # openssl
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
+string_cache = "0.7.3"
 
 [dev-dependencies]
 env_logger = "0.5"
