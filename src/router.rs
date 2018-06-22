@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::mem;
 use std::rc::Rc;
 
 use regex::{escape, Regex};
@@ -143,7 +144,7 @@ enum PatternElement {
 enum PatternType {
     Static(String),
     Prefix(String),
-    Dynamic(Regex, Vec<String>, usize),
+    Dynamic(Regex, Vec<&'static str>, usize),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -216,9 +217,17 @@ impl Resource {
                 Ok(re) => re,
                 Err(err) => panic!("Wrong path pattern: \"{}\" {}", path, err),
             };
+            // actix creates one router per thread
             let names = re
                 .capture_names()
-                .filter_map(|name| name.map(|name| name.to_owned()))
+                .filter_map(|name| {
+                    name.map(|name| {
+                        let name = name.to_owned();
+                        let s: &'static str = unsafe { mem::transmute(name.as_str()) };
+                        mem::forget(name);
+                        s
+                    })
+                })
                 .collect();
             PatternType::Dynamic(re, names, len)
         } else if for_prefix {
@@ -308,10 +317,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(len as u16);
         for (idx, segment) in segments.iter().enumerate() {
-            // reason: Router is part of App, which is unique per thread
-            // app is alive during whole life of a thread
-            let name = unsafe { &*(names[idx].as_str() as *const _) };
-            params.add(name, *segment);
+            params.add(names[idx], *segment);
         }
         true
     }
@@ -377,10 +383,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(tail_len as u16);
         for (idx, segment) in segments.iter().enumerate() {
-            // reason: Router is part of App, which is unique per thread
-            // app is alive during whole life of a thread
-            let name = unsafe { &*(names[idx].as_str() as *const _) };
-            params.add(name, *segment);
+            params.add(names[idx], *segment);
         }
         Some(tail_len)
     }
