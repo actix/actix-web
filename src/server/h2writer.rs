@@ -73,7 +73,7 @@ impl<H: 'static> Writer for H2Writer<H> {
 
     #[inline]
     fn set_date(&self, dst: &mut BytesMut) {
-        self.settings.set_date(dst)
+        self.settings.set_date(dst, true)
     }
 
     #[inline]
@@ -97,7 +97,7 @@ impl<H: 'static> Writer for H2Writer<H> {
         // using helpers::date is quite a lot faster
         if !msg.headers().contains_key(DATE) {
             let mut bytes = BytesMut::with_capacity(29);
-            self.settings.set_date_simple(&mut bytes);
+            self.settings.set_date(&mut bytes, false);
             msg.headers_mut()
                 .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
         }

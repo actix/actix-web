@@ -101,7 +101,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn set_date(&self, dst: &mut BytesMut) {
-        self.settings.set_date(dst)
+        self.settings.set_date(dst, true)
     }
 
     #[inline]
@@ -214,7 +214,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
             // optimized date header, set_date writes \r\n
             if !has_date {
-                self.settings.set_date(&mut buffer);
+                self.settings.set_date(&mut buffer, true);
             } else {
                 // msg eof
                 buffer.extend_from_slice(b"\r\n");
@@ -298,7 +298,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                         if err.kind() == io::ErrorKind::WriteZero {
                             self.disconnected();
                         }
-    
+
                         return Err(err);
                     }
                     Ok(val) => val,

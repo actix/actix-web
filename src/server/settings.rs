@@ -229,16 +229,16 @@ impl<H> WorkerSettings<H> {
         unsafe { &mut *self.date.get() }.update();
     }
 
-    pub fn set_date(&self, dst: &mut BytesMut) {
-        let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
-        buf[..6].copy_from_slice(b"date: ");
-        buf[6..35].copy_from_slice(&(unsafe { &*self.date.get() }.bytes));
-        buf[35..].copy_from_slice(b"\r\n\r\n");
-        dst.extend_from_slice(&buf);
-    }
-
-    pub fn set_date_simple(&self, dst: &mut BytesMut) {
-        dst.extend_from_slice(&(unsafe { &*self.date.get() }.bytes));
+    pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
+        if full {
+            let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
+            buf[..6].copy_from_slice(b"date: ");
+            buf[6..35].copy_from_slice(&(unsafe { &*self.date.get() }.bytes));
+            buf[35..].copy_from_slice(b"\r\n\r\n");
+            dst.extend_from_slice(&buf);
+        } else {
+            dst.extend_from_slice(&(unsafe { &*self.date.get() }.bytes));
+        }
     }
 }
 
@@ -284,9 +284,9 @@ mod tests {
     fn test_date() {
         let settings = WorkerSettings::<()>::new(Vec::new(), KeepAlive::Os);
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1);
+        settings.set_date(&mut buf1, true);
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2);
+        settings.set_date(&mut buf2, true);
         assert_eq!(buf1, buf2);
     }
 }
