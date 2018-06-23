@@ -1,4 +1,5 @@
 use std;
+use std::rc::Rc;
 use std::ops::Index;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -32,7 +33,7 @@ pub(crate) enum ParamItem {
 pub struct Params {
     url: Url,
     pub(crate) tail: u16,
-    segments: SmallVec<[(&'static str, ParamItem); 3]>,
+    segments: SmallVec<[(Rc<String>, ParamItem); 3]>,
 }
 
 impl Params {
@@ -56,12 +57,12 @@ impl Params {
         self.tail = tail;
     }
 
-    pub(crate) fn add(&mut self, name: &'static str, value: ParamItem) {
+    pub(crate) fn add(&mut self, name: Rc<String>, value: ParamItem) {
         self.segments.push((name, value));
     }
 
-    pub(crate) fn add_static(&mut self, name: &'static str, value: &'static str) {
-        self.segments.push((name, ParamItem::Static(value)));
+    pub(crate) fn add_static(&mut self, name: &str, value: &'static str) {
+        self.segments.push((Rc::new(name.to_string()), ParamItem::Static(value)));
     }
 
     /// Check if there are any matched patterns
@@ -77,7 +78,7 @@ impl Params {
     /// Get matched parameter by name without type conversion
     pub fn get(&self, key: &str) -> Option<&str> {
         for item in self.segments.iter() {
-            if key == item.0 {
+            if key == item.0.as_str() {
                 return match item.1 {
                     ParamItem::Static(ref s) => Some(&s),
                     ParamItem::UrlSegment(s, e) => {
