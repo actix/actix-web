@@ -1,13 +1,14 @@
+use std::mem;
+
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HeaderMap, HttpTryFrom, StatusCode, Version};
+use http::{HeaderMap, StatusCode, Version};
 use httparse;
-use std::mem;
 
 use error::{ParseError, PayloadError};
 
-use server::h1decoder::EncodingDecoder;
+use server::h1decoder::{EncodingDecoder, HeaderIndex};
 use server::IoStream;
 
 use super::response::ClientMessage;
@@ -117,24 +118,23 @@ impl HttpResponseParser {
     fn parse_message(
         buf: &mut BytesMut,
     ) -> Poll<(ClientResponse, Option<EncodingDecoder>), ParseError> {
-        // Parse http message
-        let bytes_ptr = buf.as_ref().as_ptr() as usize;
-        let mut headers: [httparse::Header; MAX_HEADERS] =
-            unsafe { mem::uninitialized() };
+        // Unsafe: we read only this data only after httparse parses headers into.
+        // performance bump for pipeline benchmarks.
+        let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
 
         let (len, version, status, headers_len) = {
-            let b = unsafe {
-                let b: &[u8] = buf;
-                &*(b as *const _)
-            };
-            let mut resp = httparse::Response::new(&mut headers);
-            match resp.parse(b)? {
+            let mut parsed: [httparse::Header; MAX_HEADERS] =
+                unsafe { mem::uninitialized() };
+
+            let mut resp = httparse::Response::new(&mut parsed);
+            match resp.parse(buf)? {
                 httparse::Status::Complete(len) => {
                     let version = if resp.version.unwrap_or(1) == 1 {
                         Version::HTTP_11
                     } else {
                         Version::HTTP_10
                     };
+                    HeaderIndex::record(buf, resp.headers, &mut headers);
                     let status = StatusCode::from_u16(resp.code.unwrap())
                         .map_err(|_| ParseError::Status)?;
 
@@ -148,12 +148,13 @@ impl HttpResponseParser {
 
         // convert headers
         let mut hdrs = HeaderMap::new();
-        for header in headers[..headers_len].iter() {
-            if let Ok(name) = HeaderName::try_from(header.name) {
-                let v_start = header.value.as_ptr() as usize - bytes_ptr;
-                let v_end = v_start + header.value.len();
+        for idx in headers[..headers_len].iter() {
+            if let Ok(name) = HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]) {
+                // Unsafe: httparse check header value for valid utf-8
                 let value = unsafe {
-                    HeaderValue::from_shared_unchecked(slice.slice(v_start, v_end))
+                    HeaderValue::from_shared_unchecked(
+                        slice.slice(idx.value.0, idx.value.1),
+                    )
                 };
                 hdrs.append(name, value);
             } else {

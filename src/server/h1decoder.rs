@@ -91,17 +91,17 @@ impl H1Decoder {
         let mut content_length = None;
 
         let msg = {
-            let bytes_ptr = buf.as_ref().as_ptr() as usize;
-            let mut headers: [httparse::Header; MAX_HEADERS] =
+            // Unsafe: we read only this data only after httparse parses headers into.
+            // performance bump for pipeline benchmarks.
+            let mut headers: [HeaderIndex; MAX_HEADERS] =
                 unsafe { mem::uninitialized() };
 
             let (len, method, path, version, headers_len) = {
-                let b = unsafe {
-                    let b: &[u8] = buf;
-                    &*(b as *const [u8])
-                };
-                let mut req = httparse::Request::new(&mut headers);
-                match req.parse(b)? {
+                let mut parsed: [httparse::Header; MAX_HEADERS] =
+                    unsafe { mem::uninitialized() };
+
+                let mut req = httparse::Request::new(&mut parsed);
+                match req.parse(buf)? {
                     httparse::Status::Complete(len) => {
                         let method = Method::from_bytes(req.method.unwrap().as_bytes())
                             .map_err(|_| ParseError::Method)?;
@@ -111,6 +111,8 @@ impl H1Decoder {
                         } else {
                             Version::HTTP_10
                         };
+                        HeaderIndex::record(buf, req.headers, &mut headers);
+
                         (len, method, path, version, req.headers.len())
                     }
                     httparse::Status::Partial => return Ok(Async::NotReady),
@@ -127,15 +129,15 @@ impl H1Decoder {
                     .flags
                     .set(MessageFlags::KEEPALIVE, version != Version::HTTP_10);
 
-                for header in headers[..headers_len].iter() {
-                    if let Ok(name) = HeaderName::from_bytes(header.name.as_bytes()) {
+                for idx in headers[..headers_len].iter() {
+                    if let Ok(name) =
+                        HeaderName::from_bytes(&slice[idx.name.0..idx.name.1])
+                    {
                         has_upgrade = has_upgrade || name == header::UPGRADE;
-
-                        let v_start = header.value.as_ptr() as usize - bytes_ptr;
-                        let v_end = v_start + header.value.len();
+                        // Unsafe: httparse check header value for valid utf-8
                         let value = unsafe {
                             HeaderValue::from_shared_unchecked(
-                                slice.slice(v_start, v_end),
+                                slice.slice(idx.value.0, idx.value.1),
                             )
                         };
                         match name {
@@ -208,6 +210,28 @@ impl H1Decoder {
         };
 
         Ok(Async::Ready((msg, decoder)))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct HeaderIndex {
+    pub(crate) name: (usize, usize),
+    pub(crate) value: (usize, usize),
+}
+
+impl HeaderIndex {
+    pub(crate) fn record(
+        bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndex],
+    ) {
+        let bytes_ptr = bytes.as_ptr() as usize;
+        for (header, indices) in headers.iter().zip(indices.iter_mut()) {
+            let name_start = header.name.as_ptr() as usize - bytes_ptr;
+            let name_end = name_start + header.name.len();
+            indices.name = (name_start, name_end);
+            let value_start = header.value.as_ptr() as usize - bytes_ptr;
+            let value_end = value_start + header.value.len();
+            indices.value = (value_start, value_end);
+        }
     }
 }
 
