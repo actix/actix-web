@@ -11,8 +11,6 @@ use param::ParamItem;
 use resource::ResourceHandler;
 use server::ServerSettings;
 
-use string_cache::DefaultAtom as Atom;
-
 /// Interface for application router.
 pub struct Router(Rc<Inner>);
 
@@ -145,7 +143,7 @@ enum PatternElement {
 enum PatternType {
     Static(String),
     Prefix(String),
-    Dynamic(Regex, Vec<Atom>, usize),
+    Dynamic(Regex, Vec<&'static str>, usize),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -222,7 +220,11 @@ impl Resource {
             let names = re
                 .capture_names()
                 .filter_map(|name| {
-                    name.map(|name| Atom::from(name))
+                    name.map(|name| {
+                        let s: &'static str =
+                            Box::leak(name.to_owned().into_boxed_str());
+                        s
+                    })
                 })
                 .collect();
             PatternType::Dynamic(re, names, len)
@@ -313,7 +315,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(len as u16);
         for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx].clone(), segment);
+            params.add(names[idx], segment);
         }
         true
     }
@@ -379,7 +381,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(tail_len as u16);
         for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx].clone(), segment);
+            params.add(names[idx], segment);
         }
         Some(tail_len)
     }

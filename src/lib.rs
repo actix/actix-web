@@ -113,7 +113,6 @@ extern crate net2;
 extern crate parking_lot;
 extern crate rand;
 extern crate slab;
-extern crate string_cache;
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_reactor;

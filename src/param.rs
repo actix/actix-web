@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use http::StatusCode;
 use smallvec::SmallVec;
-use string_cache::DefaultAtom as Atom;
 
 use error::{InternalError, ResponseError, UriSegmentError};
 use uri::Url;
@@ -22,7 +21,7 @@ pub trait FromParam: Sized {
 
 #[derive(Debug, Clone)]
 pub(crate) enum ParamItem {
-    Static(Atom),
+    Static(&'static str),
     UrlSegment(u16, u16),
 }
 
@@ -33,7 +32,7 @@ pub(crate) enum ParamItem {
 pub struct Params {
     url: Url,
     pub(crate) tail: u16,
-    segments: SmallVec<[(Atom, ParamItem); 3]>,
+    segments: SmallVec<[(&'static str, ParamItem); 3]>,
 }
 
 impl Params {
@@ -57,12 +56,12 @@ impl Params {
         self.tail = tail;
     }
 
-    pub(crate) fn add(&mut self, name: Atom, value: ParamItem) {
+    pub(crate) fn add(&mut self, name: &'static str, value: ParamItem) {
         self.segments.push((name, value));
     }
 
-    pub(crate) fn add_static(&mut self, name: &str, value: &'static str) {
-        self.segments.push((Atom::from(name), ParamItem::Static(Atom::from(value))));
+    pub(crate) fn add_static(&mut self, name: &'static str, value: &'static str) {
+        self.segments.push((name, ParamItem::Static(value)));
     }
 
     /// Check if there are any matched patterns
@@ -78,7 +77,7 @@ impl Params {
     /// Get matched parameter by name without type conversion
     pub fn get(&self, key: &str) -> Option<&str> {
         for item in self.segments.iter() {
-            if key == &item.0 {
+            if key == item.0 {
                 return match item.1 {
                     ParamItem::Static(ref s) => Some(&s),
                     ParamItem::UrlSegment(s, e) => {

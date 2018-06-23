@@ -15,7 +15,7 @@
 //!   the allowed origins.
 //!
 //! Use [`CsrfFilter::allow_xhr()`](struct.CsrfFilter.html#method.allow_xhr)
-//! if you want to allow requests with unsafe methods via
+//! if you want to allow requests with unprotected methods via
 //! [CORS](../cors/struct.Cors.html).
 //!
 //! # Example
@@ -175,7 +175,7 @@ impl CsrfFilter {
     ///
     /// The filter is conservative by default, but it should be safe to allow
     /// missing `Origin` headers because a cross-site attacker cannot prevent
-    /// the browser from sending `Origin` on unsafe requests.
+    /// the browser from sending `Origin` on unprotected requests.
     pub fn allow_missing_origin(mut self) -> CsrfFilter {
         self.allow_missing_origin = true;
         self
