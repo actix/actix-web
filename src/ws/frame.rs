@@ -1,9 +1,8 @@
-#![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-use byteorder::{ByteOrder, NetworkEndian};
+use byteorder::{ByteOrder, LittleEndian, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use rand;
-use std::{fmt, ptr};
+use std::fmt;
 
 use body::Binary;
 use error::PayloadError;
@@ -115,8 +114,7 @@ impl Frame {
             };
 
             let mask: &[u8] = &buf[idx..idx + 4];
-            let mask_u32: u32 =
-                unsafe { ptr::read_unaligned(mask.as_ptr() as *const u32) };
+            let mask_u32 = LittleEndian::read_u32(mask);
             idx += 4;
             Some(mask_u32)
         } else {
@@ -185,8 +183,7 @@ impl Frame {
             }
 
             let mask: &[u8] = &chunk[idx..idx + 4];
-            let mask_u32: u32 =
-                unsafe { ptr::read_unaligned(mask.as_ptr() as *const u32) };
+            let mask_u32 = LittleEndian::read_u32(mask);
             idx += 4;
             Some(mask_u32)
         } else {
@@ -323,15 +320,10 @@ impl Frame {
 
         if genmask {
             let mask = rand::random::<u32>();
-            unsafe {
-                {
-                    let buf_mut = buf.bytes_mut();
-                    *(buf_mut as *mut _ as *mut u32) = mask;
-                    buf_mut[4..payload_len + 4].copy_from_slice(payload.as_ref());
-                    apply_mask(&mut buf_mut[4..], mask);
-                }
-                buf.advance_mut(payload_len + 4);
-            }
+            buf.put_u32_le(mask);
+            buf.extend_from_slice(payload.as_ref());
+            let pos = buf.len() - payload_len;
+            apply_mask(&mut buf[pos..], mask);
             buf.into()
         } else {
             buf.put_slice(payload.as_ref());

@@ -85,7 +85,7 @@ flate2 = { version="1.0", optional = true, default-features = false }
 mio = "^0.6.13"
 net2 = "0.2"
 bytes = "0.4"
-byteorder = "1"
+byteorder = "1.2"
 futures = "0.1"
 futures-cpupool = "0.1"
 slab = "0.4"

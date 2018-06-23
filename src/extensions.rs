@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
 
 struct IdHasher {
     id: u64,
@@ -16,7 +16,7 @@ impl Default for IdHasher {
 impl Hasher for IdHasher {
     fn write(&mut self, bytes: &[u8]) {
         for &x in bytes {
-            self.id.wrapping_add(x as u64);
+            self.id.wrapping_add(u64::from(x));
         }
     }
 
