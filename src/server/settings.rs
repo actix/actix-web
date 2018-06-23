@@ -230,14 +230,16 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
-        if full {
-            let mut buf: [u8; 39] = unsafe { mem::uninitialized() };
-            buf[..6].copy_from_slice(b"date: ");
-            buf[6..35].copy_from_slice(&(unsafe { &*self.date.get() }.bytes));
-            buf[35..].copy_from_slice(b"\r\n\r\n");
-            dst.extend_from_slice(&buf);
-        } else {
-            dst.extend_from_slice(&(unsafe { &*self.date.get() }.bytes));
+        unsafe {
+            if full {
+                let mut buf: [u8; 39] = mem::uninitialized();
+                buf[..6].copy_from_slice(b"date: ");
+                buf[6..35].copy_from_slice(&(*self.date.get()).bytes);
+                buf[35..].copy_from_slice(b"\r\n\r\n");
+                dst.extend_from_slice(&buf);
+            } else {
+                dst.extend_from_slice(&(*self.date.get()).bytes);
+            }
         }
     }
 }

@@ -10,15 +10,6 @@ pub fn apply_mask(buf: &mut [u8], mask: u32) {
     unsafe { apply_mask_fast32(buf, mask) }
 }
 
-/// A safe unoptimized mask application.
-#[inline]
-#[allow(dead_code)]
-fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
-    for (i, byte) in buf.iter_mut().enumerate() {
-        *byte ^= mask[i & 3];
-    }
-}
-
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
 ///
 /// unsafe because uses pointer math and bit operations for performance
@@ -99,13 +90,20 @@ unsafe fn xor_mem(ptr: *mut u8, mask: u32, len: usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_mask, apply_mask_fallback};
-    use std::ptr;
+    use super::apply_mask;
+    use byteorder::{ByteOrder, LittleEndian};
+
+    /// A safe unoptimized mask application.
+    fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte ^= mask[i & 3];
+        }
+    }
 
     #[test]
     fn test_apply_mask() {
         let mask = [0x6d, 0xb6, 0xb2, 0x80];
-        let mask_u32: u32 = unsafe { ptr::read_unaligned(mask.as_ptr() as *const u32) };
+        let mask_u32: u32 = LittleEndian::read_u32(&mask);
 
         let unmasked = vec![
             0xf3, 0x00, 0x01, 0x02, 0x03, 0x80, 0x81, 0x82, 0xff, 0xfe, 0x00, 0x17,

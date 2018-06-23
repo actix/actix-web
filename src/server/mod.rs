@@ -219,10 +219,10 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn read_available(&mut self, buf: &mut BytesMut) -> Poll<bool, io::Error> {
         let mut read_some = false;
         loop {
+            if buf.remaining_mut() < LW_BUFFER_SIZE {
+                buf.reserve(HW_BUFFER_SIZE);
+            }
             unsafe {
-                if buf.remaining_mut() < LW_BUFFER_SIZE {
-                    buf.reserve(HW_BUFFER_SIZE);
-                }
                 match self.read(buf.bytes_mut()) {
                     Ok(n) => {
                         if n == 0 {
