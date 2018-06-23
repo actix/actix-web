@@ -94,10 +94,6 @@ impl HttpInnerMessage {
     }
 }
 
-lazy_static! {
-    static ref RESOURCE: Resource = Resource::unset();
-}
-
 /// An HTTP Request
 pub struct HttpRequest<S = ()>(SharedHttpInnerMessage, Option<Rc<S>>, Option<Router>);
 
@@ -345,13 +341,13 @@ impl<S> HttpRequest<S> {
 
     /// This method returns reference to matched `Resource` object.
     #[inline]
-    pub fn resource(&self) -> &Resource {
+    pub fn resource(&self) -> Option<&Resource> {
         if let Some(ref router) = self.2 {
             if let RouterResource::Normal(idx) = self.as_ref().resource {
-                return router.get_resource(idx as usize);
+                return Some(router.get_resource(idx as usize));
             }
         }
-        &*RESOURCE
+        None
     }
 
     pub(crate) fn set_resource(&mut self, res: usize) {

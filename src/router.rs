@@ -143,7 +143,7 @@ enum PatternElement {
 enum PatternType {
     Static(String),
     Prefix(String),
-    Dynamic(Regex, Vec<&'static str>, usize),
+    Dynamic(Regex, Vec<Rc<String>>, usize),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -195,17 +195,6 @@ impl Resource {
         resource
     }
 
-    /// Unset resource type
-    pub(crate) fn unset() -> Resource {
-        Resource {
-            tp: PatternType::Static("".to_owned()),
-            rtp: ResourceType::Unset,
-            name: "".to_owned(),
-            pattern: "".to_owned(),
-            elements: Vec::new(),
-        }
-    }
-
     /// Parse path pattern and create new `Resource` instance with custom prefix
     pub fn with_prefix(name: &str, path: &str, prefix: &str, for_prefix: bool) -> Self {
         let (pattern, elements, is_dynamic, len) =
@@ -220,11 +209,7 @@ impl Resource {
             let names = re
                 .capture_names()
                 .filter_map(|name| {
-                    name.map(|name| {
-                        let s: &'static str =
-                            Box::leak(name.to_owned().into_boxed_str());
-                        s
-                    })
+                    name.map(|name| Rc::new(name.to_owned()))
                 })
                 .collect();
             PatternType::Dynamic(re, names, len)
@@ -315,7 +300,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(len as u16);
         for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx], segment);
+            params.add(names[idx].clone(), segment);
         }
         true
     }
@@ -381,7 +366,7 @@ impl Resource {
         let params = req.match_info_mut();
         params.set_tail(tail_len as u16);
         for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx], segment);
+            params.add(names[idx].clone(), segment);
         }
         Some(tail_len)
     }
@@ -774,13 +759,13 @@ mod tests {
         let mut req =
             TestRequest::with_uri("/index.json").finish_with_router(router.clone());
         assert_eq!(router.recognize(&mut req), Some(0));
-        let resource = req.resource();
+        let resource = req.resource().unwrap();
         assert_eq!(resource.name(), "r1");
 
         let mut req =
             TestRequest::with_uri("/test.json").finish_with_router(router.clone());
         assert_eq!(router.recognize(&mut req), Some(1));
-        let resource = req.resource();
+        let resource = req.resource().unwrap();
         assert_eq!(resource.name(), "r2");
     }
 }
