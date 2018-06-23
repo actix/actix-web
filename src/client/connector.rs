@@ -837,9 +837,9 @@ impl fut::ActorFuture for Maintenance {
         act.collect_waiters();
 
         // check waiters
-        let mut waiters = act.waiters.take().unwrap();
+        let mut act_waiters = act.waiters.take().unwrap();
 
-        for (key, waiters) in &mut waiters {
+        for (key, ref mut waiters) in &mut act_waiters {
             while let Some(waiter) = waiters.pop_front() {
                 if waiter.tx.is_canceled() {
                     continue;
@@ -858,10 +858,11 @@ impl fut::ActorFuture for Maintenance {
                         break;
                     }
                     Acquire::Available => {
+                        let key = key.clone();
                         let conn = AcquiredConn(key.clone(), Some(act.acq_tx.clone()));
 
                         fut::WrapFuture::<ClientConnector>::actfuture(
-                            Resolver::from_registry().send(
+                            act.resolver.as_ref().unwrap().send(
                                 ResolveConnect::host_and_port(&conn.0.host, conn.0.port)
                                     .timeout(waiter.conn_timeout),
                             ),
@@ -898,7 +899,7 @@ impl fut::ActorFuture for Maintenance {
                                                         }
                                                         Ok(())
                                                     })
-                                                    .actfuture(),
+                                                    .into_actor(act),
                                             )
                                         } else {
                                             let _ = waiter.tx.send(Ok(Connection::new(
@@ -986,7 +987,7 @@ impl fut::ActorFuture for Maintenance {
             }
         }
 
-        act.waiters = Some(waiters);
+        act.waiters = Some(act_waiters);
         Ok(Async::NotReady)
     }
 }

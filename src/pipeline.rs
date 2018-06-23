@@ -841,7 +841,7 @@ mod tests {
                     Pipeline(info, PipelineState::Completed(state), Rc::new(Vec::new()));
                 assert!(!pp.is_done());
 
-                let Pipeline(mut info, st, mws) = pp;
+                let Pipeline(mut info, st, _) = pp;
                 let mut st = st.completed().unwrap();
                 drop(addr);
 
