@@ -6,7 +6,7 @@ use std::io;
 use std::rc::Rc;
 use tokio_io::AsyncWrite;
 
-use super::encoding::ContentEncoder;
+use super::encoding::{ContentEncoder, Output};
 use super::helpers;
 use super::settings::WorkerSettings;
 use super::shared::SharedBytes;
@@ -32,10 +32,9 @@ bitflags! {
 pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     flags: Flags,
     stream: T,
-    encoder: ContentEncoder,
     written: u64,
     headers_size: u32,
-    buffer: SharedBytes,
+    buffer: Output,
     buffer_capacity: usize,
     settings: Rc<WorkerSettings<H>>,
 }
@@ -46,10 +45,9 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     ) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
-            encoder: ContentEncoder::empty(),
             written: 0,
             headers_size: 0,
-            buffer: buf,
+            buffer: Output::Buffer(buf),
             buffer_capacity: 0,
             stream,
             settings,
@@ -66,7 +64,7 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     }
 
     pub fn disconnected(&mut self) {
-        self.buffer.take();
+        self.buffer = Output::Empty;
     }
 
     pub fn keepalive(&self) -> bool {
@@ -106,7 +104,8 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn buffer(&mut self) -> &mut BytesMut {
-        self.buffer.get_mut()
+        //self.buffer.get_mut()
+        unimplemented!()
     }
 
     fn start(
@@ -114,8 +113,6 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare task
-        self.encoder =
-            ContentEncoder::for_server(self.buffer.get_mut(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags = Flags::STARTED | Flags::KEEPALIVE;
         } else {
@@ -143,7 +140,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
         // render message
         {
+            // output buffer
             let mut buffer = self.buffer.get_mut();
+
             let reason = msg.reason().as_bytes();
             let mut is_bin = if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
@@ -222,9 +221,12 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             self.headers_size = buffer.len() as u32;
         }
 
+        // output encoding
+        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
+
         if let Body::Binary(bytes) = body {
             self.written = bytes.len() as u64;
-            self.encoder.write(bytes.as_ref())?;
+            self.buffer.write(bytes.as_ref())?;
         } else {
             // capacity, makes sense only for streaming or actor
             self.buffer_capacity = msg.write_buffer_capacity();
@@ -253,19 +255,19 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                             Ok(val) => val,
                         };
                         if n < pl.len() {
-                            self.buffer.extend_from_slice(&pl[n..]);
+                            self.buffer.write(&pl[n..]);
                             return Ok(WriterState::Done);
                         }
                     } else {
-                        self.buffer.extend(payload);
+                        self.buffer.write(payload.as_ref());
                     }
                 } else {
                     // TODO: add warning, write after EOF
-                    self.encoder.write(payload.as_ref())?;
+                    self.buffer.write(payload.as_ref())?;
                 }
             } else {
                 // could be response to EXCEPT header
-                self.buffer.extend_from_slice(payload.as_ref())
+                self.buffer.write(payload.as_ref());
             }
         }
 
@@ -277,7 +279,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     }
 
     fn write_eof(&mut self) -> io::Result<WriterState> {
-        if !self.encoder.write_eof()? {
+        if !self.buffer.write_eof()? {
             Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Last payload item, but eof is not reached",
@@ -293,7 +295,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
         if !self.buffer.is_empty() {
             let written = {
-                match Self::write_data(&mut self.stream, self.buffer.as_ref()) {
+                match Self::write_data(&mut self.stream, self.buffer.as_ref().as_ref()) {
                     Err(err) => {
                         if err.kind() == io::ErrorKind::WriteZero {
                             self.disconnected();

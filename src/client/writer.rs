@@ -21,7 +21,8 @@ use tokio_io::AsyncWrite;
 
 use body::{Binary, Body};
 use header::ContentEncoding;
-use server::encoding::{ContentEncoder, TransferEncoding};
+use server::encoding::{ContentEncoder, Output, TransferEncoding};
+use server::shared::SharedBytes;
 use server::WriterState;
 
 use client::ClientRequest;
@@ -41,21 +42,18 @@ pub(crate) struct HttpClientWriter {
     flags: Flags,
     written: u64,
     headers_size: u32,
-    buffer: Box<BytesMut>,
+    buffer: Output,
     buffer_capacity: usize,
-    encoder: ContentEncoder,
 }
 
 impl HttpClientWriter {
     pub fn new() -> HttpClientWriter {
-        let encoder = ContentEncoder::Identity(TransferEncoding::eof());
         HttpClientWriter {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
             buffer_capacity: 0,
-            buffer: Box::new(BytesMut::new()),
-            encoder,
+            buffer: Output::Buffer(SharedBytes::empty()),
         }
     }
 
@@ -75,7 +73,7 @@ impl HttpClientWriter {
         &mut self, stream: &mut T,
     ) -> io::Result<WriterState> {
         while !self.buffer.is_empty() {
-            match stream.write(self.buffer.as_ref()) {
+            match stream.write(self.buffer.as_ref().as_ref()) {
                 Ok(0) => {
                     self.disconnected();
                     return Ok(WriterState::Done);
@@ -113,16 +111,18 @@ impl HttpClientWriter {
     pub fn start(&mut self, msg: &mut ClientRequest) -> io::Result<()> {
         // prepare task
         self.flags.insert(Flags::STARTED);
-        self.encoder = content_encoder(self.buffer.as_mut(), msg);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
         }
 
         // render message
         {
+            // output buffer
+            let buffer = self.buffer.get_mut();
+
             // status line
             writeln!(
-                Writer(&mut self.buffer),
+                Writer(buffer),
                 "{} {} {:?}\r",
                 msg.method(),
                 msg.uri()
@@ -134,41 +134,41 @@ impl HttpClientWriter {
 
             // write headers
             if let Body::Binary(ref bytes) = *msg.body() {
-                self.buffer
-                    .reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
+                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE + bytes.len());
             } else {
-                self.buffer
-                    .reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
+                buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
             for (key, value) in msg.headers() {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
-                self.buffer.reserve(k.len() + v.len() + 4);
-                self.buffer.put_slice(k);
-                self.buffer.put_slice(b": ");
-                self.buffer.put_slice(v);
-                self.buffer.put_slice(b"\r\n");
+                buffer.reserve(k.len() + v.len() + 4);
+                buffer.put_slice(k);
+                buffer.put_slice(b": ");
+                buffer.put_slice(v);
+                buffer.put_slice(b"\r\n");
             }
 
             // set date header
             if !msg.headers().contains_key(DATE) {
-                self.buffer.extend_from_slice(b"date: ");
-                set_date(&mut self.buffer);
-                self.buffer.extend_from_slice(b"\r\n\r\n");
+                buffer.extend_from_slice(b"date: ");
+                set_date(buffer);
+                buffer.extend_from_slice(b"\r\n\r\n");
             } else {
-                self.buffer.extend_from_slice(b"\r\n");
+                buffer.extend_from_slice(b"\r\n");
             }
-            self.headers_size = self.buffer.len() as u32;
+        }
+        self.headers_size = self.buffer.len() as u32;
 
-            if msg.body().is_binary() {
-                if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
-                    self.written += bytes.len() as u64;
-                    self.encoder.write(bytes.as_ref())?;
-                }
-            } else {
-                self.buffer_capacity = msg.write_buffer_capacity();
+        self.buffer = content_encoder(self.buffer.take(), msg);
+
+        if msg.body().is_binary() {
+            if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
+                self.written += bytes.len() as u64;
+                self.buffer.write(bytes.as_ref())?;
             }
+        } else {
+            self.buffer_capacity = msg.write_buffer_capacity();
         }
         Ok(())
     }
@@ -176,11 +176,7 @@ impl HttpClientWriter {
     pub fn write(&mut self, payload: &[u8]) -> io::Result<WriterState> {
         self.written += payload.len() as u64;
         if !self.flags.contains(Flags::DISCONNECTED) {
-            if self.flags.contains(Flags::UPGRADE) {
-                self.buffer.extend(payload);
-            } else {
-                self.encoder.write(payload)?;
-            }
+            self.buffer.write(payload)?;
         }
 
         if self.buffer.len() > self.buffer_capacity {
@@ -191,9 +187,7 @@ impl HttpClientWriter {
     }
 
     pub fn write_eof(&mut self) -> io::Result<()> {
-        self.encoder.write_eof()?;
-
-        if self.encoder.is_eof() {
+        if self.buffer.write_eof()? {
             Ok(())
         } else {
             Err(io::Error::new(
@@ -221,21 +215,20 @@ impl HttpClientWriter {
     }
 }
 
-fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncoder {
+fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> Output {
     let version = req.version();
     let mut body = req.replace_body(Body::Empty);
     let mut encoding = req.content_encoding();
 
-    let mut transfer = match body {
+    let transfer = match body {
         Body::Empty => {
             req.headers_mut().remove(CONTENT_LENGTH);
-            TransferEncoding::length(0)
+            TransferEncoding::length(0, buf)
         }
         Body::Binary(ref mut bytes) => {
             if encoding.is_compression() {
-                let mut tmp = BytesMut::new();
-                let mut transfer = TransferEncoding::eof();
-                transfer.set_buffer(&mut tmp);
+                let mut tmp = SharedBytes::empty();
+                let mut transfer = TransferEncoding::eof(tmp);
                 let mut enc = match encoding {
                     #[cfg(feature = "flate2")]
                     ContentEncoding::Deflate => ContentEncoder::Deflate(
@@ -256,7 +249,7 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
                 // TODO return error!
                 let _ = enc.write(bytes.as_ref());
                 let _ = enc.write_eof();
-                *bytes = Binary::from(tmp.take());
+                *bytes = Binary::from(enc.buf_mut().take());
 
                 req.headers_mut().insert(
                     CONTENT_ENCODING,
@@ -268,7 +261,7 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
             let _ = write!(b, "{}", bytes.len());
             req.headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
-            TransferEncoding::eof()
+            TransferEncoding::eof(buf)
         }
         Body::Streaming(_) | Body::Actor(_) => {
             if req.upgrade() {
@@ -282,9 +275,9 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
                     encoding = ContentEncoding::Identity;
                     req.headers_mut().remove(CONTENT_ENCODING);
                 }
-                TransferEncoding::eof()
+                TransferEncoding::eof(buf)
             } else {
-                streaming_encoding(version, req)
+                streaming_encoding(buf, version, req)
             }
         }
     };
@@ -295,10 +288,9 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
             HeaderValue::from_static(encoding.as_str()),
         );
     }
-    transfer.set_buffer(buf);
 
     req.replace_body(body);
-    match encoding {
+    let enc = match encoding {
         #[cfg(feature = "flate2")]
         ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
             transfer,
@@ -310,23 +302,24 @@ fn content_encoder(buf: &mut BytesMut, req: &mut ClientRequest) -> ContentEncode
         }
         #[cfg(feature = "brotli")]
         ContentEncoding::Br => ContentEncoder::Br(BrotliEncoder::new(transfer, 5)),
-        ContentEncoding::Identity | ContentEncoding::Auto => {
-            ContentEncoder::Identity(transfer)
-        }
-    }
+        ContentEncoding::Identity | ContentEncoding::Auto => return Output::TE(transfer),
+    };
+    Output::Encoder(enc)
 }
 
-fn streaming_encoding(version: Version, req: &mut ClientRequest) -> TransferEncoding {
+fn streaming_encoding(
+    buf: SharedBytes, version: Version, req: &mut ClientRequest,
+) -> TransferEncoding {
     if req.chunked() {
         // Enable transfer encoding
         req.headers_mut().remove(CONTENT_LENGTH);
         if version == Version::HTTP_2 {
             req.headers_mut().remove(TRANSFER_ENCODING);
-            TransferEncoding::eof()
+            TransferEncoding::eof(buf)
         } else {
             req.headers_mut()
                 .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-            TransferEncoding::chunked()
+            TransferEncoding::chunked(buf)
         }
     } else {
         // if Content-Length is specified, then use it as length hint
@@ -349,9 +342,9 @@ fn streaming_encoding(version: Version, req: &mut ClientRequest) -> TransferEnco
 
         if !chunked {
             if let Some(len) = len {
-                TransferEncoding::length(len)
+                TransferEncoding::length(len, buf)
             } else {
-                TransferEncoding::eof()
+                TransferEncoding::eof(buf)
             }
         } else {
             // Enable transfer encoding
@@ -359,11 +352,11 @@ fn streaming_encoding(version: Version, req: &mut ClientRequest) -> TransferEnco
                 Version::HTTP_11 => {
                     req.headers_mut()
                         .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                    TransferEncoding::chunked()
+                    TransferEncoding::chunked(buf)
                 }
                 _ => {
                     req.headers_mut().remove(TRANSFER_ENCODING);
-                    TransferEncoding::eof()
+                    TransferEncoding::eof(buf)
                 }
             }
         }

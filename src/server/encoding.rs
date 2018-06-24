@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{Read, Write};
 use std::str::FromStr;
-use std::{cmp, io, mem, ptr};
+use std::{cmp, io, mem};
 
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -24,6 +24,8 @@ use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadStatus, PayloadWriter};
+
+use super::shared::SharedBytes;
 
 pub(crate) enum PayloadType {
     Sender(PayloadSender),
@@ -368,6 +370,83 @@ impl PayloadStream {
     }
 }
 
+pub(crate) enum Output {
+    Buffer(SharedBytes),
+    Encoder(ContentEncoder),
+    TE(TransferEncoding),
+    Empty,
+}
+
+impl Output {
+    pub fn take(&mut self) -> SharedBytes {
+        match mem::replace(self, Output::Empty) {
+            Output::Buffer(bytes) => bytes,
+            _ => panic!(),
+        }
+    }
+    pub fn as_ref(&mut self) -> &SharedBytes {
+        match self {
+            Output::Buffer(ref mut bytes) => bytes,
+            Output::Encoder(ref mut enc) => enc.buf_ref(),
+            Output::TE(ref mut te) => te.buf_ref(),
+            Output::Empty => panic!(),
+        }
+    }
+    pub fn get_mut(&mut self) -> &mut BytesMut {
+        match self {
+            Output::Buffer(ref mut bytes) => bytes.get_mut(),
+            _ => panic!(),
+        }
+    }
+    pub fn split_to(&mut self, cap: usize) -> BytesMut {
+        match self {
+            Output::Buffer(ref mut bytes) => bytes.split_to(cap),
+            Output::Encoder(ref mut enc) => enc.buf_mut().split_to(cap),
+            Output::TE(ref mut te) => te.buf_mut().split_to(cap),
+            Output::Empty => BytesMut::new(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Output::Buffer(ref bytes) => bytes.len(),
+            Output::Encoder(ref enc) => enc.len(),
+            Output::TE(ref te) => te.len(),
+            Output::Empty => 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Output::Buffer(ref bytes) => bytes.is_empty(),
+            Output::Encoder(ref enc) => enc.is_empty(),
+            Output::TE(ref te) => te.is_empty(),
+            Output::Empty => true,
+        }
+    }
+
+    pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
+        match self {
+            Output::Buffer(ref mut bytes) => {
+                bytes.extend_from_slice(data);
+                Ok(())
+            }
+            Output::Encoder(ref mut enc) => enc.write(data),
+            Output::TE(ref mut te) => te.encode(data).map(|_| ()),
+            Output::Empty => Ok(()),
+        }
+    }
+
+    pub fn write_eof(&mut self) -> Result<bool, io::Error> {
+        match self {
+            Output::Buffer(_) => Ok(true),
+            Output::Encoder(ref mut enc) => enc.write_eof(),
+            Output::TE(ref mut te) => Ok(te.encode_eof()),
+            Output::Empty => Ok(true),
+        }
+    }
+}
+
 pub(crate) enum ContentEncoder {
     #[cfg(feature = "flate2")]
     Deflate(DeflateEncoder<TransferEncoding>),
@@ -379,14 +458,10 @@ pub(crate) enum ContentEncoder {
 }
 
 impl ContentEncoder {
-    pub fn empty() -> ContentEncoder {
-        ContentEncoder::Identity(TransferEncoding::eof())
-    }
-
     pub fn for_server(
-        buf: &mut BytesMut, req: &HttpInnerMessage, resp: &mut HttpResponse,
+        buf: SharedBytes, req: &HttpInnerMessage, resp: &mut HttpResponse,
         response_encoding: ContentEncoding,
-    ) -> ContentEncoder {
+    ) -> Output {
         let version = resp.version().unwrap_or_else(|| req.version);
         let is_head = req.method == Method::HEAD;
         let mut len = 0;
@@ -439,7 +514,7 @@ impl ContentEncoder {
                 if req.method != Method::HEAD {
                     resp.headers_mut().remove(CONTENT_LENGTH);
                 }
-                TransferEncoding::length(0)
+                TransferEncoding::length(0, buf)
             }
             &Body::Binary(_) => {
                 #[cfg(any(feature = "brotli", feature = "flate2"))]
@@ -447,9 +522,8 @@ impl ContentEncoder {
                     if !(encoding == ContentEncoding::Identity
                         || encoding == ContentEncoding::Auto)
                     {
-                        let mut tmp = BytesMut::default();
-                        let mut transfer = TransferEncoding::eof();
-                        transfer.set_buffer(&mut tmp);
+                        let mut tmp = SharedBytes::empty();
+                        let mut transfer = TransferEncoding::eof(tmp);
                         let mut enc = match encoding {
                             #[cfg(feature = "flate2")]
                             ContentEncoding::Deflate => ContentEncoder::Deflate(
@@ -473,7 +547,7 @@ impl ContentEncoder {
                         // TODO return error!
                         let _ = enc.write(bin.as_ref());
                         let _ = enc.write_eof();
-                        let body = tmp.take();
+                        let body = enc.buf_mut().take();
                         len = body.len();
 
                         encoding = ContentEncoding::Identity;
@@ -491,7 +565,7 @@ impl ContentEncoder {
                 } else {
                     // resp.headers_mut().remove(CONTENT_LENGTH);
                 }
-                TransferEncoding::eof()
+                TransferEncoding::eof(buf)
             }
             &Body::Streaming(_) | &Body::Actor(_) => {
                 if resp.upgrade() {
@@ -502,14 +576,14 @@ impl ContentEncoder {
                         encoding = ContentEncoding::Identity;
                         resp.headers_mut().remove(CONTENT_ENCODING);
                     }
-                    TransferEncoding::eof()
+                    TransferEncoding::eof(buf)
                 } else {
                     if !(encoding == ContentEncoding::Identity
                         || encoding == ContentEncoding::Auto)
                     {
                         resp.headers_mut().remove(CONTENT_LENGTH);
                     }
-                    ContentEncoder::streaming_encoding(version, resp)
+                    ContentEncoder::streaming_encoding(buf, version, resp)
                 }
             }
         };
@@ -518,9 +592,8 @@ impl ContentEncoder {
             resp.set_body(Body::Empty);
             transfer.kind = TransferEncodingKind::Length(0);
         }
-        transfer.set_buffer(buf);
 
-        match encoding {
+        let enc = match encoding {
             #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
                 transfer,
@@ -533,13 +606,14 @@ impl ContentEncoder {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => ContentEncoder::Br(BrotliEncoder::new(transfer, 3)),
             ContentEncoding::Identity | ContentEncoding::Auto => {
-                ContentEncoder::Identity(transfer)
+                return Output::TE(transfer)
             }
-        }
+        };
+        Output::Encoder(enc)
     }
 
     fn streaming_encoding(
-        version: Version, resp: &mut HttpResponse,
+        buf: SharedBytes, version: Version, resp: &mut HttpResponse,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
@@ -547,14 +621,14 @@ impl ContentEncoder {
                 resp.headers_mut().remove(CONTENT_LENGTH);
                 if version == Version::HTTP_2 {
                     resp.headers_mut().remove(TRANSFER_ENCODING);
-                    TransferEncoding::eof()
+                    TransferEncoding::eof(buf)
                 } else {
                     resp.headers_mut()
                         .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-                    TransferEncoding::chunked()
+                    TransferEncoding::chunked(buf)
                 }
             }
-            Some(false) => TransferEncoding::eof(),
+            Some(false) => TransferEncoding::eof(buf),
             None => {
                 // if Content-Length is specified, then use it as length hint
                 let (len, chunked) =
@@ -577,9 +651,9 @@ impl ContentEncoder {
 
                 if !chunked {
                     if let Some(len) = len {
-                        TransferEncoding::length(len)
+                        TransferEncoding::length(len, buf)
                     } else {
-                        TransferEncoding::eof()
+                        TransferEncoding::eof(buf)
                     }
                 } else {
                     // Enable transfer encoding
@@ -589,11 +663,11 @@ impl ContentEncoder {
                                 TRANSFER_ENCODING,
                                 HeaderValue::from_static("chunked"),
                             );
-                            TransferEncoding::chunked()
+                            TransferEncoding::chunked(buf)
                         }
                         _ => {
                             resp.headers_mut().remove(TRANSFER_ENCODING);
-                            TransferEncoding::eof()
+                            TransferEncoding::eof(buf)
                         }
                     }
                 }
@@ -604,15 +678,54 @@ impl ContentEncoder {
 
 impl ContentEncoder {
     #[inline]
-    pub fn is_eof(&self) -> bool {
+    pub fn len(&self) -> usize {
         match *self {
             #[cfg(feature = "brotli")]
-            ContentEncoder::Br(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Br(ref encoder) => encoder.get_ref().len(),
             #[cfg(feature = "flate2")]
-            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_eof(),
+            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().len(),
             #[cfg(feature = "flate2")]
-            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_eof(),
-            ContentEncoder::Identity(ref encoder) => encoder.is_eof(),
+            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().len(),
+            ContentEncoder::Identity(ref encoder) => encoder.len(),
+        }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(ref encoder) => encoder.get_ref().is_empty(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(ref encoder) => encoder.get_ref().is_empty(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(ref encoder) => encoder.get_ref().is_empty(),
+            ContentEncoder::Identity(ref encoder) => encoder.is_empty(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn buf_mut(&mut self) -> &mut BytesMut {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(ref mut encoder) => encoder.get_mut().buf_mut(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().buf_mut(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().buf_mut(),
+            ContentEncoder::Identity(ref mut encoder) => encoder.buf_mut(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn buf_ref(&mut self) -> &SharedBytes {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(ref mut encoder) => encoder.get_mut().buf_ref(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().buf_ref(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().buf_ref(),
+            ContentEncoder::Identity(ref mut encoder) => encoder.buf_ref(),
         }
     }
 
@@ -620,7 +733,7 @@ impl ContentEncoder {
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<bool, io::Error> {
         let encoder =
-            mem::replace(self, ContentEncoder::Identity(TransferEncoding::eof()));
+            mem::replace(self, ContentEncoder::Identity(TransferEncoding::empty()));
 
         match encoder {
             #[cfg(feature = "brotli")]
@@ -695,9 +808,9 @@ impl ContentEncoder {
 }
 
 /// Encoders to handle different Transfer-Encodings.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct TransferEncoding {
-    buf: *mut BytesMut,
+    buf: Option<SharedBytes>,
     kind: TransferEncodingKind,
 }
 
@@ -716,40 +829,55 @@ enum TransferEncodingKind {
 }
 
 impl TransferEncoding {
-    pub(crate) fn set_buffer(&mut self, buf: *mut BytesMut) {
-        self.buf = buf;
+    fn take(self) -> SharedBytes {
+        self.buf.unwrap()
+    }
+
+    fn buf_ref(&mut self) -> &SharedBytes {
+        self.buf.as_ref().unwrap()
+    }
+
+    fn len(&self) -> usize {
+        self.buf.as_ref().unwrap().len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.buf.as_ref().unwrap().is_empty()
+    }
+
+    fn buf_mut(&mut self) -> &mut BytesMut {
+        self.buf.as_mut().unwrap().get_mut()
     }
 
     #[inline]
-    pub fn eof() -> TransferEncoding {
+    pub fn empty() -> TransferEncoding {
         TransferEncoding {
+            buf: None,
             kind: TransferEncodingKind::Eof,
-            buf: ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub fn chunked() -> TransferEncoding {
+    pub fn eof(buf: SharedBytes) -> TransferEncoding {
         TransferEncoding {
+            buf: Some(buf),
+            kind: TransferEncodingKind::Eof,
+        }
+    }
+
+    #[inline]
+    pub fn chunked(buf: SharedBytes) -> TransferEncoding {
+        TransferEncoding {
+            buf: Some(buf),
             kind: TransferEncodingKind::Chunked(false),
-            buf: ptr::null_mut(),
         }
     }
 
     #[inline]
-    pub fn length(len: u64) -> TransferEncoding {
+    pub fn length(len: u64, buf: SharedBytes) -> TransferEncoding {
         TransferEncoding {
+            buf: Some(buf),
             kind: TransferEncodingKind::Length(len),
-            buf: ptr::null_mut(),
-        }
-    }
-
-    #[inline]
-    pub fn is_eof(&self) -> bool {
-        match self.kind {
-            TransferEncodingKind::Eof => true,
-            TransferEncodingKind::Chunked(ref eof) => *eof,
-            TransferEncodingKind::Length(ref remaining) => *remaining == 0,
         }
     }
 
@@ -759,9 +887,7 @@ impl TransferEncoding {
         match self.kind {
             TransferEncodingKind::Eof => {
                 let eof = msg.is_empty();
-                debug_assert!(!self.buf.is_null());
-                let buf = unsafe { &mut *self.buf };
-                buf.extend(msg);
+                self.buf.as_mut().unwrap().extend_from_slice(msg);
                 Ok(eof)
             }
             TransferEncodingKind::Chunked(ref mut eof) => {
@@ -771,16 +897,13 @@ impl TransferEncoding {
 
                 if msg.is_empty() {
                     *eof = true;
-                    debug_assert!(!self.buf.is_null());
-                    let buf = unsafe { &mut *self.buf };
-                    buf.extend_from_slice(b"0\r\n\r\n");
+                    self.buf.as_mut().unwrap().extend_from_slice(b"0\r\n\r\n");
                 } else {
                     let mut buf = BytesMut::new();
                     writeln!(&mut buf, "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-                    debug_assert!(!self.buf.is_null());
-                    let b = unsafe { &mut *self.buf };
+                    let b = self.buf.as_mut().unwrap();
                     b.reserve(buf.len() + msg.len() + 2);
                     b.extend_from_slice(buf.as_ref());
                     b.extend_from_slice(msg);
@@ -795,8 +918,10 @@ impl TransferEncoding {
                     }
                     let len = cmp::min(*remaining, msg.len() as u64);
 
-                    debug_assert!(!self.buf.is_null());
-                    unsafe { &mut *self.buf }.extend(&msg[..len as usize]);
+                    self.buf
+                        .as_mut()
+                        .unwrap()
+                        .extend_from_slice(&msg[..len as usize]);
 
                     *remaining -= len as u64;
                     Ok(*remaining == 0)
@@ -816,10 +941,7 @@ impl TransferEncoding {
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
-
-                    debug_assert!(!self.buf.is_null());
-                    let buf = unsafe { &mut *self.buf };
-                    buf.extend_from_slice(b"0\r\n\r\n");
+                    self.buf.as_mut().unwrap().extend_from_slice(b"0\r\n\r\n");
                 }
                 true
             }
@@ -912,15 +1034,14 @@ mod tests {
 
     #[test]
     fn test_chunked_te() {
-        let mut bytes = BytesMut::new();
-        let mut enc = TransferEncoding::chunked();
+        let bytes = SharedBytes::empty();
+        let mut enc = TransferEncoding::chunked(bytes);
         {
-            enc.set_buffer(&mut bytes);
             assert!(!enc.encode(b"test").ok().unwrap());
             assert!(enc.encode(b"").ok().unwrap());
         }
         assert_eq!(
-            bytes.take().freeze(),
+            enc.buf_mut().take().freeze(),
             Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n")
         );
     }

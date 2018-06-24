@@ -5,8 +5,6 @@ use std::rc::Rc;
 
 use bytes::BytesMut;
 
-use body::Binary;
-
 #[derive(Debug)]
 pub(crate) struct SharedBytesPool(RefCell<VecDeque<BytesMut>>);
 
@@ -50,6 +48,10 @@ impl SharedBytes {
         SharedBytes(Some(bytes), Some(pool))
     }
 
+    pub fn empty() -> SharedBytes {
+        SharedBytes(Some(BytesMut::new()), None)
+    }
+
     #[inline]
     pub(crate) fn get_mut(&mut self) -> &mut BytesMut {
         self.0.as_mut().unwrap()
@@ -79,9 +81,8 @@ impl SharedBytes {
     }
 
     #[inline]
-    pub fn extend(&mut self, data: &Binary) {
-        let buf = self.get_mut();
-        buf.extend_from_slice(data.as_ref());
+    pub fn reserve(&mut self, cap: usize) {
+        self.get_mut().reserve(cap);
     }
 
     #[inline]

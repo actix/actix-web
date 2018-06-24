@@ -11,7 +11,7 @@ use std::{cmp, io};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{HttpTryFrom, Version};
 
-use super::encoding::ContentEncoder;
+use super::encoding::{ContentEncoder, Output};
 use super::helpers;
 use super::settings::WorkerSettings;
 use super::shared::SharedBytes;
@@ -35,10 +35,9 @@ bitflags! {
 pub(crate) struct H2Writer<H: 'static> {
     respond: SendResponse<Bytes>,
     stream: Option<SendStream<Bytes>>,
-    encoder: ContentEncoder,
     flags: Flags,
     written: u64,
-    buffer: SharedBytes,
+    buffer: Output,
     buffer_capacity: usize,
     settings: Rc<WorkerSettings<H>>,
 }
@@ -51,10 +50,9 @@ impl<H: 'static> H2Writer<H> {
             respond,
             settings,
             stream: None,
-            encoder: ContentEncoder::empty(),
             flags: Flags::empty(),
             written: 0,
-            buffer: buf,
+            buffer: Output::Buffer(buf),
             buffer_capacity: 0,
         }
     }
@@ -87,8 +85,7 @@ impl<H: 'static> Writer for H2Writer<H> {
     ) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.encoder =
-            ContentEncoder::for_server(self.buffer.get_mut(), req, msg, encoding);
+        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
 
         // http2 specific
         msg.headers_mut().remove(CONNECTION);
@@ -150,7 +147,7 @@ impl<H: 'static> Writer for H2Writer<H> {
             } else {
                 self.flags.insert(Flags::EOF);
                 self.written = bytes.len() as u64;
-                self.encoder.write(bytes.as_ref())?;
+                self.buffer.write(bytes.as_ref())?;
                 if let Some(ref mut stream) = self.stream {
                     self.flags.insert(Flags::RESERVED);
                     stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
@@ -170,10 +167,10 @@ impl<H: 'static> Writer for H2Writer<H> {
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
-                self.encoder.write(payload.as_ref())?;
+                self.buffer.write(payload.as_ref())?;
             } else {
                 // might be response for EXCEPT
-                self.buffer.extend_from_slice(payload.as_ref())
+                error!("Not supported");
             }
         }
 
@@ -186,7 +183,7 @@ impl<H: 'static> Writer for H2Writer<H> {
 
     fn write_eof(&mut self) -> io::Result<WriterState> {
         self.flags.insert(Flags::EOF);
-        if !self.encoder.write_eof()? {
+        if !self.buffer.write_eof()? {
             Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Last payload item, but eof is not reached",

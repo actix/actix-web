@@ -1127,6 +1127,7 @@ mod tests {
 
         let response = srv.execute(request.send()).unwrap();
 
+        println!("RESP: {:?}", response);
         let te = response
             .headers()
             .get(header::TRANSFER_ENCODING)
