@@ -413,7 +413,9 @@ where
     pub fn content_disposition(&self) -> Option<ContentDisposition> {
         // RFC 7578: 'Each part MUST contain a Content-Disposition header field
         // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(::http::header::CONTENT_DISPOSITION) {
+        if let Some(content_disposition) =
+            self.headers.get(::http::header::CONTENT_DISPOSITION)
+        {
             ContentDisposition::from_raw(content_disposition).ok()
         } else {
             None
@@ -607,9 +609,10 @@ where
     where
         'a: 'b,
     {
+        // Unsafe: Invariant is inforced by Safety Safety is used as ref counter,
+        // only top most ref can have mutable access to payload.
         if s.current() {
-            let payload: &mut PayloadHelper<S> =
-                unsafe { &mut *self.payload.get() };
+            let payload: &mut PayloadHelper<S> = unsafe { &mut *self.payload.get() };
             Some(payload)
         } else {
             None
@@ -751,10 +754,16 @@ mod tests {
                     Ok(Async::Ready(Some(item))) => match item {
                         MultipartItem::Field(mut field) => {
                             {
-                                use http::header::{DispositionType, DispositionParam};
+                                use http::header::{DispositionParam, DispositionType};
                                 let cd = field.content_disposition().unwrap();
-                                assert_eq!(cd.disposition, DispositionType::Ext("form-data".into()));
-                                assert_eq!(cd.parameters[0], DispositionParam::Ext("name".into(), "file".into()));
+                                assert_eq!(
+                                    cd.disposition,
+                                    DispositionType::Ext("form-data".into())
+                                );
+                                assert_eq!(
+                                    cd.parameters[0],
+                                    DispositionParam::Ext("name".into(), "file".into())
+                                );
                             }
                             assert_eq!(field.content_type().type_(), mime::TEXT);
                             assert_eq!(field.content_type().subtype(), mime::PLAIN);
