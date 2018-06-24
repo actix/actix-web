@@ -14,7 +14,6 @@ use http::{HttpTryFrom, Version};
 use super::encoding::{ContentEncoder, Output};
 use super::helpers;
 use super::settings::WorkerSettings;
-use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
@@ -44,16 +43,16 @@ pub(crate) struct H2Writer<H: 'static> {
 
 impl<H: 'static> H2Writer<H> {
     pub fn new(
-        respond: SendResponse<Bytes>, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
+        respond: SendResponse<Bytes>, settings: Rc<WorkerSettings<H>>,
     ) -> H2Writer<H> {
         H2Writer {
-            respond,
-            settings,
             stream: None,
             flags: Flags::empty(),
             written: 0,
-            buffer: Output::Buffer(buf),
+            buffer: Output::Buffer(settings.get_bytes()),
             buffer_capacity: 0,
+            respond,
+            settings,
         }
     }
 
@@ -61,6 +60,12 @@ impl<H: 'static> H2Writer<H> {
         if let Some(mut stream) = self.stream.take() {
             stream.send_reset(reason)
         }
+    }
+}
+
+impl<H: 'static> Drop for H2Writer<H> {
+    fn drop(&mut self) {
+        self.settings.release_bytes(self.buffer.take());
     }
 }
 
@@ -76,7 +81,7 @@ impl<H: 'static> Writer for H2Writer<H> {
 
     #[inline]
     fn buffer(&mut self) -> &mut BytesMut {
-        self.buffer.get_mut()
+        self.buffer.as_mut()
     }
 
     fn start(

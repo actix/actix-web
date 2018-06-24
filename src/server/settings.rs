@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
+use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::{env, fmt, mem, net};
@@ -11,7 +12,6 @@ use time;
 
 use super::channel::Node;
 use super::helpers;
-use super::shared::{SharedBytes, SharedBytesPool};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
@@ -201,8 +201,12 @@ impl<H> WorkerSettings<H> {
         self.ka_enabled
     }
 
-    pub fn get_shared_bytes(&self) -> SharedBytes {
-        SharedBytes::new(self.bytes.get_bytes(), Rc::clone(&self.bytes))
+    pub fn get_bytes(&self) -> BytesMut {
+        self.bytes.get_bytes()
+    }
+
+    pub fn release_bytes(&self, bytes: BytesMut) {
+        self.bytes.release_bytes(bytes)
     }
 
     pub fn get_http_message(&self) -> helpers::SharedHttpInnerMessage {
@@ -270,6 +274,31 @@ impl fmt::Write for Date {
         self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
         self.pos += len;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SharedBytesPool(RefCell<VecDeque<BytesMut>>);
+
+impl SharedBytesPool {
+    pub fn new() -> SharedBytesPool {
+        SharedBytesPool(RefCell::new(VecDeque::with_capacity(128)))
+    }
+
+    pub fn get_bytes(&self) -> BytesMut {
+        if let Some(bytes) = self.0.borrow_mut().pop_front() {
+            bytes
+        } else {
+            BytesMut::new()
+        }
+    }
+
+    pub fn release_bytes(&self, mut bytes: BytesMut) {
+        let v = &mut self.0.borrow_mut();
+        if v.len() < 128 {
+            bytes.clear();
+            v.push_front(bytes);
+        }
     }
 }
 

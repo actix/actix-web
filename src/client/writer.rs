@@ -22,7 +22,6 @@ use tokio_io::AsyncWrite;
 use body::{Binary, Body};
 use header::ContentEncoding;
 use server::encoding::{ContentEncoder, Output, TransferEncoding};
-use server::shared::SharedBytes;
 use server::WriterState;
 
 use client::ClientRequest;
@@ -53,7 +52,7 @@ impl HttpClientWriter {
             written: 0,
             headers_size: 0,
             buffer_capacity: 0,
-            buffer: Output::Buffer(SharedBytes::empty()),
+            buffer: Output::Buffer(BytesMut::new()),
         }
     }
 
@@ -110,6 +109,7 @@ impl<'a> io::Write for Writer<'a> {
 impl HttpClientWriter {
     pub fn start(&mut self, msg: &mut ClientRequest) -> io::Result<()> {
         // prepare task
+        self.buffer = content_encoder(self.buffer.take(), msg);
         self.flags.insert(Flags::STARTED);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
@@ -118,7 +118,7 @@ impl HttpClientWriter {
         // render message
         {
             // output buffer
-            let buffer = self.buffer.get_mut();
+            let buffer = self.buffer.as_mut();
 
             // status line
             writeln!(
@@ -159,8 +159,6 @@ impl HttpClientWriter {
             }
         }
         self.headers_size = self.buffer.len() as u32;
-
-        self.buffer = content_encoder(self.buffer.take(), msg);
 
         if msg.body().is_binary() {
             if let Body::Binary(bytes) = msg.replace_body(Body::Empty) {
@@ -215,7 +213,7 @@ impl HttpClientWriter {
     }
 }
 
-fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> Output {
+fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
     let version = req.version();
     let mut body = req.replace_body(Body::Empty);
     let mut encoding = req.content_encoding();
@@ -227,7 +225,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> Output {
         }
         Body::Binary(ref mut bytes) => {
             if encoding.is_compression() {
-                let mut tmp = SharedBytes::empty();
+                let mut tmp = BytesMut::new();
                 let mut transfer = TransferEncoding::eof(tmp);
                 let mut enc = match encoding {
                     #[cfg(feature = "flate2")]
@@ -308,7 +306,7 @@ fn content_encoder(buf: SharedBytes, req: &mut ClientRequest) -> Output {
 }
 
 fn streaming_encoding(
-    buf: SharedBytes, version: Version, req: &mut ClientRequest,
+    buf: BytesMut, version: Version, req: &mut ClientRequest,
 ) -> TransferEncoding {
     if req.chunked() {
         // Enable transfer encoding

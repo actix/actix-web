@@ -93,10 +93,9 @@ where
         settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
         buf: BytesMut,
     ) -> Self {
-        let bytes = settings.get_shared_bytes();
         Http1 {
             flags: Flags::KEEPALIVE,
-            stream: H1Writer::new(stream, bytes, Rc::clone(&settings)),
+            stream: H1Writer::new(stream, Rc::clone(&settings)),
             decoder: H1Decoder::new(),
             payload: None,
             tasks: VecDeque::new(),

@@ -363,11 +363,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
                 EntryPipe::Error(Pipeline::error(HttpResponse::NotFound()))
             }),
             payload: psender,
-            stream: H2Writer::new(
-                resp,
-                settings.get_shared_bytes(),
-                Rc::clone(settings),
-            ),
+            stream: H2Writer::new(resp, Rc::clone(settings)),
             flags: EntryFlags::empty(),
             recv,
         }

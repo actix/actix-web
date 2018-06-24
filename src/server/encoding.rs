@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{Read, Write};
 use std::str::FromStr;
-use std::{cmp, io, mem};
+use std::{cmp, fmt, io, mem};
 
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -24,8 +24,6 @@ use header::ContentEncoding;
 use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 use payload::{PayloadSender, PayloadStatus, PayloadWriter};
-
-use super::shared::SharedBytes;
 
 pub(crate) enum PayloadType {
     Sender(PayloadSender),
@@ -370,21 +368,34 @@ impl PayloadStream {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum Output {
-    Buffer(SharedBytes),
+    Buffer(BytesMut),
     Encoder(ContentEncoder),
     TE(TransferEncoding),
     Empty,
 }
 
 impl Output {
-    pub fn take(&mut self) -> SharedBytes {
+    pub fn take(&mut self) -> BytesMut {
         match mem::replace(self, Output::Empty) {
             Output::Buffer(bytes) => bytes,
+            Output::Encoder(mut enc) => enc.take_buf(),
+            Output::TE(mut te) => te.take(),
             _ => panic!(),
         }
     }
-    pub fn as_ref(&mut self) -> &SharedBytes {
+
+    pub fn take_option(&mut self) -> Option<BytesMut> {
+        match mem::replace(self, Output::Empty) {
+            Output::Buffer(bytes) => Some(bytes),
+            Output::Encoder(mut enc) => Some(enc.take_buf()),
+            Output::TE(mut te) => Some(te.take()),
+            _ => None,
+        }
+    }
+
+    pub fn as_ref(&mut self) -> &BytesMut {
         match self {
             Output::Buffer(ref mut bytes) => bytes,
             Output::Encoder(ref mut enc) => enc.buf_ref(),
@@ -392,9 +403,11 @@ impl Output {
             Output::Empty => panic!(),
         }
     }
-    pub fn get_mut(&mut self) -> &mut BytesMut {
+    pub fn as_mut(&mut self) -> &mut BytesMut {
         match self {
-            Output::Buffer(ref mut bytes) => bytes.get_mut(),
+            Output::Buffer(ref mut bytes) => bytes,
+            Output::Encoder(ref mut enc) => enc.buf_mut(),
+            Output::TE(ref mut te) => te.buf_mut(),
             _ => panic!(),
         }
     }
@@ -457,9 +470,23 @@ pub(crate) enum ContentEncoder {
     Identity(TransferEncoding),
 }
 
+impl fmt::Debug for ContentEncoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(_) => writeln!(f, "ContentEncoder(Brotli)"),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(_) => writeln!(f, "ContentEncoder(Deflate)"),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(_) => writeln!(f, "ContentEncoder(Gzip)"),
+            ContentEncoder::Identity(_) => writeln!(f, "ContentEncoder(Identity)"),
+        }
+    }
+}
+
 impl ContentEncoder {
     pub fn for_server(
-        buf: SharedBytes, req: &HttpInnerMessage, resp: &mut HttpResponse,
+        buf: BytesMut, req: &HttpInnerMessage, resp: &mut HttpResponse,
         response_encoding: ContentEncoding,
     ) -> Output {
         let version = resp.version().unwrap_or_else(|| req.version);
@@ -522,7 +549,7 @@ impl ContentEncoder {
                     if !(encoding == ContentEncoding::Identity
                         || encoding == ContentEncoding::Auto)
                     {
-                        let mut tmp = SharedBytes::empty();
+                        let mut tmp = BytesMut::new();
                         let mut transfer = TransferEncoding::eof(tmp);
                         let mut enc = match encoding {
                             #[cfg(feature = "flate2")]
@@ -613,7 +640,7 @@ impl ContentEncoder {
     }
 
     fn streaming_encoding(
-        buf: SharedBytes, version: Version, resp: &mut HttpResponse,
+        buf: BytesMut, version: Version, resp: &mut HttpResponse,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
@@ -704,6 +731,19 @@ impl ContentEncoder {
     }
 
     #[inline]
+    pub(crate) fn take_buf(&mut self) -> BytesMut {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
+            ContentEncoder::Identity(ref mut encoder) => encoder.take(),
+        }
+    }
+
+    #[inline]
     pub(crate) fn buf_mut(&mut self) -> &mut BytesMut {
         match *self {
             #[cfg(feature = "brotli")]
@@ -717,7 +757,7 @@ impl ContentEncoder {
     }
 
     #[inline]
-    pub(crate) fn buf_ref(&mut self) -> &SharedBytes {
+    pub(crate) fn buf_ref(&mut self) -> &BytesMut {
         match *self {
             #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().buf_ref(),
@@ -810,7 +850,7 @@ impl ContentEncoder {
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug)]
 pub(crate) struct TransferEncoding {
-    buf: Option<SharedBytes>,
+    buf: Option<BytesMut>,
     kind: TransferEncodingKind,
 }
 
@@ -829,11 +869,11 @@ enum TransferEncodingKind {
 }
 
 impl TransferEncoding {
-    fn take(self) -> SharedBytes {
-        self.buf.unwrap()
+    fn take(&mut self) -> BytesMut {
+        self.buf.take().unwrap()
     }
 
-    fn buf_ref(&mut self) -> &SharedBytes {
+    fn buf_ref(&mut self) -> &BytesMut {
         self.buf.as_ref().unwrap()
     }
 
@@ -846,7 +886,7 @@ impl TransferEncoding {
     }
 
     fn buf_mut(&mut self) -> &mut BytesMut {
-        self.buf.as_mut().unwrap().get_mut()
+        self.buf.as_mut().unwrap()
     }
 
     #[inline]
@@ -858,7 +898,7 @@ impl TransferEncoding {
     }
 
     #[inline]
-    pub fn eof(buf: SharedBytes) -> TransferEncoding {
+    pub fn eof(buf: BytesMut) -> TransferEncoding {
         TransferEncoding {
             buf: Some(buf),
             kind: TransferEncodingKind::Eof,
@@ -866,7 +906,7 @@ impl TransferEncoding {
     }
 
     #[inline]
-    pub fn chunked(buf: SharedBytes) -> TransferEncoding {
+    pub fn chunked(buf: BytesMut) -> TransferEncoding {
         TransferEncoding {
             buf: Some(buf),
             kind: TransferEncodingKind::Chunked(false),
@@ -874,7 +914,7 @@ impl TransferEncoding {
     }
 
     #[inline]
-    pub fn length(len: u64, buf: SharedBytes) -> TransferEncoding {
+    pub fn length(len: u64, buf: BytesMut) -> TransferEncoding {
         TransferEncoding {
             buf: Some(buf),
             kind: TransferEncodingKind::Length(len),
@@ -1034,7 +1074,7 @@ mod tests {
 
     #[test]
     fn test_chunked_te() {
-        let bytes = SharedBytes::empty();
+        let bytes = BytesMut::new();
         let mut enc = TransferEncoding::chunked(bytes);
         {
             assert!(!enc.encode(b"test").ok().unwrap());

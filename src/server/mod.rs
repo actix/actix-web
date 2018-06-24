@@ -16,7 +16,6 @@ mod h2;
 mod h2writer;
 pub(crate) mod helpers;
 pub(crate) mod settings;
-pub(crate) mod shared;
 mod srv;
 mod worker;
 

@@ -9,7 +9,6 @@ use tokio_io::AsyncWrite;
 use super::encoding::{ContentEncoder, Output};
 use super::helpers;
 use super::settings::WorkerSettings;
-use super::shared::SharedBytes;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
@@ -40,14 +39,12 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
 }
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
-    pub fn new(
-        stream: T, buf: SharedBytes, settings: Rc<WorkerSettings<H>>,
-    ) -> H1Writer<T, H> {
+    pub fn new(stream: T, settings: Rc<WorkerSettings<H>>) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
             written: 0,
             headers_size: 0,
-            buffer: Output::Buffer(buf),
+            buffer: Output::Buffer(settings.get_bytes()),
             buffer_capacity: 0,
             stream,
             settings,
@@ -91,6 +88,14 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
     }
 }
 
+impl<T: AsyncWrite, H: 'static> Drop for H1Writer<T, H> {
+    fn drop(&mut self) {
+        if let Some(bytes) = self.buffer.take_option() {
+            self.settings.release_bytes(bytes);
+        }
+    }
+}
+
 impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
     #[inline]
     fn written(&self) -> u64 {
@@ -104,8 +109,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn buffer(&mut self) -> &mut BytesMut {
-        //self.buffer.get_mut()
-        unimplemented!()
+        self.buffer.as_mut()
     }
 
     fn start(
@@ -113,6 +117,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare task
+        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags = Flags::STARTED | Flags::KEEPALIVE;
         } else {
@@ -141,7 +146,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         // render message
         {
             // output buffer
-            let mut buffer = self.buffer.get_mut();
+            let mut buffer = self.buffer.as_mut();
 
             let reason = msg.reason().as_bytes();
             let mut is_bin = if let Body::Binary(ref bytes) = body {
@@ -221,9 +226,6 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             self.headers_size = buffer.len() as u32;
         }
 
-        // output encoding
-        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
-
         if let Body::Binary(bytes) = body {
             self.written = bytes.len() as u64;
             self.buffer.write(bytes.as_ref())?;
@@ -255,11 +257,11 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                             Ok(val) => val,
                         };
                         if n < pl.len() {
-                            self.buffer.write(&pl[n..]);
+                            self.buffer.write(&pl[n..])?;
                             return Ok(WriterState::Done);
                         }
                     } else {
-                        self.buffer.write(payload.as_ref());
+                        self.buffer.write(payload.as_ref())?;
                     }
                 } else {
                     // TODO: add warning, write after EOF
@@ -267,7 +269,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 }
             } else {
                 // could be response to EXCEPT header
-                self.buffer.write(payload.as_ref());
+                self.buffer.write(payload.as_ref())?;
             }
         }
 
