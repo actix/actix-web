@@ -8,13 +8,14 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
 mod channel;
-pub(crate) mod encoding;
 pub(crate) mod h1;
 pub(crate) mod h1decoder;
 mod h1writer;
 mod h2;
 mod h2writer;
 pub(crate) mod helpers;
+pub(crate) mod input;
+pub(crate) mod output;
 pub(crate) mod settings;
 mod srv;
 mod worker;

@@ -6,8 +6,8 @@ use std::io;
 use std::rc::Rc;
 use tokio_io::AsyncWrite;
 
-use super::encoding::{ContentEncoder, Output};
 use super::helpers;
+use super::output::{ContentEncoder, Output};
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};

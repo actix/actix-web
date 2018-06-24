@@ -18,7 +18,7 @@ use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
 use httpmessage::HttpMessage;
-use server::encoding::PayloadStream;
+use server::input::PayloadStream;
 use server::WriterState;
 
 /// A set of errors that can occur during request sending and response reading

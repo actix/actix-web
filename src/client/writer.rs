@@ -21,7 +21,7 @@ use tokio_io::AsyncWrite;
 
 use body::{Binary, Body};
 use header::ContentEncoding;
-use server::encoding::{ContentEncoder, Output, TransferEncoding};
+use server::output::{ContentEncoder, Output, TransferEncoding};
 use server::WriterState;
 
 use client::ClientRequest;

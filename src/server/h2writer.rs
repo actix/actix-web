@@ -11,8 +11,8 @@ use std::{cmp, io};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{HttpTryFrom, Version};
 
-use super::encoding::{ContentEncoder, Output};
 use super::helpers;
+use super::output::{ContentEncoder, Output};
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};

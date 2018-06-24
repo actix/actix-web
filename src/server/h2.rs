@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
-
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
@@ -23,8 +21,8 @@ use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
 use uri::Url;
 
-use super::encoding::PayloadType;
 use super::h2writer::H2Writer;
+use super::input::PayloadType;
 use super::settings::WorkerSettings;
 use super::{HttpHandler, HttpHandlerTask, Writer};
 

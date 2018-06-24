@@ -13,9 +13,9 @@ use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
 
-use super::encoding::PayloadType;
 use super::h1decoder::{DecoderError, H1Decoder, Message};
 use super::h1writer::H1Writer;
+use super::input::PayloadType;
 use super::settings::WorkerSettings;
 use super::Writer;
 use super::{HttpHandler, HttpHandlerTask, IoStream};
