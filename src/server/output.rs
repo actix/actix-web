@@ -644,7 +644,9 @@ impl TransferEncoding {
 impl io::Write for TransferEncoding {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.encode(buf)?;
+        if self.buf.is_some() {
+            self.encode(buf)?;
+        }
         Ok(buf.len())
     }
 
