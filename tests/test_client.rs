@@ -425,9 +425,9 @@ fn test_client_cookie_handling() {
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
     let c1 = response.cookie("cookie1").expect("Missing cookie1");
-    assert_eq!(c1, &cookie1);
+    assert_eq!(c1, cookie1);
     let c2 = response.cookie("cookie2").expect("Missing cookie2");
-    assert_eq!(c2, &cookie2);
+    assert_eq!(c2, cookie2);
 }
 
 #[test]

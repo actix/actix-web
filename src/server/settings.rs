@@ -124,6 +124,7 @@ impl ServerSettings {
 
     /// Returns default `CpuPool` for server
     pub fn cpu_pool(&self) -> &CpuPool {
+        // Unsafe: ServerSetting is !Sync, DEFAULT_CPUPOOL is protected by Mutex
         unsafe {
             let val = &mut *self.cpu_pool.get();
             if val.is_none() {
@@ -230,10 +231,12 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn update_date(&self) {
+        // Unsafe: WorkerSetting is !Sync and !Send
         unsafe { &mut *self.date.get() }.update();
     }
 
     pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
+        // Unsafe: WorkerSetting is !Sync and !Send
         unsafe {
             if full {
                 let mut buf: [u8; 39] = mem::uninitialized();
