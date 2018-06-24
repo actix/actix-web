@@ -7,7 +7,7 @@ use std::rc::Rc;
 use tokio_io::AsyncWrite;
 
 use super::helpers;
-use super::output::{ContentEncoder, Output};
+use super::output::Output;
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
@@ -60,9 +60,7 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags = Flags::KEEPALIVE;
     }
 
-    pub fn disconnected(&mut self) {
-        self.buffer = Output::Empty;
-    }
+    pub fn disconnected(&mut self) {}
 
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
@@ -117,7 +115,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
         encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare task
-        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
+        self.buffer.for_server(req, msg, encoding);
         if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
             self.flags = Flags::STARTED | Flags::KEEPALIVE;
         } else {

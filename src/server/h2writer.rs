@@ -12,7 +12,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{HttpTryFrom, Version};
 
 use super::helpers;
-use super::output::{ContentEncoder, Output};
+use super::output::Output;
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
@@ -90,7 +90,7 @@ impl<H: 'static> Writer for H2Writer<H> {
     ) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.buffer = ContentEncoder::for_server(self.buffer.take(), req, msg, encoding);
+        self.buffer.for_server(req, msg, encoding);
 
         // http2 specific
         msg.headers_mut().remove(CONNECTION);

@@ -221,45 +221,53 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
     let transfer = match body {
         Body::Empty => {
             req.headers_mut().remove(CONTENT_LENGTH);
-            TransferEncoding::length(0, buf)
+            return Output::Empty(buf);
         }
         Body::Binary(ref mut bytes) => {
-            if encoding.is_compression() {
-                let mut tmp = BytesMut::new();
-                let mut transfer = TransferEncoding::eof(tmp);
-                let mut enc = match encoding {
-                    #[cfg(feature = "flate2")]
-                    ContentEncoding::Deflate => ContentEncoder::Deflate(
-                        DeflateEncoder::new(transfer, Compression::default()),
-                    ),
-                    #[cfg(feature = "flate2")]
-                    ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
-                        transfer,
-                        Compression::default(),
-                    )),
-                    #[cfg(feature = "brotli")]
-                    ContentEncoding::Br => {
-                        ContentEncoder::Br(BrotliEncoder::new(transfer, 5))
-                    }
-                    ContentEncoding::Identity => ContentEncoder::Identity(transfer),
-                    ContentEncoding::Auto => unreachable!(),
-                };
-                // TODO return error!
-                let _ = enc.write(bytes.as_ref());
-                let _ = enc.write_eof();
-                *bytes = Binary::from(enc.buf_mut().take());
+            #[cfg(any(feature = "flate2", feature = "brotli"))]
+            {
+                if encoding.is_compression() {
+                    let mut tmp = BytesMut::new();
+                    let mut transfer = TransferEncoding::eof(tmp);
+                    let mut enc = match encoding {
+                        #[cfg(feature = "flate2")]
+                        ContentEncoding::Deflate => ContentEncoder::Deflate(
+                            DeflateEncoder::new(transfer, Compression::default()),
+                        ),
+                        #[cfg(feature = "flate2")]
+                        ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
+                            transfer,
+                            Compression::default(),
+                        )),
+                        #[cfg(feature = "brotli")]
+                        ContentEncoding::Br => {
+                            ContentEncoder::Br(BrotliEncoder::new(transfer, 5))
+                        }
+                        ContentEncoding::Auto | ContentEncoding::Identity => {
+                            unreachable!()
+                        }
+                    };
+                    // TODO return error!
+                    let _ = enc.write(bytes.as_ref());
+                    let _ = enc.write_eof();
+                    *bytes = Binary::from(enc.buf_mut().take());
 
-                req.headers_mut().insert(
-                    CONTENT_ENCODING,
-                    HeaderValue::from_static(encoding.as_str()),
-                );
-                encoding = ContentEncoding::Identity;
+                    req.headers_mut().insert(
+                        CONTENT_ENCODING,
+                        HeaderValue::from_static(encoding.as_str()),
+                    );
+                    encoding = ContentEncoding::Identity;
+                }
+                let mut b = BytesMut::new();
+                let _ = write!(b, "{}", bytes.len());
+                req.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
+                TransferEncoding::eof(buf)
             }
-            let mut b = BytesMut::new();
-            let _ = write!(b, "{}", bytes.len());
-            req.headers_mut()
-                .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
-            TransferEncoding::eof(buf)
+            #[cfg(not(any(feature = "flate2", feature = "brotli")))]
+            {
+                TransferEncoding::eof(buf)
+            }
         }
         Body::Streaming(_) | Body::Actor(_) => {
             if req.upgrade() {

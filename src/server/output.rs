@@ -22,71 +22,79 @@ use httpresponse::HttpResponse;
 
 #[derive(Debug)]
 pub(crate) enum Output {
+    Empty(BytesMut),
     Buffer(BytesMut),
     Encoder(ContentEncoder),
     TE(TransferEncoding),
-    Empty,
+    Done,
 }
 
 impl Output {
     pub fn take(&mut self) -> BytesMut {
-        match mem::replace(self, Output::Empty) {
+        match mem::replace(self, Output::Done) {
+            Output::Empty(bytes) => bytes,
             Output::Buffer(bytes) => bytes,
             Output::Encoder(mut enc) => enc.take_buf(),
             Output::TE(mut te) => te.take(),
-            _ => panic!(),
+            Output::Done => panic!(),
         }
     }
 
     pub fn take_option(&mut self) -> Option<BytesMut> {
-        match mem::replace(self, Output::Empty) {
+        match mem::replace(self, Output::Done) {
+            Output::Empty(bytes) => Some(bytes),
             Output::Buffer(bytes) => Some(bytes),
             Output::Encoder(mut enc) => Some(enc.take_buf()),
             Output::TE(mut te) => Some(te.take()),
-            _ => None,
+            Output::Done => None,
         }
     }
 
     pub fn as_ref(&mut self) -> &BytesMut {
         match self {
+            Output::Empty(ref mut bytes) => bytes,
             Output::Buffer(ref mut bytes) => bytes,
             Output::Encoder(ref mut enc) => enc.buf_ref(),
             Output::TE(ref mut te) => te.buf_ref(),
-            Output::Empty => panic!(),
+            Output::Done => panic!(),
         }
     }
     pub fn as_mut(&mut self) -> &mut BytesMut {
         match self {
+            Output::Empty(ref mut bytes) => bytes,
             Output::Buffer(ref mut bytes) => bytes,
             Output::Encoder(ref mut enc) => enc.buf_mut(),
             Output::TE(ref mut te) => te.buf_mut(),
-            _ => panic!(),
+            Output::Done => panic!(),
         }
     }
     pub fn split_to(&mut self, cap: usize) -> BytesMut {
         match self {
+            Output::Empty(ref mut bytes) => bytes.split_to(cap),
             Output::Buffer(ref mut bytes) => bytes.split_to(cap),
             Output::Encoder(ref mut enc) => enc.buf_mut().split_to(cap),
             Output::TE(ref mut te) => te.buf_mut().split_to(cap),
-            Output::Empty => BytesMut::new(),
+            Output::Done => BytesMut::new(),
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
+            Output::Empty(ref bytes) => bytes.len(),
             Output::Buffer(ref bytes) => bytes.len(),
             Output::Encoder(ref enc) => enc.len(),
             Output::TE(ref te) => te.len(),
-            Output::Empty => 0,
+            Output::Done => 0,
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match self {
+            Output::Empty(ref bytes) => bytes.is_empty(),
             Output::Buffer(ref bytes) => bytes.is_empty(),
             Output::Encoder(ref enc) => enc.is_empty(),
             Output::TE(ref te) => te.is_empty(),
-            Output::Empty => true,
+            Output::Done => true,
         }
     }
 
@@ -98,7 +106,7 @@ impl Output {
             }
             Output::Encoder(ref mut enc) => enc.write(data),
             Output::TE(ref mut te) => te.encode(data).map(|_| ()),
-            Output::Empty => Ok(()),
+            Output::Empty(_) | Output::Done => Ok(()),
         }
     }
 
@@ -107,40 +115,15 @@ impl Output {
             Output::Buffer(_) => Ok(true),
             Output::Encoder(ref mut enc) => enc.write_eof(),
             Output::TE(ref mut te) => Ok(te.encode_eof()),
-            Output::Empty => Ok(true),
+            Output::Empty(_) | Output::Done => Ok(true),
         }
     }
-}
 
-pub(crate) enum ContentEncoder {
-    #[cfg(feature = "flate2")]
-    Deflate(DeflateEncoder<TransferEncoding>),
-    #[cfg(feature = "flate2")]
-    Gzip(GzEncoder<TransferEncoding>),
-    #[cfg(feature = "brotli")]
-    Br(BrotliEncoder<TransferEncoding>),
-    Identity(TransferEncoding),
-}
-
-impl fmt::Debug for ContentEncoder {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            #[cfg(feature = "brotli")]
-            ContentEncoder::Br(_) => writeln!(f, "ContentEncoder(Brotli)"),
-            #[cfg(feature = "flate2")]
-            ContentEncoder::Deflate(_) => writeln!(f, "ContentEncoder(Deflate)"),
-            #[cfg(feature = "flate2")]
-            ContentEncoder::Gzip(_) => writeln!(f, "ContentEncoder(Gzip)"),
-            ContentEncoder::Identity(_) => writeln!(f, "ContentEncoder(Identity)"),
-        }
-    }
-}
-
-impl ContentEncoder {
     pub fn for_server(
-        buf: BytesMut, req: &HttpInnerMessage, resp: &mut HttpResponse,
+        &mut self, req: &HttpInnerMessage, resp: &mut HttpResponse,
         response_encoding: ContentEncoding,
-    ) -> Output {
+    ) {
+        let buf = self.take();
         let version = resp.version().unwrap_or_else(|| req.version);
         let is_head = req.method == Method::HEAD;
         let mut len = 0;
@@ -188,12 +171,13 @@ impl ContentEncoder {
         let mut encoding = ContentEncoding::Identity;
 
         #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
-        let mut transfer = match resp.body() {
+        let transfer = match resp.body() {
             &Body::Empty => {
                 if req.method != Method::HEAD {
                     resp.headers_mut().remove(CONTENT_LENGTH);
                 }
-                TransferEncoding::length(0, buf)
+                *self = Output::Empty(buf);
+                return;
             }
             &Body::Binary(_) => {
                 #[cfg(any(feature = "brotli", feature = "flate2"))]
@@ -228,8 +212,6 @@ impl ContentEncoder {
                         let _ = enc.write_eof();
                         let body = enc.buf_mut().take();
                         len = body.len();
-
-                        encoding = ContentEncoding::Identity;
                         resp.replace_body(Binary::from(body));
                     }
                 }
@@ -241,10 +223,11 @@ impl ContentEncoder {
                         CONTENT_LENGTH,
                         HeaderValue::try_from(b.freeze()).unwrap(),
                     );
+                    *self = Output::Empty(buf);
                 } else {
-                    // resp.headers_mut().remove(CONTENT_LENGTH);
+                    *self = Output::Buffer(buf);
                 }
-                TransferEncoding::eof(buf)
+                return;
             }
             &Body::Streaming(_) | &Body::Actor(_) => {
                 if resp.upgrade() {
@@ -262,14 +245,15 @@ impl ContentEncoder {
                     {
                         resp.headers_mut().remove(CONTENT_LENGTH);
                     }
-                    ContentEncoder::streaming_encoding(buf, version, resp)
+                    Output::streaming_encoding(buf, version, resp)
                 }
             }
         };
         // check for head response
         if is_head {
             resp.set_body(Body::Empty);
-            transfer.kind = TransferEncodingKind::Length(0);
+            *self = Output::Empty(transfer.buf.unwrap());
+            return;
         }
 
         let enc = match encoding {
@@ -285,10 +269,11 @@ impl ContentEncoder {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => ContentEncoder::Br(BrotliEncoder::new(transfer, 3)),
             ContentEncoding::Identity | ContentEncoding::Auto => {
-                return Output::TE(transfer)
+                *self = Output::TE(transfer);
+                return;
             }
         };
-        Output::Encoder(enc)
+        *self = Output::Encoder(enc);
     }
 
     fn streaming_encoding(
@@ -351,6 +336,30 @@ impl ContentEncoder {
                     }
                 }
             }
+        }
+    }
+}
+
+pub(crate) enum ContentEncoder {
+    #[cfg(feature = "flate2")]
+    Deflate(DeflateEncoder<TransferEncoding>),
+    #[cfg(feature = "flate2")]
+    Gzip(GzEncoder<TransferEncoding>),
+    #[cfg(feature = "brotli")]
+    Br(BrotliEncoder<TransferEncoding>),
+    Identity(TransferEncoding),
+}
+
+impl fmt::Debug for ContentEncoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            #[cfg(feature = "brotli")]
+            ContentEncoder::Br(_) => writeln!(f, "ContentEncoder(Brotli)"),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Deflate(_) => writeln!(f, "ContentEncoder(Deflate)"),
+            #[cfg(feature = "flate2")]
+            ContentEncoder::Gzip(_) => writeln!(f, "ContentEncoder(Gzip)"),
+            ContentEncoder::Identity(_) => writeln!(f, "ContentEncoder(Identity)"),
         }
     }
 }
