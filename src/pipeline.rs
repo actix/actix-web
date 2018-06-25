@@ -13,7 +13,7 @@ use error::Error;
 use handler::{AsyncResult, AsyncResultItem};
 use header::ContentEncoding;
 use httprequest::HttpRequest;
-use httpresponse::{HttpResponse, HttpResponsePool};
+use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Response, Started};
 use server::{HttpHandlerTask, Writer, WriterState};
 
@@ -703,7 +703,8 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
         info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>], resp: HttpResponse,
     ) -> PipelineState<S, H> {
         if info.count == 0 {
-            Completed::init(info, resp)
+            resp.release();
+            Completed::init(info)
         } else {
             let mut state = FinishingMiddlewares {
                 resp: Some(resp),
@@ -741,7 +742,8 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             }
             self.fut = None;
             if info.count == 0 {
-                return Some(Completed::init(info, self.resp.take().unwrap()));
+                self.resp.take().unwrap().release();
+                return Some(Completed::init(info));
             }
 
             info.count -= 1;
@@ -750,7 +752,8 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             match state {
                 Finished::Done => {
                     if info.count == 0 {
-                        return Some(Completed::init(info, self.resp.take().unwrap()));
+                        self.resp.take().unwrap().release();
+                        return Some(Completed::init(info));
                     }
                 }
                 Finished::Future(fut) => {
@@ -762,20 +765,19 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
 }
 
 #[derive(Debug)]
-struct Completed<S, H>(PhantomData<S>, PhantomData<H>, Option<HttpResponse>);
+struct Completed<S, H>(PhantomData<S>, PhantomData<H>);
 
 impl<S, H> Completed<S, H> {
     #[inline]
-    fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S, H> {
+    fn init(info: &mut PipelineInfo<S>) -> PipelineState<S, H> {
         if let Some(ref err) = info.error {
             error!("Error occurred during request handling: {}", err);
         }
 
         if info.context.is_none() {
-            HttpResponsePool::release(resp);
             PipelineState::None
         } else {
-            PipelineState::Completed(Completed(PhantomData, PhantomData, Some(resp)))
+            PipelineState::Completed(Completed(PhantomData, PhantomData))
         }
     }
 
@@ -783,14 +785,8 @@ impl<S, H> Completed<S, H> {
     fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         match info.poll_context() {
             Ok(Async::NotReady) => None,
-            Ok(Async::Ready(())) => {
-                HttpResponsePool::release(self.2.take().unwrap());
-                Some(PipelineState::None)
-            }
-            Err(_) => {
-                HttpResponsePool::release(self.2.take().unwrap());
-                Some(PipelineState::Error)
-            }
+            Ok(Async::Ready(())) => Some(PipelineState::None),
+            Err(_) => Some(PipelineState::Error),
         }
     }
 }
@@ -832,18 +828,16 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let mut info = PipelineInfo::new(HttpRequest::default());
-                let resp = HttpResponse::new(StatusCode::OK);
-                Completed::<(), Inner<()>>::init(&mut info, resp)
+                Completed::<(), Inner<()>>::init(&mut info)
                     .is_none()
                     .unwrap();
 
                 let req = HttpRequest::default();
                 let ctx = HttpContext::new(req.clone(), MyActor);
                 let addr = ctx.address();
-                let resp = HttpResponse::new(StatusCode::OK);
                 let mut info = PipelineInfo::new(req);
                 info.context = Some(Box::new(ctx));
-                let mut state = Completed::<(), Inner<()>>::init(&mut info, resp)
+                let mut state = Completed::<(), Inner<()>>::init(&mut info)
                     .completed()
                     .unwrap();
 

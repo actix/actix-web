@@ -35,7 +35,7 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct HttpResponse(Box<InnerHttpResponse>);
+pub struct HttpResponse(Box<InnerHttpResponse>, &'static HttpResponsePool);
 
 impl HttpResponse {
     #[inline]
@@ -96,6 +96,7 @@ impl HttpResponse {
         }
 
         HttpResponseBuilder {
+            pool: self.1,
             response: Some(self.0),
             err: None,
             cookies: jar,
@@ -282,12 +283,19 @@ impl HttpResponse {
         self.get_mut().write_capacity = cap;
     }
 
+    pub(crate) fn release(self) {
+        self.1.release(self.0);
+    }
+
     pub(crate) fn into_parts(self) -> HttpResponseParts {
         self.0.into_parts()
     }
 
     pub(crate) fn from_parts(parts: HttpResponseParts) -> HttpResponse {
-        HttpResponse(Box::new(InnerHttpResponse::from_parts(parts)))
+        HttpResponse(
+            Box::new(InnerHttpResponse::from_parts(parts)),
+            HttpResponsePool::get_pool(),
+        )
     }
 }
 
@@ -332,6 +340,7 @@ impl<'a> Iterator for CookieIter<'a> {
 /// This type can be used to construct an instance of `HttpResponse` through a
 /// builder-like pattern.
 pub struct HttpResponseBuilder {
+    pool: &'static HttpResponsePool,
     response: Option<Box<InnerHttpResponse>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
@@ -622,7 +631,7 @@ impl HttpResponseBuilder {
             }
         }
         response.body = body.into();
-        HttpResponse(response)
+        HttpResponse(response, self.pool)
     }
 
     #[inline]
@@ -670,6 +679,7 @@ impl HttpResponseBuilder {
     /// This method construct new `HttpResponseBuilder`
     pub fn take(&mut self) -> HttpResponseBuilder {
         HttpResponseBuilder {
+            pool: self.pool,
             response: self.response.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
@@ -972,6 +982,7 @@ impl HttpResponsePool {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;
             HttpResponseBuilder {
+                pool,
                 response: Some(msg),
                 err: None,
                 cookies: None,
@@ -979,6 +990,7 @@ impl HttpResponsePool {
         } else {
             let msg = Box::new(InnerHttpResponse::new(status, Body::Empty));
             HttpResponseBuilder {
+                pool,
                 response: Some(msg),
                 err: None,
                 cookies: None,
@@ -993,10 +1005,10 @@ impl HttpResponsePool {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;
             msg.body = body;
-            HttpResponse(msg)
+            HttpResponse(msg, pool)
         } else {
             let msg = Box::new(InnerHttpResponse::new(status, body));
-            HttpResponse(msg)
+            HttpResponse(msg, pool)
         }
     }
 
@@ -1011,23 +1023,20 @@ impl HttpResponsePool {
     }
 
     #[inline]
-    pub(crate) fn release(resp: HttpResponse) {
-        let mut inner = resp.0;
-        POOL.with(|pool| {
-            let mut p = pool.0.borrow_mut();
-            if p.len() < 128 {
-                inner.headers.clear();
-                inner.version = None;
-                inner.chunked = None;
-                inner.reason = None;
-                inner.encoding = None;
-                inner.connection_type = None;
-                inner.response_size = 0;
-                inner.error = None;
-                inner.write_capacity = MAX_WRITE_BUFFER_SIZE;
-                p.push_front(inner);
-            }
-        });
+    fn release(&self, mut inner: Box<InnerHttpResponse>) {
+        let mut p = self.0.borrow_mut();
+        if p.len() < 128 {
+            inner.headers.clear();
+            inner.version = None;
+            inner.chunked = None;
+            inner.reason = None;
+            inner.encoding = None;
+            inner.connection_type = None;
+            inner.response_size = 0;
+            inner.error = None;
+            inner.write_capacity = MAX_WRITE_BUFFER_SIZE;
+            p.push_front(inner);
+        }
     }
 }
 
