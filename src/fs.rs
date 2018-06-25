@@ -653,10 +653,6 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     // TODO: It'd be nice if there were a good usable URL manipulation
                     // library
                     let mut new_path: String = req.path().to_owned();
-                    for el in relpath.iter() {
-                        new_path.push_str(&el.to_string_lossy());
-                        new_path.push('/');
-                    }
                     if !new_path.ends_with('/') {
                         new_path.push('/');
                     }
@@ -1017,7 +1013,8 @@ mod tests {
     #[test]
     fn test_redirect_to_index() {
         let mut st = StaticFiles::new(".").index_file("index.html");
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/tests").finish();
+
         req.match_info_mut().add("tail", "tests");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
@@ -1028,7 +1025,7 @@ mod tests {
             "/tests/index.html"
         );
 
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/tests/").finish();
         req.match_info_mut().add("tail", "tests/");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
@@ -1043,7 +1040,7 @@ mod tests {
     #[test]
     fn test_redirect_to_index_nested() {
         let mut st = StaticFiles::new(".").index_file("Cargo.toml");
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().uri("/tools/wsload").finish();
         req.match_info_mut().add("tail", "tools/wsload");
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
