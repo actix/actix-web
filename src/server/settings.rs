@@ -42,7 +42,7 @@ pub struct ServerSettings {
     secure: bool,
     host: String,
     cpu_pool: UnsafeCell<Option<CpuPool>>,
-    responses: Rc<UnsafeCell<HttpResponsePool>>,
+    responses: &'static HttpResponsePool,
 }
 
 impl Clone for ServerSettings {
@@ -52,7 +52,7 @@ impl Clone for ServerSettings {
             secure: self.secure,
             host: self.host.clone(),
             cpu_pool: UnsafeCell::new(None),
-            responses: HttpResponsePool::pool(),
+            responses: HttpResponsePool::get_pool(),
         }
     }
 }
@@ -63,7 +63,7 @@ impl Default for ServerSettings {
             addr: None,
             secure: false,
             host: "localhost:8080".to_owned(),
-            responses: HttpResponsePool::pool(),
+            responses: HttpResponsePool::get_pool(),
             cpu_pool: UnsafeCell::new(None),
         }
     }
@@ -82,7 +82,7 @@ impl ServerSettings {
             "localhost".to_owned()
         };
         let cpu_pool = UnsafeCell::new(None);
-        let responses = HttpResponsePool::pool();
+        let responses = HttpResponsePool::get_pool();
         ServerSettings {
             addr,
             secure,
@@ -103,7 +103,7 @@ impl ServerSettings {
             host,
             secure,
             cpu_pool: UnsafeCell::new(None),
-            responses: HttpResponsePool::pool(),
+            responses: HttpResponsePool::get_pool(),
         }
     }
 

@@ -636,7 +636,8 @@ where
             };
         }
 
-        let (router, resources) = Router::new(&prefix, parts.settings, resources);
+        let (router, resources) =
+            Router::new(&prefix, parts.settings.clone(), resources);
 
         let inner = Rc::new(Inner {
             prefix: prefix_len,

@@ -13,7 +13,7 @@ use error::Error;
 use handler::{AsyncResult, AsyncResultItem};
 use header::ContentEncoding;
 use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use httpresponse::{HttpResponse, HttpResponsePool};
 use middleware::{Finished, Middleware, Response, Started};
 use server::{HttpHandlerTask, Writer, WriterState};
 
@@ -691,7 +691,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
 
 /// Middlewares start executor
 struct FinishingMiddlewares<S, H> {
-    resp: HttpResponse,
+    resp: Option<HttpResponse>,
     fut: Option<Box<Future<Item = (), Error = Error>>>,
     _s: PhantomData<S>,
     _h: PhantomData<H>,
@@ -703,10 +703,10 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
         info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>], resp: HttpResponse,
     ) -> PipelineState<S, H> {
         if info.count == 0 {
-            Completed::init(info)
+            Completed::init(info, resp)
         } else {
             let mut state = FinishingMiddlewares {
-                resp,
+                resp: Some(resp),
                 fut: None,
                 _s: PhantomData,
                 _h: PhantomData,
@@ -741,15 +741,16 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             }
             self.fut = None;
             if info.count == 0 {
-                return Some(Completed::init(info));
+                return Some(Completed::init(info, self.resp.take().unwrap()));
             }
 
             info.count -= 1;
-            let state = mws[info.count as usize].finish(&mut info.req, &self.resp);
+            let state = mws[info.count as usize]
+                .finish(&mut info.req, self.resp.as_ref().unwrap());
             match state {
                 Finished::Done => {
                     if info.count == 0 {
-                        return Some(Completed::init(info));
+                        return Some(Completed::init(info, self.resp.take().unwrap()));
                     }
                 }
                 Finished::Future(fut) => {
@@ -761,19 +762,20 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
 }
 
 #[derive(Debug)]
-struct Completed<S, H>(PhantomData<S>, PhantomData<H>);
+struct Completed<S, H>(PhantomData<S>, PhantomData<H>, Option<HttpResponse>);
 
 impl<S, H> Completed<S, H> {
     #[inline]
-    fn init(info: &mut PipelineInfo<S>) -> PipelineState<S, H> {
+    fn init(info: &mut PipelineInfo<S>, resp: HttpResponse) -> PipelineState<S, H> {
         if let Some(ref err) = info.error {
             error!("Error occurred during request handling: {}", err);
         }
 
         if info.context.is_none() {
+            HttpResponsePool::release(resp);
             PipelineState::None
         } else {
-            PipelineState::Completed(Completed(PhantomData, PhantomData))
+            PipelineState::Completed(Completed(PhantomData, PhantomData, Some(resp)))
         }
     }
 
@@ -781,8 +783,14 @@ impl<S, H> Completed<S, H> {
     fn poll(&mut self, info: &mut PipelineInfo<S>) -> Option<PipelineState<S, H>> {
         match info.poll_context() {
             Ok(Async::NotReady) => None,
-            Ok(Async::Ready(())) => Some(PipelineState::None),
-            Err(_) => Some(PipelineState::Error),
+            Ok(Async::Ready(())) => {
+                HttpResponsePool::release(self.2.take().unwrap());
+                Some(PipelineState::None)
+            }
+            Err(_) => {
+                HttpResponsePool::release(self.2.take().unwrap());
+                Some(PipelineState::Error)
+            }
         }
     }
 }
@@ -793,6 +801,7 @@ mod tests {
     use actix::*;
     use context::HttpContext;
     use futures::future::{lazy, result};
+    use http::StatusCode;
     use tokio::runtime::current_thread::Runtime;
 
     impl<S, H> PipelineState<S, H> {
@@ -823,16 +832,18 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let mut info = PipelineInfo::new(HttpRequest::default());
-                Completed::<(), Inner<()>>::init(&mut info)
+                let resp = HttpResponse::new(StatusCode::OK);
+                Completed::<(), Inner<()>>::init(&mut info, resp)
                     .is_none()
                     .unwrap();
 
                 let req = HttpRequest::default();
                 let ctx = HttpContext::new(req.clone(), MyActor);
                 let addr = ctx.address();
+                let resp = HttpResponse::new(StatusCode::OK);
                 let mut info = PipelineInfo::new(req);
                 info.context = Some(Box::new(ctx));
-                let mut state = Completed::<(), Inner<()>>::init(&mut info)
+                let mut state = Completed::<(), Inner<()>>::init(&mut info, resp)
                     .completed()
                     .unwrap();
 
