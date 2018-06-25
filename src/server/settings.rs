@@ -12,6 +12,7 @@ use time;
 
 use super::channel::Node;
 use super::helpers;
+use super::message::{Request, RequestPool};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
@@ -156,14 +157,17 @@ pub(crate) struct WorkerSettings<H> {
     keep_alive: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
-    messages: Rc<helpers::SharedMessagePool>,
+    messages: &'static RequestPool,
     channels: Cell<usize>,
     node: Box<Node<()>>,
     date: UnsafeCell<Date>,
+    settings: ServerSettings,
 }
 
 impl<H> WorkerSettings<H> {
-    pub(crate) fn new(h: Vec<H>, keep_alive: KeepAlive) -> WorkerSettings<H> {
+    pub(crate) fn new(
+        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
+    ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
             KeepAlive::Os | KeepAlive::Tcp(_) => (0, true),
@@ -171,14 +175,15 @@ impl<H> WorkerSettings<H> {
         };
 
         WorkerSettings {
-            keep_alive,
-            ka_enabled,
             h: RefCell::new(h),
             bytes: Rc::new(SharedBytesPool::new()),
-            messages: Rc::new(helpers::SharedMessagePool::new()),
+            messages: RequestPool::pool(settings.clone()),
             channels: Cell::new(0),
             node: Box::new(Node::head()),
             date: UnsafeCell::new(Date::new()),
+            keep_alive,
+            ka_enabled,
+            settings,
         }
     }
 
@@ -210,11 +215,8 @@ impl<H> WorkerSettings<H> {
         self.bytes.release_bytes(bytes)
     }
 
-    pub fn get_http_message(&self) -> helpers::SharedHttpInnerMessage {
-        helpers::SharedHttpInnerMessage::new(
-            self.messages.get(),
-            Rc::clone(&self.messages),
-        )
+    pub fn get_request_context(&self) -> Request {
+        self.messages.get()
     }
 
     pub fn add_channel(&self) {
@@ -316,7 +318,11 @@ mod tests {
 
     #[test]
     fn test_date() {
-        let settings = WorkerSettings::<()>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<()>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
         settings.set_date(&mut buf1, true);
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);

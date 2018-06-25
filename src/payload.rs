@@ -59,20 +59,14 @@ impl Payload {
         }
     }
 
-    /// Indicates EOF of payload
-    #[inline]
-    pub fn eof(&self) -> bool {
-        self.inner.borrow().eof()
-    }
-
     /// Length of the data in this payload
-    #[inline]
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.inner.borrow().len()
     }
 
     /// Is payload empty
-    #[inline]
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.inner.borrow().len() == 0
     }
@@ -225,12 +219,7 @@ impl Inner {
         }
     }
 
-    #[inline]
-    fn eof(&self) -> bool {
-        self.items.is_empty() && self.eof
-    }
-
-    #[inline]
+    #[cfg(test)]
     fn len(&self) -> usize {
         self.len
     }

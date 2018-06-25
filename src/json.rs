@@ -140,12 +140,12 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        let req = req.clone();
+        let req2 = req.clone();
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
-            JsonBody::new(req.clone())
+            JsonBody::new(req)
                 .limit(cfg.limit)
-                .map_err(move |e| (*err)(e, req))
+                .map_err(move |e| (*err)(e, &req2))
                 .map(Json),
         )
     }
@@ -183,7 +183,7 @@ where
 /// ```
 pub struct JsonConfig<S> {
     limit: usize,
-    ehandler: Rc<Fn(JsonPayloadError, HttpRequest<S>) -> Error>,
+    ehandler: Rc<Fn(JsonPayloadError, &HttpRequest<S>) -> Error>,
 }
 
 impl<S> JsonConfig<S> {
@@ -196,7 +196,7 @@ impl<S> JsonConfig<S> {
     /// Set custom error handler
     pub fn error_handler<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(JsonPayloadError, HttpRequest<S>) -> Error + 'static,
+        F: Fn(JsonPayloadError, &HttpRequest<S>) -> Error + 'static,
     {
         self.ehandler = Rc::new(f);
         self
@@ -243,19 +243,48 @@ impl<S> Default for JsonConfig<S> {
 /// }
 /// # fn main() {}
 /// ```
-pub struct JsonBody<T, U: DeserializeOwned> {
+pub struct JsonBody<T: HttpMessage, U: DeserializeOwned> {
     limit: usize,
-    req: Option<T>,
+    length: Option<usize>,
+    stream: Option<T::Stream>,
+    err: Option<JsonPayloadError>,
     fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
 }
 
-impl<T, U: DeserializeOwned> JsonBody<T, U> {
+impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
     /// Create `JsonBody` for request.
-    pub fn new(req: T) -> Self {
+    pub fn new(req: &T) -> Self {
+        // check content-type
+        let json = if let Ok(Some(mime)) = req.mime_type() {
+            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+        } else {
+            false
+        };
+        if !json {
+            return JsonBody {
+                limit: 262_144,
+                length: None,
+                stream: None,
+                fut: None,
+                err: Some(JsonPayloadError::ContentType),
+            };
+        }
+
+        let mut len = None;
+        if let Some(l) = req.headers().get(CONTENT_LENGTH) {
+            if let Ok(s) = l.to_str() {
+                if let Ok(l) = s.parse::<usize>() {
+                    len = Some(l)
+                }
+            }
+        }
+
         JsonBody {
             limit: 262_144,
-            req: Some(req),
+            length: len,
+            stream: Some(req.payload()),
             fut: None,
+            err: None,
         }
     }
 
@@ -266,56 +295,42 @@ impl<T, U: DeserializeOwned> JsonBody<T, U> {
     }
 }
 
-impl<T, U: DeserializeOwned + 'static> Future for JsonBody<T, U>
-where
-    T: HttpMessage + Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl<T: HttpMessage + 'static, U: DeserializeOwned + 'static> Future for JsonBody<T, U> {
     type Item = U;
     type Error = JsonPayloadError;
 
     fn poll(&mut self) -> Poll<U, JsonPayloadError> {
-        if let Some(req) = self.req.take() {
-            if let Some(len) = req.headers().get(CONTENT_LENGTH) {
-                if let Ok(s) = len.to_str() {
-                    if let Ok(len) = s.parse::<usize>() {
-                        if len > self.limit {
-                            return Err(JsonPayloadError::Overflow);
-                        }
-                    } else {
-                        return Err(JsonPayloadError::Overflow);
-                    }
-                }
-            }
-            // check content-type
-
-            let json = if let Ok(Some(mime)) = req.mime_type() {
-                mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
-            } else {
-                false
-            };
-            if !json {
-                return Err(JsonPayloadError::ContentType);
-            }
-
-            let limit = self.limit;
-            let fut = req
-                .from_err()
-                .fold(BytesMut::new(), move |mut body, chunk| {
-                    if (body.len() + chunk.len()) > limit {
-                        Err(JsonPayloadError::Overflow)
-                    } else {
-                        body.extend_from_slice(&chunk);
-                        Ok(body)
-                    }
-                })
-                .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
-            self.fut = Some(Box::new(fut));
+        if let Some(ref mut fut) = self.fut {
+            return fut.poll();
         }
 
-        self.fut
-            .as_mut()
+        if let Some(err) = self.err.take() {
+            return Err(err);
+        }
+
+        let limit = self.limit;
+        if let Some(len) = self.length.take() {
+            if len > limit {
+                return Err(JsonPayloadError::Overflow);
+            }
+        }
+
+        let fut = self
+            .stream
+            .take()
             .expect("JsonBody could not be used second time")
-            .poll()
+            .from_err()
+            .fold(BytesMut::new(), move |mut body, chunk| {
+                if (body.len() + chunk.len()) > limit {
+                    Err(JsonPayloadError::Overflow)
+                } else {
+                    body.extend_from_slice(&chunk);
+                    Ok(body)
+                }
+            })
+            .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
+        self.fut = Some(Box::new(fut));
+        self.poll()
     }
 }
 
@@ -327,6 +342,7 @@ mod tests {
     use http::header;
 
     use handler::Handler;
+    use test::TestRequest;
     use with::With;
 
     impl PartialEq for JsonPayloadError {
@@ -355,7 +371,7 @@ mod tests {
         let json = Json(MyObject {
             name: "test".to_owned(),
         });
-        let resp = json.respond_to(&HttpRequest::default()).unwrap();
+        let resp = json.respond_to(&TestRequest::default().finish()).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/json"
@@ -364,41 +380,44 @@ mod tests {
 
     #[test]
     fn test_json_body() {
-        let req = HttpRequest::default();
+        let req = TestRequest::default().finish();
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/text"),
-        );
+        let req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/text"),
+            )
+            .finish();
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        req.headers_mut().insert(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("10000"),
-        );
+        let req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("10000"),
+            )
+            .finish();
         let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        req.headers_mut().insert(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        );
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
+        let req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .finish();
+
         let mut json = req.json::<MyObject>();
         assert_eq!(
             json.poll().ok().unwrap(),
@@ -414,20 +433,18 @@ mod tests {
         cfg.limit(4096);
         let handler = With::new(|data: Json<MyObject>| data, cfg);
 
-        let req = HttpRequest::default();
-        assert!(handler.handle(req).as_err().is_some());
+        let req = TestRequest::default().finish();
+        assert!(handler.handle(&req).as_err().is_some());
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
-        );
-        req.headers_mut().insert(
+        ).header(
             header::CONTENT_LENGTH,
             header::HeaderValue::from_static("16"),
-        );
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"{\"name\": \"test\"}"));
-        assert!(handler.handle(req).as_err().is_none())
+        )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .finish();
+        assert!(handler.handle(&req).as_err().is_none())
     }
 }

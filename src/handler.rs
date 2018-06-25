@@ -10,6 +10,7 @@ use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use resource::ResourceHandler;
+use server::Request;
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
@@ -18,7 +19,7 @@ pub trait Handler<S>: 'static {
     type Result: Responder;
 
     /// Handle request
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result;
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result;
 }
 
 /// Trait implemented by types that generate responses for clients.
@@ -203,12 +204,12 @@ where
 /// Handler<S> for Fn()
 impl<F, R, S> Handler<S> for F
 where
-    F: Fn(HttpRequest<S>) -> R + 'static,
+    F: Fn(&HttpRequest<S>) -> R + 'static,
     R: Responder + 'static,
 {
     type Result = R;
 
-    fn handle(&self, req: HttpRequest<S>) -> R {
+    fn handle(&self, req: &HttpRequest<S>) -> R {
         (self)(req)
     }
 }
@@ -402,9 +403,8 @@ where
     }
 }
 
-// /// Trait defines object that could be registered as resource route
 pub(crate) trait RouteHandler<S>: 'static {
-    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse>;
+    fn handle(&self, &HttpRequest<S>) -> AsyncResult<HttpResponse>;
 
     fn has_default_resource(&self) -> bool {
         false
@@ -443,8 +443,8 @@ where
     R: Responder + 'static,
     S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        match self.h.handle(req.clone()).respond_to(&req) {
+    fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+        match self.h.handle(req).respond_to(req) {
             Ok(reply) => reply.into(),
             Err(err) => AsyncResult::err(err.into()),
         }
@@ -454,7 +454,7 @@ where
 /// Async route handler
 pub(crate) struct AsyncHandler<S, H, F, R, E>
 where
-    H: Fn(HttpRequest<S>) -> F + 'static,
+    H: Fn(&HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
     R: Responder + 'static,
     E: Into<Error> + 'static,
@@ -466,7 +466,7 @@ where
 
 impl<S, H, F, R, E> AsyncHandler<S, H, F, R, E>
 where
-    H: Fn(HttpRequest<S>) -> F + 'static,
+    H: Fn(&HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
     R: Responder + 'static,
     E: Into<Error> + 'static,
@@ -482,14 +482,15 @@ where
 
 impl<S, H, F, R, E> RouteHandler<S> for AsyncHandler<S, H, F, R, E>
 where
-    H: Fn(HttpRequest<S>) -> F + 'static,
+    H: Fn(&HttpRequest<S>) -> F + 'static,
     F: Future<Item = R, Error = E> + 'static,
     R: Responder + 'static,
     E: Into<Error> + 'static,
     S: 'static,
 {
-    fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        let fut = (self.h)(req.clone()).map_err(|e| e.into()).then(move |r| {
+    fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+        let req = req.clone();
+        let fut = (self.h)(&req).map_err(|e| e.into()).then(move |r| {
             match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => Either::A(ok(resp)),

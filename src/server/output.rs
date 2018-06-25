@@ -15,10 +15,36 @@ use http::header::{
 };
 use http::{HttpTryFrom, Method, Version};
 
+use super::message::{InnerRequest, Request};
 use body::{Binary, Body};
 use header::ContentEncoding;
-use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
+
+#[derive(Debug)]
+pub(crate) enum ResponseLength {
+    Chunked,
+    Zero,
+    Length(usize),
+    Length64(u64),
+    None,
+}
+
+#[derive(Debug)]
+pub(crate) struct ResponseInfo {
+    head: bool,
+    pub length: ResponseLength,
+    pub content_encoding: Option<&'static str>,
+}
+
+impl ResponseInfo {
+    pub fn new(head: bool) -> Self {
+        ResponseInfo {
+            head,
+            length: ResponseLength::None,
+            content_encoding: None,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) enum Output {
@@ -119,13 +145,12 @@ impl Output {
         }
     }
 
-    pub fn for_server(
-        &mut self, req: &HttpInnerMessage, resp: &mut HttpResponse,
+    pub(crate) fn for_server(
+        &mut self, info: &mut ResponseInfo, req: &InnerRequest, resp: &mut HttpResponse,
         response_encoding: ContentEncoding,
     ) {
         let buf = self.take();
         let version = resp.version().unwrap_or_else(|| req.version);
-        let is_head = req.method == Method::HEAD;
         let mut len = 0;
 
         #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
@@ -158,10 +183,7 @@ impl Output {
                 encoding => encoding,
             };
             if encoding.is_compression() {
-                resp.headers_mut().insert(
-                    CONTENT_ENCODING,
-                    HeaderValue::from_static(encoding.as_str()),
-                );
+                info.content_encoding = Some(encoding.as_str());
             }
             encoding
         } else {
@@ -173,8 +195,8 @@ impl Output {
         #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let transfer = match resp.body() {
             &Body::Empty => {
-                if req.method != Method::HEAD {
-                    resp.headers_mut().remove(CONTENT_LENGTH);
+                if !info.head {
+                    info.length = ResponseLength::Zero;
                 }
                 *self = Output::Empty(buf);
                 return;
@@ -216,13 +238,8 @@ impl Output {
                     }
                 }
 
-                if is_head {
-                    let mut b = BytesMut::new();
-                    let _ = write!(b, "{}", len);
-                    resp.headers_mut().insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::try_from(b.freeze()).unwrap(),
-                    );
+                info.length = ResponseLength::Length(len);
+                if info.head {
                     *self = Output::Empty(buf);
                 } else {
                     *self = Output::Buffer(buf);
@@ -236,7 +253,7 @@ impl Output {
                     }
                     if encoding != ContentEncoding::Identity {
                         encoding = ContentEncoding::Identity;
-                        resp.headers_mut().remove(CONTENT_ENCODING);
+                        info.content_encoding.take();
                     }
                     TransferEncoding::eof(buf)
                 } else {
@@ -245,12 +262,12 @@ impl Output {
                     {
                         resp.headers_mut().remove(CONTENT_LENGTH);
                     }
-                    Output::streaming_encoding(buf, version, resp)
+                    Output::streaming_encoding(info, buf, version, resp)
                 }
             }
         };
         // check for head response
-        if is_head {
+        if info.head {
             resp.set_body(Body::Empty);
             *self = Output::Empty(transfer.buf.unwrap());
             return;
@@ -277,18 +294,17 @@ impl Output {
     }
 
     fn streaming_encoding(
-        buf: BytesMut, version: Version, resp: &mut HttpResponse,
+        info: &mut ResponseInfo, buf: BytesMut, version: Version,
+        resp: &mut HttpResponse,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {
                 // Enable transfer encoding
-                resp.headers_mut().remove(CONTENT_LENGTH);
                 if version == Version::HTTP_2 {
-                    resp.headers_mut().remove(TRANSFER_ENCODING);
+                    info.length = ResponseLength::None;
                     TransferEncoding::eof(buf)
                 } else {
-                    resp.headers_mut()
-                        .insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+                    info.length = ResponseLength::Chunked;
                     TransferEncoding::chunked(buf)
                 }
             }
@@ -315,6 +331,7 @@ impl Output {
 
                 if !chunked {
                     if let Some(len) = len {
+                        info.length = ResponseLength::Length64(len);
                         TransferEncoding::length(len, buf)
                     } else {
                         TransferEncoding::eof(buf)
@@ -323,14 +340,11 @@ impl Output {
                     // Enable transfer encoding
                     match version {
                         Version::HTTP_11 => {
-                            resp.headers_mut().insert(
-                                TRANSFER_ENCODING,
-                                HeaderValue::from_static("chunked"),
-                            );
+                            info.length = ResponseLength::Chunked;
                             TransferEncoding::chunked(buf)
                         }
                         _ => {
-                            resp.headers_mut().remove(TRANSFER_ENCODING);
+                            info.length = ResponseLength::None;
                             TransferEncoding::eof(buf)
                         }
                     }

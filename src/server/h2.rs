@@ -14,6 +14,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
+use http::{StatusCode, Version};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -21,6 +22,7 @@ use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
 use uri::Url;
 
+use super::error::ServerError;
 use super::h2writer::H2Writer;
 use super::input::PayloadType;
 use super::settings::WorkerSettings;
@@ -331,34 +333,35 @@ impl<H: HttpHandler + 'static> Entry<H> {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
-        let mut msg = settings.get_http_message();
-        msg.get_mut().url = Url::new(parts.uri);
-        msg.get_mut().method = parts.method;
-        msg.get_mut().version = parts.version;
-        msg.get_mut().headers = parts.headers;
-        msg.get_mut().payload = Some(payload);
-        msg.get_mut().addr = addr;
-
-        let mut req = HttpRequest::from_message(msg);
+        let mut msg = settings.get_request_context();
+        msg.inner.url = Url::new(parts.uri);
+        msg.inner.method = parts.method;
+        msg.inner.version = parts.version;
+        msg.inner.headers = parts.headers;
+        *msg.inner.payload.borrow_mut() = Some(payload);
+        msg.inner.addr = addr;
 
         // Payload sender
-        let psender = PayloadType::new(req.headers(), psender);
+        let psender = PayloadType::new(msg.headers(), psender);
 
         // start request processing
         let mut task = None;
         for h in settings.handlers().iter_mut() {
-            req = match h.handle(req) {
+            msg = match h.handle(msg) {
                 Ok(t) => {
                     task = Some(t);
                     break;
                 }
-                Err(req) => req,
+                Err(msg) => msg,
             }
         }
 
         Entry {
             task: task.map(EntryPipe::Task).unwrap_or_else(|| {
-                EntryPipe::Error(Pipeline::error(HttpResponse::NotFound()))
+                EntryPipe::Error(ServerError::err(
+                    Version::HTTP_2,
+                    StatusCode::NOT_FOUND,
+                ))
             }),
             payload: psender,
             stream: H2Writer::new(resp, Rc::clone(settings)),

@@ -6,7 +6,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response};
 
-type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>;
+type ErrorHandler<S> = Fn(&HttpRequest<S>, HttpResponse) -> Result<Response>;
 
 /// `Middleware` for allowing custom handlers for responses.
 ///
@@ -21,7 +21,7 @@ type ErrorHandler<S> = Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response>
 /// use actix_web::middleware::{ErrorHandlers, Response};
 /// use actix_web::{http, App, HttpRequest, HttpResponse, Result};
 ///
-/// fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+/// fn render_500<S>(_: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
 ///     let mut builder = resp.into_builder();
 ///     builder.header(http::header::CONTENT_TYPE, "application/json");
 ///     Ok(Response::Done(builder.into()))
@@ -62,7 +62,7 @@ impl<S> ErrorHandlers<S> {
     /// Register error handler for specified status code
     pub fn handler<F>(mut self, status: StatusCode, handler: F) -> Self
     where
-        F: Fn(&mut HttpRequest<S>, HttpResponse) -> Result<Response> + 'static,
+        F: Fn(&HttpRequest<S>, HttpResponse) -> Result<Response> + 'static,
     {
         self.handlers.insert(status, Box::new(handler));
         self
@@ -70,9 +70,7 @@ impl<S> ErrorHandlers<S> {
 }
 
 impl<S: 'static> Middleware<S> for ErrorHandlers<S> {
-    fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
-    ) -> Result<Response> {
+    fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         if let Some(handler) = self.handlers.get(&resp.status()) {
             handler(req, resp)
         } else {
@@ -91,7 +89,10 @@ mod tests {
     use middleware::Started;
     use test;
 
-    fn render_500<S>(_: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+    use server::Request;
+    use test::TestRequest;
+
+    fn render_500<S>(_: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         let mut builder = resp.into_builder();
         builder.header(CONTENT_TYPE, "0001");
         Ok(Response::Done(builder.into()))
@@ -102,7 +103,7 @@ mod tests {
         let mw =
             ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut req = HttpRequest::default();
+        let mut req = TestRequest::default().finish();
         let resp = HttpResponse::InternalServerError().finish();
         let resp = match mw.response(&mut req, resp) {
             Ok(Response::Done(resp)) => resp,
@@ -121,7 +122,7 @@ mod tests {
     struct MiddlewareOne;
 
     impl<S> Middleware<S> for MiddlewareOne {
-        fn start(&self, _req: &mut HttpRequest<S>) -> Result<Started, Error> {
+        fn start(&self, _: &HttpRequest<S>) -> Result<Started, Error> {
             Err(ErrorInternalServerError("middleware error"))
         }
     }

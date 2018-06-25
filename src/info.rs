@@ -1,14 +1,17 @@
+use std::rc::Rc;
 use std::str::FromStr;
 
 use http::header::{self, HeaderName};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
+use server::Request;
 
-const X_FORWARDED_FOR: &str = "X-FORWARDED-FOR";
-const X_FORWARDED_HOST: &str = "X-FORWARDED-HOST";
-const X_FORWARDED_PROTO: &str = "X-FORWARDED-PROTO";
+const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
+const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
+const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
 
 /// `HttpRequest` connection information
+#[derive(Clone, Default)]
 pub struct ConnectionInfo {
     scheme: String,
     host: String,
@@ -19,7 +22,7 @@ pub struct ConnectionInfo {
 impl ConnectionInfo {
     /// Create *ConnectionInfo* instance for a request.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    pub fn new<S>(req: &HttpRequest<S>) -> ConnectionInfo {
+    pub fn update(&mut self, req: &Request) {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
@@ -56,7 +59,7 @@ impl ConnectionInfo {
         if scheme.is_none() {
             if let Some(h) = req
                 .headers()
-                .get(HeaderName::from_str(X_FORWARDED_PROTO).unwrap())
+                .get(HeaderName::from_lowercase(X_FORWARDED_PROTO).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     scheme = h.split(',').next().map(|v| v.trim());
@@ -64,12 +67,8 @@ impl ConnectionInfo {
             }
             if scheme.is_none() {
                 scheme = req.uri().scheme_part().map(|a| a.as_str());
-                if scheme.is_none() {
-                    if let Some(router) = req.router() {
-                        if router.server_settings().secure() {
-                            scheme = Some("https")
-                        }
-                    }
+                if scheme.is_none() && req.server_settings().secure() {
+                    scheme = Some("https")
                 }
             }
         }
@@ -78,7 +77,7 @@ impl ConnectionInfo {
         if host.is_none() {
             if let Some(h) = req
                 .headers()
-                .get(HeaderName::from_str(X_FORWARDED_HOST).unwrap())
+                .get(HeaderName::from_lowercase(X_FORWARDED_HOST).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     host = h.split(',').next().map(|v| v.trim());
@@ -91,9 +90,7 @@ impl ConnectionInfo {
                 if host.is_none() {
                     host = req.uri().authority_part().map(|a| a.as_str());
                     if host.is_none() {
-                        if let Some(router) = req.router() {
-                            host = Some(router.server_settings().host());
-                        }
+                        host = Some(req.server_settings().host());
                     }
                 }
             }
@@ -103,7 +100,7 @@ impl ConnectionInfo {
         if remote.is_none() {
             if let Some(h) = req
                 .headers()
-                .get(HeaderName::from_str(X_FORWARDED_FOR).unwrap())
+                .get(HeaderName::from_lowercase(X_FORWARDED_FOR).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     remote = h.split(',').next().map(|v| v.trim());
@@ -115,12 +112,10 @@ impl ConnectionInfo {
             }
         }
 
-        ConnectionInfo {
-            scheme: scheme.unwrap_or("http").to_owned(),
-            host: host.unwrap_or("localhost").to_owned(),
-            remote: remote.map(|s| s.to_owned()),
-            peer,
-        }
+        self.scheme = scheme.unwrap_or("http").to_owned();
+        self.host = host.unwrap_or("localhost").to_owned();
+        self.remote = remote.map(|s| s.to_owned());
+        self.peer = peer;
     }
 
     /// Scheme of the request.
@@ -171,59 +166,59 @@ impl ConnectionInfo {
 mod tests {
     use super::*;
     use http::header::HeaderValue;
+    use test::TestRequest;
 
     #[test]
     fn test_forwarded() {
-        let req = HttpRequest::default();
-        let info = ConnectionInfo::new(&req);
+        let req = TestRequest::default().request();
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.scheme(), "http");
-        assert_eq!(info.host(), "localhost");
+        assert_eq!(info.host(), "localhost:8080");
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            header::FORWARDED,
-            HeaderValue::from_static(
+        let req = TestRequest::default()
+            .header(
+                header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
-            ),
-        );
+            )
+            .request();
 
-        let info = ConnectionInfo::new(&req);
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.scheme(), "https");
         assert_eq!(info.host(), "rust-lang.org");
         assert_eq!(info.remote(), Some("192.0.2.60"));
 
-        let mut req = HttpRequest::default();
-        req.headers_mut()
-            .insert(header::HOST, HeaderValue::from_static("rust-lang.org"));
+        let req = TestRequest::default()
+            .header(header::HOST, "rust-lang.org")
+            .request();
 
-        let info = ConnectionInfo::new(&req);
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.scheme(), "http");
         assert_eq!(info.host(), "rust-lang.org");
         assert_eq!(info.remote(), None);
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            HeaderName::from_str(X_FORWARDED_FOR).unwrap(),
-            HeaderValue::from_static("192.0.2.60"),
-        );
-        let info = ConnectionInfo::new(&req);
+        let req = TestRequest::default()
+            .header(X_FORWARDED_FOR, "192.0.2.60")
+            .request();
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.remote(), Some("192.0.2.60"));
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            HeaderName::from_str(X_FORWARDED_HOST).unwrap(),
-            HeaderValue::from_static("192.0.2.60"),
-        );
-        let info = ConnectionInfo::new(&req);
+        let req = TestRequest::default()
+            .header(X_FORWARDED_HOST, "192.0.2.60")
+            .request();
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.host(), "192.0.2.60");
         assert_eq!(info.remote(), None);
 
-        let mut req = HttpRequest::default();
-        req.headers_mut().insert(
-            HeaderName::from_str(X_FORWARDED_PROTO).unwrap(),
-            HeaderValue::from_static("https"),
-        );
-        let info = ConnectionInfo::new(&req);
+        let mut req = TestRequest::default()
+            .header(X_FORWARDED_PROTO, "https")
+            .request();
+        let mut info = ConnectionInfo::default();
+        info.update(&req);
         assert_eq!(info.scheme(), "https");
     }
 }

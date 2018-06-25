@@ -67,7 +67,7 @@ fn test_simple() {
 #[test]
 fn test_with_query_parameter() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| match req.query().get("qp") {
+        app.handler(|req: &HttpRequest| match req.query().get("qp") {
             Some(_) => HttpResponse::Ok().finish(),
             None => HttpResponse::BadRequest().finish(),
         })
@@ -110,7 +110,7 @@ fn test_no_decompress() {
 #[test]
 fn test_client_gzip_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -140,7 +140,7 @@ fn test_client_gzip_encoding_large() {
     let data = STR.repeat(10);
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -173,7 +173,7 @@ fn test_client_gzip_encoding_large_random() {
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -202,7 +202,7 @@ fn test_client_gzip_encoding_large_random() {
 #[test]
 fn test_client_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -236,7 +236,7 @@ fn test_client_brotli_encoding_large_random() {
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(move |bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -266,7 +266,7 @@ fn test_client_brotli_encoding_large_random() {
 #[test]
 fn test_client_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -300,7 +300,7 @@ fn test_client_deflate_encoding_large_random() {
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -328,7 +328,7 @@ fn test_client_deflate_encoding_large_random() {
 #[test]
 fn test_client_streaming_explicit() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .map_err(Error::from)
                 .and_then(|body| {
@@ -393,7 +393,7 @@ fn test_client_cookie_handling() {
     let mut srv = test::TestServer::new(move |app| {
         let cookie1 = cookie1b.clone();
         let cookie2 = cookie2b.clone();
-        app.handler(move |req: HttpRequest| {
+        app.handler(move |req: &HttpRequest| {
             // Check cookies were sent correctly
             req.cookie("cookie1").ok_or_else(err)
                     .and_then(|c1| if c1.value() == "value1" {

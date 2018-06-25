@@ -36,7 +36,7 @@ use httpresponse::HttpResponse;
 /// # use actix_web::*;
 /// use actix_web::http::NormalizePath;
 ///
-/// # fn index(req: HttpRequest) -> HttpResponse {
+/// # fn index(req: &HttpRequest) -> HttpResponse {
 /// #     HttpResponse::Ok().into()
 /// # }
 /// fn main() {
@@ -86,57 +86,41 @@ impl NormalizePath {
 impl<S> Handler<S> for NormalizePath {
     type Result = HttpResponse;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
-        if let Some(router) = req.router() {
-            let query = req.query_string();
-            if self.merge {
-                // merge slashes
-                let p = self.re_merge.replace_all(req.path(), "/");
-                if p.len() != req.path().len() {
-                    if router.has_route(p.as_ref()) {
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
+        let query = req.query_string();
+        if self.merge {
+            // merge slashes
+            let p = self.re_merge.replace_all(req.path(), "/");
+            if p.len() != req.path().len() {
+                if req.route().has_route(p.as_ref()) {
+                    let p = if !query.is_empty() {
+                        p + "?" + query
+                    } else {
+                        p
+                    };
+                    return HttpResponse::build(self.redirect)
+                        .header(header::LOCATION, p.as_ref())
+                        .finish();
+                }
+                // merge slashes and append trailing slash
+                if self.append && !p.ends_with('/') {
+                    let p = p.as_ref().to_owned() + "/";
+                    if req.route().has_route(&p) {
                         let p = if !query.is_empty() {
                             p + "?" + query
                         } else {
                             p
                         };
                         return HttpResponse::build(self.redirect)
-                            .header(header::LOCATION, p.as_ref())
+                            .header(header::LOCATION, p.as_str())
                             .finish();
                     }
-                    // merge slashes and append trailing slash
-                    if self.append && !p.ends_with('/') {
-                        let p = p.as_ref().to_owned() + "/";
-                        if router.has_route(&p) {
-                            let p = if !query.is_empty() {
-                                p + "?" + query
-                            } else {
-                                p
-                            };
-                            return HttpResponse::build(self.redirect)
-                                .header(header::LOCATION, p.as_str())
-                                .finish();
-                        }
-                    }
+                }
 
-                    // try to remove trailing slash
-                    if p.ends_with('/') {
-                        let p = p.as_ref().trim_right_matches('/');
-                        if router.has_route(p) {
-                            let mut req = HttpResponse::build(self.redirect);
-                            return if !query.is_empty() {
-                                req.header(
-                                    header::LOCATION,
-                                    (p.to_owned() + "?" + query).as_str(),
-                                )
-                            } else {
-                                req.header(header::LOCATION, p)
-                            }.finish();
-                        }
-                    }
-                } else if p.ends_with('/') {
-                    // try to remove trailing slash
+                // try to remove trailing slash
+                if p.ends_with('/') {
                     let p = p.as_ref().trim_right_matches('/');
-                    if router.has_route(p) {
+                    if req.route().has_route(p) {
                         let mut req = HttpResponse::build(self.redirect);
                         return if !query.is_empty() {
                             req.header(
@@ -148,20 +132,34 @@ impl<S> Handler<S> for NormalizePath {
                         }.finish();
                     }
                 }
-            }
-            // append trailing slash
-            if self.append && !req.path().ends_with('/') {
-                let p = req.path().to_owned() + "/";
-                if router.has_route(&p) {
-                    let p = if !query.is_empty() {
-                        p + "?" + query
+            } else if p.ends_with('/') {
+                // try to remove trailing slash
+                let p = p.as_ref().trim_right_matches('/');
+                if req.route().has_route(p) {
+                    let mut req = HttpResponse::build(self.redirect);
+                    return if !query.is_empty() {
+                        req.header(
+                            header::LOCATION,
+                            (p.to_owned() + "?" + query).as_str(),
+                        )
                     } else {
-                        p
-                    };
-                    return HttpResponse::build(self.redirect)
-                        .header(header::LOCATION, p.as_str())
-                        .finish();
+                        req.header(header::LOCATION, p)
+                    }.finish();
                 }
+            }
+        }
+        // append trailing slash
+        if self.append && !req.path().ends_with('/') {
+            let p = req.path().to_owned() + "/";
+            if req.route().has_route(&p) {
+                let p = if !query.is_empty() {
+                    p + "?" + query
+                } else {
+                    p
+                };
+                return HttpResponse::build(self.redirect)
+                    .header(header::LOCATION, p.as_str())
+                    .finish();
             }
         }
         HttpResponse::new(self.not_found)
@@ -175,7 +173,7 @@ mod tests {
     use http::{header, Method};
     use test::TestRequest;
 
-    fn index(_req: HttpRequest) -> HttpResponse {
+    fn index(_req: &HttpRequest) -> HttpResponse {
         HttpResponse::new(StatusCode::OK)
     }
 
@@ -207,9 +205,9 @@ mod tests {
             ("/resource2/?p1=1&p2=2", "", StatusCode::OK),
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(TestRequest::with_uri(path).finish());
+            let req = TestRequest::with_uri(path).request();
             let resp = app.run(req);
-            let r = resp.as_msg();
+            let r = &resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(
@@ -246,9 +244,9 @@ mod tests {
             ("/resource2/?p1=1&p2=2", StatusCode::OK),
         ];
         for (path, code) in params {
-            let req = app.prepare_request(TestRequest::with_uri(path).finish());
+            let req = TestRequest::with_uri(path).request();
             let resp = app.run(req);
-            let r = resp.as_msg();
+            let r = &resp.as_msg();
             assert_eq!(r.status(), code);
         }
     }
@@ -329,9 +327,9 @@ mod tests {
             ),
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(TestRequest::with_uri(path).finish());
+            let req = TestRequest::with_uri(path).request();
             let resp = app.run(req);
-            let r = resp.as_msg();
+            let r = &resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(
@@ -509,9 +507,9 @@ mod tests {
             ),
         ];
         for (path, target, code) in params {
-            let req = app.prepare_request(TestRequest::with_uri(path).finish());
+            let req = TestRequest::with_uri(path).request();
             let resp = app.run(req);
-            let r = resp.as_msg();
+            let r = &resp.as_msg();
             assert_eq!(r.status(), code);
             if !target.is_empty() {
                 assert_eq!(

@@ -358,12 +358,10 @@ where
 
             let addr = Arbiter::start(move |ctx: &mut Context<_>| {
                 let s = ServerSettings::from_parts(parts);
-                let apps: Vec<_> = (*factory)()
-                    .into_iter()
-                    .map(|h| h.into_handler(s.clone()))
-                    .collect();
+                let apps: Vec<_> =
+                    (*factory)().into_iter().map(|h| h.into_handler()).collect();
                 ctx.add_message_stream(rx);
-                Worker::new(apps, socks, ka)
+                Worker::new(apps, socks, ka, s)
             });
             workers.push((idx, tx));
             self.workers.push((idx, addr));
@@ -404,7 +402,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// fn main() {
     ///     let sys = actix::System::new("example");  // <- create Actix system
     ///
-    ///     server::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
+    ///     server::new(|| App::new().resource("/", |r| r.h(|_: &_| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0")
     ///         .expect("Can not bind to 127.0.0.1:0")
     ///         .start();
@@ -559,9 +557,13 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         let settings = ServerSettings::new(Some(addr), &self.host, secure);
         let apps: Vec<_> = (*self.factory)()
             .into_iter()
-            .map(|h| h.into_handler(settings.clone()))
+            .map(|h| h.into_handler())
             .collect();
-        self.h = Some(Rc::new(WorkerSettings::new(apps, self.keep_alive)));
+        self.h = Some(Rc::new(WorkerSettings::new(
+            apps,
+            self.keep_alive,
+            settings,
+        )));
 
         // start server
         let signals = self.subscribe_to_signals();
@@ -645,12 +647,10 @@ impl<H: IntoHttpHandler> StreamHandler2<ServerCommand, ()> for HttpServer<H> {
 
                 let addr = Arbiter::start(move |ctx: &mut Context<_>| {
                     let settings = ServerSettings::new(Some(addr), &host, false);
-                    let apps: Vec<_> = (*factory)()
-                        .into_iter()
-                        .map(|h| h.into_handler(settings.clone()))
-                        .collect();
+                    let apps: Vec<_> =
+                        (*factory)().into_iter().map(|h| h.into_handler()).collect();
                     ctx.add_message_stream(rx);
-                    Worker::new(apps, socks, ka)
+                    Worker::new(apps, socks, ka, settings)
                 });
                 for item in &self.accept {
                     let _ = item.1.send(Command::Worker(new_idx, tx.clone()));

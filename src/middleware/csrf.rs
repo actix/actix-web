@@ -25,7 +25,7 @@
 //! use actix_web::middleware::csrf;
 //! use actix_web::{http, App, HttpRequest, HttpResponse};
 //!
-//! fn handle_post(_: HttpRequest) -> &'static str {
+//! fn handle_post(_: &HttpRequest) -> &'static str {
 //!     "This action should only be triggered with requests from the same site"
 //! }
 //!
@@ -54,6 +54,7 @@ use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Started};
+use server::Request;
 
 /// Potential cross-site request forgery detected.
 #[derive(Debug, Fail)]
@@ -187,7 +188,7 @@ impl CsrfFilter {
         self
     }
 
-    fn validate<S>(&self, req: &mut HttpRequest<S>) -> Result<(), CsrfError> {
+    fn validate(&self, req: &Request) -> Result<(), CsrfError> {
         let is_upgrade = req.headers().contains_key(header::UPGRADE);
         let is_safe = req.method().is_safe() && (self.allow_upgrade || !is_upgrade);
 
@@ -209,7 +210,7 @@ impl CsrfFilter {
 }
 
 impl<S> Middleware<S> for CsrfFilter {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
         self.validate(req)?;
         Ok(Started::Done)
     }
@@ -225,35 +226,35 @@ mod tests {
     fn test_safe() {
         let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
+        let req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::HEAD)
             .finish();
 
-        assert!(csrf.start(&mut req).is_ok());
+        assert!(csrf.start(&req).is_ok());
     }
 
     #[test]
     fn test_csrf() {
         let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let mut req = TestRequest::with_header("Origin", "https://www.w3.org")
+        let req = TestRequest::with_header("Origin", "https://www.w3.org")
             .method(Method::POST)
             .finish();
 
-        assert!(csrf.start(&mut req).is_err());
+        assert!(csrf.start(&req).is_err());
     }
 
     #[test]
     fn test_referer() {
         let csrf = CsrfFilter::new().allowed_origin("https://www.example.com");
 
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             "Referer",
             "https://www.example.com/some/path?query=param",
         ).method(Method::POST)
             .finish();
 
-        assert!(csrf.start(&mut req).is_ok());
+        assert!(csrf.start(&req).is_ok());
     }
 
     #[test]
@@ -264,13 +265,13 @@ mod tests {
             .allowed_origin("https://www.example.com")
             .allow_upgrade();
 
-        let mut req = TestRequest::with_header("Origin", "https://cswsh.com")
+        let req = TestRequest::with_header("Origin", "https://cswsh.com")
             .header("Connection", "Upgrade")
             .header("Upgrade", "websocket")
             .method(Method::GET)
             .finish();
 
-        assert!(strict_csrf.start(&mut req).is_err());
-        assert!(lax_csrf.start(&mut req).is_ok());
+        assert!(strict_csrf.start(&req).is_err());
+        assert!(lax_csrf.start(&req).is_ok());
     }
 }

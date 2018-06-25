@@ -46,6 +46,7 @@
 //!     ));
 //! }
 //! ```
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use cookie::{Cookie, CookieJar, Key};
@@ -58,6 +59,7 @@ use http::header::{self, HeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
+use server::Request;
 
 /// The helper trait to obtain your identity from a request.
 ///
@@ -88,32 +90,32 @@ use middleware::{Middleware, Response, Started};
 pub trait RequestIdentity {
     /// Return the claimed identity of the user associated request or
     /// ``None`` if no identity can be found associated with the request.
-    fn identity(&self) -> Option<&str>;
+    fn identity(&self) -> Option<String>;
 
     /// Remember identity.
-    fn remember(&mut self, identity: String);
+    fn remember(&self, identity: String);
 
     /// This method is used to 'forget' the current identity on subsequent
     /// requests.
-    fn forget(&mut self);
+    fn forget(&self);
 }
 
 impl<S> RequestIdentity for HttpRequest<S> {
-    fn identity(&self) -> Option<&str> {
+    fn identity(&self) -> Option<String> {
         if let Some(id) = self.extensions().get::<IdentityBox>() {
-            return id.0.identity();
+            return id.0.identity().map(|s| s.to_owned());
         }
         None
     }
 
-    fn remember(&mut self, identity: String) {
-        if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
-            return id.0.remember(identity);
+    fn remember(&self, identity: String) {
+        if let Some(mut id) = self.extensions_mut().get_mut::<IdentityBox>() {
+            return id.0.as_mut().remember(identity);
         }
     }
 
-    fn forget(&mut self) {
-        if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
+    fn forget(&self) {
+        if let Some(mut id) = self.extensions_mut().get_mut::<IdentityBox>() {
             return id.0.forget();
         }
     }
@@ -145,7 +147,7 @@ pub trait IdentityPolicy<S>: Sized + 'static {
     type Future: Future<Item = Self::Identity, Error = Error>;
 
     /// Parse the session from request and load data from a service identity.
-    fn from_request(&self, request: &mut HttpRequest<S>) -> Self::Future;
+    fn from_request(&self, request: &HttpRequest<S>) -> Self::Future;
 }
 
 /// Request identity middleware
@@ -178,27 +180,21 @@ impl<T> IdentityService<T> {
 struct IdentityBox(Box<Identity>);
 
 impl<S: 'static, T: IdentityPolicy<S>> Middleware<S> for IdentityService<T> {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
-        let mut req = req.clone();
-
-        let fut = self
-            .backend
-            .from_request(&mut req)
-            .then(move |res| match res {
-                Ok(id) => {
-                    req.extensions_mut().insert(IdentityBox(Box::new(id)));
-                    FutOk(None)
-                }
-                Err(err) => FutErr(err),
-            });
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
+        let req = req.clone();
+        let fut = self.backend.from_request(&req).then(move |res| match res {
+            Ok(id) => {
+                req.extensions_mut().insert(IdentityBox(Box::new(id)));
+                FutOk(None)
+            }
+            Err(err) => FutErr(err),
+        });
         Ok(Started::Future(Box::new(fut)))
     }
 
-    fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
-    ) -> Result<Response> {
-        if let Some(mut id) = req.extensions_mut().remove::<IdentityBox>() {
-            id.0.write(resp)
+    fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+        if let Some(ref mut id) = req.extensions_mut().get_mut::<IdentityBox>() {
+            id.0.as_mut().write(resp)
         } else {
             Ok(Response::Done(resp))
         }
@@ -291,9 +287,9 @@ impl CookieIdentityInner {
         Ok(())
     }
 
-    fn load<S>(&self, req: &mut HttpRequest<S>) -> Option<String> {
+    fn load<S>(&self, req: &HttpRequest<S>) -> Option<String> {
         if let Ok(cookies) = req.cookies() {
-            for cookie in cookies {
+            for cookie in cookies.iter() {
                 if cookie.name() == self.name {
                     let mut jar = CookieJar::new();
                     jar.add_original(cookie.clone());
@@ -382,7 +378,7 @@ impl<S> IdentityPolicy<S> for CookieIdentityPolicy {
     type Identity = CookieIdentity;
     type Future = FutureResult<CookieIdentity, Error>;
 
-    fn from_request(&self, req: &mut HttpRequest<S>) -> Self::Future {
+    fn from_request(&self, req: &HttpRequest<S>) -> Self::Future {
         let identity = self.0.load(req);
         FutOk(CookieIdentity {
             identity,

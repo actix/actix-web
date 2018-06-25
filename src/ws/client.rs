@@ -24,7 +24,7 @@ use payload::PayloadHelper;
 
 use client::{
     ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
-    HttpResponseParserError, SendRequest, SendRequestError,
+    HttpResponseParserError, Pipeline, SendRequest, SendRequestError,
 };
 
 use super::frame::Frame;
@@ -275,7 +275,7 @@ impl Client {
 
 struct Inner {
     tx: UnboundedSender<Bytes>,
-    rx: PayloadHelper<ClientResponse>,
+    rx: PayloadHelper<Box<Pipeline>>,
     closed: bool,
 }
 
@@ -431,7 +431,7 @@ impl Future for ClientHandshake {
 
         let inner = Inner {
             tx: self.tx.take().unwrap(),
-            rx: PayloadHelper::new(resp),
+            rx: PayloadHelper::new(resp.payload()),
             closed: false,
         };
 

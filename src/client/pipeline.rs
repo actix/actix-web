@@ -1,6 +1,6 @@
 use bytes::{Bytes, BytesMut};
 use futures::sync::oneshot;
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, Stream};
 use http::header::CONTENT_ENCODING;
 use std::time::{Duration, Instant};
 use std::{io, mem};
@@ -230,7 +230,7 @@ impl Future for SendRequest {
     }
 }
 
-pub(crate) struct Pipeline {
+pub struct Pipeline {
     body: IoBody,
     body_completed: bool,
     conn: Option<Connection>,
@@ -315,7 +315,7 @@ impl Pipeline {
     }
 
     #[inline]
-    pub fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+    pub(crate) fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if self.conn.is_none() {
             return Ok(Async::Ready(None));
         }
@@ -520,5 +520,15 @@ impl Drop for Pipeline {
         if let Some(conn) = self.conn.take() {
             conn.close()
         }
+    }
+}
+
+/// Future that resolves to a complete request body.
+impl Stream for Box<Pipeline> {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        Pipeline::poll(self)
     }
 }

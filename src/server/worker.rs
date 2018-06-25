@@ -25,7 +25,7 @@ use actix::msgs::StopArbiter;
 use actix::{Actor, Arbiter, AsyncContext, Context, Handler, Message, Response};
 
 use server::channel::HttpChannel;
-use server::settings::WorkerSettings;
+use server::settings::{ServerSettings, WorkerSettings};
 use server::{HttpHandler, KeepAlive};
 
 #[derive(Message)]
@@ -68,6 +68,7 @@ where
 impl<H: HttpHandler + 'static> Worker<H> {
     pub(crate) fn new(
         h: Vec<H>, socks: Slab<SocketInfo>, keep_alive: KeepAlive,
+        settings: ServerSettings,
     ) -> Worker<H> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
@@ -76,7 +77,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
         };
 
         Worker {
-            settings: Rc::new(WorkerSettings::new(h, keep_alive)),
+            settings: Rc::new(WorkerSettings::new(h, keep_alive, settings)),
             socks,
             tcp_ka,
         }

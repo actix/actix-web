@@ -20,21 +20,21 @@ struct MiddlewareTest {
 }
 
 impl<S> middleware::Middleware<S> for MiddlewareTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+    fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started> {
         self.start
             .store(self.start.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Started::Done)
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, _: &HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         self.response
             .store(self.response.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         Ok(middleware::Response::Done(resp))
     }
 
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(&self, _: &HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         self.finish
             .store(self.finish.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
         middleware::Finished::Done
@@ -331,7 +331,7 @@ fn test_scope_middleware_async_handler() {
     assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
 
-fn index_test_middleware_async_error(_: HttpRequest) -> FutureResponse<HttpResponse> {
+fn index_test_middleware_async_error(_: &HttpRequest) -> FutureResponse<HttpResponse> {
     future::result(Err(error::ErrorBadRequest("TEST"))).responder()
 }
 
@@ -412,7 +412,7 @@ fn test_resource_middleware_async_error() {
 
         App::new().resource("/test", move |r| {
             r.middleware(mw);
-            r.h(index_test_middleware_async_error);
+            r.f(index_test_middleware_async_error);
         })
     });
 
@@ -432,7 +432,7 @@ struct MiddlewareAsyncTest {
 }
 
 impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
-    fn start(&self, _: &mut HttpRequest<S>) -> Result<middleware::Started> {
+    fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started> {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let start = Arc::clone(&self.start);
@@ -445,7 +445,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
     }
 
     fn response(
-        &self, _: &mut HttpRequest<S>, resp: HttpResponse,
+        &self, _: &HttpRequest<S>, resp: HttpResponse,
     ) -> Result<middleware::Response> {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
@@ -458,7 +458,7 @@ impl<S> middleware::Middleware<S> for MiddlewareAsyncTest {
         )))
     }
 
-    fn finish(&self, _: &mut HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
+    fn finish(&self, _: &HttpRequest<S>, _: &HttpResponse) -> middleware::Finished {
         let to = Delay::new(Instant::now() + Duration::from_millis(10));
 
         let finish = Arc::clone(&self.finish);
@@ -697,7 +697,7 @@ fn test_async_resource_middleware() {
         };
         App::new().resource("/test", move |r| {
             r.middleware(mw);
-            r.h(|_| HttpResponse::Ok());
+            r.f(|_| HttpResponse::Ok());
         })
     });
 
@@ -736,7 +736,7 @@ fn test_async_resource_middleware_multiple() {
         App::new().resource("/test", move |r| {
             r.middleware(mw1);
             r.middleware(mw2);
-            r.h(|_| HttpResponse::Ok());
+            r.f(|_| HttpResponse::Ok());
         })
     });
 
@@ -775,7 +775,7 @@ fn test_async_sync_resource_middleware_multiple() {
         App::new().resource("/test", move |r| {
             r.middleware(mw1);
             r.middleware(mw2);
-            r.h(|_| HttpResponse::Ok());
+            r.f(|_| HttpResponse::Ok());
         })
     });
 
@@ -793,7 +793,7 @@ fn test_async_sync_resource_middleware_multiple() {
 struct MiddlewareWithErr;
 
 impl<S> middleware::Middleware<S> for MiddlewareWithErr {
-    fn start(&self, _req: &mut HttpRequest<S>) -> Result<middleware::Started, Error> {
+    fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started, Error> {
         Err(ErrorInternalServerError("middleware error"))
     }
 }
@@ -801,7 +801,7 @@ impl<S> middleware::Middleware<S> for MiddlewareWithErr {
 struct MiddlewareAsyncWithErr;
 
 impl<S> middleware::Middleware<S> for MiddlewareAsyncWithErr {
-    fn start(&self, _req: &mut HttpRequest<S>) -> Result<middleware::Started, Error> {
+    fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started, Error> {
         Ok(middleware::Started::Future(Box::new(future::err(
             ErrorInternalServerError("middleware error"),
         ))))
@@ -827,7 +827,7 @@ fn test_middleware_chain_with_error() {
         App::new()
             .middleware(mw1)
             .middleware(MiddlewareWithErr)
-            .resource("/test", |r| r.h(|_| HttpResponse::Ok()))
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -857,7 +857,7 @@ fn test_middleware_async_chain_with_error() {
         App::new()
             .middleware(mw1)
             .middleware(MiddlewareAsyncWithErr)
-            .resource("/test", |r| r.h(|_| HttpResponse::Ok()))
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -888,7 +888,7 @@ fn test_scope_middleware_chain_with_error() {
             scope
                 .middleware(mw1)
                 .middleware(MiddlewareWithErr)
-                .resource("/test", |r| r.h(|_| HttpResponse::Ok()))
+                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -920,7 +920,7 @@ fn test_scope_middleware_async_chain_with_error() {
             scope
                 .middleware(mw1)
                 .middleware(MiddlewareAsyncWithErr)
-                .resource("/test", |r| r.h(|_| HttpResponse::Ok()))
+                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -951,7 +951,7 @@ fn test_resource_middleware_chain_with_error() {
         App::new().resource("/test", move |r| {
             r.middleware(mw1);
             r.middleware(MiddlewareWithErr);
-            r.h(|_| HttpResponse::Ok());
+            r.f(|_| HttpResponse::Ok());
         })
     });
 
@@ -982,7 +982,7 @@ fn test_resource_middleware_async_chain_with_error() {
         App::new().resource("/test", move |r| {
             r.middleware(mw1);
             r.middleware(MiddlewareAsyncWithErr);
-            r.h(|_| HttpResponse::Ok());
+            r.f(|_| HttpResponse::Ok());
         })
     });
 

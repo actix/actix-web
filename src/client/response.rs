@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::{fmt, str};
 
 use bytes::Bytes;
@@ -30,23 +31,33 @@ impl Default for ClientMessage {
 }
 
 /// An HTTP Client response
-pub struct ClientResponse(ClientMessage, Option<Box<Pipeline>>);
+pub struct ClientResponse(ClientMessage, RefCell<Option<Box<Pipeline>>>);
 
 impl HttpMessage for ClientResponse {
+    type Stream = Box<Pipeline>;
+
     /// Get the headers from the response.
     #[inline]
     fn headers(&self) -> &HeaderMap {
         &self.0.headers
     }
+
+    #[inline]
+    fn payload(&self) -> Box<Pipeline> {
+        self.1
+            .borrow_mut()
+            .take()
+            .expect("Payload is already consumed.")
+    }
 }
 
 impl ClientResponse {
     pub(crate) fn new(msg: ClientMessage) -> ClientResponse {
-        ClientResponse(msg, None)
+        ClientResponse(msg, RefCell::new(None))
     }
 
     pub(crate) fn set_pipeline(&mut self, pl: Box<Pipeline>) {
-        self.1 = Some(pl);
+        *self.1.borrow_mut() = Some(pl);
     }
 
     /// Get the HTTP version of this response.
@@ -92,20 +103,6 @@ impl fmt::Debug for ClientResponse {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
-    }
-}
-
-/// Future that resolves to a complete request body.
-impl Stream for ClientResponse {
-    type Item = Bytes;
-    type Error = PayloadError;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(ref mut pl) = self.1 {
-            pl.poll()
-        } else {
-            Ok(Async::Ready(None))
-        }
     }
 }
 

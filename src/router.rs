@@ -4,29 +4,133 @@ use std::rc::Rc;
 
 use regex::{escape, Regex};
 use smallvec::SmallVec;
+use url::Url;
 
 use error::UrlGenerationError;
 use httprequest::HttpRequest;
-use param::ParamItem;
+use param::{ParamItem, Params};
 use resource::ResourceHandler;
-use server::ServerSettings;
+use server::Request;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) enum RouterResource {
+    Notset,
+    Normal(u16),
+}
 
 /// Interface for application router.
 pub struct Router(Rc<Inner>);
+
+#[derive(Clone)]
+pub struct RouteInfo {
+    router: Rc<Inner>,
+    resource: RouterResource,
+    prefix: u16,
+    params: Params,
+}
+
+impl RouteInfo {
+    /// This method returns reference to matched `Resource` object.
+    #[inline]
+    pub fn resource(&self) -> Option<&Resource> {
+        if let RouterResource::Normal(idx) = self.resource {
+            Some(&self.router.patterns[idx as usize])
+        } else {
+            None
+        }
+    }
+
+    /// Get a reference to the Params object.
+    ///
+    /// Params is a container for url parameters.
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment.
+    #[inline]
+    pub fn match_info(&self) -> &Params {
+        &self.params
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn prefix_len(&self) -> u16 {
+        self.prefix
+    }
+
+    #[inline]
+    pub(crate) fn merge(&self, mut params: Params) -> RouteInfo {
+        let mut p = self.params.clone();
+        p.set_tail(params.tail);
+        for item in &params.segments {
+            p.add(item.0.clone(), item.1.clone());
+        }
+
+        RouteInfo {
+            params: p,
+            router: self.router.clone(),
+            resource: self.resource,
+            prefix: self.prefix,
+        }
+    }
+
+    /// Generate url for named resource
+    ///
+    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
+    /// url_for) for detailed information.
+    pub fn url_for<U, I>(
+        &self, req: &Request, name: &str, elements: U,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        U: IntoIterator<Item = I>,
+        I: AsRef<str>,
+    {
+        if let Some(pattern) = self.router.named.get(name) {
+            let path = pattern.0.resource_path(elements, &self.router.prefix)?;
+            if path.starts_with('/') {
+                let conn = req.connection_info();
+                Ok(Url::parse(&format!(
+                    "{}://{}{}",
+                    conn.scheme(),
+                    conn.host(),
+                    path
+                ))?)
+            } else {
+                Ok(Url::parse(&path)?)
+            }
+        } else {
+            Err(UrlGenerationError::ResourceNotFound)
+        }
+    }
+
+    /// Check if application contains matching route.
+    ///
+    /// This method does not take `prefix` into account.
+    /// For example if prefix is `/test` and router contains route `/name`,
+    /// following path would be recognizable `/test/name` but `has_route()` call
+    /// would return `false`.
+    pub fn has_route(&self, path: &str) -> bool {
+        let path = if path.is_empty() { "/" } else { path };
+
+        for pattern in &self.router.patterns {
+            if pattern.is_match(path) {
+                return true;
+            }
+        }
+        false
+    }
+}
 
 struct Inner {
     prefix: String,
     prefix_len: usize,
     named: HashMap<String, (Resource, bool)>,
     patterns: Vec<Resource>,
-    srv: ServerSettings,
 }
 
 impl Router {
     /// Create new router
     pub fn new<S>(
-        prefix: &str, settings: ServerSettings,
-        map: Vec<(Resource, Option<ResourceHandler<S>>)>,
+        prefix: &str, map: Vec<(Resource, Option<ResourceHandler<S>>)>,
     ) -> (Router, Vec<ResourceHandler<S>>) {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
@@ -52,7 +156,6 @@ impl Router {
                 prefix_len,
                 named,
                 patterns,
-                srv: settings,
             })),
             resources,
         )
@@ -64,66 +167,60 @@ impl Router {
         &self.0.prefix
     }
 
-    /// Server settings
-    #[inline]
-    pub fn server_settings(&self) -> &ServerSettings {
-        &self.0.srv
-    }
-
     pub(crate) fn get_resource(&self, idx: usize) -> &Resource {
         &self.0.patterns[idx]
     }
 
+    pub(crate) fn route_info(&self, req: &Request, prefix: u16) -> RouteInfo {
+        let mut params = Params::with_url(req.url());
+        params.set_tail(prefix);
+
+        RouteInfo {
+            params,
+            router: self.0.clone(),
+            resource: RouterResource::Notset,
+            prefix: 0,
+        }
+    }
+
+    pub(crate) fn route_info_params(&self, params: Params, prefix: u16) -> RouteInfo {
+        RouteInfo {
+            params,
+            prefix,
+            router: self.0.clone(),
+            resource: RouterResource::Notset,
+        }
+    }
+
+    pub(crate) fn default_route_info(&self, prefix: u16) -> RouteInfo {
+        RouteInfo {
+            prefix,
+            router: self.0.clone(),
+            resource: RouterResource::Notset,
+            params: Params::new(),
+        }
+    }
+
     /// Query for matched resource
-    pub fn recognize<S>(&self, req: &mut HttpRequest<S>) -> Option<usize> {
+    pub fn recognize(&self, req: &Request) -> Option<(usize, RouteInfo)> {
         if self.0.prefix_len > req.path().len() {
             return None;
         }
         for (idx, pattern) in self.0.patterns.iter().enumerate() {
-            if pattern.match_with_params(req, self.0.prefix_len, true) {
-                let url = req.url().clone();
-                req.match_info_mut().set_url(url);
-                req.set_resource(idx);
-                req.set_prefix_len(self.0.prefix_len as u16);
-                return Some(idx);
+            if let Some(params) = pattern.match_with_params(req, self.0.prefix_len, true)
+            {
+                return Some((
+                    idx,
+                    RouteInfo {
+                        params,
+                        router: self.0.clone(),
+                        resource: RouterResource::Normal(idx as u16),
+                        prefix: self.0.prefix_len as u16,
+                    },
+                ));
             }
         }
         None
-    }
-
-    /// Check if application contains matching route.
-    ///
-    /// This method does not take `prefix` into account.
-    /// For example if prefix is `/test` and router contains route `/name`,
-    /// following path would be recognizable `/test/name` but `has_route()` call
-    /// would return `false`.
-    pub fn has_route(&self, path: &str) -> bool {
-        let path = if path.is_empty() { "/" } else { path };
-
-        for pattern in &self.0.patterns {
-            if pattern.is_match(path) {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Build named resource path.
-    ///
-    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
-    /// url_for) for detailed information.
-    pub fn resource_path<U, I>(
-        &self, name: &str, elements: U,
-    ) -> Result<String, UrlGenerationError>
-    where
-        U: IntoIterator<Item = I>,
-        I: AsRef<str>,
-    {
-        if let Some(pattern) = self.0.named.get(name) {
-            pattern.0.resource_path(self, elements)
-        } else {
-            Err(UrlGenerationError::ResourceNotFound)
-        }
     }
 }
 
@@ -160,7 +257,7 @@ pub enum ResourceType {
 }
 
 /// Resource type describes an entry in resources table
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Resource {
     tp: PatternType,
     rtp: ResourceType,
@@ -208,9 +305,7 @@ impl Resource {
             // actix creates one router per thread
             let names = re
                 .capture_names()
-                .filter_map(|name| {
-                    name.map(|name| Rc::new(name.to_owned()))
-                })
+                .filter_map(|name| name.map(|name| Rc::new(name.to_owned())))
                 .collect();
             PatternType::Dynamic(re, names, len)
         } else if for_prefix {
@@ -253,127 +348,128 @@ impl Resource {
     }
 
     /// Are the given path and parameters a match against this resource?
-    pub fn match_with_params<S>(
-        &self, req: &mut HttpRequest<S>, plen: usize, insert: bool,
-    ) -> bool {
-        let mut segments: SmallVec<[ParamItem; 5]> = SmallVec::new();
-
-        let names = {
-            let path = &req.path()[plen..];
-            if insert {
-                if path.is_empty() {
-                    "/"
-                } else {
-                    path
-                }
+    pub fn match_with_params(
+        &self, req: &Request, plen: usize, insert: bool,
+    ) -> Option<Params> {
+        let path = &req.path()[plen..];
+        if insert {
+            if path.is_empty() {
+                "/"
             } else {
                 path
-            };
-
-            match self.tp {
-                PatternType::Static(ref s) => return s == path,
-                PatternType::Dynamic(ref re, ref names, _) => {
-                    if let Some(captures) = re.captures(path) {
-                        let mut passed = false;
-                        for capture in captures.iter() {
-                            if let Some(ref m) = capture {
-                                if !passed {
-                                    passed = true;
-                                    continue;
-                                }
-                                segments.push(ParamItem::UrlSegment(
-                                    (plen + m.start()) as u16,
-                                    (plen + m.end()) as u16,
-                                ));
-                            }
-                        }
-                        names
-                    } else {
-                        return false;
-                    }
-                }
-                PatternType::Prefix(ref s) => return path.starts_with(s),
             }
+        } else {
+            path
         };
 
-        let len = req.path().len();
-        let params = req.match_info_mut();
-        params.set_tail(len as u16);
-        for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx].clone(), segment);
+        match self.tp {
+            PatternType::Static(ref s) => if s != path {
+                None
+            } else {
+                Some(Params::with_url(req.url()))
+            },
+            PatternType::Dynamic(ref re, ref names, _) => {
+                if let Some(captures) = re.captures(path) {
+                    let mut params = Params::with_url(req.url());
+                    let mut idx = 0;
+                    let mut passed = false;
+                    for capture in captures.iter() {
+                        if let Some(ref m) = capture {
+                            if !passed {
+                                passed = true;
+                                continue;
+                            }
+                            params.add(
+                                names[idx].clone(),
+                                ParamItem::UrlSegment(
+                                    (plen + m.start()) as u16,
+                                    (plen + m.end()) as u16,
+                                ),
+                            );
+                            idx += 1;
+                        }
+                    }
+                    params.set_tail(req.path().len() as u16);
+                    Some(params)
+                } else {
+                    None
+                }
+            }
+            PatternType::Prefix(ref s) => if !path.starts_with(s) {
+                None
+            } else {
+                Some(Params::with_url(req.url()))
+            },
         }
-        true
     }
 
     /// Is the given path a prefix match and do the parameters match against this resource?
-    pub fn match_prefix_with_params<S>(
-        &self, req: &mut HttpRequest<S>, plen: usize,
-    ) -> Option<usize> {
-        let mut segments: SmallVec<[ParamItem; 5]> = SmallVec::new();
+    pub fn match_prefix_with_params(
+        &self, req: &Request, plen: usize,
+    ) -> Option<Params> {
+        let path = &req.path()[plen..];
+        let path = if path.is_empty() { "/" } else { path };
 
-        let (names, tail_len) = {
-            let path = &req.path()[plen..];
-            let path = if path.is_empty() { "/" } else { path };
+        match self.tp {
+            PatternType::Static(ref s) => if s == path {
+                Some(Params::with_url(req.url()))
+            } else {
+                None
+            },
+            PatternType::Dynamic(ref re, ref names, len) => {
+                if let Some(captures) = re.captures(path) {
+                    let mut params = Params::with_url(req.url());
+                    let mut pos = 0;
+                    let mut passed = false;
+                    let mut idx = 0;
+                    for capture in captures.iter() {
+                        if let Some(ref m) = capture {
+                            if !passed {
+                                passed = true;
+                                continue;
+                            }
 
-            match self.tp {
-                PatternType::Static(ref s) => if s == path {
-                    return Some(s.len());
-                } else {
-                    return None;
-                },
-                PatternType::Dynamic(ref re, ref names, len) => {
-                    if let Some(captures) = re.captures(path) {
-                        let mut pos = 0;
-                        let mut passed = false;
-                        for capture in captures.iter() {
-                            if let Some(ref m) = capture {
-                                if !passed {
-                                    passed = true;
-                                    continue;
-                                }
-
-                                segments.push(ParamItem::UrlSegment(
+                            params.add(
+                                names[idx].clone(),
+                                ParamItem::UrlSegment(
                                     (plen + m.start()) as u16,
                                     (plen + m.end()) as u16,
-                                ));
-                                pos = m.end();
-                            }
+                                ),
+                            );
+                            idx += 1;
+                            pos = m.end();
                         }
-                        (names, pos + len)
-                    } else {
-                        return None;
                     }
-                }
-                PatternType::Prefix(ref s) => {
-                    return if path == s {
-                        Some(s.len())
-                    } else if path.starts_with(s)
-                        && (s.ends_with('/')
-                            || path.split_at(s.len()).1.starts_with('/'))
-                    {
-                        if s.ends_with('/') {
-                            Some(s.len() - 1)
-                        } else {
-                            Some(s.len())
-                        }
-                    } else {
-                        None
-                    }
+                    params.set_tail((plen + pos + len) as u16);
+                    Some(params)
+                } else {
+                    None
                 }
             }
-        };
-
-        let params = req.match_info_mut();
-        params.set_tail(tail_len as u16);
-        for (idx, segment) in segments.into_iter().enumerate() {
-            params.add(names[idx].clone(), segment);
+            PatternType::Prefix(ref s) => {
+                let len = if path == s {
+                    s.len()
+                } else if path.starts_with(s)
+                    && (s.ends_with('/') || path.split_at(s.len()).1.starts_with('/'))
+                {
+                    if s.ends_with('/') {
+                        s.len() - 1
+                    } else {
+                        s.len()
+                    }
+                } else {
+                    return None;
+                };
+                let mut params = Params::with_url(req.url());
+                params.set_tail((plen + len) as u16);
+                Some(params)
+            }
         }
-        Some(tail_len)
     }
 
     /// Build resource path.
     pub fn resource_path<U, I>(
-        &self, router: &Router, elements: U,
+        &self, elements: U, prefix: &str,
     ) -> Result<String, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
@@ -402,7 +498,6 @@ impl Resource {
         };
 
         if self.rtp != ResourceType::External {
-            let prefix = router.prefix();
             if prefix.ends_with('/') {
                 if path.starts_with('/') {
                     path.insert_str(0, &prefix[..prefix.len() - 1]);
@@ -546,44 +641,57 @@ mod tests {
                 Some(ResourceHandler::default()),
             ),
         ];
-        let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
+        let (rec, _) = Router::new::<()>("", routes);
 
-        let mut req = TestRequest::with_uri("/name").finish();
-        assert_eq!(rec.recognize(&mut req), Some(0));
+        let req = TestRequest::with_uri("/name").finish();
+        assert_eq!(rec.recognize(&req).unwrap().0, 0);
         assert!(req.match_info().is_empty());
 
-        let mut req = TestRequest::with_uri("/name/value").finish();
-        assert_eq!(rec.recognize(&mut req), Some(1));
+        let req = TestRequest::with_uri("/name/value").finish();
+        let info = rec.recognize(&req).unwrap().1;
+        let req = req.with_route_info(info);
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
-        let mut req = TestRequest::with_uri("/name/value2/index.html").finish();
-        assert_eq!(rec.recognize(&mut req), Some(2));
+        let req = TestRequest::with_uri("/name/value2/index.html").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 2);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("val").unwrap(), "value2");
 
-        let mut req = TestRequest::with_uri("/file/file.gz").finish();
-        assert_eq!(rec.recognize(&mut req), Some(3));
+        let req = TestRequest::with_uri("/file/file.gz").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 3);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("file").unwrap(), "file");
         assert_eq!(req.match_info().get("ext").unwrap(), "gz");
 
-        let mut req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
-        assert_eq!(rec.recognize(&mut req), Some(4));
+        let req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 4);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("val").unwrap(), "test");
         assert_eq!(req.match_info().get("val2").unwrap(), "ttt");
 
-        let mut req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
-        assert_eq!(rec.recognize(&mut req), Some(5));
+        let req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 5);
+        let req = req.with_route_info(info.1);
         assert_eq!(
             req.match_info().get("tail").unwrap(),
             "blah-blah/index.html"
         );
 
-        let mut req = TestRequest::with_uri("/test2/index.html").finish();
-        assert_eq!(rec.recognize(&mut req), Some(6));
+        let req = TestRequest::with_uri("/test2/index.html").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 6);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("test").unwrap(), "index");
 
-        let mut req = TestRequest::with_uri("/bbb/index.html").finish();
-        assert_eq!(rec.recognize(&mut req), Some(7));
+        let req = TestRequest::with_uri("/bbb/index.html").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 7);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("test").unwrap(), "bbb");
     }
 
@@ -599,13 +707,13 @@ mod tests {
                 Some(ResourceHandler::default()),
             ),
         ];
-        let (rec, _) = Router::new::<()>("", ServerSettings::default(), routes);
+        let (rec, _) = Router::new::<()>("", routes);
 
-        let mut req = TestRequest::with_uri("/index.json").finish();
-        assert_eq!(rec.recognize(&mut req), Some(0));
+        let req = TestRequest::with_uri("/index.json").finish();
+        assert_eq!(rec.recognize(&req).unwrap().0, 0);
 
-        let mut req = TestRequest::with_uri("/test.json").finish();
-        assert_eq!(rec.recognize(&mut req), Some(1));
+        let req = TestRequest::with_uri("/test.json").finish();
+        assert_eq!(rec.recognize(&req).unwrap().0, 1);
     }
 
     #[test]
@@ -617,16 +725,18 @@ mod tests {
                 Some(ResourceHandler::default()),
             ),
         ];
-        let (rec, _) = Router::new::<()>("/test", ServerSettings::default(), routes);
+        let (rec, _) = Router::new::<()>("/test", routes);
 
-        let mut req = TestRequest::with_uri("/name").finish();
-        assert!(rec.recognize(&mut req).is_none());
+        let req = TestRequest::with_uri("/name").finish();
+        assert!(rec.recognize(&req).is_none());
 
-        let mut req = TestRequest::with_uri("/test/name").finish();
-        assert_eq!(rec.recognize(&mut req), Some(0));
+        let req = TestRequest::with_uri("/test/name").finish();
+        assert_eq!(rec.recognize(&req).unwrap().0, 0);
 
-        let mut req = TestRequest::with_uri("/test/name/value").finish();
-        assert_eq!(rec.recognize(&mut req), Some(1));
+        let req = TestRequest::with_uri("/test/name/value").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 1);
+        let req = req.with_route_info(info.1);
         assert_eq!(req.match_info().get("val").unwrap(), "value");
         assert_eq!(&req.match_info()["val"], "value");
 
@@ -638,16 +748,18 @@ mod tests {
                 Some(ResourceHandler::default()),
             ),
         ];
-        let (rec, _) = Router::new::<()>("/test2", ServerSettings::default(), routes);
+        let (rec, _) = Router::new::<()>("/test2", routes);
 
-        let mut req = TestRequest::with_uri("/name").finish();
-        assert!(rec.recognize(&mut req).is_none());
-        let mut req = TestRequest::with_uri("/test2/name").finish();
-        assert_eq!(rec.recognize(&mut req), Some(0));
-        let mut req = TestRequest::with_uri("/test2/name-test").finish();
-        assert!(rec.recognize(&mut req).is_none());
-        let mut req = TestRequest::with_uri("/test2/name/ttt").finish();
-        assert_eq!(rec.recognize(&mut req), Some(1));
+        let req = TestRequest::with_uri("/name").finish();
+        assert!(rec.recognize(&req).is_none());
+        let req = TestRequest::with_uri("/test2/name").finish();
+        assert_eq!(rec.recognize(&req).unwrap().0, 0);
+        let req = TestRequest::with_uri("/test2/name-test").finish();
+        assert!(rec.recognize(&req).is_none());
+        let req = TestRequest::with_uri("/test2/name/ttt").finish();
+        let info = rec.recognize(&req).unwrap();
+        assert_eq!(info.0, 1);
+        let req = req.with_route_info(info.1);
         assert_eq!(&req.match_info()["val"], "ttt");
     }
 
@@ -681,29 +793,23 @@ mod tests {
         assert!(!re.is_match("/user/2345/"));
         assert!(!re.is_match("/user/2345/sdg"));
 
-        let mut req = TestRequest::with_uri("/user/profile").finish();
-        let url = req.url().clone();
-        req.match_info_mut().set_url(url);
-        assert!(re.match_with_params(&mut req, 0, true));
-        assert_eq!(req.match_info().get("id").unwrap(), "profile");
+        let req = TestRequest::with_uri("/user/profile").finish();
+        let info = re.match_with_params(&req, 0, true).unwrap();
+        assert_eq!(info.get("id").unwrap(), "profile");
 
-        let mut req = TestRequest::with_uri("/user/1245125").finish();
-        let url = req.url().clone();
-        req.match_info_mut().set_url(url);
-        assert!(re.match_with_params(&mut req, 0, true));
-        assert_eq!(req.match_info().get("id").unwrap(), "1245125");
+        let req = TestRequest::with_uri("/user/1245125").finish();
+        let info = re.match_with_params(&req, 0, true).unwrap();
+        assert_eq!(info.get("id").unwrap(), "1245125");
 
         let re = Resource::new("test", "/v{version}/resource/{id}");
         assert!(re.is_match("/v1/resource/320120"));
         assert!(!re.is_match("/v/resource/1"));
         assert!(!re.is_match("/resource"));
 
-        let mut req = TestRequest::with_uri("/v151/resource/adahg32").finish();
-        let url = req.url().clone();
-        req.match_info_mut().set_url(url);
-        assert!(re.match_with_params(&mut req, 0, true));
-        assert_eq!(req.match_info().get("version").unwrap(), "151");
-        assert_eq!(req.match_info().get("id").unwrap(), "adahg32");
+        let req = TestRequest::with_uri("/v151/resource/adahg32").finish();
+        let info = re.match_with_params(&req, 0, true).unwrap();
+        assert_eq!(info.get("version").unwrap(), "151");
+        assert_eq!(info.get("id").unwrap(), "adahg32");
     }
 
     #[test]
@@ -728,18 +834,15 @@ mod tests {
         assert!(re.is_match("/name/gs"));
         assert!(!re.is_match("/name"));
 
-        let mut req = TestRequest::with_uri("/test2/").finish();
-        let url = req.url().clone();
-        req.match_info_mut().set_url(url);
-        assert!(re.match_with_params(&mut req, 0, true));
-        assert_eq!(&req.match_info()["name"], "test2");
+        let req = TestRequest::with_uri("/test2/").finish();
+        let info = re.match_with_params(&req, 0, true).unwrap();
+        assert_eq!(&info["name"], "test2");
+        assert_eq!(&info[0], "test2");
 
-        let mut req =
-            TestRequest::with_uri("/test2/subpath1/subpath2/index.html").finish();
-        let url = req.url().clone();
-        req.match_info_mut().set_url(url);
-        assert!(re.match_with_params(&mut req, 0, true));
-        assert_eq!(&req.match_info()["name"], "test2");
+        let req = TestRequest::with_uri("/test2/subpath1/subpath2/index.html").finish();
+        let info = re.match_with_params(&req, 0, true).unwrap();
+        assert_eq!(&info["name"], "test2");
+        assert_eq!(&info[0], "test2");
     }
 
     #[test]
@@ -754,18 +857,18 @@ mod tests {
                 Some(ResourceHandler::default()),
             ),
         ];
-        let (router, _) = Router::new::<()>("", ServerSettings::default(), routes);
+        let (router, _) = Router::new::<()>("", routes);
 
-        let mut req =
-            TestRequest::with_uri("/index.json").finish_with_router(router.clone());
-        assert_eq!(router.recognize(&mut req), Some(0));
-        let resource = req.resource().unwrap();
+        let req = TestRequest::with_uri("/index.json").finish();
+        assert_eq!(router.recognize(&req).unwrap().0, 0);
+        let info = router.recognize(&req).unwrap().1;
+        let resource = info.resource().unwrap();
         assert_eq!(resource.name(), "r1");
 
-        let mut req =
-            TestRequest::with_uri("/test.json").finish_with_router(router.clone());
-        assert_eq!(router.recognize(&mut req), Some(1));
-        let resource = req.resource().unwrap();
+        let req = TestRequest::with_uri("/test.json").finish();
+        assert_eq!(router.recognize(&req).unwrap().0, 1);
+        let info = router.recognize(&req).unwrap().1;
+        let resource = info.resource().unwrap();
         assert_eq!(resource.name(), "r2");
     }
 }

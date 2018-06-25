@@ -4,6 +4,7 @@ use futures::Future;
 use error::{Error, Result};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
+use server::Request;
 
 mod logger;
 
@@ -51,20 +52,18 @@ pub enum Finished {
 pub trait Middleware<S>: 'static {
     /// Method is called when request is ready. It may return
     /// future, which should resolve before next middleware get called.
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
         Ok(Started::Done)
     }
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
-    fn response(
-        &self, req: &mut HttpRequest<S>, resp: HttpResponse,
-    ) -> Result<Response> {
+    fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 
     /// Method is called after body stream get sent to peer.
-    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
         Finished::Done
     }
 }

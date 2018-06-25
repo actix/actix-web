@@ -74,9 +74,7 @@ impl DefaultHeaders {
 }
 
 impl<S> Middleware<S> for DefaultHeaders {
-    fn response(
-        &self, _: &mut HttpRequest<S>, mut resp: HttpResponse,
-    ) -> Result<Response> {
+    fn response(&self, _: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
         for (key, value) in self.headers.iter() {
             if !resp.headers().contains_key(key) {
                 resp.headers_mut().insert(key, value.clone());
@@ -97,22 +95,23 @@ impl<S> Middleware<S> for DefaultHeaders {
 mod tests {
     use super::*;
     use http::header::CONTENT_TYPE;
+    use test::TestRequest;
 
     #[test]
     fn test_default_headers() {
         let mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
 
-        let mut req = HttpRequest::default();
+        let req = TestRequest::default().finish();
 
         let resp = HttpResponse::Ok().finish();
-        let resp = match mw.response(&mut req, resp) {
+        let resp = match mw.response(&req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),
         };
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let resp = HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish();
-        let resp = match mw.response(&mut req, resp) {
+        let resp = match mw.response(&req, resp) {
             Ok(Response::Done(resp)) => resp,
             _ => panic!(),
         };

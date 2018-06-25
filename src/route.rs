@@ -16,6 +16,7 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
+use server::Request;
 use with::{With, WithAsync};
 
 /// Resource route definition
@@ -31,16 +32,17 @@ impl<S: 'static> Default for Route<S> {
     fn default() -> Route<S> {
         Route {
             preds: Vec::new(),
-            handler: InnerHandler::new(|_| HttpResponse::new(StatusCode::NOT_FOUND)),
+            handler: InnerHandler::new(|_: &_| HttpResponse::new(StatusCode::NOT_FOUND)),
         }
     }
 }
 
 impl<S: 'static> Route<S> {
     #[inline]
-    pub(crate) fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    pub(crate) fn check(&self, req: &HttpRequest<S>) -> bool {
+        let state = req.state();
         for pred in &self.preds {
-            if !pred.check(req) {
+            if !pred.check(req, state) {
                 return false;
             }
         }
@@ -48,7 +50,7 @@ impl<S: 'static> Route<S> {
     }
 
     #[inline]
-    pub(crate) fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    pub(crate) fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
         self.handler.handle(req)
     }
 
@@ -89,7 +91,7 @@ impl<S: 'static> Route<S> {
     /// during route configuration, so it does not return reference to self.
     pub fn f<F, R>(&mut self, handler: F)
     where
-        F: Fn(HttpRequest<S>) -> R + 'static,
+        F: Fn(&HttpRequest<S>) -> R + 'static,
         R: Responder + 'static,
     {
         self.handler = InnerHandler::new(handler);
@@ -98,7 +100,7 @@ impl<S: 'static> Route<S> {
     /// Set async handler function.
     pub fn a<H, R, F, E>(&mut self, handler: H)
     where
-        H: Fn(HttpRequest<S>) -> F + 'static,
+        H: Fn(&HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,
         R: Responder + 'static,
         E: Into<Error> + 'static,
@@ -307,7 +309,7 @@ impl<S: 'static> InnerHandler<S> {
     #[inline]
     fn async<H, R, F, E>(h: H) -> Self
     where
-        H: Fn(HttpRequest<S>) -> F + 'static,
+        H: Fn(&HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,
         R: Responder + 'static,
         E: Into<Error> + 'static,
@@ -316,7 +318,7 @@ impl<S: 'static> InnerHandler<S> {
     }
 
     #[inline]
-    pub fn handle(&self, req: HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    pub fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
         self.0.handle(req)
     }
 }
@@ -407,24 +409,27 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 impl<S: 'static> StartMiddlewares<S> {
     fn init(info: &mut ComposeInfo<S>) -> ComposeState<S> {
         let len = info.mws.len();
+
         loop {
             if info.count == len {
-                let reply = info.handler.handle(info.req.clone());
+                let reply = info.handler.handle(&info.req);
                 return WaitingResponse::init(info, reply);
             } else {
-                let state = info.mws[info.count].start(&mut info.req);
-                match state {
+                let result = info.mws[info.count].start(&info.req);
+                match result {
                     Ok(MiddlewareStarted::Done) => info.count += 1,
                     Ok(MiddlewareStarted::Response(resp)) => {
-                        return RunMiddlewares::init(info, resp)
+                        return RunMiddlewares::init(info, resp);
                     }
                     Ok(MiddlewareStarted::Future(fut)) => {
                         return ComposeState::Starting(StartMiddlewares {
                             fut: Some(fut),
                             _s: PhantomData,
-                        })
+                        });
                     }
-                    Err(err) => return RunMiddlewares::init(info, err.into()),
+                    Err(err) => {
+                        return RunMiddlewares::init(info, err.into());
+                    }
                 }
             }
         }
@@ -432,9 +437,12 @@ impl<S: 'static> StartMiddlewares<S> {
 
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
         let len = info.mws.len();
+
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) => return None,
+                Ok(Async::NotReady) => {
+                    return None;
+                }
                 Ok(Async::Ready(resp)) => {
                     info.count += 1;
                     if let Some(resp) = resp {
@@ -442,11 +450,11 @@ impl<S: 'static> StartMiddlewares<S> {
                     }
                     loop {
                         if info.count == len {
-                            let reply = info.handler.handle(info.req.clone());
+                            let reply = info.handler.handle(&info.req);
                             return Some(WaitingResponse::init(info, reply));
                         } else {
-                            let state = info.mws[info.count].start(&mut info.req);
-                            match state {
+                            let result = info.mws[info.count].start(&info.req);
+                            match result {
                                 Ok(MiddlewareStarted::Done) => info.count += 1,
                                 Ok(MiddlewareStarted::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, resp));
@@ -456,21 +464,25 @@ impl<S: 'static> StartMiddlewares<S> {
                                     continue 'outer;
                                 }
                                 Err(err) => {
-                                    return Some(RunMiddlewares::init(info, err.into()))
+                                    return Some(RunMiddlewares::init(info, err.into()));
                                 }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(RunMiddlewares::init(info, err.into())),
+                Err(err) => {
+                    return Some(RunMiddlewares::init(info, err.into()));
+                }
             }
         }
     }
 }
 
+type HandlerFuture = Future<Item = HttpResponse, Error = Error>;
+
 // waiting for response
 struct WaitingResponse<S> {
-    fut: Box<Future<Item = HttpResponse, Error = Error>>,
+    fut: Box<HandlerFuture>,
     _s: PhantomData<S>,
 }
 
@@ -480,8 +492,8 @@ impl<S: 'static> WaitingResponse<S> {
         info: &mut ComposeInfo<S>, reply: AsyncResult<HttpResponse>,
     ) -> ComposeState<S> {
         match reply.into() {
-            AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
             AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, resp),
+            AsyncResultItem::Err(err) => RunMiddlewares::init(info, err.into()),
             AsyncResultItem::Future(fut) => ComposeState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
@@ -492,7 +504,7 @@ impl<S: 'static> WaitingResponse<S> {
     fn poll(&mut self, info: &mut ComposeInfo<S>) -> Option<ComposeState<S>> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
-            Ok(Async::Ready(response)) => Some(RunMiddlewares::init(info, response)),
+            Ok(Async::Ready(resp)) => Some(RunMiddlewares::init(info, resp)),
             Err(err) => Some(RunMiddlewares::init(info, err.into())),
         }
     }
@@ -511,7 +523,7 @@ impl<S: 'static> RunMiddlewares<S> {
         let len = info.mws.len();
 
         loop {
-            let state = info.mws[curr].response(&mut info.req, resp);
+            let state = info.mws[curr].response(&info.req, resp);
             resp = match state {
                 Err(err) => {
                     info.count = curr + 1;
@@ -530,7 +542,7 @@ impl<S: 'static> RunMiddlewares<S> {
                         curr,
                         fut: Some(fut),
                         _s: PhantomData,
-                    })
+                    });
                 }
             };
         }
@@ -554,7 +566,7 @@ impl<S: 'static> RunMiddlewares<S> {
                 if self.curr == len {
                     return Some(FinishingMiddlewares::init(info, resp));
                 } else {
-                    let state = info.mws[self.curr].response(&mut info.req, resp);
+                    let state = info.mws[self.curr].response(&info.req, resp);
                     match state {
                         Err(err) => {
                             return Some(FinishingMiddlewares::init(info, err.into()))
@@ -625,7 +637,7 @@ impl<S: 'static> FinishingMiddlewares<S> {
             info.count -= 1;
 
             let state = info.mws[info.count as usize]
-                .finish(&mut info.req, self.resp.as_ref().unwrap());
+                .finish(&info.req, self.resp.as_ref().unwrap());
             match state {
                 MiddlewareFinished::Done => {
                     if info.count == 0 {

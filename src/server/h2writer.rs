@@ -9,15 +9,15 @@ use std::rc::Rc;
 use std::{cmp, io};
 
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{HttpTryFrom, Version};
+use http::{HttpTryFrom, Method, Version};
 
 use super::helpers;
-use super::output::Output;
+use super::message::Request;
+use super::output::{Output, ResponseInfo};
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
-use httprequest::HttpInnerMessage;
 use httpresponse::HttpResponse;
 
 const CHUNK_SIZE: usize = 16_384;
@@ -75,8 +75,8 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     #[inline]
-    fn set_date(&self, dst: &mut BytesMut) {
-        self.settings.set_date(dst, true)
+    fn set_date(&mut self) {
+        self.settings.set_date(self.buffer.as_mut(), true)
     }
 
     #[inline]
@@ -85,12 +85,12 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     fn start(
-        &mut self, req: &mut HttpInnerMessage, msg: &mut HttpResponse,
-        encoding: ContentEncoding,
+        &mut self, req: &Request, msg: &mut HttpResponse, encoding: ContentEncoding,
     ) -> io::Result<WriterState> {
         // prepare response
         self.flags.insert(Flags::STARTED);
-        self.buffer.for_server(req, msg, encoding);
+        let mut info = ResponseInfo::new(req.inner.method == Method::HEAD);
+        self.buffer.for_server(&mut info, &req.inner, msg, encoding);
 
         // http2 specific
         msg.headers_mut().remove(CONNECTION);
