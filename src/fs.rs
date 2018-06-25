@@ -447,6 +447,7 @@ impl Stream for ChunkedReadFile {
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
+                unsafe { buf.set_len(nbytes); }
                 Ok((file, Bytes::from(buf)))
             }));
             self.poll()
