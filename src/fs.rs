@@ -440,11 +440,14 @@ impl Stream for ChunkedReadFile {
                 let max_bytes: usize;
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
+                // safe because memory is initialized/overwritten immediately
+                unsafe { buf.set_len(max_bytes); }
                 file.seek(io::SeekFrom::Start(offset))?;
                 let nbytes = file.read(buf.as_mut_slice())?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
+                unsafe { buf.set_len(nbytes); }
                 Ok((file, Bytes::from(buf)))
             }));
             self.poll()
