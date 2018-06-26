@@ -679,10 +679,6 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                     // TODO: It'd be nice if there were a good usable URL manipulation
                     // library
                     let mut new_path: String = req.path().to_owned();
-                    for el in relpath.iter() {
-                        new_path.push_str(&el.to_string_lossy());
-                        new_path.push('/');
-                    }
                     if !new_path.ends_with('/') {
                         new_path.push('/');
                     }
@@ -1208,8 +1204,7 @@ mod tests {
     #[test]
     fn test_redirect_to_index() {
         let st = StaticFiles::new(".").index_file("index.html");
-        let mut req = HttpRequest::default();
-        req.match_info_mut().add_static("tail", "tests");
+        let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
@@ -1219,8 +1214,7 @@ mod tests {
             "/tests/index.html"
         );
 
-        let mut req = HttpRequest::default();
-        req.match_info_mut().add_static("tail", "tests/");
+        let req = TestRequest::default().uri("/tests/").finish();
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
@@ -1233,16 +1227,15 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let st = StaticFiles::new(".").index_file("mod.rs");
-        let mut req = HttpRequest::default();
-        req.match_info_mut().add_static("tail", "src/client");
+        let st = StaticFiles::new(".").index_file("Cargo.toml");
+        let req = TestRequest::default().uri("/tools/wsload").finish();
 
         let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
-            "/src/client/mod.rs"
+            "/tools/wsload/Cargo.toml"
         );
     }
 
