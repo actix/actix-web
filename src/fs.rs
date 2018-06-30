@@ -15,6 +15,8 @@ use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
 use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
+use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
+use htmlescape::encode_minimal as escape_html_entity;
 
 use error::Error;
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
@@ -505,7 +507,10 @@ fn directory_listing<S>(
                 Err(_) => continue,
             };
             // show file url as relative to static path
-            let file_url = format!("{}", p.to_string_lossy());
+            let file_url = utf8_percent_encode(&p.to_string_lossy(), DEFAULT_ENCODE_SET)
+                .to_string();
+            // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;
+            let file_name = escape_html_entity(&entry.file_name().to_string_lossy());
 
             // if file is a directory, add '/' to the end of the name
             if let Ok(metadata) = entry.metadata() {
@@ -514,14 +519,14 @@ fn directory_listing<S>(
                         body,
                         "<li><a href=\"{}\">{}/</a></li>",
                         file_url,
-                        entry.file_name().to_string_lossy()
+                        file_name
                     );
                 } else {
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}</a></li>",
                         file_url,
-                        entry.file_name().to_string_lossy()
+                        file_name
                     );
                 }
             } else {
