@@ -103,6 +103,7 @@ extern crate lazy_static;
 extern crate futures;
 extern crate cookie;
 extern crate futures_cpupool;
+extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
