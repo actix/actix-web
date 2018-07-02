@@ -4,12 +4,11 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use httparse;
 
-use super::helpers::SharedHttpInnerMessage;
+use super::message::{MessageFlags, Request};
 use super::settings::WorkerSettings;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HttpTryFrom, Method, Uri, Version};
-use httprequest::MessageFlags;
 use uri::Url;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -20,10 +19,7 @@ pub(crate) struct H1Decoder {
 }
 
 pub(crate) enum Message {
-    Message {
-        msg: SharedHttpInnerMessage,
-        payload: bool,
-    },
+    Message { msg: Request, payload: bool },
     Chunk(Bytes),
     Eof,
 }
@@ -84,7 +80,7 @@ impl H1Decoder {
 
     fn parse_message<H>(
         &self, buf: &mut BytesMut, settings: &WorkerSettings<H>,
-    ) -> Poll<(SharedHttpInnerMessage, Option<EncodingDecoder>), ParseError> {
+    ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
         let mut chunked = false;
@@ -122,11 +118,12 @@ impl H1Decoder {
             let slice = buf.split_to(len).freeze();
 
             // convert headers
-            let mut msg = settings.get_http_message();
+            let mut msg = settings.get_request_context();
             {
-                let msg_mut = msg.get_mut();
-                msg_mut
+                let inner = &mut msg.inner;
+                inner
                     .flags
+                    .get_mut()
                     .set(MessageFlags::KEEPALIVE, version != Version::HTTP_10);
 
                 for idx in headers[..headers_len].iter() {
@@ -177,20 +174,20 @@ impl H1Decoder {
                                 } else {
                                     false
                                 };
-                                msg_mut.flags.set(MessageFlags::KEEPALIVE, ka);
+                                inner.flags.get_mut().set(MessageFlags::KEEPALIVE, ka);
                             }
                             _ => (),
                         }
 
-                        msg_mut.headers.append(name, value);
+                        inner.headers.append(name, value);
                     } else {
                         return Err(ParseError::Header);
                     }
                 }
 
-                msg_mut.url = path;
-                msg_mut.method = method;
-                msg_mut.version = version;
+                inner.url = path;
+                inner.method = method;
+                inner.version = version;
             }
             msg
         };
@@ -202,7 +199,7 @@ impl H1Decoder {
         } else if let Some(len) = content_length {
             // Content-Length
             Some(EncodingDecoder::length(len))
-        } else if has_upgrade || msg.get_ref().method == Method::CONNECT {
+        } else if has_upgrade || msg.inner.method == Method::CONNECT {
             // upgrade(websocket) or connect
             Some(EncodingDecoder::eof())
         } else {

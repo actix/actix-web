@@ -8,6 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
 mod channel;
+mod error;
 pub(crate) mod h1;
 pub(crate) mod h1decoder;
 mod h1writer;
@@ -15,11 +16,13 @@ mod h2;
 mod h2writer;
 pub(crate) mod helpers;
 pub(crate) mod input;
+pub(crate) mod message;
 pub(crate) mod output;
 pub(crate) mod settings;
 mod srv;
 mod worker;
 
+pub use self::message::Request;
 pub use self::settings::ServerSettings;
 pub use self::srv::HttpServer;
 
@@ -30,7 +33,7 @@ use actix::Message;
 use body::Binary;
 use error::Error;
 use header::ContentEncoding;
-use httprequest::{HttpInnerMessage, HttpRequest};
+use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 /// max buffer size 64k
@@ -128,13 +131,13 @@ pub trait HttpHandler: 'static {
     type Task: HttpHandlerTask;
 
     /// Handle request
-    fn handle(&self, req: HttpRequest) -> Result<Self::Task, HttpRequest>;
+    fn handle(&self, req: Request) -> Result<Self::Task, Request>;
 }
 
 impl HttpHandler for Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
     type Task = Box<HttpHandlerTask>;
 
-    fn handle(&self, req: HttpRequest) -> Result<Box<HttpHandlerTask>, HttpRequest> {
+    fn handle(&self, req: Request) -> Result<Box<HttpHandlerTask>, Request> {
         self.as_ref().handle(req)
     }
 }
@@ -165,13 +168,13 @@ pub trait IntoHttpHandler {
     type Handler: HttpHandler;
 
     /// Convert into `HttpHandler` object.
-    fn into_handler(self, settings: ServerSettings) -> Self::Handler;
+    fn into_handler(self) -> Self::Handler;
 }
 
 impl<T: HttpHandler> IntoHttpHandler for T {
     type Handler = T;
 
-    fn into_handler(self, _: ServerSettings) -> Self::Handler {
+    fn into_handler(self) -> Self::Handler {
         self
     }
 }
@@ -190,14 +193,13 @@ pub trait Writer {
     fn written(&self) -> u64;
 
     #[doc(hidden)]
-    fn set_date(&self, st: &mut BytesMut);
+    fn set_date(&mut self);
 
     #[doc(hidden)]
     fn buffer(&mut self) -> &mut BytesMut;
 
     fn start(
-        &mut self, req: &mut HttpInnerMessage, resp: &mut HttpResponse,
-        encoding: ContentEncoding,
+        &mut self, req: &Request, resp: &mut HttpResponse, encoding: ContentEncoding,
     ) -> io::Result<WriterState>;
 
     fn write(&mut self, payload: &Binary) -> io::Result<WriterState>;

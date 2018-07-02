@@ -267,12 +267,12 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        let req = req.clone();
+        let req2 = req.clone();
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
-            UrlEncoded::new(req.clone())
+            UrlEncoded::new(req)
                 .limit(cfg.limit)
-                .map_err(move |e| (*err)(e, req))
+                .map_err(move |e| (*err)(e, &req2))
                 .map(Form),
         )
     }
@@ -321,7 +321,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 /// ```
 pub struct FormConfig<S> {
     limit: usize,
-    ehandler: Rc<Fn(UrlencodedError, HttpRequest<S>) -> Error>,
+    ehandler: Rc<Fn(UrlencodedError, &HttpRequest<S>) -> Error>,
 }
 
 impl<S> FormConfig<S> {
@@ -334,7 +334,7 @@ impl<S> FormConfig<S> {
     /// Set custom error handler
     pub fn error_handler<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(UrlencodedError, HttpRequest<S>) -> Error + 'static,
+        F: Fn(UrlencodedError, &HttpRequest<S>) -> Error + 'static,
     {
         self.ehandler = Rc::new(f);
         self
@@ -383,9 +383,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
         // check content-type
         cfg.check_mimetype(req)?;
 
-        Ok(Box::new(
-            MessageBody::new(req.clone()).limit(cfg.limit).from_err(),
-        ))
+        Ok(Box::new(MessageBody::new(req).limit(cfg.limit).from_err()))
     }
 }
 
@@ -429,7 +427,7 @@ impl<S: 'static> FromRequest<S> for String {
         let encoding = req.encoding()?;
 
         Ok(Box::new(
-            MessageBody::new(req.clone())
+            MessageBody::new(req)
                 .limit(cfg.limit)
                 .from_err()
                 .and_then(move |body| {
@@ -617,7 +615,6 @@ mod tests {
     use mime;
     use resource::ResourceHandler;
     use router::{Resource, Router};
-    use server::ServerSettings;
     use test::TestRequest;
 
     #[derive(Deserialize, Debug, PartialEq)]
@@ -628,9 +625,9 @@ mod tests {
     #[test]
     fn test_bytes() {
         let cfg = PayloadConfig::default();
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"hello=world"));
+        let req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
 
         match Bytes::from_request(&req, &cfg).unwrap().poll().unwrap() {
             Async::Ready(s) => {
@@ -643,9 +640,9 @@ mod tests {
     #[test]
     fn test_string() {
         let cfg = PayloadConfig::default();
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11").finish();
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"hello=world"));
+        let req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
 
         match String::from_request(&req, &cfg).unwrap().poll().unwrap() {
             Async::Ready(s) => {
@@ -657,13 +654,12 @@ mod tests {
 
     #[test]
     fn test_form() {
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
             .finish();
-        req.payload_mut()
-            .unread_data(Bytes::from_static(b"hello=world"));
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
@@ -677,7 +673,7 @@ mod tests {
 
     #[test]
     fn test_payload_config() {
-        let req = HttpRequest::default();
+        let req = TestRequest::default().finish();
         let mut cfg = PayloadConfig::default();
         cfg.mimetype(mime::APPLICATION_JSON);
         assert!(cfg.check_mimetype(&req).is_err());
@@ -712,14 +708,15 @@ mod tests {
 
     #[test]
     fn test_request_extract() {
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").finish();
+        let req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
         routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", ServerSettings::default(), routes);
-        assert!(router.recognize(&mut req).is_some());
+        let (router, _) = Router::new("", routes);
+        let info = router.recognize(&req).unwrap().1;
+        let req = req.with_route_info(info);
 
         let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
         assert_eq!(s.key, "name");
@@ -732,8 +729,9 @@ mod tests {
         let s = Query::<Id>::from_request(&req, &()).unwrap();
         assert_eq!(s.id, "test");
 
-        let mut req = TestRequest::with_uri("/name/32/").finish();
-        assert!(router.recognize(&mut req).is_some());
+        let req = TestRequest::with_uri("/name/32/").finish_with_router(router.clone());
+        let info = router.recognize(&req).unwrap().1;
+        let req = req.with_route_info(info);
 
         let s = Path::<Test2>::from_request(&req, &()).unwrap();
         assert_eq!(s.as_ref().key, "name");
@@ -754,24 +752,26 @@ mod tests {
         resource.name("index");
         let mut routes = Vec::new();
         routes.push((Resource::new("index", "/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", ServerSettings::default(), routes);
+        let (router, _) = Router::new("", routes);
 
-        let mut req = TestRequest::with_uri("/32/").finish();
-        assert!(router.recognize(&mut req).is_some());
-
-        assert_eq!(*Path::<i8>::from_request(&mut req, &()).unwrap(), 32);
+        let req = TestRequest::with_uri("/32/").finish_with_router(router.clone());
+        let info = router.recognize(&req).unwrap().1;
+        let req = req.with_route_info(info);
+        assert_eq!(*Path::<i8>::from_request(&req, &()).unwrap(), 32);
     }
 
     #[test]
     fn test_tuple_extract() {
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").finish();
-
         let mut resource = ResourceHandler::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
         routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", ServerSettings::default(), routes);
-        assert!(router.recognize(&mut req).is_some());
+        let (router, _) = Router::new("", routes);
+
+        let mut req = TestRequest::with_uri("/name/user1/?id=test")
+            .finish_with_router(router.clone());
+        let info = router.recognize(&req).unwrap().1;
+        let req = req.with_route_info(info);
 
         let res = match <(Path<(String, String)>,)>::extract(&req).poll() {
             Ok(Async::Ready(res)) => res,

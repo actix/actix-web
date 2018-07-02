@@ -11,6 +11,7 @@ use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Started};
+use server::Request;
 
 /// `Middleware` for logging request and response info to the terminal.
 ///
@@ -107,7 +108,7 @@ impl Default for Logger {
 struct StartTime(time::Tm);
 
 impl Logger {
-    fn log<S>(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) {
+    fn log<S>(&self, req: &HttpRequest<S>, resp: &HttpResponse) {
         if let Some(entry_time) = req.extensions().get::<StartTime>() {
             let render = |fmt: &mut Formatter| {
                 for unit in &self.format.0 {
@@ -121,14 +122,14 @@ impl Logger {
 }
 
 impl<S> Middleware<S> for Logger {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
         if !self.exclude.contains(req.path()) {
             req.extensions_mut().insert(StartTime(time::now()));
         }
         Ok(Started::Done)
     }
 
-    fn finish(&self, req: &mut HttpRequest<S>, resp: &HttpResponse) -> Finished {
+    fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
         self.log(req, resp);
         Finished::Done
     }
@@ -312,34 +313,27 @@ mod tests {
     use http::header::{self, HeaderMap};
     use http::{Method, StatusCode, Uri, Version};
     use std::str::FromStr;
+    use test::TestRequest;
     use time;
 
     #[test]
     fn test_logger() {
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
+        let req = TestRequest::with_header(
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
-        );
-        let mut req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        ).finish();
         let resp = HttpResponse::build(StatusCode::OK)
             .header("X-Test", "ttt")
             .force_close()
             .finish();
 
-        match logger.start(&mut req) {
+        match logger.start(&req) {
             Ok(Started::Done) => (),
             _ => panic!(),
         };
-        match logger.finish(&mut req, &resp) {
+        match logger.finish(&req, &resp) {
             Finished::Done => (),
             _ => panic!(),
         }
@@ -358,18 +352,10 @@ mod tests {
     fn test_default_format() {
         let format = Format::default();
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
+        let req = TestRequest::with_header(
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        ).finish();
         let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 
@@ -384,13 +370,7 @@ mod tests {
         assert!(s.contains("200 0"));
         assert!(s.contains("ACTIX-WEB"));
 
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/?test").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
+        let req = TestRequest::with_uri("/?test").finish();
         let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
         let entry_time = time::now();
 

@@ -13,7 +13,7 @@
 //! use actix_web::{ws, HttpRequest, HttpResponse};
 //!
 //! // do websocket handshake and start actor
-//! fn ws_index(req: HttpRequest) -> Result<HttpResponse> {
+//! fn ws_index(req: &HttpRequest) -> Result<HttpResponse> {
 //!     ws::start(req, Ws)
 //! }
 //!
@@ -171,15 +171,15 @@ pub enum Message {
 }
 
 /// Do websocket handshake and start actor
-pub fn start<A, S>(req: HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
+pub fn start<A, S>(req: &HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
 where
     A: Actor<Context = WebsocketContext<A, S>> + StreamHandler<Message, ProtocolError>,
     S: 'static,
 {
-    let mut resp = handshake(&req)?;
-    let stream = WsStream::new(req.clone());
+    let mut resp = handshake(req)?;
+    let stream = WsStream::new(req.payload());
 
-    let mut ctx = WebsocketContext::new(req, actor);
+    let mut ctx = WebsocketContext::new(req.clone(), actor);
     ctx.add_stream(stream);
 
     Ok(resp.body(ctx))
@@ -359,162 +359,116 @@ pub trait WsWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use http::{header, HeaderMap, Method, Uri, Version};
-    use std::str::FromStr;
+    use test::TestRequest;
 
     #[test]
     fn test_handshake() {
-        let req = HttpRequest::new(
-            Method::POST,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
+        let req = TestRequest::default().method(Method::POST).finish();
         assert_eq!(
             HandshakeError::GetMethodRequired,
             handshake(&req).err().unwrap()
         );
 
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
+        let req = TestRequest::default().finish();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(header::UPGRADE, header::HeaderValue::from_static("test"));
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(header::UPGRADE, header::HeaderValue::from_static("test"))
+            .finish();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .finish();
         assert_eq!(
             HandshakeError::NoConnectionUpgrade,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .finish();
         assert_eq!(
             HandshakeError::NoVersionHeader,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
-        headers.insert(
-            header::SEC_WEBSOCKET_VERSION,
-            header::HeaderValue::from_static("5"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("5"),
+            )
+            .finish();
         assert_eq!(
             HandshakeError::UnsupportedVersion,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
-        headers.insert(
-            header::SEC_WEBSOCKET_VERSION,
-            header::HeaderValue::from_static("13"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            )
+            .finish();
         assert_eq!(
             HandshakeError::BadWebsocketKey,
             handshake(&req).err().unwrap()
         );
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::UPGRADE,
-            header::HeaderValue::from_static("websocket"),
-        );
-        headers.insert(
-            header::CONNECTION,
-            header::HeaderValue::from_static("upgrade"),
-        );
-        headers.insert(
-            header::SEC_WEBSOCKET_VERSION,
-            header::HeaderValue::from_static("13"),
-        );
-        headers.insert(
-            header::SEC_WEBSOCKET_KEY,
-            header::HeaderValue::from_static("13"),
-        );
-        let req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_KEY,
+                header::HeaderValue::from_static("13"),
+            )
+            .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
             handshake(&req).unwrap().finish().status()

@@ -2,6 +2,7 @@
 use std::fmt::Write;
 use std::fs::{DirEntry, File, Metadata};
 use std::io::{Read, Seek};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,7 +20,9 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use error::Error;
-use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
+use handler::{
+    AsyncResult, AsyncResultItem, Handler, Responder, RouteHandler, WrapHandler,
+};
 use header;
 use http::{ContentEncoding, Method, StatusCode};
 use httpmessage::HttpMessage;
@@ -610,7 +613,7 @@ impl<S: 'static> StaticFiles<S> {
             index: None,
             show_index: false,
             cpu_pool: pool,
-            default: Box::new(WrapHandler::new(|_| {
+            default: Box::new(WrapHandler::new(|_: &_| {
                 HttpResponse::new(StatusCode::NOT_FOUND)
             })),
             renderer: Box::new(directory_listing),
@@ -657,7 +660,7 @@ impl<S: 'static> StaticFiles<S> {
 impl<S: 'static> Handler<S> for StaticFiles<S> {
     type Result = Result<AsyncResult<HttpResponse>, Error>;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         if !self.accessible {
             Ok(self.default.handle(req))
         } else {
@@ -667,7 +670,9 @@ impl<S: 'static> Handler<S> for StaticFiles<S> {
                 .map(|tail| PathBuf::from_param(tail.trim_left_matches('/')))
             {
                 Some(Ok(path)) => path,
-                _ => return Ok(self.default.handle(req)),
+                _ => {
+                    return Ok(self.default.handle(req));
+                }
             };
 
             // full filepath
@@ -833,7 +838,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -858,7 +864,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/xml"
@@ -882,7 +889,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -916,7 +924,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -940,7 +949,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/octet-stream"
@@ -965,7 +975,8 @@ mod tests {
             let _f: &mut File = &mut file;
         }
 
-        let resp = file.respond_to(&HttpRequest::default()).unwrap();
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -1136,7 +1147,6 @@ mod tests {
                 .unwrap();
             assert_eq!(te, "chunked");
         }
-
         let bytes = srv.execute(response.body()).unwrap();
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
         assert_eq!(bytes, data);
@@ -1178,27 +1188,22 @@ mod tests {
     fn test_static_files() {
         let mut st = StaticFiles::new(".").show_files_listing();
         st.accessible = false;
-        let resp = st
-            .handle(HttpRequest::default())
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let req = TestRequest::default().finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         st.accessible = true;
         st.show_index = false;
-        let resp = st
-            .handle(HttpRequest::default())
-            .respond_to(&HttpRequest::default())
-            .unwrap();
+        let req = TestRequest::default().finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut req = HttpRequest::default();
-        req.match_info_mut().add_static("tail", "");
+        let req = TestRequest::default().param("tail", "").finish();
 
         st.show_index = true;
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -1213,7 +1218,7 @@ mod tests {
         let st = StaticFiles::new(".").index_file("index.html");
         let req = TestRequest::default().uri("/tests").finish();
 
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -1222,8 +1227,7 @@ mod tests {
         );
 
         let req = TestRequest::default().uri("/tests/").finish();
-
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
@@ -1234,15 +1238,14 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let st = StaticFiles::new(".").index_file("Cargo.toml");
-        let req = TestRequest::default().uri("/tools/wsload").finish();
-
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let st = StaticFiles::new(".").index_file("mod.rs");
+        let req = TestRequest::default().uri("/src/client").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::FOUND);
         assert_eq!(
             resp.headers().get(header::LOCATION).unwrap(),
-            "/tools/wsload/Cargo.toml"
+            "/src/client/mod.rs"
         );
     }
 

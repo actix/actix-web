@@ -15,7 +15,7 @@ use header::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Response, Started};
-use server::{HttpHandlerTask, Writer, WriterState};
+use server::{HttpHandlerTask, Request, Writer, WriterState};
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy)]
@@ -29,13 +29,11 @@ pub enum HandlerType {
 pub trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
-    fn handle(
-        &self, req: HttpRequest<S>, htype: HandlerType,
-    ) -> AsyncResult<HttpResponse>;
+    fn handle(&self, &HttpRequest<S>, HandlerType) -> AsyncResult<HttpResponse>;
 }
 
 #[doc(hidden)]
-pub struct Pipeline<S, H>(
+pub struct Pipeline<S: 'static, H>(
     PipelineInfo<S>,
     PipelineState<S, H>,
     Rc<Vec<Box<Middleware<S>>>>,
@@ -76,7 +74,7 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
     }
 }
 
-struct PipelineInfo<S> {
+struct PipelineInfo<S: 'static> {
     req: HttpRequest<S>,
     count: u16,
     context: Option<Box<ActorHttpContext>>,
@@ -85,7 +83,7 @@ struct PipelineInfo<S> {
     encoding: ContentEncoding,
 }
 
-impl<S> PipelineInfo<S> {
+impl<S: 'static> PipelineInfo<S> {
     fn new(req: HttpRequest<S>) -> PipelineInfo<S> {
         PipelineInfo {
             req,
@@ -126,16 +124,6 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
         let state = StartMiddlewares::init(&mut info, &mws, handler, htype);
 
         Pipeline(info, state, mws)
-    }
-}
-
-impl Pipeline<(), Inner<()>> {
-    pub fn error<R: Into<HttpResponse>>(err: R) -> Box<HttpHandlerTask> {
-        Box::new(Pipeline::<(), Inner<()>>(
-            PipelineInfo::new(HttpRequest::default()),
-            ProcessResponse::init(err.into()),
-            Rc::new(Vec::new()),
-        ))
     }
 }
 
@@ -241,16 +229,16 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
         let len = mws.len() as u16;
+
         loop {
             if info.count == len {
-                let reply = hnd.handle(info.req.clone(), htype);
+                let reply = hnd.handle(&info.req, htype);
                 return WaitingResponse::init(info, mws, reply);
             } else {
-                let state = mws[info.count as usize].start(&mut info.req);
-                match state {
+                match mws[info.count as usize].start(&info.req) {
                     Ok(Started::Done) => info.count += 1,
                     Ok(Started::Response(resp)) => {
-                        return RunMiddlewares::init(info, mws, resp)
+                        return RunMiddlewares::init(info, mws, resp);
                     }
                     Ok(Started::Future(fut)) => {
                         return PipelineState::Starting(StartMiddlewares {
@@ -260,7 +248,9 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                             _s: PhantomData,
                         })
                     }
-                    Err(err) => return RunMiddlewares::init(info, mws, err.into()),
+                    Err(err) => {
+                        return RunMiddlewares::init(info, mws, err.into());
+                    }
                 }
             }
         }
@@ -270,9 +260,12 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
         &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],
     ) -> Option<PipelineState<S, H>> {
         let len = mws.len() as u16;
+
         'outer: loop {
             match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::NotReady) => return None,
+                Ok(Async::NotReady) => {
+                    return None;
+                }
                 Ok(Async::Ready(resp)) => {
                     info.count += 1;
                     if let Some(resp) = resp {
@@ -280,11 +273,11 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     }
                     loop {
                         if info.count == len {
-                            let reply = self.hnd.handle(info.req.clone(), self.htype);
+                            let reply = self.hnd.handle(&info.req, self.htype);
                             return Some(WaitingResponse::init(info, mws, reply));
                         } else {
-                            let state = mws[info.count as usize].start(&mut info.req);
-                            match state {
+                            let res = mws[info.count as usize].start(&info.req);
+                            match res {
                                 Ok(Started::Done) => info.count += 1,
                                 Ok(Started::Response(resp)) => {
                                     return Some(RunMiddlewares::init(info, mws, resp));
@@ -298,13 +291,15 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                                         info,
                                         mws,
                                         err.into(),
-                                    ))
+                                    ));
                                 }
                             }
                         }
                     }
                 }
-                Err(err) => return Some(RunMiddlewares::init(info, mws, err.into())),
+                Err(err) => {
+                    return Some(RunMiddlewares::init(info, mws, err.into()));
+                }
             }
         }
     }
@@ -324,8 +319,8 @@ impl<S: 'static, H> WaitingResponse<S, H> {
         reply: AsyncResult<HttpResponse>,
     ) -> PipelineState<S, H> {
         match reply.into() {
-            AsyncResultItem::Err(err) => RunMiddlewares::init(info, mws, err.into()),
             AsyncResultItem::Ok(resp) => RunMiddlewares::init(info, mws, resp),
+            AsyncResultItem::Err(err) => RunMiddlewares::init(info, mws, err.into()),
             AsyncResultItem::Future(fut) => PipelineState::Handler(WaitingResponse {
                 fut,
                 _s: PhantomData,
@@ -339,9 +334,7 @@ impl<S: 'static, H> WaitingResponse<S, H> {
     ) -> Option<PipelineState<S, H>> {
         match self.fut.poll() {
             Ok(Async::NotReady) => None,
-            Ok(Async::Ready(response)) => {
-                Some(RunMiddlewares::init(info, mws, response))
-            }
+            Ok(Async::Ready(resp)) => Some(RunMiddlewares::init(info, mws, resp)),
             Err(err) => Some(RunMiddlewares::init(info, mws, err.into())),
         }
     }
@@ -367,7 +360,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
         let len = mws.len();
 
         loop {
-            let state = mws[curr].response(&mut info.req, resp);
+            let state = mws[curr].response(&info.req, resp);
             resp = match state {
                 Err(err) => {
                     info.count = (curr + 1) as u16;
@@ -387,7 +380,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                         fut: Some(fut),
                         _s: PhantomData,
                         _h: PhantomData,
-                    })
+                    });
                 }
             };
         }
@@ -413,7 +406,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
                 if self.curr == len {
                     return Some(ProcessResponse::init(resp));
                 } else {
-                    let state = mws[self.curr].response(&mut info.req, resp);
+                    let state = mws[self.curr].response(&info.req, resp);
                     match state {
                         Err(err) => return Some(ProcessResponse::init(err.into())),
                         Ok(Response::Done(r)) => {
@@ -495,19 +488,16 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             let encoding =
                                 self.resp.content_encoding().unwrap_or(info.encoding);
 
-                            let result = match io.start(
-                                info.req.as_mut(),
-                                &mut self.resp,
-                                encoding,
-                            ) {
-                                Ok(res) => res,
-                                Err(err) => {
-                                    info.error = Some(err.into());
-                                    return Ok(FinishingMiddlewares::init(
-                                        info, mws, self.resp,
-                                    ));
-                                }
-                            };
+                            let result =
+                                match io.start(&info.req, &mut self.resp, encoding) {
+                                    Ok(res) => res,
+                                    Err(err) => {
+                                        info.error = Some(err.into());
+                                        return Ok(FinishingMiddlewares::init(
+                                            info, mws, self.resp,
+                                        ));
+                                    }
+                                };
 
                             if let Some(err) = self.resp.error() {
                                 if self.resp.status().is_server_error() {
@@ -747,8 +737,8 @@ impl<S: 'static, H> FinishingMiddlewares<S, H> {
             }
 
             info.count -= 1;
-            let state = mws[info.count as usize]
-                .finish(&mut info.req, self.resp.as_ref().unwrap());
+            let state =
+                mws[info.count as usize].finish(&info.req, self.resp.as_ref().unwrap());
             match state {
                 Finished::Done => {
                     if info.count == 0 {
@@ -797,8 +787,9 @@ mod tests {
     use actix::*;
     use context::HttpContext;
     use futures::future::{lazy, result};
-    use http::StatusCode;
     use tokio::runtime::current_thread::Runtime;
+
+    use test::TestRequest;
 
     impl<S, H> PipelineState<S, H> {
         fn is_none(&self) -> Option<bool> {
@@ -827,12 +818,13 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let mut info = PipelineInfo::new(HttpRequest::default());
+                let req = TestRequest::default().finish();
+                let mut info = PipelineInfo::new(req);
                 Completed::<(), Inner<()>>::init(&mut info)
                     .is_none()
                     .unwrap();
 
-                let req = HttpRequest::default();
+                let req = TestRequest::default().finish();
                 let ctx = HttpContext::new(req.clone(), MyActor);
                 let addr = ctx.address();
                 let mut info = PipelineInfo::new(req);

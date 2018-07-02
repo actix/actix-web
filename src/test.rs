@@ -22,14 +22,15 @@ use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
 use handler::{AsyncResultItem, Handler, Responder};
 use header::{Header, IntoHeaderValue};
-use httprequest::HttpRequest;
+use httprequest::{HttpRequest, RouterResource};
 use httpresponse::HttpResponse;
 use middleware::Middleware;
 use param::Params;
 use payload::Payload;
 use resource::ResourceHandler;
 use router::Router;
-use server::{HttpServer, IntoHttpHandler, ServerSettings};
+use server::{HttpServer, IntoHttpHandler, Request, ServerSettings};
+use uri::Url as InnerUrl;
 use ws;
 
 /// The `TestServer` type.
@@ -43,7 +44,7 @@ use ws;
 /// # extern crate actix_web;
 /// # use actix_web::*;
 /// #
-/// # fn my_handler(req: HttpRequest) -> HttpResponse {
+/// # fn my_handler(req: &HttpRequest) -> HttpResponse {
 /// #     HttpResponse::Ok().into()
 /// # }
 /// #
@@ -330,8 +331,12 @@ impl<S: 'static> TestApp<S> {
     }
 
     /// Register handler for "/"
-    pub fn handler<H: Handler<S>>(&mut self, handler: H) {
-        self.app = Some(self.app.take().unwrap().resource("/", |r| r.h(handler)));
+    pub fn handler<F, R>(&mut self, handler: F)
+    where
+        F: Fn(&HttpRequest<S>) -> R + 'static,
+        R: Responder + 'static,
+    {
+        self.app = Some(self.app.take().unwrap().resource("/", |r| r.f(handler)));
     }
 
     /// Register middleware
@@ -357,8 +362,8 @@ impl<S: 'static> TestApp<S> {
 impl<S: 'static> IntoHttpHandler for TestApp<S> {
     type Handler = HttpApplication<S>;
 
-    fn into_handler(mut self, settings: ServerSettings) -> HttpApplication<S> {
-        self.app.take().unwrap().into_handler(settings)
+    fn into_handler(mut self) -> HttpApplication<S> {
+        self.app.take().unwrap().into_handler()
     }
 }
 
@@ -384,7 +389,7 @@ impl<S: 'static> Iterator for TestApp<S> {
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
 ///
-/// fn index(req: HttpRequest) -> HttpResponse {
+/// fn index(req: &HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
 ///         HttpResponse::Ok().into()
 ///     } else {
@@ -533,11 +538,19 @@ impl<S: 'static> TestRequest<S> {
             cookies,
             payload,
         } = self;
-        let mut req = HttpRequest::new(method, uri, version, headers, payload);
+        let (router, _) = Router::new::<S>("/", Vec::new());
+
+        let mut req = Request::new(ServerSettings::default());
+        req.inner.method = method;
+        req.inner.url = InnerUrl::new(uri);
+        req.inner.version = version;
+        req.inner.headers = headers;
+        *req.inner.payload.borrow_mut() = payload;
+
+        let mut req =
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(params, 0));
         req.set_cookies(cookies);
-        req.as_mut().params = params;
-        let (router, _) = Router::new::<S>("/", ServerSettings::default(), Vec::new());
-        req.with_state(Rc::new(state), router)
+        req
     }
 
     #[cfg(test)]
@@ -554,10 +567,37 @@ impl<S: 'static> TestRequest<S> {
             payload,
         } = self;
 
-        let mut req = HttpRequest::new(method, uri, version, headers, payload);
+        let mut req = Request::new(ServerSettings::default());
+        req.inner.method = method;
+        req.inner.url = InnerUrl::new(uri);
+        req.inner.version = version;
+        req.inner.headers = headers;
+        *req.inner.payload.borrow_mut() = payload;
+        let mut req =
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(params, 0));
         req.set_cookies(cookies);
-        req.as_mut().params = params;
-        req.with_state(Rc::new(state), router)
+        req
+    }
+
+    /// Complete request creation and generate server `Request` instance
+    pub fn request(self) -> Request {
+        let TestRequest {
+            state,
+            method,
+            uri,
+            version,
+            headers,
+            params,
+            cookies,
+            payload,
+        } = self;
+        let mut req = Request::new(ServerSettings::default());
+        req.inner.method = method;
+        req.inner.url = InnerUrl::new(uri);
+        req.inner.version = version;
+        req.inner.headers = headers;
+        *req.inner.payload.borrow_mut() = payload;
+        req
     }
 
     /// This method generates `HttpRequest` instance and runs handler
@@ -566,7 +606,7 @@ impl<S: 'static> TestRequest<S> {
     /// This method panics is handler returns actor or async result.
     pub fn run<H: Handler<S>>(self, h: &H) -> Result<HttpResponse, Error> {
         let req = self.finish();
-        let resp = h.handle(req.clone());
+        let resp = h.handle(&req);
 
         match resp.respond_to(&req) {
             Ok(resp) => match resp.into().into() {

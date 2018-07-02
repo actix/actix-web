@@ -12,6 +12,10 @@ use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pred;
 use route::Route;
+use server::Request;
+
+#[derive(Copy, Clone)]
+pub(crate) struct RouteId(usize);
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -131,7 +135,7 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::*;
-    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     ///
     /// App::new().resource("/", |r| r.method(http::Method::GET).f(index));
     /// ```
@@ -141,7 +145,7 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// # use actix_web::*;
-    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// # fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().resource("/", |r| r.route().filter(pred::Get()).f(index));
     /// ```
     pub fn method(&mut self, method: Method) -> &mut Route<S> {
@@ -154,7 +158,7 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::*;
-    /// fn handler(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// fn handler(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     ///
     /// App::new().resource("/", |r| r.h(handler));
     /// ```
@@ -164,7 +168,7 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// # use actix_web::*;
-    /// # fn handler(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// # fn handler(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().resource("/", |r| r.route().h(handler));
     /// ```
     pub fn h<H: Handler<S>>(&mut self, handler: H) {
@@ -177,7 +181,7 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::*;
-    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     ///
     /// App::new().resource("/", |r| r.f(index));
     /// ```
@@ -187,12 +191,12 @@ impl<S: 'static> ResourceHandler<S> {
     /// ```rust
     /// # extern crate actix_web;
     /// # use actix_web::*;
-    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// # fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().resource("/", |r| r.route().f(index));
     /// ```
     pub fn f<F, R>(&mut self, handler: F)
     where
-        F: Fn(HttpRequest<S>) -> R + 'static,
+        F: Fn(&HttpRequest<S>) -> R + 'static,
         R: Responder + 'static,
     {
         self.routes.push(Route::default());
@@ -279,19 +283,24 @@ impl<S: 'static> ResourceHandler<S> {
             .push(Box::new(mw));
     }
 
-    pub(crate) fn handle(
-        &self, mut req: HttpRequest<S>,
-    ) -> Result<AsyncResult<HttpResponse>, HttpRequest<S>> {
-        for route in &self.routes {
-            if route.check(&mut req) {
-                return if self.middlewares.is_empty() {
-                    Ok(route.handle(req))
-                } else {
-                    Ok(route.compose(req, Rc::clone(&self.middlewares)))
-                };
+    #[inline]
+    pub(crate) fn get_route_id(&self, req: &HttpRequest<S>) -> Option<RouteId> {
+        for idx in 0..self.routes.len() {
+            if (&self.routes[idx]).check(req) {
+                return Some(RouteId(idx));
             }
         }
+        None
+    }
 
-        Err(req)
+    #[inline]
+    pub(crate) fn handle(
+        &self, id: RouteId, req: &HttpRequest<S>,
+    ) -> AsyncResult<HttpResponse> {
+        if self.middlewares.is_empty() {
+            (&self.routes[id.0]).handle(req)
+        } else {
+            (&self.routes[id.0]).compose(req.clone(), Rc::clone(&self.middlewares))
+        }
     }
 }

@@ -35,6 +35,7 @@ pub use self::connector::{
     Pause, Resume,
 };
 pub(crate) use self::parser::{HttpResponseParser, HttpResponseParserError};
+pub(crate) use self::pipeline::Pipeline;
 pub use self::pipeline::{SendRequest, SendRequestError};
 pub use self::request::{ClientRequest, ClientRequestBuilder};
 pub use self::response::ClientResponse;

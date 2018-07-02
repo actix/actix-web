@@ -42,9 +42,9 @@ where
 {
     type Result = AsyncResult<HttpResponse>;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         let mut fut = WithHandlerFut {
-            req,
+            req: req.clone(),
             started: false,
             hnd: Rc::clone(&self.hnd),
             cfg: self.cfg.clone(),
@@ -167,9 +167,9 @@ where
 {
     type Result = AsyncResult<HttpResponse>;
 
-    fn handle(&self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         let mut fut = WithAsyncHandlerFut {
-            req,
+            req: req.clone(),
             started: false,
             hnd: Rc::clone(&self.hnd),
             cfg: Rc::clone(&self.cfg),

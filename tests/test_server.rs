@@ -368,8 +368,8 @@ fn test_head_empty() {
     }
 
     // read response
-    //let bytes = srv.execute(response.body()).unwrap();
-    //assert!(bytes.is_empty());
+    // let bytes = srv.execute(response.body()).unwrap();
+    // assert!(bytes.is_empty());
 }
 
 #[test]
@@ -524,7 +524,7 @@ fn test_body_brotli() {
 #[test]
 fn test_gzip_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -557,7 +557,7 @@ fn test_gzip_encoding() {
 fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -594,7 +594,7 @@ fn test_reading_gzip_encoding_large_random() {
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -627,7 +627,7 @@ fn test_reading_gzip_encoding_large_random() {
 #[test]
 fn test_reading_deflate_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -660,7 +660,7 @@ fn test_reading_deflate_encoding() {
 fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -697,7 +697,7 @@ fn test_reading_deflate_encoding_large_random() {
         .collect::<String>();
 
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -731,7 +731,7 @@ fn test_reading_deflate_encoding_large_random() {
 #[test]
 fn test_brotli_encoding() {
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()
@@ -765,7 +765,7 @@ fn test_brotli_encoding() {
 fn test_brotli_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = test::TestServer::new(|app| {
-        app.handler(|req: HttpRequest| {
+        app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
                     Ok(HttpResponse::Ok()

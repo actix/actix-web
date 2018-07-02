@@ -1,7 +1,7 @@
 use std;
-use std::rc::Rc;
 use std::ops::Index;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use http::StatusCode;
@@ -29,17 +29,25 @@ pub(crate) enum ParamItem {
 /// Route match information
 ///
 /// If resource path contains variable patterns, `Params` stores this variables.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Params {
     url: Url,
     pub(crate) tail: u16,
-    segments: SmallVec<[(Rc<String>, ParamItem); 3]>,
+    pub(crate) segments: SmallVec<[(Rc<String>, ParamItem); 3]>,
 }
 
 impl Params {
     pub(crate) fn new() -> Params {
         Params {
             url: Url::default(),
+            tail: 0,
+            segments: SmallVec::new(),
+        }
+    }
+
+    pub(crate) fn with_url(url: &Url) -> Params {
+        Params {
+            url: url.clone(),
             tail: 0,
             segments: SmallVec::new(),
         }
@@ -62,7 +70,8 @@ impl Params {
     }
 
     pub(crate) fn add_static(&mut self, name: &str, value: &'static str) {
-        self.segments.push((Rc::new(name.to_string()), ParamItem::Static(value)));
+        self.segments
+            .push((Rc::new(name.to_string()), ParamItem::Static(value)));
     }
 
     /// Check if there are any matched patterns
@@ -151,16 +160,16 @@ impl<'a> Iterator for ParamsIter<'a> {
     }
 }
 
-impl<'a, 'b> Index<&'b str> for &'a Params {
+impl<'a> Index<&'a str> for Params {
     type Output = str;
 
-    fn index(&self, name: &'b str) -> &str {
+    fn index(&self, name: &'a str) -> &str {
         self.get(name)
             .expect("Value for parameter is not available")
     }
 }
 
-impl<'a> Index<usize> for &'a Params {
+impl Index<usize> for Params {
     type Output = str;
 
     fn index(&self, idx: usize) -> &str {

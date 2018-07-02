@@ -1,10 +1,12 @@
 //! Route match predicates
 #![allow(non_snake_case)]
+use std::marker::PhantomData;
+
 use http;
 use http::{header, HttpTryFrom};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
-use std::marker::PhantomData;
+use server::message::Request;
 
 /// Trait defines resource route predicate.
 /// Predicate can modify request object. It is also possible to
@@ -12,7 +14,7 @@ use std::marker::PhantomData;
 /// Extensions container available via `HttpRequest::extensions()` method.
 pub trait Predicate<S> {
     /// Check if request matches predicate
-    fn check(&self, &mut HttpRequest<S>) -> bool;
+    fn check(&self, &Request, &S) -> bool;
 }
 
 /// Return predicate that matches if any of supplied predicate matches.
@@ -45,9 +47,9 @@ impl<S> AnyPredicate<S> {
 }
 
 impl<S: 'static> Predicate<S> for AnyPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    fn check(&self, req: &Request, state: &S) -> bool {
         for p in &self.0 {
-            if p.check(req) {
+            if p.check(req, state) {
                 return true;
             }
         }
@@ -88,9 +90,9 @@ impl<S> AllPredicate<S> {
 }
 
 impl<S: 'static> Predicate<S> for AllPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    fn check(&self, req: &Request, state: &S) -> bool {
         for p in &self.0 {
-            if !p.check(req) {
+            if !p.check(req, state) {
                 return false;
             }
         }
@@ -107,8 +109,8 @@ pub fn Not<S: 'static, P: Predicate<S> + 'static>(pred: P) -> NotPredicate<S> {
 pub struct NotPredicate<S>(Box<Predicate<S>>);
 
 impl<S: 'static> Predicate<S> for NotPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
-        !self.0.check(req)
+    fn check(&self, req: &Request, state: &S) -> bool {
+        !self.0.check(req, state)
     }
 }
 
@@ -117,7 +119,7 @@ impl<S: 'static> Predicate<S> for NotPredicate<S> {
 pub struct MethodPredicate<S>(http::Method, PhantomData<S>);
 
 impl<S: 'static> Predicate<S> for MethodPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    fn check(&self, req: &Request, _: &S) -> bool {
         *req.method() == self.0
     }
 }
@@ -188,7 +190,7 @@ pub fn Header<S: 'static>(
 pub struct HeaderPredicate<S>(header::HeaderName, header::HeaderValue, PhantomData<S>);
 
 impl<S: 'static> Predicate<S> for HeaderPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    fn check(&self, req: &Request, _: &S) -> bool {
         if let Some(val) = req.headers().get(&self.0) {
             return val == self.1;
         }
@@ -225,7 +227,7 @@ impl<S> HostPredicate<S> {
 }
 
 impl<S: 'static> Predicate<S> for HostPredicate<S> {
-    fn check(&self, req: &mut HttpRequest<S>) -> bool {
+    fn check(&self, req: &Request, _: &S) -> bool {
         let info = req.connection_info();
         if let Some(ref scheme) = self.1 {
             self.0 == info.host() && scheme == info.scheme()
@@ -237,168 +239,96 @@ impl<S: 'static> Predicate<S> for HostPredicate<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use http::header::{self, HeaderMap};
     use http::{Method, Uri, Version};
-    use std::str::FromStr;
+    use test::TestRequest;
 
     #[test]
     fn test_header() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
+        let req = TestRequest::with_header(
             header::TRANSFER_ENCODING,
             header::HeaderValue::from_static("chunked"),
-        );
-        let mut req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        ).finish();
 
         let pred = Header("transfer-encoding", "chunked");
-        assert!(pred.check(&mut req));
+        assert!(pred.check(&req, req.state()));
 
         let pred = Header("transfer-encoding", "other");
-        assert!(!pred.check(&mut req));
+        assert!(!pred.check(&req, req.state()));
 
         let pred = Header("content-type", "other");
-        assert!(!pred.check(&mut req));
+        assert!(!pred.check(&req, req.state()));
     }
 
     #[test]
     fn test_host() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::HOST,
-            header::HeaderValue::from_static("www.rust-lang.org"),
-        );
-        let mut req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            headers,
-            None,
-        );
+        let req = TestRequest::default()
+            .header(
+                header::HOST,
+                header::HeaderValue::from_static("www.rust-lang.org"),
+            )
+            .finish();
 
         let pred = Host("www.rust-lang.org");
-        assert!(pred.check(&mut req));
+        assert!(pred.check(&req, req.state()));
 
         let pred = Host("localhost");
-        assert!(!pred.check(&mut req));
+        assert!(!pred.check(&req, req.state()));
     }
 
     #[test]
     fn test_methods() {
-        let mut req = HttpRequest::new(
-            Method::GET,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        let mut req2 = HttpRequest::new(
-            Method::POST,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
+        let req = TestRequest::default().finish();
+        let req2 = TestRequest::default().method(Method::POST).finish();
 
-        assert!(Get().check(&mut req));
-        assert!(!Get().check(&mut req2));
-        assert!(Post().check(&mut req2));
-        assert!(!Post().check(&mut req));
+        assert!(Get().check(&req, req.state()));
+        assert!(!Get().check(&req2, req2.state()));
+        assert!(Post().check(&req2, req2.state()));
+        assert!(!Post().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::PUT,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Put().check(&mut r));
-        assert!(!Put().check(&mut req));
+        let r = TestRequest::default().method(Method::PUT).finish();
+        assert!(Put().check(&r, r.state()));
+        assert!(!Put().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::DELETE,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Delete().check(&mut r));
-        assert!(!Delete().check(&mut req));
+        let r = TestRequest::default().method(Method::DELETE).finish();
+        assert!(Delete().check(&r, r.state()));
+        assert!(!Delete().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::HEAD,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Head().check(&mut r));
-        assert!(!Head().check(&mut req));
+        let r = TestRequest::default().method(Method::HEAD).finish();
+        assert!(Head().check(&r, r.state()));
+        assert!(!Head().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::OPTIONS,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Options().check(&mut r));
-        assert!(!Options().check(&mut req));
+        let r = TestRequest::default().method(Method::OPTIONS).finish();
+        assert!(Options().check(&r, r.state()));
+        assert!(!Options().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::CONNECT,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Connect().check(&mut r));
-        assert!(!Connect().check(&mut req));
+        let r = TestRequest::default().method(Method::CONNECT).finish();
+        assert!(Connect().check(&r, r.state()));
+        assert!(!Connect().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::PATCH,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Patch().check(&mut r));
-        assert!(!Patch().check(&mut req));
+        let r = TestRequest::default().method(Method::PATCH).finish();
+        assert!(Patch().check(&r, r.state()));
+        assert!(!Patch().check(&req, req.state()));
 
-        let mut r = HttpRequest::new(
-            Method::TRACE,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
-        assert!(Trace().check(&mut r));
-        assert!(!Trace().check(&mut req));
+        let r = TestRequest::default().method(Method::TRACE).finish();
+        assert!(Trace().check(&r, r.state()));
+        assert!(!Trace().check(&req, req.state()));
     }
 
     #[test]
     fn test_preds() {
-        let mut r = HttpRequest::new(
-            Method::TRACE,
-            Uri::from_str("/").unwrap(),
-            Version::HTTP_11,
-            HeaderMap::new(),
-            None,
-        );
+        let r = TestRequest::default().method(Method::TRACE).finish();
 
-        assert!(Not(Get()).check(&mut r));
-        assert!(!Not(Trace()).check(&mut r));
+        assert!(Not(Get()).check(&r, r.state()));
+        assert!(!Not(Trace()).check(&r, r.state()));
 
-        assert!(All(Trace()).and(Trace()).check(&mut r));
-        assert!(!All(Get()).and(Trace()).check(&mut r));
+        assert!(All(Trace()).and(Trace()).check(&r, r.state()));
+        assert!(!All(Get()).and(Trace()).check(&r, r.state()));
 
-        assert!(Any(Get()).or(Trace()).check(&mut r));
-        assert!(!Any(Get()).or(Get()).check(&mut r));
+        assert!(Any(Get()).or(Trace()).check(&r, r.state()));
+        assert!(!Any(Get()).or(Get()).check(&r, r.state()));
     }
 }

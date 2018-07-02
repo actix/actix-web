@@ -8,11 +8,13 @@ use futures::{Async, Future, Poll};
 use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
+use http::{StatusCode, Version};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use pipeline::Pipeline;
 
+use super::error::ServerError;
 use super::h1decoder::{DecoderError, H1Decoder, Message};
 use super::h1writer::H1Writer;
 use super::input::PayloadType;
@@ -180,9 +182,7 @@ where
             && self.tasks.len() < MAX_PIPELINED_MESSAGES
             && self.can_read()
         {
-            let res = self.stream.get_mut().read_available(&mut self.buf);
-            match res {
-                //self.stream.get_mut().read_available(&mut self.buf) {
+            match self.stream.get_mut().read_available(&mut self.buf) {
                 Ok(Async::Ready(disconnected)) => {
                     if disconnected {
                         // notify all tasks
@@ -363,22 +363,19 @@ where
 
                     if payload {
                         let (ps, pl) = Payload::new(false);
-                        msg.get_mut().payload = Some(pl);
-                        self.payload =
-                            Some(PayloadType::new(&msg.get_ref().headers, ps));
+                        *msg.inner.payload.borrow_mut() = Some(pl);
+                        self.payload = Some(PayloadType::new(&msg.inner.headers, ps));
                     }
 
-                    let mut req = HttpRequest::from_message(msg);
-
                     // set remote addr
-                    req.set_peer_addr(self.addr);
+                    msg.inner.addr = self.addr;
 
                     // stop keepalive timer
                     self.keepalive_timer.take();
 
                     // search handler for request
                     for h in self.settings.handlers().iter_mut() {
-                        req = match h.handle(req) {
+                        msg = match h.handle(msg) {
                             Ok(mut pipe) => {
                                 if self.tasks.is_empty() {
                                     match pipe.poll_io(&mut self.stream) {
@@ -415,15 +412,16 @@ where
                                 });
                                 continue 'outer;
                             }
-                            Err(req) => req,
+                            Err(msg) => msg,
                         }
                     }
 
                     // handler is not found
                     self.tasks.push_back(Entry {
-                        pipe: EntryPipe::Error(
-                            Pipeline::error(HttpResponse::NotFound()),
-                        ),
+                        pipe: EntryPipe::Error(ServerError::err(
+                            Version::HTTP_11,
+                            StatusCode::NOT_FOUND,
+                        )),
                         flags: EntryFlags::empty(),
                     });
                 }
@@ -475,12 +473,11 @@ mod tests {
     use application::HttpApplication;
     use httpmessage::HttpMessage;
     use server::h1decoder::Message;
-    use server::helpers::SharedHttpInnerMessage;
-    use server::settings::WorkerSettings;
-    use server::KeepAlive;
+    use server::settings::{ServerSettings, WorkerSettings};
+    use server::{KeepAlive, Request};
 
     impl Message {
-        fn message(self) -> SharedHttpInnerMessage {
+        fn message(self) -> Request {
             match self {
                 Message::Message { msg, payload: _ } => msg,
                 _ => panic!("error"),
@@ -509,9 +506,9 @@ mod tests {
     macro_rules! parse_ready {
         ($e:expr) => {{
             let settings: WorkerSettings<HttpApplication> =
-                WorkerSettings::new(Vec::new(), KeepAlive::Os);
+                WorkerSettings::new(Vec::new(), KeepAlive::Os, ServerSettings::default());
             match H1Decoder::new().decode($e, &settings) {
-                Ok(Some(msg)) => HttpRequest::from_message(msg.message()),
+                Ok(Some(msg)) => msg.message(),
                 Ok(_) => unreachable!("Eof during parsing http request"),
                 Err(err) => unreachable!("Error during parsing http request: {:?}", err),
             }
@@ -521,7 +518,7 @@ mod tests {
     macro_rules! expect_parse_err {
         ($e:expr) => {{
             let settings: WorkerSettings<HttpApplication> =
-                WorkerSettings::new(Vec::new(), KeepAlive::Os);
+                WorkerSettings::new(Vec::new(), KeepAlive::Os, ServerSettings::default());
 
             match H1Decoder::new().decode($e, &settings) {
                 Err(err) => match err {
@@ -605,6 +602,7 @@ mod tests {
         let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
             Vec::new(),
             KeepAlive::Os,
+            ServerSettings::default(),
         ));
 
         let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
@@ -620,6 +618,7 @@ mod tests {
         let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
             Vec::new(),
             KeepAlive::Os,
+            ServerSettings::default(),
         ));
 
         let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
@@ -631,12 +630,16 @@ mod tests {
     #[test]
     fn test_parse() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let req = HttpRequest::from_message(msg.message());
+                let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
@@ -648,7 +651,11 @@ mod tests {
     #[test]
     fn test_parse_partial() {
         let mut buf = BytesMut::from("PUT /test HTTP/1");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -659,7 +666,7 @@ mod tests {
         buf.extend(b".1\r\n\r\n");
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let mut req = HttpRequest::from_message(msg.message());
+                let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::PUT);
                 assert_eq!(req.path(), "/test");
@@ -671,12 +678,16 @@ mod tests {
     #[test]
     fn test_parse_post() {
         let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let mut req = HttpRequest::from_message(msg.message());
+                let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_10);
                 assert_eq!(*req.method(), Method::POST);
                 assert_eq!(req.path(), "/test2");
@@ -689,12 +700,16 @@ mod tests {
     fn test_parse_body() {
         let mut buf =
             BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let mut req = HttpRequest::from_message(msg.message());
+                let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
@@ -716,12 +731,16 @@ mod tests {
     fn test_parse_body_crlf() {
         let mut buf =
             BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let mut req = HttpRequest::from_message(msg.message());
+                let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
@@ -742,14 +761,18 @@ mod tests {
     #[test]
     fn test_parse_partial_eof() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
         let mut reader = H1Decoder::new();
         assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
 
         buf.extend(b"\r\n");
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let req = HttpRequest::from_message(msg.message());
+                let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
@@ -761,7 +784,11 @@ mod tests {
     #[test]
     fn test_headers_split_field() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
@@ -775,7 +802,7 @@ mod tests {
         buf.extend(b"t: value\r\n\r\n");
         match reader.decode(&mut buf, &settings) {
             Ok(Some(msg)) => {
-                let req = HttpRequest::from_message(msg.message());
+                let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
@@ -792,10 +819,14 @@ mod tests {
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
-        let req = HttpRequest::from_message(msg.message());
+        let req = msg.message();
 
         let val: Vec<_> = req
             .headers()
@@ -988,7 +1019,11 @@ mod tests {
 
     #[test]
     fn test_http_request_upgrade() {
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: upgrade\r\n\
@@ -998,7 +1033,7 @@ mod tests {
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req = HttpRequest::from_message(msg.message());
+        let req = msg.message();
         assert!(!req.keep_alive());
         assert!(req.upgrade());
         assert_eq!(
@@ -1054,12 +1089,16 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req = HttpRequest::from_message(msg.message());
+        let req = msg.message();
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
@@ -1090,11 +1129,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req = HttpRequest::from_message(msg.message());
+        let req = msg.message();
         assert!(req.chunked().unwrap());
 
         buf.extend(
@@ -1112,7 +1155,7 @@ mod tests {
 
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req2 = HttpRequest::from_message(msg.message());
+        let req2 = msg.message();
         assert!(req2.chunked().unwrap());
         assert_eq!(*req2.method(), Method::POST);
         assert!(req2.chunked().unwrap());
@@ -1124,12 +1167,16 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req = HttpRequest::from_message(msg.message());
+        let req = msg.message();
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4\r\n1111\r\n");
@@ -1171,13 +1218,16 @@ mod tests {
             &"GET /test HTTP/1.1\r\n\
               transfer-encoding: chunked\r\n\r\n"[..],
         );
-        let settings = WorkerSettings::<HttpApplication>::new(Vec::new(), KeepAlive::Os);
+        let settings = WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+        );
 
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
-        let req = HttpRequest::from_message(msg.message());
-        assert!(req.chunked().unwrap());
+        assert!(msg.message().chunked().unwrap());
 
         buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
         let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();

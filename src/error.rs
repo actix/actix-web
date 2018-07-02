@@ -612,9 +612,6 @@ pub enum UrlGenerationError {
     /// Not all path pattern covered
     #[fail(display = "Not all path pattern covered")]
     NotEnoughElements,
-    /// Router is not available
-    #[fail(display = "Router is not available")]
-    RouterNotAvailable,
     /// URL parse error
     #[fail(display = "{}", _0)]
     ParseError(#[cause] UrlParseError),

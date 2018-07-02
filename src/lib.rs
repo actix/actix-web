@@ -84,6 +84,7 @@
     allow(decimal_literal_representation, suspicious_arithmetic_impl)
 )]
 #![warn(missing_docs)]
+#![allow(unused_mut, unused_imports, unused_variables, dead_code)]
 
 #[macro_use]
 extern crate log;
@@ -199,6 +200,7 @@ pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use scope::Scope;
+pub use server::Request;
 
 pub mod actix {
     //! Re-exports [actix's](https://docs.rs/actix/) prelude
