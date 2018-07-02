@@ -18,7 +18,7 @@ use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
-use error::Error;
+use error::{Error, StaticFileError};
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
 use http::{ContentEncoding, Method, StatusCode};
@@ -561,7 +561,6 @@ fn directory_listing<S>(
 /// ```
 pub struct StaticFiles<S> {
     directory: PathBuf,
-    accessible: bool,
     index: Option<String>,
     show_index: bool,
     cpu_pool: CpuPool,
@@ -589,24 +588,21 @@ impl<S: 'static> StaticFiles<S> {
     pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> StaticFiles<S> {
         let dir = dir.into();
 
-        let (dir, access) = match dir.canonicalize() {
+        let dir = match dir.canonicalize() {
             Ok(dir) => {
-                if dir.is_dir() {
-                    (dir, true)
-                } else {
+                if !dir.is_dir() {
                     warn!("Is not directory `{:?}`", dir);
-                    (dir, false)
-                }
+                };
+                dir
             }
             Err(err) => {
                 warn!("Static files directory `{:?}` error: {}", dir, err);
-                (dir, false)
+                dir
             }
         };
 
         StaticFiles {
             directory: dir,
-            accessible: access,
             index: None,
             show_index: false,
             cpu_pool: pool,
@@ -652,62 +648,51 @@ impl<S: 'static> StaticFiles<S> {
         self.default = Box::new(WrapHandler::new(handler));
         self
     }
+
+    fn try_handle(&self, req: &HttpRequest<S>) -> Result<AsyncResult<HttpResponse>, Error> {
+        let tail: String = req.match_info().query("tail")?;
+        let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
+
+        // full filepath
+        let path = self.directory.join(&relpath).canonicalize()?;
+
+        if path.is_dir() {
+            if let Some(ref redir_index) = self.index {
+                // TODO: Don't redirect, just return the index content.
+                // TODO: It'd be nice if there were a good usable URL manipulation
+                // library
+                let mut new_path: String = req.path().to_owned();
+                if !new_path.ends_with('/') {
+                    new_path.push('/');
+                }
+                new_path.push_str(redir_index);
+                HttpResponse::Found()
+                    .header(header::LOCATION, new_path.as_str())
+                    .finish()
+                    .respond_to(&req)
+            } else if self.show_index {
+                let dir = Directory::new(self.directory.clone(), path);
+                Ok((*self.renderer)(&dir, &req)?.into())
+            } else {
+                Err(StaticFileError::IsDirectory.into())
+            }
+        } else {
+            NamedFile::open(path)?
+                .set_cpu_pool(self.cpu_pool.clone())
+                .respond_to(&req)?
+                .respond_to(&req)
+        }
+    }
 }
 
 impl<S: 'static> Handler<S> for StaticFiles<S> {
     type Result = Result<AsyncResult<HttpResponse>, Error>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
-        if !self.accessible {
+        self.try_handle(req).or_else(|e| {
+            debug!("StaticFiles: Failed to handle {}: {}", req.path(), e);
             Ok(self.default.handle(req))
-        } else {
-            let relpath = match req
-                .match_info()
-                .get("tail")
-                .map(|tail| PathBuf::from_param(tail.trim_left_matches('/')))
-            {
-                Some(Ok(path)) => path,
-                _ => {
-                    return Ok(self.default.handle(req));
-                }
-            };
-
-            // full filepath
-            let path = match self.directory.join(&relpath).canonicalize() {
-                Ok(path) => path,
-                _ => return Ok(self.default.handle(req))
-            };
-
-            if path.is_dir() {
-                if let Some(ref redir_index) = self.index {
-                    // TODO: Don't redirect, just return the index content.
-                    // TODO: It'd be nice if there were a good usable URL manipulation
-                    // library
-                    let mut new_path: String = req.path().to_owned();
-                    if !new_path.ends_with('/') {
-                        new_path.push('/');
-                    }
-                    new_path.push_str(redir_index);
-                    HttpResponse::Found()
-                        .header(header::LOCATION, new_path.as_str())
-                        .finish()
-                        .respond_to(&req)
-                } else if self.show_index {
-                    let dir = Directory::new(self.directory.clone(), path);
-                    Ok((*self.renderer)(&dir, &req)?.into())
-                } else {
-                    Ok(self.default.handle(req))
-                }
-            } else {
-                let file = match NamedFile::open(path) {
-                    Ok(file) => file,
-                    _ => return Ok(self.default.handle(req))
-                };
-                file.set_cpu_pool(self.cpu_pool.clone())
-                    .respond_to(&req)?
-                    .respond_to(&req)
-            }
-        }
+        })
     }
 }
 
@@ -1191,13 +1176,11 @@ mod tests {
     #[test]
     fn test_static_files() {
         let mut st = StaticFiles::new(".").show_files_listing();
-        st.accessible = false;
-        let req = TestRequest::default().finish();
+        let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        st.accessible = true;
         st.show_index = false;
         let req = TestRequest::default().finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
@@ -1220,11 +1203,10 @@ mod tests {
     #[test]
     fn test_default_handler_file_missing() {
         let st = StaticFiles::new(".")
-            .default_handler(|_req| "default content");
-        let req = TestRequest::with_uri("/missing")
-            .param("tail", "missing").finish();
+            .default_handler(|_: &_| "default content");
+        let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
 
-        let resp = st.handle(req).respond_to(&HttpRequest::default()).unwrap();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body(), &Body::Binary(Binary::Slice(b"default content")));
