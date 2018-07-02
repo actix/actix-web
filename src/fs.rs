@@ -13,10 +13,10 @@ use std::os::unix::fs::MetadataExt;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
+use htmlescape::encode_minimal as escape_html_entity;
 use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
-use htmlescape::encode_minimal as escape_html_entity;
 
 use error::Error;
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
@@ -442,14 +442,11 @@ impl Stream for ChunkedReadFile {
                 let max_bytes: usize;
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
-                // safe because memory is initialized/overwritten immediately
-                unsafe { buf.set_len(max_bytes); }
                 file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes = file.read(buf.as_mut_slice())?;
+                let nbytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
-                unsafe { buf.set_len(nbytes); }
                 Ok((file, Bytes::from(buf)))
             }));
             self.poll()
@@ -518,15 +515,13 @@ fn directory_listing<S>(
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}/</a></li>",
-                        file_url,
-                        file_name
+                        file_url, file_name
                     );
                 } else {
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}</a></li>",
-                        file_url,
-                        file_name
+                        file_url, file_name
                     );
                 }
             } else {
@@ -805,6 +800,8 @@ impl HttpRange {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use application::App;
     use http::{header, Method, StatusCode};
@@ -1130,14 +1127,19 @@ mod tests {
             .unwrap();
 
         let response = srv.execute(request.send()).unwrap();
+        {
+            let te = response
+                .headers()
+                .get(header::TRANSFER_ENCODING)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            assert_eq!(te, "chunked");
+        }
 
-        let te = response
-            .headers()
-            .get(header::TRANSFER_ENCODING)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(te, "chunked");
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("tests/test.binary").unwrap());
+        assert_eq!(bytes, data);
     }
 
     #[test]
