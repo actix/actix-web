@@ -240,6 +240,7 @@ macro_rules! FROM_STR {
     };
 }
 
+FROM_STR!(bool);
 FROM_STR!(u8);
 FROM_STR!(u16);
 FROM_STR!(u32);
@@ -294,6 +295,18 @@ mod tests {
         assert_eq!(
             PathBuf::from_param("/seg1/../seg2/"),
             Ok(PathBuf::from_iter(vec!["seg2"]))
+        );
+    }
+
+    #[test]
+    fn test_from_param() {
+        assert_eq!(
+            <bool as FromParam>::from_param("true").unwrap(),
+            true
+        );
+        assert_eq!(
+            <bool as FromParam>::from_param("false").unwrap(),
+            false
         );
     }
 }
