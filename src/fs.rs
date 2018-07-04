@@ -555,7 +555,7 @@ fn directory_listing<S>(
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .handler("/static", fs::StaticFiles::new("."))
+///         .handler("/static", fs::StaticFiles::new(".").unwrap())
 ///         .finish();
 /// }
 /// ```
@@ -576,7 +576,7 @@ impl<S: 'static> StaticFiles<S> {
     /// `StaticFile` uses `CpuPool` for blocking filesystem operations.
     /// By default pool with 20 threads is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(dir: T) -> StaticFiles<S> {
+    pub fn new<T: Into<PathBuf>>(dir: T) -> Result<StaticFiles<S>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
 
@@ -585,23 +585,14 @@ impl<S: 'static> StaticFiles<S> {
 
     /// Create new `StaticFiles` instance for specified base directory and
     /// `CpuPool`.
-    pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> StaticFiles<S> {
-        let dir = dir.into();
+    pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> Result<StaticFiles<S>, Error> {
+        let dir = dir.into().canonicalize()?;
 
-        let dir = match dir.canonicalize() {
-            Ok(dir) => {
-                if !dir.is_dir() {
-                    warn!("Is not directory `{:?}`", dir);
-                };
-                dir
-            }
-            Err(err) => {
-                warn!("Static files directory `{:?}` error: {}", dir, err);
-                dir
-            }
-        };
+        if !dir.is_dir() {
+            return Err(StaticFileError::IsNotDirectory.into())
+        }
 
-        StaticFiles {
+        Ok(StaticFiles {
             directory: dir,
             index: None,
             show_index: false,
@@ -612,7 +603,7 @@ impl<S: 'static> StaticFiles<S> {
             renderer: Box::new(directory_listing),
             _chunk_size: 0,
             _follow_symlinks: false,
-        }
+        })
     }
 
     /// Show files listing for directories.
@@ -980,7 +971,7 @@ mod tests {
     #[test]
     fn test_named_file_ranges_status_code() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
+            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
         });
 
         // Valid range header
@@ -1010,7 +1001,7 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").index_file("tests/test.binary"),
+                StaticFiles::new(".").unwrap().index_file("tests/test.binary"),
             )
         });
 
@@ -1058,7 +1049,7 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").index_file("tests/test.binary"),
+                StaticFiles::new(".").unwrap().index_file("tests/test.binary"),
             )
         });
 
@@ -1175,7 +1166,7 @@ mod tests {
 
     #[test]
     fn test_static_files() {
-        let mut st = StaticFiles::new(".").show_files_listing();
+        let mut st = StaticFiles::new(".").unwrap().show_files_listing();
         let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
@@ -1201,8 +1192,17 @@ mod tests {
     }
 
     #[test]
+    fn test_static_files_bad_directory() {
+        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("missing");
+        assert!(st.is_err());
+
+        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("Cargo.toml");
+        assert!(st.is_err());
+    }
+
+    #[test]
     fn test_default_handler_file_missing() {
-        let st = StaticFiles::new(".")
+        let st = StaticFiles::new(".").unwrap()
             .default_handler(|_: &_| "default content");
         let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
 
@@ -1214,7 +1214,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index() {
-        let st = StaticFiles::new(".").index_file("index.html");
+        let st = StaticFiles::new(".").unwrap().index_file("index.html");
         let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
@@ -1237,7 +1237,7 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index_nested() {
-        let st = StaticFiles::new(".").index_file("mod.rs");
+        let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
         let req = TestRequest::default().uri("/src/client").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
@@ -1253,7 +1253,7 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new()
                 .prefix("public")
-                .handler("/", StaticFiles::new(".").index_file("Cargo.toml"))
+                .handler("/", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
         });
 
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
@@ -1282,7 +1282,7 @@ mod tests {
     #[test]
     fn integration_redirect_to_index() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
+            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
         });
 
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -1311,7 +1311,7 @@ mod tests {
     #[test]
     fn integration_percent_encoded() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").index_file("Cargo.toml"))
+            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
         });
 
         let request = srv
