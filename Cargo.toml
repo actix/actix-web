@@ -104,8 +104,6 @@ tokio-tls = { version="0.1", optional = true }
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
 
-backtrace="*"
-
 [dev-dependencies]
 env_logger = "0.5"
 serde_derive = "1.0"

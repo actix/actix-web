@@ -6,7 +6,9 @@ use futures::{Async, Future, Poll};
 use smallvec::SmallVec;
 use std::marker::PhantomData;
 
-use self::actix::dev::{ContextImpl, Envelope, ToEnvelope};
+use self::actix::dev::{
+    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope,
+};
 use self::actix::fut::ActorFuture;
 use self::actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
@@ -41,7 +43,7 @@ pub struct HttpContext<A, S = ()>
 where
     A: Actor<Context = HttpContext<A, S>>,
 {
-    inner: ContextImpl<A>,
+    inner: ContextParts<A>,
     stream: Option<SmallVec<[Frame; 4]>>,
     request: HttpRequest<S>,
     disconnected: bool,
@@ -103,30 +105,32 @@ where
 {
     #[inline]
     /// Create a new HTTP Context from a request and an actor
-    pub fn new(req: HttpRequest<S>, actor: A) -> HttpContext<A, S> {
-        HttpContext {
-            inner: ContextImpl::new(Some(actor)),
+    pub fn new(req: HttpRequest<S>, actor: A) -> Body {
+        let mb = Mailbox::default();
+        let ctx = HttpContext {
+            inner: ContextParts::new(mb.sender_producer()),
             stream: None,
             request: req,
             disconnected: false,
-        }
+        };
+        Body::Actor(Box::new(HttpContextFut::new(ctx, actor, mb)))
     }
 
     /// Create a new HTTP Context
-    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> HttpContext<A, S>
+    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> Body
     where
         F: FnOnce(&mut Self) -> A + 'static,
     {
+        let mb = Mailbox::default();
         let mut ctx = HttpContext {
-            inner: ContextImpl::new(None),
+            inner: ContextParts::new(mb.sender_producer()),
             stream: None,
             request: req,
             disconnected: false,
         };
 
         let act = f(&mut ctx);
-        ctx.inner.set_actor(act);
-        ctx
+        Body::Actor(Box::new(HttpContextFut::new(ctx, act, mb)))
     }
 }
 
@@ -165,7 +169,6 @@ where
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
-        self.inner.modify();
         self.add_frame(Frame::Drain(tx));
         Drain::new(rx)
     }
@@ -184,7 +187,6 @@ where
         if let Some(s) = self.stream.as_mut() {
             s.push(frame)
         }
-        self.inner.modify();
     }
 
     /// Handle of the running future
@@ -195,32 +197,55 @@ where
     }
 }
 
-impl<A, S> ActorHttpContext for HttpContext<A, S>
+impl<A, S> AsyncContextParts<A> for HttpContext<A, S>
 where
     A: Actor<Context = Self>,
+{
+    fn parts(&mut self) -> &mut ContextParts<A> {
+        &mut self.inner
+    }
+}
+
+struct HttpContextFut<A, S>
+where
+    A: Actor<Context = HttpContext<A, S>>,
+{
+    fut: ContextFut<A, HttpContext<A, S>>,
+}
+
+impl<A, S> HttpContextFut<A, S>
+where
+    A: Actor<Context = HttpContext<A, S>>,
+{
+    fn new(ctx: HttpContext<A, S>, act: A, mailbox: Mailbox<A>) -> Self {
+        let fut = ContextFut::new(ctx, act, mailbox);
+        HttpContextFut { fut }
+    }
+}
+
+impl<A, S> ActorHttpContext for HttpContextFut<A, S>
+where
+    A: Actor<Context = HttpContext<A, S>>,
     S: 'static,
 {
     #[inline]
     fn disconnected(&mut self) {
-        self.disconnected = true;
-        self.stop();
+        self.fut.ctx().disconnected = true;
+        self.fut.ctx().stop();
     }
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[Frame; 4]>>, Error> {
-        let ctx: &mut HttpContext<A, S> =
-            unsafe { &mut *(self as &mut HttpContext<A, S> as *mut _) };
-
-        if self.inner.alive() {
-            match self.inner.poll(ctx) {
+        if self.fut.alive() {
+            match self.fut.poll() {
                 Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
                 Err(_) => return Err(ErrorInternalServerError("error")),
             }
         }
 
         // frames
-        if let Some(data) = self.stream.take() {
+        if let Some(data) = self.fut.ctx().stream.take() {
             Ok(Async::Ready(Some(data)))
-        } else if self.inner.alive() {
+        } else if self.fut.alive() {
             Ok(Async::NotReady)
         } else {
             Ok(Async::Ready(None))
@@ -236,16 +261,6 @@ where
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
         Envelope::new(msg, tx)
-    }
-}
-
-impl<A, S> From<HttpContext<A, S>> for Body
-where
-    A: Actor<Context = HttpContext<A, S>>,
-    S: 'static,
-{
-    fn from(ctx: HttpContext<A, S>) -> Body {
-        Body::Actor(Box::new(ctx))
     }
 }
 

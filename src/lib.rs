@@ -84,7 +84,6 @@
     allow(decimal_literal_representation, suspicious_arithmetic_impl)
 )]
 #![warn(missing_docs)]
-#![allow(unused_mut, unused_imports, unused_variables, dead_code)]
 
 #[macro_use]
 extern crate log;

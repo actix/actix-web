@@ -1,30 +1,35 @@
 extern crate actix;
 
+use bytes::Bytes;
 use futures::sync::oneshot::{self, Sender};
-use futures::{Async, Poll};
+use futures::{Async, Future, Poll, Stream};
 use smallvec::SmallVec;
 
-use self::actix::dev::{ContextImpl, Envelope, ToEnvelope};
+use self::actix::dev::{
+    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler,
+    ToEnvelope,
+};
 use self::actix::fut::ActorFuture;
 use self::actix::{
-    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
+    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler,
+    Message as ActixMessage, SpawnHandle,
 };
 
 use body::{Binary, Body};
 use context::{ActorHttpContext, Drain, Frame as ContextFrame};
-use error::{Error, ErrorInternalServerError};
+use error::{Error, ErrorInternalServerError, PayloadError};
 use httprequest::HttpRequest;
 
 use ws::frame::Frame;
 use ws::proto::{CloseReason, OpCode};
-use ws::WsWriter;
+use ws::{Message, ProtocolError, WsStream, WsWriter};
 
 /// Execution context for `WebSockets` actors
 pub struct WebsocketContext<A, S = ()>
 where
     A: Actor<Context = WebsocketContext<A, S>>,
 {
-    inner: ContextImpl<A>,
+    inner: ContextParts<A>,
     stream: Option<SmallVec<[ContextFrame; 4]>>,
     request: HttpRequest<S>,
     disconnected: bool,
@@ -87,30 +92,41 @@ where
 {
     #[inline]
     /// Create a new Websocket context from a request and an actor
-    pub fn new(req: HttpRequest<S>, actor: A) -> WebsocketContext<A, S> {
-        WebsocketContext {
-            inner: ContextImpl::new(Some(actor)),
-            stream: None,
-            request: req,
-            disconnected: false,
-        }
-    }
-
-    /// Create a new Websocket context
-    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> Self
+    pub fn new<P>(req: HttpRequest<S>, actor: A, stream: WsStream<P>) -> Body
     where
-        F: FnOnce(&mut Self) -> A + 'static,
+        A: StreamHandler<Message, ProtocolError>,
+        P: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
+        let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
-            inner: ContextImpl::new(None),
+            inner: ContextParts::new(mb.sender_producer()),
             stream: None,
             request: req,
             disconnected: false,
         };
+        ctx.add_stream(stream);
+
+        Body::Actor(Box::new(WebsocketContextFut::new(ctx, actor, mb)))
+    }
+
+    /// Create a new Websocket context
+    pub fn with_factory<F, P>(req: HttpRequest<S>, stream: WsStream<P>, f: F) -> Body
+    where
+        F: FnOnce(&mut Self) -> A + 'static,
+        A: StreamHandler<Message, ProtocolError>,
+        P: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
+        let mb = Mailbox::default();
+        let mut ctx = WebsocketContext {
+            inner: ContextParts::new(mb.sender_producer()),
+            stream: None,
+            request: req,
+            disconnected: false,
+        };
+        ctx.add_stream(stream);
 
         let act = f(&mut ctx);
-        ctx.inner.set_actor(act);
-        ctx
+        Body::Actor(Box::new(WebsocketContextFut::new(ctx, act, mb)))
     }
 }
 
@@ -127,7 +143,6 @@ where
             }
             let stream = self.stream.as_mut().unwrap();
             stream.push(ContextFrame::Chunk(Some(data)));
-            self.inner.modify();
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -148,7 +163,6 @@ where
     /// Returns drain future
     pub fn drain(&mut self) -> Drain<A> {
         let (tx, rx) = oneshot::channel();
-        self.inner.modify();
         self.add_frame(ContextFrame::Drain(tx));
         Drain::new(rx)
     }
@@ -207,7 +221,6 @@ where
         if let Some(s) = self.stream.as_mut() {
             s.push(frame)
         }
-        self.inner.modify();
     }
 
     /// Handle of the running future
@@ -254,28 +267,52 @@ where
     }
 }
 
-impl<A, S> ActorHttpContext for WebsocketContext<A, S>
+impl<A, S> AsyncContextParts<A> for WebsocketContext<A, S>
 where
     A: Actor<Context = Self>,
+{
+    fn parts(&mut self) -> &mut ContextParts<A> {
+        &mut self.inner
+    }
+}
+
+struct WebsocketContextFut<A, S>
+where
+    A: Actor<Context = WebsocketContext<A, S>>,
+{
+    fut: ContextFut<A, WebsocketContext<A, S>>,
+}
+
+impl<A, S> WebsocketContextFut<A, S>
+where
+    A: Actor<Context = WebsocketContext<A, S>>,
+{
+    fn new(ctx: WebsocketContext<A, S>, act: A, mailbox: Mailbox<A>) -> Self {
+        let fut = ContextFut::new(ctx, act, mailbox);
+        WebsocketContextFut { fut }
+    }
+}
+
+impl<A, S> ActorHttpContext for WebsocketContextFut<A, S>
+where
+    A: Actor<Context = WebsocketContext<A, S>>,
     S: 'static,
 {
     #[inline]
     fn disconnected(&mut self) {
-        self.disconnected = true;
-        self.stop();
+        self.fut.ctx().disconnected = true;
+        self.fut.ctx().stop();
     }
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame; 4]>>, Error> {
-        let ctx: &mut WebsocketContext<A, S> = unsafe { &mut *(self as *mut _) };
-
-        if self.inner.alive() && self.inner.poll(ctx).is_err() {
+        if self.fut.alive() && self.fut.poll().is_err() {
             return Err(ErrorInternalServerError("error"));
         }
 
         // frames
-        if let Some(data) = self.stream.take() {
+        if let Some(data) = self.fut.ctx().stream.take() {
             Ok(Async::Ready(Some(data)))
-        } else if self.inner.alive() {
+        } else if self.fut.alive() {
             Ok(Async::NotReady)
         } else {
             Ok(Async::Ready(None))
@@ -286,20 +323,10 @@ where
 impl<A, M, S> ToEnvelope<A, M> for WebsocketContext<A, S>
 where
     A: Actor<Context = WebsocketContext<A, S>> + Handler<M>,
-    M: Message + Send + 'static,
+    M: ActixMessage + Send + 'static,
     M::Result: Send,
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
         Envelope::new(msg, tx)
-    }
-}
-
-impl<A, S> From<WebsocketContext<A, S>> for Body
-where
-    A: Actor<Context = WebsocketContext<A, S>>,
-    S: 'static,
-{
-    fn from(ctx: WebsocketContext<A, S>) -> Body {
-        Body::Actor(Box::new(ctx))
     }
 }

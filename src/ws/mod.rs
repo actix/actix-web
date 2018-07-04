@@ -179,10 +179,8 @@ where
     let mut resp = handshake(req)?;
     let stream = WsStream::new(req.payload());
 
-    let mut ctx = WebsocketContext::new(req.clone(), actor);
-    ctx.add_stream(stream);
-
-    Ok(resp.body(ctx))
+    let body = WebsocketContext::new(req.clone(), actor, stream);
+    Ok(resp.body(body))
 }
 
 /// Prepare `WebSocket` handshake response.
