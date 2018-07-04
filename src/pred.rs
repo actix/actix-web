@@ -68,7 +68,7 @@ impl<S: 'static> Predicate<S> for AnyPredicate<S> {
 ///         r.route()
 ///             .filter(
 ///                 pred::All(pred::Get())
-///                     .and(pred::Header("content-type", "plain/text")),
+///                     .and(pred::Header("content-type", "text/plain")),
 ///             )
 ///             .f(|_| HttpResponse::MethodNotAllowed())
 ///     });
@@ -177,7 +177,8 @@ pub fn Method<S: 'static>(method: http::Method) -> MethodPredicate<S> {
 /// Return predicate that matches if request contains specified header and
 /// value.
 pub fn Header<S: 'static>(
-    name: &'static str, value: &'static str,
+    name: &'static str,
+    value: &'static str,
 ) -> HeaderPredicate<S> {
     HeaderPredicate(
         header::HeaderName::try_from(name).unwrap(),
