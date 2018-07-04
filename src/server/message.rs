@@ -1,6 +1,7 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::rc::Rc;
 
 use http::{header, HeaderMap, Method, Uri, Version};
 
@@ -19,8 +20,9 @@ bitflags! {
 }
 
 /// Request's context
+#[derive(Clone)]
 pub struct Request {
-    pub(crate) inner: Box<InnerRequest>,
+    pub(crate) inner: Rc<InnerRequest>,
 }
 
 pub(crate) struct InnerRequest {
@@ -34,6 +36,18 @@ pub(crate) struct InnerRequest {
     pub(crate) info: RefCell<ConnectionInfo>,
     pub(crate) payload: RefCell<Option<Payload>>,
     pub(crate) settings: ServerSettings,
+    pool: &'static RequestPool,
+}
+
+impl InnerRequest {
+    #[inline]
+    /// Reset request instance
+    pub fn reset(&mut self) {
+        self.headers.clear();
+        self.extensions.borrow_mut().clear();
+        self.flags.set(MessageFlags::empty());
+        *self.payload.borrow_mut() = None;
+    }
 }
 
 impl HttpMessage for Request {
@@ -55,9 +69,10 @@ impl HttpMessage for Request {
 
 impl Request {
     /// Create new RequestContext instance
-    pub fn new(settings: ServerSettings) -> Request {
+    pub(crate) fn new(pool: &'static RequestPool, settings: ServerSettings) -> Request {
         Request {
-            inner: Box::new(InnerRequest {
+            inner: Rc::new(InnerRequest {
+                pool,
                 settings,
                 method: Method::GET,
                 url: InnerUrl::default(),
@@ -73,44 +88,54 @@ impl Request {
     }
 
     #[inline]
+    pub(crate) fn inner(&self) -> &InnerRequest {
+        self.inner.as_ref()
+    }
+
+    #[inline]
+    pub(crate) fn inner_mut(&mut self) -> &mut InnerRequest {
+        Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
+    }
+
+    #[inline]
     pub(crate) fn url(&self) -> &InnerUrl {
-        &self.inner.url
+        &self.inner().url
     }
 
     /// Read the Request Uri.
     #[inline]
     pub fn uri(&self) -> &Uri {
-        self.inner.url.uri()
+        self.inner().url.uri()
     }
 
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
-        &self.inner.method
+        &self.inner().method
     }
 
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.inner.version
+        self.inner().version
     }
 
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.inner.url.path()
+        self.inner().url.path()
     }
 
     #[inline]
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
-        &self.inner.headers
+        &self.inner().headers
     }
 
     #[inline]
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.inner.headers
+        &mut self.inner_mut().headers
     }
 
     /// Peer socket address
@@ -121,67 +146,71 @@ impl Request {
     /// To get client connection information `connection_info()` method should
     /// be used.
     pub fn peer_addr(&self) -> Option<SocketAddr> {
-        self.inner.addr
+        self.inner().addr
     }
 
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        self.inner.flags.get().contains(MessageFlags::KEEPALIVE)
+        self.inner().flags.get().contains(MessageFlags::KEEPALIVE)
     }
 
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
-        self.inner.extensions.borrow()
+        self.inner().extensions.borrow()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.inner.extensions.borrow_mut()
+        self.inner().extensions.borrow_mut()
     }
 
     /// Check if request requires connection upgrade
     pub fn upgrade(&self) -> bool {
-        if let Some(conn) = self.inner.headers.get(header::CONNECTION) {
+        if let Some(conn) = self.inner().headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade");
             }
         }
-        self.inner.method == Method::CONNECT
+        self.inner().method == Method::CONNECT
     }
 
     /// Get *ConnectionInfo* for the correct request.
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
-        if self.inner.flags.get().contains(MessageFlags::CONN_INFO) {
-            self.inner.info.borrow()
+        if self.inner().flags.get().contains(MessageFlags::CONN_INFO) {
+            self.inner().info.borrow()
         } else {
-            let mut flags = self.inner.flags.get();
+            let mut flags = self.inner().flags.get();
             flags.insert(MessageFlags::CONN_INFO);
-            self.inner.flags.set(flags);
-            self.inner.info.borrow_mut().update(self);
-            self.inner.info.borrow()
+            self.inner().flags.set(flags);
+            self.inner().info.borrow_mut().update(self);
+            self.inner().info.borrow()
         }
     }
 
     /// Server settings
     #[inline]
     pub fn server_settings(&self) -> &ServerSettings {
-        &self.inner.settings
+        &self.inner().settings
     }
 
-    #[inline]
-    /// Reset request instance
-    pub fn reset(&mut self) {
-        self.inner.headers.clear();
-        self.inner.extensions.borrow_mut().clear();
-        self.inner.flags.set(MessageFlags::empty());
-        *self.inner.payload.borrow_mut() = None;
+    pub(crate) fn release(self) {
+        let mut inner = self.inner;
+        if let Some(r) = Rc::get_mut(&mut inner) {
+            r.reset();
+        } else {
+            return;
+        }
+        inner.pool.release(inner);
     }
 }
 
-pub(crate) struct RequestPool(RefCell<VecDeque<Request>>, RefCell<ServerSettings>);
+pub(crate) struct RequestPool(
+    RefCell<VecDeque<Rc<InnerRequest>>>,
+    RefCell<ServerSettings>,
+);
 
 thread_local!(static POOL: &'static RequestPool = RequestPool::create());
 
@@ -202,20 +231,19 @@ impl RequestPool {
     }
 
     #[inline]
-    pub fn get(&self) -> Request {
-        if let Some(msg) = self.0.borrow_mut().pop_front() {
-            msg
+    pub fn get(pool: &'static RequestPool) -> Request {
+        if let Some(msg) = pool.0.borrow_mut().pop_front() {
+            Request { inner: msg }
         } else {
-            Request::new(self.1.borrow().clone())
+            Request::new(pool, pool.1.borrow().clone())
         }
     }
 
     #[inline]
     /// Release request instance
-    pub fn release(&self, mut msg: Request) {
+    pub fn release(&self, msg: Rc<InnerRequest>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            msg.reset();
             v.push_front(msg);
         }
     }

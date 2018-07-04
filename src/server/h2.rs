@@ -329,13 +329,16 @@ impl<H: HttpHandler + 'static> Entry<H> {
         // Payload and Content-Encoding
         let (psender, payload) = Payload::new(false);
 
-        let mut msg = settings.get_request_context();
-        msg.inner.url = Url::new(parts.uri);
-        msg.inner.method = parts.method;
-        msg.inner.version = parts.version;
-        msg.inner.headers = parts.headers;
-        *msg.inner.payload.borrow_mut() = Some(payload);
-        msg.inner.addr = addr;
+        let mut msg = settings.get_request();
+        {
+            let inner = msg.inner_mut();
+            inner.url = Url::new(parts.uri);
+            inner.method = parts.method;
+            inner.version = parts.version;
+            inner.headers = parts.headers;
+            *inner.payload.borrow_mut() = Some(payload);
+            inner.addr = addr;
+        }
 
         // Payload sender
         let psender = PayloadType::new(msg.headers(), psender);

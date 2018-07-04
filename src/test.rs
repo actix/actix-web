@@ -29,7 +29,8 @@ use param::Params;
 use payload::Payload;
 use resource::ResourceHandler;
 use router::Router;
-use server::{HttpServer, IntoHttpHandler, Request, ServerSettings};
+use server::message::{Request, RequestPool};
+use server::{HttpServer, IntoHttpHandler, ServerSettings};
 use uri::Url as InnerUrl;
 use ws;
 
@@ -540,12 +541,16 @@ impl<S: 'static> TestRequest<S> {
         } = self;
         let (router, _) = Router::new::<S>("/", Vec::new());
 
-        let mut req = Request::new(ServerSettings::default());
-        req.inner.method = method;
-        req.inner.url = InnerUrl::new(uri);
-        req.inner.version = version;
-        req.inner.headers = headers;
-        *req.inner.payload.borrow_mut() = payload;
+        let pool = RequestPool::pool(ServerSettings::default());
+        let mut req = RequestPool::get(pool);
+        {
+            let inner = req.inner_mut();
+            inner.method = method;
+            inner.url = InnerUrl::new(uri);
+            inner.version = version;
+            inner.headers = headers;
+            *inner.payload.borrow_mut() = payload;
+        }
 
         let mut req =
             HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
@@ -567,12 +572,16 @@ impl<S: 'static> TestRequest<S> {
             payload,
         } = self;
 
-        let mut req = Request::new(ServerSettings::default());
-        req.inner.method = method;
-        req.inner.url = InnerUrl::new(uri);
-        req.inner.version = version;
-        req.inner.headers = headers;
-        *req.inner.payload.borrow_mut() = payload;
+        let pool = RequestPool::pool(ServerSettings::default());
+        let mut req = RequestPool::get(pool);
+        {
+            let inner = req.inner_mut();
+            inner.method = method;
+            inner.url = InnerUrl::new(uri);
+            inner.version = version;
+            inner.headers = headers;
+            *inner.payload.borrow_mut() = payload;
+        }
         let mut req =
             HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
         req.set_cookies(cookies);
@@ -589,12 +598,17 @@ impl<S: 'static> TestRequest<S> {
             payload,
             ..
         } = self;
-        let mut req = Request::new(ServerSettings::default());
-        req.inner.method = method;
-        req.inner.url = InnerUrl::new(uri);
-        req.inner.version = version;
-        req.inner.headers = headers;
-        *req.inner.payload.borrow_mut() = payload;
+
+        let pool = RequestPool::pool(ServerSettings::default());
+        let mut req = RequestPool::get(pool);
+        {
+            let inner = req.inner_mut();
+            inner.method = method;
+            inner.url = InnerUrl::new(uri);
+            inner.version = version;
+            inner.headers = headers;
+            *inner.payload.borrow_mut() = payload;
+        }
         req
     }
 

@@ -365,7 +365,7 @@ where
                     }
 
                     // set remote addr
-                    msg.inner.addr = self.addr;
+                    msg.inner_mut().addr = self.addr;
 
                     // stop keepalive timer
                     self.keepalive_timer.take();

@@ -212,8 +212,8 @@ impl<H> WorkerSettings<H> {
         self.bytes.release_bytes(bytes)
     }
 
-    pub fn get_request_context(&self) -> Request {
-        self.messages.get()
+    pub fn get_request(&self) -> Request {
+        RequestPool::get(self.messages)
     }
 
     pub fn add_channel(&self) {

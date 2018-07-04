@@ -28,7 +28,7 @@ struct Cookies(Vec<Cookie<'static>>);
 
 /// An HTTP Request
 pub struct HttpRequest<S = ()> {
-    req: Rc<Request>,
+    req: Option<Request>,
     state: Rc<S>,
     route: RouteInfo,
 }
@@ -38,12 +38,12 @@ impl<S> HttpMessage for HttpRequest<S> {
 
     #[inline]
     fn headers(&self) -> &HeaderMap {
-        self.req.headers()
+        self.request().headers()
     }
 
     #[inline]
     fn payload(&self) -> Payload {
-        if let Some(payload) = self.req.inner.payload.borrow_mut().take() {
+        if let Some(payload) = self.request().inner.payload.borrow_mut().take() {
             payload
         } else {
             Payload::empty()
@@ -55,7 +55,7 @@ impl<S> Deref for HttpRequest<S> {
     type Target = Request;
 
     fn deref(&self) -> &Request {
-        self.req.as_ref()
+        self.request()
     }
 }
 
@@ -65,7 +65,7 @@ impl<S> HttpRequest<S> {
         HttpRequest {
             state,
             route,
-            req: Rc::new(req),
+            req: Some(req),
         }
     }
 
@@ -98,38 +98,40 @@ impl<S> HttpRequest<S> {
     #[inline]
     /// Server request
     pub fn request(&self) -> &Request {
-        &self.req
+        self.req.as_ref().unwrap()
     }
 
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
-        self.req.extensions()
+        self.request().extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.req.extensions_mut()
+        self.request().extensions_mut()
     }
 
     /// Default `CpuPool`
     #[inline]
     #[doc(hidden)]
     pub fn cpu_pool(&self) -> &CpuPool {
-        self.req.server_settings().cpu_pool()
+        self.request().server_settings().cpu_pool()
     }
 
     #[inline]
     /// Create http response
     pub fn response(&self, status: StatusCode, body: Body) -> HttpResponse {
-        self.req.server_settings().get_response(status, body)
+        self.request().server_settings().get_response(status, body)
     }
 
     #[inline]
     /// Create http response builder
     pub fn build_response(&self, status: StatusCode) -> HttpResponseBuilder {
-        self.req.server_settings().get_response_builder(status)
+        self.request()
+            .server_settings()
+            .get_response_builder(status)
     }
 
     /// Read the Request Uri.
@@ -310,6 +312,14 @@ impl<S> HttpRequest<S> {
     pub fn set_read_buffer_capacity(&mut self, cap: usize) {
         if let Some(payload) = self.request().inner.payload.borrow_mut().as_mut() {
             payload.set_read_buffer_capacity(cap)
+        }
+    }
+}
+
+impl<S> Drop for HttpRequest<S> {
+    fn drop(&mut self) {
+        if let Some(req) = self.req.take() {
+            req.release();
         }
     }
 }

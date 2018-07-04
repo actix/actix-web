@@ -118,9 +118,9 @@ impl H1Decoder {
             let slice = buf.split_to(len).freeze();
 
             // convert headers
-            let mut msg = settings.get_request_context();
+            let mut msg = settings.get_request();
             {
-                let inner = &mut msg.inner;
+                let inner = msg.inner_mut();
                 inner
                     .flags
                     .get_mut()
