@@ -50,7 +50,6 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use error::{ResponseError, Result};
 use http::{header, HeaderMap, HttpTryFrom, Uri};
-use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Started};

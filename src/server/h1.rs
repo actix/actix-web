@@ -9,10 +9,7 @@ use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
 use http::{StatusCode, Version};
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
-use pipeline::Pipeline;
 
 use super::error::ServerError;
 use super::h1decoder::{DecoderError, H1Decoder, Message};

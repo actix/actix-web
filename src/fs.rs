@@ -2,7 +2,6 @@
 use std::fmt::Write;
 use std::fs::{DirEntry, File, Metadata};
 use std::io::{Read, Seek};
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -20,9 +19,7 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use error::Error;
-use handler::{
-    AsyncResult, AsyncResultItem, Handler, Responder, RouteHandler, WrapHandler,
-};
+use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
 use http::{ContentEncoding, Method, StatusCode};
 use httpmessage::HttpMessage;

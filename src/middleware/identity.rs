@@ -46,7 +46,6 @@
 //!     ));
 //! }
 //! ```
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use cookie::{Cookie, CookieJar, Key};
@@ -59,7 +58,6 @@ use http::header::{self, HeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
-use server::Request;
 
 /// The helper trait to obtain your identity from a request.
 ///
@@ -109,13 +107,13 @@ impl<S> RequestIdentity for HttpRequest<S> {
     }
 
     fn remember(&self, identity: String) {
-        if let Some(mut id) = self.extensions_mut().get_mut::<IdentityBox>() {
+        if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
             return id.0.as_mut().remember(identity);
         }
     }
 
     fn forget(&self) {
-        if let Some(mut id) = self.extensions_mut().get_mut::<IdentityBox>() {
+        if let Some(id) = self.extensions_mut().get_mut::<IdentityBox>() {
             return id.0.forget();
         }
     }

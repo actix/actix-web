@@ -33,7 +33,6 @@ use actix::Message;
 use body::Binary;
 use error::Error;
 use header::ContentEncoding;
-use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 /// max buffer size 64k

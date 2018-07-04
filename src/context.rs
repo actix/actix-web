@@ -105,7 +105,7 @@ where
 {
     #[inline]
     /// Create a new HTTP Context from a request and an actor
-    pub fn new(req: HttpRequest<S>, actor: A) -> Body {
+    pub fn create(req: HttpRequest<S>, actor: A) -> Body {
         let mb = Mailbox::default();
         let ctx = HttpContext {
             inner: ContextParts::new(mb.sender_producer()),

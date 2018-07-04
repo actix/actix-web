@@ -11,7 +11,6 @@ use parking_lot::Mutex;
 use time;
 
 use super::channel::Node;
-use super::helpers;
 use super::message::{Request, RequestPool};
 use super::KeepAlive;
 use body::Body;
@@ -161,7 +160,6 @@ pub(crate) struct WorkerSettings<H> {
     channels: Cell<usize>,
     node: Box<Node<()>>,
     date: UnsafeCell<Date>,
-    settings: ServerSettings,
 }
 
 impl<H> WorkerSettings<H> {
@@ -177,13 +175,12 @@ impl<H> WorkerSettings<H> {
         WorkerSettings {
             h: RefCell::new(h),
             bytes: Rc::new(SharedBytesPool::new()),
-            messages: RequestPool::pool(settings.clone()),
+            messages: RequestPool::pool(settings),
             channels: Cell::new(0),
             node: Box::new(Node::head()),
             date: UnsafeCell::new(Date::new()),
             keep_alive,
             ka_enabled,
-            settings,
         }
     }
 

@@ -11,7 +11,6 @@ use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Started};
-use server::Request;
 
 /// `Middleware` for logging request and response info to the terminal.
 ///
@@ -309,12 +308,11 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use http::header::{self, HeaderMap};
-    use http::{Method, StatusCode, Uri, Version};
-    use std::str::FromStr;
-    use test::TestRequest;
     use time;
+
+    use super::*;
+    use http::{header, StatusCode};
+    use test::TestRequest;
 
     #[test]
     fn test_logger() {

@@ -149,20 +149,18 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let mut buffer = self.buffer.as_mut();
 
             let reason = msg.reason().as_bytes();
-            let mut is_bin = if let Body::Binary(ref bytes) = body {
+            if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
                     256
                         + msg.headers().len() * AVERAGE_HEADER_SIZE
                         + bytes.len()
                         + reason.len(),
                 );
-                true
             } else {
                 buffer.reserve(
                     256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len(),
                 );
-                false
-            };
+            }
 
             // status line
             helpers::write_status_line(version, msg.status().as_u16(), &mut buffer);

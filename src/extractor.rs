@@ -768,7 +768,7 @@ mod tests {
         routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", routes);
 
-        let mut req = TestRequest::with_uri("/name/user1/?id=test")
+        let req = TestRequest::with_uri("/name/user1/?id=test")
             .finish_with_router(router.clone());
         let info = router.recognize(&req).unwrap().1;
         let req = req.with_route_info(info);

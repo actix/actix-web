@@ -10,7 +10,6 @@ use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use resource::ResourceHandler;
-use server::Request;
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]

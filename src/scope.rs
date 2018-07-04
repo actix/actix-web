@@ -341,7 +341,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         // recognize resources
         for &(ref pattern, ref resource) in self.resources.iter() {
             if let Some(params) = pattern.match_with_params(req, tail, false) {
-                let req2 = req.with_route_info(req.route().merge(params));
+                let req2 = req.with_route_info(req.route().merge(&params));
                 if let Some(id) = resource.get_route_id(&req2) {
                     if self.middlewares.is_empty() {
                         return resource.handle(id, &req2);
@@ -358,10 +358,9 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         }
 
         // nested scopes
-        let len = req.route().prefix_len() as usize;
         'outer: for &(ref prefix, ref handler, ref filters) in &self.nested {
             if let Some(params) = prefix.match_prefix_with_params(req, tail) {
-                let req2 = req.with_route_info(req.route().merge(params));
+                let req2 = req.with_route_info(req.route().merge(&params));
 
                 let state = req.state();
                 for filter in filters {

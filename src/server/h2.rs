@@ -15,11 +15,7 @@ use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
 use http::{StatusCode, Version};
-use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 use payload::{Payload, PayloadStatus, PayloadWriter};
-use pipeline::Pipeline;
 use uri::Url;
 
 use super::error::ServerError;

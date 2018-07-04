@@ -1042,8 +1042,6 @@ mod tests {
     use body::Binary;
     use http;
     use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
-    use http::{Method, Uri};
-    use std::str::FromStr;
     use time::Duration;
 
     use test::TestRequest;

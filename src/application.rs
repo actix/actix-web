@@ -7,13 +7,12 @@ use http::{Method, StatusCode};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
-use param::Params;
 use pipeline::{HandlerType, Pipeline, PipelineHandler};
 use pred::Predicate;
 use resource::ResourceHandler;
 use router::{Resource, RouteInfo, Router};
 use scope::Scope;
-use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request, ServerSettings};
+use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
 
 /// Application
 pub struct HttpApplication<S = ()> {
@@ -102,23 +101,20 @@ impl<S: 'static> HttpApplication<S> {
                                     continue 'outer;
                                 }
                             }
-                            let info = self
-                                .router
-                                .route_info_params(params, self.inner.prefix as u16);
-                            return (info, HandlerType::Handler(idx));
+                            return (
+                                self.router.route_info_params(params),
+                                HandlerType::Handler(idx),
+                            );
                         }
                     }
                 }
             }
-            (
-                self.router.default_route_info(self.inner.prefix as u16),
-                HandlerType::Default,
-            )
+            (self.router.default_route_info(), HandlerType::Default)
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn run(&self, mut req: Request) -> AsyncResult<HttpResponse> {
+    pub(crate) fn run(&self, req: Request) -> AsyncResult<HttpResponse> {
         let (info, tp) = self.get_handler(&req);
         let req = HttpRequest::new(req, Rc::clone(&self.state), info);
 
@@ -129,7 +125,7 @@ impl<S: 'static> HttpApplication<S> {
 impl<S: 'static> HttpHandler for HttpApplication<S> {
     type Task = Pipeline<S, Inner<S>>;
 
-    fn handle(&self, mut msg: Request) -> Result<Pipeline<S, Inner<S>>, Request> {
+    fn handle(&self, msg: Request) -> Result<Pipeline<S, Inner<S>>, Request> {
         let m = {
             let path = msg.path();
             path.starts_with(&self.prefix)

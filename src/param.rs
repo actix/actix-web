@@ -57,10 +57,6 @@ impl Params {
         self.segments.clear();
     }
 
-    pub(crate) fn set_url(&mut self, url: Url) {
-        self.url = url;
-    }
-
     pub(crate) fn set_tail(&mut self, tail: u16) {
         self.tail = tail;
     }

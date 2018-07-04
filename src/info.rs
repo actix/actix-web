@@ -1,9 +1,4 @@
-use std::rc::Rc;
-use std::str::FromStr;
-
 use http::header::{self, HeaderName};
-use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
 use server::Request;
 
 const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
@@ -165,7 +160,6 @@ impl ConnectionInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::header::HeaderValue;
     use test::TestRequest;
 
     #[test]
@@ -214,7 +208,7 @@ mod tests {
         assert_eq!(info.host(), "192.0.2.60");
         assert_eq!(info.remote(), None);
 
-        let mut req = TestRequest::default()
+        let req = TestRequest::default()
             .header(X_FORWARDED_PROTO, "https")
             .request();
         let mut info = ConnectionInfo::default();

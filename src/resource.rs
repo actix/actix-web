@@ -12,7 +12,6 @@ use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pred;
 use route::Route;
-use server::Request;
 
 #[derive(Copy, Clone)]
 pub(crate) struct RouteId(usize);

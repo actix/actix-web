@@ -4,8 +4,6 @@ use std::marker::PhantomData;
 
 use http;
 use http::{header, HttpTryFrom};
-use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
 use server::message::Request;
 
 /// Trait defines resource route predicate.
@@ -239,11 +237,8 @@ impl<S: 'static> Predicate<S> for HostPredicate<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    use http::header::{self, HeaderMap};
-    use http::{Method, Uri, Version};
+    use http::{header, Method};
     use test::TestRequest;
 
     #[test]

@@ -10,12 +10,10 @@ use bytes::BytesMut;
 use flate2::write::{DeflateEncoder, GzEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
-use http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
-};
-use http::{HttpTryFrom, Method, Version};
+use http::header::{ACCEPT_ENCODING, CONTENT_LENGTH};
+use http::Version;
 
-use super::message::{InnerRequest, Request};
+use super::message::InnerRequest;
 use body::{Binary, Body};
 use header::ContentEncoding;
 use httpresponse::HttpResponse;

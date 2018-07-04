@@ -23,8 +23,8 @@ use httpmessage::HttpMessage;
 use payload::PayloadHelper;
 
 use client::{
-    ClientConnector, ClientRequest, ClientRequestBuilder, ClientResponse,
-    HttpResponseParserError, Pipeline, SendRequest, SendRequestError,
+    ClientConnector, ClientRequest, ClientRequestBuilder, HttpResponseParserError,
+    Pipeline, SendRequest, SendRequestError,
 };
 
 use super::frame::Frame;

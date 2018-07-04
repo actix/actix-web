@@ -50,7 +50,7 @@ flate2-c = ["flate2/miniz-sys"]
 flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
-# actix = "0.6.1"
+# actix = "0.7.0"
 actix = { git="https://github.com/actix/actix.git" }
 
 base64 = "0.9"

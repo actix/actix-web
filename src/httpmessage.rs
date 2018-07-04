@@ -16,7 +16,6 @@ use error::{
 use header::Header;
 use json::JsonBody;
 use multipart::Multipart;
-use payload::Payload;
 
 /// Trait that implements general purpose operations on http messages
 pub trait HttpMessage: Sized {
@@ -613,10 +612,7 @@ mod tests {
     use encoding::all::ISO_8859_2;
     use encoding::Encoding;
     use futures::Async;
-    use http::{Method, Uri, Version};
-    use httprequest::HttpRequest;
     use mime;
-    use std::str::FromStr;
     use test::TestRequest;
 
     #[test]
@@ -765,7 +761,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded() {
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
@@ -780,7 +776,7 @@ mod tests {
             })
         );
 
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded; charset=utf-8",
         ).header(header::CONTENT_LENGTH, "11")
@@ -818,7 +814,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let mut req = TestRequest::default()
+        let req = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).poll().err().unwrap() {

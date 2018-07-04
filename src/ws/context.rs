@@ -92,7 +92,7 @@ where
 {
     #[inline]
     /// Create a new Websocket context from a request and an actor
-    pub fn new<P>(req: HttpRequest<S>, actor: A, stream: WsStream<P>) -> Body
+    pub fn create<P>(req: HttpRequest<S>, actor: A, stream: WsStream<P>) -> Body
     where
         A: StreamHandler<Message, ProtocolError>,
         P: Stream<Item = Bytes, Error = PayloadError> + 'static,

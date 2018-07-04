@@ -4,7 +4,6 @@ use futures::Future;
 use error::{Error, Result};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use server::Request;
 
 mod logger;
 

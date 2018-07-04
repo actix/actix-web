@@ -1,13 +1,11 @@
 use std::cell::RefCell;
 use std::{fmt, str};
 
-use bytes::Bytes;
 use cookie::Cookie;
-use futures::{Async, Poll, Stream};
 use http::header::{self, HeaderValue};
 use http::{HeaderMap, StatusCode, Version};
 
-use error::{CookieParseError, PayloadError};
+use error::CookieParseError;
 use httpmessage::HttpMessage;
 
 use super::pipeline::Pipeline;

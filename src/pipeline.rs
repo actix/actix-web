@@ -6,7 +6,6 @@ use futures::sync::oneshot;
 use futures::{Async, Future, Poll, Stream};
 use log::Level::Debug;
 
-use application::Inner;
 use body::{Body, BodyStream};
 use context::{ActorHttpContext, Frame};
 use error::Error;
@@ -15,7 +14,7 @@ use header::ContentEncoding;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Finished, Middleware, Response, Started};
-use server::{HttpHandlerTask, Request, Writer, WriterState};
+use server::{HttpHandlerTask, Writer, WriterState};
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy)]
@@ -84,17 +83,6 @@ struct PipelineInfo<S: 'static> {
 }
 
 impl<S: 'static> PipelineInfo<S> {
-    fn new(req: HttpRequest<S>) -> PipelineInfo<S> {
-        PipelineInfo {
-            req,
-            count: 0,
-            error: None,
-            context: None,
-            disconnected: None,
-            encoding: ContentEncoding::Auto,
-        }
-    }
-
     fn poll_context(&mut self) -> Poll<(), Error> {
         if let Some(ref mut context) = self.context {
             match context.poll() {

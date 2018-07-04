@@ -3,11 +3,9 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use regex::{escape, Regex};
-use smallvec::SmallVec;
 use url::Url;
 
 use error::UrlGenerationError;
-use httprequest::HttpRequest;
 use param::{ParamItem, Params};
 use resource::ResourceHandler;
 use server::Request;
@@ -25,7 +23,6 @@ pub struct Router(Rc<Inner>);
 pub struct RouteInfo {
     router: Rc<Inner>,
     resource: RouterResource,
-    prefix: u16,
     params: Params,
 }
 
@@ -51,14 +48,8 @@ impl RouteInfo {
         &self.params
     }
 
-    #[doc(hidden)]
     #[inline]
-    pub fn prefix_len(&self) -> u16 {
-        self.prefix
-    }
-
-    #[inline]
-    pub(crate) fn merge(&self, mut params: Params) -> RouteInfo {
+    pub(crate) fn merge(&self, params: &Params) -> RouteInfo {
         let mut p = self.params.clone();
         p.set_tail(params.tail);
         for item in &params.segments {
@@ -69,7 +60,6 @@ impl RouteInfo {
             params: p,
             router: self.router.clone(),
             resource: self.resource,
-            prefix: self.prefix,
         }
     }
 
@@ -167,10 +157,6 @@ impl Router {
         &self.0.prefix
     }
 
-    pub(crate) fn get_resource(&self, idx: usize) -> &Resource {
-        &self.0.patterns[idx]
-    }
-
     pub(crate) fn route_info(&self, req: &Request, prefix: u16) -> RouteInfo {
         let mut params = Params::with_url(req.url());
         params.set_tail(prefix);
@@ -179,22 +165,19 @@ impl Router {
             params,
             router: self.0.clone(),
             resource: RouterResource::Notset,
-            prefix: 0,
         }
     }
 
-    pub(crate) fn route_info_params(&self, params: Params, prefix: u16) -> RouteInfo {
+    pub(crate) fn route_info_params(&self, params: Params) -> RouteInfo {
         RouteInfo {
             params,
-            prefix,
             router: self.0.clone(),
             resource: RouterResource::Notset,
         }
     }
 
-    pub(crate) fn default_route_info(&self, prefix: u16) -> RouteInfo {
+    pub(crate) fn default_route_info(&self) -> RouteInfo {
         RouteInfo {
-            prefix,
             router: self.0.clone(),
             resource: RouterResource::Notset,
             params: Params::new(),
@@ -215,7 +198,6 @@ impl Router {
                         params,
                         router: self.0.clone(),
                         resource: RouterResource::Normal(idx as u16),
-                        prefix: self.0.prefix_len as u16,
                     },
                 ));
             }

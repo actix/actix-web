@@ -1,22 +1,18 @@
 //! HTTP Request message related code.
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::{cmp, fmt, io, str};
+use std::{fmt, str};
 
-use bytes::Bytes;
 use cookie::Cookie;
-use failure;
-use futures::{Async, Poll, Stream};
 use futures_cpupool::CpuPool;
 use http::{header, HeaderMap, Method, StatusCode, Uri, Version};
-use tokio_io::AsyncRead;
 use url::{form_urlencoded, Url};
 
 use body::Body;
-use error::{CookieParseError, PayloadError, UrlGenerationError};
+use error::{CookieParseError, UrlGenerationError};
 use extensions::Extensions;
 use handler::FromRequest;
 use httpmessage::HttpMessage;
@@ -24,18 +20,11 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 use info::ConnectionInfo;
 use param::Params;
 use payload::Payload;
-use router::{Resource, RouteInfo, Router};
-use server::message::{MessageFlags, Request};
-use uri::Url as InnerUrl;
+use router::{Resource, RouteInfo};
+use server::Request;
 
 struct Query(HashMap<String, String>);
 struct Cookies(Vec<Cookie<'static>>);
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) enum RouterResource {
-    Notset,
-    Normal(u16),
-}
 
 /// An HTTP Request
 pub struct HttpRequest<S = ()> {
@@ -167,11 +156,6 @@ impl<S> HttpRequest<S> {
         self.request().inner.url.path()
     }
 
-    #[inline]
-    pub(crate) fn url(&self) -> &InnerUrl {
-        &self.request().inner.url
-    }
-
     /// Get *ConnectionInfo* for the correct request.
     #[inline]
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
@@ -248,7 +232,6 @@ impl<S> HttpRequest<S> {
             for (key, val) in form_urlencoded::parse(self.query_string().as_ref()) {
                 query.insert(key.as_ref().to_string(), val.to_string());
             }
-            let mut req = self.clone();
             self.extensions_mut().insert(Query(query));
         }
         Ref::map(self.extensions(), |ext| &ext.get::<Query>().unwrap().0)
@@ -270,7 +253,6 @@ impl<S> HttpRequest<S> {
     #[inline]
     pub fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
         if self.extensions().get::<Cookies>().is_none() {
-            let mut req = self.clone();
             let mut cookies = Vec::new();
             for hdr in self.request().inner.headers.get_all(header::COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
@@ -379,7 +361,7 @@ impl<S> fmt::Debug for HttpRequest<S> {
 mod tests {
     use super::*;
     use resource::ResourceHandler;
-    use router::Resource;
+    use router::{Resource, Router};
     use test::TestRequest;
 
     #[test]
@@ -448,7 +430,7 @@ mod tests {
         let routes =
             vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
         let (router, _) = Router::new("/", routes);
-        let info = router.default_route_info(0);
+        let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
         assert!(!info.has_route("/test/unknown"));
 
@@ -476,7 +458,7 @@ mod tests {
         resource.name("index");
         let routes = vec![(Resource::new("index", "/user/{name}.html"), Some(resource))];
         let (router, _) = Router::new("/prefix/", routes);
-        let info = router.default_route_info(0);
+        let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
         assert!(!info.has_route("/prefix/user/test.html"));
 
@@ -495,7 +477,7 @@ mod tests {
         resource.name("index");
         let routes = vec![(Resource::new("index", "/index.html"), Some(resource))];
         let (router, _) = Router::new("/prefix/", routes);
-        let info = router.default_route_info(0);
+        let info = router.default_route_info();
         assert!(info.has_route("/index.html"));
         assert!(!info.has_route("/prefix/index.html"));
 
@@ -518,7 +500,7 @@ mod tests {
             None,
         )];
         let router = Router::new::<()>("", routes).0;
-        let info = router.default_route_info(0);
+        let info = router.default_route_info();
         assert!(!info.has_route("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().finish_with_router(router);

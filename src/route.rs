@@ -16,7 +16,6 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
-use server::Request;
 use with::{With, WithAsync};
 
 /// Resource route definition

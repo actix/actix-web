@@ -83,7 +83,6 @@ use handler::FromRequest;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
-use server::Request;
 
 /// The helper trait to obtain your session data from a request.
 ///

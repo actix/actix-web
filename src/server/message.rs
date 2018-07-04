@@ -172,7 +172,8 @@ impl Request {
     }
 
     #[inline]
-    pub(crate) fn reset(&mut self) {
+    /// Reset request instance
+    pub fn reset(&mut self) {
         self.inner.headers.clear();
         self.inner.extensions.borrow_mut().clear();
         self.inner.flags.set(MessageFlags::empty());
@@ -210,6 +211,7 @@ impl RequestPool {
     }
 
     #[inline]
+    /// Release request instance
     pub fn release(&self, mut msg: Request) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {

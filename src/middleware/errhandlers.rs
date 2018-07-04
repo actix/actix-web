@@ -87,10 +87,7 @@ mod tests {
     use http::StatusCode;
     use httpmessage::HttpMessage;
     use middleware::Started;
-    use test;
-
-    use server::Request;
-    use test::TestRequest;
+    use test::{self, TestRequest};
 
     fn render_500<S>(_: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         let mut builder = resp.into_builder();

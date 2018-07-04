@@ -45,7 +45,7 @@ use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
 
-use super::actix::{Actor, AsyncContext, StreamHandler};
+use super::actix::{Actor, StreamHandler};
 
 use body::Binary;
 use error::{Error, PayloadError, ResponseError};
@@ -179,7 +179,7 @@ where
     let mut resp = handshake(req)?;
     let stream = WsStream::new(req.payload());
 
-    let body = WebsocketContext::new(req.clone(), actor, stream);
+    let body = WebsocketContext::create(req.clone(), actor, stream);
     Ok(resp.body(body))
 }
 
@@ -357,10 +357,8 @@ pub trait WsWriter {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    use http::{header, HeaderMap, Method, Uri, Version};
+    use http::{header, Method};
     use test::TestRequest;
 
     #[test]

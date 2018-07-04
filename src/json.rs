@@ -1,4 +1,4 @@
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{Future, Poll, Stream};
 use http::header::CONTENT_LENGTH;
 use std::fmt;
@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
 
-use error::{Error, JsonPayloadError, PayloadError};
+use error::{Error, JsonPayloadError};
 use handler::{FromRequest, Responder};
 use http::StatusCode;
 use httpmessage::HttpMessage;

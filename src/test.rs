@@ -22,7 +22,7 @@ use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
 use handler::{AsyncResultItem, Handler, Responder};
 use header::{Header, IntoHeaderValue};
-use httprequest::{HttpRequest, RouterResource};
+use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
 use param::Params;
@@ -548,7 +548,7 @@ impl<S: 'static> TestRequest<S> {
         *req.inner.payload.borrow_mut() = payload;
 
         let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(params, 0));
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
         req.set_cookies(cookies);
         req
     }
@@ -574,7 +574,7 @@ impl<S: 'static> TestRequest<S> {
         req.inner.headers = headers;
         *req.inner.payload.borrow_mut() = payload;
         let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(params, 0));
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
         req.set_cookies(cookies);
         req
     }
@@ -582,14 +582,12 @@ impl<S: 'static> TestRequest<S> {
     /// Complete request creation and generate server `Request` instance
     pub fn request(self) -> Request {
         let TestRequest {
-            state,
             method,
             uri,
             version,
             headers,
-            params,
-            cookies,
             payload,
+            ..
         } = self;
         let mut req = Request::new(ServerSettings::default());
         req.inner.method = method;
