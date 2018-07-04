@@ -20,7 +20,6 @@ bitflags! {
 }
 
 /// Request's context
-#[derive(Clone)]
 pub struct Request {
     pub(crate) inner: Rc<InnerRequest>,
 }
@@ -194,6 +193,12 @@ impl Request {
     #[inline]
     pub fn server_settings(&self) -> &ServerSettings {
         &self.inner().settings
+    }
+
+    pub(crate) fn clone(&self) -> Self {
+        Request {
+            inner: self.inner.clone(),
+        }
     }
 
     pub(crate) fn release(self) {

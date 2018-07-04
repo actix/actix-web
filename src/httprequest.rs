@@ -74,7 +74,7 @@ impl<S> HttpRequest<S> {
     pub(crate) fn with_state<NS>(&self, state: Rc<NS>) -> HttpRequest<NS> {
         HttpRequest {
             state,
-            req: self.req.clone(),
+            req: self.req.as_ref().map(|r| r.clone()),
             route: self.route.clone(),
         }
     }
@@ -84,7 +84,7 @@ impl<S> HttpRequest<S> {
     pub(crate) fn with_route_info(&self, route: RouteInfo) -> HttpRequest<S> {
         HttpRequest {
             route,
-            req: self.req.clone(),
+            req: self.req.as_ref().map(|r| r.clone()),
             state: self.state.clone(),
         }
     }
@@ -327,7 +327,7 @@ impl<S> Drop for HttpRequest<S> {
 impl<S> Clone for HttpRequest<S> {
     fn clone(&self) -> HttpRequest<S> {
         HttpRequest {
-            req: self.req.clone(),
+            req: self.req.as_ref().map(|r| r.clone()),
             state: self.state.clone(),
             route: self.route.clone(),
         }
