@@ -630,10 +630,10 @@ impl From<UrlParseError> for UrlGenerationError {
 #[derive(Fail, Debug, PartialEq)]
 pub enum StaticFileError {
     /// Path is not a directory
-    #[fail(display = "Path is not a directory")]
+    #[fail(display = "Path is not a directory. Unable to serve static files")]
     IsNotDirectory,
     /// Cannot render directory
-    #[fail(display = "Cannot render directory")]
+    #[fail(display = "Unable to render directory without index file")]
     IsDirectory,
 }
 
