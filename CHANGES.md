@@ -39,11 +39,15 @@
 
 * For safety and performance reasons `Handler::handle()` uses `&self` instead of `&mut self`
 
+* `Handler::handle()` uses `&HttpRequest` instead of `HttpRequest`
+
 * Added header `User-Agent: Actix-web/<current_version>` to default headers when building a request
 
 * port `Extensions` type from http create, we don't need `Send + Sync`
 
-* `HttpRequest::query()` returns `&HashMap<String, String>`
+* `HttpRequest::query()` returns `Ref<HashMap<String, String>>`
+
+* `HttpRequest::cookies()` returns `Ref<Vec<Cookie<'static>>>`
 
 
 ### Removed
@@ -51,6 +55,7 @@
 * Remove `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
 * Remove `HttpMessage::range()`
+
 
 ## [0.6.14] - 2018-06-21
 
