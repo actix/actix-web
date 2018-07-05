@@ -22,7 +22,7 @@ use native_tls::TlsAcceptor;
 #[cfg(feature = "alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
-use super::channel::WrapperStream;
+use super::channel::{HttpChannel, WrapperStream};
 use super::settings::{ServerSettings, WorkerSettings};
 use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
@@ -674,14 +674,13 @@ where
 {
     type Result = ();
 
-    fn handle(&mut self, _msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-        unimplemented!();
-        /*Arbiter::spawn(HttpChannel::new(
+    fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
+        Arbiter::spawn(HttpChannel::new(
             Rc::clone(self.h.as_ref().unwrap()),
             msg.io,
             msg.peer,
             msg.http2,
-        ));*/
+        ));
     }
 }
 
