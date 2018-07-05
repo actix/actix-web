@@ -587,7 +587,7 @@ where
     ///     let app = App::new()
     ///         .middleware(middleware::Logger::default())
     ///         .configure(config)  // <- register resources
-    ///         .handler("/static", fs::StaticFiles::new("."));
+    ///         .handler("/static", fs::StaticFiles::new(".").unwrap());
     /// }
     /// ```
     pub fn configure<F>(self, cfg: F) -> App<S>

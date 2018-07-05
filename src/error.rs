@@ -626,6 +626,24 @@ impl From<UrlParseError> for UrlGenerationError {
     }
 }
 
+/// Errors which can occur when serving static files.
+#[derive(Fail, Debug, PartialEq)]
+pub enum StaticFileError {
+    /// Path is not a directory
+    #[fail(display = "Path is not a directory. Unable to serve static files")]
+    IsNotDirectory,
+    /// Cannot render directory
+    #[fail(display = "Unable to render directory without index file")]
+    IsDirectory,
+}
+
+/// Return `NotFound` for `StaticFileError`
+impl ResponseError for StaticFileError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::new(StatusCode::NOT_FOUND)
+    }
+}
+
 /// Helper type that can wrap any error and generate custom response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST"
