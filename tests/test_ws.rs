@@ -9,6 +9,7 @@ use bytes::Bytes;
 use futures::Stream;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
+use std::time::Duration;
 
 #[cfg(feature = "alpn")]
 extern crate openssl;
@@ -117,6 +118,31 @@ fn test_large_bin() {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
+    }
+}
+
+#[test]
+fn test_client_frame_size() {
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(131_072)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::new(|app| {
+        app.handler(|req| -> Result<HttpResponse> {
+            let mut resp = ws::handshake(req)?;
+            let stream = ws::WsStream::new(req.payload()).max_size(131_072);
+
+            let body = ws::WebsocketContext::create(req.clone(), Ws, stream);
+            Ok(resp.body(body))
+        })
+    });
+    let (reader, mut writer) = srv.ws().unwrap();
+
+    writer.binary(data.clone());
+    match srv.execute(reader.into_future()).err().unwrap().0 {
+        ws::ProtocolError::Overflow => (),
+        _ => panic!(),
     }
 }
 

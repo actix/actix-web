@@ -124,6 +124,14 @@ where
         }
     }
 
+    fn notify_disconnect(&mut self) {
+        // notify all tasks
+        self.stream.disconnected();
+        for entry in &mut self.tasks {
+            entry.pipe.disconnected()
+        }
+    }
+
     #[inline]
     pub fn poll(&mut self) -> Poll<(), ()> {
         // keep-alive timer
@@ -183,10 +191,7 @@ where
                 Ok(Async::Ready(disconnected)) => {
                     if disconnected {
                         // notify all tasks
-                        self.stream.disconnected();
-                        for entry in &mut self.tasks {
-                            entry.pipe.disconnected()
-                        }
+                        self.notify_disconnect();
                         // kill keepalive
                         self.keepalive_timer.take();
 
@@ -204,10 +209,7 @@ where
                 Ok(Async::NotReady) => (),
                 Err(_) => {
                     // notify all tasks
-                    self.stream.disconnected();
-                    for entry in &mut self.tasks {
-                        entry.pipe.disconnected()
-                    }
+                    self.notify_disconnect();
                     // kill keepalive
                     self.keepalive_timer.take();
 
@@ -285,6 +287,7 @@ where
                     Ok(Async::NotReady) => (),
                     Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
                     Err(err) => {
+                        self.notify_disconnect();
                         item.flags.insert(EntryFlags::ERROR);
                         error!("Unhandled error: {}", err);
                     }
@@ -316,6 +319,7 @@ where
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
+                    self.notify_disconnect();
                     return Err(());
                 }
                 Ok(Async::Ready(_)) => {
