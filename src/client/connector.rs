@@ -1007,22 +1007,22 @@ impl Protocol {
         }
     }
 
-    fn is_http(&self) -> bool {
-        match *self {
+    fn is_http(self) -> bool {
+        match self {
             Protocol::Https | Protocol::Http => true,
             _ => false,
         }
     }
 
-    fn is_secure(&self) -> bool {
-        match *self {
+    fn is_secure(self) -> bool {
+        match self {
             Protocol::Https | Protocol::Wss => true,
             _ => false,
         }
     }
 
-    fn port(&self) -> u16 {
-        match *self {
+    fn port(self) -> u16 {
+        match self {
             Protocol::Http | Protocol::Ws => 80,
             Protocol::Https | Protocol::Wss => 443,
         }

@@ -204,9 +204,12 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                             ResponseLength::None => (),
                             _ => continue,
                         },
+                        DATE => {
+                            has_date = true;
+                        }
                         _ => (),
                     }
-                    has_date = has_date || key == DATE;
+
                     let v = value.as_ref();
                     let k = key.as_str().as_bytes();
                     let len = k.len() + v.len() + 4;

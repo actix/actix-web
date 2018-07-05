@@ -130,7 +130,6 @@ impl H1Decoder {
                     if let Ok(name) =
                         HeaderName::from_bytes(&slice[idx.name.0..idx.name.1])
                     {
-                        has_upgrade = has_upgrade || name == header::UPGRADE;
                         // Unsafe: httparse check header value for valid utf-8
                         let value = unsafe {
                             HeaderValue::from_shared_unchecked(
@@ -175,6 +174,9 @@ impl H1Decoder {
                                     false
                                 };
                                 inner.flags.get_mut().set(MessageFlags::KEEPALIVE, ka);
+                            }
+                            header::UPGRADE => {
+                                has_upgrade = true;
                             }
                             _ => (),
                         }

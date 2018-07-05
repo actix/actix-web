@@ -129,8 +129,8 @@ pub enum ContentEncoding {
 impl ContentEncoding {
     #[inline]
     /// Is the content compressed?
-    pub fn is_compression(&self) -> bool {
-        match *self {
+    pub fn is_compression(self) -> bool {
+        match self {
             ContentEncoding::Identity | ContentEncoding::Auto => false,
             _ => true,
         }
@@ -138,8 +138,8 @@ impl ContentEncoding {
 
     #[inline]
     /// Convert content encoding to string
-    pub fn as_str(&self) -> &'static str {
-        match *self {
+    pub fn as_str(self) -> &'static str {
+        match self {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => "br",
             #[cfg(feature = "flate2")]
@@ -152,8 +152,8 @@ impl ContentEncoding {
 
     #[inline]
     /// default quality value
-    pub fn quality(&self) -> f64 {
-        match *self {
+    pub fn quality(self) -> f64 {
+        match self {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => 1.1,
             #[cfg(feature = "flate2")]
