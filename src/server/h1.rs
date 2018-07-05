@@ -232,19 +232,17 @@ where
         let mut io = false;
         let mut idx = 0;
         while idx < self.tasks.len() {
-            let item: &mut Entry<H> = unsafe { &mut *(&mut self.tasks[idx] as *mut _) };
-
             // only one task can do io operation in http/1
-            if !io && !item.flags.contains(EntryFlags::EOF) {
+            if !io && !self.tasks[idx].flags.contains(EntryFlags::EOF) {
                 // io is corrupted, send buffer
-                if item.flags.contains(EntryFlags::ERROR) {
+                if self.tasks[idx].flags.contains(EntryFlags::ERROR) {
                     if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
                         return Ok(Async::NotReady);
                     }
                     return Err(());
                 }
 
-                match item.pipe.poll_io(&mut self.stream) {
+                match self.tasks[idx].pipe.poll_io(&mut self.stream) {
                     Ok(Async::Ready(ready)) => {
                         // override keep-alive state
                         if self.stream.keepalive() {
@@ -256,9 +254,11 @@ where
                         self.stream.reset();
 
                         if ready {
-                            item.flags.insert(EntryFlags::EOF | EntryFlags::FINISHED);
+                            self.tasks[idx]
+                                .flags
+                                .insert(EntryFlags::EOF | EntryFlags::FINISHED);
                         } else {
-                            item.flags.insert(EntryFlags::EOF);
+                            self.tasks[idx].flags.insert(EntryFlags::EOF);
                         }
                     }
                     // no more IO for this iteration
@@ -273,7 +273,7 @@ where
                         // it is not possible to recover from error
                         // during pipe handling, so just drop connection
                         error!("Unhandled error: {}", err);
-                        item.flags.insert(EntryFlags::ERROR);
+                        self.tasks[idx].flags.insert(EntryFlags::ERROR);
 
                         // check stream state, we still can have valid data in buffer
                         if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
@@ -282,13 +282,15 @@ where
                         return Err(());
                     }
                 }
-            } else if !item.flags.contains(EntryFlags::FINISHED) {
-                match item.pipe.poll_completed() {
+            } else if !self.tasks[idx].flags.contains(EntryFlags::FINISHED) {
+                match self.tasks[idx].pipe.poll_completed() {
                     Ok(Async::NotReady) => (),
-                    Ok(Async::Ready(_)) => item.flags.insert(EntryFlags::FINISHED),
+                    Ok(Async::Ready(_)) => {
+                        self.tasks[idx].flags.insert(EntryFlags::FINISHED)
+                    }
                     Err(err) => {
                         self.notify_disconnect();
-                        item.flags.insert(EntryFlags::ERROR);
+                        self.tasks[idx].flags.insert(EntryFlags::ERROR);
                         error!("Unhandled error: {}", err);
                     }
                 }
