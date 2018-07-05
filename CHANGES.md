@@ -49,6 +49,10 @@
 
 * `HttpRequest::cookies()` returns `Ref<Vec<Cookie<'static>>>`
 
+* `StaticFiles::new()` returns `Result<StaticFiles<S>, Error>` instead of `StaticFiles<S>`
+
+* `StaticFiles` uses the default handler if the file does not exist
+
 
 ### Removed
 
