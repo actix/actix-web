@@ -9,7 +9,6 @@ use bytes::Bytes;
 use futures::Stream;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use std::time::Duration;
 
 #[cfg(feature = "alpn")]
 extern crate openssl;
