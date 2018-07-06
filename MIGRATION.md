@@ -1,7 +1,7 @@
 ## 0.7
 
 * [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
-  trait uses `&mut self` instead of `&self`.
+  trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
 * Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
     
@@ -18,6 +18,8 @@
     ```
 
 * `Handler::handle()` uses `&self` instead of `&mut self`
+
+* `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
 
 * Removed deprecated `HttpServer::threads()`, use 
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
