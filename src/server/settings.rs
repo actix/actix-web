@@ -2,13 +2,14 @@ use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
-use std::{env, fmt, mem, net};
+use std::{env, fmt, net};
 
 use bytes::BytesMut;
 use futures_cpupool::CpuPool;
 use http::StatusCode;
 use parking_lot::Mutex;
 use time;
+use lazycell::LazyCell;
 
 use super::channel::Node;
 use super::message::{Request, RequestPool};
@@ -41,7 +42,7 @@ pub struct ServerSettings {
     addr: Option<net::SocketAddr>,
     secure: bool,
     host: String,
-    cpu_pool: UnsafeCell<Option<CpuPool>>,
+    cpu_pool: LazyCell<CpuPool>,
     responses: &'static HttpResponsePool,
 }
 
@@ -51,7 +52,7 @@ impl Clone for ServerSettings {
             addr: self.addr,
             secure: self.secure,
             host: self.host.clone(),
-            cpu_pool: UnsafeCell::new(None),
+            cpu_pool: LazyCell::new(),
             responses: HttpResponsePool::get_pool(),
         }
     }
@@ -64,7 +65,7 @@ impl Default for ServerSettings {
             secure: false,
             host: "localhost:8080".to_owned(),
             responses: HttpResponsePool::get_pool(),
-            cpu_pool: UnsafeCell::new(None),
+            cpu_pool: LazyCell::new(),
         }
     }
 }
@@ -81,7 +82,7 @@ impl ServerSettings {
         } else {
             "localhost".to_owned()
         };
-        let cpu_pool = UnsafeCell::new(None);
+        let cpu_pool = LazyCell::new();
         let responses = HttpResponsePool::get_pool();
         ServerSettings {
             addr,
@@ -102,7 +103,7 @@ impl ServerSettings {
             addr,
             host,
             secure,
-            cpu_pool: UnsafeCell::new(None),
+            cpu_pool: LazyCell::new(),
             responses: HttpResponsePool::get_pool(),
         }
     }
@@ -124,15 +125,7 @@ impl ServerSettings {
 
     /// Returns default `CpuPool` for server
     pub fn cpu_pool(&self) -> &CpuPool {
-        // Unsafe: ServerSetting is !Sync, DEFAULT_CPUPOOL is protected by Mutex
-        unsafe {
-            let val = &mut *self.cpu_pool.get();
-            if val.is_none() {
-                let pool = DEFAULT_CPUPOOL.lock().clone();
-                *val = Some(pool);
-            }
-            val.as_ref().unwrap()
-        }
+        self.cpu_pool.borrow_with(|| DEFAULT_CPUPOOL.lock().clone())
     }
 
     #[inline]
@@ -236,16 +229,15 @@ impl<H> WorkerSettings<H> {
 
     pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
         // Unsafe: WorkerSetting is !Sync and !Send
-        unsafe {
-            if full {
-                let mut buf: [u8; 39] = mem::uninitialized();
-                buf[..6].copy_from_slice(b"date: ");
-                buf[6..35].copy_from_slice(&(*self.date.get()).bytes);
-                buf[35..].copy_from_slice(b"\r\n\r\n");
-                dst.extend_from_slice(&buf);
-            } else {
-                dst.extend_from_slice(&(*self.date.get()).bytes);
-            }
+        let date_bytes = unsafe { &(*self.date.get()).bytes };
+        if full {
+            let mut buf: [u8; 39] = [0; 39];
+            buf[..6].copy_from_slice(b"date: ");
+            buf[6..35].copy_from_slice(date_bytes);
+            buf[35..].copy_from_slice(b"\r\n\r\n");
+            dst.extend_from_slice(&buf);
+        } else {
+            dst.extend_from_slice(date_bytes);
         }
     }
 }

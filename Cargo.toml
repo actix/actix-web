@@ -75,6 +75,7 @@ time = "0.1"
 encoding = "0.2"
 language-tags = "0.2"
 lazy_static = "1.0"
+lazycell = "1.0.0"
 parking_lot = "0.6"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode"] }
