@@ -368,8 +368,8 @@ fn test_head_empty() {
     }
 
     // read response
-    // let bytes = srv.execute(response.body()).unwrap();
-    // assert!(bytes.is_empty());
+    let bytes = srv.execute(response.body()).unwrap();
+    assert!(bytes.is_empty());
 }
 
 #[test]
@@ -396,8 +396,8 @@ fn test_head_binary() {
     }
 
     // read response
-    //let bytes = srv.execute(response.body()).unwrap();
-    //assert!(bytes.is_empty());
+    let bytes = srv.execute(response.body()).unwrap();
+    assert!(bytes.is_empty());
 }
 
 #[test]

@@ -17,6 +17,7 @@ use context::{ActorHttpContext, Frame};
 use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
+use http::Method;
 use httpmessage::HttpMessage;
 use server::input::PayloadStream;
 use server::WriterState;
@@ -212,6 +213,9 @@ impl Future for SendRequest {
 
                     match pl.parse() {
                         Ok(Async::Ready(mut resp)) => {
+                            if self.req.method() == &Method::HEAD {
+                                pl.parser.take();
+                            }
                             resp.set_pipeline(pl);
                             return Ok(Async::Ready(resp));
                         }
