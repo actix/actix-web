@@ -202,6 +202,7 @@ impl Future for SendRequest {
                         should_decompress: self.req.response_decompress(),
                         write_state: RunningState::Running,
                         timeout: Some(timeout),
+                        close: self.req.method() == &Method::HEAD,
                     });
                     self.state = State::Send(pl);
                 }
@@ -247,6 +248,7 @@ pub struct Pipeline {
     should_decompress: bool,
     write_state: RunningState,
     timeout: Option<Delay>,
+    close: bool,
 }
 
 enum IoBody {
@@ -280,7 +282,11 @@ impl RunningState {
 impl Pipeline {
     fn release_conn(&mut self) {
         if let Some(conn) = self.conn.take() {
-            conn.release()
+            if self.close {
+                conn.close()
+            } else {
+                conn.release()
+            }
         }
     }
 
