@@ -4,74 +4,70 @@ use std::cmp::min;
 use std::mem::uninitialized;
 use std::ptr::copy_nonoverlapping;
 
-/// Mask/unmask a frame.
-#[inline]
-pub fn apply_mask(buf: &mut [u8], mask: u32) {
-    unsafe { apply_mask_fast32(buf, mask) }
-}
-
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
 ///
 /// unsafe because uses pointer math and bit operations for performance
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
-unsafe fn apply_mask_fast32(buf: &mut [u8], mask_u32: u32) {
-    let mut ptr = buf.as_mut_ptr();
-    let mut len = buf.len();
+pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
+    unsafe {
+        let mut ptr = buf.as_mut_ptr();
+        let mut len = buf.len();
 
-    // Possible first unaligned block.
-    let head = min(len, (8 - (ptr as usize & 0x7)) & 0x3);
-    let mask_u32 = if head > 0 {
-        let n = if head > 4 { head - 4 } else { head };
+        // Possible first unaligned block.
+        let head = min(len, (8 - (ptr as usize & 0x7)) & 0x3);
+        let mask_u32 = if head > 0 {
+            let n = if head > 4 { head - 4 } else { head };
 
-        let mask_u32 = if n > 0 {
-            xor_mem(ptr, mask_u32, n);
-            ptr = ptr.offset(head as isize);
-            len -= n;
-            if cfg!(target_endian = "big") {
-                mask_u32.rotate_left(8 * n as u32)
+            let mask_u32 = if n > 0 {
+                xor_mem(ptr, mask_u32, n);
+                ptr = ptr.offset(head as isize);
+                len -= n;
+                if cfg!(target_endian = "big") {
+                    mask_u32.rotate_left(8 * n as u32)
+                } else {
+                    mask_u32.rotate_right(8 * n as u32)
+                }
             } else {
-                mask_u32.rotate_right(8 * n as u32)
+                mask_u32
+            };
+
+            if head > 4 {
+                *(ptr as *mut u32) ^= mask_u32;
+                ptr = ptr.offset(4);
+                len -= 4;
             }
+            mask_u32
         } else {
             mask_u32
         };
 
-        if head > 4 {
+        if len > 0 {
+            debug_assert_eq!(ptr as usize % 4, 0);
+        }
+
+        // Properly aligned middle of the data.
+        if len >= 8 {
+            let mut mask_u64 = mask_u32 as u64;
+            mask_u64 = mask_u64 << 32 | mask_u32 as u64;
+
+            while len >= 8 {
+                *(ptr as *mut u64) ^= mask_u64;
+                ptr = ptr.offset(8);
+                len -= 8;
+            }
+        }
+
+        while len >= 4 {
             *(ptr as *mut u32) ^= mask_u32;
             ptr = ptr.offset(4);
             len -= 4;
         }
-        mask_u32
-    } else {
-        mask_u32
-    };
 
-    if len > 0 {
-        debug_assert_eq!(ptr as usize % 4, 0);
-    }
-
-    // Properly aligned middle of the data.
-    if len >= 8 {
-        let mut mask_u64 = mask_u32 as u64;
-        mask_u64 = mask_u64 << 32 | mask_u32 as u64;
-
-        while len >= 8 {
-            *(ptr as *mut u64) ^= mask_u64;
-            ptr = ptr.offset(8);
-            len -= 8;
+        // Possible last block.
+        if len > 0 {
+            xor_mem(ptr, mask_u32, len);
         }
-    }
-
-    while len >= 4 {
-        *(ptr as *mut u32) ^= mask_u32;
-        ptr = ptr.offset(4);
-        len -= 4;
-    }
-
-    // Possible last block.
-    if len > 0 {
-        xor_mem(ptr, mask_u32, len);
     }
 }
 

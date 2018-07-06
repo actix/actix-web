@@ -94,9 +94,12 @@ impl Frame {
                 Async::Ready(None) => return Ok(Async::Ready(None)),
                 Async::NotReady => return Ok(Async::NotReady),
             };
-            let len = NetworkEndian::read_uint(&buf[idx..], 8) as usize;
+            let len = NetworkEndian::read_uint(&buf[idx..], 8);
+            if len > max_size as u64 {
+                return Err(ProtocolError::Overflow);
+            }
             idx += 8;
-            len
+            len as usize
         } else {
             len as usize
         };
@@ -165,9 +168,12 @@ impl Frame {
             if chunk_len < 10 {
                 return Ok(Async::NotReady);
             }
-            let len = NetworkEndian::read_uint(&chunk[idx..], 8) as usize;
+            let len = NetworkEndian::read_uint(&chunk[idx..], 8);
+            if len > max_size as u64 {
+                return Err(ProtocolError::Overflow);
+            }
             idx += 8;
-            len
+            len as usize
         } else {
             len as usize
         };
@@ -255,6 +261,8 @@ impl Frame {
 
         // unmask
         if let Some(mask) = mask {
+            // Unsafe: request body stream is owned by WsStream. only one ref to
+            // bytes exists. Bytes object get freezed in continuous non-overlapping blocks
             let p: &mut [u8] = unsafe {
                 let ptr: &[u8] = &data;
                 &mut *(ptr as *const _ as *mut _)
@@ -272,7 +280,7 @@ impl Frame {
     /// Parse the payload of a close frame.
     pub fn parse_close_payload(payload: &Binary) -> Option<CloseReason> {
         if payload.len() >= 2 {
-            let raw_code = NetworkEndian::read_uint(payload.as_ref(), 2) as u16;
+            let raw_code = NetworkEndian::read_u16(payload.as_ref());
             let code = CloseCode::from(raw_code);
             let description = if payload.len() > 2 {
                 Some(String::from_utf8_lossy(&payload.as_ref()[2..]).into())
