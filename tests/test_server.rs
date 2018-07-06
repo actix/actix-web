@@ -471,6 +471,39 @@ fn test_body_chunked_explicit() {
 }
 
 #[test]
+fn test_body_identity() {
+    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+    let enc2 = enc.clone();
+
+    let mut srv = test::TestServer::new(move |app| {
+        let enc3 = enc2.clone();
+        app.handler(move |_| {
+            HttpResponse::Ok()
+                .content_encoding(http::ContentEncoding::Identity)
+                .header(http::header::CONTENT_ENCODING, "deflate")
+                .body(enc3.clone())
+        })
+    });
+
+    // client request
+    let request = srv
+        .get()
+        .header("accept-encoding", "deflate")
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+
+    // decode deflate
+    assert_eq!(bytes, Bytes::from(STR));
+}
+
+#[test]
 fn test_body_deflate() {
     let mut srv = test::TestServer::new(|app| {
         app.handler(|_| {

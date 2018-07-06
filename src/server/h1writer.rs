@@ -199,7 +199,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 let mut buf = &mut *(buffer.bytes_mut() as *mut [u8]);
                 for (key, value) in msg.headers() {
                     match *key {
-                        TRANSFER_ENCODING | CONTENT_ENCODING => continue,
+                        TRANSFER_ENCODING => continue,
+                        CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
+                            continue;
+                        },
                         CONTENT_LENGTH => match info.length {
                             ResponseLength::None => (),
                             _ => continue,
