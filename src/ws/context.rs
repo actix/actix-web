@@ -110,11 +110,9 @@ where
     }
 
     /// Create a new Websocket context
-    pub fn with_factory<F, P>(req: HttpRequest<S>, stream: WsStream<P>, f: F) -> Body
+    pub fn with_factory<F>(req: HttpRequest<S>, f: F) -> Body
     where
         F: FnOnce(&mut Self) -> A + 'static,
-        A: StreamHandler<Message, ProtocolError>,
-        P: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
@@ -123,7 +121,6 @@ where
             request: req,
             disconnected: false,
         };
-        ctx.add_stream(stream);
 
         let act = f(&mut ctx);
         Body::Actor(Box::new(WebsocketContextFut::new(ctx, act, mb)))
