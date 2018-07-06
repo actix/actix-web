@@ -260,15 +260,14 @@ impl Frame {
         }
 
         // unmask
-        if let Some(mask) = mask {
-            // Unsafe: request body stream is owned by WsStream. only one ref to
-            // bytes exists. Bytes object get freezed in continuous non-overlapping blocks
-            let p: &mut [u8] = unsafe {
-                let ptr: &[u8] = &data;
-                &mut *(ptr as *const _ as *mut _)
-            };
-            apply_mask(p, mask);
-        }
+        let data = if let Some(mask) = mask {
+            let mut buf = BytesMut::new();
+            buf.extend_from_slice(&data);
+            apply_mask(&mut buf, mask);
+            buf.freeze()
+        } else {
+            data
+        };
 
         Ok(Async::Ready(Some(Frame {
             finished,
