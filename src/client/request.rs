@@ -421,6 +421,29 @@ impl ClientRequestBuilder {
         self
     }
 
+    /// Set a header only if it is not yet set.
+    pub fn set_header_if_none<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            match HeaderName::try_from(key) {
+                Ok(key) => match parts.headers.contains_key(&key) {
+                    false => match value.try_into() {
+                        Ok(value) => {
+                            parts.headers.insert(key, value);
+                        }
+                        Err(e) => self.err = Some(e.into()),
+                    },
+                    true => (),
+                },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+
     /// Set content encoding.
     ///
     /// By default `ContentEncoding::Identity` is used.
@@ -603,22 +626,15 @@ impl ClientRequestBuilder {
             };
 
             if https {
-                self.header(header::ACCEPT_ENCODING, "br, gzip, deflate");
+                self.set_header_if_none(header::ACCEPT_ENCODING, "br, gzip, deflate");
             } else {
-                self.header(header::ACCEPT_ENCODING, "gzip, deflate");
+                self.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate");
             }
 
-            let contains = if let Some(parts) = parts(&mut self.request, &self.err) {
-                parts.headers.contains_key(header::USER_AGENT)
-            } else {
-                true
-            };
-            if !contains {
-                self.header(
-                    header::USER_AGENT,
-                    concat!("Actix-web/", env!("CARGO_PKG_VERSION")),
-                );
-            }
+            self.set_header_if_none(
+                header::USER_AGENT,
+                concat!("Actix-web/", env!("CARGO_PKG_VERSION")),
+            );
         }
 
         let mut request = self.request.take().expect("cannot reuse request builder");
