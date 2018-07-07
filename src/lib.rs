@@ -107,6 +107,7 @@ extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
+extern crate lazycell;
 extern crate mime;
 extern crate mime_guess;
 extern crate mio;
