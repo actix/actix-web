@@ -478,9 +478,6 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     /// }
     /// ```
     pub fn run(mut self) {
-        self.exit = true;
-        self.no_signals = false;
-
         let sys = System::new("http-server");
         self.start();
         sys.run();
