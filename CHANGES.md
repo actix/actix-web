@@ -4,6 +4,8 @@
 
 ### Fixed
 
+* Fix h2 compatibility #352
+
 * Fix duplicate tail of StaticFiles with index_file. #344
 
 
