@@ -62,7 +62,7 @@ where
             flags: Flags::empty(),
             tasks: VecDeque::new(),
             state: State::Handshake(server::handshake(IoWrapper {
-                unread: Some(buf),
+                unread: if buf.is_empty() { None } else { Some(buf) },
                 inner: io,
             })),
             keepalive_timer: None,
