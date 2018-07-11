@@ -1,5 +1,12 @@
 # Changes
 
+## [0.6.15] - 2018-07-11
+
+### Fixed
+
+* Fix duplicate tail of StaticFiles with index_file. #344
+
+
 ## [0.6.14] - 2018-06-21
 
 ### Added
