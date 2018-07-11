@@ -405,9 +405,8 @@ impl<T: Read> Read for IoWrapper<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(mut bytes) = self.unread.take() {
             let size = cmp::min(buf.len(), bytes.len());
-            buf[..size].copy_from_slice(&bytes[..size]);
-            if bytes.len() > size {
-                bytes.split_to(size);
+            buf[..size].copy_from_slice(&bytes.split_to(size));
+            if bytes.len() > 0 {
                 self.unread = Some(bytes);
             }
             Ok(size)
