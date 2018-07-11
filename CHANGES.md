@@ -61,6 +61,15 @@
 * Remove `HttpMessage::range()`
 
 
+## [0.6.15] - 2018-07-11
+
+### Fixed
+
+* Fix h2 compatibility #352
+
+* Fix duplicate tail of StaticFiles with index_file. #344
+
+
 ## [0.6.14] - 2018-06-21
 
 ### Added
