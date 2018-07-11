@@ -171,16 +171,26 @@ pub enum Message {
 }
 
 /// Do websocket handshake and start actor
-pub fn start<A, S>(req: &HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
+#[inline]
+pub fn create<A, S>(req: &HttpRequest<S>, actor: A, max_size: usize) -> Result<HttpResponse, Error>
 where
     A: Actor<Context = WebsocketContext<A, S>> + StreamHandler<Message, ProtocolError>,
     S: 'static,
 {
     let mut resp = handshake(req)?;
-    let stream = WsStream::new(req.payload());
+    let stream = WsStream::new(req.payload()).max_size(max_size);
 
     let body = WebsocketContext::create(req.clone(), actor, stream);
     Ok(resp.body(body))
+}
+
+/// Do websocket handshake and start actor
+pub fn start<A, S>(req: &HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
+where
+    A: Actor<Context = WebsocketContext<A, S>> + StreamHandler<Message, ProtocolError>,
+    S: 'static,
+{
+    create(req, actor, 65_536)
 }
 
 /// Prepare `WebSocket` handshake response.
