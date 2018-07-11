@@ -580,6 +580,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                             Frame::Chunk(Some(chunk)) => {
                                                 match io.write(&chunk) {
                                                     Err(err) => {
+                                                        info.context = Some(ctx);
                                                         info.error = Some(err.into());
                                                         return Ok(
                                                             FinishingMiddlewares::init(
@@ -606,6 +607,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     break;
                                 }
                                 Err(err) => {
+                                    info.context = Some(ctx);
                                     info.error = Some(err);
                                     return Ok(FinishingMiddlewares::init(
                                         info, mws, self.resp,
@@ -641,6 +643,12 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                     }
                     Ok(Async::NotReady) => return Err(PipelineState::Response(self)),
                     Err(err) => {
+                        if let IOState::Actor(mut ctx) =
+                            mem::replace(&mut self.iostate, IOState::Done)
+                        {
+                            ctx.disconnected();
+                            info.context = Some(ctx);
+                        }
                         info.error = Some(err.into());
                         return Ok(FinishingMiddlewares::init(info, mws, self.resp));
                     }
@@ -755,7 +763,13 @@ impl<S, H> Completed<S, H> {
         if info.context.is_none() {
             PipelineState::None
         } else {
-            PipelineState::Completed(Completed(PhantomData, PhantomData))
+            match info.poll_context() {
+                Ok(Async::NotReady) => {
+                    PipelineState::Completed(Completed(PhantomData, PhantomData))
+                }
+                Ok(Async::Ready(())) => PipelineState::None,
+                Err(_) => PipelineState::Error,
+            }
         }
     }
 

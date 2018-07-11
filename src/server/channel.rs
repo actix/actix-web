@@ -94,13 +94,13 @@ where
             self.node = Some(Node::new(el));
             let _ = match self.proto {
                 Some(HttpProtocol::H1(ref mut h1)) => {
-                    self.node.as_ref().map(|n| h1.settings().head().insert(n))
+                    self.node.as_mut().map(|n| h1.settings().head().insert(n))
                 }
                 Some(HttpProtocol::H2(ref mut h2)) => {
-                    self.node.as_ref().map(|n| h2.settings().head().insert(n))
+                    self.node.as_mut().map(|n| h2.settings().head().insert(n))
                 }
                 Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
-                    self.node.as_ref().map(|n| settings.head().insert(n))
+                    self.node.as_mut().map(|n| settings.head().insert(n))
                 }
                 None => unreachable!(),
             };
@@ -188,8 +188,8 @@ where
 }
 
 pub(crate) struct Node<T> {
-    next: Option<*mut Node<()>>,
-    prev: Option<*mut Node<()>>,
+    next: Option<*mut Node<T>>,
+    prev: Option<*mut Node<T>>,
     element: *mut T,
 }
 
@@ -202,19 +202,18 @@ impl<T> Node<T> {
         }
     }
 
-    fn insert<I>(&self, next: &Node<I>) {
+    fn insert<I>(&mut self, next: &mut Node<I>) {
         unsafe {
-            if let Some(ref next2) = self.next {
-                let n: &mut Node<()> =
-                    &mut *(next2.as_ref().unwrap() as *const _ as *mut _);
-                n.prev = Some(next as *const _ as *mut _);
+            let next: *mut Node<T> = next as *const _ as *mut _;
+
+            if let Some(ref mut next2) = self.next {
+                let n = next2.as_mut().unwrap();
+                n.prev = Some(next);
             }
-            let slf: &mut Node<T> = &mut *(self as *const _ as *mut _);
+            self.next = Some(next);
 
-            slf.next = Some(next as *const _ as *mut _);
-
-            let next: &mut Node<T> = &mut *(next as *const _ as *mut _);
-            next.prev = Some(slf as *const _ as *mut _);
+            let next: &mut Node<T> = &mut *next;
+            next.prev = Some(self as *mut _);
         }
     }
 

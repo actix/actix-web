@@ -7,9 +7,9 @@ use std::{env, fmt, net};
 use bytes::BytesMut;
 use futures_cpupool::CpuPool;
 use http::StatusCode;
+use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
-use lazycell::LazyCell;
 
 use super::channel::Node;
 use super::message::{Request, RequestPool};
@@ -151,7 +151,7 @@ pub(crate) struct WorkerSettings<H> {
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
     channels: Cell<usize>,
-    node: Box<Node<()>>,
+    node: RefCell<Node<()>>,
     date: UnsafeCell<Date>,
 }
 
@@ -170,7 +170,7 @@ impl<H> WorkerSettings<H> {
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             channels: Cell::new(0),
-            node: Box::new(Node::head()),
+            node: RefCell::new(Node::head()),
             date: UnsafeCell::new(Date::new()),
             keep_alive,
             ka_enabled,
@@ -181,8 +181,8 @@ impl<H> WorkerSettings<H> {
         self.channels.get()
     }
 
-    pub fn head(&self) -> &Node<()> {
-        &self.node
+    pub fn head(&self) -> RefMut<Node<()>> {
+        self.node.borrow_mut()
     }
 
     pub fn handlers(&self) -> RefMut<Vec<H>> {

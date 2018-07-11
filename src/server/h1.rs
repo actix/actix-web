@@ -127,8 +127,8 @@ where
     fn notify_disconnect(&mut self) {
         // notify all tasks
         self.stream.disconnected();
-        for entry in &mut self.tasks {
-            entry.pipe.disconnected()
+        for task in &mut self.tasks {
+            task.pipe.disconnected();
         }
     }
 
@@ -239,6 +239,7 @@ where
                     if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
                         return Ok(Async::NotReady);
                     }
+                    self.flags.insert(Flags::ERROR);
                     return Err(());
                 }
 
@@ -272,14 +273,10 @@ where
                     Err(err) => {
                         // it is not possible to recover from error
                         // during pipe handling, so just drop connection
-                        error!("Unhandled error: {}", err);
+                        self.notify_disconnect();
                         self.tasks[idx].flags.insert(EntryFlags::ERROR);
-
-                        // check stream state, we still can have valid data in buffer
-                        if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                            return Ok(Async::NotReady);
-                        }
-                        return Err(());
+                        error!("Unhandled error1: {}", err);
+                        continue;
                     }
                 }
             } else if !self.tasks[idx].flags.contains(EntryFlags::FINISHED) {
@@ -292,6 +289,7 @@ where
                         self.notify_disconnect();
                         self.tasks[idx].flags.insert(EntryFlags::ERROR);
                         error!("Unhandled error: {}", err);
+                        continue;
                     }
                 }
             }
