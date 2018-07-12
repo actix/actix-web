@@ -139,15 +139,24 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Query, http};
 ///
-/// #[derive(Deserialize)]
-/// struct Info {
-///     username: String,
-/// }
+///
+///#[derive(Debug, Deserialize)]
+///pub enum ResponseType {
+///    Token,
+///    Code
+///}
+///
+///#[derive(Deserialize)]
+///pub struct AuthRequest {
+///    id: u64,
+///    response_type: ResponseType,
+///}
 ///
 /// // use `with` extractor for query info
 /// // this handler get called only if request's query contains `username` field
-/// fn index(info: Query<Info>) -> String {
-///     format!("Welcome {}!", info.username)
+/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
+/// fn index(info: Query<AuthRequest>) -> String {
+///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
 /// fn main() {
