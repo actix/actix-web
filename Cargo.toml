@@ -54,7 +54,6 @@ actix = "0.7.0"
 
 base64 = "0.9"
 bitflags = "1.0"
-failure = "0.1.1"
 h2 = "0.1"
 htmlescape = "0.3"
 http = "^0.1.5"
@@ -81,6 +80,8 @@ url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.10", features=["percent-encode"] }
 brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="1.0", optional = true, default-features = false }
+
+failure = "=0.1.1"
 
 # io
 mio = "^0.6.13"
