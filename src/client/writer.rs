@@ -266,6 +266,10 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
             }
             #[cfg(not(any(feature = "flate2", feature = "brotli")))]
             {
+                let mut b = BytesMut::new();
+                let _ = write!(b, "{}", bytes.len());
+                req.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::try_from(b.freeze()).unwrap());
                 TransferEncoding::eof(buf)
             }
         }
