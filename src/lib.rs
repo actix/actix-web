@@ -133,7 +133,6 @@ extern crate num_cpus;
 #[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
-extern crate serde_urlencoded;
 extern crate smallvec;
 #[macro_use]
 extern crate actix as actix_inner;
@@ -152,6 +151,7 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 extern crate tokio_openssl;
 
+mod serde_urlencoded;
 mod application;
 mod body;
 mod context;

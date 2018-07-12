@@ -14,7 +14,7 @@ pub use serde::de::value::Error;
 
 /// Deserializes a `application/x-wwww-url-encoded` value from a `&[u8]`.
 ///
-/// ```
+/// ```ignore
 /// let meal = vec![
 ///     ("bread".to_owned(), "baguette".to_owned()),
 ///     ("cheese".to_owned(), "comté".to_owned()),
@@ -35,7 +35,7 @@ pub fn from_bytes<'de, T>(input: &'de [u8]) -> Result<T, Error>
 
 /// Deserializes a `application/x-wwww-url-encoded` value from a `&str`.
 ///
-/// ```
+/// ```ignore
 /// let meal = vec![
 ///     ("bread".to_owned(), "baguette".to_owned()),
 ///     ("cheese".to_owned(), "comté".to_owned()),
@@ -54,6 +54,7 @@ pub fn from_str<'de, T>(input: &'de str) -> Result<T, Error>
     from_bytes(input.as_bytes())
 }
 
+#[allow(dead_code)]
 /// Convenience function that reads all bytes from `reader` and deserializes
 /// them with `from_bytes`.
 pub fn from_reader<T, R>(mut reader: R) -> Result<T, Error>

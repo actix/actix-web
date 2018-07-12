@@ -1,7 +1,7 @@
-use ser::Error;
-use ser::key::KeySink;
-use ser::part::PartSerializer;
-use ser::value::ValueSink;
+use super::super::ser::Error;
+use super::super::ser::key::KeySink;
+use super::super::ser::part::PartSerializer;
+use super::super::ser::value::ValueSink;
 use serde::ser;
 use std::borrow::Cow;
 use std::mem;

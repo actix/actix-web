@@ -1,5 +1,5 @@
-use ser::Error;
-use ser::part::{PartSerializer, Sink};
+use super::super::ser::Error;
+use super::super::ser::part::{PartSerializer, Sink};
 use serde::ser::Serialize;
 use std::str;
 use url::form_urlencoded::Serializer as UrlEncodedSerializer;

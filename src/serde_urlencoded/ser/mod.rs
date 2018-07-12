@@ -15,7 +15,7 @@ use url::form_urlencoded::Target as UrlEncodedTarget;
 
 /// Serializes a value into a `application/x-wwww-url-encoded` `String` buffer.
 ///
-/// ```
+/// ```ignore
 /// let meal = &[
 ///     ("bread", "baguette"),
 ///     ("cheese", "comté"),

@@ -1,5 +1,5 @@
-use ser::Error;
-use ser::part::Sink;
+use super::super::ser::Error;
+use super::super::ser::part::Sink;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::ops::Deref;
