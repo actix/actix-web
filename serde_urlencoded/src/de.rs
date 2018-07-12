@@ -1,6 +1,7 @@
 //! Deserialization support for the `application/x-www-form-urlencoded` format.
 
-use serde::de::{self, IntoDeserializer};
+use serde::de::{self, DeserializeSeed, EnumAccess, IntoDeserializer, VariantAccess, Visitor};
+use serde::de::Error as de_Error;
 
 use serde::de::value::MapDeserializer;
 use std::borrow::Cow;
@@ -197,6 +198,12 @@ impl<'de> de::Deserializer<'de> for Part<'de> {
         visitor.visit_some(self)
     }
 
+    fn deserialize_enum<V>(self, _name: &'static str, _variants: &'static [&'static str], visitor: V) -> Result<V::Value, Self::Error>
+        where V: de::Visitor<'de>,
+    {
+        visitor.visit_enum(ValueEnumAccess { value: self.0 })
+    }
+
     forward_to_deserialize_any! {
         char
         str
@@ -210,7 +217,6 @@ impl<'de> de::Deserializer<'de> for Part<'de> {
         struct
         identifier
         tuple
-        enum
         ignored_any
         seq
         map
@@ -228,5 +234,64 @@ impl<'de> de::Deserializer<'de> for Part<'de> {
         i64 => deserialize_i64,
         f32 => deserialize_f32,
         f64 => deserialize_f64,
+    }
+}
+
+/// Provides access to a keyword which can be deserialized into an enum variant. The enum variant
+/// must be a unit variant, otherwise deserialization will fail.
+struct ValueEnumAccess<'de> {
+    value: Cow<'de, str>,
+}
+
+impl<'de> EnumAccess<'de> for ValueEnumAccess<'de> {
+    type Error = Error;
+    type Variant = UnitOnlyVariantAccess;
+
+    fn variant_seed<V>(
+        self,
+        seed: V,
+    ) -> Result<(V::Value, Self::Variant), Self::Error>
+        where V: DeserializeSeed<'de>,
+    {
+        let variant = seed.deserialize(self.value.into_deserializer())?;
+        Ok((variant, UnitOnlyVariantAccess))
+    }
+}
+
+/// A visitor for deserializing the contents of the enum variant. As we only support
+/// `unit_variant`, all other variant types will return an error.
+struct UnitOnlyVariantAccess;
+
+impl<'de> VariantAccess<'de> for UnitOnlyVariantAccess {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, _seed: T) -> Result<T::Value, Self::Error>
+        where T: DeserializeSeed<'de>,
+    {
+        Err(Error::custom("expected unit variant"))
+    }
+
+    fn tuple_variant<V>(
+        self,
+        _len: usize,
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error>
+        where V: Visitor<'de>,
+    {
+        Err(Error::custom("expected unit variant"))
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error>
+        where V: Visitor<'de>,
+    {
+        Err(Error::custom("expected unit variant"))
     }
 }

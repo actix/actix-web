@@ -1,4 +1,6 @@
 extern crate serde_urlencoded;
+#[macro_use]
+extern crate serde_derive;
 
 #[test]
 fn serialize_option_map_int() {
@@ -31,4 +33,18 @@ fn serialize_map_bool() {
 
     assert_eq!(serde_urlencoded::to_string(params),
                Ok("one=true&two=false".to_owned()));
+}
+
+#[derive(Serialize)]
+enum X {
+    A,
+    B,
+    C,
+}
+
+#[test]
+fn serialize_unit_enum() {
+    let params = &[("one", X::A), ("two", X::B), ("three", X::C)];
+    assert_eq!(serde_urlencoded::to_string(params),
+               Ok("one=A&two=B&three=C".to_owned()));
 }

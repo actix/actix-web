@@ -1,4 +1,6 @@
 extern crate serde_urlencoded;
+#[macro_use]
+extern crate serde_derive;
 
 #[test]
 fn deserialize_bytes() {
@@ -39,4 +41,22 @@ fn deserialize_unit() {
     assert_eq!(serde_urlencoded::from_str("&"), Ok(()));
     assert_eq!(serde_urlencoded::from_str("&&"), Ok(()));
     assert!(serde_urlencoded::from_str::<()>("first=23").is_err());
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+enum X {
+    A,
+    B,
+    C,
+}
+
+#[test]
+fn deserialize_unit_enum() {
+    let result = vec![
+        ("one".to_owned(), X::A),
+        ("two".to_owned(), X::B),
+        ("three".to_owned(), X::C)
+    ];
+
+    assert_eq!(serde_urlencoded::from_str("one=A&two=B&three=C"), Ok(result));
 }
