@@ -14,14 +14,14 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
-use resource::{ResourceHandler, RouteId};
-use router::Resource;
+use resource::{Resource, RouteId};
+use router::ResourceDef;
 use server::Request;
 
-type ScopeResource<S> = Rc<ResourceHandler<S>>;
+type ScopeResource<S> = Rc<Resource<S>>;
 type Route<S> = Box<RouteHandler<S>>;
-type ScopeResources<S> = Rc<Vec<(Resource, ScopeResource<S>)>>;
-type NestedInfo<S> = (Resource, Route<S>, Vec<Box<Predicate<S>>>);
+type ScopeResources<S> = Rc<Vec<(ResourceDef, ScopeResource<S>)>>;
+type NestedInfo<S> = (ResourceDef, Route<S>, Vec<Box<Predicate<S>>>);
 
 /// Resources scope
 ///
@@ -147,7 +147,7 @@ impl<S: 'static> Scope<S> {
         })];
         let handler = Box::new(Wrapper { scope, state });
         self.nested
-            .push((Resource::prefix("", &path), handler, filters));
+            .push((ResourceDef::prefix("", &path), handler, filters));
 
         self
     }
@@ -185,7 +185,7 @@ impl<S: 'static> Scope<S> {
 
         let filters = scope.take_filters();
         self.nested
-            .push((Resource::prefix("", &path), Box::new(scope), filters));
+            .push((ResourceDef::prefix("", &path), Box::new(scope), filters));
 
         self
     }
@@ -244,9 +244,9 @@ impl<S: 'static> Scope<S> {
                 }
             }
         } else {
-            let mut handler = ResourceHandler::default();
+            let mut handler = Resource::default();
             handler.method(method).with(f);
-            let pattern = Resource::with_prefix(
+            let pattern = ResourceDef::with_prefix(
                 handler.get_name(),
                 path,
                 if path.is_empty() { "" } else { "/" },
@@ -284,13 +284,13 @@ impl<S: 'static> Scope<S> {
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> Scope<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource handler
-        let mut handler = ResourceHandler::default();
+        let mut handler = Resource::default();
         f(&mut handler);
 
-        let pattern = Resource::with_prefix(
+        let pattern = ResourceDef::with_prefix(
             handler.get_name(),
             path,
             if path.is_empty() { "" } else { "/" },
@@ -306,10 +306,10 @@ impl<S: 'static> Scope<S> {
     /// Default resource to be used if no matching route could be found.
     pub fn default_resource<F, R>(mut self, f: F) -> Scope<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         if self.default.is_none() {
-            self.default = Some(Rc::new(ResourceHandler::default_not_found()));
+            self.default = Some(Rc::new(Resource::default_not_found()));
         }
         {
             let default = Rc::get_mut(self.default.as_mut().unwrap())
@@ -439,7 +439,7 @@ struct ComposeInfo<S: 'static> {
     id: RouteId,
     req: HttpRequest<S>,
     mws: Rc<Vec<Box<Middleware<S>>>>,
-    resource: Rc<ResourceHandler<S>>,
+    resource: Rc<Resource<S>>,
 }
 
 enum ComposeState<S: 'static> {
@@ -465,7 +465,7 @@ impl<S: 'static> ComposeState<S> {
 impl<S: 'static> Compose<S> {
     fn new(
         id: RouteId, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
-        resource: Rc<ResourceHandler<S>>,
+        resource: Rc<Resource<S>>,
     ) -> Self {
         let mut info = ComposeInfo {
             id,

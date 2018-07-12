@@ -36,16 +36,16 @@ pub(crate) struct RouteId(usize);
 ///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
 ///         .finish();
 /// }
-pub struct ResourceHandler<S = ()> {
+pub struct Resource<S = ()> {
     name: String,
     state: PhantomData<S>,
     routes: SmallVec<[Route<S>; 3]>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S> Default for ResourceHandler<S> {
+impl<S> Default for Resource<S> {
     fn default() -> Self {
-        ResourceHandler {
+        Resource {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
@@ -54,9 +54,9 @@ impl<S> Default for ResourceHandler<S> {
     }
 }
 
-impl<S> ResourceHandler<S> {
+impl<S> Resource<S> {
     pub(crate) fn default_not_found() -> Self {
-        ResourceHandler {
+        Resource {
             name: String::new(),
             state: PhantomData,
             routes: SmallVec::new(),
@@ -74,7 +74,7 @@ impl<S> ResourceHandler<S> {
     }
 }
 
-impl<S: 'static> ResourceHandler<S> {
+impl<S: 'static> Resource<S> {
     /// Register a new route and return mutable reference to *Route* object.
     /// *Route* is used for route configuration, i.e. adding predicates,
     /// setting up handler.

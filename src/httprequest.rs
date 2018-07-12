@@ -20,7 +20,7 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 use info::ConnectionInfo;
 use param::Params;
 use payload::Payload;
-use router::{Resource, RouteInfo};
+use router::{ResourceDef, RouteInfo};
 use server::Request;
 
 struct Query(HashMap<String, String>);
@@ -211,7 +211,7 @@ impl<S> HttpRequest<S> {
 
     /// This method returns reference to matched `Resource` object.
     #[inline]
-    pub fn resource(&self) -> Option<&Resource> {
+    pub fn resource(&self) -> Option<&ResourceDef> {
         self.route.resource()
     }
 
@@ -370,8 +370,8 @@ impl<S> fmt::Debug for HttpRequest<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use resource::ResourceHandler;
-    use router::{Resource, Router};
+    use resource::Resource;
+    use router::{ResourceDef, Router};
     use test::TestRequest;
 
     #[test]
@@ -422,10 +422,10 @@ mod tests {
 
     #[test]
     fn test_request_match_info() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{key}/"), Some(resource)));
+        routes.push((ResourceDef::new("index", "/{key}/"), Some(resource)));
         let (router, _) = Router::new("", routes);
 
         let req = TestRequest::with_uri("/value/?id=test").finish();
@@ -435,10 +435,12 @@ mod tests {
 
     #[test]
     fn test_url_for() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
-        let routes =
-            vec![(Resource::new("index", "/user/{name}.{ext}"), Some(resource))];
+        let routes = vec![(
+            ResourceDef::new("index", "/user/{name}.{ext}"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/", routes);
         let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
@@ -464,9 +466,12 @@ mod tests {
 
     #[test]
     fn test_url_for_with_prefix() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
-        let routes = vec![(Resource::new("index", "/user/{name}.html"), Some(resource))];
+        let routes = vec![(
+            ResourceDef::new("index", "/user/{name}.html"),
+            Some(resource),
+        )];
         let (router, _) = Router::new("/prefix/", routes);
         let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
@@ -483,9 +488,9 @@ mod tests {
 
     #[test]
     fn test_url_for_static() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
-        let routes = vec![(Resource::new("index", "/index.html"), Some(resource))];
+        let routes = vec![(ResourceDef::new("index", "/index.html"), Some(resource))];
         let (router, _) = Router::new("/prefix/", routes);
         let info = router.default_route_info();
         assert!(info.has_route("/index.html"));
@@ -503,10 +508,10 @@ mod tests {
 
     #[test]
     fn test_url_for_external() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let routes = vec![(
-            Resource::external("youtube", "https://youtube.com/watch/{video_id}"),
+            ResourceDef::external("youtube", "https://youtube.com/watch/{video_id}"),
             None,
         )];
         let router = Router::new::<()>("", routes).0;
