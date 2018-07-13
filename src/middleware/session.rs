@@ -255,7 +255,10 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
                     .insert(Arc::new(SessionImplCell(RefCell::new(Box::new(sess)))));
                 FutOk(None)
             }
-            Err(err) => FutErr(err),
+            Err(err) => {
+                println!("Session::from_request error={:?}", &err);
+                FutErr(err)
+            }
         });
         Ok(Started::Future(Box::new(fut)))
     }
@@ -410,7 +413,7 @@ impl CookieSessionInner {
         }
 
         for cookie in jar.delta() {
-            let val = HeaderValue::from_str(&cookie.to_string())?;
+            let val = HeaderValue::from_str(&cookie.encoded().to_string())?;
             resp.headers_mut().append(header::SET_COOKIE, val);
         }
 
@@ -419,10 +422,17 @@ impl CookieSessionInner {
 
     fn load<S>(&self, req: &mut HttpRequest<S>) -> HashMap<String, String> {
         if let Ok(cookies) = req.cookies() {
+            println!("Load cookies");
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
+                    println!("cookie.name()={} | value={}", cookie.name(), cookie.value());
                     let mut jar = CookieJar::new();
                     jar.add_original(cookie.clone());
+
+                    println!("Jar cookies:");
+                    for cookie in jar.iter() {
+                        println!("cookie.name()={} | value={}", cookie.name(), cookie.value());
+                    }
 
                     let cookie_opt = match self.security {
                         CookieSecurity::Signed => jar.signed(&self.key).get(&self.name),
@@ -431,9 +441,14 @@ impl CookieSessionInner {
                         }
                     };
                     if let Some(cookie) = cookie_opt {
-                        if let Ok(val) = serde_json::from_str(cookie.value()) {
-                            return val;
+                        println!("Loaded secure cookie");
+                        match serde_json::from_str(cookie.value()) {
+                            Ok(val) => return val,
+                            Err(error) => println!("serde_json Error: {}", error)
                         }
+                        //if let Ok(val) = serde_json::from_str(cookie.value()) {
+                        //    return val;
+                        //}
                     }
                 }
             }

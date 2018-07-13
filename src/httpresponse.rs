@@ -161,7 +161,7 @@ impl HttpResponse {
         let mut count: usize = 0;
         for v in vals {
             if let Ok(s) = v.to_str() {
-                if let Ok(c) = Cookie::parse(s) {
+                if let Ok(c) = Cookie::parse_encoded(s) {
                     if c.name() == name {
                         count += 1;
                         continue;
@@ -327,7 +327,7 @@ impl<'a> Iterator for CookieIter<'a> {
     #[inline]
     fn next(&mut self) -> Option<Cookie<'a>> {
         for v in self.iter.by_ref() {
-            if let Ok(c) = Cookie::parse(v.to_str().ok()?) {
+            if let Ok(c) = Cookie::parse_encoded(v.to_str().ok()?) {
                 return Some(c);
             }
         }
