@@ -91,6 +91,48 @@ fn test_query_extractor() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
+#[derive(Deserialize, Debug)]
+pub enum ResponseType {
+    Token,
+    Code
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AuthRequest {
+    id: u64,
+    response_type: ResponseType,
+}
+
+#[test]
+fn test_query_enum_extractor() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/index.html", |r| {
+            r.with(|p: Query<AuthRequest>| format!("{:?}", p.into_inner()))
+        });
+    });
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/index.html?id=64&response_type=Code"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"AuthRequest { id: 64, response_type: Code }"));
+
+    let request = srv.get().uri(srv.url("/index.html?id=64&response_type=Co")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let request = srv.get().uri(srv.url("/index.html?response_type=Code")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 #[test]
 fn test_async_extractor_async() {
     let mut srv = test::TestServer::new(|app| {
