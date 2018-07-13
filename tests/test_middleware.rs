@@ -993,3 +993,74 @@ fn test_resource_middleware_async_chain_with_error() {
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
+
+#[cfg(feature = "session")]
+#[test]
+fn test_session_storage_middleware() {
+    use actix_web::middleware::session::{
+        CookieSessionBackend, RequestSession, SessionStorage,
+    };
+    use actix_web::HttpMessage;
+
+    const SIMPLE_NAME: &'static str = "simple";
+    const SIMPLE_PAYLOAD: &'static str = "kantan";
+    const COMPLEX_NAME: &'static str = "test";
+    const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
+    // const COMPLEX_PAYLOAD: &'static str = "something not so complex";
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new()
+            .middleware(SessionStorage::new(
+                CookieSessionBackend::signed(&[0; 32]).secure(false),
+            ))
+            .resource("/first", |r| {
+                r.f(|req| {
+                    // First request, sets 2 cookies
+                    let res = req.session().set(SIMPLE_NAME, SIMPLE_PAYLOAD);
+                    assert!(res.is_ok());
+
+                    let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
+                    assert!(res.is_ok());
+
+                    HttpResponse::Ok()
+                })
+            })
+            .resource("/second", |r| {
+                r.f(|req| {
+                    // Second request reads cookies
+                    let value = req.session().get::<String>(SIMPLE_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), SIMPLE_PAYLOAD);
+
+                    let value = req.session().get::<String>(COMPLEX_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), COMPLEX_PAYLOAD);
+
+                    HttpResponse::Ok()
+                })
+            })
+    });
+
+    let request_set = srv.get().uri(srv.url("/first")).finish().unwrap();
+    let response_set = srv.execute(request_set.send()).unwrap();
+
+    // we grab the "set-cookie" header from the response and use it as our "cookie" header for the next request
+    let cookie: &str = response_set.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(";") // cut off the last part ("; HttpOnly; Path=/"")
+        .next()
+        .unwrap();
+
+    let request = srv.get()
+        .uri(srv.url("/second"))
+        .header("cookie", cookie)
+        .finish()
+        .unwrap();
+
+    srv.execute(request.send()).unwrap();
+}
