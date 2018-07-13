@@ -9,8 +9,8 @@ use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pipeline::{HandlerType, Pipeline, PipelineHandler};
 use pred::Predicate;
-use resource::ResourceHandler;
-use router::{Resource, RouteInfo, Router};
+use resource::Resource;
+use router::{ResourceDef, RouteInfo, Router};
 use scope::Scope;
 use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
 
@@ -28,15 +28,15 @@ pub struct HttpApplication<S = ()> {
 #[doc(hidden)]
 pub struct Inner<S> {
     prefix: usize,
-    default: Rc<ResourceHandler<S>>,
+    default: Rc<Resource<S>>,
     encoding: ContentEncoding,
-    resources: Vec<ResourceHandler<S>>,
+    resources: Vec<Resource<S>>,
     handlers: Vec<PrefixHandlerType<S>>,
 }
 
 enum PrefixHandlerType<S> {
     Handler(String, Box<RouteHandler<S>>),
-    Scope(Resource, Box<RouteHandler<S>>, Vec<Box<Predicate<S>>>),
+    Scope(ResourceDef, Box<RouteHandler<S>>, Vec<Box<Predicate<S>>>),
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
@@ -154,10 +154,10 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 struct ApplicationParts<S> {
     state: S,
     prefix: String,
-    default: Rc<ResourceHandler<S>>,
-    resources: Vec<(Resource, Option<ResourceHandler<S>>)>,
+    default: Rc<Resource<S>>,
+    resources: Vec<(ResourceDef, Option<Resource<S>>)>,
     handlers: Vec<PrefixHandlerType<S>>,
-    external: HashMap<String, Resource>,
+    external: HashMap<String, ResourceDef>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
     filters: Vec<Box<Predicate<S>>>,
@@ -204,7 +204,7 @@ where
             parts: Some(ApplicationParts {
                 state,
                 prefix: "/".to_owned(),
-                default: Rc::new(ResourceHandler::default_not_found()),
+                default: Rc::new(Resource::default_not_found()),
                 resources: Vec::new(),
                 handlers: Vec::new(),
                 external: HashMap::new(),
@@ -332,9 +332,9 @@ where
                             }
                         }
                     } else {
-                        let mut handler = ResourceHandler::default();
+                        let mut handler = Resource::default();
                         handler.method(method).with(f);
-                        let pattern = Resource::new(handler.get_name(), path);
+                        let pattern = ResourceDef::new(handler.get_name(), path);
                         break Some((pattern, Some(handler)));
                     }
                 }
@@ -382,7 +382,7 @@ where
 
             let filters = scope.take_filters();
             parts.handlers.push(PrefixHandlerType::Scope(
-                Resource::prefix("", &path),
+                ResourceDef::prefix("", &path),
                 scope,
                 filters,
             ));
@@ -423,16 +423,16 @@ where
     /// ```
     pub fn resource<F, R>(mut self, path: &str, f: F) -> App<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
             // add resource handler
-            let mut handler = ResourceHandler::default();
+            let mut handler = Resource::default();
             f(&mut handler);
 
-            let pattern = Resource::new(handler.get_name(), path);
+            let pattern = ResourceDef::new(handler.get_name(), path);
             parts.resources.push((pattern, Some(handler)));
         }
         self
@@ -440,8 +440,8 @@ where
 
     /// Configure resource for a specific path.
     #[doc(hidden)]
-    pub fn register_resource(&mut self, path: &str, resource: ResourceHandler<S>) {
-        let pattern = Resource::new(resource.get_name(), path);
+    pub fn register_resource(&mut self, path: &str, resource: Resource<S>) {
+        let pattern = ResourceDef::new(resource.get_name(), path);
         self.parts
             .as_mut()
             .expect("Use after finish")
@@ -452,7 +452,7 @@ where
     /// Default resource to be used if no matching route could be found.
     pub fn default_resource<F, R>(mut self, f: F) -> App<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         {
             let parts = self.parts.as_mut().expect("Use after finish");
@@ -508,7 +508,7 @@ where
             }
             parts.external.insert(
                 String::from(name.as_ref()),
-                Resource::external(name.as_ref(), url.as_ref()),
+                ResourceDef::external(name.as_ref(), url.as_ref()),
             );
         }
         self

@@ -11,7 +11,7 @@
 //!      constructed backend.
 //!
 //! Cors middleware could be used as parameter for `App::middleware()` or
-//! `ResourceHandler::middleware()` methods. But you have to use
+//! `Resource::middleware()` methods. But you have to use
 //! `Cors::for_app()` method to support *preflight* OPTIONS request.
 //!
 //!
@@ -59,7 +59,7 @@ use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
-use resource::ResourceHandler;
+use resource::Resource;
 use server::Request;
 
 /// A set of errors that can occur during processing CORS
@@ -277,9 +277,9 @@ impl Cors {
     /// adds route for *OPTIONS* preflight requests.
     ///
     /// It is possible to register *Cors* middleware with
-    /// `ResourceHandler::middleware()` method, but in that case *Cors*
+    /// `Resource::middleware()` method, but in that case *Cors*
     /// middleware wont be able to handle *OPTIONS* requests.
-    pub fn register<S: 'static>(self, resource: &mut ResourceHandler<S>) {
+    pub fn register<S: 'static>(self, resource: &mut Resource<S>) {
         resource
             .method(Method::OPTIONS)
             .h(|_: &_| HttpResponse::Ok());
@@ -515,7 +515,7 @@ pub struct CorsBuilder<S = ()> {
     methods: bool,
     error: Option<http::Error>,
     expose_hdrs: HashSet<HeaderName>,
-    resources: Vec<(String, ResourceHandler<S>)>,
+    resources: Vec<(String, Resource<S>)>,
     app: Option<App<S>>,
 }
 
@@ -795,10 +795,10 @@ impl<S: 'static> CorsBuilder<S> {
     /// ```
     pub fn resource<F, R>(&mut self, path: &str, f: F) -> &mut CorsBuilder<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource handler
-        let mut handler = ResourceHandler::default();
+        let mut handler = Resource::default();
         f(&mut handler);
 
         self.resources.push((path.to_owned(), handler));

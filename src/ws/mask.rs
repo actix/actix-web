@@ -1,7 +1,7 @@
 //! This is code from [Tungstenite project](https://github.com/snapview/tungstenite-rs)
 #![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-use std::slice;
 use std::ptr::copy_nonoverlapping;
+use std::slice;
 
 // Holds a slice guaranteed to be shorter than 8 bytes
 struct ShortSlice<'a>(&'a mut [u8]);
@@ -50,6 +50,7 @@ pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
 // TODO: copy_nonoverlapping here compiles to call memcpy. While it is not so
 // inefficient, it could be done better. The compiler does not understand that
 // a `ShortSlice` must be smaller than a u64.
+#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 fn xor_short(buf: ShortSlice, mask: u64) {
     // Unsafe: we know that a `ShortSlice` fits in a u64
     unsafe {
@@ -67,8 +68,8 @@ fn xor_short(buf: ShortSlice, mask: u64) {
 // Unsafe: caller must ensure the buffer has the correct size and alignment
 unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
     // Assert correct size and alignment in debug builds
-    debug_assert!(buf.len() & 0x7 == 0);
-    debug_assert!(buf.as_ptr() as usize & 0x7 == 0);
+    debug_assert!(buf.len().trailing_zeros() >= 3);
+    debug_assert!((buf.as_ptr() as usize).trailing_zeros() >= 3);
 
     slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u64, buf.len() >> 3)
 }
@@ -81,10 +82,10 @@ fn align_buf(buf: &mut [u8]) -> (ShortSlice, &mut [u64], ShortSlice) {
     let end_ptr = start_ptr + buf.len();
 
     // Round *up* to next aligned boundary for start
-    let start_aligned = (start_ptr+7) & !0x7;
+    let start_aligned = (start_ptr + 7) & !0x7;
     // Round *down* to last aligned boundary for end
     let end_aligned = end_ptr & !0x7;
-    
+
     if end_aligned >= start_aligned {
         // We have our three segments (head, mid, tail)
         let (tmp, tail) = buf.split_at_mut(end_aligned - start_ptr);
@@ -100,7 +101,6 @@ fn align_buf(buf: &mut [u8]) -> (ShortSlice, &mut [u64], ShortSlice) {
         unsafe { (ShortSlice::new(buf), &mut [], ShortSlice::new(&mut [])) }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -1,9 +1,10 @@
-#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+// #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+
+use std::io::{self, Write};
+use std::rc::Rc;
 
 use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
-use std::io;
-use std::rc::Rc;
 use tokio_io::AsyncWrite;
 
 use super::helpers;
@@ -178,9 +179,8 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     helpers::write_content_length(len, &mut buffer)
                 }
                 ResponseLength::Length64(len) => {
-                    let s = format!("{}", len);
                     buffer.extend_from_slice(b"\r\ncontent-length: ");
-                    buffer.extend_from_slice(s.as_ref());
+                    write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),

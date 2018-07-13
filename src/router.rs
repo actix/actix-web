@@ -7,7 +7,7 @@ use url::Url;
 
 use error::UrlGenerationError;
 use param::{ParamItem, Params};
-use resource::ResourceHandler;
+use resource::Resource;
 use server::Request;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -29,7 +29,7 @@ pub struct RouteInfo {
 impl RouteInfo {
     /// This method returns reference to matched `Resource` object.
     #[inline]
-    pub fn resource(&self) -> Option<&Resource> {
+    pub fn resource(&self) -> Option<&ResourceDef> {
         if let RouterResource::Normal(idx) = self.resource {
             Some(&self.router.patterns[idx as usize])
         } else {
@@ -113,15 +113,15 @@ impl RouteInfo {
 struct Inner {
     prefix: String,
     prefix_len: usize,
-    named: HashMap<String, (Resource, bool)>,
-    patterns: Vec<Resource>,
+    named: HashMap<String, (ResourceDef, bool)>,
+    patterns: Vec<ResourceDef>,
 }
 
 impl Router {
     /// Create new router
     pub fn new<S>(
-        prefix: &str, map: Vec<(Resource, Option<ResourceHandler<S>>)>,
-    ) -> (Router, Vec<ResourceHandler<S>>) {
+        prefix: &str, map: Vec<(ResourceDef, Option<Resource<S>>)>,
+    ) -> (Router, Vec<Resource<S>>) {
         let prefix = prefix.trim().trim_right_matches('/').to_owned();
         let mut named = HashMap::new();
         let mut patterns = Vec::new();
@@ -240,7 +240,7 @@ pub enum ResourceType {
 
 /// Resource type describes an entry in resources table
 #[derive(Clone, Debug)]
-pub struct Resource {
+pub struct ResourceDef {
     tp: PatternType,
     rtp: ResourceType,
     name: String,
@@ -248,12 +248,12 @@ pub struct Resource {
     elements: Vec<PatternElement>,
 }
 
-impl Resource {
+impl ResourceDef {
     /// Parse path pattern and create new `Resource` instance.
     ///
     /// Panics if path pattern is wrong.
     pub fn new(name: &str, path: &str) -> Self {
-        Resource::with_prefix(name, path, "/", false)
+        ResourceDef::with_prefix(name, path, "/", false)
     }
 
     /// Parse path pattern and create new `Resource` instance.
@@ -262,14 +262,14 @@ impl Resource {
     ///
     /// Panics if path regex pattern is wrong.
     pub fn prefix(name: &str, path: &str) -> Self {
-        Resource::with_prefix(name, path, "/", true)
+        ResourceDef::with_prefix(name, path, "/", true)
     }
 
     /// Construct external resource
     ///
     /// Panics if path pattern is wrong.
     pub fn external(name: &str, path: &str) -> Self {
-        let mut resource = Resource::with_prefix(name, path, "/", false);
+        let mut resource = ResourceDef::with_prefix(name, path, "/", false);
         resource.rtp = ResourceType::External;
         resource
     }
@@ -277,7 +277,7 @@ impl Resource {
     /// Parse path pattern and create new `Resource` instance with custom prefix
     pub fn with_prefix(name: &str, path: &str, prefix: &str, for_prefix: bool) -> Self {
         let (pattern, elements, is_dynamic, len) =
-            Resource::parse(path, prefix, for_prefix);
+            ResourceDef::parse(path, prefix, for_prefix);
 
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
@@ -296,7 +296,7 @@ impl Resource {
             PatternType::Static(pattern.clone())
         };
 
-        Resource {
+        ResourceDef {
             tp,
             elements,
             name: name.into(),
@@ -571,15 +571,15 @@ impl Resource {
     }
 }
 
-impl PartialEq for Resource {
-    fn eq(&self, other: &Resource) -> bool {
+impl PartialEq for ResourceDef {
+    fn eq(&self, other: &ResourceDef) -> bool {
         self.pattern == other.pattern
     }
 }
 
-impl Eq for Resource {}
+impl Eq for ResourceDef {}
 
-impl Hash for Resource {
+impl Hash for ResourceDef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pattern.hash(state);
     }
@@ -593,34 +593,34 @@ mod tests {
     #[test]
     fn test_recognizer10() {
         let routes = vec![
-            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (ResourceDef::new("", "/name"), Some(Resource::default())),
             (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/name/{val}"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/name/{val}/index.html"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/name/{val}/index.html"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/file/{file}.{ext}"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/file/{file}.{ext}"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/v{val}/{val2}/index.html"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/v{val}/{val2}/index.html"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/v/{tail:.*}"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/v/{tail:.*}"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/test2/{test}.html"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/test2/{test}.html"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "{test}/index.html"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "{test}/index.html"),
+                Some(Resource::default()),
             ),
         ];
         let (rec, _) = Router::new::<()>("", routes);
@@ -681,12 +681,12 @@ mod tests {
     fn test_recognizer_2() {
         let routes = vec![
             (
-                Resource::new("", "/index.json"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/index.json"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("", "/{source}.json"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/{source}.json"),
+                Some(Resource::default()),
             ),
         ];
         let (rec, _) = Router::new::<()>("", routes);
@@ -701,10 +701,10 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let routes = vec![
-            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (ResourceDef::new("", "/name"), Some(Resource::default())),
             (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/name/{val}"),
+                Some(Resource::default()),
             ),
         ];
         let (rec, _) = Router::new::<()>("/test", routes);
@@ -724,10 +724,10 @@ mod tests {
 
         // same patterns
         let routes = vec![
-            (Resource::new("", "/name"), Some(ResourceHandler::default())),
+            (ResourceDef::new("", "/name"), Some(Resource::default())),
             (
-                Resource::new("", "/name/{val}"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("", "/name/{val}"),
+                Some(Resource::default()),
             ),
         ];
         let (rec, _) = Router::new::<()>("/test2", routes);
@@ -747,29 +747,29 @@ mod tests {
 
     #[test]
     fn test_parse_static() {
-        let re = Resource::new("test", "/");
+        let re = ResourceDef::new("test", "/");
         assert!(re.is_match("/"));
         assert!(!re.is_match("/a"));
 
-        let re = Resource::new("test", "/name");
+        let re = ResourceDef::new("test", "/name");
         assert!(re.is_match("/name"));
         assert!(!re.is_match("/name1"));
         assert!(!re.is_match("/name/"));
         assert!(!re.is_match("/name~"));
 
-        let re = Resource::new("test", "/name/");
+        let re = ResourceDef::new("test", "/name/");
         assert!(re.is_match("/name/"));
         assert!(!re.is_match("/name"));
         assert!(!re.is_match("/name/gs"));
 
-        let re = Resource::new("test", "/user/profile");
+        let re = ResourceDef::new("test", "/user/profile");
         assert!(re.is_match("/user/profile"));
         assert!(!re.is_match("/user/profile/profile"));
     }
 
     #[test]
     fn test_parse_param() {
-        let re = Resource::new("test", "/user/{id}");
+        let re = ResourceDef::new("test", "/user/{id}");
         assert!(re.is_match("/user/profile"));
         assert!(re.is_match("/user/2345"));
         assert!(!re.is_match("/user/2345/"));
@@ -783,7 +783,7 @@ mod tests {
         let info = re.match_with_params(&req, 0, true).unwrap();
         assert_eq!(info.get("id").unwrap(), "1245125");
 
-        let re = Resource::new("test", "/v{version}/resource/{id}");
+        let re = ResourceDef::new("test", "/v{version}/resource/{id}");
         assert!(re.is_match("/v1/resource/320120"));
         assert!(!re.is_match("/v/resource/1"));
         assert!(!re.is_match("/resource"));
@@ -796,14 +796,14 @@ mod tests {
 
     #[test]
     fn test_resource_prefix() {
-        let re = Resource::prefix("test", "/name");
+        let re = ResourceDef::prefix("test", "/name");
         assert!(re.is_match("/name"));
         assert!(re.is_match("/name/"));
         assert!(re.is_match("/name/test/test"));
         assert!(re.is_match("/name1"));
         assert!(re.is_match("/name~"));
 
-        let re = Resource::prefix("test", "/name/");
+        let re = ResourceDef::prefix("test", "/name/");
         assert!(re.is_match("/name/"));
         assert!(re.is_match("/name/gs"));
         assert!(!re.is_match("/name"));
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn test_reousrce_prefix_dynamic() {
-        let re = Resource::prefix("test", "/{name}/");
+        let re = ResourceDef::prefix("test", "/{name}/");
         assert!(re.is_match("/name/"));
         assert!(re.is_match("/name/gs"));
         assert!(!re.is_match("/name"));
@@ -831,12 +831,12 @@ mod tests {
     fn test_request_resource() {
         let routes = vec![
             (
-                Resource::new("r1", "/index.json"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("r1", "/index.json"),
+                Some(Resource::default()),
             ),
             (
-                Resource::new("r2", "/test.json"),
-                Some(ResourceHandler::default()),
+                ResourceDef::new("r2", "/test.json"),
+                Some(Resource::default()),
             ),
         ];
         let (router, _) = Router::new::<()>("", routes);

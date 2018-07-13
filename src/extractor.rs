@@ -622,8 +622,8 @@ mod tests {
     use futures::{Async, Future};
     use http::header;
     use mime;
-    use resource::ResourceHandler;
-    use router::{Resource, Router};
+    use resource::Resource;
+    use router::{ResourceDef, Router};
     use test::TestRequest;
 
     #[derive(Deserialize, Debug, PartialEq)]
@@ -719,10 +719,10 @@ mod tests {
     fn test_request_extract() {
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
+        routes.push((ResourceDef::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", routes);
         let info = router.recognize(&req).unwrap().1;
         let req = req.with_route_info(info);
@@ -757,10 +757,10 @@ mod tests {
 
     #[test]
     fn test_extract_path_single() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{value}/"), Some(resource)));
+        routes.push((ResourceDef::new("index", "/{value}/"), Some(resource)));
         let (router, _) = Router::new("", routes);
 
         let req = TestRequest::with_uri("/32/").finish_with_router(router.clone());
@@ -771,10 +771,10 @@ mod tests {
 
     #[test]
     fn test_tuple_extract() {
-        let mut resource = ResourceHandler::<()>::default();
+        let mut resource = Resource::<()>::default();
         resource.name("index");
         let mut routes = Vec::new();
-        routes.push((Resource::new("index", "/{key}/{value}/"), Some(resource)));
+        routes.push((ResourceDef::new("index", "/{key}/{value}/"), Some(resource)));
         let (router, _) = Router::new("", routes);
 
         let req = TestRequest::with_uri("/name/user1/?id=test")

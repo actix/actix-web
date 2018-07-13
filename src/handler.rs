@@ -9,7 +9,7 @@ use error::Error;
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use resource::ResourceHandler;
+use resource::Resource;
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
@@ -409,7 +409,7 @@ pub(crate) trait RouteHandler<S>: 'static {
         false
     }
 
-    fn default_resource(&mut self, _: Rc<ResourceHandler<S>>) {
+    fn default_resource(&mut self, _: Rc<Resource<S>>) {
         unimplemented!()
     }
 }

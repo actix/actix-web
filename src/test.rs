@@ -27,7 +27,7 @@ use httpresponse::HttpResponse;
 use middleware::Middleware;
 use param::Params;
 use payload::Payload;
-use resource::ResourceHandler;
+use resource::Resource;
 use router::Router;
 use server::message::{Request, RequestPool};
 use server::{HttpServer, IntoHttpHandler, ServerSettings};
@@ -353,7 +353,7 @@ impl<S: 'static> TestApp<S> {
     /// to `App::resource()` method.
     pub fn resource<F, R>(&mut self, path: &str, f: F) -> &mut TestApp<S>
     where
-        F: FnOnce(&mut ResourceHandler<S>) -> R + 'static,
+        F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         self.app = Some(self.app.take().unwrap().resource(path, f));
         self
