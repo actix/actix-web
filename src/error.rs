@@ -37,7 +37,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// General purpose actix web error.
 ///
 /// An actix web error is used to carry errors from `failure` or `std::error`
-/// through actix in a convenient way.  It can be created through through
+/// through actix in a convenient way.  It can be created through
 /// converting errors with `into()`.
 ///
 /// Whenever it is created from an external object a response error is created
