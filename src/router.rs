@@ -211,9 +211,11 @@ impl<S: 'static> Router<S> {
 
             let name = resource.get_name();
             if !name.is_empty() {
-                if inner.named.contains_key(name) {
-                    panic!("Named resource {:?} is registered.", name);
-                }
+                assert!(
+                    !inner.named.contains_key(name),
+                    "Named resource {:?} is registered.",
+                    name
+                );
                 inner.named.insert(name.to_owned(), resource.rdef().clone());
             }
             inner.patterns.push(resource.rdef().clone());
@@ -279,9 +281,11 @@ impl<S: 'static> Router<S> {
 
     pub(crate) fn register_external(&mut self, name: &str, rdef: ResourceDef) {
         let inner = Rc::get_mut(&mut self.defs).unwrap();
-        if inner.named.contains_key(name) {
-            panic!("Named resource {:?} is registered.", name);
-        }
+        assert!(
+            !inner.named.contains_key(name),
+            "Named resource {:?} is registered.",
+            name
+        );
         inner.named.insert(name.to_owned(), rdef);
     }
 

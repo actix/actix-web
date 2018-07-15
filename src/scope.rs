@@ -910,9 +910,9 @@ mod tests {
             })
             .finish();
 
-        //let req = TestRequest::with_uri("/app/t1").request();
-        //let resp = app.run(req);
-        //assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+        let req = TestRequest::with_uri("/app/t1").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/t1/").request();
         let resp = app.run(req);
