@@ -20,7 +20,7 @@ use httpresponse::{HttpResponse, HttpResponseBuilder};
 use info::ConnectionInfo;
 use param::Params;
 use payload::Payload;
-use router::{ResourceDef, RouteInfo};
+use router::ResourceInfo;
 use server::Request;
 
 struct Query(HashMap<String, String>);
@@ -30,7 +30,7 @@ struct Cookies(Vec<Cookie<'static>>);
 pub struct HttpRequest<S = ()> {
     req: Option<Request>,
     state: Rc<S>,
-    route: RouteInfo,
+    resource: ResourceInfo,
 }
 
 impl<S> HttpMessage for HttpRequest<S> {
@@ -61,10 +61,12 @@ impl<S> Deref for HttpRequest<S> {
 
 impl<S> HttpRequest<S> {
     #[inline]
-    pub(crate) fn new(req: Request, state: Rc<S>, route: RouteInfo) -> HttpRequest<S> {
+    pub(crate) fn new(
+        req: Request, state: Rc<S>, resource: ResourceInfo,
+    ) -> HttpRequest<S> {
         HttpRequest {
             state,
-            route,
+            resource,
             req: Some(req),
         }
     }
@@ -75,17 +77,17 @@ impl<S> HttpRequest<S> {
         HttpRequest {
             state,
             req: self.req.as_ref().map(|r| r.clone()),
-            route: self.route.clone(),
+            resource: self.resource.clone(),
         }
     }
 
     #[inline]
     /// Construct new http request with new RouteInfo.
-    pub(crate) fn with_route_info(&self, mut route: RouteInfo) -> HttpRequest<S> {
-        route.merge(&self.route);
+    pub(crate) fn with_route_info(&self, mut resource: ResourceInfo) -> HttpRequest<S> {
+        resource.merge(&self.resource);
 
         HttpRequest {
-            route,
+            resource,
             req: self.req.as_ref().map(|r| r.clone()),
             state: self.state.clone(),
         }
@@ -193,7 +195,7 @@ impl<S> HttpRequest<S> {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.route.url_for(&self, name, elements)
+        self.resource.url_for(&self, name, elements)
     }
 
     /// Generate url for named resource
@@ -207,14 +209,8 @@ impl<S> HttpRequest<S> {
 
     /// This method returns reference to current `RouteInfo` object.
     #[inline]
-    pub fn route(&self) -> &RouteInfo {
-        &self.route
-    }
-
-    /// This method returns reference to matched `Resource` object.
-    #[inline]
-    pub fn resource(&self) -> Option<&ResourceDef> {
-        self.route.resource()
+    pub fn resource(&self) -> &ResourceInfo {
+        &self.resource
     }
 
     /// Peer socket address
@@ -300,7 +296,7 @@ impl<S> HttpRequest<S> {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Params {
-        &self.route.match_info()
+        &self.resource.match_info()
     }
 
     /// Check if request requires connection upgrade
@@ -331,7 +327,7 @@ impl<S> Clone for HttpRequest<S> {
         HttpRequest {
             req: self.req.as_ref().map(|r| r.clone()),
             state: self.state.clone(),
-            route: self.route.clone(),
+            resource: self.resource.clone(),
         }
     }
 }

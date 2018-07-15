@@ -18,7 +18,7 @@ use scope::Scope;
 use server::Request;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) enum RouterResource {
+pub(crate) enum ResourceId {
     Default,
     Normal(u16),
 }
@@ -43,29 +43,29 @@ pub struct Router<S> {
     default: Option<DefaultResource<S>>,
 }
 
-/// Information about current route
+/// Information about current resource
 #[derive(Clone)]
-pub struct RouteInfo {
+pub struct ResourceInfo {
     router: Rc<Inner>,
-    resource: RouterResource,
+    resource: ResourceId,
     params: Params,
 }
 
-impl RouteInfo {
+impl ResourceInfo {
     /// Name os the resource
     #[inline]
     pub fn name(&self) -> &str {
-        if let RouterResource::Normal(idx) = self.resource {
+        if let ResourceId::Normal(idx) = self.resource {
             self.router.patterns[idx as usize].name()
         } else {
             ""
         }
     }
 
-    /// This method returns reference to matched `Resource` object.
+    /// This method returns reference to matched `ResourceDef` object.
     #[inline]
-    pub fn resource(&self) -> Option<&ResourceDef> {
-        if let RouterResource::Normal(idx) = self.resource {
+    pub fn rdef(&self) -> Option<&ResourceDef> {
+        if let ResourceId::Normal(idx) = self.resource {
             Some(&self.router.patterns[idx as usize])
         } else {
             None
@@ -84,7 +84,7 @@ impl RouteInfo {
     }
 
     #[inline]
-    pub(crate) fn merge(&mut self, info: &RouteInfo) {
+    pub(crate) fn merge(&mut self, info: &ResourceInfo) {
         let mut p = info.params.clone();
         p.set_tail(self.params.tail);
         for item in &self.params.segments {
@@ -185,32 +185,32 @@ impl<S: 'static> Router<S> {
     }
 
     #[inline]
-    pub(crate) fn route_info_params(&self, idx: u16, params: Params) -> RouteInfo {
-        RouteInfo {
+    pub(crate) fn route_info_params(&self, idx: u16, params: Params) -> ResourceInfo {
+        ResourceInfo {
             params,
             router: self.defs.clone(),
-            resource: RouterResource::Normal(idx),
+            resource: ResourceId::Normal(idx),
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn route_info(&self, req: &Request, prefix: u16) -> RouteInfo {
+    pub(crate) fn route_info(&self, req: &Request, prefix: u16) -> ResourceInfo {
         let mut params = Params::with_url(req.url());
         params.set_tail(prefix);
 
-        RouteInfo {
+        ResourceInfo {
             params,
             router: self.defs.clone(),
-            resource: RouterResource::Default,
+            resource: ResourceId::Default,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn default_route_info(&self) -> RouteInfo {
-        RouteInfo {
+    pub(crate) fn default_route_info(&self) -> ResourceInfo {
+        ResourceInfo {
             params: Params::new(),
             router: self.defs.clone(),
-            resource: RouterResource::Default,
+            resource: ResourceId::Default,
         }
     }
 
@@ -326,9 +326,9 @@ impl<S: 'static> Router<S> {
 
     /// Handle request
     pub fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        let resource = match req.route().resource {
-            RouterResource::Normal(idx) => &self.resources[idx as usize],
-            RouterResource::Default => {
+        let resource = match req.resource().resource {
+            ResourceId::Normal(idx) => &self.resources[idx as usize],
+            ResourceId::Default => {
                 if let Some(ref default) = self.default {
                     if let Some(id) = default.get_route_id(req) {
                         return default.handle(id, req);
@@ -356,14 +356,14 @@ impl<S: 'static> Router<S> {
     }
 
     /// Query for matched resource
-    pub fn recognize(&self, req: &Request, state: &S, tail: usize) -> RouteInfo {
+    pub fn recognize(&self, req: &Request, state: &S, tail: usize) -> ResourceInfo {
         self.match_with_params(req, state, tail, true)
     }
 
     /// Query for matched resource
     pub(crate) fn match_with_params(
         &self, req: &Request, state: &S, tail: usize, insert: bool,
-    ) -> RouteInfo {
+    ) -> ResourceInfo {
         if tail <= req.path().len() {
             'outer: for (idx, resource) in self.patterns.iter().enumerate() {
                 match resource {
@@ -397,10 +397,10 @@ impl<S: 'static> Router<S> {
                 }
             }
         }
-        RouteInfo {
+        ResourceInfo {
             params: Params::new(),
             router: self.defs.clone(),
-            resource: RouterResource::Default,
+            resource: ResourceId::Default,
         }
     }
 }
@@ -806,35 +806,35 @@ mod tests {
 
         let req = TestRequest::with_uri("/name").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(0));
+        assert_eq!(info.resource, ResourceId::Normal(0));
         assert!(info.match_info().is_empty());
 
         let req = TestRequest::with_uri("/name/value").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(1));
+        assert_eq!(info.resource, ResourceId::Normal(1));
         assert_eq!(info.match_info().get("val").unwrap(), "value");
         assert_eq!(&info.match_info()["val"], "value");
 
         let req = TestRequest::with_uri("/name/value2/index.html").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(2));
+        assert_eq!(info.resource, ResourceId::Normal(2));
         assert_eq!(info.match_info().get("val").unwrap(), "value2");
 
         let req = TestRequest::with_uri("/file/file.gz").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(3));
+        assert_eq!(info.resource, ResourceId::Normal(3));
         assert_eq!(info.match_info().get("file").unwrap(), "file");
         assert_eq!(info.match_info().get("ext").unwrap(), "gz");
 
         let req = TestRequest::with_uri("/vtest/ttt/index.html").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(4));
+        assert_eq!(info.resource, ResourceId::Normal(4));
         assert_eq!(info.match_info().get("val").unwrap(), "test");
         assert_eq!(info.match_info().get("val2").unwrap(), "ttt");
 
         let req = TestRequest::with_uri("/v/blah-blah/index.html").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(5));
+        assert_eq!(info.resource, ResourceId::Normal(5));
         assert_eq!(
             info.match_info().get("tail").unwrap(),
             "blah-blah/index.html"
@@ -842,12 +842,12 @@ mod tests {
 
         let req = TestRequest::with_uri("/test2/index.html").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(6));
+        assert_eq!(info.resource, ResourceId::Normal(6));
         assert_eq!(info.match_info().get("test").unwrap(), "index");
 
         let req = TestRequest::with_uri("/bbb/index.html").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(7));
+        assert_eq!(info.resource, ResourceId::Normal(7));
         assert_eq!(info.match_info().get("test").unwrap(), "bbb");
     }
 
@@ -859,11 +859,11 @@ mod tests {
 
         let req = TestRequest::with_uri("/index.json").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(0));
+        assert_eq!(info.resource, ResourceId::Normal(0));
 
         let req = TestRequest::with_uri("/test.json").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(1));
+        assert_eq!(info.resource, ResourceId::Normal(1));
     }
 
     #[test]
@@ -875,15 +875,15 @@ mod tests {
 
         let req = TestRequest::with_uri("/name").finish();
         let info = router.recognize(&req, &(), 5);
-        assert_eq!(info.resource, RouterResource::Default);
+        assert_eq!(info.resource, ResourceId::Default);
 
         let req = TestRequest::with_uri("/test/name").finish();
         let info = router.recognize(&req, &(), 5);
-        assert_eq!(info.resource, RouterResource::Normal(0));
+        assert_eq!(info.resource, ResourceId::Normal(0));
 
         let req = TestRequest::with_uri("/test/name/value").finish();
         let info = router.recognize(&req, &(), 5);
-        assert_eq!(info.resource, RouterResource::Normal(1));
+        assert_eq!(info.resource, ResourceId::Normal(1));
         assert_eq!(info.match_info().get("val").unwrap(), "value");
         assert_eq!(&info.match_info()["val"], "value");
 
@@ -895,19 +895,19 @@ mod tests {
 
         let req = TestRequest::with_uri("/name").finish();
         let info = router.recognize(&req, &(), 6);
-        assert_eq!(info.resource, RouterResource::Default);
+        assert_eq!(info.resource, ResourceId::Default);
 
         let req = TestRequest::with_uri("/test2/name").finish();
         let info = router.recognize(&req, &(), 6);
-        assert_eq!(info.resource, RouterResource::Normal(0));
+        assert_eq!(info.resource, ResourceId::Normal(0));
 
         let req = TestRequest::with_uri("/test2/name-test").finish();
         let info = router.recognize(&req, &(), 6);
-        assert_eq!(info.resource, RouterResource::Default);
+        assert_eq!(info.resource, ResourceId::Default);
 
         let req = TestRequest::with_uri("/test2/name/ttt").finish();
         let info = router.recognize(&req, &(), 6);
-        assert_eq!(info.resource, RouterResource::Normal(1));
+        assert_eq!(info.resource, ResourceId::Normal(1));
         assert_eq!(&info.match_info()["val"], "ttt");
     }
 
@@ -1005,13 +1005,13 @@ mod tests {
 
         let req = TestRequest::with_uri("/index.json").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(0));
+        assert_eq!(info.resource, ResourceId::Normal(0));
 
         assert_eq!(info.name(), "r1");
 
         let req = TestRequest::with_uri("/test.json").finish();
         let info = router.recognize(&req, &(), 0);
-        assert_eq!(info.resource, RouterResource::Normal(1));
+        assert_eq!(info.resource, ResourceId::Normal(1));
         assert_eq!(info.name(), "r2");
     }
 }
