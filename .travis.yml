@@ -36,7 +36,7 @@ script:
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
     cargo tarpaulin --features="alpn,tls" --out Xml --no-count
     bash <(curl -s https://codecov.io/bash)
     echo "Uploaded code coverage"

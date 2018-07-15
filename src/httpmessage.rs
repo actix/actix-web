@@ -286,7 +286,7 @@ impl<T: HttpMessage> Readlines<T> {
     fn err(req: &T, err: ReadlinesError) -> Self {
         Readlines {
             stream: req.payload(),
-            buff: BytesMut::with_capacity(262_144),
+            buff: BytesMut::new(),
             limit: 262_144,
             checked_buff: true,
             encoding: UTF_8,
@@ -472,7 +472,7 @@ where
                 .take()
                 .expect("Can not be used second time")
                 .from_err()
-                .fold(BytesMut::new(), move |mut body, chunk| {
+                .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
                         Err(PayloadError::Overflow)
                     } else {
@@ -581,7 +581,7 @@ where
             .take()
             .expect("UrlEncoded could not be used second time")
             .from_err()
-            .fold(BytesMut::new(), move |mut body, chunk| {
+            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {
                     Err(UrlencodedError::Overflow)
                 } else {

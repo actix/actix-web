@@ -320,7 +320,7 @@ impl<T: HttpMessage + 'static, U: DeserializeOwned + 'static> Future for JsonBod
             .take()
             .expect("JsonBody could not be used second time")
             .from_err()
-            .fold(BytesMut::new(), move |mut body, chunk| {
+            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {
                     Err(JsonPayloadError::Overflow)
                 } else {
