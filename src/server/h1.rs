@@ -543,11 +543,6 @@ mod tests {
                 err: None,
             }
         }
-        fn feed_data(&mut self, data: &'static str) {
-            let mut b = BytesMut::from(self.buf.as_ref());
-            b.extend(data.as_bytes());
-            self.buf = b.take().freeze();
-        }
     }
 
     impl AsyncRead for Buffer {}

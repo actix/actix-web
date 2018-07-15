@@ -417,6 +417,7 @@ pub struct TestRequest<S> {
     params: Params,
     cookies: Option<Vec<Cookie<'static>>>,
     payload: Option<Payload>,
+    prefix: u16,
 }
 
 impl Default for TestRequest<()> {
@@ -430,6 +431,7 @@ impl Default for TestRequest<()> {
             params: Params::new(),
             cookies: None,
             payload: None,
+            prefix: 0,
         }
     }
 }
@@ -467,6 +469,7 @@ impl<S: 'static> TestRequest<S> {
             params: Params::new(),
             cookies: None,
             payload: None,
+            prefix: 0,
         }
     }
 
@@ -527,6 +530,12 @@ impl<S: 'static> TestRequest<S> {
         self
     }
 
+    /// Set request's prefix
+    pub fn prefix(mut self, prefix: u16) -> Self {
+        self.prefix = prefix;
+        self
+    }
+
     /// Complete request creation and generate `HttpRequest` instance
     pub fn finish(self) -> HttpRequest<S> {
         let TestRequest {
@@ -538,6 +547,7 @@ impl<S: 'static> TestRequest<S> {
             mut params,
             cookies,
             payload,
+            prefix,
         } = self;
         let router = Router::<()>::new();
 
@@ -552,9 +562,10 @@ impl<S: 'static> TestRequest<S> {
             *inner.payload.borrow_mut() = payload;
         }
         params.set_url(req.url().clone());
+        let mut info = router.route_info_params(0, params);
+        info.set_prefix(prefix);
 
-        let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(0, params));
+        let mut req = HttpRequest::new(req, Rc::new(state), info);
         req.set_cookies(cookies);
         req
     }
@@ -571,6 +582,7 @@ impl<S: 'static> TestRequest<S> {
             mut params,
             cookies,
             payload,
+            prefix,
         } = self;
 
         let pool = RequestPool::pool(ServerSettings::default());
@@ -584,8 +596,9 @@ impl<S: 'static> TestRequest<S> {
             *inner.payload.borrow_mut() = payload;
         }
         params.set_url(req.url().clone());
-        let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(0, params));
+        let mut info = router.route_info_params(0, params);
+        info.set_prefix(prefix);
+        let mut req = HttpRequest::new(req, Rc::new(state), info);
         req.set_cookies(cookies);
         req
     }

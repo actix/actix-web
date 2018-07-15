@@ -49,6 +49,7 @@ pub struct ResourceInfo {
     router: Rc<Inner>,
     resource: ResourceId,
     params: Params,
+    prefix: u16,
 }
 
 impl ResourceInfo {
@@ -72,6 +73,10 @@ impl ResourceInfo {
         }
     }
 
+    pub(crate) fn set_prefix(&mut self, prefix: u16) {
+        self.prefix = prefix;
+    }
+
     /// Get a reference to the Params object.
     ///
     /// Params is a container for url parameters.
@@ -91,6 +96,7 @@ impl ResourceInfo {
             p.add(item.0.clone(), item.1.clone());
         }
 
+        self.prefix = info.params.tail;
         self.params = p;
     }
 
@@ -106,7 +112,8 @@ impl ResourceInfo {
         I: AsRef<str>,
     {
         if let Some(pattern) = self.router.named.get(name) {
-            let path = pattern.resource_path(elements, &self.router.prefix)?;
+            let path =
+                pattern.resource_path(elements, &req.path()[..(self.prefix as usize)])?;
             if path.starts_with('/') {
                 let conn = req.connection_info();
                 Ok(Url::parse(&format!(
@@ -142,8 +149,6 @@ impl ResourceInfo {
 }
 
 struct Inner {
-    prefix: String,
-    prefix_len: usize,
     named: HashMap<String, ResourceDef>,
     patterns: Vec<ResourceDef>,
 }
@@ -158,8 +163,6 @@ impl<S: 'static> Router<S> {
     pub(crate) fn new() -> Self {
         Router {
             defs: Rc::new(Inner {
-                prefix: String::new(),
-                prefix_len: 0,
                 named: HashMap::new(),
                 patterns: Vec::new(),
             }),
@@ -169,25 +172,11 @@ impl<S: 'static> Router<S> {
         }
     }
 
-    /// Router prefix
-    #[inline]
-    pub fn prefix(&self) -> &str {
-        &self.defs.prefix
-    }
-
-    /// Set router prefix
-    #[inline]
-    pub fn set_prefix(&mut self, prefix: &str) {
-        let prefix = prefix.trim().trim_right_matches('/').to_owned();
-        let inner = Rc::get_mut(&mut self.defs).unwrap();
-        inner.prefix_len = prefix.len();
-        inner.prefix = prefix;
-    }
-
     #[inline]
     pub(crate) fn route_info_params(&self, idx: u16, params: Params) -> ResourceInfo {
         ResourceInfo {
             params,
+            prefix: 0,
             router: self.defs.clone(),
             resource: ResourceId::Normal(idx),
         }
@@ -200,6 +189,7 @@ impl<S: 'static> Router<S> {
 
         ResourceInfo {
             params,
+            prefix: 0,
             router: self.defs.clone(),
             resource: ResourceId::Default,
         }
@@ -211,6 +201,7 @@ impl<S: 'static> Router<S> {
             params: Params::new(),
             router: self.defs.clone(),
             resource: ResourceId::Default,
+            prefix: 0,
         }
     }
 
@@ -391,6 +382,7 @@ impl<S: 'static> Router<S> {
             }
         }
         ResourceInfo {
+            prefix: tail as u16,
             params: Params::new(),
             router: self.defs.clone(),
             resource: ResourceId::Default,
@@ -851,7 +843,6 @@ mod tests {
     #[test]
     fn test_recognizer_with_prefix() {
         let mut router = Router::<()>::new();
-        router.set_prefix("/test");
         router.register_resource(Resource::new(ResourceDef::new("/name")));
         router.register_resource(Resource::new(ResourceDef::new("/name/{val}")));
 
@@ -871,7 +862,6 @@ mod tests {
 
         // same patterns
         let mut router = Router::<()>::new();
-        router.set_prefix("/test2");
         router.register_resource(Resource::new(ResourceDef::new("/name")));
         router.register_resource(Resource::new(ResourceDef::new("/name/{val}")));
 

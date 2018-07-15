@@ -462,14 +462,16 @@ mod tests {
         let mut resource = Resource::new(ResourceDef::new("/user/{name}.html"));
         resource.name("index");
         let mut router = Router::<()>::new();
-        router.set_prefix("/prefix/");
         router.register_resource(resource);
 
-        let info = router.default_route_info();
+        let mut info = router.default_route_info();
+        info.set_prefix(7);
         assert!(info.has_route("/user/test.html"));
         assert!(!info.has_route("/prefix/user/test.html"));
 
-        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
+        let req = TestRequest::with_uri("/prefix/test")
+            .prefix(7)
+            .header(header::HOST, "www.rust-lang.org")
             .finish_with_router(router);
         let url = req.url_for("index", &["test"]);
         assert_eq!(
@@ -483,14 +485,15 @@ mod tests {
         let mut resource = Resource::new(ResourceDef::new("/index.html"));
         resource.name("index");
         let mut router = Router::<()>::new();
-        router.set_prefix("/prefix/");
         router.register_resource(resource);
 
-        let info = router.default_route_info();
+        let mut info = router.default_route_info();
+        info.set_prefix(7);
         assert!(info.has_route("/index.html"));
         assert!(!info.has_route("/prefix/index.html"));
 
-        let req = TestRequest::default()
+        let req = TestRequest::with_uri("/prefix/test")
+            .prefix(7)
             .header(header::HOST, "www.rust-lang.org")
             .finish_with_router(router);
         let url = req.url_for_static("index");
