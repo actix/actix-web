@@ -535,11 +535,11 @@ impl<S: 'static> TestRequest<S> {
             uri,
             version,
             headers,
-            params,
+            mut params,
             cookies,
             payload,
         } = self;
-        let (router, _) = Router::new::<S>("/", Vec::new());
+        let router = Router::<()>::new();
 
         let pool = RequestPool::pool(ServerSettings::default());
         let mut req = RequestPool::get(pool);
@@ -551,23 +551,24 @@ impl<S: 'static> TestRequest<S> {
             inner.headers = headers;
             *inner.payload.borrow_mut() = payload;
         }
+        params.set_url(req.url().clone());
 
         let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(0, params));
         req.set_cookies(cookies);
         req
     }
 
     #[cfg(test)]
     /// Complete request creation and generate `HttpRequest` instance
-    pub(crate) fn finish_with_router(self, router: Router) -> HttpRequest<S> {
+    pub(crate) fn finish_with_router(self, router: Router<S>) -> HttpRequest<S> {
         let TestRequest {
             state,
             method,
             uri,
             version,
             headers,
-            params,
+            mut params,
             cookies,
             payload,
         } = self;
@@ -582,8 +583,9 @@ impl<S: 'static> TestRequest<S> {
             inner.headers = headers;
             *inner.payload.borrow_mut() = payload;
         }
+        params.set_url(req.url().clone());
         let mut req =
-            HttpRequest::new(req, Rc::new(state), router.route_info_params(params));
+            HttpRequest::new(req, Rc::new(state), router.route_info_params(0, params));
         req.set_cookies(cookies);
         req
     }

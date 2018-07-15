@@ -81,7 +81,9 @@ impl<S> HttpRequest<S> {
 
     #[inline]
     /// Construct new http request with new RouteInfo.
-    pub(crate) fn with_route_info(&self, route: RouteInfo) -> HttpRequest<S> {
+    pub(crate) fn with_route_info(&self, mut route: RouteInfo) -> HttpRequest<S> {
+        route.merge(&self.route);
+
         HttpRequest {
             route,
             req: self.req.as_ref().map(|r| r.clone()),
@@ -422,26 +424,21 @@ mod tests {
 
     #[test]
     fn test_request_match_info() {
-        let mut resource = Resource::<()>::default();
-        resource.name("index");
-        let mut routes = Vec::new();
-        routes.push((ResourceDef::new("index", "/{key}/"), Some(resource)));
-        let (router, _) = Router::new("", routes);
+        let mut router = Router::<()>::new();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/")));
 
         let req = TestRequest::with_uri("/value/?id=test").finish();
-        let info = router.recognize(&req).unwrap().1;
+        let info = router.recognize(&req, &(), 0);
         assert_eq!(info.match_info().get("key"), Some("value"));
     }
 
     #[test]
     fn test_url_for() {
-        let mut resource = Resource::<()>::default();
+        let mut router = Router::<()>::new();
+        let mut resource = Resource::new(ResourceDef::new("/user/{name}.{ext}"));
         resource.name("index");
-        let routes = vec![(
-            ResourceDef::new("index", "/user/{name}.{ext}"),
-            Some(resource),
-        )];
-        let (router, _) = Router::new("/", routes);
+        router.register_resource(resource);
+
         let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
         assert!(!info.has_route("/test/unknown"));
@@ -466,13 +463,12 @@ mod tests {
 
     #[test]
     fn test_url_for_with_prefix() {
-        let mut resource = Resource::<()>::default();
+        let mut resource = Resource::new(ResourceDef::new("/user/{name}.html"));
         resource.name("index");
-        let routes = vec![(
-            ResourceDef::new("index", "/user/{name}.html"),
-            Some(resource),
-        )];
-        let (router, _) = Router::new("/prefix/", routes);
+        let mut router = Router::<()>::new();
+        router.set_prefix("/prefix/");
+        router.register_resource(resource);
+
         let info = router.default_route_info();
         assert!(info.has_route("/user/test.html"));
         assert!(!info.has_route("/prefix/user/test.html"));
@@ -488,10 +484,12 @@ mod tests {
 
     #[test]
     fn test_url_for_static() {
-        let mut resource = Resource::<()>::default();
+        let mut resource = Resource::new(ResourceDef::new("/index.html"));
         resource.name("index");
-        let routes = vec![(ResourceDef::new("index", "/index.html"), Some(resource))];
-        let (router, _) = Router::new("/prefix/", routes);
+        let mut router = Router::<()>::new();
+        router.set_prefix("/prefix/");
+        router.register_resource(resource);
+
         let info = router.default_route_info();
         assert!(info.has_route("/index.html"));
         assert!(!info.has_route("/prefix/index.html"));
@@ -508,13 +506,12 @@ mod tests {
 
     #[test]
     fn test_url_for_external() {
-        let mut resource = Resource::<()>::default();
-        resource.name("index");
-        let routes = vec![(
-            ResourceDef::external("youtube", "https://youtube.com/watch/{video_id}"),
-            None,
-        )];
-        let router = Router::new::<()>("", routes).0;
+        let mut router = Router::<()>::new();
+        router.register_external(
+            "youtube",
+            ResourceDef::external("https://youtube.com/watch/{video_id}"),
+        );
+
         let info = router.default_route_info();
         assert!(!info.has_route("https://youtube.com/watch/unknown"));
 

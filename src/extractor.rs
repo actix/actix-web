@@ -719,12 +719,9 @@ mod tests {
     fn test_request_extract() {
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
-        let mut resource = Resource::<()>::default();
-        resource.name("index");
-        let mut routes = Vec::new();
-        routes.push((ResourceDef::new("index", "/{key}/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", routes);
-        let info = router.recognize(&req).unwrap().1;
+        let mut router = Router::<()>::new();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
+        let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
         let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
@@ -738,8 +735,10 @@ mod tests {
         let s = Query::<Id>::from_request(&req, &()).unwrap();
         assert_eq!(s.id, "test");
 
-        let req = TestRequest::with_uri("/name/32/").finish_with_router(router.clone());
-        let info = router.recognize(&req).unwrap().1;
+        let mut router = Router::<()>::new();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
+        let req = TestRequest::with_uri("/name/32/").finish();
+        let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
         let s = Path::<Test2>::from_request(&req, &()).unwrap();
@@ -757,29 +756,22 @@ mod tests {
 
     #[test]
     fn test_extract_path_single() {
-        let mut resource = Resource::<()>::default();
-        resource.name("index");
-        let mut routes = Vec::new();
-        routes.push((ResourceDef::new("index", "/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", routes);
+        let mut router = Router::<()>::new();
+        router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
 
-        let req = TestRequest::with_uri("/32/").finish_with_router(router.clone());
-        let info = router.recognize(&req).unwrap().1;
+        let req = TestRequest::with_uri("/32/").finish();
+        let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
         assert_eq!(*Path::<i8>::from_request(&req, &()).unwrap(), 32);
     }
 
     #[test]
     fn test_tuple_extract() {
-        let mut resource = Resource::<()>::default();
-        resource.name("index");
-        let mut routes = Vec::new();
-        routes.push((ResourceDef::new("index", "/{key}/{value}/"), Some(resource)));
-        let (router, _) = Router::new("", routes);
+        let mut router = Router::<()>::new();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
 
-        let req = TestRequest::with_uri("/name/user1/?id=test")
-            .finish_with_router(router.clone());
-        let info = router.recognize(&req).unwrap().1;
+        let req = TestRequest::with_uri("/name/user1/?id=test").finish();
+        let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
         let res = match <(Path<(String, String)>,)>::extract(&req).poll() {

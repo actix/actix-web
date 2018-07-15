@@ -60,6 +60,7 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::{Middleware, Response, Started};
 use resource::Resource;
+use router::ResourceDef;
 use server::Request;
 
 /// A set of errors that can occur during processing CORS
@@ -515,7 +516,7 @@ pub struct CorsBuilder<S = ()> {
     methods: bool,
     error: Option<http::Error>,
     expose_hdrs: HashSet<HeaderName>,
-    resources: Vec<(String, Resource<S>)>,
+    resources: Vec<Resource<S>>,
     app: Option<App<S>>,
 }
 
@@ -798,10 +799,10 @@ impl<S: 'static> CorsBuilder<S> {
         F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource handler
-        let mut handler = Resource::default();
-        f(&mut handler);
+        let mut resource = Resource::new(ResourceDef::new(path));
+        f(&mut resource);
 
-        self.resources.push((path.to_owned(), handler));
+        self.resources.push(resource);
         self
     }
 
@@ -878,9 +879,9 @@ impl<S: 'static> CorsBuilder<S> {
             .expect("CorsBuilder has to be constructed with Cors::for_app(app)");
 
         // register resources
-        for (path, mut resource) in self.resources.drain(..) {
+        for mut resource in self.resources.drain(..) {
             cors.clone().register(&mut resource);
-            app.register_resource(&path, resource);
+            app.register_resource(resource);
         }
 
         app

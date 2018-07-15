@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::ops::Deref;
 use std::rc::Rc;
 
 use futures::Future;
@@ -12,6 +12,7 @@ use httpresponse::HttpResponse;
 use middleware::Middleware;
 use pred;
 use route::Route;
+use router::ResourceDef;
 
 #[derive(Copy, Clone)]
 pub(crate) struct RouteId(usize);
@@ -37,40 +38,34 @@ pub(crate) struct RouteId(usize);
 ///         .finish();
 /// }
 pub struct Resource<S = ()> {
-    name: String,
-    state: PhantomData<S>,
+    rdef: ResourceDef,
     routes: SmallVec<[Route<S>; 3]>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-impl<S> Default for Resource<S> {
-    fn default() -> Self {
+impl<S> Resource<S> {
+    /// Create new resource with specified resource definition
+    pub fn new(rdef: ResourceDef) -> Self {
         Resource {
-            name: String::new(),
-            state: PhantomData,
+            rdef,
             routes: SmallVec::new(),
             middlewares: Rc::new(Vec::new()),
         }
     }
-}
 
-impl<S> Resource<S> {
-    pub(crate) fn default_not_found() -> Self {
-        Resource {
-            name: String::new(),
-            state: PhantomData,
-            routes: SmallVec::new(),
-            middlewares: Rc::new(Vec::new()),
-        }
+    /// Name of the resource
+    pub(crate) fn get_name(&self) -> &str {
+        self.rdef.name()
     }
 
     /// Set resource name
-    pub fn name<T: Into<String>>(&mut self, name: T) {
-        self.name = name.into();
+    pub fn name(&mut self, name: &str) {
+        self.rdef.set_name(name);
     }
 
-    pub(crate) fn get_name(&self) -> &str {
-        &self.name
+    /// Resource definition
+    pub fn rdef(&self) -> &ResourceDef {
+        &self.rdef
     }
 }
 
@@ -301,5 +296,28 @@ impl<S: 'static> Resource<S> {
         } else {
             (&self.routes[id.0]).compose(req.clone(), Rc::clone(&self.middlewares))
         }
+    }
+}
+
+/// Default resource
+pub struct DefaultResource<S>(Rc<Resource<S>>);
+
+impl<S> Deref for DefaultResource<S> {
+    type Target = Resource<S>;
+
+    fn deref(&self) -> &Resource<S> {
+        self.0.as_ref()
+    }
+}
+
+impl<S> Clone for DefaultResource<S> {
+    fn clone(&self) -> Self {
+        DefaultResource(self.0.clone())
+    }
+}
+
+impl<S> From<Resource<S>> for DefaultResource<S> {
+    fn from(res: Resource<S>) -> Self {
+        DefaultResource(Rc::new(res))
     }
 }
