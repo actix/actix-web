@@ -17,18 +17,10 @@ use middleware::{Finished, Middleware, Response, Started};
 use server::{HttpHandlerTask, Writer, WriterState};
 
 #[doc(hidden)]
-#[derive(Debug, Clone, Copy)]
-pub enum HandlerType {
-    Normal(usize),
-    Handler(usize),
-    Default,
-}
-
-#[doc(hidden)]
 pub trait PipelineHandler<S> {
     fn encoding(&self) -> ContentEncoding;
 
-    fn handle(&self, &HttpRequest<S>, HandlerType) -> AsyncResult<HttpResponse>;
+    fn handle(&self, &HttpRequest<S>) -> AsyncResult<HttpResponse>;
 }
 
 #[doc(hidden)]
@@ -99,7 +91,6 @@ impl<S: 'static> PipelineInfo<S> {
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
     pub fn new(
         req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: Rc<H>,
-        htype: HandlerType,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
             req,
@@ -109,7 +100,7 @@ impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
             disconnected: None,
             encoding: handler.encoding(),
         };
-        let state = StartMiddlewares::init(&mut info, &mws, handler, htype);
+        let state = StartMiddlewares::init(&mut info, &mws, handler);
 
         Pipeline(info, state, mws)
     }
@@ -204,7 +195,6 @@ type Fut = Box<Future<Item = Option<HttpResponse>, Error = Error>>;
 /// Middlewares start executor
 struct StartMiddlewares<S, H> {
     hnd: Rc<H>,
-    htype: HandlerType,
     fut: Option<Fut>,
     _s: PhantomData<S>,
 }
@@ -212,7 +202,6 @@ struct StartMiddlewares<S, H> {
 impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
     fn init(
         info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>], hnd: Rc<H>,
-        htype: HandlerType,
     ) -> PipelineState<S, H> {
         // execute middlewares, we need this stage because middlewares could be
         // non-async and we can move to next state immediately
@@ -220,7 +209,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
 
         loop {
             if info.count == len {
-                let reply = hnd.handle(&info.req, htype);
+                let reply = hnd.handle(&info.req);
                 return WaitingResponse::init(info, mws, reply);
             } else {
                 match mws[info.count as usize].start(&info.req) {
@@ -231,7 +220,6 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     Ok(Started::Future(fut)) => {
                         return PipelineState::Starting(StartMiddlewares {
                             hnd,
-                            htype,
                             fut: Some(fut),
                             _s: PhantomData,
                         })
@@ -261,7 +249,7 @@ impl<S: 'static, H: PipelineHandler<S>> StartMiddlewares<S, H> {
                     }
                     loop {
                         if info.count == len {
-                            let reply = self.hnd.handle(&info.req, self.htype);
+                            let reply = self.hnd.handle(&info.req);
                             return Some(WaitingResponse::init(info, mws, reply));
                         } else {
                             let res = mws[info.count as usize].start(&info.req);

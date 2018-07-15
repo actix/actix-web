@@ -246,7 +246,7 @@ pub mod dev {
     pub use param::{FromParam, Params};
     pub use resource::Resource;
     pub use route::Route;
-    pub use router::{ResourceDef, ResourceType, Router};
+    pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
 }
 
 pub mod http {

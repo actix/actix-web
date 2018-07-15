@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::rc::Rc;
 
 use futures::future::{err, ok, Future};
 use futures::{Async, Poll};
@@ -9,7 +8,7 @@ use error::Error;
 use http::StatusCode;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use resource::Resource;
+use resource::DefaultResource;
 
 /// Trait defines object that could be registered as route handler
 #[allow(unused_variables)]
@@ -409,9 +408,11 @@ pub(crate) trait RouteHandler<S>: 'static {
         false
     }
 
-    fn default_resource(&mut self, _: Rc<Resource<S>>) {
+    fn default_resource(&mut self, _: DefaultResource<S>) {
         unimplemented!()
     }
+
+    fn finish(&mut self) {}
 }
 
 /// Route handler wrapper for Handler

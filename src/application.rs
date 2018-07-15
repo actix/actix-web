@@ -1,16 +1,15 @@
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use handler::{AsyncResult, FromRequest, Handler, Responder, RouteHandler, WrapHandler};
+use handler::{AsyncResult, FromRequest, Handler, Responder, WrapHandler};
 use header::ContentEncoding;
-use http::{Method, StatusCode};
+use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use middleware::Middleware;
-use pipeline::{HandlerType, Pipeline, PipelineHandler};
+use pipeline::{Pipeline, PipelineHandler};
 use pred::Predicate;
 use resource::Resource;
-use router::{ResourceDef, RouteInfo, Router};
+use router::{ResourceDef, Router};
 use scope::Scope;
 use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
 
@@ -19,7 +18,6 @@ pub struct HttpApplication<S = ()> {
     state: Rc<S>,
     prefix: String,
     prefix_len: usize,
-    router: Router,
     inner: Rc<Inner<S>>,
     filters: Option<Vec<Box<Predicate<S>>>>,
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
@@ -27,16 +25,8 @@ pub struct HttpApplication<S = ()> {
 
 #[doc(hidden)]
 pub struct Inner<S> {
-    prefix: usize,
-    default: Rc<Resource<S>>,
+    router: Router<S>,
     encoding: ContentEncoding,
-    resources: Vec<Resource<S>>,
-    handlers: Vec<PrefixHandlerType<S>>,
-}
-
-enum PrefixHandlerType<S> {
-    Handler(String, Box<RouteHandler<S>>),
-    Scope(ResourceDef, Box<RouteHandler<S>>, Vec<Box<Predicate<S>>>),
 }
 
 impl<S: 'static> PipelineHandler<S> for Inner<S> {
@@ -45,80 +35,21 @@ impl<S: 'static> PipelineHandler<S> for Inner<S> {
         self.encoding
     }
 
-    fn handle(
-        &self, req: &HttpRequest<S>, htype: HandlerType,
-    ) -> AsyncResult<HttpResponse> {
-        match htype {
-            HandlerType::Normal(idx) => {
-                if let Some(id) = self.resources[idx].get_route_id(req) {
-                    return self.resources[idx].handle(id, req);
-                }
-            }
-            HandlerType::Handler(idx) => match self.handlers[idx] {
-                PrefixHandlerType::Handler(_, ref hnd) => return hnd.handle(req),
-                PrefixHandlerType::Scope(_, ref hnd, _) => return hnd.handle(req),
-            },
-            _ => (),
-        }
-        if let Some(id) = self.default.get_route_id(req) {
-            self.default.handle(id, req)
-        } else {
-            AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
-        }
+    fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+        self.router.handle(req)
     }
 }
 
 impl<S: 'static> HttpApplication<S> {
-    #[inline]
-    fn get_handler(&self, req: &Request) -> (RouteInfo, HandlerType) {
-        if let Some((idx, info)) = self.router.recognize(req) {
-            (info, HandlerType::Normal(idx))
-        } else {
-            'outer: for idx in 0..self.inner.handlers.len() {
-                match self.inner.handlers[idx] {
-                    PrefixHandlerType::Handler(ref prefix, _) => {
-                        let m = {
-                            let path = &req.path()[self.inner.prefix..];
-                            let path_len = path.len();
-
-                            path.starts_with(prefix)
-                                && (path_len == prefix.len()
-                                    || path.split_at(prefix.len()).1.starts_with('/'))
-                        };
-
-                        if m {
-                            let prefix_len = (self.inner.prefix + prefix.len()) as u16;
-                            let info = self.router.route_info(req, prefix_len);
-                            return (info, HandlerType::Handler(idx));
-                        }
-                    }
-                    PrefixHandlerType::Scope(ref pattern, _, ref filters) => {
-                        if let Some(params) =
-                            pattern.match_prefix_with_params(req, self.inner.prefix)
-                        {
-                            for filter in filters {
-                                if !filter.check(req, &self.state) {
-                                    continue 'outer;
-                                }
-                            }
-                            return (
-                                self.router.route_info_params(params),
-                                HandlerType::Handler(idx),
-                            );
-                        }
-                    }
-                }
-            }
-            (self.router.default_route_info(), HandlerType::Default)
-        }
-    }
-
     #[cfg(test)]
     pub(crate) fn run(&self, req: Request) -> AsyncResult<HttpResponse> {
-        let (info, tp) = self.get_handler(&req);
+        let info = self
+            .inner
+            .router
+            .recognize(&req, &self.state, self.prefix_len);
         let req = HttpRequest::new(req, Rc::clone(&self.state), info);
 
-        self.inner.handle(&req, tp)
+        self.inner.handle(&req)
     }
 }
 
@@ -127,10 +58,14 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, msg: Request) -> Result<Pipeline<S, Inner<S>>, Request> {
         let m = {
-            let path = msg.path();
-            path.starts_with(&self.prefix)
-                && (path.len() == self.prefix_len
-                    || path.split_at(self.prefix_len).1.starts_with('/'))
+            if self.prefix_len == 0 {
+                true
+            } else {
+                let path = msg.path();
+                path.starts_with(&self.prefix)
+                    && (path.len() == self.prefix_len
+                        || path.split_at(self.prefix_len).1.starts_with('/'))
+            }
         };
         if m {
             if let Some(ref filters) = self.filters {
@@ -141,10 +76,14 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
                 }
             }
 
-            let (info, tp) = self.get_handler(&msg);
+            let info = self
+                .inner
+                .router
+                .recognize(&msg, &self.state, self.prefix_len);
+
             let inner = Rc::clone(&self.inner);
             let req = HttpRequest::new(msg, Rc::clone(&self.state), info);
-            Ok(Pipeline::new(req, Rc::clone(&self.middlewares), inner, tp))
+            Ok(Pipeline::new(req, Rc::clone(&self.middlewares), inner))
         } else {
             Err(msg)
         }
@@ -154,10 +93,7 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 struct ApplicationParts<S> {
     state: S,
     prefix: String,
-    default: Rc<Resource<S>>,
-    resources: Vec<(ResourceDef, Option<Resource<S>>)>,
-    handlers: Vec<PrefixHandlerType<S>>,
-    external: HashMap<String, ResourceDef>,
+    router: Router<S>,
     encoding: ContentEncoding,
     middlewares: Vec<Box<Middleware<S>>>,
     filters: Vec<Box<Predicate<S>>>,
@@ -203,11 +139,8 @@ where
         App {
             parts: Some(ApplicationParts {
                 state,
-                prefix: "/".to_owned(),
-                default: Rc::new(Resource::default_not_found()),
-                resources: Vec::new(),
-                handlers: Vec::new(),
-                external: HashMap::new(),
+                prefix: "".to_owned(),
+                router: Router::new(),
                 middlewares: Vec::new(),
                 filters: Vec::new(),
                 encoding: ContentEncoding::Auto,
@@ -315,35 +248,11 @@ where
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        {
-            let parts: &mut ApplicationParts<S> =
-                self.parts.as_mut().expect("Use after finish");
-
-            let out = {
-                // get resource handler
-                let mut iterator = parts.resources.iter_mut();
-
-                loop {
-                    if let Some(&mut (ref pattern, ref mut handler)) = iterator.next() {
-                        if let Some(ref mut handler) = *handler {
-                            if pattern.pattern() == path {
-                                handler.method(method).with(f);
-                                break None;
-                            }
-                        }
-                    } else {
-                        let mut handler = Resource::default();
-                        handler.method(method).with(f);
-                        let pattern = ResourceDef::new(handler.get_name(), path);
-                        break Some((pattern, Some(handler)));
-                    }
-                }
-            };
-
-            if let Some(out) = out {
-                parts.resources.push(out);
-            }
-        }
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .router
+            .register_route(path, method, f);
 
         self
     }
@@ -376,17 +285,12 @@ where
     where
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
-        {
-            let mut scope = Box::new(f(Scope::new()));
-            let parts = self.parts.as_mut().expect("Use after finish");
-
-            let filters = scope.take_filters();
-            parts.handlers.push(PrefixHandlerType::Scope(
-                ResourceDef::prefix("", &path),
-                scope,
-                filters,
-            ));
-        }
+        let scope = f(Scope::new(path));
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .router
+            .register_scope(scope);
         self
     }
 
@@ -428,25 +332,25 @@ where
         {
             let parts = self.parts.as_mut().expect("Use after finish");
 
-            // add resource handler
-            let mut handler = Resource::default();
-            f(&mut handler);
+            // create resource
+            let mut resource = Resource::new(ResourceDef::new(path));
 
-            let pattern = ResourceDef::new(handler.get_name(), path);
-            parts.resources.push((pattern, Some(handler)));
+            // configure
+            f(&mut resource);
+
+            parts.router.register_resource(resource);
         }
         self
     }
 
     /// Configure resource for a specific path.
     #[doc(hidden)]
-    pub fn register_resource(&mut self, path: &str, resource: Resource<S>) {
-        let pattern = ResourceDef::new(resource.get_name(), path);
+    pub fn register_resource(&mut self, resource: Resource<S>) {
         self.parts
             .as_mut()
             .expect("Use after finish")
-            .resources
-            .push((pattern, Some(resource)));
+            .router
+            .register_resource(resource);
     }
 
     /// Default resource to be used if no matching route could be found.
@@ -454,12 +358,16 @@ where
     where
         F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
-        {
-            let parts = self.parts.as_mut().expect("Use after finish");
-            let default = Rc::get_mut(&mut parts.default)
-                .expect("Multiple App instance references are not allowed");
-            f(default);
-        }
+        // create and configure default resource
+        let mut resource = Resource::new(ResourceDef::new(""));
+        f(&mut resource);
+
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .router
+            .register_default_resource(resource.into());
+
         self
     }
 
@@ -500,17 +408,11 @@ where
         T: AsRef<str>,
         U: AsRef<str>,
     {
-        {
-            let parts = self.parts.as_mut().expect("Use after finish");
-
-            if parts.external.contains_key(name.as_ref()) {
-                panic!("External resource {:?} is registered.", name.as_ref());
-            }
-            parts.external.insert(
-                String::from(name.as_ref()),
-                ResourceDef::external(name.as_ref(), url.as_ref()),
-            );
-        }
+        self.parts
+            .as_mut()
+            .expect("Use after finish")
+            .router
+            .register_external(name.as_ref(), ResourceDef::external(url.as_ref()));
         self
     }
 
@@ -544,12 +446,11 @@ where
             if path.len() > 1 && path.ends_with('/') {
                 path.pop();
             }
-            let parts = self.parts.as_mut().expect("Use after finish");
-
-            parts.handlers.push(PrefixHandlerType::Handler(
-                path,
-                Box::new(WrapHandler::new(handler)),
-            ));
+            self.parts
+                .as_mut()
+                .expect("Use after finish")
+                .router
+                .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
         }
         self
     }
@@ -601,33 +502,11 @@ where
     pub fn finish(&mut self) -> HttpApplication<S> {
         let mut parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
-        let (prefix, prefix_len) = if prefix.is_empty() {
-            ("/".to_owned(), 0)
-        } else {
-            (prefix.to_owned(), prefix.len())
-        };
-
-        let mut resources = parts.resources;
-        for (_, pattern) in parts.external {
-            resources.push((pattern, None));
-        }
-
-        for handler in &mut parts.handlers {
-            if let PrefixHandlerType::Scope(_, ref mut route_handler, _) = handler {
-                if !route_handler.has_default_resource() {
-                    route_handler.default_resource(Rc::clone(&parts.default));
-                }
-            };
-        }
-
-        let (router, resources) = Router::new(&prefix, resources);
+        parts.router.finish();
 
         let inner = Rc::new(Inner {
-            prefix: prefix_len,
-            default: Rc::clone(&parts.default),
+            router: parts.router,
             encoding: parts.encoding,
-            handlers: parts.handlers,
-            resources,
         });
         let filters = if parts.filters.is_empty() {
             None
@@ -636,13 +515,12 @@ where
         };
 
         HttpApplication {
-            state: Rc::new(parts.state),
-            router: router.clone(),
-            middlewares: Rc::new(parts.middlewares),
-            prefix,
-            prefix_len,
             inner,
             filters,
+            state: Rc::new(parts.state),
+            middlewares: Rc::new(parts.middlewares),
+            prefix: prefix.to_owned(),
+            prefix_len: prefix.len(),
         }
     }
 

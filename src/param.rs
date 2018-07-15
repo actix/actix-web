@@ -61,6 +61,10 @@ impl Params {
         self.tail = tail;
     }
 
+    pub(crate) fn set_url(&mut self, url: Url) {
+        self.url = url;
+    }
+
     pub(crate) fn add(&mut self, name: Rc<String>, value: ParamItem) {
         self.segments.push((name, value));
     }
@@ -97,6 +101,11 @@ impl Params {
         } else {
             None
         }
+    }
+
+    /// Get unprocessed part of path
+    pub fn unprocessed(&self) -> &str {
+        &self.url.path()[(self.tail as usize)..]
     }
 
     /// Get matched `FromParam` compatible parameter by name.
