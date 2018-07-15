@@ -304,7 +304,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         let tail = req.match_info().tail as usize;
 
         // recognize resources
-        let info = self.router.match_with_params(req, req.state(), tail, false);
+        let info = self.router.recognize(req, req.state(), tail);
         let req2 = req.with_route_info(info);
         if self.middlewares.is_empty() {
             self.router.handle(&req2)

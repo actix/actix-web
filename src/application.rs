@@ -58,10 +58,14 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
 
     fn handle(&self, msg: Request) -> Result<Pipeline<S, Inner<S>>, Request> {
         let m = {
-            let path = msg.path();
-            path.starts_with(&self.prefix)
-                && (path.len() == self.prefix_len
-                    || path.split_at(self.prefix_len).1.starts_with('/'))
+            if self.prefix_len == 0 {
+                true
+            } else {
+                let path = msg.path();
+                path.starts_with(&self.prefix)
+                    && (path.len() == self.prefix_len
+                        || path.split_at(self.prefix_len).1.starts_with('/'))
+            }
         };
         if m {
             if let Some(ref filters) = self.filters {
@@ -135,7 +139,7 @@ where
         App {
             parts: Some(ApplicationParts {
                 state,
-                prefix: "/".to_owned(),
+                prefix: "".to_owned(),
                 router: Router::new(),
                 middlewares: Vec::new(),
                 filters: Vec::new(),
@@ -498,12 +502,6 @@ where
     pub fn finish(&mut self) -> HttpApplication<S> {
         let mut parts = self.parts.take().expect("Use after finish");
         let prefix = parts.prefix.trim().trim_right_matches('/');
-        let (prefix, prefix_len) = if prefix.is_empty() {
-            ("/".to_owned(), 0)
-        } else {
-            (prefix.to_owned(), prefix.len())
-        };
-
         parts.router.finish();
 
         let inner = Rc::new(Inner {
@@ -517,12 +515,12 @@ where
         };
 
         HttpApplication {
-            state: Rc::new(parts.state),
-            middlewares: Rc::new(parts.middlewares),
-            prefix,
-            prefix_len,
             inner,
             filters,
+            state: Rc::new(parts.state),
+            middlewares: Rc::new(parts.middlewares),
+            prefix: prefix.to_owned(),
+            prefix_len: prefix.len(),
         }
     }
 

@@ -357,18 +357,11 @@ impl<S: 'static> Router<S> {
 
     /// Query for matched resource
     pub fn recognize(&self, req: &Request, state: &S, tail: usize) -> ResourceInfo {
-        self.match_with_params(req, state, tail, true)
-    }
-
-    /// Query for matched resource
-    pub(crate) fn match_with_params(
-        &self, req: &Request, state: &S, tail: usize, insert: bool,
-    ) -> ResourceInfo {
         if tail <= req.path().len() {
             'outer: for (idx, resource) in self.patterns.iter().enumerate() {
                 match resource {
                     ResourcePattern::Resource(rdef) => {
-                        if let Some(params) = rdef.match_with_params(req, tail, insert) {
+                        if let Some(params) = rdef.match_with_params(req, tail) {
                             return self.route_info_params(idx as u16, params);
                         }
                     }
@@ -528,19 +521,8 @@ impl ResourceDef {
     }
 
     /// Are the given path and parameters a match against this resource?
-    pub fn match_with_params(
-        &self, req: &Request, plen: usize, insert: bool,
-    ) -> Option<Params> {
+    pub fn match_with_params(&self, req: &Request, plen: usize) -> Option<Params> {
         let path = &req.path()[plen..];
-        if insert {
-            if path.is_empty() {
-                "/"
-            } else {
-                path
-            }
-        } else {
-            path
-        };
 
         match self.tp {
             PatternType::Static(ref s) => if s != path {
@@ -942,11 +924,11 @@ mod tests {
         assert!(!re.is_match("/user/2345/sdg"));
 
         let req = TestRequest::with_uri("/user/profile").finish();
-        let info = re.match_with_params(&req, 0, true).unwrap();
+        let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(info.get("id").unwrap(), "profile");
 
         let req = TestRequest::with_uri("/user/1245125").finish();
-        let info = re.match_with_params(&req, 0, true).unwrap();
+        let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(info.get("id").unwrap(), "1245125");
 
         let re = ResourceDef::new("/v{version}/resource/{id}");
@@ -955,7 +937,7 @@ mod tests {
         assert!(!re.is_match("/resource"));
 
         let req = TestRequest::with_uri("/v151/resource/adahg32").finish();
-        let info = re.match_with_params(&req, 0, true).unwrap();
+        let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(info.get("version").unwrap(), "151");
         assert_eq!(info.get("id").unwrap(), "adahg32");
     }
@@ -983,12 +965,12 @@ mod tests {
         assert!(!re.is_match("/name"));
 
         let req = TestRequest::with_uri("/test2/").finish();
-        let info = re.match_with_params(&req, 0, true).unwrap();
+        let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(&info["name"], "test2");
         assert_eq!(&info[0], "test2");
 
         let req = TestRequest::with_uri("/test2/subpath1/subpath2/index.html").finish();
-        let info = re.match_with_params(&req, 0, true).unwrap();
+        let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(&info["name"], "test2");
         assert_eq!(&info[0], "test2");
     }
