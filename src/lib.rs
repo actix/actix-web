@@ -244,6 +244,7 @@ pub mod dev {
     pub use info::ConnectionInfo;
     pub use json::{JsonBody, JsonConfig};
     pub use param::{FromParam, Params};
+    pub use payload::{Payload, PayloadHelper};
     pub use resource::Resource;
     pub use route::Route;
     pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
