@@ -255,10 +255,7 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
                     .insert(Arc::new(SessionImplCell(RefCell::new(Box::new(sess)))));
                 FutOk(None)
             }
-            Err(err) => {
-                println!("Session::from_request error={:?}", &err);
-                FutErr(err)
-            }
+            Err(err) => FutErr(err),
         });
         Ok(Started::Future(Box::new(fut)))
     }
@@ -422,17 +419,10 @@ impl CookieSessionInner {
 
     fn load<S>(&self, req: &mut HttpRequest<S>) -> HashMap<String, String> {
         if let Ok(cookies) = req.cookies() {
-            println!("Load cookies");
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
-                    println!("cookie.name()={} | value={}", cookie.name(), cookie.value());
                     let mut jar = CookieJar::new();
                     jar.add_original(cookie.clone());
-
-                    println!("Jar cookies:");
-                    for cookie in jar.iter() {
-                        println!("cookie.name()={} | value={}", cookie.name(), cookie.value());
-                    }
 
                     let cookie_opt = match self.security {
                         CookieSecurity::Signed => jar.signed(&self.key).get(&self.name),
@@ -441,14 +431,9 @@ impl CookieSessionInner {
                         }
                     };
                     if let Some(cookie) = cookie_opt {
-                        println!("Loaded secure cookie");
-                        match serde_json::from_str(cookie.value()) {
-                            Ok(val) => return val,
-                            Err(error) => println!("serde_json Error: {}", error)
+                        if let Ok(val) = serde_json::from_str(cookie.value()) {
+                            return val;
                         }
-                        //if let Ok(val) = serde_json::from_str(cookie.value()) {
-                        //    return val;
-                        //}
                     }
                 }
             }
@@ -479,6 +464,9 @@ impl CookieSessionInner {
 /// all session data is lost. The constructors will panic if the key is less
 /// than 32 bytes in length.
 ///
+/// The backend relies on `cookie` crate to create and read cookies.
+/// By default all cookies are percent encoded, but certain symbols may
+/// cause troubles when reading cookie, if they are not properly percent encoded.
 ///
 /// # Example
 ///

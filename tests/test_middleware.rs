@@ -1003,6 +1003,7 @@ fn test_session_storage_middleware() {
     const SIMPLE_PAYLOAD: &'static str = "kantan";
     const COMPLEX_NAME: &'static str = "test";
     const COMPLEX_PAYLOAD: &'static str = "url=https://test.com&generate_204";
+    //TODO: investigate how to handle below input
     //const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
 
     let mut srv = test::TestServer::with_factory(move || {
@@ -1031,10 +1032,6 @@ fn test_session_storage_middleware() {
             }).resource("/expect_cookie", move |r| {
                 r.f(|req| {
                     let cookies = req.cookies().expect("To get cookies");
-                    println!("Cookies:");
-                    for cookie in cookies.iter() {
-                        println!("{}={}", cookie.name(), cookie.value());
-                    }
 
                     let value = req.session().get::<String>(SIMPLE_NAME);
                     assert!(value.is_ok());
