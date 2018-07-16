@@ -1002,20 +1002,21 @@ fn test_session_storage_middleware() {
     const SIMPLE_NAME: &'static str = "simple";
     const SIMPLE_PAYLOAD: &'static str = "kantan";
     const COMPLEX_NAME: &'static str = "test";
-    const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
+    const COMPLEX_PAYLOAD: &'static str = "url=https://test.com&generate_204"
+    //const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
 
     let mut srv = test::TestServer::with_factory(move || {
         App::new()
             .middleware(SessionStorage::new(CookieSessionBackend::signed(&[0; 32]).secure(false)))
             .resource("/index", move |r| {
                 r.f(|req| {
-                    //let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
-                    //assert!(res.is_ok());
-                    //let value = req.session().get::<String>(COMPLEX_NAME);
-                    //assert!(value.is_ok());
-                    //let value = value.unwrap();
-                    //assert!(value.is_some());
-                    //assert_eq!(value.unwrap(), COMPLEX_PAYLOAD);
+                    let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
+                    assert!(res.is_ok());
+                    let value = req.session().get::<String>(COMPLEX_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), COMPLEX_PAYLOAD);
 
                     let res = req.session().set(SIMPLE_NAME, SIMPLE_PAYLOAD);
                     assert!(res.is_ok());
