@@ -436,10 +436,10 @@ mod tests {
         router.register_resource(resource);
 
         let info = router.default_route_info();
-        assert!(info.has_route("/user/test.html"));
-        assert!(info.has_prefixed_route("/user/test.html"));
-        assert!(!info.has_route("/test/unknown"));
-        assert!(!info.has_prefixed_route("/test/unknown"));
+        assert!(info.has_resource("/user/test.html"));
+        assert!(info.has_prefixed_resource("/user/test.html"));
+        assert!(!info.has_resource("/test/unknown"));
+        assert!(!info.has_prefixed_resource("/test/unknown"));
 
         let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
             .finish_with_router(router);
@@ -468,10 +468,10 @@ mod tests {
 
         let mut info = router.default_route_info();
         info.set_prefix(7);
-        assert!(info.has_route("/user/test.html"));
-        assert!(!info.has_prefixed_route("/user/test.html"));
-        assert!(!info.has_route("/prefix/user/test.html"));
-        assert!(info.has_prefixed_route("/prefix/user/test.html"));
+        assert!(info.has_resource("/user/test.html"));
+        assert!(!info.has_prefixed_resource("/user/test.html"));
+        assert!(!info.has_resource("/prefix/user/test.html"));
+        assert!(info.has_prefixed_resource("/prefix/user/test.html"));
 
         let req = TestRequest::with_uri("/prefix/test")
             .prefix(7)
@@ -493,10 +493,10 @@ mod tests {
 
         let mut info = router.default_route_info();
         info.set_prefix(7);
-        assert!(info.has_route("/index.html"));
-        assert!(!info.has_prefixed_route("/index.html"));
-        assert!(!info.has_route("/prefix/index.html"));
-        assert!(info.has_prefixed_route("/prefix/index.html"));
+        assert!(info.has_resource("/index.html"));
+        assert!(!info.has_prefixed_resource("/index.html"));
+        assert!(!info.has_resource("/prefix/index.html"));
+        assert!(info.has_prefixed_resource("/prefix/index.html"));
 
         let req = TestRequest::with_uri("/prefix/test")
             .prefix(7)
@@ -518,8 +518,8 @@ mod tests {
         );
 
         let info = router.default_route_info();
-        assert!(!info.has_route("https://youtube.com/watch/unknown"));
-        assert!(!info.has_prefixed_route("https://youtube.com/watch/unknown"));
+        assert!(!info.has_resource("https://youtube.com/watch/unknown"));
+        assert!(!info.has_prefixed_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().finish_with_router(router);
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);

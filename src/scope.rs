@@ -73,6 +73,10 @@ impl<S: 'static> Scope<S> {
         &self.rdef
     }
 
+    pub(crate) fn router(&self) -> &Router<S> {
+        self.router.as_ref()
+    }
+
     #[inline]
     pub(crate) fn take_filters(&mut self) -> Vec<Box<Predicate<S>>> {
         mem::replace(&mut self.filters, Vec::new())

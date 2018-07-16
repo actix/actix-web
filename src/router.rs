@@ -37,7 +37,7 @@ enum ResourceItem<S> {
 
 /// Interface for application router.
 pub struct Router<S> {
-    defs: Rc<Inner>,
+    rmap: Rc<ResourceMap>,
     patterns: Vec<ResourcePattern<S>>,
     resources: Vec<ResourceItem<S>>,
     default: Option<DefaultResource<S>>,
@@ -46,7 +46,7 @@ pub struct Router<S> {
 /// Information about current resource
 #[derive(Clone)]
 pub struct ResourceInfo {
-    router: Rc<Inner>,
+    rmap: Rc<ResourceMap>,
     resource: ResourceId,
     params: Params,
     prefix: u16,
@@ -57,7 +57,7 @@ impl ResourceInfo {
     #[inline]
     pub fn name(&self) -> &str {
         if let ResourceId::Normal(idx) = self.resource {
-            self.router.patterns[idx as usize].name()
+            self.rmap.patterns[idx as usize].0.name()
         } else {
             ""
         }
@@ -67,7 +67,7 @@ impl ResourceInfo {
     #[inline]
     pub fn rdef(&self) -> Option<&ResourceDef> {
         if let ResourceId::Normal(idx) = self.resource {
-            Some(&self.router.patterns[idx as usize])
+            Some(&self.rmap.patterns[idx as usize].0)
         } else {
             None
         }
@@ -111,7 +111,7 @@ impl ResourceInfo {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(pattern) = self.router.named.get(name) {
+        if let Some(pattern) = self.rmap.named.get(name) {
             let path =
                 pattern.resource_path(elements, &req.path()[..(self.prefix as usize)])?;
             if path.starts_with('/') {
@@ -130,24 +130,17 @@ impl ResourceInfo {
         }
     }
 
-    /// Check if application contains matching route.
+    /// Check if application contains matching resource.
     ///
     /// This method does not take `prefix` into account.
     /// For example if prefix is `/test` and router contains route `/name`,
-    /// following path would be recognizable `/test/name` but `has_route()` call
+    /// following path would be recognizable `/test/name` but `has_resource()` call
     /// would return `false`.
-    pub fn has_route(&self, path: &str) -> bool {
-        let path = if path.is_empty() { "/" } else { path };
-
-        for pattern in &self.router.patterns {
-            if pattern.is_match(path) {
-                return true;
-            }
-        }
-        false
+    pub fn has_resource(&self, path: &str) -> bool {
+        self.rmap.has_resource(path)
     }
 
-    /// Check if application contains matching route.
+    /// Check if application contains matching resource.
     ///
     /// This method does take `prefix` into account
     /// but behaves like `has_route` in case `prefix` is not set in the router.
@@ -157,18 +150,35 @@ impl ResourceInfo {
     /// would return `true`.
     /// It will not match against prefix in case it's not given. For example for `/name`
     /// with a `/test` prefix would return `false`
-    pub fn has_prefixed_route(&self, path: &str) -> bool {
+    pub fn has_prefixed_resource(&self, path: &str) -> bool {
         let prefix = self.prefix as usize;
         if prefix >= path.len() {
             return false;
         }
-        self.has_route(&path[prefix..])
+        self.rmap.has_resource(&path[prefix..])
     }
 }
 
-struct Inner {
+pub(crate) struct ResourceMap {
     named: HashMap<String, ResourceDef>,
-    patterns: Vec<ResourceDef>,
+    patterns: Vec<(ResourceDef, Option<Rc<ResourceMap>>)>,
+}
+
+impl ResourceMap {
+    pub fn has_resource(&self, path: &str) -> bool {
+        let path = if path.is_empty() { "/" } else { path };
+
+        for (pattern, rmap) in &self.patterns {
+            if let Some(ref rmap) = rmap {
+                if let Some(plen) = pattern.is_prefix_match(path) {
+                    return rmap.has_resource(&path[plen..]);
+                }
+            } else if pattern.is_match(path) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl<S: 'static> Default for Router<S> {
@@ -180,7 +190,7 @@ impl<S: 'static> Default for Router<S> {
 impl<S: 'static> Router<S> {
     pub(crate) fn new() -> Self {
         Router {
-            defs: Rc::new(Inner {
+            rmap: Rc::new(ResourceMap {
                 named: HashMap::new(),
                 patterns: Vec::new(),
             }),
@@ -195,7 +205,7 @@ impl<S: 'static> Router<S> {
         ResourceInfo {
             params,
             prefix: 0,
-            router: self.defs.clone(),
+            rmap: self.rmap.clone(),
             resource: ResourceId::Normal(idx),
         }
     }
@@ -208,7 +218,7 @@ impl<S: 'static> Router<S> {
         ResourceInfo {
             params,
             prefix: 0,
-            router: self.defs.clone(),
+            rmap: self.rmap.clone(),
             resource: ResourceId::Default,
         }
     }
@@ -217,7 +227,7 @@ impl<S: 'static> Router<S> {
     pub(crate) fn default_route_info(&self) -> ResourceInfo {
         ResourceInfo {
             params: Params::new(),
-            router: self.defs.clone(),
+            rmap: self.rmap.clone(),
             resource: ResourceId::Default,
             prefix: 0,
         }
@@ -225,18 +235,18 @@ impl<S: 'static> Router<S> {
 
     pub(crate) fn register_resource(&mut self, resource: Resource<S>) {
         {
-            let inner = Rc::get_mut(&mut self.defs).unwrap();
+            let rmap = Rc::get_mut(&mut self.rmap).unwrap();
 
             let name = resource.get_name();
             if !name.is_empty() {
                 assert!(
-                    !inner.named.contains_key(name),
+                    !rmap.named.contains_key(name),
                     "Named resource {:?} is registered.",
                     name
                 );
-                inner.named.insert(name.to_owned(), resource.rdef().clone());
+                rmap.named.insert(name.to_owned(), resource.rdef().clone());
             }
-            inner.patterns.push(resource.rdef().clone());
+            rmap.patterns.push((resource.rdef().clone(), None));
         }
         self.patterns
             .push(ResourcePattern::Resource(resource.rdef().clone()));
@@ -244,10 +254,10 @@ impl<S: 'static> Router<S> {
     }
 
     pub(crate) fn register_scope(&mut self, mut scope: Scope<S>) {
-        Rc::get_mut(&mut self.defs)
+        Rc::get_mut(&mut self.rmap)
             .unwrap()
             .patterns
-            .push(scope.rdef().clone());
+            .push((scope.rdef().clone(), Some(scope.router().rmap.clone())));
         let filters = scope.take_filters();
         self.patterns
             .push(ResourcePattern::Scope(scope.rdef().clone(), filters));
@@ -259,10 +269,10 @@ impl<S: 'static> Router<S> {
         filters: Option<Vec<Box<Predicate<S>>>>,
     ) {
         let rdef = ResourceDef::prefix(path);
-        Rc::get_mut(&mut self.defs)
+        Rc::get_mut(&mut self.rmap)
             .unwrap()
             .patterns
-            .push(rdef.clone());
+            .push((rdef.clone(), None));
         self.resources.push(ResourceItem::Handler(hnd));
         self.patterns.push(ResourcePattern::Handler(rdef, filters));
     }
@@ -298,13 +308,13 @@ impl<S: 'static> Router<S> {
     }
 
     pub(crate) fn register_external(&mut self, name: &str, rdef: ResourceDef) {
-        let inner = Rc::get_mut(&mut self.defs).unwrap();
+        let rmap = Rc::get_mut(&mut self.rmap).unwrap();
         assert!(
-            !inner.named.contains_key(name),
+            !rmap.named.contains_key(name),
             "Named resource {:?} is registered.",
             name
         );
-        inner.named.insert(name.to_owned(), rdef);
+        rmap.named.insert(name.to_owned(), rdef);
     }
 
     pub(crate) fn register_route<T, F, R>(&mut self, path: &str, method: Method, f: F)
@@ -406,7 +416,7 @@ impl<S: 'static> Router<S> {
         ResourceInfo {
             prefix: tail as u16,
             params: Params::new(),
-            router: self.defs.clone(),
+            rmap: self.rmap.clone(),
             resource: ResourceId::Default,
         }
     }
@@ -534,6 +544,54 @@ impl ResourceDef {
         }
     }
 
+    fn is_prefix_match(&self, path: &str) -> Option<usize> {
+        let plen = path.len();
+        let path = if path.is_empty() { "/" } else { path };
+
+        match self.tp {
+            PatternType::Static(ref s) => if s == path {
+                Some(plen)
+            } else {
+                None
+            },
+            PatternType::Dynamic(ref re, _, len) => {
+                if let Some(captures) = re.captures(path) {
+                    let mut pos = 0;
+                    let mut passed = false;
+                    for capture in captures.iter() {
+                        if let Some(ref m) = capture {
+                            if !passed {
+                                passed = true;
+                                continue;
+                            }
+
+                            pos = m.end();
+                        }
+                    }
+                    Some(plen + pos + len)
+                } else {
+                    None
+                }
+            }
+            PatternType::Prefix(ref s) => {
+                let len = if path == s {
+                    s.len()
+                } else if path.starts_with(s)
+                    && (s.ends_with('/') || path.split_at(s.len()).1.starts_with('/'))
+                {
+                    if s.ends_with('/') {
+                        s.len() - 1
+                    } else {
+                        s.len()
+                    }
+                } else {
+                    return None;
+                };
+                Some(min(plen, len))
+            }
+        }
+    }
+
     /// Are the given path and parameters a match against this resource?
     pub fn match_with_params(&self, req: &Request, plen: usize) -> Option<Params> {
         let path = &req.path()[plen..];
@@ -588,7 +646,9 @@ impl ResourceDef {
 
         match self.tp {
             PatternType::Static(ref s) => if s == path {
-                Some(Params::with_url(req.url()))
+                let mut params = Params::with_url(req.url());
+                params.set_tail(req.path().len() as u16);
+                Some(params)
             } else {
                 None
             },
@@ -1007,5 +1067,25 @@ mod tests {
         let info = router.recognize(&req, &(), 0);
         assert_eq!(info.resource, ResourceId::Normal(1));
         assert_eq!(info.name(), "r2");
+    }
+
+    #[test]
+    fn test_has_resource() {
+        let mut router = Router::<()>::new();
+        let scope = Scope::new("/test").resource("/name", |_| "done");
+        router.register_scope(scope);
+
+        {
+            let info = router.default_route_info();
+            assert!(!info.has_resource("/test"));
+            assert!(info.has_resource("/test/name"));
+        }
+
+        let scope =
+            Scope::new("/test2").nested("/test10", |s| s.resource("/name", |_| "done"));
+        router.register_scope(scope);
+
+        let info = router.default_route_info();
+        assert!(info.has_resource("/test2/test10/name"));
     }
 }

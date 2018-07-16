@@ -1,10 +1,10 @@
 # Changes
 
-## [0.7.0] - 2018-07-10
+## [0.7.0] - 2018-07-17
 
 ### Added
 
-* Add `.has_prefixed_route()` method to `router::RouteInfo` for route matching with prefix awareness
+* Add `.has_prefixed_resource()` method to `router::ResourceInfo` for route matching with prefix awareness
 
 * Add `HttpMessage::readlines()` for reading line by line.
 
