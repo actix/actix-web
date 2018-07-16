@@ -1,32 +1,32 @@
-use super::super::ser::Error;
 use super::super::ser::part::{PartSerializer, Sink};
+use super::super::ser::Error;
 use serde::ser::Serialize;
 use std::str;
 use url::form_urlencoded::Serializer as UrlEncodedSerializer;
 use url::form_urlencoded::Target as UrlEncodedTarget;
 
 pub struct ValueSink<'key, 'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
     urlencoder: &'target mut UrlEncodedSerializer<Target>,
     key: &'key str,
 }
 
 impl<'key, 'target, Target> ValueSink<'key, 'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
-    pub fn new(urlencoder: &'target mut UrlEncodedSerializer<Target>,
-               key: &'key str)
-               -> Self {
-        ValueSink {
-            urlencoder: urlencoder,
-            key: key,
-        }
+    pub fn new(
+        urlencoder: &'target mut UrlEncodedSerializer<Target>, key: &'key str,
+    ) -> Self {
+        ValueSink { urlencoder, key }
     }
 }
 
 impl<'key, 'target, Target> Sink for ValueSink<'key, 'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
     type Ok = ();
 
@@ -47,9 +47,9 @@ impl<'key, 'target, Target> Sink for ValueSink<'key, 'target, Target>
         Ok(())
     }
 
-    fn serialize_some<T: ?Sized + Serialize>(self,
-                                             value: &T)
-                                             -> Result<Self::Ok, Error> {
+    fn serialize_some<T: ?Sized + Serialize>(
+        self, value: &T,
+    ) -> Result<Self::Ok, Error> {
         value.serialize(PartSerializer::new(self))
     }
 

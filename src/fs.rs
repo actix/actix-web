@@ -585,11 +585,13 @@ impl<S: 'static> StaticFiles<S> {
 
     /// Create new `StaticFiles` instance for specified base directory and
     /// `CpuPool`.
-    pub fn with_pool<T: Into<PathBuf>>(dir: T, pool: CpuPool) -> Result<StaticFiles<S>, Error> {
+    pub fn with_pool<T: Into<PathBuf>>(
+        dir: T, pool: CpuPool,
+    ) -> Result<StaticFiles<S>, Error> {
         let dir = dir.into().canonicalize()?;
 
         if !dir.is_dir() {
-            return Err(StaticFileError::IsNotDirectory.into())
+            return Err(StaticFileError::IsNotDirectory.into());
         }
 
         Ok(StaticFiles {
@@ -640,7 +642,9 @@ impl<S: 'static> StaticFiles<S> {
         self
     }
 
-    fn try_handle(&self, req: &HttpRequest<S>) -> Result<AsyncResult<HttpResponse>, Error> {
+    fn try_handle(
+        &self, req: &HttpRequest<S>,
+    ) -> Result<AsyncResult<HttpResponse>, Error> {
         let tail: String = req.match_info().query("tail")?;
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
 
@@ -971,7 +975,10 @@ mod tests {
     #[test]
     fn test_named_file_ranges_status_code() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
+            App::new().handler(
+                "test",
+                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+            )
         });
 
         // Valid range header
@@ -1001,7 +1008,9 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").unwrap().index_file("tests/test.binary"),
+                StaticFiles::new(".")
+                    .unwrap()
+                    .index_file("tests/test.binary"),
             )
         });
 
@@ -1049,7 +1058,9 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").unwrap().index_file("tests/test.binary"),
+                StaticFiles::new(".")
+                    .unwrap()
+                    .index_file("tests/test.binary"),
             )
         });
 
@@ -1167,7 +1178,9 @@ mod tests {
     #[test]
     fn test_static_files() {
         let mut st = StaticFiles::new(".").unwrap().show_files_listing();
-        let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
+        let req = TestRequest::with_uri("/missing")
+            .param("tail", "missing")
+            .finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1202,14 +1215,20 @@ mod tests {
 
     #[test]
     fn test_default_handler_file_missing() {
-        let st = StaticFiles::new(".").unwrap()
+        let st = StaticFiles::new(".")
+            .unwrap()
             .default_handler(|_: &_| "default content");
-        let req = TestRequest::with_uri("/missing").param("tail", "missing").finish();
+        let req = TestRequest::with_uri("/missing")
+            .param("tail", "missing")
+            .finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body(), &Body::Binary(Binary::Slice(b"default content")));
+        assert_eq!(
+            resp.body(),
+            &Body::Binary(Binary::Slice(b"default content"))
+        );
     }
 
     #[test]
@@ -1282,7 +1301,10 @@ mod tests {
     #[test]
     fn integration_redirect_to_index() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
+            App::new().handler(
+                "test",
+                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+            )
         });
 
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -1311,7 +1333,10 @@ mod tests {
     #[test]
     fn integration_percent_encoded() {
         let mut srv = test::TestServer::with_factory(|| {
-            App::new().handler("test", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
+            App::new().handler(
+                "test",
+                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+            )
         });
 
         let request = srv

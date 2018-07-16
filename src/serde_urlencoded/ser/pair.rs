@@ -1,7 +1,7 @@
-use super::super::ser::Error;
 use super::super::ser::key::KeySink;
 use super::super::ser::part::PartSerializer;
 use super::super::ser::value::ValueSink;
+use super::super::ser::Error;
 use serde::ser;
 use std::borrow::Cow;
 use std::mem;
@@ -14,18 +14,20 @@ pub struct PairSerializer<'target, Target: 'target + UrlEncodedTarget> {
 }
 
 impl<'target, Target> PairSerializer<'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
     pub fn new(urlencoder: &'target mut UrlEncodedSerializer<Target>) -> Self {
         PairSerializer {
-            urlencoder: urlencoder,
+            urlencoder,
             state: PairState::WaitingForKey,
         }
     }
 }
 
 impl<'target, Target> ser::Serializer for PairSerializer<'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
     type Ok = ();
     type Error = Error;
@@ -101,29 +103,22 @@ impl<'target, Target> ser::Serializer for PairSerializer<'target, Target>
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_unit_variant(self,
-                              _name: &'static str,
-                              _variant_index: u32,
-                              _variant: &'static str)
-                              -> Result<(), Error> {
+    fn serialize_unit_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+    ) -> Result<(), Error> {
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_newtype_struct<T: ?Sized + ser::Serialize>
-        (self,
-         _name: &'static str,
-         value: &T)
-         -> Result<(), Error> {
+    fn serialize_newtype_struct<T: ?Sized + ser::Serialize>(
+        self, _name: &'static str, value: &T,
+    ) -> Result<(), Error> {
         value.serialize(self)
     }
 
-    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _value: &T)
-         -> Result<(), Error> {
+    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _value: &T,
+    ) -> Result<(), Error> {
         Err(Error::unsupported_pair())
     }
 
@@ -131,15 +126,11 @@ impl<'target, Target> ser::Serializer for PairSerializer<'target, Target>
         Ok(())
     }
 
-    fn serialize_some<T: ?Sized + ser::Serialize>(self,
-                                                  value: &T)
-                                                  -> Result<(), Error> {
+    fn serialize_some<T: ?Sized + ser::Serialize>(self, value: &T) -> Result<(), Error> {
         value.serialize(self)
     }
 
-    fn serialize_seq(self,
-                     _len: Option<usize>)
-                     -> Result<Self::SerializeSeq, Error> {
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Error> {
         Err(Error::unsupported_pair())
     }
 
@@ -151,56 +142,47 @@ impl<'target, Target> ser::Serializer for PairSerializer<'target, Target>
         }
     }
 
-    fn serialize_tuple_struct(self,
-                              _name: &'static str,
-                              _len: usize)
-                              -> Result<Self::SerializeTupleStruct, Error> {
+    fn serialize_tuple_struct(
+        self, _name: &'static str, _len: usize,
+    ) -> Result<Self::SerializeTupleStruct, Error> {
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_tuple_variant
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _len: usize)
-         -> Result<Self::SerializeTupleVariant, Error> {
+    fn serialize_tuple_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant, Error> {
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_map(self,
-                     _len: Option<usize>)
-                     -> Result<Self::SerializeMap, Error> {
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Error> {
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_struct(self,
-                        _name: &'static str,
-                        _len: usize)
-                        -> Result<Self::SerializeStruct, Error> {
+    fn serialize_struct(
+        self, _name: &'static str, _len: usize,
+    ) -> Result<Self::SerializeStruct, Error> {
         Err(Error::unsupported_pair())
     }
 
-    fn serialize_struct_variant
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _len: usize)
-         -> Result<Self::SerializeStructVariant, Error> {
+    fn serialize_struct_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant, Error> {
         Err(Error::unsupported_pair())
     }
 }
 
 impl<'target, Target> ser::SerializeTuple for PairSerializer<'target, Target>
-    where Target: 'target + UrlEncodedTarget,
+where
+    Target: 'target + UrlEncodedTarget,
 {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_element<T: ?Sized + ser::Serialize>(&mut self,
-                                                     value: &T)
-                                                     -> Result<(), Error> {
+    fn serialize_element<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         match mem::replace(&mut self.state, PairState::Done) {
             PairState::WaitingForKey => {
                 let key_sink = KeySink::new(|key| Ok(key.into()));
@@ -209,7 +191,7 @@ impl<'target, Target> ser::SerializeTuple for PairSerializer<'target, Target>
                     key: value.serialize(key_serializer)?,
                 };
                 Ok(())
-            },
+            }
             PairState::WaitingForValue { key } => {
                 let result = {
                     let value_sink = ValueSink::new(self.urlencoder, &key);
@@ -219,10 +201,10 @@ impl<'target, Target> ser::SerializeTuple for PairSerializer<'target, Target>
                 if result.is_ok() {
                     self.state = PairState::Done;
                 } else {
-                    self.state = PairState::WaitingForValue { key: key };
+                    self.state = PairState::WaitingForValue { key };
                 }
                 result
-            },
+            }
             PairState::Done => Err(Error::done()),
         }
     }

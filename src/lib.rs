@@ -151,7 +151,6 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 extern crate tokio_openssl;
 
-mod serde_urlencoded;
 mod application;
 mod body;
 mod context;
@@ -174,6 +173,7 @@ mod resource;
 mod route;
 mod router;
 mod scope;
+mod serde_urlencoded;
 mod uri;
 mod with;
 

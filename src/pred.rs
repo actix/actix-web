@@ -175,8 +175,7 @@ pub fn Method<S: 'static>(method: http::Method) -> MethodPredicate<S> {
 /// Return predicate that matches if request contains specified header and
 /// value.
 pub fn Header<S: 'static>(
-    name: &'static str,
-    value: &'static str,
+    name: &'static str, value: &'static str,
 ) -> HeaderPredicate<S> {
     HeaderPredicate(
         header::HeaderName::try_from(name).unwrap(),

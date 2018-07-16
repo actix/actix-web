@@ -49,7 +49,7 @@ pub struct Serializer<'output, Target: 'output + UrlEncodedTarget> {
 impl<'output, Target: 'output + UrlEncodedTarget> Serializer<'output, Target> {
     /// Returns a new `Serializer`.
     pub fn new(urlencoder: &'output mut UrlEncodedSerializer<Target>) -> Self {
-        Serializer { urlencoder: urlencoder }
+        Serializer { urlencoder }
     }
 }
 
@@ -137,7 +137,8 @@ pub struct StructVariantSerializer<'output, T: 'output + UrlEncodedTarget> {
 }
 
 impl<'output, Target> ser::Serializer for Serializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
@@ -225,38 +226,29 @@ impl<'output, Target> ser::Serializer for Serializer<'output, Target>
     }
 
     /// Returns an error.
-    fn serialize_unit_struct(self,
-                             _name: &'static str)
-                             -> Result<Self::Ok, Error> {
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Error> {
         Err(Error::top_level())
     }
 
     /// Returns an error.
-    fn serialize_unit_variant(self,
-                              _name: &'static str,
-                              _variant_index: u32,
-                              _variant: &'static str)
-                              -> Result<Self::Ok, Error> {
+    fn serialize_unit_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+    ) -> Result<Self::Ok, Error> {
         Err(Error::top_level())
     }
 
     /// Serializes the inner value, ignoring the newtype name.
-    fn serialize_newtype_struct<T: ?Sized + ser::Serialize>
-        (self,
-         _name: &'static str,
-         value: &T)
-         -> Result<Self::Ok, Error> {
+    fn serialize_newtype_struct<T: ?Sized + ser::Serialize>(
+        self, _name: &'static str, value: &T,
+    ) -> Result<Self::Ok, Error> {
         value.serialize(self)
     }
 
     /// Returns an error.
-    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _value: &T)
-         -> Result<Self::Ok, Error> {
+    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok, Error> {
         Err(Error::top_level())
     }
 
@@ -266,50 +258,43 @@ impl<'output, Target> ser::Serializer for Serializer<'output, Target>
     }
 
     /// Serializes the given value.
-    fn serialize_some<T: ?Sized + ser::Serialize>
-        (self,
-         value: &T)
-         -> Result<Self::Ok, Error> {
+    fn serialize_some<T: ?Sized + ser::Serialize>(
+        self, value: &T,
+    ) -> Result<Self::Ok, Error> {
         value.serialize(self)
     }
 
     /// Serialize a sequence, given length (if any) is ignored.
-    fn serialize_seq(self,
-                     _len: Option<usize>)
-                     -> Result<Self::SerializeSeq, Error> {
-        Ok(SeqSerializer { urlencoder: self.urlencoder })
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Error> {
+        Ok(SeqSerializer {
+            urlencoder: self.urlencoder,
+        })
     }
 
     /// Returns an error.
-    fn serialize_tuple(self,
-                       _len: usize)
-                       -> Result<Self::SerializeTuple, Error> {
-        Ok(TupleSerializer { urlencoder: self.urlencoder })
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Error> {
+        Ok(TupleSerializer {
+            urlencoder: self.urlencoder,
+        })
     }
 
     /// Returns an error.
-    fn serialize_tuple_struct(self,
-                              _name: &'static str,
-                              _len: usize)
-                              -> Result<Self::SerializeTupleStruct, Error> {
+    fn serialize_tuple_struct(
+        self, _name: &'static str, _len: usize,
+    ) -> Result<Self::SerializeTupleStruct, Error> {
         Err(Error::top_level())
     }
 
     /// Returns an error.
-    fn serialize_tuple_variant
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _len: usize)
-         -> Result<Self::SerializeTupleVariant, Error> {
+    fn serialize_tuple_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant, Error> {
         Err(Error::top_level())
     }
 
     /// Serializes a map, given length is ignored.
-    fn serialize_map(self,
-                     _len: Option<usize>)
-                     -> Result<Self::SerializeMap, Error> {
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Error> {
         Ok(MapSerializer {
             urlencoder: self.urlencoder,
             key: None,
@@ -317,34 +302,33 @@ impl<'output, Target> ser::Serializer for Serializer<'output, Target>
     }
 
     /// Serializes a struct, given length is ignored.
-    fn serialize_struct(self,
-                        _name: &'static str,
-                        _len: usize)
-                        -> Result<Self::SerializeStruct, Error> {
-        Ok(StructSerializer { urlencoder: self.urlencoder })
+    fn serialize_struct(
+        self, _name: &'static str, _len: usize,
+    ) -> Result<Self::SerializeStruct, Error> {
+        Ok(StructSerializer {
+            urlencoder: self.urlencoder,
+        })
     }
 
     /// Returns an error.
-    fn serialize_struct_variant
-        (self,
-         _name: &'static str,
-         _variant_index: u32,
-         _variant: &'static str,
-         _len: usize)
-         -> Result<Self::SerializeStructVariant, Error> {
+    fn serialize_struct_variant(
+        self, _name: &'static str, _variant_index: u32, _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant, Error> {
         Err(Error::top_level())
     }
 }
 
 impl<'output, Target> ser::SerializeSeq for SeqSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_element<T: ?Sized + ser::Serialize>(&mut self,
-                                                     value: &T)
-                                                     -> Result<(), Error> {
+    fn serialize_element<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         value.serialize(pair::PairSerializer::new(self.urlencoder))
     }
 
@@ -354,14 +338,15 @@ impl<'output, Target> ser::SerializeSeq for SeqSerializer<'output, Target>
 }
 
 impl<'output, Target> ser::SerializeTuple for TupleSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_element<T: ?Sized + ser::Serialize>(&mut self,
-                                                     value: &T)
-                                                     -> Result<(), Error> {
+    fn serialize_element<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         value.serialize(pair::PairSerializer::new(self.urlencoder))
     }
 
@@ -371,16 +356,16 @@ impl<'output, Target> ser::SerializeTuple for TupleSerializer<'output, Target>
 }
 
 impl<'output, Target> ser::SerializeTupleStruct
-    for
-    TupleStructSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+    for TupleStructSerializer<'output, Target>
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self,
-                                                   value: &T)
-                                                   -> Result<(), Error> {
+    fn serialize_field<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         self.inner.serialize_field(value)
     }
 
@@ -390,16 +375,16 @@ impl<'output, Target> ser::SerializeTupleStruct
 }
 
 impl<'output, Target> ser::SerializeTupleVariant
-    for
-    TupleVariantSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+    for TupleVariantSerializer<'output, Target>
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self,
-                                                   value: &T)
-                                                   -> Result<(), Error> {
+    fn serialize_field<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         self.inner.serialize_field(value)
     }
 
@@ -409,16 +394,15 @@ impl<'output, Target> ser::SerializeTupleVariant
 }
 
 impl<'output, Target> ser::SerializeMap for MapSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_entry<K: ?Sized + ser::Serialize, V: ?Sized + ser::Serialize>
-        (&mut self,
-         key: &K,
-         value: &V)
-         -> Result<(), Error> {
+    fn serialize_entry<K: ?Sized + ser::Serialize, V: ?Sized + ser::Serialize>(
+        &mut self, key: &K, value: &V,
+    ) -> Result<(), Error> {
         let key_sink = key::KeySink::new(|key| {
             let value_sink = value::ValueSink::new(self.urlencoder, &key);
             value.serialize(part::PartSerializer::new(value_sink))?;
@@ -429,20 +413,20 @@ impl<'output, Target> ser::SerializeMap for MapSerializer<'output, Target>
         key.serialize(entry_serializer)
     }
 
-    fn serialize_key<T: ?Sized + ser::Serialize>(&mut self,
-                                                 key: &T)
-                                                 -> Result<(), Error> {
+    fn serialize_key<T: ?Sized + ser::Serialize>(
+        &mut self, key: &T,
+    ) -> Result<(), Error> {
         let key_sink = key::KeySink::new(|key| Ok(key.into()));
         let key_serializer = part::PartSerializer::new(key_sink);
         self.key = Some(key.serialize(key_serializer)?);
         Ok(())
     }
 
-    fn serialize_value<T: ?Sized + ser::Serialize>(&mut self,
-                                                   value: &T)
-                                                   -> Result<(), Error> {
+    fn serialize_value<T: ?Sized + ser::Serialize>(
+        &mut self, value: &T,
+    ) -> Result<(), Error> {
         {
-            let key = self.key.as_ref().ok_or_else(|| Error::no_key())?;
+            let key = self.key.as_ref().ok_or_else(Error::no_key)?;
             let value_sink = value::ValueSink::new(self.urlencoder, &key);
             value.serialize(part::PartSerializer::new(value_sink))?;
         }
@@ -456,15 +440,15 @@ impl<'output, Target> ser::SerializeMap for MapSerializer<'output, Target>
 }
 
 impl<'output, Target> ser::SerializeStruct for StructSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self,
-                                                   key: &'static str,
-                                                   value: &T)
-                                                   -> Result<(), Error> {
+    fn serialize_field<T: ?Sized + ser::Serialize>(
+        &mut self, key: &'static str, value: &T,
+    ) -> Result<(), Error> {
         let value_sink = value::ValueSink::new(self.urlencoder, key);
         value.serialize(part::PartSerializer::new(value_sink))
     }
@@ -475,17 +459,16 @@ impl<'output, Target> ser::SerializeStruct for StructSerializer<'output, Target>
 }
 
 impl<'output, Target> ser::SerializeStructVariant
-    for
-    StructVariantSerializer<'output, Target>
-    where Target: 'output + UrlEncodedTarget,
+    for StructVariantSerializer<'output, Target>
+where
+    Target: 'output + UrlEncodedTarget,
 {
     type Ok = &'output mut UrlEncodedSerializer<Target>;
     type Error = Error;
 
-    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self,
-                                                   key: &'static str,
-                                                   value: &T)
-                                                   -> Result<(), Error> {
+    fn serialize_field<T: ?Sized + ser::Serialize>(
+        &mut self, key: &'static str, value: &T,
+    ) -> Result<(), Error> {
         self.inner.serialize_field(key, value)
     }
 

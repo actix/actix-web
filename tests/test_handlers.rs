@@ -94,7 +94,7 @@ fn test_query_extractor() {
 #[derive(Deserialize, Debug)]
 pub enum ResponseType {
     Token,
-    Code
+    Code,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,13 +122,24 @@ fn test_query_enum_extractor() {
 
     // read response
     let bytes = srv.execute(response.body()).unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"AuthRequest { id: 64, response_type: Code }"));
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"AuthRequest { id: 64, response_type: Code }")
+    );
 
-    let request = srv.get().uri(srv.url("/index.html?id=64&response_type=Co")).finish().unwrap();
+    let request = srv
+        .get()
+        .uri(srv.url("/index.html?id=64&response_type=Co"))
+        .finish()
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let request = srv.get().uri(srv.url("/index.html?response_type=Code")).finish().unwrap();
+    let request = srv
+        .get()
+        .uri(srv.url("/index.html?response_type=Code"))
+        .finish()
+        .unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
