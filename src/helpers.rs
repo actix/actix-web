@@ -92,7 +92,7 @@ impl<S> Handler<S> for NormalizePath {
             // merge slashes
             let p = self.re_merge.replace_all(req.path(), "/");
             if p.len() != req.path().len() {
-                if req.resource().has_route(p.as_ref()) {
+                if req.resource().has_prefixed_route(p.as_ref()) {
                     let p = if !query.is_empty() {
                         p + "?" + query
                     } else {
@@ -105,7 +105,7 @@ impl<S> Handler<S> for NormalizePath {
                 // merge slashes and append trailing slash
                 if self.append && !p.ends_with('/') {
                     let p = p.as_ref().to_owned() + "/";
-                    if req.resource().has_route(&p) {
+                    if req.resource().has_prefixed_route(&p) {
                         let p = if !query.is_empty() {
                             p + "?" + query
                         } else {
@@ -120,7 +120,7 @@ impl<S> Handler<S> for NormalizePath {
                 // try to remove trailing slash
                 if p.ends_with('/') {
                     let p = p.as_ref().trim_right_matches('/');
-                    if req.resource().has_route(p) {
+                    if req.resource().has_prefixed_route(p) {
                         let mut req = HttpResponse::build(self.redirect);
                         return if !query.is_empty() {
                             req.header(
@@ -135,7 +135,7 @@ impl<S> Handler<S> for NormalizePath {
             } else if p.ends_with('/') {
                 // try to remove trailing slash
                 let p = p.as_ref().trim_right_matches('/');
-                if req.resource().has_route(p) {
+                if req.resource().has_prefixed_route(p) {
                     let mut req = HttpResponse::build(self.redirect);
                     return if !query.is_empty() {
                         req.header(
@@ -151,7 +151,7 @@ impl<S> Handler<S> for NormalizePath {
         // append trailing slash
         if self.append && !req.path().ends_with('/') {
             let p = req.path().to_owned() + "/";
-            if req.resource().has_route(&p) {
+            if req.resource().has_prefixed_route(&p) {
                 let p = if !query.is_empty() {
                     p + "?" + query
                 } else {
@@ -203,6 +203,56 @@ mod tests {
                 StatusCode::MOVED_PERMANENTLY,
             ),
             ("/resource2/?p1=1&p2=2", "", StatusCode::OK),
+        ];
+        for (path, target, code) in params {
+            let req = TestRequest::with_uri(path).request();
+            let resp = app.run(req);
+            let r = &resp.as_msg();
+            assert_eq!(r.status(), code);
+            if !target.is_empty() {
+                assert_eq!(
+                    target,
+                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_prefixed_normalize_path_trailing_slashes() {
+        let app = App::new()
+            .prefix("/test")
+            .resource("/resource1", |r| r.method(Method::GET).f(index))
+            .resource("/resource2/", |r| r.method(Method::GET).f(index))
+            .default_resource(|r| r.h(NormalizePath::default()))
+            .finish();
+
+        // trailing slashes
+        let params = vec![
+            ("/test/resource1", "", StatusCode::OK),
+            (
+                "/test/resource1/",
+                "/test/resource1",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/test/resource2",
+                "/test/resource2/",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            ("/test/resource2/", "", StatusCode::OK),
+            ("/test/resource1?p1=1&p2=2", "", StatusCode::OK),
+            (
+                "/test/resource1/?p1=1&p2=2",
+                "/test/resource1?p1=1&p2=2",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            (
+                "/test/resource2?p1=1&p2=2",
+                "/test/resource2/?p1=1&p2=2",
+                StatusCode::MOVED_PERMANENTLY,
+            ),
+            ("/test/resource2/?p1=1&p2=2", "", StatusCode::OK),
         ];
         for (path, target, code) in params {
             let req = TestRequest::with_uri(path).request();
