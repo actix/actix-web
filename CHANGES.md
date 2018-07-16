@@ -4,6 +4,8 @@
 
 ### Added
 
+* Add `.has_prefixed_route()` method to `router::RouteInfo` for route matching with prefix awareness
+
 * Add `HttpMessage::readlines()` for reading line by line.
 
 * Add `ClientRequestBuilder::form()` for sending `application/x-www-form-urlencoded` requests.

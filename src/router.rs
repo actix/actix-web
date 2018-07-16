@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::rc::Rc;
 
 use regex::{escape, Regex};
@@ -144,6 +145,32 @@ impl ResourceInfo {
                 return true;
             }
         }
+        false
+    }
+
+    /// Check if application contains matching route.
+    ///
+    /// This method does take `prefix` into account
+    /// but behaves like `has_route` in case `prefix` is not set in the router.
+    ///
+    /// For example if prefix is `/test` and router contains route `/name`, the
+    /// following path would be recognizable `/test/name` and `has_prefixed_route()` call
+    /// would return `true`.
+    /// It will not match against prefix in case it's not given. For example for `/name`
+    /// with a `/test` prefix would return `false`
+    pub fn has_prefixed_route(&self, path: &str) -> bool {
+        if self.prefix == 0 {
+            return self.has_route(path);
+        }
+
+        let path_matcher = Path::new(if path.is_empty() { "/" } else { path });
+        let router_prefix = Path::new(&path[..(self.prefix as usize)]);
+        if let Ok(p) = path_matcher.strip_prefix(router_prefix) {
+            if let Some(p_str) = p.to_str() {
+                return self.has_route(&format!("/{}", p_str));
+            }
+        }
+
         false
     }
 }
