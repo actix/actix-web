@@ -71,7 +71,7 @@ pub struct SendRequest {
     conn: Option<Addr<ClientConnector>>,
     conn_timeout: Duration,
     wait_timeout: Duration,
-    timeout: Option<Delay>,
+    timeout: Option<Duration>,
 }
 
 impl SendRequest {
@@ -115,7 +115,7 @@ impl SendRequest {
     /// Request timeout is the total time before a response must be received.
     /// Default value is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(Delay::new(Instant::now() + timeout));
+        self.timeout = Some(timeout);
         self
     }
 
@@ -185,9 +185,10 @@ impl Future for SendRequest {
                         _ => IoBody::Done,
                     };
 
-                    let timeout = self.timeout.take().unwrap_or_else(|| {
-                        Delay::new(Instant::now() + Duration::from_secs(5))
-                    });
+                    let timeout = self
+                        .timeout
+                        .take()
+                        .unwrap_or_else(|| Duration::from_secs(5));
 
                     let pl = Box::new(Pipeline {
                         body,
@@ -201,7 +202,7 @@ impl Future for SendRequest {
                         decompress: None,
                         should_decompress: self.req.response_decompress(),
                         write_state: RunningState::Running,
-                        timeout: Some(timeout),
+                        timeout: Some(Delay::new(Instant::now() + timeout)),
                         close: self.req.method() == &Method::HEAD,
                     });
                     self.state = State::Send(pl);
