@@ -1002,7 +1002,7 @@ fn test_session_storage_middleware() {
     const SIMPLE_NAME: &'static str = "simple";
     const SIMPLE_PAYLOAD: &'static str = "kantan";
     const COMPLEX_NAME: &'static str = "test";
-    const COMPLEX_PAYLOAD: &'static str = "url=https://test.com&generate_204"
+    const COMPLEX_PAYLOAD: &'static str = "url=https://test.com&generate_204";
     //const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
 
     let mut srv = test::TestServer::with_factory(move || {
