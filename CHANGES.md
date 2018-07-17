@@ -32,6 +32,10 @@
 
 ### Changed
 
+* `CookieSessionBackend` sets percent encoded cookies for outgoing HTTP messages.
+
+* Became possible to use enums with query extractor. Issue [#371](https://github.com/actix/actix-web/issues/371). [Example](https://github.com/actix/actix-web/blob/master/tests/test_handlers.rs#L94-L134)
+
 * Min rustc version is 1.26
 
 * `HttpResponse::into_builder()` now moves cookies into the builder
