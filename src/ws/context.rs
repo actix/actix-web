@@ -133,7 +133,7 @@ where
 {
     /// Write payload
     #[inline]
-    fn write(&mut self, data: Binary) {
+    pub fn write(&mut self, data: Binary) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());
