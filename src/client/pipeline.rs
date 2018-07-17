@@ -17,7 +17,7 @@ use context::{ActorHttpContext, Frame};
 use error::Error;
 use error::PayloadError;
 use header::ContentEncoding;
-use http::Method;
+use http::{Method, Uri};
 use httpmessage::HttpMessage;
 use server::input::PayloadStream;
 use server::WriterState;
@@ -203,7 +203,8 @@ impl Future for SendRequest {
                         should_decompress: self.req.response_decompress(),
                         write_state: RunningState::Running,
                         timeout: Some(Delay::new(Instant::now() + timeout)),
-                        close: self.req.method() == &Method::HEAD,
+                        meth: self.req.method().clone(),
+                        path: self.req.uri().clone(),
                     });
                     self.state = State::Send(pl);
                 }
@@ -249,7 +250,8 @@ pub struct Pipeline {
     should_decompress: bool,
     write_state: RunningState,
     timeout: Option<Delay>,
-    close: bool,
+    meth: Method,
+    path: Uri,
 }
 
 enum IoBody {
@@ -283,7 +285,7 @@ impl RunningState {
 impl Pipeline {
     fn release_conn(&mut self) {
         if let Some(conn) = self.conn.take() {
-            if self.close {
+            if self.meth == Method::HEAD {
                 conn.close()
             } else {
                 conn.release()
@@ -529,6 +531,11 @@ impl Pipeline {
 impl Drop for Pipeline {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
+            debug!(
+                "Client http transaction is not completed, dropping connection: {:?} {:?}",
+                self.meth,
+                self.path,
+            );
             conn.close()
         }
     }
