@@ -46,6 +46,8 @@ pub struct ClientConnectorStats {
     pub errors: usize,
     /// Number of connection timeouts
     pub timeouts: usize,
+    /// Number of released connections
+    pub released: usize,
 }
 
 #[derive(Debug)]
@@ -904,6 +906,7 @@ impl Handler<Connect> for ClientConnector {
 impl StreamHandler<AcquiredConnOperation, ()> for ClientConnector {
     fn handle(&mut self, msg: AcquiredConnOperation, ctx: &mut Context<Self>) {
         let now = Instant::now();
+        self.stats.released += 1;
 
         // check if we have queued up waiters
         let waiter = {
