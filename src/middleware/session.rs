@@ -410,7 +410,7 @@ impl CookieSessionInner {
         }
 
         for cookie in jar.delta() {
-            let val = HeaderValue::from_str(&cookie.to_string())?;
+            let val = HeaderValue::from_str(&cookie.encoded().to_string())?;
             resp.headers_mut().append(header::SET_COOKIE, val);
         }
 
@@ -464,6 +464,9 @@ impl CookieSessionInner {
 /// all session data is lost. The constructors will panic if the key is less
 /// than 32 bytes in length.
 ///
+/// The backend relies on `cookie` crate to create and read cookies.
+/// By default all cookies are percent encoded, but certain symbols may
+/// cause troubles when reading cookie, if they are not properly percent encoded.
 ///
 /// # Example
 ///

@@ -993,3 +993,76 @@ fn test_resource_middleware_async_chain_with_error() {
     assert_eq!(num2.load(Ordering::Relaxed), 1);
     assert_eq!(num3.load(Ordering::Relaxed), 1);
 }
+
+#[cfg(feature = "session")]
+#[test]
+fn test_session_storage_middleware() {
+    use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
+
+    const SIMPLE_NAME: &'static str = "simple";
+    const SIMPLE_PAYLOAD: &'static str = "kantan";
+    const COMPLEX_NAME: &'static str = "test";
+    const COMPLEX_PAYLOAD: &'static str = "url=https://test.com&generate_204";
+    //TODO: investigate how to handle below input
+    //const COMPLEX_PAYLOAD: &'static str = "FJc%26continue_url%3Dhttp%253A%252F%252Fconnectivitycheck.gstatic.com%252Fgenerate_204";
+
+    let mut srv = test::TestServer::with_factory(move || {
+        App::new()
+            .middleware(SessionStorage::new(CookieSessionBackend::signed(&[0; 32]).secure(false)))
+            .resource("/index", move |r| {
+                r.f(|req| {
+                    let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
+                    assert!(res.is_ok());
+                    let value = req.session().get::<String>(COMPLEX_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), COMPLEX_PAYLOAD);
+
+                    let res = req.session().set(SIMPLE_NAME, SIMPLE_PAYLOAD);
+                    assert!(res.is_ok());
+                    let value = req.session().get::<String>(SIMPLE_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), SIMPLE_PAYLOAD);
+
+                    HttpResponse::Ok()
+                })
+            }).resource("/expect_cookie", move |r| {
+                r.f(|req| {
+                    let cookies = req.cookies().expect("To get cookies");
+
+                    let value = req.session().get::<String>(SIMPLE_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), SIMPLE_PAYLOAD);
+
+                    let value = req.session().get::<String>(COMPLEX_NAME);
+                    assert!(value.is_ok());
+                    let value = value.unwrap();
+                    assert!(value.is_some());
+                    assert_eq!(value.unwrap(), COMPLEX_PAYLOAD);
+
+                    HttpResponse::Ok()
+                })
+            })
+    });
+
+    let request = srv.get().uri(srv.url("/index")).finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+
+    assert!(response.headers().contains_key("set-cookie"));
+    let set_cookie = response.headers().get("set-cookie");
+    assert!(set_cookie.is_some());
+    let set_cookie = set_cookie.unwrap().to_str().expect("Convert to str");
+
+    let request = srv.get()
+        .uri(srv.url("/expect_cookie"))
+        .header("cookie", set_cookie.split(';').next().unwrap())
+        .finish()
+        .unwrap();
+
+    srv.execute(request.send()).unwrap();
+}
