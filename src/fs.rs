@@ -6,6 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cmp, io};
+use std::marker::PhantomData;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -27,6 +28,73 @@ use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use param::FromParam;
 use server::settings::DEFAULT_CPUPOOL;
+use header::{ContentDisposition, DispositionParam, DispositionType};
+
+///Describes `StaticFiles` configiration
+///
+///To configure actix's static resources you need
+///to define own configiration type and implement any method
+///you wish to customize.
+///As trait implements reasonable defaults for Actix.
+///
+///## Example
+///
+///```rust
+/// extern crate mime;
+/// extern crate actix_web;
+/// use actix_web::http::header::DispositionType;
+/// use actix_web::fs::{StaticFileConfig, NamedFile};
+///
+/// #[derive(Default)]
+/// struct MyConfig;
+///
+/// impl StaticFileConfig for MyConfig {
+///     fn content_disposition_map(typ: mime::Name) -> DispositionType {
+///         DispositionType::Attachment
+///     }
+/// }
+///
+/// let file = NamedFile::open_with_config("foo.txt", MyConfig);
+///```
+pub trait StaticFileConfig: Default {
+    ///Describes mapping for mime type to content disposition header
+    ///
+    ///By default `IMAGE`, `TEXT` and `VIDEO` are mapped to Inline.
+    ///Others are mapped to Attachment
+    fn content_disposition_map(typ: mime::Name) -> DispositionType {
+        match typ {
+            mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        }
+    }
+
+    ///Describes whether Actix should attempt to calculate `ETag`
+    ///
+    ///Defaults to `true`
+    fn is_use_etag() -> bool {
+        true
+    }
+
+    ///Describes whether Actix should use last modified date of file.
+    ///
+    ///Defaults to `true`
+    fn is_use_last_modifier() -> bool {
+        true
+    }
+
+    ///Describes allowed methods to access static resources.
+    ///
+    ///By default all methods are allowed
+    fn is_method_allowed(_method: &Method) -> bool {
+        true
+    }
+}
+
+///Default content disposition as described in
+///[StaticFileConfig](trait.StaticFileConfig.html)
+#[derive(Default)]
+pub struct DefaultConfig;
+impl StaticFileConfig for DefaultConfig {}
 
 /// Return the MIME type associated with a filename extension (case-insensitive).
 /// If `ext` is empty or no associated type for the extension was found, returns
@@ -38,7 +106,7 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 /// A file with an associated name.
 #[derive(Debug)]
-pub struct NamedFile {
+pub struct NamedFile<C=DefaultConfig> {
     path: PathBuf,
     file: File,
     content_type: mime::Mime,
@@ -47,8 +115,8 @@ pub struct NamedFile {
     modified: Option<SystemTime>,
     cpu_pool: Option<CpuPool>,
     encoding: Option<ContentEncoding>,
-    only_get: bool,
     status_code: StatusCode,
+    _cd_map: PhantomData<C>,
 }
 
 impl NamedFile {
@@ -62,7 +130,21 @@ impl NamedFile {
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        use header::{ContentDisposition, DispositionParam, DispositionType};
+        Self::open_with_config(path, DefaultConfig)
+    }
+}
+
+impl<C: StaticFileConfig> NamedFile<C> {
+    /// Attempts to open a file in read-only mode using provided configiration.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    ///
+    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// ```
+    pub fn open_with_config<P: AsRef<Path>>(path: P, _: C) -> io::Result<NamedFile<C>> {
         let path = path.as_ref().to_path_buf();
 
         // Get the name of the file and use it to construct default Content-Type
@@ -79,10 +161,7 @@ impl NamedFile {
             };
 
             let ct = guess_mime_type(&path);
-            let disposition_type = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
-                _ => DispositionType::Attachment,
-            };
+            let disposition_type = C::content_disposition_map(ct.type_());
             let cd = ContentDisposition {
                 disposition: disposition_type,
                 parameters: vec![DispositionParam::Filename(
@@ -108,16 +187,9 @@ impl NamedFile {
             modified,
             cpu_pool,
             encoding,
-            only_get: false,
             status_code: StatusCode::OK,
+            _cd_map: PhantomData
         })
-    }
-
-    /// Allow only GET and HEAD methods
-    #[inline]
-    pub fn only_get(mut self) -> Self {
-        self.only_get = true;
-        self
     }
 
     /// Returns reference to the underlying `File` object.
@@ -218,7 +290,7 @@ impl NamedFile {
     }
 }
 
-impl Deref for NamedFile {
+impl<C> Deref for NamedFile<C> {
     type Target = File;
 
     fn deref(&self) -> &File {
@@ -226,7 +298,7 @@ impl Deref for NamedFile {
     }
 }
 
-impl DerefMut for NamedFile {
+impl<C> DerefMut for NamedFile<C> {
     fn deref_mut(&mut self) -> &mut File {
         &mut self.file
     }
@@ -267,7 +339,7 @@ fn none_match<S>(etag: Option<&header::EntityTag>, req: &HttpRequest<S>) -> bool
     }
 }
 
-impl Responder for NamedFile {
+impl<C: StaticFileConfig> Responder for NamedFile<C> {
     type Item = HttpResponse;
     type Error = io::Error;
 
@@ -294,7 +366,7 @@ impl Responder for NamedFile {
             return Ok(resp.streaming(reader));
         }
 
-        if self.only_get && *req.method() != Method::GET && *req.method() != Method::HEAD
+        if !C::is_method_allowed(req.method())
         {
             return Ok(HttpResponse::MethodNotAllowed()
                 .header(header::CONTENT_TYPE, "text/plain")
@@ -302,8 +374,14 @@ impl Responder for NamedFile {
                 .body("This resource only supports GET and HEAD."));
         }
 
-        let etag = self.etag();
-        let last_modified = self.last_modified();
+        let etag = match C::is_use_etag() {
+            true => self.etag(),
+            false => None,
+        };
+        let last_modified = match C::is_use_last_modifier() {
+            true => self.last_modified(),
+            false => None,
+        };
 
         // check preconditions
         let precondition_failed = if !any_match(etag.as_ref(), req) {
@@ -559,7 +637,7 @@ fn directory_listing<S>(
 ///         .finish();
 /// }
 /// ```
-pub struct StaticFiles<S> {
+pub struct StaticFiles<S, C=DefaultConfig> {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -568,6 +646,7 @@ pub struct StaticFiles<S> {
     renderer: Box<DirectoryRenderer<S>>,
     _chunk_size: usize,
     _follow_symlinks: bool,
+    _cd_map: PhantomData<C>,
 }
 
 impl<S: 'static> StaticFiles<S> {
@@ -577,10 +656,7 @@ impl<S: 'static> StaticFiles<S> {
     /// By default pool with 20 threads is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
     pub fn new<T: Into<PathBuf>>(dir: T) -> Result<StaticFiles<S>, Error> {
-        // use default CpuPool
-        let pool = { DEFAULT_CPUPOOL.lock().clone() };
-
-        StaticFiles::with_pool(dir, pool)
+        Self::with_config(dir, DefaultConfig)
     }
 
     /// Create new `StaticFiles` instance for specified base directory and
@@ -588,6 +664,26 @@ impl<S: 'static> StaticFiles<S> {
     pub fn with_pool<T: Into<PathBuf>>(
         dir: T, pool: CpuPool,
     ) -> Result<StaticFiles<S>, Error> {
+        Self::with_config_pool(dir, pool, DefaultConfig)
+    }
+}
+
+impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
+    /// Create new `StaticFiles` instance for specified base directory.
+    ///
+    /// Identical with `new` but allows to specify configiration to use.
+    pub fn with_config<T: Into<PathBuf>>(dir: T, config: C) -> Result<StaticFiles<S, C>, Error> {
+        // use default CpuPool
+        let pool = { DEFAULT_CPUPOOL.lock().clone() };
+
+        StaticFiles::with_config_pool(dir, pool, config)
+    }
+
+    /// Create new `StaticFiles` instance for specified base directory with config and
+    /// `CpuPool`.
+    pub fn with_config_pool<T: Into<PathBuf>>(
+        dir: T, pool: CpuPool, _: C
+    ) -> Result<StaticFiles<S, C>, Error> {
         let dir = dir.into().canonicalize()?;
 
         if !dir.is_dir() {
@@ -605,6 +701,7 @@ impl<S: 'static> StaticFiles<S> {
             renderer: Box::new(directory_listing),
             _chunk_size: 0,
             _follow_symlinks: false,
+            _cd_map: PhantomData
         })
     }
 
@@ -631,13 +728,13 @@ impl<S: 'static> StaticFiles<S> {
     ///
     /// Redirects to specific index file for directory "/" instead of
     /// showing files listing.
-    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S> {
+    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S, C> {
         self.index = Some(index.into());
         self
     }
 
     /// Sets default handler which is used when no matched file could be found.
-    pub fn default_handler<H: Handler<S>>(mut self, handler: H) -> StaticFiles<S> {
+    pub fn default_handler<H: Handler<S>>(mut self, handler: H) -> StaticFiles<S, C> {
         self.default = Box::new(WrapHandler::new(handler));
         self
     }
@@ -672,7 +769,7 @@ impl<S: 'static> StaticFiles<S> {
                 Err(StaticFileError::IsDirectory.into())
             }
         } else {
-            NamedFile::open(path)?
+            NamedFile::open_with_config(path, C::default())?
                 .set_cpu_pool(self.cpu_pool.clone())
                 .respond_to(&req)?
                 .respond_to(&req)
@@ -680,7 +777,7 @@ impl<S: 'static> StaticFiles<S> {
     }
 }
 
-impl<S: 'static> Handler<S> for StaticFiles<S> {
+impl<S: 'static, C: 'static + StaticFileConfig> Handler<S> for StaticFiles<S, C> {
     type Result = Result<AsyncResult<HttpResponse>, Error>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
@@ -920,6 +1017,56 @@ mod tests {
         );
     }
 
+    #[derive(Default)]
+    pub struct AllAttachmentConfig;
+    impl StaticFileConfig for AllAttachmentConfig {
+        fn content_disposition_map(_typ: mime::Name) -> DispositionType {
+            DispositionType::Attachment
+        }
+    }
+
+    #[derive(Default)]
+    pub struct AllInlineConfig;
+    impl StaticFileConfig for AllInlineConfig {
+        fn content_disposition_map(_typ: mime::Name) -> DispositionType {
+            DispositionType::Inline
+        }
+    }
+
+    #[test]
+    fn test_named_file_image_attachment_and_custom_config() {
+        let file = NamedFile::open_with_config("tests/test.png", AllAttachmentConfig)
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"test.png\""
+        );
+
+        let file = NamedFile::open_with_config("tests/test.png", AllInlineConfig)
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+
+        let req = TestRequest::default().finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"test.png\""
+        );
+
+    }
+
     #[test]
     fn test_named_file_binary() {
         let mut file = NamedFile::open("tests/test.binary")
@@ -1143,12 +1290,32 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
+    #[derive(Default)]
+    pub struct OnlyMethodHeadConfig;
+    impl StaticFileConfig for OnlyMethodHeadConfig {
+        fn is_method_allowed(method: &Method) -> bool {
+            match *method {
+                Method::HEAD => true,
+                _ => false
+            }
+        }
+    }
+
     #[test]
     fn test_named_file_not_allowed() {
+        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
         let req = TestRequest::default().method(Method::POST).finish();
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let resp = file.only_get().respond_to(&req).unwrap();
+        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
+        let req = TestRequest::default().method(Method::PUT).finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
+        let req = TestRequest::default().method(Method::GET).finish();
+        let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 

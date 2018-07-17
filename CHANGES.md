@@ -4,6 +4,9 @@
 
 ### Added
 
+* Add `fs::StaticFileConfig` to provide means of customizing static file services. It allows to map
+`mime` to `Content-Disposition`, specify whether to use `ETag` and `Last-Modified` and allowed methods.
+
 * Add `.has_prefixed_resource()` method to `router::ResourceInfo` for route matching with prefix awareness
 
 * Add `HttpMessage::readlines()` for reading line by line.
