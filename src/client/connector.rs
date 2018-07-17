@@ -34,6 +34,8 @@ use {HAS_OPENSSL, HAS_TLS};
 pub struct ClientConnectorStats {
     /// Number of waited-on connections
     pub waits: usize,
+    /// Size of the wait queue
+    pub wait_queue: usize,
     /// Number of reused connections
     pub reused: usize,
     /// Number of opened connections
@@ -494,8 +496,13 @@ impl ClientConnector {
         ctx.run_later(Duration::from_secs(1), |act, ctx| act.collect_periodic(ctx));
 
         // send stats
-        let stats = mem::replace(&mut self.stats, ClientConnectorStats::default());
+        let mut stats = mem::replace(&mut self.stats, ClientConnectorStats::default());
         if let Some(ref mut subscr) = self.subscriber {
+            if let Some(ref waiters) = self.waiters {
+                for w in waiters.values() {
+                    stats.wait_queue += w.len();
+                }
+            }
             let _ = subscr.do_send(stats);
         }
     }
