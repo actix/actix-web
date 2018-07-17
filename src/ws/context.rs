@@ -132,6 +132,11 @@ where
     A: Actor<Context = Self>,
 {
     /// Write payload
+    ///
+    /// This is a low-level function that accepts framed messages that should
+    /// be created using `Frame::message()`. If you want to send text or binary
+    /// data you should prefer the `text()` or `binary()` convenience functions
+    /// that handle the framing for you.
     #[inline]
     pub fn write(&mut self, data: Binary) {
         if !self.disconnected {
