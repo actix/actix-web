@@ -20,7 +20,7 @@ use body::{Binary, Body};
 use error::{Error, UrlParseError};
 use header::IntoHeaderValue;
 use httpmessage::HttpMessage;
-use payload::PayloadHelper;
+use payload::PayloadBuffer;
 
 use client::{
     ClientConnector, ClientRequest, ClientRequestBuilder, HttpResponseParserError,
@@ -275,7 +275,7 @@ impl Client {
 
 struct Inner {
     tx: UnboundedSender<Bytes>,
-    rx: PayloadHelper<Box<Pipeline>>,
+    rx: PayloadBuffer<Box<Pipeline>>,
     closed: bool,
 }
 
@@ -431,7 +431,7 @@ impl Future for ClientHandshake {
 
         let inner = Inner {
             tx: self.tx.take().unwrap(),
-            rx: PayloadHelper::new(resp.payload()),
+            rx: PayloadBuffer::new(resp.payload()),
             closed: false,
         };
 

@@ -52,7 +52,7 @@ use error::{Error, PayloadError, ResponseError};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
-use payload::PayloadHelper;
+use payload::PayloadBuffer;
 
 mod client;
 mod context;
@@ -252,7 +252,7 @@ pub fn handshake<S>(
 
 /// Maps `Payload` stream into stream of `ws::Message` items
 pub struct WsStream<S> {
-    rx: PayloadHelper<S>,
+    rx: PayloadBuffer<S>,
     closed: bool,
     max_size: usize,
 }
@@ -264,7 +264,7 @@ where
     /// Create new websocket frames stream
     pub fn new(stream: S) -> WsStream<S> {
         WsStream {
-            rx: PayloadHelper::new(stream),
+            rx: PayloadBuffer::new(stream),
             closed: false,
             max_size: 65_536,
         }

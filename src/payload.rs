@@ -280,18 +280,20 @@ impl Inner {
     }
 }
 
-pub struct PayloadHelper<S> {
+/// Payload buffer
+pub struct PayloadBuffer<S> {
     len: usize,
     items: VecDeque<Bytes>,
     stream: S,
 }
 
-impl<S> PayloadHelper<S>
+impl<S> PayloadBuffer<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
+    /// Create new `PayloadBuffer` instance
     pub fn new(stream: S) -> Self {
-        PayloadHelper {
+        PayloadBuffer {
             len: 0,
             items: VecDeque::new(),
             stream,
@@ -316,6 +318,7 @@ where
         })
     }
 
+    /// Read first available chunk of bytes
     #[inline]
     pub fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
@@ -330,6 +333,7 @@ where
         }
     }
 
+    /// Check if buffer contains enough bytes
     #[inline]
     pub fn can_read(&mut self, size: usize) -> Poll<Option<bool>, PayloadError> {
         if size <= self.len {
@@ -343,6 +347,7 @@ where
         }
     }
 
+    /// Return reference to the first chunk of data
     #[inline]
     pub fn get_chunk(&mut self) -> Poll<Option<&[u8]>, PayloadError> {
         if self.items.is_empty() {
@@ -358,6 +363,7 @@ where
         }
     }
 
+    /// Read exact number of bytes
     #[inline]
     pub fn read_exact(&mut self, size: usize) -> Poll<Option<Bytes>, PayloadError> {
         if size <= self.len {
@@ -392,8 +398,9 @@ where
         }
     }
 
+    /// Remove specified amount if bytes from buffer
     #[inline]
-    pub fn drop_payload(&mut self, size: usize) {
+    pub fn drop_bytes(&mut self, size: usize) {
         if size <= self.len {
             self.len -= size;
 
@@ -410,6 +417,7 @@ where
         }
     }
 
+    /// Copy buffered data
     pub fn copy(&mut self, size: usize) -> Poll<Option<BytesMut>, PayloadError> {
         if size <= self.len {
             let mut buf = BytesMut::with_capacity(size);
@@ -431,6 +439,7 @@ where
         }
     }
 
+    /// Read until specified ending
     pub fn read_until(&mut self, line: &[u8]) -> Poll<Option<Bytes>, PayloadError> {
         let mut idx = 0;
         let mut num = 0;
@@ -486,16 +495,18 @@ where
         }
     }
 
+    /// Read bytes until new line delimiter
     pub fn readline(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         self.read_until(b"\n")
     }
 
-    pub fn unread_data(&mut self, data: Bytes) {
+    /// Put unprocessed data back to the buffer
+    pub fn unprocessed(&mut self, data: Bytes) {
         self.len += data.len();
         self.items.push_front(data);
     }
 
-    #[allow(dead_code)]
+    /// Get remaining data from the buffer
     pub fn remaining(&mut self) -> Bytes {
         self.items
             .iter_mut()
@@ -535,7 +546,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (_, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(payload.len, 0);
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
@@ -552,7 +563,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
                 sender.feed_data(Bytes::from("data"));
@@ -577,7 +588,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
@@ -595,7 +606,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 sender.feed_data(Bytes::from("line1"));
                 sender.feed_data(Bytes::from("line2"));
@@ -624,7 +635,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.read_exact(2).ok().unwrap());
 
@@ -658,7 +669,7 @@ mod tests {
             .unwrap()
             .block_on(lazy(|| {
                 let (mut sender, payload) = Payload::new(false);
-                let mut payload = PayloadHelper::new(payload);
+                let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
 

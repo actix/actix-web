@@ -13,7 +13,7 @@ use httparse;
 use mime;
 
 use error::{MultipartError, ParseError, PayloadError};
-use payload::PayloadHelper;
+use payload::PayloadBuffer;
 
 const MAX_HEADERS: usize = 32;
 
@@ -97,7 +97,7 @@ where
                 safety: Safety::new(),
                 inner: Some(Rc::new(RefCell::new(InnerMultipart {
                     boundary,
-                    payload: PayloadRef::new(PayloadHelper::new(stream)),
+                    payload: PayloadRef::new(PayloadBuffer::new(stream)),
                     state: InnerState::FirstBoundary,
                     item: InnerMultipartItem::None,
                 }))),
@@ -133,7 +133,7 @@ impl<S> InnerMultipart<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    fn read_headers(payload: &mut PayloadHelper<S>) -> Poll<HeaderMap, MultipartError> {
+    fn read_headers(payload: &mut PayloadBuffer<S>) -> Poll<HeaderMap, MultipartError> {
         match payload.read_until(b"\r\n\r\n")? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
@@ -164,7 +164,7 @@ where
     }
 
     fn read_boundary(
-        payload: &mut PayloadHelper<S>, boundary: &str,
+        payload: &mut PayloadBuffer<S>, boundary: &str,
     ) -> Poll<bool, MultipartError> {
         // TODO: need to read epilogue
         match payload.readline()? {
@@ -190,7 +190,7 @@ where
     }
 
     fn skip_until_boundary(
-        payload: &mut PayloadHelper<S>, boundary: &str,
+        payload: &mut PayloadBuffer<S>, boundary: &str,
     ) -> Poll<bool, MultipartError> {
         let mut eof = false;
         loop {
@@ -490,7 +490,7 @@ where
     /// Reads body part content chunk of the specified size.
     /// The body part must has `Content-Length` header with proper value.
     fn read_len(
-        payload: &mut PayloadHelper<S>, size: &mut u64,
+        payload: &mut PayloadBuffer<S>, size: &mut u64,
     ) -> Poll<Option<Bytes>, MultipartError> {
         if *size == 0 {
             Ok(Async::Ready(None))
@@ -503,7 +503,7 @@ where
                     *size -= len;
                     let ch = chunk.split_to(len as usize);
                     if !chunk.is_empty() {
-                        payload.unread_data(chunk);
+                        payload.unprocessed(chunk);
                     }
                     Ok(Async::Ready(Some(ch)))
                 }
@@ -515,14 +515,14 @@ where
     /// Reads content chunk of body part with unknown length.
     /// The `Content-Length` header for body part is not necessary.
     fn read_stream(
-        payload: &mut PayloadHelper<S>, boundary: &str,
+        payload: &mut PayloadBuffer<S>, boundary: &str,
     ) -> Poll<Option<Bytes>, MultipartError> {
         match payload.read_until(b"\r")? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(mut chunk)) => {
                 if chunk.len() == 1 {
-                    payload.unread_data(chunk);
+                    payload.unprocessed(chunk);
                     match payload.read_exact(boundary.len() + 4)? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(None) => Err(MultipartError::Incomplete),
@@ -531,12 +531,12 @@ where
                                 && &chunk[2..4] == b"--"
                                 && &chunk[4..] == boundary.as_bytes()
                             {
-                                payload.unread_data(chunk);
+                                payload.unprocessed(chunk);
                                 Ok(Async::Ready(None))
                             } else {
                                 // \r might be part of data stream
                                 let ch = chunk.split_to(1);
-                                payload.unread_data(chunk);
+                                payload.unprocessed(chunk);
                                 Ok(Async::Ready(Some(ch)))
                             }
                         }
@@ -544,7 +544,7 @@ where
                 } else {
                     let to = chunk.len() - 1;
                     let ch = chunk.split_to(to);
-                    payload.unread_data(chunk);
+                    payload.unprocessed(chunk);
                     Ok(Async::Ready(Some(ch)))
                 }
             }
@@ -592,27 +592,27 @@ where
 }
 
 struct PayloadRef<S> {
-    payload: Rc<UnsafeCell<PayloadHelper<S>>>,
+    payload: Rc<UnsafeCell<PayloadBuffer<S>>>,
 }
 
 impl<S> PayloadRef<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    fn new(payload: PayloadHelper<S>) -> PayloadRef<S> {
+    fn new(payload: PayloadBuffer<S>) -> PayloadRef<S> {
         PayloadRef {
             payload: Rc::new(payload.into()),
         }
     }
 
-    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<&'a mut PayloadHelper<S>>
+    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<&'a mut PayloadBuffer<S>>
     where
         'a: 'b,
     {
         // Unsafe: Invariant is inforced by Safety Safety is used as ref counter,
         // only top most ref can have mutable access to payload.
         if s.current() {
-            let payload: &mut PayloadHelper<S> = unsafe { &mut *self.payload.get() };
+            let payload: &mut PayloadBuffer<S> = unsafe { &mut *self.payload.get() };
             Some(payload)
         } else {
             None

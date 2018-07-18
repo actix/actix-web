@@ -997,7 +997,9 @@ fn test_resource_middleware_async_chain_with_error() {
 #[cfg(feature = "session")]
 #[test]
 fn test_session_storage_middleware() {
-    use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
+    use actix_web::middleware::session::{
+        CookieSessionBackend, RequestSession, SessionStorage,
+    };
 
     const SIMPLE_NAME: &'static str = "simple";
     const SIMPLE_PAYLOAD: &'static str = "kantan";
@@ -1008,7 +1010,9 @@ fn test_session_storage_middleware() {
 
     let mut srv = test::TestServer::with_factory(move || {
         App::new()
-            .middleware(SessionStorage::new(CookieSessionBackend::signed(&[0; 32]).secure(false)))
+            .middleware(SessionStorage::new(
+                CookieSessionBackend::signed(&[0; 32]).secure(false),
+            ))
             .resource("/index", move |r| {
                 r.f(|req| {
                     let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
@@ -1029,9 +1033,10 @@ fn test_session_storage_middleware() {
 
                     HttpResponse::Ok()
                 })
-            }).resource("/expect_cookie", move |r| {
+            })
+            .resource("/expect_cookie", move |r| {
                 r.f(|req| {
-                    let cookies = req.cookies().expect("To get cookies");
+                    let _cookies = req.cookies().expect("To get cookies");
 
                     let value = req.session().get::<String>(SIMPLE_NAME);
                     assert!(value.is_ok());
@@ -1058,7 +1063,8 @@ fn test_session_storage_middleware() {
     assert!(set_cookie.is_some());
     let set_cookie = set_cookie.unwrap().to_str().expect("Convert to str");
 
-    let request = srv.get()
+    let request = srv
+        .get()
         .uri(srv.url("/expect_cookie"))
         .header("cookie", set_cookie.split(';').next().unwrap())
         .finish()
