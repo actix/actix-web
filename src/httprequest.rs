@@ -436,6 +436,7 @@ mod tests {
         router.register_resource(resource);
 
         let info = router.default_route_info();
+        assert!(!info.has_prefixed_resource("/use/"));
         assert!(info.has_resource("/user/test.html"));
         assert!(info.has_prefixed_resource("/user/test.html"));
         assert!(!info.has_resource("/test/unknown"));
@@ -468,6 +469,7 @@ mod tests {
 
         let mut info = router.default_route_info();
         info.set_prefix(7);
+        assert!(!info.has_prefixed_resource("/use/"));
         assert!(info.has_resource("/user/test.html"));
         assert!(!info.has_prefixed_resource("/user/test.html"));
         assert!(!info.has_resource("/prefix/user/test.html"));
