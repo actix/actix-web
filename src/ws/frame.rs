@@ -376,7 +376,7 @@ impl fmt::Display for Frame {
 
 /// `WebSocket` message with framing.
 #[derive(Debug)]
-pub struct FramedMessage(pub Binary);
+pub struct FramedMessage(pub(crate) Binary);
 
 #[cfg(test)]
 mod tests {
