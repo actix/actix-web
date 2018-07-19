@@ -20,7 +20,7 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError, PayloadError};
 use httprequest::HttpRequest;
 
-use ws::frame::Frame;
+use ws::frame::{Frame, FramedBinary};
 use ws::proto::{CloseReason, OpCode};
 use ws::{Message, ProtocolError, WsStream, WsWriter};
 
@@ -138,13 +138,13 @@ where
     /// data you should prefer the `text()` or `binary()` convenience functions
     /// that handle the framing for you.
     #[inline]
-    pub fn write_raw(&mut self, data: Binary) {
+    pub fn write_raw(&mut self, data: FramedBinary) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());
             }
             let stream = self.stream.as_mut().unwrap();
-            stream.push(ContextFrame::Chunk(Some(data)));
+            stream.push(ContextFrame::Chunk(Some(data.0)));
         } else {
             warn!("Trying to write to disconnected response");
         }
