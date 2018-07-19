@@ -138,7 +138,7 @@ where
     /// data you should prefer the `text()` or `binary()` convenience functions
     /// that handle the framing for you.
     #[inline]
-    pub fn write(&mut self, data: Binary) {
+    pub fn write_raw(&mut self, data: Binary) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());
@@ -172,19 +172,19 @@ where
     /// Send text frame
     #[inline]
     pub fn text<T: Into<Binary>>(&mut self, text: T) {
-        self.write(Frame::message(text.into(), OpCode::Text, true, false));
+        self.write_raw(Frame::message(text.into(), OpCode::Text, true, false));
     }
 
     /// Send binary frame
     #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(Frame::message(data, OpCode::Binary, true, false));
+        self.write_raw(Frame::message(data, OpCode::Binary, true, false));
     }
 
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
+        self.write_raw(Frame::message(
             Vec::from(message),
             OpCode::Ping,
             true,
@@ -195,7 +195,7 @@ where
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
+        self.write_raw(Frame::message(
             Vec::from(message),
             OpCode::Pong,
             true,
@@ -206,7 +206,7 @@ where
     /// Send close frame
     #[inline]
     pub fn close(&mut self, reason: Option<CloseReason>) {
-        self.write(Frame::close(reason, false));
+        self.write_raw(Frame::close(reason, false));
     }
 
     /// Check if connection still open
