@@ -66,7 +66,7 @@ pub enum Charset {
 }
 
 impl Charset {
-    fn name(&self) -> &str {
+    fn label(&self) -> &str {
         match *self {
             Us_Ascii => "US-ASCII",
             Iso_8859_1 => "ISO-8859-1",
@@ -90,7 +90,7 @@ impl Charset {
             Iso_8859_8_E => "ISO-8859-8-E",
             Iso_8859_8_I => "ISO-8859-8-I",
             Gb2312 => "GB2312",
-            Big5 => "5",
+            Big5 => "big5",
             Koi8_R => "KOI8-R",
             Ext(ref s) => s,
         }
@@ -99,7 +99,7 @@ impl Charset {
 
 impl Display for Charset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.name())
+        f.write_str(self.label())
     }
 }
 
@@ -129,7 +129,7 @@ impl FromStr for Charset {
             "ISO-8859-8-E" => Iso_8859_8_E,
             "ISO-8859-8-I" => Iso_8859_8_I,
             "GB2312" => Gb2312,
-            "5" => Big5,
+            "big5" => Big5,
             "KOI8-R" => Koi8_R,
             s => Ext(s.to_owned()),
         })

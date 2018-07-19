@@ -266,6 +266,7 @@ pub mod http {
     /// Various http headers
     pub mod header {
         pub use header::*;
+        pub use header::{ContentDisposition, DispositionType, DispositionParam, Charset, LanguageTag};
     }
     pub use header::ContentEncoding;
     pub use httpresponse::ConnectionType;
