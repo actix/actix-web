@@ -28,7 +28,7 @@ impl Frame {
 
     /// Create a new Close control frame.
     #[inline]
-    pub fn close(reason: Option<CloseReason>, genmask: bool) -> FramedBinary {
+    pub fn close(reason: Option<CloseReason>, genmask: bool) -> FramedMessage {
         let payload = match reason {
             None => Vec::new(),
             Some(reason) => {
@@ -295,7 +295,7 @@ impl Frame {
     /// Generate binary representation
     pub fn message<B: Into<Binary>>(
         data: B, code: OpCode, finished: bool, genmask: bool,
-    ) -> FramedBinary {
+    ) -> FramedMessage {
         let payload = data.into();
         let one: u8 = if finished {
             0x80 | Into::<u8>::into(code)
@@ -337,7 +337,7 @@ impl Frame {
             buf.into()
         };
 
-        FramedBinary(binary)
+        FramedMessage(binary)
     }
 }
 
@@ -376,7 +376,7 @@ impl fmt::Display for Frame {
 
 /// A `Binary` representing a `WebSocket` message with framing.
 #[derive(Debug)]
-pub struct FramedBinary(pub Binary);
+pub struct FramedMessage(pub Binary);
 
 #[cfg(test)]
 mod tests {

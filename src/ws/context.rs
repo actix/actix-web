@@ -20,7 +20,7 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError, PayloadError};
 use httprequest::HttpRequest;
 
-use ws::frame::{Frame, FramedBinary};
+use ws::frame::{Frame, FramedMessage};
 use ws::proto::{CloseReason, OpCode};
 use ws::{Message, ProtocolError, WsStream, WsWriter};
 
@@ -138,7 +138,7 @@ where
     /// data you should prefer the `text()` or `binary()` convenience functions
     /// that handle the framing for you.
     #[inline]
-    pub fn write_raw(&mut self, data: FramedBinary) {
+    pub fn write_raw(&mut self, data: FramedMessage) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());

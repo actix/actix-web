@@ -27,7 +27,7 @@ use client::{
     Pipeline, SendRequest, SendRequestError,
 };
 
-use super::frame::{Frame, FramedBinary};
+use super::frame::{Frame, FramedMessage};
 use super::proto::{CloseReason, OpCode};
 use super::{Message, ProtocolError, WsWriter};
 
@@ -529,7 +529,7 @@ pub struct ClientWriter {
 impl ClientWriter {
     /// Write payload
     #[inline]
-    fn write(&mut self, mut data: FramedBinary) {
+    fn write(&mut self, mut data: FramedMessage) {
         let inner = self.inner.borrow_mut();
         if !inner.closed {
             let _ = inner.tx.unbounded_send(data.0.take());
