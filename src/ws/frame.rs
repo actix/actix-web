@@ -374,7 +374,7 @@ impl fmt::Display for Frame {
     }
 }
 
-/// A `Binary` representing a `WebSocket` message with framing.
+/// `WebSocket` message with framing.
 #[derive(Debug)]
 pub struct FramedMessage(pub Binary);
 
