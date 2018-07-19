@@ -20,7 +20,7 @@ use context::{ActorHttpContext, Drain, Frame as ContextFrame};
 use error::{Error, ErrorInternalServerError, PayloadError};
 use httprequest::HttpRequest;
 
-use ws::frame::Frame;
+use ws::frame::{Frame, FramedMessage};
 use ws::proto::{CloseReason, OpCode};
 use ws::{Message, ProtocolError, WsStream, WsWriter};
 
@@ -132,14 +132,19 @@ where
     A: Actor<Context = Self>,
 {
     /// Write payload
+    ///
+    /// This is a low-level function that accepts framed messages that should
+    /// be created using `Frame::message()`. If you want to send text or binary
+    /// data you should prefer the `text()` or `binary()` convenience functions
+    /// that handle the framing for you.
     #[inline]
-    fn write(&mut self, data: Binary) {
+    pub fn write_raw(&mut self, data: FramedMessage) {
         if !self.disconnected {
             if self.stream.is_none() {
                 self.stream = Some(SmallVec::new());
             }
             let stream = self.stream.as_mut().unwrap();
-            stream.push(ContextFrame::Chunk(Some(data)));
+            stream.push(ContextFrame::Chunk(Some(data.0)));
         } else {
             warn!("Trying to write to disconnected response");
         }
@@ -167,19 +172,19 @@ where
     /// Send text frame
     #[inline]
     pub fn text<T: Into<Binary>>(&mut self, text: T) {
-        self.write(Frame::message(text.into(), OpCode::Text, true, false));
+        self.write_raw(Frame::message(text.into(), OpCode::Text, true, false));
     }
 
     /// Send binary frame
     #[inline]
     pub fn binary<B: Into<Binary>>(&mut self, data: B) {
-        self.write(Frame::message(data, OpCode::Binary, true, false));
+        self.write_raw(Frame::message(data, OpCode::Binary, true, false));
     }
 
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &str) {
-        self.write(Frame::message(
+        self.write_raw(Frame::message(
             Vec::from(message),
             OpCode::Ping,
             true,
@@ -190,7 +195,7 @@ where
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &str) {
-        self.write(Frame::message(
+        self.write_raw(Frame::message(
             Vec::from(message),
             OpCode::Pong,
             true,
@@ -201,7 +206,7 @@ where
     /// Send close frame
     #[inline]
     pub fn close(&mut self, reason: Option<CloseReason>) {
-        self.write(Frame::close(reason, false));
+        self.write_raw(Frame::close(reason, false));
     }
 
     /// Check if connection still open

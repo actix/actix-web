@@ -28,7 +28,7 @@ impl Frame {
 
     /// Create a new Close control frame.
     #[inline]
-    pub fn close(reason: Option<CloseReason>, genmask: bool) -> Binary {
+    pub fn close(reason: Option<CloseReason>, genmask: bool) -> FramedMessage {
         let payload = match reason {
             None => Vec::new(),
             Some(reason) => {
@@ -295,7 +295,7 @@ impl Frame {
     /// Generate binary representation
     pub fn message<B: Into<Binary>>(
         data: B, code: OpCode, finished: bool, genmask: bool,
-    ) -> Binary {
+    ) -> FramedMessage {
         let payload = data.into();
         let one: u8 = if finished {
             0x80 | Into::<u8>::into(code)
@@ -325,7 +325,7 @@ impl Frame {
             buf
         };
 
-        if genmask {
+        let binary = if genmask {
             let mask = rand::random::<u32>();
             buf.put_u32_le(mask);
             buf.extend_from_slice(payload.as_ref());
@@ -335,7 +335,9 @@ impl Frame {
         } else {
             buf.put_slice(payload.as_ref());
             buf.into()
-        }
+        };
+
+        FramedMessage(binary)
     }
 }
 
@@ -371,6 +373,10 @@ impl fmt::Display for Frame {
         )
     }
 }
+
+/// `WebSocket` message with framing.
+#[derive(Debug)]
+pub struct FramedMessage(pub(crate) Binary);
 
 #[cfg(test)]
 mod tests {
@@ -502,7 +508,7 @@ mod tests {
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
-        assert_eq!(frame, v.into());
+        assert_eq!(frame.0, v.into());
     }
 
     #[test]
@@ -511,7 +517,7 @@ mod tests {
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");
-        assert_eq!(frame, v.into());
+        assert_eq!(frame.0, v.into());
     }
 
     #[test]
@@ -521,12 +527,12 @@ mod tests {
 
         let mut v = vec![136u8, 6u8, 3u8, 232u8];
         v.extend(b"data");
-        assert_eq!(frame, v.into());
+        assert_eq!(frame.0, v.into());
     }
 
     #[test]
     fn test_empty_close_frame() {
         let frame = Frame::close(None, false);
-        assert_eq!(frame, vec![0x88, 0x00].into());
+        assert_eq!(frame.0, vec![0x88, 0x00].into());
     }
 }

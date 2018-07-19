@@ -64,7 +64,7 @@ pub use self::client::{
     Client, ClientError, ClientHandshake, ClientReader, ClientWriter,
 };
 pub use self::context::WebsocketContext;
-pub use self::frame::Frame;
+pub use self::frame::{Frame, FramedMessage};
 pub use self::proto::{CloseCode, CloseReason, OpCode};
 
 /// Websocket protocol errors
