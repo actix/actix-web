@@ -1,19 +1,21 @@
 # Changes
 
-## [0.7.0] - 2018-07-17
+## [0.7.0] - 2018-07-21
 
 ### Added
 
-* Add `fs::StaticFileConfig` to provide means of customizing static file services. It allows to map
-`mime` to `Content-Disposition`, specify whether to use `ETag` and `Last-Modified` and allowed methods.
+* Add `fs::StaticFileConfig` to provide means of customizing static
+  file services. It allows to map `mime` to `Content-Disposition`,
+  specify whether to use `ETag` and `Last-Modified` and allowed methods.
 
-* Add `.has_prefixed_resource()` method to `router::ResourceInfo` for route matching with prefix awareness
+* Add `.has_prefixed_resource()` method to `router::ResourceInfo`
+  for route matching with prefix awareness
 
 * Add `HttpMessage::readlines()` for reading line by line.
 
 * Add `ClientRequestBuilder::form()` for sending `application/x-www-form-urlencoded` requests.
 
-* Add method to configure custom error handler to Form extractor.
+* Add method to configure custom error handler to `Form` extractor.
 
 * Add methods to `HttpResponse` to retrieve, add, and delete cookies
 
@@ -35,16 +37,18 @@
 
 ### Changed
 
+* Min rustc version is 1.26
+
+* Use tokio instead of tokio-core
+
 * `CookieSessionBackend` sets percent encoded cookies for outgoing HTTP messages.
 
-* Became possible to use enums with query extractor. Issue [#371](https://github.com/actix/actix-web/issues/371). [Example](https://github.com/actix/actix-web/blob/master/tests/test_handlers.rs#L94-L134)
-
-* Min rustc version is 1.26
+* Became possible to use enums with query extractor.
+  Issue [#371](https://github.com/actix/actix-web/issues/371).
+  [Example](https://github.com/actix/actix-web/blob/master/tests/test_handlers.rs#L94-L134)
 
 * `HttpResponse::into_builder()` now moves cookies into the builder
   instead of dropping them
-
-* Use tokio instead of tokio-core
 
 * For safety and performance reasons `Handler::handle()` uses `&self` instead of `&mut self`
 
