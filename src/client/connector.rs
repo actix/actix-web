@@ -509,28 +509,30 @@ impl ClientConnector {
         }
     }
 
+    // TODO: waiters should be sorted by deadline. maybe timewheel?
     fn collect_waiters(&mut self) {
         let now = Instant::now();
         let mut next = None;
 
         for waiters in self.waiters.as_mut().unwrap().values_mut() {
-            let mut new_waiters = VecDeque::new();
-            while let Some(waiter) = waiters.pop_front() {
-                if waiter.wait <= now {
+            let mut idx = 0;
+            while idx < waiters.len() {
+                let wait = waiters[idx].wait;
+                if wait <= now {
                     self.stats.timeouts += 1;
+                    let waiter = waiters.swap_remove_back(idx).unwrap();
                     let _ = waiter.tx.send(Err(ClientConnectorError::Timeout));
                 } else {
                     if let Some(n) = next {
-                        if waiter.wait < n {
-                            next = Some(waiter.wait);
+                        if wait < n {
+                            next = Some(wait);
                         }
                     } else {
-                        next = Some(waiter.wait);
+                        next = Some(wait);
                     }
-                    new_waiters.push_back(waiter);
+                    idx += 1;
                 }
             }
-            *waiters = new_waiters;
         }
 
         if next.is_some() {
