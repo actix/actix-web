@@ -1,5 +1,31 @@
 ## 0.7
 
+* `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
+  use `HttpMessage::payload()` method.
+  
+  instead of
+  
+    ```rust
+    fn index(req: HttpRequest) -> impl Responder {
+         req
+            .from_err()
+            .fold(...)
+            ....
+    }
+    ```
+
+  use `.payload()`
+
+    ```rust
+    fn index(req: HttpRequest) -> impl Responder {
+         req
+            .payload()  // <- get request payload stream
+            .from_err()
+            .fold(...)
+            ....
+    }
+    ```
+
 * [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
   trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
