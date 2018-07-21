@@ -408,9 +408,7 @@ pub(crate) trait RouteHandler<S>: 'static {
         false
     }
 
-    fn default_resource(&mut self, _: DefaultResource<S>) {
-        unimplemented!()
-    }
+    fn default_resource(&mut self, _: DefaultResource<S>) {}
 
     fn finish(&mut self) {}
 }

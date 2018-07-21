@@ -610,6 +610,7 @@ impl<S: 'static> Iterator for App<S> {
 mod tests {
     use super::*;
     use body::{Binary, Body};
+    use fs;
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
@@ -631,6 +632,7 @@ mod tests {
         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
 
         let app = App::new()
+            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
         let req = TestRequest::with_uri("/blah").request();

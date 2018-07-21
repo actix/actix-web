@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.1] - 2018-07-21
+
+### Fixed
+
+* Fixed default_resource 'not yet implemented' panic #410
+
+
 ## [0.7.0] - 2018-07-21
 
 ### Added

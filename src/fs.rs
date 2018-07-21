@@ -2,11 +2,11 @@
 use std::fmt::Write;
 use std::fs::{DirEntry, File, Metadata};
 use std::io::{Read, Seek};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cmp, io};
-use std::marker::PhantomData;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -22,13 +22,13 @@ use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use error::{Error, StaticFileError};
 use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
 use header;
+use header::{ContentDisposition, DispositionParam, DispositionType};
 use http::{ContentEncoding, Method, StatusCode};
 use httpmessage::HttpMessage;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 use param::FromParam;
 use server::settings::DEFAULT_CPUPOOL;
-use header::{ContentDisposition, DispositionParam, DispositionType};
 
 ///Describes `StaticFiles` configiration
 ///
@@ -106,7 +106,7 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 /// A file with an associated name.
 #[derive(Debug)]
-pub struct NamedFile<C=DefaultConfig> {
+pub struct NamedFile<C = DefaultConfig> {
     path: PathBuf,
     file: File,
     content_type: mime::Mime,
@@ -188,7 +188,7 @@ impl<C: StaticFileConfig> NamedFile<C> {
             cpu_pool,
             encoding,
             status_code: StatusCode::OK,
-            _cd_map: PhantomData
+            _cd_map: PhantomData,
         })
     }
 
@@ -366,21 +366,22 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
             return Ok(resp.streaming(reader));
         }
 
-        if !C::is_method_allowed(req.method())
-        {
+        if !C::is_method_allowed(req.method()) {
             return Ok(HttpResponse::MethodNotAllowed()
                 .header(header::CONTENT_TYPE, "text/plain")
                 .header(header::ALLOW, "GET, HEAD")
                 .body("This resource only supports GET and HEAD."));
         }
 
-        let etag = match C::is_use_etag() {
-            true => self.etag(),
-            false => None,
+        let etag = if C::is_use_etag() {
+            self.etag()
+        } else {
+            None
         };
-        let last_modified = match C::is_use_last_modifier() {
-            true => self.last_modified(),
-            false => None,
+        let last_modified = if C::is_use_last_modifier() {
+            self.last_modified()
+        } else {
+            None
         };
 
         // check preconditions
@@ -637,7 +638,7 @@ fn directory_listing<S>(
 ///         .finish();
 /// }
 /// ```
-pub struct StaticFiles<S, C=DefaultConfig> {
+pub struct StaticFiles<S, C = DefaultConfig> {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -672,7 +673,9 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory.
     ///
     /// Identical with `new` but allows to specify configiration to use.
-    pub fn with_config<T: Into<PathBuf>>(dir: T, config: C) -> Result<StaticFiles<S, C>, Error> {
+    pub fn with_config<T: Into<PathBuf>>(
+        dir: T, config: C,
+    ) -> Result<StaticFiles<S, C>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
 
@@ -682,7 +685,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory with config and
     /// `CpuPool`.
     pub fn with_config_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool, _: C
+        dir: T, pool: CpuPool, _: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         let dir = dir.into().canonicalize()?;
 
@@ -701,7 +704,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
             renderer: Box::new(directory_listing),
             _chunk_size: 0,
             _follow_symlinks: false,
-            _cd_map: PhantomData
+            _cd_map: PhantomData,
         })
     }
 
@@ -1064,7 +1067,6 @@ mod tests {
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"test.png\""
         );
-
     }
 
     #[test]
@@ -1296,24 +1298,27 @@ mod tests {
         fn is_method_allowed(method: &Method) -> bool {
             match *method {
                 Method::HEAD => true,
-                _ => false
+                _ => false,
             }
         }
     }
 
     #[test]
     fn test_named_file_not_allowed() {
-        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
+        let file =
+            NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
         let req = TestRequest::default().method(Method::POST).finish();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
+        let file =
+            NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
         let req = TestRequest::default().method(Method::PUT).finish();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let file = NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
+        let file =
+            NamedFile::open_with_config("Cargo.toml", OnlyMethodHeadConfig).unwrap();
         let req = TestRequest::default().method(Method::GET).finish();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
