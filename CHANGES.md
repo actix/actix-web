@@ -5,6 +5,7 @@
 ### Fixed
 
 * Fixed default_resource 'not yet implemented' panic #410
+* removed the timestamp from the default logger middleware
 
 
 ## [0.7.0] - 2018-07-21
