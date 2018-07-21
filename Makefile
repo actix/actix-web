@@ -1,6 +1,6 @@
 .PHONY: default build test doc book clean
 
-CARGO_FLAGS := --features "$(FEATURES) alpn"
+CARGO_FLAGS := --features "$(FEATURES) alpn tls"
 
 default: test
 

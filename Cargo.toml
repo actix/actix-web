@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-web/"
+documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::http-client",
