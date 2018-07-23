@@ -358,6 +358,7 @@ struct CookieSessionInner {
     path: String,
     domain: Option<String>,
     secure: bool,
+    http_only: bool,
     max_age: Option<Duration>,
     same_site: Option<SameSite>,
 }
@@ -371,6 +372,7 @@ impl CookieSessionInner {
             path: "/".to_owned(),
             domain: None,
             secure: true,
+            http_only: true,
             max_age: None,
             same_site: None,
         }
@@ -388,7 +390,7 @@ impl CookieSessionInner {
         let mut cookie = Cookie::new(self.name.clone(), value);
         cookie.set_path(self.path.clone());
         cookie.set_secure(self.secure);
-        cookie.set_http_only(true);
+        cookie.set_http_only(self.http_only);
 
         if let Some(ref domain) = self.domain {
             cookie.set_domain(domain.clone());
@@ -529,6 +531,12 @@ impl CookieSessionBackend {
     /// connection is secure - i.e. `https`
     pub fn secure(mut self, value: bool) -> CookieSessionBackend {
         Rc::get_mut(&mut self.0).unwrap().secure = value;
+        self
+    }
+
+    /// Sets the `http_only` field in the session cookie being built.
+    pub fn http_only(mut self, value: bool) -> CookieSessionBackend {
+        Rc::get_mut(&mut self.0).unwrap().http_only = value;
         self
     }
 
