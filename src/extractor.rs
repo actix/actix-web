@@ -460,6 +460,126 @@ impl<S: 'static> FromRequest<S> for String {
     }
 }
 
+/// Optionally extract a field from the request
+///
+/// If the FromRequest for T fails, return None rather than returning an error response
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// extern crate rand;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// use actix_web::error::ErrorBadRequest;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Thing { name: String }
+///
+/// impl<S> FromRequest<S> for Thing {
+///     type Config = ();
+///     type Result = Result<Thing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(Thing { name: "thingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///
+///     }
+/// }
+///
+/// /// extract text data from request
+/// fn index(supplied_thing: Option<Thing>) -> Result<String> {
+///     match supplied_thing {
+///         // Puns not intended
+///         Some(thing) => Ok(format!("Got something: {:?}", thing)),
+///         None => Ok(format!("No thing!"))
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.method(http::Method::POST).with(index)
+///     });
+/// }
+/// ```
+impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S> {
+    type Config = T::Config;
+    type Result = Box<Future<Item = Option<T>, Error = Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        Box::new(T::from_request(req, cfg).into().then( |r| {
+            match r {
+                Ok(v) => future::ok(Some(v)),
+                Err(e) => {
+//                    if true { panic!("{:?}", e.as_response_error()); }
+
+                    future::ok(None)
+                }
+            }
+        }))
+    }
+}
+
+/// Optionally extract a field from the request or extract the Error if unsuccessful
+///
+/// If the FromRequest for T fails, inject Err into handler rather than returning an error response
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// extern crate rand;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// use actix_web::error::ErrorBadRequest;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Thing { name: String }
+///
+/// impl<S> FromRequest<S> for Thing {
+///     type Config = ();
+///     type Result = Result<Thing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(Thing { name: "thingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///
+///     }
+/// }
+///
+/// /// extract text data from request
+/// fn index(supplied_thing: Result<Thing>) -> Result<String> {
+///     match supplied_thing {
+///         Ok(thing) => Ok(format!("Got thing: {:?}", thing)),
+///         Err(e) => Ok(format!("Error extracting thing: {}", e))
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.method(http::Method::POST).with(index)
+///     });
+/// }
+/// ```
+impl<T: 'static, S: 'static> FromRequest<S> for Result<T> where T: FromRequest<S>{
+    type Config = T::Config;
+    type Result = Box<Future<Item = Result<T>, Error = Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        Box::new(T::from_request(req, cfg).into().then( |r| { future::ok(r) }))
+    }
+}
+
 /// Payload configuration for request's payload.
 pub struct PayloadConfig {
     limit: usize,
@@ -686,6 +806,75 @@ mod tests {
     }
 
     #[test]
+    fn test_option() {
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).finish();
+
+        let mut cfg = FormConfig::default();
+        cfg.limit(4096);
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, None),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Some(Form(Info { hello: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .finish();
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, None),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_result() {
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
+
+        match Result::<Form<Info>>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+            Async::Ready(Ok(r)) => assert_eq!(r, Form(Info { hello: "world".into() })),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .finish();
+
+        match Result::<Form<Info>>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+            Async::Ready(r) => assert!(r.is_err()),
+            _ => unreachable!(),
+        }
+    }
+
+
+
+    #[test]
     fn test_payload_config() {
         let req = TestRequest::default().finish();
         let mut cfg = PayloadConfig::default();
@@ -797,4 +986,33 @@ mod tests {
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
     }
+
+//    #[test]
+//    fn test_tuple_optional() {
+//        let mut router = Router::<()>::new();
+//        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
+//
+//        let req = TestRequest::with_uri("/name/?id=test").finish();
+//        let info = router.recognize(&req, &(), 0);
+//        let req = req.with_route_info(info);
+//
+//        let res = match <(Path<(Option<String>, Option<String>)>,)>::extract(&req).wait() {
+//            Ok(res) => res,
+//            e => panic!("error {:?}", e),
+//        };
+//        assert_eq!((res.0).0, Some("name".into()));
+//        assert_eq!((res.0).1, None);
+//
+//        let req = TestRequest::with_uri("/user/?id=test").finish();
+//        let info = router.recognize(&req, &(), 0);
+//        let req = req.with_route_info(info);
+//
+//        let res = match <(Path<(Option<String>, Option<String>)>,)>::extract(&req).wait() {
+//            Ok(res) => res,
+//            _ => panic!("error"),
+//        };
+//        assert_eq!((res.0).0, None);
+//        assert_eq!((res.0).1, Some("user".into()));
+//    }
+
 }
