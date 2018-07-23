@@ -610,7 +610,6 @@ impl<S: 'static> Iterator for App<S> {
 mod tests {
     use super::*;
     use body::{Binary, Body};
-    use fs;
     use http::StatusCode;
     use httprequest::HttpRequest;
     use httpresponse::HttpResponse;
