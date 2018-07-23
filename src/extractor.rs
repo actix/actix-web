@@ -16,7 +16,10 @@ use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
+use Result;
+use futures::future;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
 ///
 /// ## Example
@@ -128,6 +131,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
 ///
 /// ## Example
@@ -215,6 +219,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's body.
 ///
 /// To extract typed information from request's body, the type `T` must
