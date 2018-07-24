@@ -609,6 +609,7 @@ impl ClientConnector {
     }
 
     fn connect_waiter(&mut self, key: &Key, waiter: Waiter, ctx: &mut Context<Self>) {
+        let key = key.clone();
         let conn = AcquiredConn(key.clone(), Some(self.acq_tx.clone()));
 
         let key2 = key.clone();
@@ -635,7 +636,7 @@ impl ClientConnector {
                                 act.connector
                                     .connect_async(&key.host, stream)
                                     .into_actor(act)
-                                    .then(move |res, act, _| {
+                                    .then(move |res, _, _| {
                                         match res {
                                             Err(e) => {
                                                 let _ = waiter.tx.send(Err(
