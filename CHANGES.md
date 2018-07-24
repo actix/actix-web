@@ -6,6 +6,12 @@
 
   * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
 
+  * Allow to handle application prefix, i.e. allow to handle `/app` path
+  for application with `/app` prefix. 
+  Check [`App::prefix()`](https://actix.rs/actix-web/actix_web/struct.App.html#method.prefix)
+  api doc.
+
+
 ### Fixed
 
 * removed the timestamp from the default logger middleware

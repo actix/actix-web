@@ -463,7 +463,7 @@ impl ResourceDef {
     ///
     /// Panics if path pattern is wrong.
     pub fn new(path: &str) -> Self {
-        ResourceDef::with_prefix(path, "/", false)
+        ResourceDef::with_prefix(path, if path.is_empty() { "" } else { "/" }, false)
     }
 
     /// Parse path pattern and create new `Resource` instance.

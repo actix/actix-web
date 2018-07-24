@@ -171,7 +171,9 @@ where
     /// In the following example only requests with an `/app/` path
     /// prefix get handled. Requests with path `/app/test/` would be
     /// handled, while requests with the paths `/application` or
-    /// `/other/...` would return `NOT FOUND`.
+    /// `/other/...` would return `NOT FOUND`. It is also possible to
+    /// handle `/app` path, to do this you can register resource for
+    /// empty string `""`
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -180,6 +182,8 @@ where
     /// fn main() {
     ///     let app = App::new()
     ///         .prefix("/app")
+    ///         .resource("", |r| r.f(|_| HttpResponse::Ok()))  // <- handle `/app` path
+    ///         .resource("/", |r| r.f(|_| HttpResponse::Ok())) // <- handle `/app/` path
     ///         .resource("/test", |r| {
     ///             r.get().f(|_| HttpResponse::Ok());
     ///             r.head().f(|_| HttpResponse::MethodNotAllowed());
@@ -823,6 +827,23 @@ mod tests {
     }
 
     #[test]
+    fn test_option_responder() {
+        let app = App::new()
+            .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
+            .resource("/some", |r| r.f(|_| Some("some")))
+            .finish();
+
+        let req = TestRequest::with_uri("/none").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/some").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
+    }
+
+    #[test]
     fn test_filter() {
         let mut srv = TestServer::with_factory(|| {
             App::new()
@@ -840,19 +861,21 @@ mod tests {
     }
 
     #[test]
-    fn test_option_responder() {
-        let app = App::new()
-            .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
-            .resource("/some", |r| r.f(|_| Some("some")))
-            .finish();
+    fn test_prefix_root() {
+        let mut srv = TestServer::with_factory(|| {
+            App::new()
+                .prefix("/test")
+                .resource("/", |r| r.f(|_| HttpResponse::Ok()))
+                .resource("", |r| r.f(|_| HttpResponse::Created()))
+        });
 
-        let req = TestRequest::with_uri("/none").request();
-        let resp = app.run(req);
-        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+        let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/some").request();
-        let resp = app.run(req);
-        assert_eq!(resp.as_msg().status(), StatusCode::OK);
-        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
+
 }
