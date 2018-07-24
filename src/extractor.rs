@@ -6,7 +6,7 @@ use std::{fmt, str};
 use bytes::Bytes;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, future};
 use mime::Mime;
 use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
@@ -17,6 +17,7 @@ use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
 ///
 /// ## Example
@@ -128,6 +129,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
 ///
 /// ## Example
@@ -215,6 +217,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's body.
 ///
 /// To extract typed information from request's body, the type `T` must
@@ -455,6 +458,124 @@ impl<S: 'static> FromRequest<S> for String {
     }
 }
 
+/// Optionally extract a field from the request
+///
+/// If the FromRequest for T fails, return None rather than returning an error response
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// extern crate rand;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// use actix_web::error::ErrorBadRequest;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Thing { name: String }
+///
+/// impl<S> FromRequest<S> for Thing {
+///     type Config = ();
+///     type Result = Result<Thing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(Thing { name: "thingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///
+///     }
+/// }
+///
+/// /// extract text data from request
+/// fn index(supplied_thing: Option<Thing>) -> Result<String> {
+///     match supplied_thing {
+///         // Puns not intended
+///         Some(thing) => Ok(format!("Got something: {:?}", thing)),
+///         None => Ok(format!("No thing!"))
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.method(http::Method::POST).with(index)
+///     });
+/// }
+/// ```
+impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S> {
+    type Config = T::Config;
+    type Result = Box<Future<Item = Option<T>, Error = Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        Box::new(T::from_request(req, cfg).into().then( |r| {
+            match r {
+                Ok(v) => future::ok(Some(v)),
+                Err(e) => {
+                    future::ok(None)
+                }
+            }
+        }))
+    }
+}
+
+/// Optionally extract a field from the request or extract the Error if unsuccessful
+///
+/// If the FromRequest for T fails, inject Err into handler rather than returning an error response
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// extern crate rand;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// use actix_web::error::ErrorBadRequest;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Thing { name: String }
+///
+/// impl<S> FromRequest<S> for Thing {
+///     type Config = ();
+///     type Result = Result<Thing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(Thing { name: "thingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///
+///     }
+/// }
+///
+/// /// extract text data from request
+/// fn index(supplied_thing: Result<Thing>) -> Result<String> {
+///     match supplied_thing {
+///         Ok(thing) => Ok(format!("Got thing: {:?}", thing)),
+///         Err(e) => Ok(format!("Error extracting thing: {}", e))
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.method(http::Method::POST).with(index)
+///     });
+/// }
+/// ```
+impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error> where T: FromRequest<S>{
+    type Config = T::Config;
+    type Result = Box<Future<Item = Result<T, Error>, Error = Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        Box::new(T::from_request(req, cfg).into().then( |r| { future::ok(r) }))
+    }
+}
+
 /// Payload configuration for request's payload.
 pub struct PayloadConfig {
     limit: usize,
@@ -679,6 +800,75 @@ mod tests {
             _ => unreachable!(),
         }
     }
+
+    #[test]
+    fn test_option() {
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).finish();
+
+        let mut cfg = FormConfig::default();
+        cfg.limit(4096);
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, None),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Some(Form(Info { hello: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .finish();
+
+        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, None),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_result() {
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish();
+
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+            Async::Ready(Ok(r)) => assert_eq!(r, Form(Info { hello: "world".into() })),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        ).header(header::CONTENT_LENGTH, "9")
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .finish();
+
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+            Async::Ready(r) => assert!(r.is_err()),
+            _ => unreachable!(),
+        }
+    }
+
+
 
     #[test]
     fn test_payload_config() {
