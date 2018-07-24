@@ -599,7 +599,7 @@ impl ClientConnector {
                     }
                     Acquire::Available => {
                         // create new connection
-                        self.connect_waiter(key.clone(), waiter, ctx);
+                        self.connect_waiter(&key, waiter, ctx);
                     }
                 }
             }
@@ -608,7 +608,7 @@ impl ClientConnector {
         self.waiters = Some(act_waiters);
     }
 
-    fn connect_waiter(&mut self, key: Key, waiter: Waiter, ctx: &mut Context<Self>) {
+    fn connect_waiter(&mut self, key: &Key, waiter: Waiter, ctx: &mut Context<Self>) {
         let conn = AcquiredConn(key.clone(), Some(self.acq_tx.clone()));
 
         let key2 = key.clone();
@@ -828,7 +828,7 @@ impl Handler<Connect> for ClientConnector {
                 wait,
                 conn_timeout,
             };
-            self.connect_waiter(key.clone(), waiter, ctx);
+            self.connect_waiter(&key, waiter, ctx);
 
             return ActorResponse::async(
                 rx.map_err(|_| ClientConnectorError::Disconnected)
@@ -885,7 +885,7 @@ impl Handler<Connect> for ClientConnector {
                     wait,
                     conn_timeout,
                 };
-                self.connect_waiter(key.clone(), waiter, ctx);
+                self.connect_waiter(&key, waiter, ctx);
 
                 ActorResponse::async(
                     rx.map_err(|_| ClientConnectorError::Disconnected)

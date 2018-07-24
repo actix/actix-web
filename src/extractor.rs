@@ -6,7 +6,7 @@ use std::{fmt, str};
 use bytes::Bytes;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
-use futures::{Async, Future, Poll, future};
+use futures::{future, Async, Future, Poll};
 use mime::Mime;
 use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
@@ -504,19 +504,18 @@ impl<S: 'static> FromRequest<S> for String {
 ///     });
 /// }
 /// ```
-impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S> {
+impl<T: 'static, S: 'static> FromRequest<S> for Option<T>
+where
+    T: FromRequest<S>,
+{
     type Config = T::Config;
     type Result = Box<Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(T::from_request(req, cfg).into().then( |r| {
-            match r {
-                Ok(v) => future::ok(Some(v)),
-                Err(e) => {
-                    future::ok(None)
-                }
-            }
+        Box::new(T::from_request(req, cfg).into().then(|r| match r {
+            Ok(v) => future::ok(Some(v)),
+            Err(_) => future::ok(None),
         }))
     }
 }
@@ -566,13 +565,16 @@ impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S
 ///     });
 /// }
 /// ```
-impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error> where T: FromRequest<S>{
+impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error>
+where
+    T: FromRequest<S>,
+{
     type Config = T::Config;
     type Result = Box<Future<Item = Result<T, Error>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(T::from_request(req, cfg).into().then( |r| { future::ok(r) }))
+        Box::new(T::from_request(req, cfg).into().then(future::ok))
     }
 }
 
@@ -811,7 +813,10 @@ mod tests {
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert_eq!(r, None),
             _ => unreachable!(),
         }
@@ -823,8 +828,16 @@ mod tests {
             .set_payload(Bytes::from_static(b"hello=world"))
             .finish();
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
-            Async::Ready(r) => assert_eq!(r, Some(Form(Info { hello: "world".into() }))),
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
+            Async::Ready(r) => assert_eq!(
+                r,
+                Some(Form(Info {
+                    hello: "world".into()
+                }))
+            ),
             _ => unreachable!(),
         }
 
@@ -835,7 +848,10 @@ mod tests {
             .set_payload(Bytes::from_static(b"bye=world"))
             .finish();
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert_eq!(r, None),
             _ => unreachable!(),
         }
@@ -850,8 +866,16 @@ mod tests {
             .set_payload(Bytes::from_static(b"hello=world"))
             .finish();
 
-        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
-            Async::Ready(Ok(r)) => assert_eq!(r, Form(Info { hello: "world".into() })),
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
+            .poll()
+            .unwrap()
+        {
+            Async::Ready(Ok(r)) => assert_eq!(
+                r,
+                Form(Info {
+                    hello: "world".into()
+                })
+            ),
             _ => unreachable!(),
         }
 
@@ -862,13 +886,14 @@ mod tests {
             .set_payload(Bytes::from_static(b"bye=world"))
             .finish();
 
-        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert!(r.is_err()),
             _ => unreachable!(),
         }
     }
-
-
 
     #[test]
     fn test_payload_config() {

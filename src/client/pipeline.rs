@@ -216,7 +216,7 @@ impl Future for SendRequest {
 
                     match pl.parse() {
                         Ok(Async::Ready(mut resp)) => {
-                            if self.req.method() == &Method::HEAD {
+                            if self.req.method() == Method::HEAD {
                                 pl.parser.take();
                             }
                             resp.set_pipeline(pl);
