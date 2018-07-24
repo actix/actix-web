@@ -6,7 +6,7 @@ use std::{fmt, str};
 use bytes::Bytes;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, future};
 use mime::Mime;
 use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
@@ -16,8 +16,6 @@ use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
-use Result;
-use futures::future;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
@@ -516,8 +514,6 @@ impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S
             match r {
                 Ok(v) => future::ok(Some(v)),
                 Err(e) => {
-//                    if true { panic!("{:?}", e.as_response_error()); }
-
                     future::ok(None)
                 }
             }
@@ -570,9 +566,9 @@ impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S
 ///     });
 /// }
 /// ```
-impl<T: 'static, S: 'static> FromRequest<S> for Result<T> where T: FromRequest<S>{
+impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error> where T: FromRequest<S>{
     type Config = T::Config;
-    type Result = Box<Future<Item = Result<T>, Error = Error>>;
+    type Result = Box<Future<Item = Result<T, Error>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
@@ -854,7 +850,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"hello=world"))
             .finish();
 
-        match Result::<Form<Info>>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
             Async::Ready(Ok(r)) => assert_eq!(r, Form(Info { hello: "world".into() })),
             _ => unreachable!(),
         }
@@ -866,7 +862,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"bye=world"))
             .finish();
 
-        match Result::<Form<Info>>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
             Async::Ready(r) => assert!(r.is_err()),
             _ => unreachable!(),
         }
@@ -986,33 +982,4 @@ mod tests {
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
     }
-
-//    #[test]
-//    fn test_tuple_optional() {
-//        let mut router = Router::<()>::new();
-//        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
-//
-//        let req = TestRequest::with_uri("/name/?id=test").finish();
-//        let info = router.recognize(&req, &(), 0);
-//        let req = req.with_route_info(info);
-//
-//        let res = match <(Path<(Option<String>, Option<String>)>,)>::extract(&req).wait() {
-//            Ok(res) => res,
-//            e => panic!("error {:?}", e),
-//        };
-//        assert_eq!((res.0).0, Some("name".into()));
-//        assert_eq!((res.0).1, None);
-//
-//        let req = TestRequest::with_uri("/user/?id=test").finish();
-//        let info = router.recognize(&req, &(), 0);
-//        let req = req.with_route_info(info);
-//
-//        let res = match <(Path<(Option<String>, Option<String>)>,)>::extract(&req).wait() {
-//            Ok(res) => res,
-//            _ => panic!("error"),
-//        };
-//        assert_eq!((res.0).0, None);
-//        assert_eq!((res.0).1, Some("user".into()));
-//    }
-
 }
