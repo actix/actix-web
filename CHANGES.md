@@ -2,6 +2,10 @@
 
 ## [0.7.1] - 2018-07-21
 
+### Added
+
+  * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
+
 ### Fixed
 
 * Fixed default_resource 'not yet implemented' panic #410
