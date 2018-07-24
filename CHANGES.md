@@ -2,11 +2,16 @@
 
 ## [0.7.1] - 2018-07-21
 
+### Added
+
+  * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
+
 ### Fixed
 
 * Fixed default_resource 'not yet implemented' panic #410
 * removed the timestamp from the default logger middleware
 
+* Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
 
 ## [0.7.0] - 2018-07-21
 
