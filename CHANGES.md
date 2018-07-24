@@ -1,6 +1,6 @@
 # Changes
 
-## [0.7.1] - 2018-07-21
+## [0.7.2] - 2018-07-xx
 
 ### Added
 
@@ -8,10 +8,17 @@
 
 ### Fixed
 
-* Fixed default_resource 'not yet implemented' panic #410
 * removed the timestamp from the default logger middleware
 
 * Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
+
+
+## [0.7.1] - 2018-07-21
+
+### Fixed
+
+* Fixed default_resource 'not yet implemented' panic #410
+
 
 ## [0.7.0] - 2018-07-21
 
