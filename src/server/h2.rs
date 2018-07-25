@@ -155,7 +155,9 @@ where
                         }
                     }
 
-                    if !item.flags.contains(EntryFlags::WRITE_DONE) {
+                    if item.flags.contains(EntryFlags::FINISHED)
+                        && !item.flags.contains(EntryFlags::WRITE_DONE)
+                    {
                         match item.stream.poll_completed(false) {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {

@@ -23,6 +23,8 @@
 
 * Missing response header "content-encoding" #421
 
+* Fix stream draining for http/2 connections #290
+
 
 ## [0.7.1] - 2018-07-21
 

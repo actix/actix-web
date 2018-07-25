@@ -245,14 +245,18 @@ impl<H: 'static> Writer for H2Writer<H> {
                             let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
+                            if eof {
+                                stream.reserve_capacity(0);
+                                continue;
+                            }
                             self.flags.remove(Flags::RESERVED);
-                            return Ok(Async::NotReady);
+                            return Ok(Async::Ready(()));
                         }
                     }
                     Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
                 }
             }
         }
-        Ok(Async::NotReady)
+        Ok(Async::Ready(()))
     }
 }

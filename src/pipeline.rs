@@ -409,7 +409,7 @@ struct ProcessResponse<S, H> {
     _h: PhantomData<H>,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum RunningState {
     Running,
     Paused,
