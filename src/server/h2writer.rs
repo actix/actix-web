@@ -8,16 +8,18 @@ use modhttp::Response;
 use std::rc::Rc;
 use std::{cmp, io};
 
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{HttpTryFrom, Method, Version};
 
 use super::helpers;
 use super::message::Request;
-use super::output::{Output, ResponseInfo};
+use super::output::{Output, ResponseInfo, ResponseLength};
 use super::settings::WorkerSettings;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
+use http::header::{
+    HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+};
 use httpresponse::HttpResponse;
 
 const CHUNK_SIZE: usize = 16_384;
@@ -92,48 +94,61 @@ impl<H: 'static> Writer for H2Writer<H> {
         let mut info = ResponseInfo::new(req.inner.method == Method::HEAD);
         self.buffer.for_server(&mut info, &req.inner, msg, encoding);
 
-        // http2 specific
-        msg.headers_mut().remove(CONNECTION);
-        msg.headers_mut().remove(TRANSFER_ENCODING);
-
-        // using helpers::date is quite a lot faster
-        if !msg.headers().contains_key(DATE) {
-            let mut bytes = BytesMut::with_capacity(29);
-            self.settings.set_date(&mut bytes, false);
-            msg.headers_mut()
-                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
-        }
-
-        let body = msg.replace_body(Body::Empty);
-        match body {
-            Body::Binary(ref bytes) => {
-                if bytes.is_empty() {
-                    msg.headers_mut()
-                        .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-                    self.flags.insert(Flags::EOF);
-                } else {
-                    let mut val = BytesMut::new();
-                    helpers::convert_usize(bytes.len(), &mut val);
-                    let l = val.len();
-                    msg.headers_mut().insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
-                    );
-                }
-            }
-            Body::Empty => {
-                self.flags.insert(Flags::EOF);
-                msg.headers_mut()
-                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-            }
-            _ => (),
-        }
-
+        let mut has_date = false;
         let mut resp = Response::new(());
         *resp.status_mut() = msg.status();
         *resp.version_mut() = Version::HTTP_2;
         for (key, value) in msg.headers().iter() {
+            match *key {
+                // http2 specific
+                CONNECTION | TRANSFER_ENCODING => continue,
+                CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
+                    continue;
+                },
+                CONTENT_LENGTH => match info.length {
+                    ResponseLength::None => (),
+                    _ => continue,
+                },
+                DATE => has_date = true,
+                _ => (),
+            }
             resp.headers_mut().insert(key, value.clone());
+        }
+
+        // set date header
+        if !has_date {
+            let mut bytes = BytesMut::with_capacity(29);
+            self.settings.set_date(&mut bytes, false);
+            resp.headers_mut()
+                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+        }
+
+        // content length
+        match info.length {
+            ResponseLength::Zero => {
+                resp.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                self.flags.insert(Flags::EOF);
+            }
+            ResponseLength::Length(len) => {
+                let mut val = BytesMut::new();
+                helpers::convert_usize(len, &mut val);
+                let l = val.len();
+                resp.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
+                );
+            }
+            ResponseLength::Length64(len) => {
+                let l = format!("{}", len);
+                resp.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::try_from(l.as_str()).unwrap());
+            }
+            _ => (),
+        }
+        if let Some(ce) = info.content_encoding {
+            resp.headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::try_from(ce).unwrap());
         }
 
         match self
@@ -146,6 +161,7 @@ impl<H: 'static> Writer for H2Writer<H> {
 
         trace!("Response: {:?}", msg);
 
+        let body = msg.replace_body(Body::Empty);
         if let Body::Binary(bytes) = body {
             if bytes.is_empty() {
                 Ok(WriterState::Done)

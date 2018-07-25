@@ -4,19 +4,24 @@
 
 ### Added
 
-  * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
+* Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
 
-  * Allow to handle application prefix, i.e. allow to handle `/app` path
+* Allow to handle application prefix, i.e. allow to handle `/app` path
   for application with `/app` prefix. 
   Check [`App::prefix()`](https://actix.rs/actix-web/actix_web/struct.App.html#method.prefix)
   api doc.
 
+* Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
+
+### Changed
+
+* Upgrade to cookie 0.11
+
+* Removed the timestamp from the default logger middleware
 
 ### Fixed
 
-* removed the timestamp from the default logger middleware
-
-* Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
+* Missing response header "content-encoding" #421
 
 
 ## [0.7.1] - 2018-07-21
