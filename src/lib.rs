@@ -70,9 +70,9 @@
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler
-//! * `flate-c` - enables `gzip`, `deflate` compression support, requires
+//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
 //!   `c` compiler
-//! * `flate-rust` - experimental rust based implementation for
+//! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
 //!
 #![cfg_attr(actix_nightly, feature(
