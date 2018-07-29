@@ -15,6 +15,10 @@ use tokio::runtime::current_thread::Runtime;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptorBuilder;
+#[cfg(feature = "rust-tls")]
+use rustls::ServerConfig;
+#[cfg(feature = "rust-tls")]
+use std::sync::Arc;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -140,7 +144,19 @@ impl TestServer {
             builder.set_verify(SslVerifyMode::NONE);
             ClientConnector::with_connector(builder.build()).start()
         }
-        #[cfg(not(feature = "alpn"))]
+        #[cfg(feature = "rust-tls")]
+        {
+            use rustls::ClientConfig;
+            use std::io::BufReader;
+            use std::fs::File;
+            let mut config = ClientConfig::new();
+            let pem_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+            config
+                .root_store
+                .add_pem_file(pem_file).unwrap();
+            ClientConnector::with_connector(Arc::new(config)).start()
+        }
+        #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
         {
             ClientConnector::default().start()
         }
@@ -165,16 +181,16 @@ impl TestServer {
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
             format!(
-                "{}://{}{}",
+                "{}://localhost:{}{}",
                 if self.ssl { "https" } else { "http" },
-                self.addr,
+                self.addr.port(),
                 uri
             )
         } else {
             format!(
-                "{}://{}/{}",
+                "{}://localhost:{}/{}",
                 if self.ssl { "https" } else { "http" },
-                self.addr,
+                self.addr.port(),
                 uri
             )
         }
@@ -241,6 +257,8 @@ pub struct TestServerBuilder<S> {
     state: Box<Fn() -> S + Sync + Send + 'static>,
     #[cfg(feature = "alpn")]
     ssl: Option<SslAcceptorBuilder>,
+    #[cfg(feature = "rust-tls")]
+    ssl: Option<Arc<ServerConfig>>,
 }
 
 impl<S: 'static> TestServerBuilder<S> {
@@ -251,7 +269,7 @@ impl<S: 'static> TestServerBuilder<S> {
     {
         TestServerBuilder {
             state: Box::new(state),
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "rust-tls"))]
             ssl: None,
         }
     }
@@ -259,6 +277,13 @@ impl<S: 'static> TestServerBuilder<S> {
     #[cfg(feature = "alpn")]
     /// Create ssl server
     pub fn ssl(mut self, ssl: SslAcceptorBuilder) -> Self {
+        self.ssl = Some(ssl);
+        self
+    }
+
+    #[cfg(feature = "rust-tls")]
+    /// Create ssl server
+    pub fn ssl(mut self, ssl: Arc<ServerConfig>) -> Self {
         self.ssl = Some(ssl);
         self
     }
@@ -271,9 +296,9 @@ impl<S: 'static> TestServerBuilder<S> {
     {
         let (tx, rx) = mpsc::channel();
 
-        #[cfg(feature = "alpn")]
+        #[cfg(any(feature = "alpn", feature = "rust-tls"))]
         let ssl = self.ssl.is_some();
-        #[cfg(not(feature = "alpn"))]
+        #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
         let ssl = false;
 
         // run server in separate thread
@@ -293,7 +318,7 @@ impl<S: 'static> TestServerBuilder<S> {
             tx.send((System::current(), local_addr, TestServer::get_conn()))
                 .unwrap();
 
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "rust-tls"))]
             {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
@@ -302,7 +327,7 @@ impl<S: 'static> TestServerBuilder<S> {
                     srv.listen(tcp).start();
                 }
             }
-            #[cfg(not(feature = "alpn"))]
+            #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
             {
                 srv.listen(tcp).start();
             }

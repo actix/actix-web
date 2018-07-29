@@ -151,6 +151,15 @@ extern crate openssl;
 #[cfg(feature = "openssl")]
 extern crate tokio_openssl;
 
+#[cfg(feature = "rust-tls")]
+extern crate rustls;
+#[cfg(feature = "rust-tls")]
+extern crate tokio_rustls;
+#[cfg(feature = "rust-tls")]
+extern crate webpki;
+#[cfg(feature = "rust-tls")]
+extern crate webpki_roots;
+
 mod application;
 mod body;
 mod context;
@@ -223,6 +232,11 @@ pub(crate) const HAS_OPENSSL: bool = false;
 pub(crate) const HAS_TLS: bool = true;
 #[cfg(not(feature = "tls"))]
 pub(crate) const HAS_TLS: bool = false;
+
+#[cfg(feature = "rust-tls")]
+pub(crate) const HAS_RUSTLS: bool = true;
+#[cfg(not(feature = "rust-tls"))]
+pub(crate) const HAS_RUSTLS: bool = false;
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
