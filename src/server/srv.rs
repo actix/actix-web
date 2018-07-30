@@ -22,6 +22,9 @@ use native_tls::TlsAcceptor;
 #[cfg(feature = "alpn")]
 use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 
+#[cfg(feature = "rust-tls")]
+use rustls::ServerConfig;
+
 use super::channel::{HttpChannel, WrapperStream};
 use super::settings::{ServerSettings, WorkerSettings};
 use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
@@ -39,6 +42,14 @@ fn configure_alpn(builder: &mut SslAcceptorBuilder) -> io::Result<()> {
             Err(AlpnError::NOACK)
         }
     });
+    Ok(())
+}
+
+#[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+fn configure_alpn(builder: &mut Arc<ServerConfig>) -> io::Result<()> {
+    Arc::<ServerConfig>::get_mut(builder)
+        .unwrap()
+        .set_protocols(&vec!["h2".to_string(), "http/1.1".to_string()]);
     Ok(())
 }
 
@@ -265,6 +276,26 @@ where
         Ok(self)
     }
 
+    #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn listen_ssl(
+        mut self, lst: net::TcpListener, mut builder: Arc<ServerConfig>,
+    ) -> io::Result<Self> {
+        // alpn support
+        if !self.no_http2 {
+            configure_alpn(&mut builder)?;
+        }
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            lst,
+            tp: StreamHandlerType::Rustls(builder.clone()),
+        });
+        Ok(self)
+    }
+
     fn bind2<S: net::ToSocketAddrs>(&mut self, addr: S) -> io::Result<Vec<Socket>> {
         let mut err = None;
         let mut succ = false;
@@ -338,6 +369,26 @@ where
         let sockets = self.bind2(addr)?;
         self.sockets.extend(sockets.into_iter().map(|mut s| {
             s.tp = StreamHandlerType::Alpn(acceptor.clone());
+            s
+        }));
+        Ok(self)
+    }
+
+    #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+    /// Start listening for incoming tls connections.
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn bind_ssl<S: net::ToSocketAddrs>(
+        mut self, addr: S, mut builder: Arc<ServerConfig>,
+    ) -> io::Result<Self> {
+        // alpn support
+        if !self.no_http2 {
+            configure_alpn(&mut builder)?;
+        }
+
+        let sockets = self.bind2(addr)?;
+        self.sockets.extend(sockets.into_iter().map(|mut s| {
+            s.tp = StreamHandlerType::Rustls(builder.clone());
             s
         }));
         Ok(self)

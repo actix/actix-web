@@ -12,6 +12,8 @@ use rand::Rng;
 
 #[cfg(feature = "alpn")]
 extern crate openssl;
+#[cfg(feature = "rust-tls")]
+extern crate rustls;
 
 use actix::prelude::*;
 use actix_web::*;
@@ -263,6 +265,46 @@ fn test_ws_server_ssl() {
             )
         })
     });
+    let (mut reader, _writer) = srv.ws().unwrap();
+
+    let data = Some(ws::Message::Text("0".repeat(65_536)));
+    for _ in 0..10_000 {
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, data);
+    }
+}
+
+#[test]
+#[cfg(feature = "rust-tls")]
+fn test_ws_server_ssl() {
+    extern crate rustls;
+    use rustls::{ServerConfig, NoClientAuth};
+    use rustls::internal::pemfile::{certs, rsa_private_keys};
+    use std::io::BufReader;
+    use std::sync::Arc;
+    use std::fs::File;
+
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = rsa_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    let mut srv = test::TestServer::build().ssl(Arc::new(config)).start(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: false,
+                },
+            )
+        })
+    });
+
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));

@@ -17,7 +17,7 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
 [package.metadata.docs.rs]
-features = ["tls", "alpn", "session", "brotli", "flate2-c"]
+features = ["tls", "alpn", "rust-tls", "session", "brotli", "flate2-c"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -36,6 +36,9 @@ tls = ["native-tls", "tokio-tls"]
 
 # openssl
 alpn = ["openssl", "tokio-openssl"]
+
+# rustls
+rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 
 # sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
@@ -103,6 +106,12 @@ tokio-tls = { version="0.1", optional = true }
 # openssl
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.2", optional = true }
+
+#rustls
+rustls = { version = "0.13", optional = true }
+tokio-rustls = { version = "0.7", optional = true }
+webpki = { version = "0.18", optional = true }
+webpki-roots = { version = "0.15", optional = true }
 
 # forked url_encoded
 itoa = "0.4"

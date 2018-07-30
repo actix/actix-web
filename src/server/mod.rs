@@ -310,3 +310,46 @@ impl IoStream for TlsStream<TcpStream> {
         self.get_mut().get_mut().set_linger(dur)
     }
 }
+
+#[cfg(feature = "rust-tls")]
+use rustls::{ClientSession, ServerSession};
+#[cfg(feature = "rust-tls")]
+use tokio_rustls::TlsStream;
+
+#[cfg(feature = "rust-tls")]
+impl IoStream for TlsStream<TcpStream, ClientSession> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = <Self as AsyncWrite>::shutdown(self);
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().0.set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().0.set_linger(dur)
+    }
+}
+
+#[cfg(feature = "rust-tls")]
+impl IoStream for TlsStream<TcpStream, ServerSession> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = <Self as AsyncWrite>::shutdown(self);
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().0.set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().0.set_linger(dur)
+    }
+}
