@@ -7,6 +7,7 @@ use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
+pub(crate) mod accept;
 mod channel;
 mod error;
 pub(crate) mod h1;
