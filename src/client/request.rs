@@ -316,8 +316,7 @@ impl ClientRequestBuilder {
     /// Set HTTP method of this request.
     #[inline]
     pub fn get_method(&mut self) -> &Method {
-        let parts =
-            parts(&mut self.request, &self.err).expect("cannot reuse request builder");
+        let parts = self.request.as_ref().expect("cannot reuse request builder");
         &parts.method
     }
 
