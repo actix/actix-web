@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.3] - 2018-07-xx
+
+### Added
+
+* Support HTTP/2 with rustls #36
+
+
 ## [0.7.2] - 2018-07-26
 
 ### Added
