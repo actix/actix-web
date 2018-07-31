@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_request_match_info() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/")));
 
         let req = TestRequest::with_uri("/value/?id=test").finish();
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_url_for() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         let mut resource = Resource::new(ResourceDef::new("/user/{name}.{ext}"));
         resource.name("index");
         router.register_resource(resource);
@@ -464,7 +464,8 @@ mod tests {
     fn test_url_for_with_prefix() {
         let mut resource = Resource::new(ResourceDef::new("/user/{name}.html"));
         resource.name("index");
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
+        router.set_prefix("/prefix");
         router.register_resource(resource);
 
         let mut info = router.default_route_info();
@@ -490,7 +491,8 @@ mod tests {
     fn test_url_for_static() {
         let mut resource = Resource::new(ResourceDef::new("/index.html"));
         resource.name("index");
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
+        router.set_prefix("/prefix");
         router.register_resource(resource);
 
         let mut info = router.default_route_info();
@@ -513,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_url_for_external() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_external(
             "youtube",
             ResourceDef::external("https://youtube.com/watch/{video_id}"),

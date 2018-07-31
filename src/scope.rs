@@ -58,11 +58,11 @@ pub struct Scope<S> {
 #[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 impl<S: 'static> Scope<S> {
     /// Create a new scope
-    // TODO: Why is this not exactly the default impl?
     pub fn new(path: &str) -> Scope<S> {
+        let rdef = ResourceDef::prefix(path);
         Scope {
-            rdef: ResourceDef::prefix(path),
-            router: Rc::new(Router::new()),
+            rdef: rdef.clone(),
+            router: Rc::new(Router::new(rdef)),
             filters: Vec::new(),
             middlewares: Rc::new(Vec::new()),
         }
@@ -132,10 +132,11 @@ impl<S: 'static> Scope<S> {
     where
         F: FnOnce(Scope<T>) -> Scope<T>,
     {
+        let rdef = ResourceDef::prefix(path);
         let scope = Scope {
-            rdef: ResourceDef::prefix(path),
+            rdef: rdef.clone(),
             filters: Vec::new(),
-            router: Rc::new(Router::new()),
+            router: Rc::new(Router::new(rdef)),
             middlewares: Rc::new(Vec::new()),
         };
         let mut scope = f(scope);
@@ -178,10 +179,11 @@ impl<S: 'static> Scope<S> {
     where
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
+        let rdef = ResourceDef::prefix(&path);
         let scope = Scope {
-            rdef: ResourceDef::prefix(&path),
+            rdef: rdef.clone(),
             filters: Vec::new(),
-            router: Rc::new(Router::new()),
+            router: Rc::new(Router::new(rdef)),
             middlewares: Rc::new(Vec::new()),
         };
         Rc::get_mut(&mut self.router)
@@ -258,12 +260,7 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource
-        let pattern = ResourceDef::with_prefix(
-            path,
-            if path.is_empty() { "" } else { "/" },
-            false,
-        );
-        let mut resource = Resource::new(pattern);
+        let mut resource = Resource::new(ResourceDef::new(path));
         f(&mut resource);
 
         Rc::get_mut(&mut self.router)

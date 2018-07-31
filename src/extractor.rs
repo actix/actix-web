@@ -934,7 +934,7 @@ mod tests {
     fn test_request_extract() {
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
@@ -950,7 +950,7 @@ mod tests {
         let s = Query::<Id>::from_request(&req, &()).unwrap();
         assert_eq!(s.id, "test");
 
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
         let req = TestRequest::with_uri("/name/32/").finish();
         let info = router.recognize(&req, &(), 0);
@@ -971,7 +971,7 @@ mod tests {
 
     #[test]
     fn test_extract_path_single() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
 
         let req = TestRequest::with_uri("/32/").finish();
@@ -982,7 +982,7 @@ mod tests {
 
     #[test]
     fn test_tuple_extract() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
 
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();

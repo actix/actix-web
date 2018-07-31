@@ -12,6 +12,8 @@
 
 * Gz streaming, use `flate2::write::GzDecoder` #228
 
+* HttpRequest::url_for is not working with scopes #429
+
 
 ## [0.7.2] - 2018-07-26
 

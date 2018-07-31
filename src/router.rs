@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -111,9 +112,14 @@ impl ResourceInfo {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(pattern) = self.rmap.named.get(name) {
-            let path =
-                pattern.resource_path(elements, &req.path()[..(self.prefix as usize)])?;
+        let mut path = String::new();
+        let mut elements = elements.into_iter();
+
+        if self
+            .rmap
+            .patterns_for(name, &mut path, &mut elements)?
+            .is_some()
+        {
             if path.starts_with('/') {
                 let conn = req.connection_info();
                 Ok(Url::parse(&format!(
@@ -160,12 +166,15 @@ impl ResourceInfo {
 }
 
 pub(crate) struct ResourceMap {
+    root: ResourceDef,
+    parent: RefCell<Option<Rc<ResourceMap>>>,
     named: HashMap<String, ResourceDef>,
     patterns: Vec<(ResourceDef, Option<Rc<ResourceMap>>)>,
+    nested: Vec<Rc<ResourceMap>>,
 }
 
 impl ResourceMap {
-    pub fn has_resource(&self, path: &str) -> bool {
+    fn has_resource(&self, path: &str) -> bool {
         let path = if path.is_empty() { "/" } else { path };
 
         for (pattern, rmap) in &self.patterns {
@@ -179,20 +188,91 @@ impl ResourceMap {
         }
         false
     }
+
+    fn patterns_for<U, I>(
+        &self, name: &str, path: &mut String, elements: &mut U,
+    ) -> Result<Option<()>, UrlGenerationError>
+    where
+        U: Iterator<Item = I>,
+        I: AsRef<str>,
+    {
+        if self.pattern_for(name, path, elements)?.is_some() {
+            Ok(Some(()))
+        } else {
+            self.parent_pattern_for(name, path, elements)
+        }
+    }
+
+    fn pattern_for<U, I>(
+        &self, name: &str, path: &mut String, elements: &mut U,
+    ) -> Result<Option<()>, UrlGenerationError>
+    where
+        U: Iterator<Item = I>,
+        I: AsRef<str>,
+    {
+        if let Some(pattern) = self.named.get(name) {
+            self.fill_root(path, elements)?;
+            pattern.resource_path(path, elements)?;
+            Ok(Some(()))
+        } else {
+            for rmap in &self.nested {
+                if rmap.pattern_for(name, path, elements)?.is_some() {
+                    return Ok(Some(()));
+                }
+            }
+            Ok(None)
+        }
+    }
+
+    fn fill_root<U, I>(
+        &self, path: &mut String, elements: &mut U,
+    ) -> Result<(), UrlGenerationError>
+    where
+        U: Iterator<Item = I>,
+        I: AsRef<str>,
+    {
+        if let Some(ref parent) = *self.parent.borrow() {
+            parent.fill_root(path, elements)?;
+        }
+        self.root.resource_path(path, elements)
+    }
+
+    fn parent_pattern_for<U, I>(
+        &self, name: &str, path: &mut String, elements: &mut U,
+    ) -> Result<Option<()>, UrlGenerationError>
+    where
+        U: Iterator<Item = I>,
+        I: AsRef<str>,
+    {
+        if let Some(ref parent) = *self.parent.borrow() {
+            if let Some(pattern) = parent.named.get(name) {
+                self.fill_root(path, elements)?;
+                pattern.resource_path(path, elements)?;
+                Ok(Some(()))
+            } else {
+                parent.parent_pattern_for(name, path, elements)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl<S: 'static> Default for Router<S> {
     fn default() -> Self {
-        Router::new()
+        Router::new(ResourceDef::new(""))
     }
 }
 
 impl<S: 'static> Router<S> {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(root: ResourceDef) -> Self {
         Router {
             rmap: Rc::new(ResourceMap {
+                root,
+                parent: RefCell::new(None),
                 named: HashMap::new(),
                 patterns: Vec::new(),
+                nested: Vec::new(),
             }),
             resources: Vec::new(),
             patterns: Vec::new(),
@@ -233,6 +313,10 @@ impl<S: 'static> Router<S> {
         }
     }
 
+    pub(crate) fn set_prefix(&mut self, path: &str) {
+        Rc::get_mut(&mut self.rmap).unwrap().root = ResourceDef::new(path);
+    }
+
     pub(crate) fn register_resource(&mut self, resource: Resource<S>) {
         {
             let rmap = Rc::get_mut(&mut self.rmap).unwrap();
@@ -258,6 +342,11 @@ impl<S: 'static> Router<S> {
             .unwrap()
             .patterns
             .push((scope.rdef().clone(), Some(scope.router().rmap.clone())));
+        Rc::get_mut(&mut self.rmap)
+            .unwrap()
+            .nested
+            .push(scope.router().rmap.clone());
+
         let filters = scope.take_filters();
         self.patterns
             .push(ResourcePattern::Scope(scope.rdef().clone(), filters));
@@ -286,22 +375,25 @@ impl<S: 'static> Router<S> {
     }
 
     pub(crate) fn finish(&mut self) {
-        if let Some(ref default) = self.default {
-            for resource in &mut self.resources {
-                match resource {
-                    ResourceItem::Resource(_) => (),
-                    ResourceItem::Scope(scope) => {
-                        if !scope.has_default_resource() {
+        for resource in &mut self.resources {
+            match resource {
+                ResourceItem::Resource(_) => (),
+                ResourceItem::Scope(scope) => {
+                    if !scope.has_default_resource() {
+                        if let Some(ref default) = self.default {
                             scope.default_resource(default.clone());
                         }
-                        scope.finish()
                     }
-                    ResourceItem::Handler(hnd) => {
-                        if !hnd.has_default_resource() {
+                    *scope.router().rmap.parent.borrow_mut() = Some(self.rmap.clone());
+                    scope.finish();
+                }
+                ResourceItem::Handler(hnd) => {
+                    if !hnd.has_default_resource() {
+                        if let Some(ref default) = self.default {
                             hnd.default_resource(default.clone());
                         }
-                        hnd.finish()
                     }
+                    hnd.finish()
                 }
             }
         }
@@ -459,35 +551,38 @@ pub struct ResourceDef {
 }
 
 impl ResourceDef {
-    /// Parse path pattern and create new `Resource` instance.
+    /// Parse path pattern and create new `ResourceDef` instance.
     ///
     /// Panics if path pattern is wrong.
     pub fn new(path: &str) -> Self {
-        ResourceDef::with_prefix(path, if path.is_empty() { "" } else { "/" }, false)
+        ResourceDef::with_prefix(path, false, !path.is_empty())
     }
 
-    /// Parse path pattern and create new `Resource` instance.
+    /// Parse path pattern and create new `ResourceDef` instance.
     ///
     /// Use `prefix` type instead of `static`.
     ///
     /// Panics if path regex pattern is wrong.
     pub fn prefix(path: &str) -> Self {
-        ResourceDef::with_prefix(path, "/", true)
+        ResourceDef::with_prefix(path, true, !path.is_empty())
     }
 
-    /// Construct external resource
+    /// Construct external resource def
     ///
     /// Panics if path pattern is wrong.
     pub fn external(path: &str) -> Self {
-        let mut resource = ResourceDef::with_prefix(path, "/", false);
+        let mut resource = ResourceDef::with_prefix(path, false, false);
         resource.rtp = ResourceType::External;
         resource
     }
 
-    /// Parse path pattern and create new `Resource` instance with custom prefix
-    pub fn with_prefix(path: &str, prefix: &str, for_prefix: bool) -> Self {
-        let (pattern, elements, is_dynamic, len) =
-            ResourceDef::parse(path, prefix, for_prefix);
+    /// Parse path pattern and create new `ResourceDef` instance with custom prefix
+    pub fn with_prefix(path: &str, for_prefix: bool, slash: bool) -> Self {
+        let mut path = path.to_owned();
+        if slash && !path.starts_with('/') {
+            path.insert(0, '/');
+        }
+        let (pattern, elements, is_dynamic, len) = ResourceDef::parse(&path, for_prefix);
 
         let tp = if is_dynamic {
             let re = match Regex::new(&pattern) {
@@ -705,23 +800,21 @@ impl ResourceDef {
 
     /// Build resource path.
     pub fn resource_path<U, I>(
-        &self, elements: U, prefix: &str,
-    ) -> Result<String, UrlGenerationError>
+        &self, path: &mut String, elements: &mut U,
+    ) -> Result<(), UrlGenerationError>
     where
-        U: IntoIterator<Item = I>,
+        U: Iterator<Item = I>,
         I: AsRef<str>,
     {
-        let mut path = match self.tp {
-            PatternType::Prefix(ref p) => p.to_owned(),
-            PatternType::Static(ref p) => p.to_owned(),
+        match self.tp {
+            PatternType::Prefix(ref p) => path.push_str(p),
+            PatternType::Static(ref p) => path.push_str(p),
             PatternType::Dynamic(..) => {
-                let mut path = String::new();
-                let mut iter = elements.into_iter();
                 for el in &self.elements {
                     match *el {
                         PatternElement::Str(ref s) => path.push_str(s),
                         PatternElement::Var(_) => {
-                            if let Some(val) = iter.next() {
+                            if let Some(val) = elements.next() {
                                 path.push_str(val.as_ref())
                             } else {
                                 return Err(UrlGenerationError::NotEnoughElements);
@@ -729,34 +822,18 @@ impl ResourceDef {
                         }
                     }
                 }
-                path
             }
         };
-
-        if self.rtp != ResourceType::External {
-            if prefix.ends_with('/') {
-                if path.starts_with('/') {
-                    path.insert_str(0, &prefix[..prefix.len() - 1]);
-                } else {
-                    path.insert_str(0, prefix);
-                }
-            } else {
-                if !path.starts_with('/') {
-                    path.insert(0, '/');
-                }
-                path.insert_str(0, prefix);
-            }
-        }
-        Ok(path)
+        Ok(())
     }
 
     fn parse(
-        pattern: &str, prefix: &str, for_prefix: bool,
+        pattern: &str, for_prefix: bool,
     ) -> (String, Vec<PatternElement>, bool, usize) {
         const DEFAULT_PATTERN: &str = "[^/]+";
 
-        let mut re1 = String::from("^") + prefix;
-        let mut re2 = String::from(prefix);
+        let mut re1 = String::from("^");
+        let mut re2 = String::new();
         let mut el = String::new();
         let mut in_param = false;
         let mut in_param_pattern = false;
@@ -766,12 +843,7 @@ impl ResourceDef {
         let mut elems = Vec::new();
         let mut len = 0;
 
-        for (index, ch) in pattern.chars().enumerate() {
-            // All routes must have a leading slash so its optional to have one
-            if index == 0 && ch == '/' {
-                continue;
-            }
-
+        for ch in pattern.chars() {
             if in_param {
                 // In parameter segment: `{....}`
                 if ch == '}' {
@@ -846,7 +918,7 @@ mod tests {
 
     #[test]
     fn test_recognizer10() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/name")));
         router.register_resource(Resource::new(ResourceDef::new("/name/{val}")));
         router.register_resource(Resource::new(ResourceDef::new(
@@ -858,7 +930,7 @@ mod tests {
         )));
         router.register_resource(Resource::new(ResourceDef::new("/v/{tail:.*}")));
         router.register_resource(Resource::new(ResourceDef::new("/test2/{test}.html")));
-        router.register_resource(Resource::new(ResourceDef::new("{test}/index.html")));
+        router.register_resource(Resource::new(ResourceDef::new("/{test}/index.html")));
 
         let req = TestRequest::with_uri("/name").finish();
         let info = router.recognize(&req, &(), 0);
@@ -909,7 +981,7 @@ mod tests {
 
     #[test]
     fn test_recognizer_2() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/index.json")));
         router.register_resource(Resource::new(ResourceDef::new("/{source}.json")));
 
@@ -924,7 +996,7 @@ mod tests {
 
     #[test]
     fn test_recognizer_with_prefix() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/name")));
         router.register_resource(Resource::new(ResourceDef::new("/name/{val}")));
 
@@ -943,7 +1015,7 @@ mod tests {
         assert_eq!(&info.match_info()["val"], "value");
 
         // same patterns
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/name")));
         router.register_resource(Resource::new(ResourceDef::new("/name/{val}")));
 
@@ -1049,7 +1121,7 @@ mod tests {
 
     #[test]
     fn test_request_resource() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         let mut resource = Resource::new(ResourceDef::new("/index.json"));
         resource.name("r1");
         router.register_resource(resource);
@@ -1071,7 +1143,7 @@ mod tests {
 
     #[test]
     fn test_has_resource() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         let scope = Scope::new("/test").resource("/name", |_| "done");
         router.register_scope(scope);
 
@@ -1087,5 +1159,94 @@ mod tests {
 
         let info = router.default_route_info();
         assert!(info.has_resource("/test2/test10/name"));
+    }
+
+    #[test]
+    fn test_url_for() {
+        let mut router = Router::<()>::new(ResourceDef::prefix(""));
+
+        let mut resource = Resource::new(ResourceDef::new("/tttt"));
+        resource.name("r0");
+        router.register_resource(resource);
+
+        let scope = Scope::new("/test").resource("/name", |r| {
+            r.name("r1");
+        });
+        router.register_scope(scope);
+
+        let scope = Scope::new("/test2")
+            .nested("/test10", |s| s.resource("/name", |r| r.name("r2")));
+        router.register_scope(scope);
+        router.finish();
+
+        let req = TestRequest::with_uri("/test").request();
+        {
+            let info = router.default_route_info();
+
+            let res = info
+                .url_for(&req, "r0", Vec::<&'static str>::new())
+                .unwrap();
+            assert_eq!(res.as_str(), "http://localhost:8080/tttt");
+
+            let res = info
+                .url_for(&req, "r1", Vec::<&'static str>::new())
+                .unwrap();
+            assert_eq!(res.as_str(), "http://localhost:8080/test/name");
+
+            let res = info
+                .url_for(&req, "r2", Vec::<&'static str>::new())
+                .unwrap();
+            assert_eq!(res.as_str(), "http://localhost:8080/test2/test10/name");
+        }
+
+        let req = TestRequest::with_uri("/test/name").request();
+        let info = router.recognize(&req, &(), 0);
+        assert_eq!(info.resource, ResourceId::Normal(1));
+
+        let res = info
+            .url_for(&req, "r0", Vec::<&'static str>::new())
+            .unwrap();
+        assert_eq!(res.as_str(), "http://localhost:8080/tttt");
+
+        let res = info
+            .url_for(&req, "r1", Vec::<&'static str>::new())
+            .unwrap();
+        assert_eq!(res.as_str(), "http://localhost:8080/test/name");
+
+        let res = info
+            .url_for(&req, "r2", Vec::<&'static str>::new())
+            .unwrap();
+        assert_eq!(res.as_str(), "http://localhost:8080/test2/test10/name");
+    }
+
+    #[test]
+    fn test_url_for_dynamic() {
+        let mut router = Router::<()>::new(ResourceDef::prefix(""));
+
+        let mut resource = Resource::new(ResourceDef::new("/{name}/test/index.{ext}"));
+        resource.name("r0");
+        router.register_resource(resource);
+
+        let scope = Scope::new("/{name1}").nested("/{name2}", |s| {
+            s.resource("/{name3}/test/index.{ext}", |r| r.name("r2"))
+        });
+        router.register_scope(scope);
+        router.finish();
+
+        let req = TestRequest::with_uri("/test").request();
+        {
+            let info = router.default_route_info();
+
+            let res = info.url_for(&req, "r0", vec!["sec1", "html"]).unwrap();
+            assert_eq!(res.as_str(), "http://localhost:8080/sec1/test/index.html");
+
+            let res = info
+                .url_for(&req, "r2", vec!["sec1", "sec2", "sec3", "html"])
+                .unwrap();
+            assert_eq!(
+                res.as_str(),
+                "http://localhost:8080/sec1/sec2/sec3/test/index.html"
+            );
+        }
     }
 }

@@ -147,13 +147,11 @@ impl TestServer {
         #[cfg(feature = "rust-tls")]
         {
             use rustls::ClientConfig;
-            use std::io::BufReader;
             use std::fs::File;
+            use std::io::BufReader;
             let mut config = ClientConfig::new();
             let pem_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
-            config
-                .root_store
-                .add_pem_file(pem_file).unwrap();
+            config.root_store.add_pem_file(pem_file).unwrap();
             ClientConnector::with_connector(Arc::new(config)).start()
         }
         #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
@@ -574,7 +572,7 @@ impl<S: 'static> TestRequest<S> {
             payload,
             prefix,
         } = self;
-        let router = Router::<()>::new();
+        let router = Router::<()>::default();
 
         let pool = RequestPool::pool(ServerSettings::default());
         let mut req = RequestPool::get(pool);

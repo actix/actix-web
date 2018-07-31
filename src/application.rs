@@ -140,7 +140,7 @@ where
             parts: Some(ApplicationParts {
                 state,
                 prefix: "".to_owned(),
-                router: Router::new(),
+                router: Router::new(ResourceDef::prefix("")),
                 middlewares: Vec::new(),
                 filters: Vec::new(),
                 encoding: ContentEncoding::Auto,
@@ -198,6 +198,7 @@ where
             if !prefix.starts_with('/') {
                 prefix.insert(0, '/')
             }
+            parts.router.set_prefix(&prefix);
             parts.prefix = prefix;
         }
         self
