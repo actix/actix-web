@@ -6,6 +6,10 @@
 
 * Support HTTP/2 with rustls #36
 
+### Fixed
+
+* Do not override HOST header for client request #428
+
 
 ## [0.7.2] - 2018-07-26
 

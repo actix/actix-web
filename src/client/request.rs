@@ -291,10 +291,6 @@ impl ClientRequestBuilder {
     fn _uri(&mut self, url: &str) -> &mut Self {
         match Uri::try_from(url) {
             Ok(uri) => {
-                // set request host header
-                if let Some(host) = uri.host() {
-                    self.set_header(header::HOST, host);
-                }
                 if let Some(parts) = parts(&mut self.request, &self.err) {
                     parts.uri = uri;
                 }
@@ -629,9 +625,24 @@ impl ClientRequestBuilder {
                 self.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate");
             }
 
+            // set request host header
+            if let Some(parts) = parts(&mut self.request, &self.err) {
+                if let Some(host) = parts.uri.host() {
+                    if !parts.headers.contains_key(header::HOST) {
+                        match host.try_into() {
+                            Ok(value) => {
+                                parts.headers.insert(header::HOST, value);
+                            }
+                            Err(e) => self.err = Some(e.into()),
+                        }
+                    }
+                }
+            }
+
+            // user agent
             self.set_header_if_none(
                 header::USER_AGENT,
-                concat!("Actix-web/", env!("CARGO_PKG_VERSION")),
+                concat!("actix-web/", env!("CARGO_PKG_VERSION")),
             );
         }
 
