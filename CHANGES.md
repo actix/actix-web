@@ -6,6 +6,8 @@
 
 * Support HTTP/2 with rustls #36
 
+* Allow TestServer to open a websocket on any URL # 433
+
 ### Fixed
 
 * Do not override HOST header for client request #428
@@ -22,7 +24,7 @@
 * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
 
 * Allow to handle application prefix, i.e. allow to handle `/app` path
-  for application with `/app` prefix. 
+  for application with `/app` prefix.
   Check [`App::prefix()`](https://actix.rs/actix-web/actix_web/struct.App.html#method.prefix)
   api doc.
 

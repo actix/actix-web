@@ -64,6 +64,46 @@ fn test_simple() {
     );
 }
 
+// websocket resource helper function
+fn start_ws_resource(req: &HttpRequest) -> Result<HttpResponse, Error> {
+    ws::start(req, Ws)
+}
+
+#[test]
+fn test_simple_path() {
+    const PATH:&str = "/v1/ws/";
+
+    // Create a websocket at a specific path.
+    let mut srv = test::TestServer::new(|app| {
+        app.resource(PATH, |r| r.route().f(start_ws_resource));
+    });
+    // fetch the sockets for the resource at a given path.
+    let (reader, mut writer) = srv.ws_at(PATH).unwrap();
+
+    writer.text("text");
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
+
+    writer.binary(b"text".as_ref());
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Message::Binary(Bytes::from_static(b"text").into()))
+    );
+
+    writer.ping("ping");
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Pong("ping".to_owned())));
+
+    writer.close(Some(ws::CloseCode::Normal.into()));
+    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+    );
+}
+
+
 #[test]
 fn test_empty_close_code() {
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
