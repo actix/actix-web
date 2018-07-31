@@ -182,6 +182,14 @@ impl Session {
         }
     }
 
+    /// Renew the session (new key)
+    pub fn renew(&self) {
+        match self.0 {
+            SessionInner::Session(ref sess) => sess.as_ref().0.borrow_mut().renew(),
+            SessionInner::None => (),
+        }
+    }
+
     /// Clear the session.
     pub fn clear(&self) {
         match self.0 {
@@ -278,10 +286,12 @@ pub trait SessionImpl: 'static {
 
     fn remove(&mut self, key: &str);
 
+    fn renew(&mut self);
+
     fn clear(&mut self);
 
     /// Write session to storage backend.
-    fn write(&self, resp: HttpResponse) -> Result<Response>;
+    fn write(&mut self, resp: HttpResponse) -> Result<Response>;
 }
 
 /// Session's storage backend trait definition.
@@ -338,7 +348,9 @@ impl SessionImpl for CookieSession {
         self.state.clear()
     }
 
-    fn write(&self, mut resp: HttpResponse) -> Result<Response> {
+    fn renew(&mut self) {}  // not relevant for cookie-based sessions
+
+    fn write(&mut self, mut resp: HttpResponse) -> Result<Response> {
         if self.changed {
             let _ = self.inner.set_cookie(&mut resp, &self.state);
         }
