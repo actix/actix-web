@@ -10,6 +10,8 @@
 
 * Do not override HOST header for client request #428
 
+* Gz streaming, use `flate2::write::GzDecoder` #228
+
 
 ## [0.7.2] - 2018-07-26
 

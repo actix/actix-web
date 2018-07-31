@@ -438,7 +438,7 @@ fn test_default_headers() {
     let repr = format!("{:?}", request);
     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
     assert!(repr.contains(concat!(
-        "\"user-agent\": \"Actix-web/",
+        "\"user-agent\": \"actix-web/",
         env!("CARGO_PKG_VERSION"),
         "\""
     )));

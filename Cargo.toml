@@ -81,7 +81,7 @@ parking_lot = "0.6"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
 brotli2 = { version="^0.3.2", optional = true }
-flate2 = { version="1.0", optional = true, default-features = false }
+flate2 = { version="^1.0.2", optional = true, default-features = false }
 
 failure = "=0.1.1"
 
