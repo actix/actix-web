@@ -32,12 +32,12 @@ script:
   - |
     if [[ "$TRAVIS_RUST_VERSION" != "stable" ]]; then
     cargo clean
-    cargo test --features="alpn,tls" -- --nocapture
+    cargo test --features="alpn,tls,rust-tls" -- --nocapture
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
     RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
-    cargo tarpaulin --features="alpn,tls" --out Xml --no-count
+    cargo tarpaulin --features="alpn,tls,rust-tls" --out Xml --no-count
     bash <(curl -s https://codecov.io/bash)
     echo "Uploaded code coverage"
     fi
@@ -46,7 +46,7 @@ script:
 after_success:
   - |
     if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
-      cargo doc --features "alpn, tls, session" --no-deps &&
+      cargo doc --features "alpn, tls, rust-tls, session" --no-deps &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
       git clone https://github.com/davisp/ghp-import.git &&
       ./ghp-import/ghp_import.py -n -p -f -m "Documentation upload" -r https://"$GH_TOKEN"@github.com/"$TRAVIS_REPO_SLUG.git" target/doc &&
