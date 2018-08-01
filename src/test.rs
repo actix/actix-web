@@ -17,8 +17,6 @@ use tokio::runtime::current_thread::Runtime;
 use openssl::ssl::SslAcceptorBuilder;
 #[cfg(all(feature = "rust-tls"))]
 use rustls::ServerConfig;
-//#[cfg(all(feature = "rust-tls"))]
-//use std::sync::Arc;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -152,7 +150,7 @@ impl TestServer {
             let mut config = ClientConfig::new();
             let pem_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
             config.root_store.add_pem_file(pem_file).unwrap();
-            ClientConnector::with_connector(Arc::new(config)).start()
+            ClientConnector::with_connector(config).start()
         }
         #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
         {
@@ -209,8 +207,7 @@ impl TestServer {
 
     /// Connect to websocket server at a given path
     pub fn ws_at(
-        &mut self,
-        path: &str,
+        &mut self, path: &str,
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         let url = self.url(path);
         self.rt
@@ -223,7 +220,7 @@ impl TestServer {
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
         self.ws_at("/")
     }
-    
+
     /// Create `GET` request
     pub fn get(&self) -> ClientRequestBuilder {
         ClientRequest::get(self.url("/").as_str())

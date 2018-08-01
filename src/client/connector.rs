@@ -26,21 +26,51 @@ use native_tls::{Error as TlsError, TlsConnector, TlsStream};
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
 use tokio_tls::TlsConnectorExt;
 
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use rustls::ClientConfig;
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use std::io::Error as TLSError;
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use std::sync::Arc;
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use tokio_rustls::ClientConfigExt;
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use webpki::DNSNameRef;
-#[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+#[cfg(
+    all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    )
+)]
 use webpki_roots;
 
 use server::IoStream;
-use {HAS_OPENSSL, HAS_TLS, HAS_RUSTLS};
+use {HAS_OPENSSL, HAS_RUSTLS, HAS_TLS};
 
 /// Client connector usage stats
 #[derive(Default, Message)]
@@ -153,7 +183,12 @@ pub enum ClientConnectorError {
     SslError(#[cause] TlsError),
 
     /// SSL error
-    #[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+    #[cfg(
+        all(
+            feature = "rust-tls",
+            not(any(feature = "alpn", feature = "tls"))
+        )
+    )]
     #[fail(display = "{}", _0)]
     SslError(#[cause] TLSError),
 
@@ -211,7 +246,12 @@ pub struct ClientConnector {
     connector: SslConnector,
     #[cfg(all(feature = "tls", not(feature = "alpn")))]
     connector: TlsConnector,
-    #[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+    #[cfg(
+        all(
+            feature = "rust-tls",
+            not(any(feature = "alpn", feature = "tls"))
+        )
+    )]
     connector: Arc<ClientConfig>,
 
     stats: ClientConnectorStats,
@@ -282,13 +322,18 @@ impl Default for ClientConnector {
                 paused: Paused::No,
             }
         }
-        #[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+        #[cfg(
+            all(
+                feature = "rust-tls",
+                not(any(feature = "alpn", feature = "tls"))
+            )
+        )]
         {
             let mut config = ClientConfig::new();
             config
                 .root_store
                 .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-            ClientConnector::with_connector(Arc::new(config))
+            ClientConnector::with_connector(config)
         }
 
         #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
@@ -380,7 +425,12 @@ impl ClientConnector {
         }
     }
 
-    #[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+    #[cfg(
+        all(
+            feature = "rust-tls",
+            not(any(feature = "alpn", feature = "tls"))
+        )
+    )]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
     /// By default `ClientConnector` uses very a simple SSL configuration.
@@ -425,11 +475,11 @@ impl ClientConnector {
     ///     });
     /// }
     /// ```
-    pub fn with_connector(connector: Arc<ClientConfig>) -> ClientConnector {
+    pub fn with_connector(connector: ClientConfig) -> ClientConnector {
         let (tx, rx) = mpsc::unbounded();
 
         ClientConnector {
-            connector,
+            connector: Arc::new(connector),
             stats: ClientConnectorStats::default(),
             subscriber: None,
             acq_tx: tx,
@@ -806,7 +856,12 @@ impl ClientConnector {
                     }
                 }
 
-                #[cfg(all(feature = "rust-tls", not(any(feature = "alpn", feature = "tls"))))]
+                #[cfg(
+                    all(
+                        feature = "rust-tls",
+                        not(any(feature = "alpn", feature = "tls"))
+                    )
+                )]
                 match res {
                     Err(err) => {
                         let _ = waiter.tx.send(Err(err.into()));
@@ -815,7 +870,8 @@ impl ClientConnector {
                     Ok(stream) => {
                         act.stats.opened += 1;
                         if conn.0.ssl {
-                            let host = DNSNameRef::try_from_ascii_str(&key.host).unwrap();
+                            let host =
+                                DNSNameRef::try_from_ascii_str(&key.host).unwrap();
                             fut::Either::A(
                                 act.connector
                                     .connect_async(host, stream)
