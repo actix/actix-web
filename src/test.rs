@@ -207,15 +207,23 @@ impl TestServer {
         self.rt.block_on(fut)
     }
 
-    /// Connect to websocket server
-    pub fn ws(
+    /// Connect to websocket server at a given path
+    pub fn ws_at(
         &mut self,
+        path: &str,
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
-        let url = self.url("/");
+        let url = self.url(path);
         self.rt
             .block_on(ws::Client::with_connector(url, self.conn.clone()).connect())
     }
 
+    /// Connect to a websocket server
+    pub fn ws(
+        &mut self,
+    ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
+        self.ws_at("/")
+    }
+    
     /// Create `GET` request
     pub fn get(&self) -> ClientRequestBuilder {
         ClientRequest::get(self.url("/").as_str())
