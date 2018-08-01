@@ -887,6 +887,7 @@ fn test_brotli_encoding_large() {
 fn test_h2() {
     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
     let addr = srv.addr();
+    thread::sleep(time::Duration::from_millis(500));
 
     let mut core = Runtime::new().unwrap();
     let tcp = TcpStream::connect(&addr);
