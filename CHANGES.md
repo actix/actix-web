@@ -1,14 +1,17 @@
 # Changes
 
-## [0.7.3] - 2018-07-xx
+## [0.7.3] - 2018-08-01
 
 ### Added
 
 * Support HTTP/2 with rustls #36
 
-* Allow TestServer to open a websocket on any URL # 433
+* Allow TestServer to open a websocket on any URL (TestServer::ws_at()) #433
+
 
 ### Fixed
+
+* Fixed failure 0.1.2 compatibility
 
 * Do not override HOST header for client request #428
 
