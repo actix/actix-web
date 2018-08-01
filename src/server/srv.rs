@@ -46,14 +46,6 @@ fn configure_alpn(builder: &mut SslAcceptorBuilder) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
-fn configure_alpn(builder: &mut Arc<ServerConfig>) -> io::Result<()> {
-    Arc::<ServerConfig>::get_mut(builder)
-        .unwrap()
-        .set_protocols(&vec!["h2".to_string(), "http/1.1".to_string()]);
-    Ok(())
-}
-
 /// An HTTP Server
 pub struct HttpServer<H>
 where
@@ -68,7 +60,11 @@ where
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     workers: Vec<(usize, Addr<Worker<H::Handler>>)>,
     sockets: Vec<Socket>,
-    accept: Vec<(mio::SetReadiness, sync_mpsc::Sender<Command>)>,
+    accept: Option<(
+        mio::SetReadiness,
+        sync_mpsc::Sender<Command>,
+        Slab<SocketInfo>,
+    )>,
     exit: bool,
     shutdown_timeout: u16,
     signals: Option<Addr<signal::ProcessSignals>>,
@@ -77,7 +73,7 @@ where
 }
 
 pub(crate) enum ServerCommand {
-    WorkerDied(usize, Slab<SocketInfo>),
+    WorkerDied(usize),
 }
 
 impl<H> Actor for HttpServer<H>
@@ -114,7 +110,7 @@ where
             factory: Arc::new(f),
             workers: Vec::new(),
             sockets: Vec::new(),
-            accept: Vec::new(),
+            accept: None,
             exit: false,
             shutdown_timeout: 30,
             signals: None,
@@ -280,22 +276,22 @@ where
         Ok(self)
     }
 
-    #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+    #[cfg(feature = "rust-tls")]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn listen_ssl(
-        mut self, lst: net::TcpListener, mut builder: Arc<ServerConfig>,
+    pub fn listen_rustls(
+        mut self, lst: net::TcpListener, mut builder: ServerConfig,
     ) -> io::Result<Self> {
         // alpn support
         if !self.no_http2 {
-            configure_alpn(&mut builder)?;
+            builder.set_protocols(&vec!["h2".to_string(), "http/1.1".to_string()]);
         }
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
             lst,
-            tp: StreamHandlerType::Rustls(builder.clone()),
+            tp: StreamHandlerType::Rustls(Arc::new(builder)),
         });
         Ok(self)
     }
@@ -378,20 +374,21 @@ where
         Ok(self)
     }
 
-    #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+    #[cfg(feature = "rust-tls")]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn bind_ssl<S: net::ToSocketAddrs>(
-        mut self, addr: S, mut builder: Arc<ServerConfig>,
+    pub fn bind_rustls<S: net::ToSocketAddrs>(
+        mut self, addr: S, mut builder: ServerConfig,
     ) -> io::Result<Self> {
         // alpn support
         if !self.no_http2 {
-            configure_alpn(&mut builder)?;
+            builder.set_protocols(&vec!["h2".to_string(), "http/1.1".to_string()]);
         }
 
+        let builder = Arc::new(builder);
         let sockets = self.bind2(addr)?;
-        self.sockets.extend(sockets.into_iter().map(|mut s| {
+        self.sockets.extend(sockets.into_iter().map(move |mut s| {
             s.tp = StreamHandlerType::Rustls(builder.clone());
             s
         }));
@@ -487,17 +484,12 @@ impl<H: IntoHttpHandler> HttpServer<H> {
             let settings = ServerSettings::new(Some(addrs[0].1.addr), &self.host, false);
             let workers = self.start_workers(&settings, &socks);
 
-            // start acceptors threads
-            for (token, sock) in addrs {
+            // start accept thread
+            for (_, sock) in &addrs {
                 info!("Starting server on http://{}", sock.addr);
-                self.accept.push(start_accept_thread(
-                    token,
-                    sock,
-                    tx.clone(),
-                    socks.clone(),
-                    workers.clone(),
-                ));
             }
+            let (r, cmd) = start_accept_thread(addrs, tx.clone(), workers.clone());
+            self.accept = Some((r, cmd, socks));
 
             // start http server actor
             let signals = self.subscribe_to_signals();
@@ -672,7 +664,7 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
 
     fn handle(&mut self, msg: ServerCommand, _: &mut Context<Self>) {
         match msg {
-            ServerCommand::WorkerDied(idx, socks) => {
+            ServerCommand::WorkerDied(idx) => {
                 let mut found = false;
                 for i in 0..self.workers.len() {
                     if self.workers[i].0 == idx {
@@ -700,6 +692,7 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
                     let ka = self.keep_alive;
                     let factory = Arc::clone(&self.factory);
                     let host = self.host.clone();
+                    let socks = self.accept.as_ref().unwrap().2.clone();
                     let addr = socks[0].addr;
 
                     let addr = Arbiter::start(move |ctx: &mut Context<_>| {
@@ -709,7 +702,7 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
                         ctx.add_message_stream(rx);
                         Worker::new(apps, socks, ka, settings)
                     });
-                    for item in &self.accept {
+                    if let Some(ref item) = &self.accept {
                         let _ = item.1.send(Command::Worker(new_idx, tx.clone()));
                         let _ = item.0.set_readiness(mio::Ready::readable());
                     }

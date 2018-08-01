@@ -315,10 +315,10 @@ impl IoStream for TlsStream<TcpStream> {
 #[cfg(feature = "rust-tls")]
 use rustls::{ClientSession, ServerSession};
 #[cfg(feature = "rust-tls")]
-use tokio_rustls::TlsStream;
+use tokio_rustls::TlsStream as RustlsStream;
 
 #[cfg(feature = "rust-tls")]
-impl IoStream for TlsStream<TcpStream, ClientSession> {
+impl IoStream for RustlsStream<TcpStream, ClientSession> {
     #[inline]
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
         let _ = <Self as AsyncWrite>::shutdown(self);
@@ -337,7 +337,7 @@ impl IoStream for TlsStream<TcpStream, ClientSession> {
 }
 
 #[cfg(feature = "rust-tls")]
-impl IoStream for TlsStream<TcpStream, ServerSession> {
+impl IoStream for RustlsStream<TcpStream, ServerSession> {
     #[inline]
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
         let _ = <Self as AsyncWrite>::shutdown(self);

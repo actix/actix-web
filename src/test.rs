@@ -15,10 +15,10 @@ use tokio::runtime::current_thread::Runtime;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptorBuilder;
-#[cfg(feature = "rust-tls")]
+#[cfg(all(feature = "rust-tls"))]
 use rustls::ServerConfig;
-#[cfg(feature = "rust-tls")]
-use std::sync::Arc;
+//#[cfg(all(feature = "rust-tls"))]
+//use std::sync::Arc;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -144,7 +144,7 @@ impl TestServer {
             builder.set_verify(SslVerifyMode::NONE);
             ClientConnector::with_connector(builder.build()).start()
         }
-        #[cfg(feature = "rust-tls")]
+        #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
         {
             use rustls::ClientConfig;
             use std::fs::File;
@@ -256,7 +256,7 @@ pub struct TestServerBuilder<S> {
     #[cfg(feature = "alpn")]
     ssl: Option<SslAcceptorBuilder>,
     #[cfg(feature = "rust-tls")]
-    ssl: Option<Arc<ServerConfig>>,
+    rust_ssl: Option<ServerConfig>,
 }
 
 impl<S: 'static> TestServerBuilder<S> {
@@ -267,8 +267,10 @@ impl<S: 'static> TestServerBuilder<S> {
     {
         TestServerBuilder {
             state: Box::new(state),
-            #[cfg(any(feature = "alpn", feature = "rust-tls"))]
+            #[cfg(feature = "alpn")]
             ssl: None,
+            #[cfg(feature = "rust-tls")]
+            rust_ssl: None,
         }
     }
 
@@ -280,9 +282,9 @@ impl<S: 'static> TestServerBuilder<S> {
     }
 
     #[cfg(feature = "rust-tls")]
-    /// Create ssl server
-    pub fn ssl(mut self, ssl: Arc<ServerConfig>) -> Self {
-        self.ssl = Some(ssl);
+    /// Create rust tls server
+    pub fn rustls(mut self, ssl: ServerConfig) -> Self {
+        self.rust_ssl = Some(ssl);
         self
     }
 
@@ -294,41 +296,56 @@ impl<S: 'static> TestServerBuilder<S> {
     {
         let (tx, rx) = mpsc::channel();
 
-        #[cfg(any(feature = "alpn", feature = "rust-tls"))]
-        let ssl = self.ssl.is_some();
-        #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
-        let ssl = false;
+        let mut has_ssl = false;
+
+        #[cfg(feature = "alpn")]
+        {
+            has_ssl = has_ssl || self.ssl.is_some();
+        }
+
+        #[cfg(feature = "rust-tls")]
+        {
+            has_ssl = has_ssl || self.rust_ssl.is_some();
+        }
 
         // run server in separate thread
         thread::spawn(move || {
-            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let local_addr = tcp.local_addr().unwrap();
+            let addr = TestServer::unused_addr();
 
             let sys = System::new("actix-test-server");
             let state = self.state;
-            let srv = HttpServer::new(move || {
+            let mut srv = HttpServer::new(move || {
                 let mut app = TestApp::new(state());
                 config(&mut app);
                 vec![app]
             }).workers(1)
                 .disable_signals();
 
-            tx.send((System::current(), local_addr, TestServer::get_conn()))
+            tx.send((System::current(), addr, TestServer::get_conn()))
                 .unwrap();
 
-            #[cfg(any(feature = "alpn", feature = "rust-tls"))]
+            #[cfg(feature = "alpn")]
             {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
-                    srv.listen_ssl(tcp, ssl).unwrap().start();
-                } else {
-                    srv.listen(tcp).start();
+                    let tcp = net::TcpListener::bind(addr).unwrap();
+                    srv = srv.listen_ssl(tcp, ssl).unwrap();
                 }
             }
-            #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
+            #[cfg(feature = "rust-tls")]
             {
-                srv.listen(tcp).start();
+                let ssl = self.rust_ssl.take();
+                if let Some(ssl) = ssl {
+                    let tcp = net::TcpListener::bind(addr).unwrap();
+                    srv = srv.listen_rustls(tcp, ssl).unwrap();
+                }
             }
+            if !has_ssl {
+                let tcp = net::TcpListener::bind(addr).unwrap();
+                srv = srv.listen(tcp);
+            }
+            srv.start();
+
             sys.run();
         });
 
@@ -336,8 +353,8 @@ impl<S: 'static> TestServerBuilder<S> {
         System::set_current(system);
         TestServer {
             addr,
-            ssl,
             conn,
+            ssl: has_ssl,
             rt: Runtime::new().unwrap(),
         }
     }
