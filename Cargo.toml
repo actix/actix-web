@@ -84,6 +84,7 @@ brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
 
 failure = "=0.1.1"
+failure_derive = "=0.1.1"
 
 # io
 mio = "^0.6.13"
