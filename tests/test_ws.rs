@@ -317,13 +317,12 @@ fn test_ws_server_ssl() {
 
 #[test]
 #[cfg(feature = "rust-tls")]
-fn test_ws_server_ssl() {
+fn test_ws_server_rust_tls() {
     extern crate rustls;
-    use rustls::{ServerConfig, NoClientAuth};
     use rustls::internal::pemfile::{certs, rsa_private_keys};
-    use std::io::BufReader;
-    use std::sync::Arc;
+    use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;
+    use std::io::BufReader;
 
     // load ssl keys
     let mut config = ServerConfig::new(NoClientAuth::new());
@@ -333,7 +332,7 @@ fn test_ws_server_ssl() {
     let mut keys = rsa_private_keys(key_file).unwrap();
     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
-    let mut srv = test::TestServer::build().ssl(Arc::new(config)).start(|app| {
+    let mut srv = test::TestServer::build().rustls(config).start(|app| {
         app.handler(|req| {
             ws::start(
                 req,

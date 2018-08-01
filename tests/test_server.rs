@@ -154,6 +154,62 @@ fn test_shutdown() {
 }
 
 #[test]
+#[cfg(unix)]
+fn test_panic() {
+    let _ = test::TestServer::unused_addr();
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(|| {
+        System::run(move || {
+            let srv = server::new(|| {
+                App::new()
+                    .resource("/panic", |r| {
+                        r.method(http::Method::GET).f(|_| -> &'static str {
+                            panic!("error");
+                        });
+                    })
+                    .resource("/", |r| {
+                        r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                    })
+            }).workers(1);
+
+            let srv = srv.bind("127.0.0.1:0").unwrap();
+            let addr = srv.addrs()[0];
+            srv.start();
+            let _ = tx.send((addr, System::current()));
+        });
+    });
+    let (addr, sys) = rx.recv().unwrap();
+    System::set_current(sys.clone());
+
+    let mut rt = Runtime::new().unwrap();
+    {
+        let req = client::ClientRequest::get(format!("http://{}/panic", addr).as_str())
+            .finish()
+            .unwrap();
+        let response = rt.block_on(req.send());
+        assert!(response.is_err());
+    }
+
+    {
+        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+            .finish()
+            .unwrap();
+        let response = rt.block_on(req.send());
+        assert!(response.is_err());
+    }
+    {
+        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+            .finish()
+            .unwrap();
+        let response = rt.block_on(req.send()).unwrap();
+        assert!(response.status().is_success());
+    }
+
+    let _ = sys.stop();
+}
+
+#[test]
 fn test_simple() {
     let mut srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok()));
     let req = srv.get().finish().unwrap();
