@@ -52,7 +52,8 @@ pub struct Error {
 impl Error {
     /// Deprecated way to reference the underlying response error.
     #[deprecated(
-        since = "0.6.0", note = "please use `Error::as_response_error()` instead"
+        since = "0.6.0",
+        note = "please use `Error::as_response_error()` instead"
     )]
     pub fn cause(&self) -> &ResponseError {
         self.cause.as_ref()
@@ -97,21 +98,9 @@ impl Error {
         //
         // So we first downcast into that compat, to then further downcast through
         // the failure's Error downcasting system into the original failure.
-        //
-        // This currently requires a transmute.  This could be avoided if failure
-        // provides a deref: https://github.com/rust-lang-nursery/failure/pull/213
         let compat: Option<&failure::Compat<failure::Error>> =
             Fail::downcast_ref(self.cause.as_fail());
-        if let Some(compat) = compat {
-            pub struct CompatWrappedError {
-                error: failure::Error,
-            }
-            let compat: &CompatWrappedError =
-                unsafe { &*(compat as *const _ as *const CompatWrappedError) };
-            compat.error.downcast_ref()
-        } else {
-            None
-        }
+        compat.and_then(|e| e.get_ref().downcast_ref())
     }
 }
 
