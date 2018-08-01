@@ -838,10 +838,23 @@ impl<S: 'static> CorsBuilder<S> {
 
         if !self.expose_hdrs.is_empty() {
             cors.expose_hdrs = Some(
-                self.expose_hdrs
-                    .iter()
-                    .fold(String::new(), |s, v| s + v.as_str())[1..]
-                    .to_owned(),
+                self.expose_hdrs.iter()
+                    .fold(String::new(), |s, v| {
+                        let header = v.as_str().split('-')
+                            .fold(String::new(), |h, w| {
+                                let cap = w.chars()
+                                    .next()
+                                    .unwrap()
+                                    .to_uppercase()
+                                    .collect::<String>();
+
+                                format!("{}-{}{}", &h, &cap, &w[1..])
+                            })[1..]
+                            .to_owned();
+
+                        format!("{}, {}", s, header)
+                    })[2..]
+                    .to_owned()
             );
         }
         Cors {
@@ -1079,6 +1092,7 @@ mod tests {
             .max_age(3600)
             .allowed_methods(vec![Method::GET, Method::OPTIONS, Method::POST])
             .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+            .expose_headers(vec![header::AUTHORIZATION, header::ACCEPT])
             .allowed_header(header::CONTENT_TYPE)
             .finish();
 
@@ -1092,6 +1106,13 @@ mod tests {
             &b"*"[..],
             resp.headers()
                 .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap()
+                .as_bytes()
+        );
+        assert_eq!(
+            &b"Authorization, Accept"[..],
+            resp.headers()
+                .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
                 .unwrap()
                 .as_bytes()
         );
