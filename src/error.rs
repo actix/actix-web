@@ -633,6 +633,35 @@ impl ResponseError for StaticFileError {
     }
 }
 
+/// Helper type for making `Fail` instance from `&'static str` without memory allocation.
+///
+/// In following example handler is returning error message with *BAD REQUEST* status code.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # use actix_web::*;
+///
+/// fn index(req: HttpRequest) -> Result<()> {
+///     Err(error::ErrorBadRequest(error::FailMsg("example of error message")))
+/// }
+/// # fn main() {}
+/// ```
+pub struct FailMsg(pub &'static str);
+
+impl Fail for FailMsg {}
+
+impl fmt::Debug for FailMsg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl fmt::Display for FailMsg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
 /// Helper type that can wrap any error and generate custom response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST"
@@ -684,8 +713,12 @@ impl<T> InternalError<T> {
 
 impl<T> Fail for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
+    fn cause(&self) -> Option<&Fail> {
+        self.cause.cause()
+    }
+
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
     }
@@ -711,7 +744,7 @@ where
 
 impl<T> ResponseError for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     fn error_response(&self) -> HttpResponse {
         match self.status {
@@ -729,7 +762,7 @@ where
 
 impl<T> Responder for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     type Item = HttpResponse;
     type Error = Error;
@@ -744,7 +777,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorBadRequest<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::BAD_REQUEST).into()
 }
@@ -754,7 +787,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorUnauthorized<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::UNAUTHORIZED).into()
 }
@@ -764,7 +797,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorForbidden<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::FORBIDDEN).into()
 }
@@ -774,7 +807,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorNotFound<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::NOT_FOUND).into()
 }
@@ -784,7 +817,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorMethodNotAllowed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
 }
@@ -794,7 +827,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorRequestTimeout<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::REQUEST_TIMEOUT).into()
 }
@@ -804,7 +837,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorConflict<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::CONFLICT).into()
 }
@@ -814,7 +847,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorGone<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::GONE).into()
 }
@@ -824,7 +857,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorPreconditionFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::PRECONDITION_FAILED).into()
 }
@@ -834,7 +867,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
 }
@@ -844,7 +877,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorInternalServerError<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }
@@ -854,7 +887,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorNotImplemented<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::NOT_IMPLEMENTED).into()
 }
@@ -864,7 +897,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorBadGateway<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::BAD_GATEWAY).into()
 }
@@ -874,7 +907,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorServiceUnavailable<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::SERVICE_UNAVAILABLE).into()
 }
@@ -884,7 +917,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorGatewayTimeout<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: Fail,
 {
     InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
 }
@@ -934,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_backtrace() {
-        let e = ErrorBadRequest("err");
+        let e = ErrorBadRequest(FailMsg("err"));
         let _ = e.backtrace();
     }
 
@@ -1035,6 +1068,25 @@ mod tests {
     }
 
     #[test]
+    fn test_internal_error_cause() {
+        #[derive(Debug, Fail)]
+        #[fail(display = "demo error parent")]
+        struct DemoErrorParent;
+
+        #[derive(Debug, Fail)]
+        #[fail(display = "demo error child")]
+        struct DemoErrorChild(#[cause] DemoErrorParent);
+
+        let f = DemoErrorChild(DemoErrorParent);
+        let err = ErrorBadRequest(f);
+        assert_eq!("demo error child", format!("{}", err.as_fail()));
+        assert_eq!(
+            "demo error parent",
+            format!("{}", err.as_fail().cause().unwrap())
+        );
+    }
+
+    #[test]
     fn test_error_downcasting_direct() {
         #[derive(Debug, Fail)]
         #[fail(display = "demo error")]
@@ -1062,49 +1114,56 @@ mod tests {
 
     #[test]
     fn test_error_helpers() {
-        let r: HttpResponse = ErrorBadRequest("err").into();
+        let r: HttpResponse = ErrorBadRequest(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);
 
-        let r: HttpResponse = ErrorUnauthorized("err").into();
+        let r: HttpResponse = ErrorUnauthorized(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
 
-        let r: HttpResponse = ErrorForbidden("err").into();
+        let r: HttpResponse = ErrorForbidden(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::FORBIDDEN);
 
-        let r: HttpResponse = ErrorNotFound("err").into();
+        let r: HttpResponse = ErrorNotFound(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::NOT_FOUND);
 
-        let r: HttpResponse = ErrorMethodNotAllowed("err").into();
+        let r: HttpResponse = ErrorMethodNotAllowed(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let r: HttpResponse = ErrorRequestTimeout("err").into();
+        let r: HttpResponse = ErrorRequestTimeout(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::REQUEST_TIMEOUT);
 
-        let r: HttpResponse = ErrorConflict("err").into();
+        let r: HttpResponse = ErrorConflict(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::CONFLICT);
 
-        let r: HttpResponse = ErrorGone("err").into();
+        let r: HttpResponse = ErrorGone(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::GONE);
 
-        let r: HttpResponse = ErrorPreconditionFailed("err").into();
+        let r: HttpResponse = ErrorPreconditionFailed(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::PRECONDITION_FAILED);
 
-        let r: HttpResponse = ErrorExpectationFailed("err").into();
+        let r: HttpResponse = ErrorExpectationFailed(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::EXPECTATION_FAILED);
 
-        let r: HttpResponse = ErrorInternalServerError("err").into();
+        let r: HttpResponse = ErrorInternalServerError(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-        let r: HttpResponse = ErrorNotImplemented("err").into();
+        let r: HttpResponse = ErrorNotImplemented(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::NOT_IMPLEMENTED);
 
-        let r: HttpResponse = ErrorBadGateway("err").into();
+        let r: HttpResponse = ErrorBadGateway(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
 
-        let r: HttpResponse = ErrorServiceUnavailable("err").into();
+        let r: HttpResponse = ErrorServiceUnavailable(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::SERVICE_UNAVAILABLE);
 
-        let r: HttpResponse = ErrorGatewayTimeout("err").into();
+        let r: HttpResponse = ErrorGatewayTimeout(FailMsg("err")).into();
         assert_eq!(r.status(), StatusCode::GATEWAY_TIMEOUT);
+    }
+
+    #[test]
+    fn test_error_helpers_from_std_err() {
+        let io_err = io::Error::new(io::ErrorKind::Other, "other");
+        let err = ErrorNotImplemented(io_err);
+        assert_eq!("other", format!("{}", err))
     }
 }

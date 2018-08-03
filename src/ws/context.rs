@@ -308,7 +308,7 @@ where
 
     fn poll(&mut self) -> Poll<Option<SmallVec<[ContextFrame; 4]>>, Error> {
         if self.fut.alive() && self.fut.poll().is_err() {
-            return Err(ErrorInternalServerError("error"));
+            return Err(ErrorInternalServerError(::error::FailMsg("error")));
         }
 
         // frames

@@ -238,7 +238,9 @@ where
         if self.fut.alive() {
             match self.fut.poll() {
                 Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
-                Err(_) => return Err(ErrorInternalServerError("error")),
+                Err(_) => {
+                    return Err(ErrorInternalServerError(::error::FailMsg("error")))
+                }
             }
         }
 
