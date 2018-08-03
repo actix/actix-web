@@ -20,7 +20,7 @@ use std::{net, thread, time};
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut};
 use flate2::read::GzDecoder;
-use flate2::write::{DeflateDecoder, DeflateEncoder, GzEncoder};
+use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
 use futures::stream::once;
 use futures::{Future, Stream};
@@ -528,7 +528,7 @@ fn test_body_chunked_explicit() {
 
 #[test]
 fn test_body_identity() {
-    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(STR.as_ref()).unwrap();
     let enc = e.finish().unwrap();
     let enc2 = enc.clone();
@@ -578,7 +578,7 @@ fn test_body_deflate() {
     let bytes = srv.execute(response.body()).unwrap();
 
     // decode deflate
-    let mut e = DeflateDecoder::new(Vec::new());
+    let mut e = ZlibDecoder::new(Vec::new());
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
@@ -727,7 +727,7 @@ fn test_reading_deflate_encoding() {
         })
     });
 
-    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(STR.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
@@ -760,7 +760,7 @@ fn test_reading_deflate_encoding_large() {
         })
     });
 
-    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
@@ -797,7 +797,7 @@ fn test_reading_deflate_encoding_large_random() {
         })
     });
 
-    let mut e = DeflateEncoder::new(Vec::new(), Compression::default());
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 

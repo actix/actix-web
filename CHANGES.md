@@ -6,6 +6,9 @@
 
 * Added `HttpServer::max_connections()` and `HttpServer::max_sslrate()`, accept backpressure #250
 
+* Fix: Use zlib instead of raw deflate for decoding and encoding payloads with
+  `Content-Encoding: deflate`.
+
 
 ## [0.7.3] - 2018-08-01
 
