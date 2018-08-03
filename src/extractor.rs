@@ -12,7 +12,7 @@ use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
-use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError};
+use error::{Error, ErrorBadRequest, ErrorNotFound, FailMsg, UrlencodedError};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
@@ -446,12 +446,13 @@ impl<S: 'static> FromRequest<S> for String {
                     let enc: *const Encoding = encoding as *const Encoding;
                     if enc == UTF_8 {
                         Ok(str::from_utf8(body.as_ref())
-                            .map_err(|_| ErrorBadRequest("Can not decode body"))?
-                            .to_owned())
+                            .map_err(|_| {
+                                ErrorBadRequest(FailMsg("Can not decode body"))
+                            })?.to_owned())
                     } else {
-                        Ok(encoding
-                            .decode(&body, DecoderTrap::Strict)
-                            .map_err(|_| ErrorBadRequest("Can not decode body"))?)
+                        Ok(encoding.decode(&body, DecoderTrap::Strict).map_err(
+                            |_| ErrorBadRequest(FailMsg("Can not decode body")),
+                        )?)
                     }
                 }),
         ))
@@ -469,7 +470,7 @@ impl<S: 'static> FromRequest<S> for String {
 /// extern crate rand;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
-/// use actix_web::error::ErrorBadRequest;
+/// use actix_web::error::{ErrorBadRequest, FailMsg};
 ///
 /// #[derive(Debug, Deserialize)]
 /// struct Thing { name: String }
@@ -483,7 +484,7 @@ impl<S: 'static> FromRequest<S> for String {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
-///             Err(ErrorBadRequest("no luck"))
+///             Err(ErrorBadRequest(FailMsg("no luck")))
 ///         }
 ///
 ///     }
@@ -531,7 +532,7 @@ where
 /// extern crate rand;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
-/// use actix_web::error::ErrorBadRequest;
+/// use actix_web::error::{ErrorBadRequest, FailMsg};
 ///
 /// #[derive(Debug, Deserialize)]
 /// struct Thing { name: String }
@@ -545,7 +546,7 @@ where
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
-///             Err(ErrorBadRequest("no luck"))
+///             Err(ErrorBadRequest(FailMsg("no luck")))
 ///         }
 ///
 ///     }
@@ -604,11 +605,11 @@ impl PayloadConfig {
             match req.mime_type() {
                 Ok(Some(ref req_mt)) => {
                     if mt != req_mt {
-                        return Err(ErrorBadRequest("Unexpected Content-Type"));
+                        return Err(ErrorBadRequest(FailMsg("Unexpected Content-Type")));
                     }
                 }
                 Ok(None) => {
-                    return Err(ErrorBadRequest("Content-Type is expected"));
+                    return Err(ErrorBadRequest(FailMsg("Content-Type is expected")));
                 }
                 Err(err) => {
                     return Err(err.into());

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use actix_web::error::{Error, ErrorInternalServerError};
+use actix_web::error::{Error, ErrorInternalServerError, FailMsg};
 use actix_web::*;
 use futures::{future, Future};
 use tokio_timer::Delay;
@@ -332,7 +332,7 @@ fn test_scope_middleware_async_handler() {
 }
 
 fn index_test_middleware_async_error(_: &HttpRequest) -> FutureResponse<HttpResponse> {
-    future::result(Err(error::ErrorBadRequest("TEST"))).responder()
+    future::result(Err(error::ErrorBadRequest(FailMsg("TEST")))).responder()
 }
 
 #[test]
@@ -794,7 +794,7 @@ struct MiddlewareWithErr;
 
 impl<S> middleware::Middleware<S> for MiddlewareWithErr {
     fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started, Error> {
-        Err(ErrorInternalServerError("middleware error"))
+        Err(ErrorInternalServerError(FailMsg("middleware error")))
     }
 }
 
@@ -803,7 +803,7 @@ struct MiddlewareAsyncWithErr;
 impl<S> middleware::Middleware<S> for MiddlewareAsyncWithErr {
     fn start(&self, _: &HttpRequest<S>) -> Result<middleware::Started, Error> {
         Ok(middleware::Started::Future(Box::new(future::err(
-            ErrorInternalServerError("middleware error"),
+            ErrorInternalServerError(FailMsg("middleware error")),
         ))))
     }
 }

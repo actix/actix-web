@@ -120,7 +120,9 @@ mod tests {
 
     impl<S> Middleware<S> for MiddlewareOne {
         fn start(&self, _: &HttpRequest<S>) -> Result<Started, Error> {
-            Err(ErrorInternalServerError("middleware error"))
+            Err(ErrorInternalServerError(::error::FailMsg(
+                "middleware error",
+            )))
         }
     }
 
