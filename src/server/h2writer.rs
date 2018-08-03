@@ -112,7 +112,7 @@ impl<H: 'static> Writer for H2Writer<H> {
                 DATE => has_date = true,
                 _ => (),
             }
-            resp.headers_mut().insert(key, value.clone());
+            resp.headers_mut().append(key, value.clone());
         }
 
         // set date header
@@ -151,6 +151,8 @@ impl<H: 'static> Writer for H2Writer<H> {
                 .insert(CONTENT_ENCODING, HeaderValue::try_from(ce).unwrap());
         }
 
+        trace!("Response: {:?}", resp);
+
         match self
             .respond
             .send_response(resp, self.flags.contains(Flags::EOF))
@@ -158,8 +160,6 @@ impl<H: 'static> Writer for H2Writer<H> {
             Ok(stream) => self.stream = Some(stream),
             Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
-
-        trace!("Response: {:?}", msg);
 
         let body = msg.replace_body(Body::Empty);
         if let Body::Binary(bytes) = body {
