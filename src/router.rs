@@ -856,7 +856,7 @@ impl ResourceDef {
                     len = 0;
                     in_param_pattern = false;
                     in_param = false;
-                } else if ch == ':' {
+                } else if ch == ':' && !in_param_pattern {
                     // The parameter name has been determined; custom pattern land
                     in_param_pattern = true;
                     param_pattern.clear();
@@ -1079,6 +1079,26 @@ mod tests {
         assert!(re.is_match("/v1/resource/320120"));
         assert!(!re.is_match("/v/resource/1"));
         assert!(!re.is_match("/resource"));
+
+        let req = TestRequest::with_uri("/v151/resource/adahg32").finish();
+        let info = re.match_with_params(&req, 0).unwrap();
+        assert_eq!(info.get("version").unwrap(), "151");
+        assert_eq!(info.get("id").unwrap(), "adahg32");
+
+        let re = ResourceDef::new("/v{version:[0-9]+}/resource/{id}");
+        assert!(re.is_match("/v1/resource/320120"));
+        assert!(!re.is_match("/v/resource/1"));
+        assert!(!re.is_match("/va/resource/1"));
+
+        let req = TestRequest::with_uri("/v151/resource/adahg32").finish();
+        let info = re.match_with_params(&req, 0).unwrap();
+        assert_eq!(info.get("version").unwrap(), "151");
+        assert_eq!(info.get("id").unwrap(), "adahg32");
+
+        let re = ResourceDef::new("/v{version:(?:[0-9])+}/resource/{id}");
+        assert!(re.is_match("/v1/resource/320120"));
+        assert!(!re.is_match("/v/resource/1"));
+        assert!(!re.is_match("/va/resource/1"));
 
         let req = TestRequest::with_uri("/v151/resource/adahg32").finish();
         let info = re.match_with_params(&req, 0).unwrap();
