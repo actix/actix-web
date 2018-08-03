@@ -307,11 +307,11 @@ impl StreamHandlerType {
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_std(io, &Handle::default())
                     .expect("failed to associate TCP stream");
-                self.settings.ssl_conn_add();
+                h.ssl_conn_add();
 
                 current_thread::spawn(TlsAcceptorExt::accept_async(acceptor, io).then(
                     move |res| {
-                        self.settings.ssl_conn_del();
+                        h.ssl_conn_del();
                         match res {
                             Ok(io) => current_thread::spawn(HttpChannel::new(
                                 h, io, peer, http2,
@@ -330,11 +330,11 @@ impl StreamHandlerType {
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_std(io, &Handle::default())
                     .expect("failed to associate TCP stream");
-                self.settings.ssl_conn_add();
+                h.ssl_conn_add();
 
                 current_thread::spawn(SslAcceptorExt::accept_async(acceptor, io).then(
                     move |res| {
-                        self.settings.ssl_conn_del();
+                        h.ssl_conn_del();
                         match res {
                             Ok(io) => {
                                 let http2 = if let Some(p) =
@@ -362,11 +362,11 @@ impl StreamHandlerType {
                 let _ = io.set_nodelay(true);
                 let io = TcpStream::from_std(io, &Handle::default())
                     .expect("failed to associate TCP stream");
-                self.settings.ssl_conn_add();
+                h.ssl_conn_add();
 
                 current_thread::spawn(ServerConfigExt::accept_async(acceptor, io).then(
                     move |res| {
-                        self.settings.ssl_conn_del();
+                        h.ssl_conn_del();
                         match res {
                             Ok(io) => {
                                 let http2 = if let Some(p) =
