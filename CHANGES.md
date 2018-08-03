@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.4] - 2018-08-xx
+
+### Added
+
+* Added `HttpServer::max_connections()` and `HttpServer::max_sslrate()`, accept backpressure #250
+
+
 ## [0.7.3] - 2018-08-01
 
 ### Added

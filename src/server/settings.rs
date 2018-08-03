@@ -1,7 +1,8 @@
-use std::cell::{Cell, RefCell, RefMut, UnsafeCell};
+use std::cell::{RefCell, RefMut, UnsafeCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
+use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc};
 use std::{env, fmt, net};
 
 use bytes::BytesMut;
@@ -11,6 +12,7 @@ use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
 
+use super::accept::AcceptNotify;
 use super::channel::Node;
 use super::message::{Request, RequestPool};
 use super::KeepAlive;
@@ -93,21 +95,6 @@ impl ServerSettings {
         }
     }
 
-    pub(crate) fn parts(&self) -> (Option<net::SocketAddr>, String, bool) {
-        (self.addr, self.host.clone(), self.secure)
-    }
-
-    pub(crate) fn from_parts(parts: (Option<net::SocketAddr>, String, bool)) -> Self {
-        let (addr, host, secure) = parts;
-        ServerSettings {
-            addr,
-            host,
-            secure,
-            cpu_pool: LazyCell::new(),
-            responses: HttpResponsePool::get_pool(),
-        }
-    }
-
     /// Returns the socket address of the local half of this TCP connection
     pub fn local_addr(&self) -> Option<net::SocketAddr> {
         self.addr
@@ -150,14 +137,17 @@ pub(crate) struct WorkerSettings<H> {
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
-    channels: Cell<usize>,
+    channels: Arc<AtomicUsize>,
     node: RefCell<Node<()>>,
     date: UnsafeCell<Date>,
+    sslrate: Arc<AtomicUsize>,
+    notify: AcceptNotify,
 }
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
         h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
+        notify: AcceptNotify, channels: Arc<AtomicUsize>, sslrate: Arc<AtomicUsize>,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -169,16 +159,18 @@ impl<H> WorkerSettings<H> {
             h: RefCell::new(h),
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
-            channels: Cell::new(0),
             node: RefCell::new(Node::head()),
             date: UnsafeCell::new(Date::new()),
             keep_alive,
             ka_enabled,
+            channels,
+            sslrate,
+            notify,
         }
     }
 
     pub fn num_channels(&self) -> usize {
-        self.channels.get()
+        self.channels.load(Ordering::Relaxed)
     }
 
     pub fn head(&self) -> RefMut<Node<()>> {
@@ -210,16 +202,12 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn add_channel(&self) {
-        self.channels.set(self.channels.get() + 1);
+        self.channels.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn remove_channel(&self) {
-        let num = self.channels.get();
-        if num > 0 {
-            self.channels.set(num - 1);
-        } else {
-            error!("Number of removed channels is bigger than added channel. Bug in actix-web");
-        }
+        let val = self.channels.fetch_sub(1, Ordering::Relaxed);
+        self.notify.notify_maxconn(val);
     }
 
     pub fn update_date(&self) {
@@ -239,6 +227,16 @@ impl<H> WorkerSettings<H> {
         } else {
             dst.extend_from_slice(date_bytes);
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn ssl_conn_add(&self) {
+        self.sslrate.fetch_add(1, Ordering::Relaxed);
+    }
+    #[allow(dead_code)]
+    pub(crate) fn ssl_conn_del(&self) {
+        let val = self.sslrate.fetch_sub(1, Ordering::Relaxed);
+        self.notify.notify_maxsslrate(val);
     }
 }
 
@@ -311,6 +309,9 @@ mod tests {
             Vec::new(),
             KeepAlive::Os,
             ServerSettings::default(),
+            AcceptNotify::default(),
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicUsize::new(0)),
         );
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
         settings.set_date(&mut buf1, true);

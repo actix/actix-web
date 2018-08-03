@@ -464,6 +464,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::net::Shutdown;
+    use std::sync::{atomic::AtomicUsize, Arc};
     use std::{cmp, io, time};
 
     use bytes::{Buf, Bytes, BytesMut};
@@ -473,9 +474,21 @@ mod tests {
     use super::*;
     use application::HttpApplication;
     use httpmessage::HttpMessage;
+    use server::accept::AcceptNotify;
     use server::h1decoder::Message;
     use server::settings::{ServerSettings, WorkerSettings};
     use server::{KeepAlive, Request};
+
+    fn wrk_settings() -> WorkerSettings<HttpApplication> {
+        WorkerSettings::<HttpApplication>::new(
+            Vec::new(),
+            KeepAlive::Os,
+            ServerSettings::default(),
+            AcceptNotify::default(),
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicUsize::new(0)),
+        )
+    }
 
     impl Message {
         fn message(self) -> Request {
@@ -506,8 +519,7 @@ mod tests {
 
     macro_rules! parse_ready {
         ($e:expr) => {{
-            let settings: WorkerSettings<HttpApplication> =
-                WorkerSettings::new(Vec::new(), KeepAlive::Os, ServerSettings::default());
+            let settings = wrk_settings();
             match H1Decoder::new().decode($e, &settings) {
                 Ok(Some(msg)) => msg.message(),
                 Ok(_) => unreachable!("Eof during parsing http request"),
@@ -518,8 +530,7 @@ mod tests {
 
     macro_rules! expect_parse_err {
         ($e:expr) => {{
-            let settings: WorkerSettings<HttpApplication> =
-                WorkerSettings::new(Vec::new(), KeepAlive::Os, ServerSettings::default());
+            let settings = wrk_settings();
 
             match H1Decoder::new().decode($e, &settings) {
                 Err(err) => match err {
@@ -595,11 +606,7 @@ mod tests {
     fn test_req_parse() {
         let buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let readbuf = BytesMut::new();
-        let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        ));
+        let settings = Rc::new(wrk_settings());
 
         let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
         h1.poll_io();
@@ -611,11 +618,7 @@ mod tests {
     fn test_req_parse_err() {
         let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
         let readbuf = BytesMut::new();
-        let settings = Rc::new(WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        ));
+        let settings = Rc::new(wrk_settings());
 
         let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
         h1.poll_io();
@@ -626,11 +629,7 @@ mod tests {
     #[test]
     fn test_parse() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -647,11 +646,7 @@ mod tests {
     #[test]
     fn test_parse_partial() {
         let mut buf = BytesMut::from("PUT /test HTTP/1");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -674,11 +669,7 @@ mod tests {
     #[test]
     fn test_parse_post() {
         let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -696,11 +687,7 @@ mod tests {
     fn test_parse_body() {
         let mut buf =
             BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -727,11 +714,7 @@ mod tests {
     fn test_parse_body_crlf() {
         let mut buf =
             BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         match reader.decode(&mut buf, &settings) {
@@ -757,11 +740,7 @@ mod tests {
     #[test]
     fn test_parse_partial_eof() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
         let mut reader = H1Decoder::new();
         assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
 
@@ -780,11 +759,7 @@ mod tests {
     #[test]
     fn test_headers_split_field() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
@@ -815,11 +790,7 @@ mod tests {
              Set-Cookie: c1=cookie1\r\n\
              Set-Cookie: c2=cookie2\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         let req = msg.message();
@@ -1015,11 +986,7 @@ mod tests {
 
     #[test]
     fn test_http_request_upgrade() {
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: upgrade\r\n\
@@ -1085,12 +1052,7 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
-
+        let settings = wrk_settings();
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
@@ -1125,11 +1087,7 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
         assert!(msg.is_payload());
@@ -1163,11 +1121,7 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chunked\r\n\r\n",
         );
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
@@ -1214,11 +1168,7 @@ mod tests {
             &"GET /test HTTP/1.1\r\n\
               transfer-encoding: chunked\r\n\r\n"[..],
         );
-        let settings = WorkerSettings::<HttpApplication>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-        );
+        let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
         let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();

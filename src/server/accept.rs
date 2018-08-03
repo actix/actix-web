@@ -10,13 +10,13 @@ use tokio_timer::Delay;
 use actix::{msgs::Execute, Arbiter, System};
 
 use super::srv::{ServerCommand, Socket};
-use super::worker::Conn;
+use super::worker::{Conn, WorkerClient};
 
 pub(crate) enum Command {
     Pause,
     Resume,
     Stop,
-    Worker(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>),
+    Worker(WorkerClient),
 }
 
 struct ServerSocketInfo {
@@ -26,40 +26,133 @@ struct ServerSocketInfo {
     timeout: Option<Instant>,
 }
 
+#[derive(Clone)]
+pub(crate) struct AcceptNotify {
+    ready: mio::SetReadiness,
+    maxconn: usize,
+    maxconn_low: usize,
+    maxsslrate: usize,
+    maxsslrate_low: usize,
+}
+
+impl AcceptNotify {
+    pub fn new(ready: mio::SetReadiness, maxconn: usize, maxsslrate: usize) -> Self {
+        let maxconn_low = if maxconn > 10 { maxconn - 10 } else { 0 };
+        let maxsslrate_low = if maxsslrate > 10 { maxsslrate - 10 } else { 0 };
+        AcceptNotify {
+            ready,
+            maxconn,
+            maxconn_low,
+            maxsslrate,
+            maxsslrate_low,
+        }
+    }
+
+    pub fn notify_maxconn(&self, maxconn: usize) {
+        if maxconn > self.maxconn_low && maxconn <= self.maxconn {
+            let _ = self.ready.set_readiness(mio::Ready::readable());
+        }
+    }
+    pub fn notify_maxsslrate(&self, sslrate: usize) {
+        if sslrate > self.maxsslrate_low && sslrate <= self.maxsslrate {
+            let _ = self.ready.set_readiness(mio::Ready::readable());
+        }
+    }
+}
+
+impl Default for AcceptNotify {
+    fn default() -> Self {
+        AcceptNotify::new(mio::Registration::new2().1, 0, 0)
+    }
+}
+
+pub(crate) struct AcceptLoop {
+    cmd_reg: Option<mio::Registration>,
+    cmd_ready: mio::SetReadiness,
+    notify_reg: Option<mio::Registration>,
+    notify_ready: mio::SetReadiness,
+    tx: sync_mpsc::Sender<Command>,
+    rx: Option<sync_mpsc::Receiver<Command>>,
+    srv: Option<(
+        mpsc::UnboundedSender<ServerCommand>,
+        mpsc::UnboundedReceiver<ServerCommand>,
+    )>,
+    maxconn: usize,
+    maxsslrate: usize,
+}
+
+impl AcceptLoop {
+    pub fn new() -> AcceptLoop {
+        let (tx, rx) = sync_mpsc::channel();
+        let (cmd_reg, cmd_ready) = mio::Registration::new2();
+        let (notify_reg, notify_ready) = mio::Registration::new2();
+
+        AcceptLoop {
+            tx,
+            cmd_ready,
+            cmd_reg: Some(cmd_reg),
+            notify_ready,
+            notify_reg: Some(notify_reg),
+            maxconn: 102_400,
+            maxsslrate: 256,
+            rx: Some(rx),
+            srv: Some(mpsc::unbounded()),
+        }
+    }
+
+    pub fn send(&self, msg: Command) {
+        let _ = self.tx.send(msg);
+        let _ = self.cmd_ready.set_readiness(mio::Ready::readable());
+    }
+
+    pub fn get_notify(&self) -> AcceptNotify {
+        AcceptNotify::new(self.notify_ready.clone(), self.maxconn, self.maxsslrate)
+    }
+
+    pub fn max_connections(&mut self, num: usize) {
+        self.maxconn = num;
+    }
+
+    pub fn max_sslrate(&mut self, num: usize) {
+        self.maxsslrate = num;
+    }
+
+    pub(crate) fn start(
+        &mut self, socks: Vec<(usize, Socket)>, workers: Vec<WorkerClient>,
+    ) -> mpsc::UnboundedReceiver<ServerCommand> {
+        let (tx, rx) = self.srv.take().expect("Can not re-use AcceptInfo");
+
+        Accept::start(
+            self.rx.take().expect("Can not re-use AcceptInfo"),
+            self.cmd_reg.take().expect("Can not re-use AcceptInfo"),
+            self.notify_reg.take().expect("Can not re-use AcceptInfo"),
+            self.maxconn,
+            self.maxsslrate,
+            socks,
+            tx,
+            workers,
+        );
+        rx
+    }
+}
+
 struct Accept {
     poll: mio::Poll,
     rx: sync_mpsc::Receiver<Command>,
     sockets: Slab<ServerSocketInfo>,
-    workers: Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)>,
-    _reg: mio::Registration,
-    next: usize,
+    workers: Vec<WorkerClient>,
     srv: mpsc::UnboundedSender<ServerCommand>,
     timer: (mio::Registration, mio::SetReadiness),
+    next: usize,
+    maxconn: usize,
+    maxsslrate: usize,
+    backpressure: bool,
 }
 
+const DELTA: usize = 100;
 const CMD: mio::Token = mio::Token(0);
 const TIMER: mio::Token = mio::Token(1);
-
-pub(crate) fn start_accept_thread(
-    socks: Vec<(usize, Socket)>, srv: mpsc::UnboundedSender<ServerCommand>,
-    workers: Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)>,
-) -> (mio::SetReadiness, sync_mpsc::Sender<Command>) {
-    let (tx, rx) = sync_mpsc::channel();
-    let (reg, readiness) = mio::Registration::new2();
-
-    let sys = System::current();
-
-    // start accept thread
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    let _ = thread::Builder::new()
-        .name("actix-web accept loop".to_owned())
-        .spawn(move || {
-            System::set_current(sys);
-            Accept::new(reg, rx, socks, workers, srv).poll();
-        });
-
-    (readiness, tx)
-}
+const NOTIFY: mio::Token = mio::Token(2);
 
 /// This function defines errors that are per-connection. Which basically
 /// means that if we get this error from `accept()` system call it means
@@ -75,24 +168,57 @@ fn connection_error(e: &io::Error) -> bool {
 }
 
 impl Accept {
+    #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
+    pub(crate) fn start(
+        rx: sync_mpsc::Receiver<Command>, cmd_reg: mio::Registration,
+        notify_reg: mio::Registration, maxconn: usize, maxsslrate: usize,
+        socks: Vec<(usize, Socket)>, srv: mpsc::UnboundedSender<ServerCommand>,
+        workers: Vec<WorkerClient>,
+    ) {
+        let sys = System::current();
+
+        // start accept thread
+        let _ = thread::Builder::new()
+            .name("actix-web accept loop".to_owned())
+            .spawn(move || {
+                System::set_current(sys);
+                let mut accept = Accept::new(rx, socks, workers, srv);
+                accept.maxconn = maxconn;
+                accept.maxsslrate = maxsslrate;
+
+                // Start listening for incoming commands
+                if let Err(err) = accept.poll.register(
+                    &cmd_reg,
+                    CMD,
+                    mio::Ready::readable(),
+                    mio::PollOpt::edge(),
+                ) {
+                    panic!("Can not register Registration: {}", err);
+                }
+
+                // Start listening for notify updates
+                if let Err(err) = accept.poll.register(
+                    &notify_reg,
+                    NOTIFY,
+                    mio::Ready::readable(),
+                    mio::PollOpt::edge(),
+                ) {
+                    panic!("Can not register Registration: {}", err);
+                }
+
+                accept.poll();
+            });
+    }
+
     fn new(
-        _reg: mio::Registration, rx: sync_mpsc::Receiver<Command>,
-        socks: Vec<(usize, Socket)>,
-        workers: Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)>,
-        srv: mpsc::UnboundedSender<ServerCommand>,
+        rx: sync_mpsc::Receiver<Command>, socks: Vec<(usize, Socket)>,
+        workers: Vec<WorkerClient>, srv: mpsc::UnboundedSender<ServerCommand>,
     ) -> Accept {
         // Create a poll instance
         let poll = match mio::Poll::new() {
             Ok(poll) => poll,
             Err(err) => panic!("Can not create mio::Poll: {}", err),
         };
-
-        // Start listening for incoming commands
-        if let Err(err) =
-            poll.register(&_reg, CMD, mio::Ready::readable(), mio::PollOpt::edge())
-        {
-            panic!("Can not register Registration: {}", err);
-        }
 
         // Start accept
         let mut sockets = Slab::new();
@@ -106,7 +232,7 @@ impl Accept {
             // Start listening for incoming connections
             if let Err(err) = poll.register(
                 &server,
-                mio::Token(token + 1000),
+                mio::Token(token + DELTA),
                 mio::Ready::readable(),
                 mio::PollOpt::edge(),
             ) {
@@ -132,12 +258,14 @@ impl Accept {
         Accept {
             poll,
             rx,
-            _reg,
             sockets,
             workers,
             srv,
             next: 0,
             timer: (tm, tmr),
+            maxconn: 102_400,
+            maxsslrate: 256,
+            backpressure: false,
         }
     }
 
@@ -157,7 +285,14 @@ impl Accept {
                         return;
                     },
                     TIMER => self.process_timer(),
-                    _ => self.accept(token),
+                    NOTIFY => self.backpressure(false),
+                    _ => {
+                        let token = usize::from(token);
+                        if token < DELTA {
+                            continue;
+                        }
+                        self.accept(token - DELTA);
+                    }
                 }
             }
         }
@@ -170,7 +305,7 @@ impl Accept {
                 if now > inst {
                     if let Err(err) = self.poll.register(
                         &info.sock,
-                        mio::Token(token + 1000),
+                        mio::Token(token + DELTA),
                         mio::Ready::readable(),
                         mio::PollOpt::edge(),
                     ) {
@@ -202,7 +337,7 @@ impl Accept {
                         for (token, info) in self.sockets.iter() {
                             if let Err(err) = self.poll.register(
                                 &info.sock,
-                                mio::Token(token + 1000),
+                                mio::Token(token + DELTA),
                                 mio::Ready::readable(),
                                 mio::PollOpt::edge(),
                             ) {
@@ -221,8 +356,9 @@ impl Accept {
                         }
                         return false;
                     }
-                    Command::Worker(idx, addr) => {
-                        self.workers.push((idx, addr));
+                    Command::Worker(worker) => {
+                        self.backpressure(false);
+                        self.workers.push(worker);
                     }
                 },
                 Err(err) => match err {
@@ -239,48 +375,100 @@ impl Accept {
         true
     }
 
-    fn accept(&mut self, token: mio::Token) {
-        let token = usize::from(token);
-        if token < 1000 {
-            return;
+    fn backpressure(&mut self, on: bool) {
+        if self.backpressure {
+            if !on {
+                self.backpressure = false;
+                for (token, info) in self.sockets.iter() {
+                    if let Err(err) = self.poll.register(
+                        &info.sock,
+                        mio::Token(token + DELTA),
+                        mio::Ready::readable(),
+                        mio::PollOpt::edge(),
+                    ) {
+                        error!("Can not resume socket accept process: {}", err);
+                    } else {
+                        info!("Accepting connections on {} has been resumed", info.addr);
+                    }
+                }
+            }
+        } else if on {
+            self.backpressure = true;
+            for (_, info) in self.sockets.iter() {
+                let _ = self.poll.deregister(&info.sock);
+            }
         }
+    }
 
-        if let Some(info) = self.sockets.get_mut(token - 1000) {
-            loop {
-                match info.sock.accept_std() {
-                    Ok((io, addr)) => {
-                        let mut msg = Conn {
-                            io,
-                            token: info.token,
-                            peer: Some(addr),
-                            http2: false,
-                        };
-                        while !self.workers.is_empty() {
-                            match self.workers[self.next].1.unbounded_send(msg) {
-                                Ok(_) => (),
-                                Err(err) => {
-                                    let _ = self.srv.unbounded_send(
-                                        ServerCommand::WorkerDied(
-                                            self.workers[self.next].0,
-                                        ),
-                                    );
-                                    msg = err.into_inner();
-                                    self.workers.swap_remove(self.next);
-                                    if self.workers.is_empty() {
-                                        error!("No workers");
-                                        thread::sleep(Duration::from_millis(100));
-                                        break;
-                                    } else if self.workers.len() <= self.next {
-                                        self.next = 0;
-                                    }
-                                    continue;
-                                }
-                            }
+    fn accept_one(&mut self, mut msg: Conn<net::TcpStream>) {
+        if self.backpressure {
+            while !self.workers.is_empty() {
+                match self.workers[self.next].send(msg) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
+                            self.workers[self.next].idx,
+                        ));
+                        msg = err.into_inner();
+                        self.workers.swap_remove(self.next);
+                        if self.workers.is_empty() {
+                            error!("No workers");
+                            return;
+                        } else if self.workers.len() <= self.next {
+                            self.next = 0;
+                        }
+                        continue;
+                    }
+                }
+                self.next = (self.next + 1) % self.workers.len();
+                break;
+            }
+        } else {
+            let mut idx = 0;
+            while idx < self.workers.len() {
+                idx += 1;
+                if self.workers[self.next].available(self.maxconn, self.maxsslrate) {
+                    match self.workers[self.next].send(msg) {
+                        Ok(_) => {
                             self.next = (self.next + 1) % self.workers.len();
-                            break;
+                            return;
+                        }
+                        Err(err) => {
+                            let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
+                                self.workers[self.next].idx,
+                            ));
+                            msg = err.into_inner();
+                            self.workers.swap_remove(self.next);
+                            if self.workers.is_empty() {
+                                error!("No workers");
+                                self.backpressure(true);
+                                return;
+                            } else if self.workers.len() <= self.next {
+                                self.next = 0;
+                            }
+                            continue;
                         }
                     }
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                }
+                self.next = (self.next + 1) % self.workers.len();
+            }
+            // enable backpressure
+            self.backpressure(true);
+            self.accept_one(msg);
+        }
+    }
+
+    fn accept(&mut self, token: usize) {
+        loop {
+            let msg = if let Some(info) = self.sockets.get_mut(token) {
+                match info.sock.accept_std() {
+                    Ok((io, addr)) => Conn {
+                        io,
+                        token: info.token,
+                        peer: Some(addr),
+                        http2: false,
+                    },
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return,
                     Err(ref e) if connection_error(e) => continue,
                     Err(e) => {
                         error!("Error accepting connection: {}", e);
@@ -307,10 +495,14 @@ impl Accept {
                                 Ok(())
                             },
                         ));
-                        break;
+                        return;
                     }
                 }
-            }
+            } else {
+                return;
+            };
+
+            self.accept_one(msg);
         }
     }
 }

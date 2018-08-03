@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::sync::{mpsc as sync_mpsc, Arc};
+use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Duration;
 use std::{io, net};
 
@@ -10,10 +10,8 @@ use actix::{
 
 use futures::sync::mpsc;
 use futures::{Future, Sink, Stream};
-use mio;
 use net2::TcpBuilder;
 use num_cpus;
-use slab::Slab;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "tls")]
@@ -25,10 +23,12 @@ use openssl::ssl::{AlpnError, SslAcceptorBuilder};
 #[cfg(feature = "rust-tls")]
 use rustls::ServerConfig;
 
-use super::accept::{start_accept_thread, Command};
+use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::channel::{HttpChannel, WrapperStream};
 use super::settings::{ServerSettings, WorkerSettings};
-use super::worker::{Conn, SocketInfo, StopWorker, StreamHandlerType, Worker};
+use super::worker::{
+    Conn, StopWorker, StreamHandlerType, Worker, WorkerClient, WorkersPool,
+};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
 use super::{PauseServer, ResumeServer, StopServer};
 
@@ -54,17 +54,10 @@ where
     h: Option<Rc<WorkerSettings<H::Handler>>>,
     threads: usize,
     backlog: i32,
-    host: Option<String>,
-    keep_alive: KeepAlive,
-    factory: Arc<Fn() -> Vec<H> + Send + Sync>,
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
-    workers: Vec<(usize, Addr<Worker<H::Handler>>)>,
     sockets: Vec<Socket>,
-    accept: Option<(
-        mio::SetReadiness,
-        sync_mpsc::Sender<Command>,
-        Slab<SocketInfo>,
-    )>,
+    pool: WorkersPool<H>,
+    workers: Vec<(usize, Addr<Worker<H::Handler>>)>,
+    accept: AcceptLoop,
     exit: bool,
     shutdown_timeout: u16,
     signals: Option<Addr<signal::ProcessSignals>>,
@@ -105,12 +98,10 @@ where
             h: None,
             threads: num_cpus::get(),
             backlog: 2048,
-            host: None,
-            keep_alive: KeepAlive::Os,
-            factory: Arc::new(f),
+            pool: WorkersPool::new(f),
             workers: Vec::new(),
             sockets: Vec::new(),
-            accept: None,
+            accept: AcceptLoop::new(),
             exit: false,
             shutdown_timeout: 30,
             signals: None,
@@ -128,15 +119,6 @@ where
         self
     }
 
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.6.0",
-        note = "please use `HttpServer::workers()` instead"
-    )]
-    pub fn threads(self, num: usize) -> Self {
-        self.workers(num)
-    }
-
     /// Set the maximum number of pending connections.
     ///
     /// This refers to the number of clients that can be waiting to be served.
@@ -152,11 +134,34 @@ where
         self
     }
 
+    /// Sets the maximum per-worker number of concurrent connections.
+    ///
+    /// All socket listeners will stop accepting connections when this limit is reached
+    /// for each worker.
+    ///
+    /// By default max connections is set to a 100k.
+    pub fn max_connections(mut self, num: usize) -> Self {
+        self.accept.max_connections(num);
+        self
+    }
+
+    /// Sets the maximum concurrent per-worker number of SSL handshakes.
+    ///
+    /// All listeners will stop accepting connections when this limit is reached. It
+    /// can be used to limit the global SSL CPU usage regardless of each worker
+    /// capacity.
+    ///
+    /// By default max connections is set to a 256.
+    pub fn max_sslrate(mut self, num: usize) -> Self {
+        self.accept.max_sslrate(num);
+        self
+    }
+
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a `Os`.
     pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
-        self.keep_alive = val.into();
+        self.pool.keep_alive = val.into();
         self
     }
 
@@ -166,7 +171,7 @@ where
     /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
     /// html#method.host) documentation for more information.
     pub fn server_hostname(mut self, val: String) -> Self {
-        self.host = Some(val);
+        self.pool.host = Some(val);
         self
     }
 
@@ -395,27 +400,12 @@ where
         Ok(self)
     }
 
-    fn start_workers(
-        &mut self, settings: &ServerSettings, sockets: &Slab<SocketInfo>,
-    ) -> Vec<(usize, mpsc::UnboundedSender<Conn<net::TcpStream>>)> {
+    fn start_workers(&mut self, notify: &AcceptNotify) -> Vec<WorkerClient> {
         // start workers
         let mut workers = Vec::new();
         for idx in 0..self.threads {
-            let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
-
-            let ka = self.keep_alive;
-            let socks = sockets.clone();
-            let factory = Arc::clone(&self.factory);
-            let parts = settings.parts();
-
-            let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                let s = ServerSettings::from_parts(parts);
-                let apps: Vec<_> =
-                    (*factory)().into_iter().map(|h| h.into_handler()).collect();
-                ctx.add_message_stream(rx);
-                Worker::new(apps, socks, ka, s)
-            });
-            workers.push((idx, tx));
+            let (worker, addr) = self.pool.start(idx, notify.clone());
+            workers.push(worker);
             self.workers.push((idx, addr));
         }
         info!("Starting {} http workers", self.threads);
@@ -466,30 +456,20 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         if self.sockets.is_empty() {
             panic!("HttpServer::bind() has to be called before start()");
         } else {
-            let (tx, rx) = mpsc::unbounded();
-
-            let mut socks = Slab::new();
             let mut addrs: Vec<(usize, Socket)> = Vec::new();
 
             for socket in self.sockets.drain(..) {
-                let entry = socks.vacant_entry();
-                let token = entry.key();
-                entry.insert(SocketInfo {
-                    addr: socket.addr,
-                    htype: socket.tp.clone(),
-                });
+                let token = self.pool.insert(socket.addr, socket.tp.clone());
                 addrs.push((token, socket));
             }
-
-            let settings = ServerSettings::new(Some(addrs[0].1.addr), &self.host, false);
-            let workers = self.start_workers(&settings, &socks);
+            let notify = self.accept.get_notify();
+            let workers = self.start_workers(&notify);
 
             // start accept thread
             for (_, sock) in &addrs {
                 info!("Starting server on http://{}", sock.addr);
             }
-            let (r, cmd) = start_accept_thread(addrs, tx.clone(), workers.clone());
-            self.accept = Some((r, cmd, socks));
+            let rx = self.accept.start(addrs, workers.clone());
 
             // start http server actor
             let signals = self.subscribe_to_signals();
@@ -600,15 +580,18 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     {
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let settings = ServerSettings::new(Some(addr), &self.host, secure);
-        let apps: Vec<_> = (*self.factory)()
+        let settings = ServerSettings::new(Some(addr), &self.pool.host, secure);
+        let apps: Vec<_> = (*self.pool.factory)()
             .into_iter()
             .map(|h| h.into_handler())
             .collect();
         self.h = Some(Rc::new(WorkerSettings::new(
             apps,
-            self.keep_alive,
+            self.pool.keep_alive,
             settings,
+            AcceptNotify::default(),
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicUsize::new(0)),
         )));
 
         // start server
@@ -676,7 +659,6 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
 
                 if found {
                     error!("Worker has died {:?}, restarting", idx);
-                    let (tx, rx) = mpsc::unbounded::<Conn<net::TcpStream>>();
 
                     let mut new_idx = self.workers.len();
                     'found: loop {
@@ -689,25 +671,10 @@ impl<H: IntoHttpHandler> StreamHandler<ServerCommand, ()> for HttpServer<H> {
                         break;
                     }
 
-                    let ka = self.keep_alive;
-                    let factory = Arc::clone(&self.factory);
-                    let host = self.host.clone();
-                    let socks = self.accept.as_ref().unwrap().2.clone();
-                    let addr = socks[0].addr;
-
-                    let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-                        let settings = ServerSettings::new(Some(addr), &host, false);
-                        let apps: Vec<_> =
-                            (*factory)().into_iter().map(|h| h.into_handler()).collect();
-                        ctx.add_message_stream(rx);
-                        Worker::new(apps, socks, ka, settings)
-                    });
-                    if let Some(ref item) = &self.accept {
-                        let _ = item.1.send(Command::Worker(new_idx, tx.clone()));
-                        let _ = item.0.set_readiness(mio::Ready::readable());
-                    }
-
+                    let (worker, addr) =
+                        self.pool.start(new_idx, self.accept.get_notify());
                     self.workers.push((new_idx, addr));
+                    self.accept.send(Command::Worker(worker));
                 }
             }
         }
@@ -735,10 +702,7 @@ impl<H: IntoHttpHandler> Handler<PauseServer> for HttpServer<H> {
     type Result = ();
 
     fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) {
-        for item in &self.accept {
-            let _ = item.1.send(Command::Pause);
-            let _ = item.0.set_readiness(mio::Ready::readable());
-        }
+        self.accept.send(Command::Pause);
     }
 }
 
@@ -746,10 +710,7 @@ impl<H: IntoHttpHandler> Handler<ResumeServer> for HttpServer<H> {
     type Result = ();
 
     fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) {
-        for item in &self.accept {
-            let _ = item.1.send(Command::Resume);
-            let _ = item.0.set_readiness(mio::Ready::readable());
-        }
+        self.accept.send(Command::Resume);
     }
 }
 
@@ -758,10 +719,7 @@ impl<H: IntoHttpHandler> Handler<StopServer> for HttpServer<H> {
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
         // stop accept threads
-        for item in &self.accept {
-            let _ = item.1.send(Command::Stop);
-            let _ = item.0.set_readiness(mio::Ready::readable());
-        }
+        self.accept.send(Command::Stop);
 
         // stop workers
         let (tx, rx) = mpsc::channel(1);
