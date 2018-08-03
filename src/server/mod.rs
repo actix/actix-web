@@ -1,10 +1,11 @@
 //! Http server
 use std::net::Shutdown;
-use std::{io, time};
+use std::{io, net, time};
 
 use bytes::{BufMut, BytesMut};
-use futures::{Async, Poll};
+use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
 pub(crate) mod accept;
@@ -21,11 +22,13 @@ pub(crate) mod message;
 pub(crate) mod output;
 pub(crate) mod settings;
 mod srv;
+mod ssl;
 mod worker;
 
 pub use self::message::Request;
 pub use self::settings::ServerSettings;
 pub use self::srv::HttpServer;
+pub use self::ssl::*;
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
@@ -70,6 +73,13 @@ where
     H: IntoHttpHandler + 'static,
 {
     HttpServer::new(factory)
+}
+
+bitflags! {
+    pub struct ServerFlags: u8 {
+        const HTTP1 = 0b0000_0001;
+        const HTTP2 = 0b0000_0010;
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -179,6 +189,34 @@ impl<T: HttpHandler> IntoHttpHandler for T {
     }
 }
 
+pub(crate) trait IntoAsyncIo {
+    type Io: AsyncRead + AsyncWrite;
+
+    fn into_async_io(self) -> Result<Self::Io, io::Error>;
+}
+
+impl IntoAsyncIo for net::TcpStream {
+    type Io = TcpStream;
+
+    fn into_async_io(self) -> Result<Self::Io, io::Error> {
+        TcpStream::from_std(self, &Handle::default())
+    }
+}
+
+/// Trait implemented by types that could accept incomming socket connections.
+pub trait AcceptorService<Io: AsyncRead + AsyncWrite>: Clone {
+    /// Established connection type
+    type Accepted: IoStream;
+    /// Future describes async accept process.
+    type Future: Future<Item = Self::Accepted, Error = io::Error> + 'static;
+
+    /// Establish new connection
+    fn accept(&self, io: Io) -> Self::Future;
+
+    /// Scheme
+    fn scheme(&self) -> &'static str;
+}
+
 #[doc(hidden)]
 #[derive(Debug)]
 pub enum WriterState {
@@ -265,92 +303,5 @@ impl IoStream for TcpStream {
     #[inline]
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         TcpStream::set_linger(self, dur)
-    }
-}
-
-#[cfg(feature = "alpn")]
-use tokio_openssl::SslStream;
-
-#[cfg(feature = "alpn")]
-impl IoStream for SslStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
-    }
-}
-
-#[cfg(feature = "tls")]
-use tokio_tls::TlsStream;
-
-#[cfg(feature = "tls")]
-impl IoStream for TlsStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
-    }
-}
-
-#[cfg(feature = "rust-tls")]
-use rustls::{ClientSession, ServerSession};
-#[cfg(feature = "rust-tls")]
-use tokio_rustls::TlsStream as RustlsStream;
-
-#[cfg(feature = "rust-tls")]
-impl IoStream for RustlsStream<TcpStream, ClientSession> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = <Self as AsyncWrite>::shutdown(self);
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().0.set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().0.set_linger(dur)
-    }
-}
-
-#[cfg(feature = "rust-tls")]
-impl IoStream for RustlsStream<TcpStream, ServerSession> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = <Self as AsyncWrite>::shutdown(self);
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().0.set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().0.set_linger(dur)
     }
 }

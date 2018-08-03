@@ -347,7 +347,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
 
         // start request processing
         let mut task = None;
-        for h in settings.handlers().iter_mut() {
+        for h in settings.handlers().iter() {
             msg = match h.handle(msg) {
                 Ok(t) => {
                     task = Some(t);

@@ -375,7 +375,7 @@ where
                     self.keepalive_timer.take();
 
                     // search handler for request
-                    for h in self.settings.handlers().iter_mut() {
+                    for h in self.settings.handlers().iter() {
                         msg = match h.handle(msg) {
                             Ok(mut pipe) => {
                                 if self.tasks.is_empty() {

@@ -4,8 +4,11 @@
 
 ### Added
 
-* Added `HttpServer::max_connections()` and `HttpServer::max_sslrate()`, 
+* Added `HttpServer::maxconn()` and `HttpServer::maxconnrate()`,
   accept backpressure #250
+
+* Allow to customize connection handshake process via `HttpServer::listen_with()` 
+  and `HttpServer::bind_with()` methods
 
 ### Fixed
 

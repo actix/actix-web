@@ -1,33 +1,14 @@
+use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc};
-use std::{net, time};
+use std::{io, mem, net, time};
 
 use futures::sync::mpsc::{unbounded, SendError, UnboundedSender};
 use futures::sync::oneshot;
 use futures::Future;
-use net2::TcpStreamExt;
-use slab::Slab;
+use net2::{TcpBuilder, TcpStreamExt};
 use tokio::executor::current_thread;
-use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
-
-#[cfg(any(feature = "tls", feature = "alpn", feature = "rust-tls"))]
-use futures::future;
-
-#[cfg(feature = "tls")]
-use native_tls::TlsAcceptor;
-#[cfg(feature = "tls")]
-use tokio_tls::TlsAcceptorExt;
-
-#[cfg(feature = "alpn")]
-use openssl::ssl::SslAcceptor;
-#[cfg(feature = "alpn")]
-use tokio_openssl::SslAcceptorExt;
-
-#[cfg(feature = "rust-tls")]
-use rustls::{ServerConfig, Session};
-#[cfg(feature = "rust-tls")]
-use tokio_rustls::ServerConfigExt;
 
 use actix::msgs::StopArbiter;
 use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, Message, Response};
@@ -35,68 +16,180 @@ use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, Message, Respo
 use super::accept::AcceptNotify;
 use super::channel::HttpChannel;
 use super::settings::{ServerSettings, WorkerSettings};
-use super::{HttpHandler, IntoHttpHandler, KeepAlive};
+use super::{
+    AcceptorService, HttpHandler, IntoAsyncIo, IntoHttpHandler, IoStream, KeepAlive,
+};
 
 #[derive(Message)]
 pub(crate) struct Conn<T> {
     pub io: T,
-    pub token: usize,
+    pub token: Token,
     pub peer: Option<net::SocketAddr>,
     pub http2: bool,
 }
 
-#[derive(Clone)]
-pub(crate) struct SocketInfo {
-    pub addr: net::SocketAddr,
-    pub htype: StreamHandlerType,
+#[derive(Clone, Copy)]
+pub struct Token(usize);
+
+impl Token {
+    pub(crate) fn new(val: usize) -> Token {
+        Token(val)
+    }
 }
 
-pub(crate) struct WorkersPool<H: IntoHttpHandler + 'static> {
-    sockets: Slab<SocketInfo>,
+pub(crate) struct Socket {
+    pub lst: net::TcpListener,
+    pub addr: net::SocketAddr,
+    pub token: Token,
+}
+
+pub(crate) struct WorkerFactory<H: IntoHttpHandler + 'static> {
     pub factory: Arc<Fn() -> Vec<H> + Send + Sync>,
     pub host: Option<String>,
     pub keep_alive: KeepAlive,
+    pub backlog: i32,
+    sockets: Vec<Socket>,
+    handlers: Vec<Box<IoStreamHandler<H::Handler, net::TcpStream>>>,
 }
 
-impl<H: IntoHttpHandler + 'static> WorkersPool<H> {
+impl<H: IntoHttpHandler + 'static> WorkerFactory<H> {
     pub fn new<F>(factory: F) -> Self
     where
         F: Fn() -> Vec<H> + Send + Sync + 'static,
     {
-        WorkersPool {
+        WorkerFactory {
             factory: Arc::new(factory),
             host: None,
+            backlog: 2048,
             keep_alive: KeepAlive::Os,
-            sockets: Slab::new(),
+            sockets: Vec::new(),
+            handlers: Vec::new(),
         }
     }
 
-    pub fn insert(&mut self, addr: net::SocketAddr, htype: StreamHandlerType) -> usize {
-        let entry = self.sockets.vacant_entry();
-        let token = entry.key();
-        entry.insert(SocketInfo { addr, htype });
-        token
+    pub fn addrs(&self) -> Vec<net::SocketAddr> {
+        self.sockets.iter().map(|s| s.addr).collect()
+    }
+
+    pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
+        self.handlers
+            .iter()
+            .map(|s| (s.addr(), s.scheme()))
+            .collect()
+    }
+
+    pub fn take_sockets(&mut self) -> Vec<Socket> {
+        mem::replace(&mut self.sockets, Vec::new())
+    }
+
+    pub fn listen(&mut self, lst: net::TcpListener) {
+        let token = Token(self.handlers.len());
+        let addr = lst.local_addr().unwrap();
+        self.handlers
+            .push(Box::new(SimpleHandler::new(lst.local_addr().unwrap())));
+        self.sockets.push(Socket { lst, addr, token })
+    }
+
+    pub fn listen_with<A>(&mut self, lst: net::TcpListener, acceptor: A)
+    where
+        A: AcceptorService<TcpStream> + Send + 'static,
+    {
+        let token = Token(self.handlers.len());
+        let addr = lst.local_addr().unwrap();
+        self.handlers.push(Box::new(StreamHandler::new(
+            lst.local_addr().unwrap(),
+            acceptor,
+        )));
+        self.sockets.push(Socket { lst, addr, token })
+    }
+
+    pub fn bind<S>(&mut self, addr: S) -> io::Result<()>
+    where
+        S: net::ToSocketAddrs,
+    {
+        let sockets = self.bind2(addr)?;
+
+        for lst in sockets {
+            let token = Token(self.handlers.len());
+            let addr = lst.local_addr().unwrap();
+            self.handlers
+                .push(Box::new(SimpleHandler::new(lst.local_addr().unwrap())));
+            self.sockets.push(Socket { lst, addr, token })
+        }
+        Ok(())
+    }
+
+    pub fn bind_with<S, A>(&mut self, addr: S, acceptor: &A) -> io::Result<()>
+    where
+        S: net::ToSocketAddrs,
+        A: AcceptorService<TcpStream> + Send + 'static,
+    {
+        let sockets = self.bind2(addr)?;
+
+        for lst in sockets {
+            let token = Token(self.handlers.len());
+            let addr = lst.local_addr().unwrap();
+            self.handlers.push(Box::new(StreamHandler::new(
+                lst.local_addr().unwrap(),
+                acceptor.clone(),
+            )));
+            self.sockets.push(Socket { lst, addr, token })
+        }
+        Ok(())
+    }
+
+    fn bind2<S: net::ToSocketAddrs>(
+        &self, addr: S,
+    ) -> io::Result<Vec<net::TcpListener>> {
+        let mut err = None;
+        let mut succ = false;
+        let mut sockets = Vec::new();
+        for addr in addr.to_socket_addrs()? {
+            match create_tcp_listener(addr, self.backlog) {
+                Ok(lst) => {
+                    succ = true;
+                    sockets.push(lst);
+                }
+                Err(e) => err = Some(e),
+            }
+        }
+
+        if !succ {
+            if let Some(e) = err.take() {
+                Err(e)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Can not bind to address.",
+                ))
+            }
+        } else {
+            Ok(sockets)
+        }
     }
 
     pub fn start(
         &mut self, idx: usize, notify: AcceptNotify,
-    ) -> (WorkerClient, Addr<Worker<H::Handler>>) {
+    ) -> (WorkerClient, Addr<Worker>) {
         let host = self.host.clone();
-        let addr = self.sockets[0].addr;
+        let addr = self.handlers[0].addr();
         let factory = Arc::clone(&self.factory);
-        let socks = self.sockets.clone();
         let ka = self.keep_alive;
         let (tx, rx) = unbounded::<Conn<net::TcpStream>>();
-        let client = WorkerClient::new(idx, tx, self.sockets.clone());
+        let client = WorkerClient::new(idx, tx);
         let conn = client.conn.clone();
         let sslrate = client.sslrate.clone();
+        let handlers: Vec<_> = self.handlers.iter().map(|v| v.clone()).collect();
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {
             let s = ServerSettings::new(Some(addr), &host, false);
             let apps: Vec<_> =
                 (*factory)().into_iter().map(|h| h.into_handler()).collect();
             ctx.add_message_stream(rx);
-            Worker::new(apps, socks, ka, s, conn, sslrate, notify)
+            let inner = WorkerInner::new(apps, handlers, ka, s, conn, sslrate, notify);
+            Worker {
+                inner: Box::new(inner),
+            }
         });
 
         (client, addr)
@@ -107,19 +200,15 @@ impl<H: IntoHttpHandler + 'static> WorkersPool<H> {
 pub(crate) struct WorkerClient {
     pub idx: usize,
     tx: UnboundedSender<Conn<net::TcpStream>>,
-    info: Slab<SocketInfo>,
     pub conn: Arc<AtomicUsize>,
     pub sslrate: Arc<AtomicUsize>,
 }
 
 impl WorkerClient {
-    fn new(
-        idx: usize, tx: UnboundedSender<Conn<net::TcpStream>>, info: Slab<SocketInfo>,
-    ) -> Self {
+    fn new(idx: usize, tx: UnboundedSender<Conn<net::TcpStream>>) -> Self {
         WorkerClient {
             idx,
             tx,
-            info,
             conn: Arc::new(AtomicUsize::new(0)),
             sslrate: Arc::new(AtomicUsize::new(0)),
         }
@@ -154,47 +243,30 @@ impl Message for StopWorker {
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests
 /// processing.
-pub(crate) struct Worker<H>
-where
-    H: HttpHandler + 'static,
-{
-    settings: Rc<WorkerSettings<H>>,
-    socks: Slab<SocketInfo>,
-    tcp_ka: Option<time::Duration>,
+pub(crate) struct Worker {
+    inner: Box<WorkerHandler>,
 }
 
-impl<H: HttpHandler + 'static> Worker<H> {
-    pub(crate) fn new(
-        h: Vec<H>, socks: Slab<SocketInfo>, keep_alive: KeepAlive,
-        settings: ServerSettings, conn: Arc<AtomicUsize>, sslrate: Arc<AtomicUsize>,
-        notify: AcceptNotify,
-    ) -> Worker<H> {
-        let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
-            Some(time::Duration::new(val as u64, 0))
-        } else {
-            None
-        };
+impl Actor for Worker {
+    type Context = Context<Self>;
 
-        Worker {
-            settings: Rc::new(WorkerSettings::new(
-                h, keep_alive, settings, notify, conn, sslrate,
-            )),
-            socks,
-            tcp_ka,
-        }
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.update_date(ctx);
     }
+}
 
-    fn update_time(&self, ctx: &mut Context<Self>) {
-        self.settings.update_date();
-        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_time(ctx));
+impl Worker {
+    fn update_date(&self, ctx: &mut Context<Self>) {
+        self.inner.update_date();
+        ctx.run_later(time::Duration::new(1, 0), |slf, ctx| slf.update_date(ctx));
     }
 
     fn shutdown_timeout(
-        &self, ctx: &mut Context<Self>, tx: oneshot::Sender<bool>, dur: time::Duration,
+        &self, ctx: &mut Context<Worker>, tx: oneshot::Sender<bool>, dur: time::Duration,
     ) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
-            let num = slf.settings.num_channels();
+            let num = slf.inner.num_channels();
             if num == 0 {
                 let _ = tx.send(true);
                 Arbiter::current().do_send(StopArbiter(0));
@@ -202,7 +274,7 @@ impl<H: HttpHandler + 'static> Worker<H> {
                 slf.shutdown_timeout(ctx, tx, d);
             } else {
                 info!("Force shutdown http worker, {} connections", num);
-                slf.settings.head().traverse::<TcpStream, H>();
+                slf.inner.force_shutdown();
                 let _ = tx.send(false);
                 Arbiter::current().do_send(StopArbiter(0));
             }
@@ -210,44 +282,20 @@ impl<H: HttpHandler + 'static> Worker<H> {
     }
 }
 
-impl<H: 'static> Actor for Worker<H>
-where
-    H: HttpHandler + 'static,
-{
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.update_time(ctx);
-    }
-}
-
-impl<H> Handler<Conn<net::TcpStream>> for Worker<H>
-where
-    H: HttpHandler + 'static,
-{
+impl Handler<Conn<net::TcpStream>> for Worker {
     type Result = ();
 
     fn handle(&mut self, msg: Conn<net::TcpStream>, _: &mut Context<Self>) {
-        if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
-            error!("Can not set socket keep-alive option");
-        }
-        self.socks
-            .get_mut(msg.token)
-            .unwrap()
-            .htype
-            .handle(Rc::clone(&self.settings), msg);
+        self.inner.handle_connect(msg)
     }
 }
 
 /// `StopWorker` message handler
-impl<H> Handler<StopWorker> for Worker<H>
-where
-    H: HttpHandler + 'static,
-{
+impl Handler<StopWorker> for Worker {
     type Result = Response<bool, ()>;
 
     fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
-        let num = self.settings.num_channels();
+        let num = self.inner.num_channels();
         if num == 0 {
             info!("Shutting down http worker, 0 connections");
             Response::reply(Ok(true))
@@ -258,148 +306,242 @@ where
             Response::async(rx.map_err(|_| ()))
         } else {
             info!("Force shutdown http worker, {} connections", num);
-            self.settings.head().traverse::<TcpStream, H>();
+            self.inner.force_shutdown();
             Response::reply(Ok(false))
         }
     }
 }
 
-#[derive(Clone)]
-pub(crate) enum StreamHandlerType {
-    Normal,
-    #[cfg(feature = "tls")]
-    Tls(TlsAcceptor),
-    #[cfg(feature = "alpn")]
-    Alpn(SslAcceptor),
-    #[cfg(feature = "rust-tls")]
-    Rustls(Arc<ServerConfig>),
+trait WorkerHandler {
+    fn update_date(&self);
+
+    fn handle_connect(&mut self, Conn<net::TcpStream>);
+
+    fn force_shutdown(&self);
+
+    fn num_channels(&self) -> usize;
 }
 
-impl StreamHandlerType {
-    pub fn is_ssl(&self) -> bool {
-        match *self {
-            StreamHandlerType::Normal => false,
-            #[cfg(feature = "tls")]
-            StreamHandlerType::Tls(_) => true,
-            #[cfg(feature = "alpn")]
-            StreamHandlerType::Alpn(_) => true,
-            #[cfg(feature = "rust-tls")]
-            StreamHandlerType::Rustls(_) => true,
+struct WorkerInner<H>
+where
+    H: HttpHandler + 'static,
+{
+    settings: Rc<WorkerSettings<H>>,
+    socks: Vec<Box<IoStreamHandler<H, net::TcpStream>>>,
+    tcp_ka: Option<time::Duration>,
+}
+
+impl<H: HttpHandler + 'static> WorkerInner<H> {
+    pub(crate) fn new(
+        h: Vec<H>, socks: Vec<Box<IoStreamHandler<H, net::TcpStream>>>,
+        keep_alive: KeepAlive, settings: ServerSettings, conn: Arc<AtomicUsize>,
+        sslrate: Arc<AtomicUsize>, notify: AcceptNotify,
+    ) -> WorkerInner<H> {
+        let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
+            Some(time::Duration::new(val as u64, 0))
+        } else {
+            None
+        };
+
+        WorkerInner {
+            settings: Rc::new(WorkerSettings::new(
+                h, keep_alive, settings, notify, conn, sslrate,
+            )),
+            socks,
+            tcp_ka,
         }
     }
+}
 
-    fn handle<H: HttpHandler>(
-        &mut self, h: Rc<WorkerSettings<H>>, msg: Conn<net::TcpStream>,
-    ) {
-        match *self {
-            StreamHandlerType::Normal => {
-                let _ = msg.io.set_nodelay(true);
-                let io = TcpStream::from_std(msg.io, &Handle::default())
-                    .expect("failed to associate TCP stream");
-
-                current_thread::spawn(HttpChannel::new(h, io, msg.peer, msg.http2));
-            }
-            #[cfg(feature = "tls")]
-            StreamHandlerType::Tls(ref acceptor) => {
-                let Conn {
-                    io, peer, http2, ..
-                } = msg;
-                let _ = io.set_nodelay(true);
-                let io = TcpStream::from_std(io, &Handle::default())
-                    .expect("failed to associate TCP stream");
-                h.ssl_conn_add();
-
-                current_thread::spawn(TlsAcceptorExt::accept_async(acceptor, io).then(
-                    move |res| {
-                        h.ssl_conn_del();
-                        match res {
-                            Ok(io) => current_thread::spawn(HttpChannel::new(
-                                h, io, peer, http2,
-                            )),
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    },
-                ));
-            }
-            #[cfg(feature = "alpn")]
-            StreamHandlerType::Alpn(ref acceptor) => {
-                let Conn { io, peer, .. } = msg;
-                let _ = io.set_nodelay(true);
-                let io = TcpStream::from_std(io, &Handle::default())
-                    .expect("failed to associate TCP stream");
-                h.ssl_conn_add();
-
-                current_thread::spawn(SslAcceptorExt::accept_async(acceptor, io).then(
-                    move |res| {
-                        h.ssl_conn_del();
-                        match res {
-                            Ok(io) => {
-                                let http2 = if let Some(p) =
-                                    io.get_ref().ssl().selected_alpn_protocol()
-                                {
-                                    p.len() == 2 && &p == b"h2"
-                                } else {
-                                    false
-                                };
-                                current_thread::spawn(HttpChannel::new(
-                                    h, io, peer, http2,
-                                ));
-                            }
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    },
-                ));
-            }
-            #[cfg(feature = "rust-tls")]
-            StreamHandlerType::Rustls(ref acceptor) => {
-                let Conn { io, peer, .. } = msg;
-                let _ = io.set_nodelay(true);
-                let io = TcpStream::from_std(io, &Handle::default())
-                    .expect("failed to associate TCP stream");
-                h.ssl_conn_add();
-
-                current_thread::spawn(ServerConfigExt::accept_async(acceptor, io).then(
-                    move |res| {
-                        h.ssl_conn_del();
-                        match res {
-                            Ok(io) => {
-                                let http2 = if let Some(p) =
-                                    io.get_ref().1.get_alpn_protocol()
-                                {
-                                    p.len() == 2 && &p == &"h2"
-                                } else {
-                                    false
-                                };
-                                current_thread::spawn(HttpChannel::new(
-                                    h, io, peer, http2,
-                                ));
-                            }
-                            Err(err) => {
-                                trace!("Error during handling tls connection: {}", err)
-                            }
-                        };
-                        future::result(Ok(()))
-                    },
-                ));
-            }
-        }
+impl<H> WorkerHandler for WorkerInner<H>
+where
+    H: HttpHandler + 'static,
+{
+    fn update_date(&self) {
+        self.settings.update_date();
     }
 
-    pub(crate) fn scheme(&self) -> &'static str {
-        match *self {
-            StreamHandlerType::Normal => "http",
-            #[cfg(feature = "tls")]
-            StreamHandlerType::Tls(_) => "https",
-            #[cfg(feature = "alpn")]
-            StreamHandlerType::Alpn(_) => "https",
-            #[cfg(feature = "rust-tls")]
-            StreamHandlerType::Rustls(_) => "https",
+    fn handle_connect(&mut self, msg: Conn<net::TcpStream>) {
+        if self.tcp_ka.is_some() && msg.io.set_keepalive(self.tcp_ka).is_err() {
+            error!("Can not set socket keep-alive option");
+        }
+        self.socks[msg.token.0].handle(Rc::clone(&self.settings), msg.io, msg.peer);
+    }
+
+    fn num_channels(&self) -> usize {
+        self.settings.num_channels()
+    }
+
+    fn force_shutdown(&self) {
+        self.settings.head().traverse::<TcpStream, H>();
+    }
+}
+
+struct SimpleHandler<Io> {
+    addr: net::SocketAddr,
+    io: PhantomData<Io>,
+}
+
+impl<Io: IntoAsyncIo> Clone for SimpleHandler<Io> {
+    fn clone(&self) -> Self {
+        SimpleHandler {
+            addr: self.addr,
+            io: PhantomData,
         }
     }
+}
+
+impl<Io: IntoAsyncIo> SimpleHandler<Io> {
+    fn new(addr: net::SocketAddr) -> Self {
+        SimpleHandler {
+            addr,
+            io: PhantomData,
+        }
+    }
+}
+
+impl<H, Io> IoStreamHandler<H, Io> for SimpleHandler<Io>
+where
+    H: HttpHandler,
+    Io: IntoAsyncIo + Send + 'static,
+    Io::Io: IoStream,
+{
+    fn addr(&self) -> net::SocketAddr {
+        self.addr
+    }
+
+    fn clone(&self) -> Box<IoStreamHandler<H, Io>> {
+        Box::new(Clone::clone(self))
+    }
+
+    fn scheme(&self) -> &'static str {
+        "http"
+    }
+
+    fn handle(&self, h: Rc<WorkerSettings<H>>, io: Io, peer: Option<net::SocketAddr>) {
+        let mut io = match io.into_async_io() {
+            Ok(io) => io,
+            Err(err) => {
+                trace!("Failed to create async io: {}", err);
+                return;
+            }
+        };
+        let _ = io.set_nodelay(true);
+
+        current_thread::spawn(HttpChannel::new(h, io, peer, false));
+    }
+}
+
+struct StreamHandler<A, Io> {
+    acceptor: A,
+    addr: net::SocketAddr,
+    io: PhantomData<Io>,
+}
+
+impl<Io: IntoAsyncIo, A: AcceptorService<Io::Io>> StreamHandler<A, Io> {
+    fn new(addr: net::SocketAddr, acceptor: A) -> Self {
+        StreamHandler {
+            addr,
+            acceptor,
+            io: PhantomData,
+        }
+    }
+}
+
+impl<Io: IntoAsyncIo, A: AcceptorService<Io::Io>> Clone for StreamHandler<A, Io> {
+    fn clone(&self) -> Self {
+        StreamHandler {
+            addr: self.addr,
+            acceptor: self.acceptor.clone(),
+            io: PhantomData,
+        }
+    }
+}
+
+impl<H, Io, A> IoStreamHandler<H, Io> for StreamHandler<A, Io>
+where
+    H: HttpHandler,
+    Io: IntoAsyncIo + Send + 'static,
+    Io::Io: IoStream,
+    A: AcceptorService<Io::Io> + Send + 'static,
+{
+    fn addr(&self) -> net::SocketAddr {
+        self.addr
+    }
+
+    fn clone(&self) -> Box<IoStreamHandler<H, Io>> {
+        Box::new(Clone::clone(self))
+    }
+
+    fn scheme(&self) -> &'static str {
+        self.acceptor.scheme()
+    }
+
+    fn handle(&self, h: Rc<WorkerSettings<H>>, io: Io, peer: Option<net::SocketAddr>) {
+        let mut io = match io.into_async_io() {
+            Ok(io) => io,
+            Err(err) => {
+                trace!("Failed to create async io: {}", err);
+                return;
+            }
+        };
+        let _ = io.set_nodelay(true);
+
+        h.conn_rate_add();
+        current_thread::spawn(self.acceptor.accept(io).then(move |res| {
+            h.conn_rate_del();
+            match res {
+                Ok(io) => current_thread::spawn(HttpChannel::new(h, io, peer, false)),
+                Err(err) => trace!("Can not establish connection: {}", err),
+            }
+            Ok(())
+        }))
+    }
+}
+
+impl<H, Io: 'static> IoStreamHandler<H, Io> for Box<IoStreamHandler<H, Io>>
+where
+    H: HttpHandler,
+    Io: IntoAsyncIo,
+{
+    fn addr(&self) -> net::SocketAddr {
+        self.as_ref().addr()
+    }
+
+    fn clone(&self) -> Box<IoStreamHandler<H, Io>> {
+        self.as_ref().clone()
+    }
+
+    fn scheme(&self) -> &'static str {
+        self.as_ref().scheme()
+    }
+
+    fn handle(&self, h: Rc<WorkerSettings<H>>, io: Io, peer: Option<net::SocketAddr>) {
+        self.as_ref().handle(h, io, peer)
+    }
+}
+
+pub(crate) trait IoStreamHandler<H, Io>: Send
+where
+    H: HttpHandler,
+{
+    fn clone(&self) -> Box<IoStreamHandler<H, Io>>;
+
+    fn addr(&self) -> net::SocketAddr;
+
+    fn scheme(&self) -> &'static str;
+
+    fn handle(&self, h: Rc<WorkerSettings<H>>, io: Io, peer: Option<net::SocketAddr>);
+}
+
+fn create_tcp_listener(
+    addr: net::SocketAddr, backlog: i32,
+) -> io::Result<net::TcpListener> {
+    let builder = match addr {
+        net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+        net::SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    };
+    builder.reuse_address(true)?;
+    builder.bind(addr)?;
+    Ok(builder.listen(backlog)?)
 }

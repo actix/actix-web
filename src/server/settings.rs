@@ -132,7 +132,7 @@ impl ServerSettings {
 const DATE_VALUE_LENGTH: usize = 29;
 
 pub(crate) struct WorkerSettings<H> {
-    h: RefCell<Vec<H>>,
+    h: Vec<H>,
     keep_alive: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
@@ -140,14 +140,14 @@ pub(crate) struct WorkerSettings<H> {
     channels: Arc<AtomicUsize>,
     node: RefCell<Node<()>>,
     date: UnsafeCell<Date>,
-    sslrate: Arc<AtomicUsize>,
+    connrate: Arc<AtomicUsize>,
     notify: AcceptNotify,
 }
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
         h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
-        notify: AcceptNotify, channels: Arc<AtomicUsize>, sslrate: Arc<AtomicUsize>,
+        notify: AcceptNotify, channels: Arc<AtomicUsize>, connrate: Arc<AtomicUsize>,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -156,7 +156,7 @@ impl<H> WorkerSettings<H> {
         };
 
         WorkerSettings {
-            h: RefCell::new(h),
+            h,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             node: RefCell::new(Node::head()),
@@ -164,7 +164,7 @@ impl<H> WorkerSettings<H> {
             keep_alive,
             ka_enabled,
             channels,
-            sslrate,
+            connrate,
             notify,
         }
     }
@@ -177,8 +177,8 @@ impl<H> WorkerSettings<H> {
         self.node.borrow_mut()
     }
 
-    pub fn handlers(&self) -> RefMut<Vec<H>> {
-        self.h.borrow_mut()
+    pub fn handlers(&self) -> &Vec<H> {
+        &self.h
     }
 
     pub fn keep_alive(&self) -> u64 {
@@ -230,13 +230,13 @@ impl<H> WorkerSettings<H> {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn ssl_conn_add(&self) {
-        self.sslrate.fetch_add(1, Ordering::Relaxed);
+    pub(crate) fn conn_rate_add(&self) {
+        self.connrate.fetch_add(1, Ordering::Relaxed);
     }
     #[allow(dead_code)]
-    pub(crate) fn ssl_conn_del(&self) {
-        let val = self.sslrate.fetch_sub(1, Ordering::Relaxed);
-        self.notify.notify_maxsslrate(val);
+    pub(crate) fn conn_rate_del(&self) {
+        let val = self.connrate.fetch_sub(1, Ordering::Relaxed);
+        self.notify.notify_maxconnrate(val);
     }
 }
 

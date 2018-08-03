@@ -9,8 +9,8 @@ use tokio_timer::Delay;
 
 use actix::{msgs::Execute, Arbiter, System};
 
-use super::srv::{ServerCommand, Socket};
-use super::worker::{Conn, WorkerClient};
+use super::srv::ServerCommand;
+use super::worker::{Conn, Socket, Token, WorkerClient};
 
 pub(crate) enum Command {
     Pause,
@@ -21,7 +21,7 @@ pub(crate) enum Command {
 
 struct ServerSocketInfo {
     addr: net::SocketAddr,
-    token: usize,
+    token: Token,
     sock: mio::net::TcpListener,
     timeout: Option<Instant>,
 }
@@ -31,20 +31,24 @@ pub(crate) struct AcceptNotify {
     ready: mio::SetReadiness,
     maxconn: usize,
     maxconn_low: usize,
-    maxsslrate: usize,
-    maxsslrate_low: usize,
+    maxconnrate: usize,
+    maxconnrate_low: usize,
 }
 
 impl AcceptNotify {
-    pub fn new(ready: mio::SetReadiness, maxconn: usize, maxsslrate: usize) -> Self {
+    pub fn new(ready: mio::SetReadiness, maxconn: usize, maxconnrate: usize) -> Self {
         let maxconn_low = if maxconn > 10 { maxconn - 10 } else { 0 };
-        let maxsslrate_low = if maxsslrate > 10 { maxsslrate - 10 } else { 0 };
+        let maxconnrate_low = if maxconnrate > 10 {
+            maxconnrate - 10
+        } else {
+            0
+        };
         AcceptNotify {
             ready,
             maxconn,
             maxconn_low,
-            maxsslrate,
-            maxsslrate_low,
+            maxconnrate,
+            maxconnrate_low,
         }
     }
 
@@ -53,8 +57,8 @@ impl AcceptNotify {
             let _ = self.ready.set_readiness(mio::Ready::readable());
         }
     }
-    pub fn notify_maxsslrate(&self, sslrate: usize) {
-        if sslrate > self.maxsslrate_low && sslrate <= self.maxsslrate {
+    pub fn notify_maxconnrate(&self, connrate: usize) {
+        if connrate > self.maxconnrate_low && connrate <= self.maxconnrate {
             let _ = self.ready.set_readiness(mio::Ready::readable());
         }
     }
@@ -78,7 +82,7 @@ pub(crate) struct AcceptLoop {
         mpsc::UnboundedReceiver<ServerCommand>,
     )>,
     maxconn: usize,
-    maxsslrate: usize,
+    maxconnrate: usize,
 }
 
 impl AcceptLoop {
@@ -94,7 +98,7 @@ impl AcceptLoop {
             notify_ready,
             notify_reg: Some(notify_reg),
             maxconn: 102_400,
-            maxsslrate: 256,
+            maxconnrate: 256,
             rx: Some(rx),
             srv: Some(mpsc::unbounded()),
         }
@@ -106,19 +110,19 @@ impl AcceptLoop {
     }
 
     pub fn get_notify(&self) -> AcceptNotify {
-        AcceptNotify::new(self.notify_ready.clone(), self.maxconn, self.maxsslrate)
+        AcceptNotify::new(self.notify_ready.clone(), self.maxconn, self.maxconnrate)
     }
 
-    pub fn max_connections(&mut self, num: usize) {
+    pub fn maxconn(&mut self, num: usize) {
         self.maxconn = num;
     }
 
-    pub fn max_sslrate(&mut self, num: usize) {
-        self.maxsslrate = num;
+    pub fn maxconnrate(&mut self, num: usize) {
+        self.maxconnrate = num;
     }
 
     pub(crate) fn start(
-        &mut self, socks: Vec<(usize, Socket)>, workers: Vec<WorkerClient>,
+        &mut self, socks: Vec<Socket>, workers: Vec<WorkerClient>,
     ) -> mpsc::UnboundedReceiver<ServerCommand> {
         let (tx, rx) = self.srv.take().expect("Can not re-use AcceptInfo");
 
@@ -127,7 +131,7 @@ impl AcceptLoop {
             self.cmd_reg.take().expect("Can not re-use AcceptInfo"),
             self.notify_reg.take().expect("Can not re-use AcceptInfo"),
             self.maxconn,
-            self.maxsslrate,
+            self.maxconnrate,
             socks,
             tx,
             workers,
@@ -145,7 +149,7 @@ struct Accept {
     timer: (mio::Registration, mio::SetReadiness),
     next: usize,
     maxconn: usize,
-    maxsslrate: usize,
+    maxconnrate: usize,
     backpressure: bool,
 }
 
@@ -171,8 +175,8 @@ impl Accept {
     #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     pub(crate) fn start(
         rx: sync_mpsc::Receiver<Command>, cmd_reg: mio::Registration,
-        notify_reg: mio::Registration, maxconn: usize, maxsslrate: usize,
-        socks: Vec<(usize, Socket)>, srv: mpsc::UnboundedSender<ServerCommand>,
+        notify_reg: mio::Registration, maxconn: usize, maxconnrate: usize,
+        socks: Vec<Socket>, srv: mpsc::UnboundedSender<ServerCommand>,
         workers: Vec<WorkerClient>,
     ) {
         let sys = System::current();
@@ -184,7 +188,7 @@ impl Accept {
                 System::set_current(sys);
                 let mut accept = Accept::new(rx, socks, workers, srv);
                 accept.maxconn = maxconn;
-                accept.maxsslrate = maxsslrate;
+                accept.maxconnrate = maxconnrate;
 
                 // Start listening for incoming commands
                 if let Err(err) = accept.poll.register(
@@ -211,7 +215,7 @@ impl Accept {
     }
 
     fn new(
-        rx: sync_mpsc::Receiver<Command>, socks: Vec<(usize, Socket)>,
+        rx: sync_mpsc::Receiver<Command>, socks: Vec<Socket>,
         workers: Vec<WorkerClient>, srv: mpsc::UnboundedSender<ServerCommand>,
     ) -> Accept {
         // Create a poll instance
@@ -222,7 +226,7 @@ impl Accept {
 
         // Start accept
         let mut sockets = Slab::new();
-        for (stoken, sock) in socks {
+        for sock in socks {
             let server = mio::net::TcpListener::from_std(sock.lst)
                 .expect("Can not create mio::net::TcpListener");
 
@@ -240,7 +244,7 @@ impl Accept {
             }
 
             entry.insert(ServerSocketInfo {
-                token: stoken,
+                token: sock.token,
                 addr: sock.addr,
                 sock: server,
                 timeout: None,
@@ -264,7 +268,7 @@ impl Accept {
             next: 0,
             timer: (tm, tmr),
             maxconn: 102_400,
-            maxsslrate: 256,
+            maxconnrate: 256,
             backpressure: false,
         }
     }
@@ -427,7 +431,7 @@ impl Accept {
             let mut idx = 0;
             while idx < self.workers.len() {
                 idx += 1;
-                if self.workers[self.next].available(self.maxconn, self.maxsslrate) {
+                if self.workers[self.next].available(self.maxconn, self.maxconnrate) {
                     match self.workers[self.next].send(msg) {
                         Ok(_) => {
                             self.next = (self.next + 1) % self.workers.len();
