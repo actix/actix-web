@@ -5,7 +5,7 @@ use brotli2::write::BrotliDecoder;
 use bytes::{Bytes, BytesMut};
 use error::PayloadError;
 #[cfg(feature = "flate2")]
-use flate2::write::{DeflateDecoder, GzDecoder};
+use flate2::write::{GzDecoder, ZlibDecoder};
 use header::ContentEncoding;
 use http::header::{HeaderMap, CONTENT_ENCODING};
 use payload::{PayloadSender, PayloadStatus, PayloadWriter};
@@ -139,7 +139,7 @@ impl PayloadWriter for EncodedPayload {
 
 pub(crate) enum Decoder {
     #[cfg(feature = "flate2")]
-    Deflate(Box<DeflateDecoder<Writer>>),
+    Deflate(Box<ZlibDecoder<Writer>>),
     #[cfg(feature = "flate2")]
     Gzip(Box<GzDecoder<Writer>>),
     #[cfg(feature = "brotli")]
@@ -186,7 +186,7 @@ impl PayloadStream {
             }
             #[cfg(feature = "flate2")]
             ContentEncoding::Deflate => {
-                Decoder::Deflate(Box::new(DeflateDecoder::new(Writer::new())))
+                Decoder::Deflate(Box::new(ZlibDecoder::new(Writer::new())))
             }
             #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => {

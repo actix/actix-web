@@ -7,7 +7,7 @@ use std::{cmp, fmt, io, mem};
 use brotli2::write::BrotliEncoder;
 use bytes::BytesMut;
 #[cfg(feature = "flate2")]
-use flate2::write::{DeflateEncoder, GzEncoder};
+use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
 use http::header::{ACCEPT_ENCODING, CONTENT_LENGTH};
@@ -210,7 +210,7 @@ impl Output {
                         let mut enc = match encoding {
                             #[cfg(feature = "flate2")]
                             ContentEncoding::Deflate => ContentEncoder::Deflate(
-                                DeflateEncoder::new(transfer, Compression::fast()),
+                                ZlibEncoder::new(transfer, Compression::fast()),
                             ),
                             #[cfg(feature = "flate2")]
                             ContentEncoding::Gzip => ContentEncoder::Gzip(
@@ -273,7 +273,7 @@ impl Output {
 
         let enc = match encoding {
             #[cfg(feature = "flate2")]
-            ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
+            ContentEncoding::Deflate => ContentEncoder::Deflate(ZlibEncoder::new(
                 transfer,
                 Compression::fast(),
             )),
@@ -354,7 +354,7 @@ impl Output {
 
 pub(crate) enum ContentEncoder {
     #[cfg(feature = "flate2")]
-    Deflate(DeflateEncoder<TransferEncoding>),
+    Deflate(ZlibEncoder<TransferEncoding>),
     #[cfg(feature = "flate2")]
     Gzip(GzEncoder<TransferEncoding>),
     #[cfg(feature = "brotli")]
