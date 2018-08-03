@@ -15,7 +15,6 @@
 
 * Allow TestServer to open a websocket on any URL (TestServer::ws_at()) #433
 
-
 ### Fixed
 
 * Fixed failure 0.1.2 compatibility
@@ -25,6 +24,8 @@
 * Gz streaming, use `flate2::write::GzDecoder` #228
 
 * HttpRequest::url_for is not working with scopes #429
+
+* Fixed headers' formating for CORS Middleware `Access-Control-Expose-Headers` header value to HTTP/1.1 & HTTP/2 spec-compliant format #436
 
 
 ## [0.7.2] - 2018-07-26

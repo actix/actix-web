@@ -838,10 +838,9 @@ impl<S: 'static> CorsBuilder<S> {
 
         if !self.expose_hdrs.is_empty() {
             cors.expose_hdrs = Some(
-                self.expose_hdrs
-                    .iter()
-                    .fold(String::new(), |s, v| s + v.as_str())[1..]
-                    .to_owned(),
+                self.expose_hdrs.iter()
+                    .fold(String::new(), |s, v| format!("{}, {}", s, v.as_str()))[2..]
+                    .to_owned()
             );
         }
         Cors {
@@ -1073,12 +1072,14 @@ mod tests {
 
     #[test]
     fn test_response() {
+        let exposed_headers = vec![header::AUTHORIZATION, header::ACCEPT];
         let cors = Cors::build()
             .send_wildcard()
             .disable_preflight()
             .max_age(3600)
             .allowed_methods(vec![Method::GET, Method::OPTIONS, Method::POST])
-            .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+            .allowed_headers(exposed_headers.clone())
+            .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
             .finish();
 
@@ -1099,6 +1100,21 @@ mod tests {
             &b"Origin"[..],
             resp.headers().get(header::VARY).unwrap().as_bytes()
         );
+
+        {
+            let headers = resp.headers()
+                .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .split(',')
+                .map(|s| s.trim())
+                .collect::<Vec<&str>>();
+
+            for h in exposed_headers {
+                assert!(headers.contains(&h.as_str()));
+            }
+        }
 
         let resp: HttpResponse =
             HttpResponse::Ok().header(header::VARY, "Accept").finish();
