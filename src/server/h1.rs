@@ -368,6 +368,10 @@ where
                         self.payload = Some(PayloadType::new(&msg.inner.headers, ps));
                     }
 
+                    // stream extensions
+                    msg.inner_mut().stream_extensions =
+                        self.stream.get_mut().extensions();
+
                     // set remote addr
                     msg.inner_mut().addr = self.addr;
 

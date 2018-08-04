@@ -35,6 +35,7 @@ pub(crate) struct InnerRequest {
     pub(crate) info: RefCell<ConnectionInfo>,
     pub(crate) payload: RefCell<Option<Payload>>,
     pub(crate) settings: ServerSettings,
+    pub(crate) stream_extensions: Option<Rc<Extensions>>,
     pool: &'static RequestPool,
 }
 
@@ -82,6 +83,7 @@ impl Request {
                 info: RefCell::new(ConnectionInfo::default()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
+                stream_extensions: None,
             }),
         }
     }
@@ -187,6 +189,12 @@ impl Request {
             self.inner().info.borrow_mut().update(self);
             self.inner().info.borrow()
         }
+    }
+
+    /// Io stream extensions
+    #[inline]
+    pub fn stream_extensions(&self) -> Option<&Extensions> {
+        self.inner().stream_extensions.as_ref().map(|e| e.as_ref())
     }
 
     /// Server settings

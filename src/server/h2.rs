@@ -14,6 +14,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
+use extensions::Extensions;
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use uri::Url;
@@ -22,7 +23,7 @@ use super::error::ServerError;
 use super::h2writer::H2Writer;
 use super::input::PayloadType;
 use super::settings::WorkerSettings;
-use super::{HttpHandler, HttpHandlerTask, Writer};
+use super::{HttpHandler, HttpHandlerTask, IoStream, Writer};
 
 bitflags! {
     struct Flags: u8 {
@@ -42,6 +43,7 @@ where
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry<H>>,
     keepalive_timer: Option<Delay>,
+    extensions: Option<Rc<Extensions>>,
 }
 
 enum State<T: AsyncRead + AsyncWrite> {
@@ -52,12 +54,13 @@ enum State<T: AsyncRead + AsyncWrite> {
 
 impl<T, H> Http2<T, H>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: IoStream + 'static,
     H: HttpHandler + 'static,
 {
     pub fn new(
         settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes,
     ) -> Self {
+        let extensions = io.extensions();
         Http2 {
             flags: Flags::empty(),
             tasks: VecDeque::new(),
@@ -68,6 +71,7 @@ where
             keepalive_timer: None,
             addr,
             settings,
+            extensions,
         }
     }
 
@@ -206,6 +210,7 @@ where
                                 resp,
                                 self.addr,
                                 &self.settings,
+                                self.extensions.clone(),
                             ));
                         }
                         Ok(Async::NotReady) => {
@@ -324,6 +329,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
         parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
         addr: Option<SocketAddr>, settings: &Rc<WorkerSettings<H>>,
+        extensions: Option<Rc<Extensions>>,
     ) -> Entry<H>
     where
         H: HttpHandler + 'static,
@@ -338,6 +344,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
             inner.method = parts.method;
             inner.version = parts.version;
             inner.headers = parts.headers;
+            inner.stream_extensions = extensions;
             *inner.payload.borrow_mut() = Some(payload);
             inner.addr = addr;
         }

@@ -1,5 +1,6 @@
 //! Http server
 use std::net::Shutdown;
+use std::rc::Rc;
 use std::{io, net, time};
 
 use bytes::{BufMut, BytesMut};
@@ -36,6 +37,7 @@ pub use self::helpers::write_content_length;
 use actix::Message;
 use body::Binary;
 use error::Error;
+use extensions::Extensions;
 use header::ContentEncoding;
 use httpresponse::HttpResponse;
 
@@ -286,6 +288,11 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
                 }
             }
         }
+    }
+
+    /// Extra io stream extensions
+    fn extensions(&self) -> Option<Rc<Extensions>> {
+        None
     }
 }
 
