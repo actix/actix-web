@@ -510,7 +510,6 @@ impl<H: IntoHttpHandler> HttpServer<H> {
                 io: WrapperStream::new(t),
                 token: Token::new(0),
                 peer: None,
-                http2: false,
             }));
             self
         });
@@ -602,7 +601,6 @@ where
             Rc::clone(self.settings.as_ref().unwrap()),
             msg.io,
             msg.peer,
-            msg.http2,
         ));
     }
 }

@@ -25,7 +25,6 @@ pub(crate) struct Conn<T> {
     pub io: T,
     pub token: Token,
     pub peer: Option<net::SocketAddr>,
-    pub http2: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -428,7 +427,7 @@ where
         };
         let _ = io.set_nodelay(true);
 
-        current_thread::spawn(HttpChannel::new(h, io, peer, false));
+        current_thread::spawn(HttpChannel::new(h, io, peer));
     }
 }
 
@@ -491,7 +490,7 @@ where
         current_thread::spawn(self.acceptor.accept(io).then(move |res| {
             h.conn_rate_del();
             match res {
-                Ok(io) => current_thread::spawn(HttpChannel::new(h, io, peer, false)),
+                Ok(io) => current_thread::spawn(HttpChannel::new(h, io, peer)),
                 Err(err) => trace!("Can not establish connection: {}", err),
             }
             Ok(())

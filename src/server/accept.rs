@@ -470,7 +470,6 @@ impl Accept {
                         io,
                         token: info.token,
                         peer: Some(addr),
-                        http2: false,
                     },
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return,
                     Err(ref e) if connection_error(e) => continue,

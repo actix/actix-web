@@ -2,7 +2,7 @@ use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
 use std::{io, ptr, time};
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -38,32 +38,18 @@ where
     H: HttpHandler + 'static,
 {
     pub(crate) fn new(
-        settings: Rc<WorkerSettings<H>>, mut io: T, peer: Option<SocketAddr>,
-        http2: bool,
+        settings: Rc<WorkerSettings<H>>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
         settings.add_channel();
-        let _ = io.set_nodelay(true);
 
-        if http2 {
-            HttpChannel {
-                node: None,
-                proto: Some(HttpProtocol::H2(h2::Http2::new(
-                    settings,
-                    io,
-                    peer,
-                    Bytes::new(),
-                ))),
-            }
-        } else {
-            HttpChannel {
-                node: None,
-                proto: Some(HttpProtocol::Unknown(
-                    settings,
-                    peer,
-                    io,
-                    BytesMut::with_capacity(8192),
-                )),
-            }
+        HttpChannel {
+            node: None,
+            proto: Some(HttpProtocol::Unknown(
+                settings,
+                peer,
+                io,
+                BytesMut::with_capacity(8192),
+            )),
         }
     }
 
