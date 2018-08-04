@@ -112,7 +112,7 @@ impl<H: 'static> Writer for H2Writer<H> {
                 DATE => has_date = true,
                 _ => (),
             }
-            resp.headers_mut().insert(key, value.clone());
+            resp.headers_mut().append(key, value.clone());
         }
 
         // set date header
@@ -159,7 +159,7 @@ impl<H: 'static> Writer for H2Writer<H> {
             Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
 
-        trace!("Response: {:?}", msg);
+        trace!("HttpResponse: {:?}", msg);
 
         let body = msg.replace_body(Body::Empty);
         if let Body::Binary(bytes) = body {

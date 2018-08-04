@@ -17,6 +17,8 @@
 
 * Fixed headers formating for CORS Middleware Access-Control-Expose-Headers #436
 
+* Fix adding multiple response headers #446
+
 
 ## [0.7.3] - 2018-08-01
 
