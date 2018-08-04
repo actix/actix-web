@@ -151,6 +151,8 @@ impl<H: 'static> Writer for H2Writer<H> {
                 .insert(CONTENT_ENCODING, HeaderValue::try_from(ce).unwrap());
         }
 
+        trace!("Response: {:?}", resp);
+
         match self
             .respond
             .send_response(resp, self.flags.contains(Flags::EOF))
@@ -158,8 +160,6 @@ impl<H: 'static> Writer for H2Writer<H> {
             Ok(stream) => self.stream = Some(stream),
             Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
-
-        trace!("HttpResponse: {:?}", msg);
 
         let body = msg.replace_body(Body::Empty);
         if let Body::Binary(bytes) = body {
