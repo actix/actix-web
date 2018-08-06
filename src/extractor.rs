@@ -690,6 +690,12 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     }
 });
 
+impl<S> FromRequest<S> for () {
+    type Config = ();
+    type Result = Self;
+    fn from_request(_req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {}
+}
+
 tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
 tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
@@ -1006,5 +1012,7 @@ mod tests {
         assert_eq!((res.0).1, "user1");
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
+
+        let () = <()>::extract(&req);
     }
 }
