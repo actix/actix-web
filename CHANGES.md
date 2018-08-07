@@ -21,6 +21,9 @@
 
 * Client includes port in HOST header when it is not default(e.g. not 80 and 443). #448
 
+* Panic during access without routing being set #452
+
+
 ## [0.7.3] - 2018-08-01
 
 ### Added
