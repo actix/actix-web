@@ -23,6 +23,17 @@
 
 * Panic during access without routing being set #452
 
+### Deprecated
+
+* `HttpServer::no_http2()` is deprecated, use `OpensslAcceptor::with_flags()` or
+  `RustlsAcceptor::with_flags()` instead
+
+* `HttpServer::listen_tls()`, `HttpServer::listen_ssl()`, `HttpServer::listen_rustls()` have been
+  deprecated in favor of `HttpServer::listen_with()` with specific `acceptor`.
+
+* `HttpServer::bind_tls()`, `HttpServer::bind_ssl()`, `HttpServer::bind_rustls()` have been
+  deprecated in favor of `HttpServer::bind_with()` with specific `acceptor`.
+
 
 ## [0.7.3] - 2018-08-01
 
