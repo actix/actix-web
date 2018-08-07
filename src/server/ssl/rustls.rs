@@ -25,13 +25,12 @@ impl RustlsAcceptor {
     /// Create `OpensslAcceptor` with custom server flags.
     pub fn with_flags(mut config: ServerConfig, flags: ServerFlags) -> Self {
         let mut protos = Vec::new();
-        if flags.contains(ServerFlags::HTTP1) {
-            protos.push("http/1.1".to_string());
-        }
         if flags.contains(ServerFlags::HTTP2) {
             protos.push("h2".to_string());
         }
-
+        if flags.contains(ServerFlags::HTTP1) {
+            protos.push("http/1.1".to_string());
+        }
         if !protos.is_empty() {
             config.set_protocols(&protos);
         }
