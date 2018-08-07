@@ -8,8 +8,10 @@ const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       6061626364656667686970717273747576777879\
       8081828384858687888990919293949596979899";
 
+pub(crate) const STATUS_LINE_BUF_SIZE: usize = 13;
+
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; 13] = [
+    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = [
         b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' ',
     ];
     match version {
