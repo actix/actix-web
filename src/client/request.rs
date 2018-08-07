@@ -629,7 +629,14 @@ impl ClientRequestBuilder {
             if let Some(parts) = parts(&mut self.request, &self.err) {
                 if let Some(host) = parts.uri.host() {
                     if !parts.headers.contains_key(header::HOST) {
-                        match host.try_into() {
+                        let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
+
+                        let _ = match parts.uri.port() {
+                            None | Some(80) | Some(443) => write!(wrt, "{}", host),
+                            Some(port) => write!(wrt, "{}:{}", host, port),
+                        };
+
+                        match wrt.get_mut().take().freeze().try_into() {
                             Ok(value) => {
                                 parts.headers.insert(header::HOST, value);
                             }

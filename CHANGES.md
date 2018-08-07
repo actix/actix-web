@@ -7,7 +7,7 @@
 * Added `HttpServer::maxconn()` and `HttpServer::maxconnrate()`,
   accept backpressure #250
 
-* Allow to customize connection handshake process via `HttpServer::listen_with()` 
+* Allow to customize connection handshake process via `HttpServer::listen_with()`
   and `HttpServer::bind_with()` methods
 
 ### Fixed
@@ -19,6 +19,7 @@
 
 * Fix adding multiple response headers #446
 
+* Client includes port in HOST header when it is not default(e.g. not 80 and 443). #448
 
 ## [0.7.3] - 2018-08-01
 
