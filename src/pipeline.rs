@@ -446,7 +446,6 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     fn poll(
         &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],
     ) -> Option<PipelineState<S, H>> {
-        println!("POLL");
         // connection is dead at this point
         match mem::replace(&mut self.iostate, IOState::Done) {
             IOState::Response =>

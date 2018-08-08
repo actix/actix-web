@@ -406,7 +406,6 @@ impl<H: HttpHandler + 'static> Entry<H> {
                 }
                 Ok(Async::NotReady) => break,
                 Err(err) => {
-                    println!("POLL-PAYLOAD error: {:?}", err);
                     self.payload.set_error(PayloadError::Http2(err));
                     break;
                 }
