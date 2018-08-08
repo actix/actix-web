@@ -1193,6 +1193,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_json2() {
+        let resp = HttpResponse::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("application/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
+    #[test]
+    fn test_json2_ct() {
+        let resp = HttpResponse::build(StatusCode::OK)
+            .header(CONTENT_TYPE, "text/json")
+            .json2(&vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("text/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
     impl Body {
         pub(crate) fn bin_ref(&self) -> &Binary {
             match *self {
