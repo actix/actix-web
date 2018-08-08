@@ -102,13 +102,19 @@ where
 
             loop {
                 let mut not_ready = true;
+                let disconnected = self.flags.contains(Flags::DISCONNECTED);
 
                 // check in-flight connections
                 for item in &mut self.tasks {
                     // read payload
-                    item.poll_payload();
+                    if !disconnected {
+                        item.poll_payload();
+                    }
 
                     if !item.flags.contains(EntryFlags::EOF) {
+                        if disconnected {
+                            item.flags.insert(EntryFlags::EOF);
+                        } else {
                         let retry = item.payload.need_read() == PayloadStatus::Read;
                         loop {
                             match item.task.poll_io(&mut item.stream) {
@@ -141,12 +147,14 @@ where
                             }
                             break;
                         }
-                    } else if !item.flags.contains(EntryFlags::FINISHED) {
+                        }
+                    }
+                    
+                    if item.flags.contains(EntryFlags::EOF) && !item.flags.contains(EntryFlags::FINISHED) {
                         match item.task.poll_completed() {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
-                                not_ready = false;
-                                item.flags.insert(EntryFlags::FINISHED);
+                                item.flags.insert(EntryFlags::FINISHED | EntryFlags::WRITE_DONE);
                             }
                             Err(err) => {
                                 item.flags.insert(
@@ -161,6 +169,7 @@ where
 
                     if item.flags.contains(EntryFlags::FINISHED)
                         && !item.flags.contains(EntryFlags::WRITE_DONE)
+                        && !disconnected
                     {
                         match item.stream.poll_completed(false) {
                             Ok(Async::NotReady) => (),
@@ -168,7 +177,7 @@ where
                                 not_ready = false;
                                 item.flags.insert(EntryFlags::WRITE_DONE);
                             }
-                            Err(_err) => {
+                            Err(_) => {
                                 item.flags.insert(EntryFlags::ERROR);
                             }
                         }
@@ -177,7 +186,7 @@ where
 
                 // cleanup finished tasks
                 while !self.tasks.is_empty() {
-                    if self.tasks[0].flags.contains(EntryFlags::EOF)
+                    if self.tasks[0].flags.contains(EntryFlags::FINISHED)
                         && self.tasks[0].flags.contains(EntryFlags::WRITE_DONE)
                         || self.tasks[0].flags.contains(EntryFlags::ERROR)
                     {
@@ -397,6 +406,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
                 }
                 Ok(Async::NotReady) => break,
                 Err(err) => {
+                    println!("POLL-PAYLOAD error: {:?}", err);
                     self.payload.set_error(PayloadError::Http2(err));
                     break;
                 }

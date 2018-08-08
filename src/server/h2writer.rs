@@ -167,7 +167,6 @@ impl<H: 'static> Writer for H2Writer<H> {
                 Ok(WriterState::Done)
             } else {
                 self.flags.insert(Flags::EOF);
-                self.written = bytes.len() as u64;
                 self.buffer.write(bytes.as_ref())?;
                 if let Some(ref mut stream) = self.stream {
                     self.flags.insert(Flags::RESERVED);
@@ -183,8 +182,6 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     fn write(&mut self, payload: &Binary) -> io::Result<WriterState> {
-        self.written = payload.len() as u64;
-
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
@@ -253,7 +250,9 @@ impl<H: 'static> Writer for H2Writer<H> {
                             return Ok(Async::Ready(()));
                         }
                     }
-                    Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+                    Err(e) => {
+                        return Err(io::Error::new(io::ErrorKind::Other, e))
+                    }
                 }
             }
         }

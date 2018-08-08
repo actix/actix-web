@@ -42,13 +42,6 @@ enum PipelineState<S, H> {
 }
 
 impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
-    fn is_response(&self) -> bool {
-        match *self {
-            PipelineState::Response(_) => true,
-            _ => false,
-        }
-    }
-
     fn poll(
         &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],
     ) -> Option<PipelineState<S, H>> {
@@ -58,7 +51,8 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
             PipelineState::RunMiddlewares(ref mut state) => state.poll(info, mws),
             PipelineState::Finishing(ref mut state) => state.poll(info, mws),
             PipelineState::Completed(ref mut state) => state.poll(info),
-            PipelineState::Response(_) | PipelineState::None | PipelineState::Error => {
+            PipelineState::Response(ref mut state) => state.poll(info, mws),
+            PipelineState::None | PipelineState::Error => {
                 None
             }
         }
@@ -130,21 +124,19 @@ impl<S: 'static, H: PipelineHandler<S>> HttpHandlerTask for Pipeline<S, H> {
         let mut state = mem::replace(&mut self.1, PipelineState::None);
 
         loop {
-            if state.is_response() {
-                if let PipelineState::Response(st) = state {
-                    match st.poll_io(io, &mut self.0, &self.2) {
-                        Ok(state) => {
-                            self.1 = state;
-                            if let Some(error) = self.0.error.take() {
-                                return Err(error);
-                            } else {
-                                return Ok(Async::Ready(self.is_done()));
-                            }
+            if let PipelineState::Response(st) = state {
+                match st.poll_io(io, &mut self.0, &self.2) {
+                    Ok(state) => {
+                        self.1 = state;
+                        if let Some(error) = self.0.error.take() {
+                            return Err(error);
+                        } else {
+                            return Ok(Async::Ready(self.is_done()));
                         }
-                        Err(state) => {
-                            self.1 = state;
-                            return Ok(Async::NotReady);
-                        }
+                    }
+                    Err(state) => {
+                        self.1 = state;
+                        return Ok(Async::NotReady);
                     }
                 }
             }
@@ -401,7 +393,7 @@ impl<S: 'static, H> RunMiddlewares<S, H> {
 }
 
 struct ProcessResponse<S, H> {
-    resp: HttpResponse,
+    resp: Option<HttpResponse>,
     iostate: IOState,
     running: RunningState,
     drain: Option<oneshot::Sender<()>>,
@@ -442,13 +434,66 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     #[inline]
     fn init(resp: HttpResponse) -> PipelineState<S, H> {
         PipelineState::Response(ProcessResponse {
-            resp,
+            resp: Some(resp),
             iostate: IOState::Response,
             running: RunningState::Running,
             drain: None,
             _s: PhantomData,
             _h: PhantomData,
         })
+    }
+
+    fn poll(
+        &mut self, info: &mut PipelineInfo<S>, mws: &[Box<Middleware<S>>],
+    ) -> Option<PipelineState<S, H>> {
+        println!("POLL");
+        // connection is dead at this point
+        match mem::replace(&mut self.iostate, IOState::Done) {
+            IOState::Response =>
+                Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap())),
+            IOState::Payload(_) =>
+                Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap())),
+            IOState::Actor(mut ctx) => {
+                if info.disconnected.take().is_some() {
+                    ctx.disconnected();
+                }
+                loop {
+                    match ctx.poll() {
+                        Ok(Async::Ready(Some(vec))) => {
+                            if vec.is_empty() {
+                                continue;
+                            }
+                            for frame in vec {
+                                match frame {
+                                    Frame::Chunk(None) => {
+                                        info.context = Some(ctx);
+                                        return Some(FinishingMiddlewares::init(
+                                            info, mws, self.resp.take().unwrap(),
+                                        ))
+                                    }
+                                    Frame::Chunk(Some(_)) => (),
+                                    Frame::Drain(fut) => {let _ = fut.send(());},
+                                }
+                            }
+                        }
+                        Ok(Async::Ready(None)) => 
+                            return Some(FinishingMiddlewares::init(
+                                info, mws, self.resp.take().unwrap(),
+                            )),
+                        Ok(Async::NotReady) => {
+                            self.iostate = IOState::Actor(ctx);
+                            return None;
+                        }
+                        Err(err) => {
+                            info.context = Some(ctx);
+                            info.error = Some(err);
+                            return Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
+                        }
+                    }
+                }
+            }
+            IOState::Done => Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()))
+        }
     }
 
     fn poll_io(
@@ -462,24 +507,24 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                     let result = match mem::replace(&mut self.iostate, IOState::Done) {
                         IOState::Response => {
                             let encoding =
-                                self.resp.content_encoding().unwrap_or(info.encoding);
+                                self.resp.as_ref().unwrap().content_encoding().unwrap_or(info.encoding);
 
                             let result =
-                                match io.start(&info.req, &mut self.resp, encoding) {
+                                match io.start(&info.req, self.resp.as_mut().unwrap(), encoding) {
                                     Ok(res) => res,
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(
-                                            info, mws, self.resp,
+                                            info, mws, self.resp.take().unwrap(),
                                         ));
                                     }
                                 };
 
-                            if let Some(err) = self.resp.error() {
-                                if self.resp.status().is_server_error() {
+                            if let Some(err) = self.resp.as_ref().unwrap().error() {
+                                if self.resp.as_ref().unwrap().status().is_server_error() {
                                     error!(
                                         "Error occured during request handling, status: {} {}",
-                                        self.resp.status(), err
+                                        self.resp.as_ref().unwrap().status(), err
                                     );
                                 } else {
                                     warn!(
@@ -493,7 +538,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             }
 
                             // always poll stream or actor for the first time
-                            match self.resp.replace_body(Body::Empty) {
+                            match self.resp.as_mut().unwrap().replace_body(Body::Empty) {
                                 Body::Streaming(stream) => {
                                     self.iostate = IOState::Payload(stream);
                                     continue 'inner;
@@ -512,7 +557,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 if let Err(err) = io.write_eof() {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(
-                                        info, mws, self.resp,
+                                        info, mws, self.resp.take().unwrap(),
                                     ));
                                 }
                                 break;
@@ -523,7 +568,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(
-                                            info, mws, self.resp,
+                                            info, mws, self.resp.take().unwrap(),
                                         ));
                                     }
                                     Ok(result) => result,
@@ -536,7 +581,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             Err(err) => {
                                 info.error = Some(err);
                                 return Ok(FinishingMiddlewares::init(
-                                    info, mws, self.resp,
+                                    info, mws, self.resp.take().unwrap(),
                                 ));
                             }
                         },
@@ -559,7 +604,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                     info.error = Some(err.into());
                                                     return Ok(
                                                         FinishingMiddlewares::init(
-                                                            info, mws, self.resp,
+                                                            info, mws, self.resp.take().unwrap(),
                                                         ),
                                                     );
                                                 }
@@ -572,7 +617,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                         info.error = Some(err.into());
                                                         return Ok(
                                                             FinishingMiddlewares::init(
-                                                                info, mws, self.resp,
+                                                                info, mws, self.resp.take().unwrap(),
                                                             ),
                                                         );
                                                     }
@@ -598,7 +643,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     info.context = Some(ctx);
                                     info.error = Some(err);
                                     return Ok(FinishingMiddlewares::init(
-                                        info, mws, self.resp,
+                                        info, mws, self.resp.take().unwrap(),
                                     ));
                                 }
                             }
@@ -638,7 +683,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             info.context = Some(ctx);
                         }
                         info.error = Some(err.into());
-                        return Ok(FinishingMiddlewares::init(info, mws, self.resp));
+                        return Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
                     }
                 }
             }
@@ -652,11 +697,11 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                     Ok(_) => (),
                     Err(err) => {
                         info.error = Some(err.into());
-                        return Ok(FinishingMiddlewares::init(info, mws, self.resp));
+                        return Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
                     }
                 }
-                self.resp.set_response_size(io.written());
-                Ok(FinishingMiddlewares::init(info, mws, self.resp))
+                self.resp.as_mut().unwrap().set_response_size(io.written());
+                Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()))
             }
             _ => Err(PipelineState::Response(self)),
         }

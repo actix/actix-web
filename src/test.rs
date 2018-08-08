@@ -15,8 +15,10 @@ use tokio::runtime::current_thread::Runtime;
 
 #[cfg(feature = "alpn")]
 use openssl::ssl::SslAcceptorBuilder;
-#[cfg(all(feature = "rust-tls"))]
+#[cfg(feature = "rust-tls")]
 use rustls::ServerConfig;
+#[cfg(feature = "rust-tls")]
+use server::RustlsAcceptor;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -342,7 +344,7 @@ impl<S: 'static> TestServerBuilder<S> {
                 let ssl = self.rust_ssl.take();
                 if let Some(ssl) = ssl {
                     let tcp = net::TcpListener::bind(addr).unwrap();
-                    srv = srv.listen_rustls(tcp, ssl).unwrap();
+                    srv = srv.listen_with(tcp, RustlsAcceptor::new(ssl)).unwrap();
                 }
             }
             if !has_ssl {

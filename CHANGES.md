@@ -23,6 +23,8 @@
 
 * Panic during access without routing being set #452
 
+* Fixed http/2 error handling
+
 ### Deprecated
 
 * `HttpServer::no_http2()` is deprecated, use `OpensslAcceptor::with_flags()` or
