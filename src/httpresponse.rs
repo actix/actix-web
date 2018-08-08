@@ -650,7 +650,14 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
-        match serde_json::to_string(&value) {
+        self.json2(&value)
+    }
+
+    /// Set a json body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
+    pub fn json2<T: Serialize>(&mut self, value: &T) -> HttpResponse {
+        match serde_json::to_string(value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
                 {
