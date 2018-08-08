@@ -676,8 +676,6 @@ impl<S: 'static> TestRequest<S> {
 
     /// This method generates `HttpRequest` instance and runs handler
     /// with generated request.
-    ///
-    /// This method panics is handler returns actor or async result.
     pub fn run<H: Handler<S>>(self, h: &H) -> Result<HttpResponse, Error> {
         let req = self.finish();
         let resp = h.handle(&req);
@@ -686,7 +684,10 @@ impl<S: 'static> TestRequest<S> {
             Ok(resp) => match resp.into().into() {
                 AsyncResultItem::Ok(resp) => Ok(resp),
                 AsyncResultItem::Err(err) => Err(err),
-                AsyncResultItem::Future(_) => panic!("Async handler is not supported."),
+                AsyncResultItem::Future(fut) => {
+                    let mut sys = System::new("test");
+                    sys.block_on(fut)
+                }
             },
             Err(err) => Err(err.into()),
         }
@@ -706,8 +707,8 @@ impl<S: 'static> TestRequest<S> {
         let req = self.finish();
         let fut = h(req.clone());
 
-        let mut core = Runtime::new().unwrap();
-        match core.block_on(fut) {
+        let mut sys = System::new("test");
+        match sys.block_on(fut) {
             Ok(r) => match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => Ok(resp),
@@ -716,6 +717,27 @@ impl<S: 'static> TestRequest<S> {
                 Err(e) => Err(e),
             },
             Err(err) => Err(err),
+        }
+    }
+
+    /// This method generates `HttpRequest` instance and executes handler
+    pub fn execute<F, R>(self, f: F) -> Result<HttpResponse, Error>
+    where F: FnOnce(&HttpRequest<S>) -> R,
+          R: Responder + 'static,
+    {
+        let req = self.finish();
+        let resp = f(&req);
+
+        match resp.respond_to(&req) {
+            Ok(resp) => match resp.into().into() {
+                AsyncResultItem::Ok(resp) => Ok(resp),
+                AsyncResultItem::Err(err) => Err(err),
+                AsyncResultItem::Future(fut) => {
+                    let mut sys = System::new("test");
+                    sys.block_on(fut)
+                }
+            },
+            Err(err) => Err(err.into()),
         }
     }
 }

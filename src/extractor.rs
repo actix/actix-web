@@ -101,6 +101,12 @@ impl<T> Path<T> {
     }
 }
 
+impl<T> From<T> for Path<T> {
+    fn from(inner: T) -> Path<T> {
+        Path{inner}
+    }
+}
+
 impl<T, S> FromRequest<S> for Path<T>
 where
     T: DeserializeOwned,
