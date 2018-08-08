@@ -84,7 +84,7 @@ impl<S> HttpRequest<S> {
     /// Construct new http request with empty state.
     pub fn drop_state(&self) -> HttpRequest {
         HttpRequest {
-            Rc::new(()),
+            state: Rc::new(()),
             req: self.req.as_ref().map(|r| r.clone()),
             resource: self.resource.clone(),
         }
