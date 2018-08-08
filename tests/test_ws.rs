@@ -210,7 +210,7 @@ impl Ws2 {
         ctx.drain()
             .and_then(|_, act, ctx| {
                 act.count += 1;
-                if act.count != 1_000 {
+                if act.count != 10_000 {
                     act.send(ctx);
                 }
                 actix::fut::ok(())
@@ -248,7 +248,7 @@ fn test_server_send_text() {
     });
     let (mut reader, _writer) = srv.ws().unwrap();
 
-    for _ in 0..1_000 {
+    for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, data);
@@ -272,7 +272,7 @@ fn test_server_send_bin() {
     });
     let (mut reader, _writer) = srv.ws().unwrap();
 
-    for _ in 0..1_000 {
+    for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, data);
@@ -308,7 +308,7 @@ fn test_ws_server_ssl() {
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));
-    for _ in 0..1_000 {
+    for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, data);
@@ -347,7 +347,7 @@ fn test_ws_server_rust_tls() {
     let (mut reader, _writer) = srv.ws().unwrap();
 
     let data = Some(ws::Message::Text("0".repeat(65_536)));
-    for _ in 0..1_000 {
+    for _ in 0..10_000 {
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, data);

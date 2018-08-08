@@ -337,9 +337,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             }
         }
         if shutdown {
+            self.stream.poll_flush()?;
             self.stream.shutdown()
         } else {
-            Ok(Async::Ready(()))
+            self.stream.poll_flush()
         }
     }
 }
