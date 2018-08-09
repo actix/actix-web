@@ -9,8 +9,9 @@ use tokio_timer::Delay;
 
 use actix::{msgs::Execute, Arbiter, System};
 
-use super::srv::ServerCommand;
-use super::worker::{Conn, Socket, Token, WorkerClient};
+use super::server::ServerCommand;
+use super::worker::{Conn, WorkerClient};
+use super::Token;
 
 pub(crate) enum Command {
     Pause,
@@ -22,51 +23,27 @@ pub(crate) enum Command {
 struct ServerSocketInfo {
     addr: net::SocketAddr,
     token: Token,
+    handler: Token,
     sock: mio::net::TcpListener,
     timeout: Option<Instant>,
 }
 
 #[derive(Clone)]
-pub(crate) struct AcceptNotify {
-    ready: mio::SetReadiness,
-    maxconn: usize,
-    maxconn_low: usize,
-    maxconnrate: usize,
-    maxconnrate_low: usize,
-}
+pub(crate) struct AcceptNotify(mio::SetReadiness);
 
 impl AcceptNotify {
-    pub fn new(ready: mio::SetReadiness, maxconn: usize, maxconnrate: usize) -> Self {
-        let maxconn_low = if maxconn > 10 { maxconn - 10 } else { 0 };
-        let maxconnrate_low = if maxconnrate > 10 {
-            maxconnrate - 10
-        } else {
-            0
-        };
-        AcceptNotify {
-            ready,
-            maxconn,
-            maxconn_low,
-            maxconnrate,
-            maxconnrate_low,
-        }
+    pub(crate) fn new(ready: mio::SetReadiness) -> Self {
+        AcceptNotify(ready)
     }
 
-    pub fn notify_maxconn(&self, maxconn: usize) {
-        if maxconn > self.maxconn_low && maxconn <= self.maxconn {
-            let _ = self.ready.set_readiness(mio::Ready::readable());
-        }
-    }
-    pub fn notify_maxconnrate(&self, connrate: usize) {
-        if connrate > self.maxconnrate_low && connrate <= self.maxconnrate {
-            let _ = self.ready.set_readiness(mio::Ready::readable());
-        }
+    pub(crate) fn notify(&self) {
+        let _ = self.0.set_readiness(mio::Ready::readable());
     }
 }
 
 impl Default for AcceptNotify {
     fn default() -> Self {
-        AcceptNotify::new(mio::Registration::new2().1, 0, 0)
+        AcceptNotify::new(mio::Registration::new2().1)
     }
 }
 
@@ -81,8 +58,6 @@ pub(crate) struct AcceptLoop {
         mpsc::UnboundedSender<ServerCommand>,
         mpsc::UnboundedReceiver<ServerCommand>,
     )>,
-    maxconn: usize,
-    maxconnrate: usize,
 }
 
 impl AcceptLoop {
@@ -97,8 +72,6 @@ impl AcceptLoop {
             cmd_reg: Some(cmd_reg),
             notify_ready,
             notify_reg: Some(notify_reg),
-            maxconn: 102_400,
-            maxconnrate: 256,
             rx: Some(rx),
             srv: Some(mpsc::unbounded()),
         }
@@ -110,19 +83,12 @@ impl AcceptLoop {
     }
 
     pub fn get_notify(&self) -> AcceptNotify {
-        AcceptNotify::new(self.notify_ready.clone(), self.maxconn, self.maxconnrate)
-    }
-
-    pub fn maxconn(&mut self, num: usize) {
-        self.maxconn = num;
-    }
-
-    pub fn maxconnrate(&mut self, num: usize) {
-        self.maxconnrate = num;
+        AcceptNotify::new(self.notify_ready.clone())
     }
 
     pub(crate) fn start(
-        &mut self, socks: Vec<Socket>, workers: Vec<WorkerClient>,
+        &mut self, socks: Vec<Vec<(Token, net::TcpListener)>>,
+        workers: Vec<WorkerClient>,
     ) -> mpsc::UnboundedReceiver<ServerCommand> {
         let (tx, rx) = self.srv.take().expect("Can not re-use AcceptInfo");
 
@@ -130,8 +96,6 @@ impl AcceptLoop {
             self.rx.take().expect("Can not re-use AcceptInfo"),
             self.cmd_reg.take().expect("Can not re-use AcceptInfo"),
             self.notify_reg.take().expect("Can not re-use AcceptInfo"),
-            self.maxconn,
-            self.maxconnrate,
             socks,
             tx,
             workers,
@@ -148,8 +112,6 @@ struct Accept {
     srv: mpsc::UnboundedSender<ServerCommand>,
     timer: (mio::Registration, mio::SetReadiness),
     next: usize,
-    maxconn: usize,
-    maxconnrate: usize,
     backpressure: bool,
 }
 
@@ -175,9 +137,8 @@ impl Accept {
     #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     pub(crate) fn start(
         rx: sync_mpsc::Receiver<Command>, cmd_reg: mio::Registration,
-        notify_reg: mio::Registration, maxconn: usize, maxconnrate: usize,
-        socks: Vec<Socket>, srv: mpsc::UnboundedSender<ServerCommand>,
-        workers: Vec<WorkerClient>,
+        notify_reg: mio::Registration, socks: Vec<Vec<(Token, net::TcpListener)>>,
+        srv: mpsc::UnboundedSender<ServerCommand>, workers: Vec<WorkerClient>,
     ) {
         let sys = System::current();
 
@@ -187,8 +148,6 @@ impl Accept {
             .spawn(move || {
                 System::set_current(sys);
                 let mut accept = Accept::new(rx, socks, workers, srv);
-                accept.maxconn = maxconn;
-                accept.maxconnrate = maxconnrate;
 
                 // Start listening for incoming commands
                 if let Err(err) = accept.poll.register(
@@ -215,7 +174,7 @@ impl Accept {
     }
 
     fn new(
-        rx: sync_mpsc::Receiver<Command>, socks: Vec<Socket>,
+        rx: sync_mpsc::Receiver<Command>, socks: Vec<Vec<(Token, net::TcpListener)>>,
         workers: Vec<WorkerClient>, srv: mpsc::UnboundedSender<ServerCommand>,
     ) -> Accept {
         // Create a poll instance
@@ -226,29 +185,33 @@ impl Accept {
 
         // Start accept
         let mut sockets = Slab::new();
-        for sock in socks {
-            let server = mio::net::TcpListener::from_std(sock.lst)
-                .expect("Can not create mio::net::TcpListener");
+        for (idx, srv_socks) in socks.into_iter().enumerate() {
+            for (hnd_token, lst) in srv_socks {
+                let addr = lst.local_addr().unwrap();
+                let server = mio::net::TcpListener::from_std(lst)
+                    .expect("Can not create mio::net::TcpListener");
 
-            let entry = sockets.vacant_entry();
-            let token = entry.key();
+                let entry = sockets.vacant_entry();
+                let token = entry.key();
 
-            // Start listening for incoming connections
-            if let Err(err) = poll.register(
-                &server,
-                mio::Token(token + DELTA),
-                mio::Ready::readable(),
-                mio::PollOpt::edge(),
-            ) {
-                panic!("Can not register io: {}", err);
+                // Start listening for incoming connections
+                if let Err(err) = poll.register(
+                    &server,
+                    mio::Token(token + DELTA),
+                    mio::Ready::readable(),
+                    mio::PollOpt::edge(),
+                ) {
+                    panic!("Can not register io: {}", err);
+                }
+
+                entry.insert(ServerSocketInfo {
+                    addr,
+                    token: hnd_token,
+                    handler: Token(idx),
+                    sock: server,
+                    timeout: None,
+                });
             }
-
-            entry.insert(ServerSocketInfo {
-                token: sock.token,
-                addr: sock.addr,
-                sock: server,
-                timeout: None,
-            });
         }
 
         // Timer
@@ -267,8 +230,6 @@ impl Accept {
             srv,
             next: 0,
             timer: (tm, tmr),
-            maxconn: 102_400,
-            maxconnrate: 256,
             backpressure: false,
         }
     }
@@ -431,7 +392,7 @@ impl Accept {
             let mut idx = 0;
             while idx < self.workers.len() {
                 idx += 1;
-                if self.workers[self.next].available(self.maxconn, self.maxconnrate) {
+                if self.workers[self.next].available() {
                     match self.workers[self.next].send(msg) {
                         Ok(_) => {
                             self.next = (self.next + 1) % self.workers.len();
@@ -469,6 +430,7 @@ impl Accept {
                     Ok((io, addr)) => Conn {
                         io,
                         token: info.token,
+                        handler: info.handler,
                         peer: Some(addr),
                     },
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return,
@@ -489,11 +451,10 @@ impl Accept {
                                     Delay::new(
                                         Instant::now() + Duration::from_millis(510),
                                     ).map_err(|_| ())
-                                        .and_then(move |_| {
-                                            let _ =
-                                                r.set_readiness(mio::Ready::readable());
-                                            Ok(())
-                                        }),
+                                    .and_then(move |_| {
+                                        let _ = r.set_readiness(mio::Ready::readable());
+                                        Ok(())
+                                    }),
                                 );
                                 Ok(())
                             },

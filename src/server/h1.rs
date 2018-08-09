@@ -468,7 +468,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::net::Shutdown;
-    use std::sync::{atomic::AtomicUsize, Arc};
     use std::{cmp, io, time};
 
     use bytes::{Buf, Bytes, BytesMut};
@@ -478,20 +477,17 @@ mod tests {
     use super::*;
     use application::HttpApplication;
     use httpmessage::HttpMessage;
-    use server::accept::AcceptNotify;
     use server::h1decoder::Message;
     use server::settings::{ServerSettings, WorkerSettings};
-    use server::{KeepAlive, Request};
+    use server::{Connections, KeepAlive, Request};
 
-    fn wrk_settings() -> WorkerSettings<HttpApplication> {
-        WorkerSettings::<HttpApplication>::new(
+    fn wrk_settings() -> Rc<WorkerSettings<HttpApplication>> {
+        Rc::new(WorkerSettings::<HttpApplication>::new(
             Vec::new(),
             KeepAlive::Os,
             ServerSettings::default(),
-            AcceptNotify::default(),
-            Arc::new(AtomicUsize::new(0)),
-            Arc::new(AtomicUsize::new(0)),
-        )
+            Connections::default(),
+        ))
     }
 
     impl Message {

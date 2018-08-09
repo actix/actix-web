@@ -17,6 +17,8 @@ use tokio::runtime::current_thread::Runtime;
 use openssl::ssl::SslAcceptorBuilder;
 #[cfg(feature = "rust-tls")]
 use rustls::ServerConfig;
+#[cfg(feature = "alpn")]
+use server::OpensslAcceptor;
 #[cfg(feature = "rust-tls")]
 use server::RustlsAcceptor;
 
@@ -326,7 +328,7 @@ impl<S: 'static> TestServerBuilder<S> {
                 config(&mut app);
                 vec![app]
             }).workers(1)
-                .disable_signals();
+            .disable_signals();
 
             tx.send((System::current(), addr, TestServer::get_conn()))
                 .unwrap();
@@ -336,7 +338,7 @@ impl<S: 'static> TestServerBuilder<S> {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
                     let tcp = net::TcpListener::bind(addr).unwrap();
-                    srv = srv.listen_ssl(tcp, ssl).unwrap();
+                    srv = srv.listen_with(tcp, OpensslAcceptor::new(ssl).unwrap());
                 }
             }
             #[cfg(feature = "rust-tls")]
@@ -344,7 +346,7 @@ impl<S: 'static> TestServerBuilder<S> {
                 let ssl = self.rust_ssl.take();
                 if let Some(ssl) = ssl {
                     let tcp = net::TcpListener::bind(addr).unwrap();
-                    srv = srv.listen_with(tcp, RustlsAcceptor::new(ssl)).unwrap();
+                    srv = srv.listen_with(tcp, RustlsAcceptor::new(ssl));
                 }
             }
             if !has_ssl {
@@ -722,8 +724,9 @@ impl<S: 'static> TestRequest<S> {
 
     /// This method generates `HttpRequest` instance and executes handler
     pub fn execute<F, R>(self, f: F) -> Result<HttpResponse, Error>
-    where F: FnOnce(&HttpRequest<S>) -> R,
-          R: Responder + 'static,
+    where
+        F: FnOnce(&HttpRequest<S>) -> R,
+        R: Responder + 'static,
     {
         let req = self.finish();
         let resp = f(&req);

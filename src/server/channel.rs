@@ -7,7 +7,7 @@ use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::settings::WorkerSettings;
-use super::{h1, h2, HttpHandler, IoStream};
+use super::{h1, h2, ConnectionTag, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
@@ -30,6 +30,7 @@ where
 {
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
+    _tag: ConnectionTag,
 }
 
 impl<T, H> HttpChannel<T, H>
@@ -40,9 +41,10 @@ where
     pub(crate) fn new(
         settings: Rc<WorkerSettings<H>>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
-        settings.add_channel();
+        let _tag = settings.connection();
 
         HttpChannel {
+            _tag,
             node: None,
             proto: Some(HttpProtocol::Unknown(
                 settings,
@@ -97,7 +99,6 @@ where
                 let result = h1.poll();
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
-                        h1.settings().remove_channel();
                         if let Some(n) = self.node.as_mut() {
                             n.remove()
                         };
@@ -110,7 +111,6 @@ where
                 let result = h2.poll();
                 match result {
                     Ok(Async::Ready(())) | Err(_) => {
-                        h2.settings().remove_channel();
                         if let Some(n) = self.node.as_mut() {
                             n.remove()
                         };
@@ -119,16 +119,10 @@ where
                 }
                 return result;
             }
-            Some(HttpProtocol::Unknown(
-                ref mut settings,
-                _,
-                ref mut io,
-                ref mut buf,
-            )) => {
+            Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
                 match io.read_available(buf) {
                     Ok(Async::Ready(true)) | Err(_) => {
                         debug!("Ignored premature client disconnection");
-                        settings.remove_channel();
                         if let Some(n) = self.node.as_mut() {
                             n.remove()
                         };

@@ -21,12 +21,16 @@ pub(crate) mod helpers;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
+mod server;
 pub(crate) mod settings;
 mod srv;
 mod ssl;
 mod worker;
 
 pub use self::message::Request;
+pub use self::server::{
+    ConnectionRateTag, ConnectionTag, Connections, Server, Service, ServiceHandler,
+};
 pub use self::settings::ServerSettings;
 pub use self::srv::HttpServer;
 pub use self::ssl::*;
@@ -134,6 +138,16 @@ pub struct StopServer {
 
 impl Message for StopServer {
     type Result = Result<(), ()>;
+}
+
+/// Socket id token
+#[derive(Clone, Copy)]
+pub struct Token(usize);
+
+impl Token {
+    pub(crate) fn new(val: usize) -> Token {
+        Token(val)
+    }
 }
 
 /// Low level http request handler

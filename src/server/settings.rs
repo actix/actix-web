@@ -2,19 +2,22 @@ use std::cell::{RefCell, RefMut, UnsafeCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
-use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc};
+use std::time::{Duration, Instant};
 use std::{env, fmt, net};
 
+use actix::Arbiter;
 use bytes::BytesMut;
+use futures::Stream;
 use futures_cpupool::CpuPool;
 use http::StatusCode;
 use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
+use tokio_timer::Interval;
 
-use super::accept::AcceptNotify;
 use super::channel::Node;
 use super::message::{Request, RequestPool};
+use super::server::{ConnectionRateTag, ConnectionTag, Connections};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
@@ -137,17 +140,36 @@ pub(crate) struct WorkerSettings<H> {
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
-    channels: Arc<AtomicUsize>,
+    conns: Connections,
     node: RefCell<Node<()>>,
     date: UnsafeCell<Date>,
-    connrate: Arc<AtomicUsize>,
-    notify: AcceptNotify,
+}
+
+impl<H: 'static> WorkerSettings<H> {
+    pub(crate) fn create(
+        apps: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
+        conns: Connections,
+    ) -> Rc<WorkerSettings<H>> {
+        let settings = Rc::new(Self::new(apps, keep_alive, settings, conns));
+
+        // periodic date update
+        let s = settings.clone();
+        Arbiter::spawn(
+            Interval::new(Instant::now(), Duration::from_secs(1))
+                .map_err(|_| ())
+                .and_then(move |_| {
+                    s.update_date();
+                    Ok(())
+                }).fold((), |(), _| Ok(())),
+        );
+
+        settings
+    }
 }
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
-        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
-        notify: AcceptNotify, channels: Arc<AtomicUsize>, connrate: Arc<AtomicUsize>,
+        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings, conns: Connections,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -163,14 +185,8 @@ impl<H> WorkerSettings<H> {
             date: UnsafeCell::new(Date::new()),
             keep_alive,
             ka_enabled,
-            channels,
-            connrate,
-            notify,
+            conns,
         }
-    }
-
-    pub fn num_channels(&self) -> usize {
-        self.channels.load(Ordering::Relaxed)
     }
 
     pub fn head(&self) -> RefMut<Node<()>> {
@@ -201,16 +217,11 @@ impl<H> WorkerSettings<H> {
         RequestPool::get(self.messages)
     }
 
-    pub fn add_channel(&self) {
-        self.channels.fetch_add(1, Ordering::Relaxed);
+    pub fn connection(&self) -> ConnectionTag {
+        self.conns.connection()
     }
 
-    pub fn remove_channel(&self) {
-        let val = self.channels.fetch_sub(1, Ordering::Relaxed);
-        self.notify.notify_maxconn(val);
-    }
-
-    pub fn update_date(&self) {
+    fn update_date(&self) {
         // Unsafe: WorkerSetting is !Sync and !Send
         unsafe { &mut *self.date.get() }.update();
     }
@@ -230,13 +241,8 @@ impl<H> WorkerSettings<H> {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn conn_rate_add(&self) {
-        self.connrate.fetch_add(1, Ordering::Relaxed);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn conn_rate_del(&self) {
-        let val = self.connrate.fetch_sub(1, Ordering::Relaxed);
-        self.notify.notify_maxconnrate(val);
+    pub(crate) fn connection_rate(&self) -> ConnectionRateTag {
+        self.conns.connection_rate()
     }
 }
 
@@ -309,9 +315,7 @@ mod tests {
             Vec::new(),
             KeepAlive::Os,
             ServerSettings::default(),
-            AcceptNotify::default(),
-            Arc::new(AtomicUsize::new(0)),
-            Arc::new(AtomicUsize::new(0)),
+            Connections::default(),
         );
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
         settings.set_date(&mut buf1, true);
