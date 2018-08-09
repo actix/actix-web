@@ -145,11 +145,12 @@ impl Server {
     }
 
     /// Add new service to server
-    pub fn service<T>(mut self, srv: T, sockets: Vec<(Token, net::TcpListener)>) -> Self 
-    where 
-        T: Into<Box<Service>>
+    pub fn service<T>(mut self, srv: T) -> Self 
+    where
+        T: Into<(Box<Service>, Vec<(Token, net::TcpListener)>)>
     {
-        self.services.push(srv.into());
+        let (srv, sockets) = srv.into();
+        self.services.push(srv);
         self.sockets.push(sockets);
         self
     }

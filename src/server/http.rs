@@ -427,14 +427,19 @@ where
     }
 }
 
-impl<H: IntoHttpHandler> Into<Box<Service>> for HttpServer<H> {
-    fn into(self) -> Box<Service> {
-        Box::new(HttpService {
+impl<H: IntoHttpHandler> Into<(Box<Service>, Vec<(Token, net::TcpListener)>)> for HttpServer<H> {
+    fn into(mut self) -> (Box<Service>, Vec<(Token, net::TcpListener)>) {
+        let sockets: Vec<_> = mem::replace(&mut self.sockets, Vec::new())
+            .into_iter()
+            .map(|item| (item.token, item.lst))
+            .collect();
+
+        (Box::new(HttpService {
             factory: self.factory,
             host: self.host,
             keep_alive: self.keep_alive,
             handlers: self.handlers,
-        })
+        }), sockets)
     }
 }
 
@@ -500,7 +505,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
     ///    sys.run();  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> Addr<Server> {
+    pub fn start(self) -> Addr<Server> {
         let mut srv = Server::new()
             .workers(self.threads)
             .maxconn(self.maxconn)
@@ -514,11 +519,7 @@ impl<H: IntoHttpHandler> HttpServer<H> {
             srv
         };
 
-        let sockets: Vec<_> = mem::replace(&mut self.sockets, Vec::new())
-            .into_iter()
-            .map(|item| (item.token, item.lst))
-            .collect();
-        srv.service(self, sockets).start()
+        srv.service(self).start()
     }
 
     /// Spawn new thread and start listening for incoming connections.
