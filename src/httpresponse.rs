@@ -650,7 +650,14 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
-        match serde_json::to_string(&value) {
+        self.json2(&value)
+    }
+
+    /// Set a json body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
+    pub fn json2<T: Serialize>(&mut self, value: &T) -> HttpResponse {
+        match serde_json::to_string(value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
                 {
@@ -1178,6 +1185,30 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK)
             .header(CONTENT_TYPE, "text/json")
             .json(vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("text/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
+    #[test]
+    fn test_json2() {
+        let resp = HttpResponse::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("application/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
+    #[test]
+    fn test_json2_ct() {
+        let resp = HttpResponse::build(StatusCode::OK)
+            .header(CONTENT_TYPE, "text/json")
+            .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(
