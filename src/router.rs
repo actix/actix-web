@@ -291,19 +291,6 @@ impl<S: 'static> Router<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn route_info(&self, req: &Request, prefix: u16) -> ResourceInfo {
-        let mut params = Params::with_url(req.url());
-        params.set_tail(prefix);
-
-        ResourceInfo {
-            params,
-            prefix: 0,
-            rmap: self.rmap.clone(),
-            resource: ResourceId::Default,
-        }
-    }
-
-    #[cfg(test)]
     pub(crate) fn default_route_info(&self) -> ResourceInfo {
         ResourceInfo {
             params: Params::new(),
