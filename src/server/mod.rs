@@ -23,22 +23,23 @@ pub(crate) mod message;
 pub(crate) mod output;
 mod server;
 pub(crate) mod settings;
-mod srv;
+mod http;
 mod ssl;
 mod worker;
+
+use actix::Message;
 
 pub use self::message::Request;
 pub use self::server::{
     ConnectionRateTag, ConnectionTag, Connections, Server, Service, ServiceHandler,
 };
 pub use self::settings::ServerSettings;
-pub use self::srv::HttpServer;
+pub use self::http::HttpServer;
 pub use self::ssl::*;
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
 
-use actix::Message;
 use body::Binary;
 use error::Error;
 use extensions::Extensions;

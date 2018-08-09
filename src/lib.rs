@@ -143,8 +143,6 @@ extern crate serde_derive;
 
 #[cfg(feature = "tls")]
 extern crate native_tls;
-#[cfg(feature = "tls")]
-extern crate tokio_tls;
 
 #[cfg(feature = "openssl")]
 extern crate openssl;

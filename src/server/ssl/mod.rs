@@ -6,7 +6,7 @@ pub use self::openssl::OpensslAcceptor;
 #[cfg(feature = "tls")]
 mod nativetls;
 #[cfg(feature = "tls")]
-pub use self::nativetls::NativeTlsAcceptor;
+pub use self::nativetls::{TlsStream, NativeTlsAcceptor};
 
 #[cfg(feature = "rust-tls")]
 mod rustls;

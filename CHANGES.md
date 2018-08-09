@@ -10,6 +10,10 @@
 * Allow to customize connection handshake process via `HttpServer::listen_with()`
   and `HttpServer::bind_with()` methods
 
+### Changed
+
+* native-tls - 0.2
+
 ### Fixed
 
 * Use zlib instead of raw deflate for decoding and encoding payloads with

@@ -32,7 +32,7 @@ path = "src/lib.rs"
 default = ["session", "brotli", "flate2-c"]
 
 # tls
-tls = ["native-tls", "tokio-tls"]
+tls = ["native-tls"]
 
 # openssl
 alpn = ["openssl", "tokio-openssl"]
@@ -100,8 +100,7 @@ tokio-timer = "0.2"
 tokio-reactor = "0.1"
 
 # native-tls
-native-tls = { version="0.1", optional = true }
-tokio-tls = { version="0.1", optional = true }
+native-tls = { version="0.2", optional = true }
 
 # openssl
 openssl = { version="0.10", optional = true }

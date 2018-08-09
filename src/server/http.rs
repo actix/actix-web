@@ -242,7 +242,7 @@ where
     pub fn listen_tls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
         use super::NativeTlsAcceptor;
 
-        Ok(self.listen_with(lst, NativeTlsAcceptor::new(acceptor)))
+        self.listen_with(lst, NativeTlsAcceptor::new(acceptor))
     }
 
     #[cfg(feature = "alpn")]
