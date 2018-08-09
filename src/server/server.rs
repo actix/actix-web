@@ -2,6 +2,7 @@ use std::{mem, net};
 use std::time::Duration;
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
+use num_cpus;
 use futures::{Future, Stream, Sink};
 use futures::sync::{mpsc, mpsc::unbounded};
 
