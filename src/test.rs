@@ -26,7 +26,7 @@ use application::{App, HttpApplication};
 use body::Binary;
 use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
-use handler::{AsyncResultItem, Handler, Responder};
+use handler::{AsyncResult, AsyncResultItem, Handler, Responder};
 use header::{Header, IntoHeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -719,6 +719,25 @@ impl<S: 'static> TestRequest<S> {
                 Err(e) => Err(e),
             },
             Err(err) => Err(err),
+        }
+    }
+
+    /// This method generates `HttpRequest` instance and executes handler
+    pub fn run_async_result<F, R, I, E>(self, f: F) -> Result<I, E>
+    where
+        F: FnOnce(&HttpRequest<S>) -> R,
+        R: Into<AsyncResult<I, E>>,
+    {
+        let req = self.finish();
+        let res = f(&req);
+
+        match res.into().into() {
+            AsyncResultItem::Ok(resp) => Ok(resp),
+            AsyncResultItem::Err(err) => Err(err),
+            AsyncResultItem::Future(fut) => {
+                let mut sys = System::new("test");
+                sys.block_on(fut)
+            }
         }
     }
 
