@@ -758,11 +758,11 @@ mod tests {
                                 let cd = field.content_disposition().unwrap();
                                 assert_eq!(
                                     cd.disposition,
-                                    DispositionType::Ext("form-data".into())
+                                    DispositionType::FormData
                                 );
                                 assert_eq!(
                                     cd.parameters[0],
-                                    DispositionParam::Ext("name".into(), "file".into())
+                                    DispositionParam::Name("file".into())
                                 );
                             }
                             assert_eq!(field.content_type().type_(), mime::TEXT);
