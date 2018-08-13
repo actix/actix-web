@@ -9,6 +9,7 @@
 use header;
 use header::ExtendedValue;
 use header::{Header, IntoHeaderValue, Writer};
+use regex::Regex;
 
 use std::fmt::{self, Write};
 
@@ -47,11 +48,14 @@ pub enum DispositionType {
 
 impl<'a> From<&'a str> for DispositionType {
     fn from(origin: &'a str) -> DispositionType {
-        match origin.as_bytes().to_ascii_lowercase().as_slice() {
-            b"inline" => DispositionType::Inline,
-            b"attachment" => DispositionType::Attachment,
-            b"form-data" => DispositionType::FormData,
-            _ => DispositionType::Ext(origin.to_owned()),
+        if origin.eq_ignore_ascii_case("inline") {
+            DispositionType::Inline
+        } else if origin.eq_ignore_ascii_case("attachment") {
+            DispositionType::Attachment
+        } else if origin.eq_ignore_ascii_case("form-data") {
+            DispositionType::FormData
+        } else {
+            DispositionType::Ext(origin.to_owned())
         }
     }
 }
@@ -292,14 +296,13 @@ impl ContentDisposition {
                 let (ext_value, new_left) = split_once_and_trim(left, ';');
                 left = new_left;
                 let ext_value = header::parse_extended_value(ext_value)?;
-                cd.parameters
-                    .push(match param_name.to_ascii_lowercase().as_str() {
-                        "filename" => DispositionParam::FilenameExt(ext_value),
-                        _ => DispositionParam::UnknownExt(
-                            param_name.to_owned(),
-                            ext_value,
-                        ),
-                    });
+
+                let param = if param_name.eq_ignore_ascii_case("filename") {
+                    DispositionParam::FilenameExt(ext_value)
+                } else {
+                    DispositionParam::UnknownExt(param_name.to_owned(), ext_value)
+                };
+                cd.parameters.push(param);
             } else {
                 // regular parameters
                 let value = if left.starts_with('\"') {
@@ -313,10 +316,12 @@ impl ContentDisposition {
                             escaping = false;
                             quoted_string.push(c);
                         } else {
-                            if c == 0x5c // backslash
+                            if c == 0x5c
+                            // backslash
                             {
                                 escaping = true;
-                            } else if c == 0x22 // double quote
+                            } else if c == 0x22
+                            // double quote
                             {
                                 end = Some(i + 1); // cuz skipped 1 for the leading quote
                                 break;
@@ -340,12 +345,15 @@ impl ContentDisposition {
                 if value.len() == 0 {
                     return Err(::error::ParseError::Header);
                 }
-                cd.parameters
-                    .push(match param_name.to_ascii_lowercase().as_str() {
-                        "name" => DispositionParam::Name(value),
-                        "filename" => DispositionParam::Filename(value),
-                        _ => DispositionParam::Unknown(param_name.to_owned(), value),
-                    });
+
+                let param = if param_name.eq_ignore_ascii_case("name") {
+                    DispositionParam::Name(value)
+                } else if param_name.eq_ignore_ascii_case("filename") {
+                    DispositionParam::Filename(value)
+                } else {
+                    DispositionParam::Unknown(param_name.to_owned(), value)
+                };
+                cd.parameters.push(param);
             }
         }
 
@@ -467,17 +475,23 @@ impl fmt::Display for DispositionType {
 
 impl fmt::Display for DispositionParam {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: More special charaters in filename should be escaped.
+        // All ASCII control charaters (0-30, 127) excepting horizental tab, double quote, and
+        // backslash should be escaped in quoted-string (i.e. "foobar").
+        // Ref: RFC6266 S4.1 -> RFC2616 S2.2; RFC 7578 S4.2 -> RFC2183 S2 -> ... .
+        lazy_static! {
+            static ref RE: Regex = Regex::new("[\x01-\x08\x10\x1F\x7F\"\\\\]").unwrap();
+        }
         match self {
-            DispositionParam::Name(ref value) => {
-                write!(f, "name={}", &value.replace('\"', "\\\""))
-            }
+            DispositionParam::Name(ref value) => write!(f, "name={}", value),
             DispositionParam::Filename(ref value) => {
-                write!(f, "filename=\"{}\"", &value.replace('\"', "\\\""))
+                write!(f, "filename=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
             }
-            DispositionParam::Unknown(ref name, ref value) => {
-                write!(f, "{}=\"{}\"", name, &value.replace('\"', "\\\""))
-            }
+            DispositionParam::Unknown(ref name, ref value) => write!(
+                f,
+                "{}=\"{}\"",
+                name,
+                &RE.replace_all(value, "\\$0").as_ref()
+            ),
             DispositionParam::FilenameExt(ref ext_value) => {
                 write!(f, "filename*={}", ext_value)
             }
@@ -814,7 +828,6 @@ mod tests {
         assert!(ContentDisposition::from_raw(&a).is_err());
     }
 
-
     #[test]
     fn test_display_extended() {
         let as_string =
@@ -841,9 +854,44 @@ mod tests {
             .unwrap(); // ensure `\"` is there
         let a = HeaderValue::from_static(as_string);
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
-        println!("\n\n\n{:?}", a);
         let display_rendered = format!("{}", a);
         assert_eq!(as_string, display_rendered);
+    }
+
+    #[test]
+    fn test_display_space_tab() {
+        let as_string = "form-data; name=upload; filename=\"Space here.png\"";
+        let a = HeaderValue::from_static(as_string);
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let display_rendered = format!("{}", a);
+        assert_eq!(as_string, display_rendered);
+
+        let a: ContentDisposition = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename(String::from("Tab\there.png"))],
+        };
+        let display_rendered = format!("{}", a);
+        assert_eq!("inline; filename=\"Tab\x09here.png\"", display_rendered);
+    }
+
+    #[test]
+    fn test_display_control_characters() {
+        /* let a = "attachment; filename=\"carriage\rreturn.png\"";
+        let a = HeaderValue::from_static(a);
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let display_rendered = format!("{}", a);
+        assert_eq!(
+            "attachment; filename=\"carriage\\\rreturn.png\"",
+            display_rendered
+        );*/
+ // No way to create a HeaderValue containing a carriage return.
+
+        let a: ContentDisposition = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename(String::from("bell\x07.png"))],
+        };
+        let display_rendered = format!("{}", a);
+        assert_eq!("inline; filename=\"bell\\\x07.png\"", display_rendered);
     }
 
     #[test]
