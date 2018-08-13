@@ -282,7 +282,7 @@ impl ContentDisposition {
 
         while left.len() > 0 {
             let (param_name, new_left) = split_once_and_trim(left, '=');
-            if param_name.len() == 0 {
+            if param_name.len() == 0 || param_name == "*" || new_left.len() == 0 {
                 return Err(::error::ParseError::Header);
             }
             left = new_left;
@@ -325,7 +325,7 @@ impl ContentDisposition {
                             }
                         }
                     }
-                    left = left.split_at(end.ok_or(::error::ParseError::Header)? + 1).1;
+                    left = &left[end.ok_or(::error::ParseError::Header)? + 1..];
                     left = split_once(left, ';').1.trim_left();
                     // In fact, it should not be Err if the above code is correct.
                     let quoted_string = String::from_utf8(quoted_string)
@@ -789,6 +789,31 @@ mod tests {
         };
         assert_eq!(a, b);
     }
+
+    #[test]
+    fn test_from_raw_param_value_missing() {
+        let a = HeaderValue::from_static("form-data; name=upload ; filename=");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("attachment; dummy=; filename=invoice.pdf");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; filename=  ");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+    }
+
+    #[test]
+    fn test_from_raw_param_name_missing() {
+        let a = HeaderValue::from_static("inline; =\"test.txt\"");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; =diary.odt");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; =");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+    }
+
 
     #[test]
     fn test_display_extended() {
