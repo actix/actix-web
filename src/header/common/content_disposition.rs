@@ -2,16 +2,34 @@
 //
 // "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
 // "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
-// "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc2388.txt
+// "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
 // Browser conformance tests at: http://greenbytes.de/tech/tc2231/
 // IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
 
-use language_tags::LanguageTag;
 use header;
+use header::ExtendedValue;
 use header::{Header, IntoHeaderValue, Writer};
-use header::shared::Charset;
+use regex::Regex;
 
 use std::fmt::{self, Write};
+
+/// Split at the index of the first `needle` if it exists or at the end.
+fn split_once<'a>(haystack: &'a str, needle: char) -> (&'a str, &'a str) {
+    haystack.find(needle).map_or_else(
+        || (haystack, ""),
+        |sc| {
+            let (first, last) = haystack.split_at(sc);
+            (first, last.split_at(1).1)
+        },
+    )
+}
+
+/// Split at the index of the first `needle` if it exists or at the end, trim the right of the
+/// first part and the left of the last part.
+fn split_once_and_trim<'a>(haystack: &'a str, needle: char) -> (&'a str, &'a str) {
+    let (first, last) = split_once(haystack, needle);
+    (first.trim_right(), last.trim_left())
+}
 
 /// The implied disposition of the content of the HTTP body.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,27 +39,166 @@ pub enum DispositionType {
     /// Attachment implies that the recipient should prompt the user to save the response locally,
     /// rather than process it normally (as per its media type).
     Attachment,
-    /// Extension type.  Should be handled by recipients the same way as Attachment
-    Ext(String)
+    /// Used in *multipart/form-data* as defined in
+    /// [RFC7578](https://tools.ietf.org/html/rfc7578) to carry the field name and the file name.
+    FormData,
+    /// Extension type. Should be handled by recipients the same way as Attachment
+    Ext(String),
 }
 
-/// A parameter to the disposition type.
+impl<'a> From<&'a str> for DispositionType {
+    fn from(origin: &'a str) -> DispositionType {
+        if origin.eq_ignore_ascii_case("inline") {
+            DispositionType::Inline
+        } else if origin.eq_ignore_ascii_case("attachment") {
+            DispositionType::Attachment
+        } else if origin.eq_ignore_ascii_case("form-data") {
+            DispositionType::FormData
+        } else {
+            DispositionType::Ext(origin.to_owned())
+        }
+    }
+}
+
+/// Parameter in [`ContentDisposition`].
+///
+/// # Examples
+/// ```
+/// use actix_web::http::header::DispositionParam;
+///
+/// let param = DispositionParam::Filename(String::from("sample.txt"));
+/// assert!(param.is_filename());
+/// assert_eq!(param.as_filename().unwrap(), "sample.txt");
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum DispositionParam {
-    /// A Filename consisting of a Charset, an optional LanguageTag, and finally a sequence of
-    /// bytes representing the filename
-    Filename(Charset, Option<LanguageTag>, Vec<u8>),
-    /// Extension type consisting of token and value.  Recipients should ignore unrecognized
-    /// parameters.
-    Ext(String, String)
+    /// For [`DispositionType::FormData`] (i.e. *multipart/form-data*), the name of an field from
+    /// the form.
+    Name(String),
+    /// A plain file name.
+    Filename(String),
+    /// An extended file name. It must not exist for `ContentType::Formdata` according to
+    /// [RFC7578 Section 4.2](https://tools.ietf.org/html/rfc7578#section-4.2).
+    FilenameExt(ExtendedValue),
+    /// An unrecognized regular parameter as defined in
+    /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *reg-parameter*, in
+    /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *token "=" value*. Recipients should
+    /// ignore unrecognizable parameters.
+    Unknown(String, String),
+    /// An unrecognized extended paramater as defined in
+    /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *ext-parameter*, in
+    /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *ext-token "=" ext-value*. The single
+    /// trailling asterisk is not included. Recipients should ignore unrecognizable parameters.
+    UnknownExt(String, ExtendedValue),
 }
 
-/// A `Content-Disposition` header, (re)defined in [RFC6266](https://tools.ietf.org/html/rfc6266).
+impl DispositionParam {
+    /// Returns `true` if the paramater is [`Name`](DispositionParam::Name).
+    #[inline]
+    pub fn is_name(&self) -> bool {
+        self.as_name().is_some()
+    }
+
+    /// Returns `true` if the paramater is [`Filename`](DispositionParam::Filename).
+    #[inline]
+    pub fn is_filename(&self) -> bool {
+        self.as_filename().is_some()
+    }
+
+    /// Returns `true` if the paramater is [`FilenameExt`](DispositionParam::FilenameExt).
+    #[inline]
+    pub fn is_filename_ext(&self) -> bool {
+        self.as_filename_ext().is_some()
+    }
+
+    /// Returns `true` if the paramater is [`Unknown`](DispositionParam::Unknown) and the `name`
+    #[inline]
+    /// matches.
+    pub fn is_unknown<'a, T: AsRef<str>>(&self, name: T) -> bool {
+        self.as_unknown(name).is_some()
+    }
+
+    /// Returns `true` if the paramater is [`UnknownExt`](DispositionParam::UnknownExt) and the
+    /// `name` matches.
+    #[inline]
+    pub fn is_unknown_ext<'a, T: AsRef<str>>(&self, name: T) -> bool {
+        self.as_unknown_ext(name).is_some()
+    }
+
+    /// Returns the name if applicable.
+    #[inline]
+    pub fn as_name<'a>(&'a self) -> Option<&'a str> {
+        match self {
+            DispositionParam::Name(ref name) => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Returns the filename if applicable.
+    #[inline]
+    pub fn as_filename<'a>(&'a self) -> Option<&'a str> {
+        match self {
+            &DispositionParam::Filename(ref filename) => Some(filename.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Returns the filename* if applicable.
+    #[inline]
+    pub fn as_filename_ext<'a>(&'a self) -> Option<&'a ExtendedValue> {
+        match self {
+            &DispositionParam::FilenameExt(ref value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Returns the value of the unrecognized regular parameter if it is
+    /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
+    #[inline]
+    pub fn as_unknown<'a, T: AsRef<str>>(&'a self, name: T) -> Option<&'a str> {
+        match self {
+            &DispositionParam::Unknown(ref ext_name, ref value)
+                if ext_name.eq_ignore_ascii_case(name.as_ref()) =>
+            {
+                Some(value.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the value of the unrecognized extended parameter if it is
+    /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
+    #[inline]
+    pub fn as_unknown_ext<'a, T: AsRef<str>>(
+        &'a self, name: T,
+    ) -> Option<&'a ExtendedValue> {
+        match self {
+            &DispositionParam::UnknownExt(ref ext_name, ref value)
+                if ext_name.eq_ignore_ascii_case(name.as_ref()) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// A *Content-Disposition* header. It is compatible to be used either as
+/// [a response header for the main body](https://mdn.io/Content-Disposition#As_a_response_header_for_the_main_body)
+/// as (re)defined in [RFC6266](https://tools.ietf.org/html/rfc6266), or as
+/// [a header for a multipart body](https://mdn.io/Content-Disposition#As_a_header_for_a_multipart_body)
+/// as (re)defined in [RFC7587](https://tools.ietf.org/html/rfc7578).
 ///
-/// The Content-Disposition response header field is used to convey
-/// additional information about how to process the response payload, and
-/// also can be used to attach additional metadata, such as the filename
-/// to use when saving the response payload locally.
+/// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
+/// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
+/// part of a Web page, or as an attachment, that is downloaded and saved locally, and also can be
+/// used to attach additional metadata, such as the filename to use when saving the response payload
+/// locally.
+///
+/// In a *multipart/form-data* body, the HTTP *Content-Disposition* general header is a header that
+/// can be used on the subpart of a multipart body to give information about the field it applies to.
+/// The subpart is delimited by the boundary defined in the *Content-Type* header. Used on the body
+/// itself, *Content-Disposition* has no effect.
 ///
 /// # ABNF
 
@@ -65,88 +222,219 @@ pub enum DispositionParam {
 /// ext-token           = <the characters in token, followed by "*">
 /// ```
 ///
+/// **Note**: filename* [must not](https://tools.ietf.org/html/rfc7578#section-4.2) be used within
+/// *multipart/form-data*.
+///
 /// # Example
 ///
 /// ```
-/// use actix_web::http::header::{ContentDisposition, DispositionType, DispositionParam, Charset};
+/// use actix_web::http::header::{
+///     Charset, ContentDisposition, DispositionParam, DispositionType,
+///     ExtendedValue,
+/// };
 ///
 /// let cd1 = ContentDisposition {
 ///     disposition: DispositionType::Attachment,
-///     parameters: vec![DispositionParam::Filename(
-///       Charset::Iso_8859_1, // The character set for the bytes of the filename
-///       None, // The optional language tag (see `language-tag` crate)
-///       b"\xa9 Copyright 1989.txt".to_vec() // the actual bytes of the filename
-///     )]
+///     parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
+///         charset: Charset::Iso_8859_1, // The character set for the bytes of the filename
+///         language_tag: None, // The optional language tag (see `language-tag` crate)
+///         value: b"\xa9 Copyright 1989.txt".to_vec(), // the actual bytes of the filename
+///     })],
 /// };
+/// assert!(cd1.is_attachment());
+/// assert!(cd1.get_filename_ext().is_some());
 ///
 /// let cd2 = ContentDisposition {
-///     disposition: DispositionType::Inline,
-///     parameters: vec![DispositionParam::Filename(
-///       Charset::Ext("UTF-8".to_owned()),
-///       None,
-///       "\u{2764}".as_bytes().to_vec()
-///     )]
+///     disposition: DispositionType::FormData,
+///     parameters: vec![
+///         DispositionParam::Name(String::from("file")),
+///         DispositionParam::Filename(String::from("bill.odt")),
+///     ],
 /// };
+/// assert_eq!(cd2.get_name(), Some("file")); // field name
+/// assert_eq!(cd2.get_filename(), Some("bill.odt"));
 /// ```
+///
+/// # WARN
+/// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
+/// change to match local file system conventions if applicable, and do not use directory path
+/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3)
+/// .
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
-    /// The disposition
+    /// The disposition type
     pub disposition: DispositionType,
     /// Disposition parameters
     pub parameters: Vec<DispositionParam>,
 }
+
 impl ContentDisposition {
-    /// Parse a raw Content-Disposition header value
+    /// Parse a raw Content-Disposition header value.
     pub fn from_raw(hv: &header::HeaderValue) -> Result<Self, ::error::ParseError> {
-        header::from_one_raw_str(Some(hv)).and_then(|s: String| {
-            let mut sections = s.split(';');
-            let disposition = match sections.next() {
-                Some(s) => s.trim(),
-                None => return Err(::error::ParseError::Header),
-            };
+        // `header::from_one_raw_str` invokes `hv.to_str` which assumes `hv` contains only visible
+        //  ASCII characters. So `hv.as_bytes` is necessary here.
+        let hv = String::from_utf8(hv.as_bytes().to_vec())
+            .map_err(|_| ::error::ParseError::Header)?;
+        let (disp_type, mut left) = split_once_and_trim(hv.as_str().trim(), ';');
+        if disp_type.len() == 0 {
+            return Err(::error::ParseError::Header);
+        }
+        let mut cd = ContentDisposition {
+            disposition: disp_type.into(),
+            parameters: Vec::new(),
+        };
 
-            let mut cd = ContentDisposition {
-                disposition: if disposition.eq_ignore_ascii_case("inline") {
-                    DispositionType::Inline
-                } else if disposition.eq_ignore_ascii_case("attachment") {
-                    DispositionType::Attachment
-                } else {
-                    DispositionType::Ext(disposition.to_owned())
-                },
-                parameters: Vec::new(),
-            };
-
-            for section in sections {
-                let mut parts = section.splitn(2, '=');
-
-                let key = if let Some(key) = parts.next() {
-                    key.trim()
-                } else {
-                    return Err(::error::ParseError::Header);
-                };
-
-                let val = if let Some(val) = parts.next() {
-                    val.trim()
-                } else {
-                    return Err(::error::ParseError::Header);
-                };
-
-                cd.parameters.push(
-                    if key.eq_ignore_ascii_case("filename") {
-                        DispositionParam::Filename(
-                            Charset::Ext("UTF-8".to_owned()), None,
-                            val.trim_matches('"').as_bytes().to_owned())
-                    } else if key.eq_ignore_ascii_case("filename*") {
-                        let extended_value = try!(header::parse_extended_value(val));
-                        DispositionParam::Filename(extended_value.charset, extended_value.language_tag, extended_value.value)
-                    } else {
-                        DispositionParam::Ext(key.to_owned(), val.trim_matches('"').to_owned())
-                    }
-                );
+        while left.len() > 0 {
+            let (param_name, new_left) = split_once_and_trim(left, '=');
+            if param_name.len() == 0 || param_name == "*" || new_left.len() == 0 {
+                return Err(::error::ParseError::Header);
             }
+            left = new_left;
+            if param_name.ends_with('*') {
+                // extended parameters
+                let param_name = &param_name[..param_name.len() - 1]; // trim asterisk
+                let (ext_value, new_left) = split_once_and_trim(left, ';');
+                left = new_left;
+                let ext_value = header::parse_extended_value(ext_value)?;
 
-            Ok(cd)
-        })
+                let param = if param_name.eq_ignore_ascii_case("filename") {
+                    DispositionParam::FilenameExt(ext_value)
+                } else {
+                    DispositionParam::UnknownExt(param_name.to_owned(), ext_value)
+                };
+                cd.parameters.push(param);
+            } else {
+                // regular parameters
+                let value = if left.starts_with('\"') {
+                    // quoted-string: defined in RFC6266 -> RFC2616 Section 3.6
+                    let mut escaping = false;
+                    let mut quoted_string = vec![];
+                    let mut end = None;
+                    // search for closing quote
+                    for (i, &c) in left.as_bytes().iter().skip(1).enumerate() {
+                        if escaping {
+                            escaping = false;
+                            quoted_string.push(c);
+                        } else {
+                            if c == 0x5c
+                            // backslash
+                            {
+                                escaping = true;
+                            } else if c == 0x22
+                            // double quote
+                            {
+                                end = Some(i + 1); // cuz skipped 1 for the leading quote
+                                break;
+                            } else {
+                                quoted_string.push(c);
+                            }
+                        }
+                    }
+                    left = &left[end.ok_or(::error::ParseError::Header)? + 1..];
+                    left = split_once(left, ';').1.trim_left();
+                    // In fact, it should not be Err if the above code is correct.
+                    let quoted_string = String::from_utf8(quoted_string)
+                        .map_err(|_| ::error::ParseError::Header)?;
+                    quoted_string
+                } else {
+                    // token: won't contains semicolon according to RFC 2616 Section 2.2
+                    let (token, new_left) = split_once_and_trim(left, ';');
+                    left = new_left;
+                    token.to_owned()
+                };
+                if value.len() == 0 {
+                    return Err(::error::ParseError::Header);
+                }
+
+                let param = if param_name.eq_ignore_ascii_case("name") {
+                    DispositionParam::Name(value)
+                } else if param_name.eq_ignore_ascii_case("filename") {
+                    DispositionParam::Filename(value)
+                } else {
+                    DispositionParam::Unknown(param_name.to_owned(), value)
+                };
+                cd.parameters.push(param);
+            }
+        }
+
+        Ok(cd)
+    }
+
+    /// Returns `true` if it is [`Inline`](DispositionType::Inline).
+    pub fn is_inline(&self) -> bool {
+        match self.disposition {
+            DispositionType::Inline => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if it is [`Attachment`](DispositionType::Attachment).
+    pub fn is_attachment(&self) -> bool {
+        match self.disposition {
+            DispositionType::Attachment => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if it is [`FormData`](DispositionType::FormData).
+    pub fn is_form_data(&self) -> bool {
+        match self.disposition {
+            DispositionType::FormData => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
+    pub fn is_ext<T: AsRef<str>>(&self, disp_type: T) -> bool {
+        match self.disposition {
+            DispositionType::Ext(ref t)
+                if t.eq_ignore_ascii_case(disp_type.as_ref()) =>
+            {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Return the value of *name* if exists.  
+    pub fn get_name<'a>(&'a self) -> Option<&'a str> {
+        self.parameters.iter().filter_map(|p| p.as_name()).nth(0)
+    }
+
+    /// Return the value of *filename* if exists.  
+    pub fn get_filename<'a>(&'a self) -> Option<&'a str> {
+        self.parameters
+            .iter()
+            .filter_map(|p| p.as_filename())
+            .nth(0)
+    }
+
+    /// Return the value of *filename\** if exists.  
+    pub fn get_filename_ext<'a>(&'a self) -> Option<&'a ExtendedValue> {
+        self.parameters
+            .iter()
+            .filter_map(|p| p.as_filename_ext())
+            .nth(0)
+    }
+
+    /// Return the value of the parameter which the `name` matches.
+    pub fn get_unknown<'a, T: AsRef<str>>(&'a self, name: T) -> Option<&'a str> {
+        let name = name.as_ref();
+        self.parameters
+            .iter()
+            .filter_map(|p| p.as_unknown(name))
+            .nth(0)
+    }
+
+    /// Return the value of the extended parameter which the `name` matches.
+    pub fn get_unknown_ext<'a, T: AsRef<str>>(
+        &'a self, name: T,
+    ) -> Option<&'a ExtendedValue> {
+        let name = name.as_ref();
+        self.parameters
+            .iter()
+            .filter_map(|p| p.as_unknown_ext(name))
+            .nth(0)
     }
 }
 
@@ -174,67 +462,76 @@ impl Header for ContentDisposition {
     }
 }
 
-impl fmt::Display for ContentDisposition {
+impl fmt::Display for DispositionType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.disposition {
-            DispositionType::Inline => try!(write!(f, "inline")),
-            DispositionType::Attachment => try!(write!(f, "attachment")),
-            DispositionType::Ext(ref s) => try!(write!(f, "{}", s)),
+        match self {
+            DispositionType::Inline => write!(f, "inline"),
+            DispositionType::Attachment => write!(f, "attachment"),
+            DispositionType::FormData => write!(f, "form-data"),
+            DispositionType::Ext(ref s) => write!(f, "{}", s),
         }
-        for param in &self.parameters {
-            match *param {
-                DispositionParam::Filename(ref charset, ref opt_lang, ref bytes) => {
-                    let mut use_simple_format: bool = false;
-                    if opt_lang.is_none() {
-                        if let Charset::Ext(ref ext) = *charset {
-                            if ext.eq_ignore_ascii_case("utf-8") {
-                                use_simple_format = true;
-                            }
-                        }
-                    }
-                    if use_simple_format {
-                        use std::str;
-                        try!(write!(f, "; filename=\"{}\"",
-                                    match str::from_utf8(bytes) {
-                                        Ok(s) => s,
-                                        Err(_) => return Err(fmt::Error),
-                                    }));
-                    } else {
-                        try!(write!(f, "; filename*={}'", charset));
-                        if let Some(ref lang) = *opt_lang {
-                            try!(write!(f, "{}", lang));
-                        };
-                        try!(write!(f, "'"));
-                        try!(header::http_percent_encode(f, bytes))
-                    }
-                },
-                DispositionParam::Ext(ref k, ref v) => try!(write!(f, "; {}=\"{}\"", k, v)),
+    }
+}
+
+impl fmt::Display for DispositionParam {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // All ASCII control charaters (0-30, 127) excepting horizontal tab, double quote, and
+        // backslash should be escaped in quoted-string (i.e. "foobar").
+        // Ref: RFC6266 S4.1 -> RFC2616 S2.2; RFC 7578 S4.2 -> RFC2183 S2 -> ... .
+        lazy_static! {
+            static ref RE: Regex = Regex::new("[\x01-\x08\x10\x1F\x7F\"\\\\]").unwrap();
+        }
+        match self {
+            DispositionParam::Name(ref value) => write!(f, "name={}", value),
+            DispositionParam::Filename(ref value) => {
+                write!(f, "filename=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
+            }
+            DispositionParam::Unknown(ref name, ref value) => write!(
+                f,
+                "{}=\"{}\"",
+                name,
+                &RE.replace_all(value, "\\$0").as_ref()
+            ),
+            DispositionParam::FilenameExt(ref ext_value) => {
+                write!(f, "filename*={}", ext_value)
+            }
+            DispositionParam::UnknownExt(ref name, ref ext_value) => {
+                write!(f, "{}*={}", name, ext_value)
             }
         }
-        Ok(())
+    }
+}
+
+impl fmt::Display for ContentDisposition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.disposition)?;
+        self.parameters
+            .iter()
+            .map(|param| write!(f, "; {}", param))
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ContentDisposition,DispositionType,DispositionParam};
-    use header::HeaderValue;
+    use super::{ContentDisposition, DispositionParam, DispositionType};
     use header::shared::Charset;
+    use header::{ExtendedValue, HeaderValue};
     #[test]
-    fn test_from_raw() {
+    fn test_from_raw_basic() {
         assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());
 
-        let a = HeaderValue::from_static("form-data; dummy=3; name=upload; filename=\"sample.png\"");
+        let a = HeaderValue::from_static(
+            "form-data; dummy=3; name=upload; filename=\"sample.png\"",
+        );
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
-            disposition: DispositionType::Ext("form-data".to_owned()),
+            disposition: DispositionType::FormData,
             parameters: vec![
-                DispositionParam::Ext("dummy".to_owned(), "3".to_owned()),
-                DispositionParam::Ext("name".to_owned(), "upload".to_owned()),
-                DispositionParam::Filename(
-                    Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    "sample.png".bytes().collect()) ]
+                DispositionParam::Unknown("dummy".to_owned(), "3".to_owned()),
+                DispositionParam::Name("upload".to_owned()),
+                DispositionParam::Filename("sample.png".to_owned()),
+            ],
         };
         assert_eq!(a, b);
 
@@ -242,44 +539,386 @@ mod tests {
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Attachment,
-            parameters: vec![
-                DispositionParam::Filename(
-                    Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    "image.jpg".bytes().collect()) ]
+            parameters: vec![DispositionParam::Filename("image.jpg".to_owned())],
         };
         assert_eq!(a, b);
 
-        let a = HeaderValue::from_static("attachment; filename*=UTF-8''%c2%a3%20and%20%e2%82%ac%20rates");
+        let a = HeaderValue::from_static("inline; filename=image.jpg");
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename("image.jpg".to_owned())],
+        };
+        assert_eq!(a, b);
+
+        let a = HeaderValue::from_static(
+            "attachment; creation-date=\"Wed, 12 Feb 1997 16:29:51 -0500\"",
+        );
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Attachment,
-            parameters: vec![
-                DispositionParam::Filename(
-                    Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    vec![0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20,
-                         0xe2, 0x82, 0xac, 0x20, b'r', b'a', b't', b'e', b's']) ]
+            parameters: vec![DispositionParam::Unknown(
+                String::from("creation-date"),
+                "Wed, 12 Feb 1997 16:29:51 -0500".to_owned(),
+            )],
         };
         assert_eq!(a, b);
     }
 
     #[test]
-    fn test_display() {
-        let as_string = "attachment; filename*=UTF-8'en'%C2%A3%20and%20%E2%82%AC%20rates";
+    fn test_from_raw_extended() {
+        let a = HeaderValue::from_static(
+            "attachment; filename*=UTF-8''%c2%a3%20and%20%e2%82%ac%20rates",
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
+                charset: Charset::Ext(String::from("UTF-8")),
+                language_tag: None,
+                value: vec![
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20,
+                    b'r', b'a', b't', b'e', b's',
+                ],
+            })],
+        };
+        assert_eq!(a, b);
+
+        let a = HeaderValue::from_static(
+            "attachment; filename*=UTF-8''%c2%a3%20and%20%e2%82%ac%20rates",
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
+                charset: Charset::Ext(String::from("UTF-8")),
+                language_tag: None,
+                value: vec![
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20,
+                    b'r', b'a', b't', b'e', b's',
+                ],
+            })],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_extra_whitespace() {
+        let a = HeaderValue::from_static(
+            "form-data  ; du-mmy= 3  ; name =upload ; filename =  \"sample.png\"  ; ",
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Unknown("du-mmy".to_owned(), "3".to_owned()),
+                DispositionParam::Name("upload".to_owned()),
+                DispositionParam::Filename("sample.png".to_owned()),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_unordered() {
+        let a = HeaderValue::from_static(
+            "form-data; dummy=3; filename=\"sample.png\" ; name=upload;",
+            // Actually, a trailling semolocon is not compliant. But it is fine to accept.
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Unknown("dummy".to_owned(), "3".to_owned()),
+                DispositionParam::Filename("sample.png".to_owned()),
+                DispositionParam::Name("upload".to_owned()),
+            ],
+        };
+        assert_eq!(a, b);
+
+        let a = HeaderValue::from_str(
+            "attachment; filename*=iso-8859-1''foo-%E4.html; filename=\"foo-ä.html\"",
+        ).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![
+                DispositionParam::FilenameExt(ExtendedValue {
+                    charset: Charset::Iso_8859_1,
+                    language_tag: None,
+                    value: b"foo-\xe4.html".to_vec(),
+                }),
+                DispositionParam::Filename("foo-ä.html".to_owned()),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_only_disp() {
+        let a = ContentDisposition::from_raw(&HeaderValue::from_static("attachment"))
+            .unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Attachment,
+            parameters: vec![],
+        };
+        assert_eq!(a, b);
+
+        let a =
+            ContentDisposition::from_raw(&HeaderValue::from_static("inline ;")).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![],
+        };
+        assert_eq!(a, b);
+
+        let a = ContentDisposition::from_raw(&HeaderValue::from_static(
+            "unknown-disp-param",
+        )).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Ext(String::from("unknown-disp-param")),
+            parameters: vec![],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn from_raw_with_mixed_case() {
+        let a = HeaderValue::from_str(
+            "InLInE; fIlenAME*=iso-8859-1''foo-%E4.html; filEName=\"foo-ä.html\"",
+        ).unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![
+                DispositionParam::FilenameExt(ExtendedValue {
+                    charset: Charset::Iso_8859_1,
+                    language_tag: None,
+                    value: b"foo-\xe4.html".to_vec(),
+                }),
+                DispositionParam::Filename("foo-ä.html".to_owned()),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn from_raw_with_unicode() {
+        /* RFC7578 Section 4.2:
+        Some commonly deployed systems use multipart/form-data with file names directly encoded
+        including octets outside the US-ASCII range. The encoding used for the file names is
+        typically UTF-8, although HTML forms will use the charset associated with the form.
+
+        Mainstream browsers like Firefox (gecko) and Chrome use UTF-8 directly as above.
+        (And now, only UTF-8 is handled by this implementation.)
+        */
+        let a =
+            HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"")
+                .unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Name(String::from("upload")),
+                DispositionParam::Filename(String::from("文件.webp")),
+            ],
+        };
+        assert_eq!(a, b);
+
+        let a =
+            HeaderValue::from_str("form-data; name=upload; filename=\"余固知謇謇之為患兮，忍而不能舍也.pptx\"").unwrap();
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Name(String::from("upload")),
+                DispositionParam::Filename(String::from(
+                    "余固知謇謇之為患兮，忍而不能舍也.pptx",
+                )),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_escape() {
+        let a = HeaderValue::from_static(
+            "form-data; dummy=3; name=upload; filename=\"s\\amp\\\"le.png\"",
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Unknown("dummy".to_owned(), "3".to_owned()),
+                DispositionParam::Name("upload".to_owned()),
+                DispositionParam::Filename(
+                    ['s', 'a', 'm', 'p', '\"', 'l', 'e', '.', 'p', 'n', 'g']
+                        .iter()
+                        .collect(),
+                ),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_semicolon() {
+        let a =
+            HeaderValue::from_static("form-data; filename=\"A semicolon here;.pdf\"");
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![DispositionParam::Filename(String::from(
+                "A semicolon here;.pdf",
+            ))],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_uncessary_percent_decode() {
+        let a = HeaderValue::from_static(
+            "form-data; name=photo; filename=\"%74%65%73%74%2e%70%6e%67\"", // Should not be decoded!
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Name("photo".to_owned()),
+                DispositionParam::Filename(String::from("%74%65%73%74%2e%70%6e%67")),
+            ],
+        };
+        assert_eq!(a, b);
+
+        let a = HeaderValue::from_static(
+            "form-data; name=photo; filename=\"%74%65%73%74.png\"",
+        );
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let b = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Name("photo".to_owned()),
+                DispositionParam::Filename(String::from("%74%65%73%74.png")),
+            ],
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_from_raw_param_value_missing() {
+        let a = HeaderValue::from_static("form-data; name=upload ; filename=");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("attachment; dummy=; filename=invoice.pdf");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; filename=  ");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+    }
+
+    #[test]
+    fn test_from_raw_param_name_missing() {
+        let a = HeaderValue::from_static("inline; =\"test.txt\"");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; =diary.odt");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; =");
+        assert!(ContentDisposition::from_raw(&a).is_err());
+    }
+
+    #[test]
+    fn test_display_extended() {
+        let as_string =
+            "attachment; filename*=UTF-8'en'%C2%A3%20and%20%E2%82%AC%20rates";
         let a = HeaderValue::from_static(as_string);
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
-        let display_rendered = format!("{}",a);
+        let display_rendered = format!("{}", a);
         assert_eq!(as_string, display_rendered);
-
-        let a = HeaderValue::from_static("attachment; filename*=UTF-8''black%20and%20white.csv");
-        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
-        let display_rendered = format!("{}",a);
-        assert_eq!("attachment; filename=\"black and white.csv\"".to_owned(), display_rendered);
 
         let a = HeaderValue::from_static("attachment; filename=colourful.csv");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
-        let display_rendered = format!("{}",a);
-        assert_eq!("attachment; filename=\"colourful.csv\"".to_owned(), display_rendered);
+        let display_rendered = format!("{}", a);
+        assert_eq!(
+            "attachment; filename=\"colourful.csv\"".to_owned(),
+            display_rendered
+        );
+    }
+
+    #[test]
+    fn test_display_quote() {
+        let as_string = "form-data; name=upload; filename=\"Quote\\\"here.png\"";
+        as_string
+            .find(['\\', '\"'].iter().collect::<String>().as_str())
+            .unwrap(); // ensure `\"` is there
+        let a = HeaderValue::from_static(as_string);
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let display_rendered = format!("{}", a);
+        assert_eq!(as_string, display_rendered);
+    }
+
+    #[test]
+    fn test_display_space_tab() {
+        let as_string = "form-data; name=upload; filename=\"Space here.png\"";
+        let a = HeaderValue::from_static(as_string);
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let display_rendered = format!("{}", a);
+        assert_eq!(as_string, display_rendered);
+
+        let a: ContentDisposition = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename(String::from("Tab\there.png"))],
+        };
+        let display_rendered = format!("{}", a);
+        assert_eq!("inline; filename=\"Tab\x09here.png\"", display_rendered);
+    }
+
+    #[test]
+    fn test_display_control_characters() {
+        /* let a = "attachment; filename=\"carriage\rreturn.png\"";
+        let a = HeaderValue::from_static(a);
+        let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
+        let display_rendered = format!("{}", a);
+        assert_eq!(
+            "attachment; filename=\"carriage\\\rreturn.png\"",
+            display_rendered
+        );*/
+ // No way to create a HeaderValue containing a carriage return.
+
+        let a: ContentDisposition = ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename(String::from("bell\x07.png"))],
+        };
+        let display_rendered = format!("{}", a);
+        assert_eq!("inline; filename=\"bell\\\x07.png\"", display_rendered);
+    }
+
+    #[test]
+    fn test_param_methods() {
+        let param = DispositionParam::Filename(String::from("sample.txt"));
+        assert!(param.is_filename());
+        assert_eq!(param.as_filename().unwrap(), "sample.txt");
+
+        let param = DispositionParam::Unknown(String::from("foo"), String::from("bar"));
+        assert!(param.is_unknown("foo"));
+        assert_eq!(param.as_unknown("fOo"), Some("bar"));
+    }
+
+    #[test]
+    fn test_disposition_methods() {
+        let cd = ContentDisposition {
+            disposition: DispositionType::FormData,
+            parameters: vec![
+                DispositionParam::Unknown("dummy".to_owned(), "3".to_owned()),
+                DispositionParam::Name("upload".to_owned()),
+                DispositionParam::Filename("sample.png".to_owned()),
+            ],
+        };
+        assert_eq!(cd.get_name(), Some("upload"));
+        assert_eq!(cd.get_unknown("dummy"), Some("3"));
+        assert_eq!(cd.get_filename(), Some("sample.png"));
+        assert_eq!(cd.get_unknown_ext("dummy"), None);
+        assert_eq!(cd.get_unknown("duMMy"), Some("3"));
     }
 }

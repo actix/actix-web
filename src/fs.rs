@@ -164,11 +164,7 @@ impl<C: StaticFileConfig> NamedFile<C> {
             let disposition_type = C::content_disposition_map(ct.type_());
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![DispositionParam::Filename(
-                    header::Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    filename.as_bytes().to_vec(),
-                )],
+                parameters: vec![DispositionParam::Filename(filename.into_owned())],
             };
             (ct, cd)
         };
@@ -991,9 +987,7 @@ mod tests {
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![DispositionParam::Filename(
-                header::Charset::Ext("UTF-8".to_owned()),
-                None,
-                "test.png".as_bytes().to_vec(),
+                String::from("test.png")
             )],
         };
         let mut file = NamedFile::open("tests/test.png")
