@@ -475,7 +475,7 @@ impl fmt::Display for DispositionType {
 
 impl fmt::Display for DispositionParam {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // All ASCII control charaters (0-30, 127) excepting horizental tab, double quote, and
+        // All ASCII control charaters (0-30, 127) excepting horizontal tab, double quote, and
         // backslash should be escaped in quoted-string (i.e. "foobar").
         // Ref: RFC6266 S4.1 -> RFC2616 S2.2; RFC 7578 S4.2 -> RFC2183 S2 -> ... .
         lazy_static! {
