@@ -14,6 +14,8 @@
 
 * native-tls - 0.2
 
+* `Content-Disposition` is re-worked. Its parser is now more robust and handles quoted content better. See #461
+
 ### Fixed
 
 * Use zlib instead of raw deflate for decoding and encoding payloads with
