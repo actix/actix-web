@@ -288,7 +288,7 @@ impl ContentDisposition {
             left = new_left;
             if param_name.ends_with('*') {
                 // extended parameters
-                let (param_name, _) = param_name.split_at(param_name.len() - 1); // trim asterisk
+                let param_name = &param_name[..param_name.len() - 1]; // trim asterisk
                 let (ext_value, new_left) = split_once_and_trim(left, ';');
                 left = new_left;
                 let ext_value = header::parse_extended_value(ext_value)?;
@@ -327,7 +327,7 @@ impl ContentDisposition {
                     }
                     left = left.split_at(end.ok_or(::error::ParseError::Header)? + 1).1;
                     left = split_once(left, ';').1.trim_left();
-                    // In fact, tt should not be Err if the above code is correct.
+                    // In fact, it should not be Err if the above code is correct.
                     let quoted_string = String::from_utf8(quoted_string)
                         .map_err(|_| ::error::ParseError::Header)?;
                     quoted_string
