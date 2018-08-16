@@ -5,6 +5,8 @@ extern crate bytes;
 extern crate flate2;
 extern crate futures;
 extern crate rand;
+#[cfg(all(unix, feature = "uds"))]
+extern crate tokio_uds;
 
 use std::io::Read;
 
@@ -196,6 +198,14 @@ fn test_client_gzip_encoding_large_random() {
     // read response
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from(data));
+}
+
+
+#[cfg(all(unix, feature = "uds"))]
+#[test]
+fn test_compatible_with_unix_socket_stream() {
+    let (stream, _) = tokio_uds::UnixStream::pair().unwrap();
+    let _ = client::Connection::from_stream(stream);
 }
 
 #[cfg(feature = "brotli")]
