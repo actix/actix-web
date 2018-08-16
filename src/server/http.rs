@@ -31,6 +31,10 @@ use super::{
 };
 
 /// An HTTP Server
+///
+/// By default it serves HTTP2 when HTTPs is enabled,
+/// in order to change it, use `ServerFlags` that can be provided
+/// to acceptor service.
 pub struct HttpServer<H>
 where
     H: IntoHttpHandler + 'static,
