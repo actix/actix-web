@@ -83,7 +83,7 @@ impl<S: 'static> PipelineInfo<S> {
 }
 
 impl<S: 'static, H: PipelineHandler<S>> Pipeline<S, H> {
-    pub fn new(
+    pub(crate) fn new(
         req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>, handler: Rc<H>,
     ) -> Pipeline<S, H> {
         let mut info = PipelineInfo {
@@ -475,7 +475,7 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 }
                             }
                         }
-                        Ok(Async::Ready(None)) => 
+                        Ok(Async::Ready(None)) =>
                             return Some(FinishingMiddlewares::init(
                                 info, mws, self.resp.take().unwrap(),
                             )),

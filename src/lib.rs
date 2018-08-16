@@ -251,7 +251,8 @@ pub mod dev {
     pub use context::Drain;
     pub use extractor::{FormConfig, PayloadConfig};
     pub use handler::{AsyncResult, Handler};
-    pub use httpmessage::{MessageBody, UrlEncoded};
+    pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
+    pub use pipeline::Pipeline;
     pub use httpresponse::HttpResponseBuilder;
     pub use info::ConnectionInfo;
     pub use json::{JsonBody, JsonConfig};

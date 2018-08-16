@@ -13,6 +13,8 @@ use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::worker::{StopWorker, Worker, WorkerClient, Conn};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
+///Describes service that could be used
+///with [Server](struct.Server.html)
 pub trait Service: Send + 'static {
     /// Clone service
     fn clone(&self) -> Box<Service>;
@@ -31,6 +33,8 @@ impl Service for Box<Service> {
     }
 }
 
+///Describes the way serivce handles incoming
+///TCP connections.
 pub trait ServiceHandler {
     /// Handle incoming stream
     fn handle(&mut self, token: Token, io: net::TcpStream, peer: Option<net::SocketAddr>);
@@ -43,6 +47,7 @@ pub(crate) enum ServerCommand {
     WorkerDied(usize),
 }
 
+///Server
 pub struct Server {
     threads: usize,
     workers: Vec<(usize, Addr<Worker>)>,
@@ -80,7 +85,7 @@ impl Server {
             maxconnrate: 256,
         }
     }
-    
+
     /// Set number of workers to start.
     ///
     /// By default http server uses number of available logical cpu as threads
@@ -108,7 +113,7 @@ impl Server {
     ///
     /// By default max connections is set to a 256.
     pub fn maxconnrate(mut self, num: usize) -> Self {
-        self.maxconnrate= num;
+        self.maxconnrate = num;
         self
     }
 
@@ -146,7 +151,7 @@ impl Server {
     }
 
     /// Add new service to server
-    pub fn service<T>(mut self, srv: T) -> Self 
+    pub fn service<T>(mut self, srv: T) -> Self
     where
         T: Into<(Box<Service>, Vec<(Token, net::TcpListener)>)>
     {
@@ -171,7 +176,7 @@ impl Server {
     ///
     /// fn main() {
     ///     Server::new().
-    ///         .service( 
+    ///         .service(
     ///            HttpServer::new(|| App::new().resource("/", |r| r.h(|_| HttpResponse::Ok())))
     ///                .bind("127.0.0.1:0")
     ///                .expect("Can not bind to 127.0.0.1:0"))
@@ -184,7 +189,7 @@ impl Server {
         sys.run();
     }
 
-    /// Start
+    /// Starts Server Actor and returns its address
     pub fn start(mut self) -> Addr<Server> {
         if self.sockets.is_empty() {
             panic!("Service should have at least one bound socket");
@@ -393,7 +398,8 @@ impl StreamHandler<ServerCommand, ()> for Server {
 }
 
 #[derive(Clone, Default)]
-pub struct Connections (Arc<ConnectionsInner>);
+///Contains information about connection.
+pub struct Connections(Arc<ConnectionsInner>);
 
 impl Connections {
     fn new(notify: AcceptNotify, maxconn: usize, maxconnrate: usize) -> Self {
@@ -458,7 +464,7 @@ impl ConnectionsInner {
             self.notify.notify();
         }
     }
-    
+
     fn notify_maxconnrate(&self, connrate: usize) {
         if connrate > self.maxconnrate_low && connrate <= self.maxconnrate {
             self.notify.notify();
@@ -468,8 +474,8 @@ impl ConnectionsInner {
 }
 
 /// Type responsible for max connection stat.
-/// 
-/// Max connections stat get updated on drop. 
+///
+/// Max connections stat get updated on drop.
 pub struct ConnectionTag(Arc<ConnectionsInner>);
 
 impl ConnectionTag {
@@ -487,8 +493,8 @@ impl Drop for ConnectionTag {
 }
 
 /// Type responsible for max connection rate stat.
-/// 
-/// Max connections rate stat get updated on drop. 
+///
+/// Max connections rate stat get updated on drop.
 pub struct ConnectionRateTag (Arc<ConnectionsInner>);
 
 impl ConnectionRateTag {
