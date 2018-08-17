@@ -40,6 +40,9 @@ alpn = ["openssl", "tokio-openssl"]
 # rustls
 rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 
+# unix sockets
+uds = ["tokio-uds"]
+
 # sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
 
@@ -111,6 +114,9 @@ rustls = { version = "0.13", optional = true }
 tokio-rustls = { version = "0.7", optional = true }
 webpki = { version = "0.18", optional = true }
 webpki-roots = { version = "0.15", optional = true }
+
+# unix sockets
+tokio-uds = { version="0.2", optional = true }
 
 # forked url_encoded
 itoa = "0.4"

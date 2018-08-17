@@ -10,6 +10,8 @@
 * Allow to customize connection handshake process via `HttpServer::listen_with()`
   and `HttpServer::bind_with()` methods
 
+* Support making client connections via `tokio-uds`'s `UnixStream` when "uds" feature is enabled #472
+
 ### Changed
 
 * It is allowed to use function with up to 10 parameters for handler with `extractor parameters`.

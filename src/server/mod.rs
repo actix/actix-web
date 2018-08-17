@@ -421,6 +421,24 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     }
 }
 
+#[cfg(all(unix, feature = "uds"))]
+impl IoStream for ::tokio_uds::UnixStream {
+    #[inline]
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+        ::tokio_uds::UnixStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
+    fn set_linger(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 impl IoStream for TcpStream {
     #[inline]
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {

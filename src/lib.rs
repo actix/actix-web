@@ -66,6 +66,8 @@
 //! * `tls` - enables ssl support via `native-tls` crate
 //! * `alpn` - enables ssl support via `openssl` crate, require for `http/2`
 //!    support
+//! * `uds` - enables support for making client requests via Unix Domain Sockets.
+//!   Unix only. Not necessary for *serving* requests.
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
@@ -120,6 +122,8 @@ extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+#[cfg(all(unix, feature = "uds"))]
+extern crate tokio_uds;
 extern crate url;
 #[macro_use]
 extern crate serde;

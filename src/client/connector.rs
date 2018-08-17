@@ -1287,6 +1287,10 @@ impl Connection {
     }
 
     /// Create a new connection from an IO Stream
+    ///
+    /// The stream can be a `UnixStream` if the Unix-only "uds" feature is enabled.
+    ///
+    /// See also `ClientRequestBuilder::with_connection()`.
     pub fn from_stream<T: IoStream + Send>(io: T) -> Connection {
         Connection::new(Key::empty(), None, Box::new(io))
     }
