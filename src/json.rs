@@ -172,7 +172,7 @@ where
 ///     let app = App::new().resource("/index.html", |r| {
 ///         r.method(http::Method::POST)
 ///               .with_config(index, |cfg| {
-///                   cfg.limit(4096)   // <- change json extractor configuration
+///                   cfg.0.limit(4096)   // <- change json extractor configuration
 ///                      .error_handler(|err, req| {  // <- create custom error response
 ///                          error::InternalError::from_response(
 ///                              err, HttpResponse::Conflict().finish()).into()

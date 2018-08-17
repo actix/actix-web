@@ -208,7 +208,7 @@ fn test_form_extractor2() {
             r.route().with_config(
                 |form: Form<FormData>| format!("{}", form.username),
                 |cfg| {
-                    cfg.error_handler(|err, _| {
+                    cfg.0.error_handler(|err, _| {
                         error::InternalError::from_response(
                             err,
                             HttpResponse::Conflict().finish(),
@@ -423,7 +423,7 @@ fn test_path_and_query_extractor2_async3() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
             r.route().with(
-                |(data, p, _q): (Json<Value>, Path<PParam>, Query<PParam>)| {
+                |data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))

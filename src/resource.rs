@@ -13,6 +13,7 @@ use middleware::Middleware;
 use pred;
 use route::Route;
 use router::ResourceDef;
+use with::WithFactory;
 
 #[derive(Copy, Clone)]
 pub(crate) struct RouteId(usize);
@@ -217,7 +218,7 @@ impl<S: 'static> Resource<S> {
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {

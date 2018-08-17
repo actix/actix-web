@@ -1,6 +1,6 @@
 # Changes
 
-## [0.7.4] - 2018-08-xx
+## [0.8.0] - 2018-08-xx
 
 ### Added
 
@@ -11,6 +11,8 @@
   and `HttpServer::bind_with()` methods
 
 ### Changed
+
+* It is allowed to use function with up to 10 parameters for handler with `extractor parameters`.
 
 * native-tls - 0.2
 

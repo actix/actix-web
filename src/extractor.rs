@@ -332,7 +332,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///         |r| {
 ///             r.method(http::Method::GET)
 ///                 // register form handler and change form extractor configuration
-///                 .with_config(index, |cfg| {cfg.limit(4096);})
+///                 .with_config(index, |cfg| {cfg.0.limit(4096);})
 ///         },
 ///     );
 /// }
@@ -427,7 +427,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
 ///     let app = App::new().resource("/index.html", |r| {
 ///         r.method(http::Method::GET)
 ///                .with_config(index, |cfg| { // <- register handler with extractor params
-///                   cfg.limit(4096);  // <- limit size of the payload
+///                   cfg.0.limit(4096);  // <- limit size of the payload
 ///                 })
 ///     });
 /// }

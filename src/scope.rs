@@ -17,6 +17,7 @@ use pred::Predicate;
 use resource::{DefaultResource, Resource};
 use router::{ResourceDef, Router};
 use server::Request;
+use with::WithFactory;
 
 /// Resources scope
 ///
@@ -222,7 +223,7 @@ impl<S: 'static> Scope<S> {
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> Scope<S>
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {

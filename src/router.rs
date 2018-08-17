@@ -17,6 +17,7 @@ use pred::Predicate;
 use resource::{DefaultResource, Resource};
 use scope::Scope;
 use server::Request;
+use with::WithFactory;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum ResourceId {
@@ -398,7 +399,7 @@ impl<S: 'static> Router<S> {
 
     pub(crate) fn register_route<T, F, R>(&mut self, path: &str, method: Method, f: F)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {

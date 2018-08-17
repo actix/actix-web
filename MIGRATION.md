@@ -1,3 +1,9 @@
+## 0.8
+
+* `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
+  even for handler with one parameter.
+
+
 ## 0.7
 
 * `HttpRequest` does not implement `Stream` anymore. If you need to read request payload

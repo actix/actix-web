@@ -13,8 +13,8 @@ extern crate tokio_reactor;
 extern crate tokio_tcp;
 
 use std::io::{Read, Write};
-use std::sync::{mpsc, Arc};
-use std::{net, thread, time};
+use std::sync::Arc;
+use std::{thread, time};
 
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -32,7 +32,6 @@ use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
 
-use actix::System;
 use actix_web::*;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -60,11 +59,13 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[test]
 #[cfg(unix)]
 fn test_start() {
+    use std::{mpsc, net};
+
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(|| {
-        System::run(move || {
+        actix::System::run(move || {
             let srv = server::new(|| {
                 vec![App::new().resource("/", |r| {
                     r.method(http::Method::GET).f(|_| HttpResponse::Ok())
