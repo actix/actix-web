@@ -59,13 +59,14 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[test]
 #[cfg(unix)]
 fn test_start() {
-    use std::{mpsc, net};
+    use std::sync::mpsc;
+    use actix::System;
 
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(|| {
-        actix::System::run(move || {
+        System::run(move || {
             let srv = server::new(|| {
                 vec![App::new().resource("/", |r| {
                     r.method(http::Method::GET).f(|_| HttpResponse::Ok())
@@ -118,6 +119,10 @@ fn test_start() {
 #[test]
 #[cfg(unix)]
 fn test_shutdown() {
+    use std::sync::mpsc;
+    use std::net;
+    use actix::System;
+
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
@@ -157,6 +162,9 @@ fn test_shutdown() {
 #[test]
 #[cfg(unix)]
 fn test_panic() {
+    use std::sync::mpsc;
+    use actix::System;
+
     let _ = test::TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
 
