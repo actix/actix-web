@@ -39,7 +39,7 @@ pub struct Extensions {
 impl Extensions {
     /// Create an empty `Extensions`.
     #[inline]
-    pub(crate) fn new() -> Extensions {
+    pub fn new() -> Extensions {
         Extensions {
             map: HashMap::default(),
         }
