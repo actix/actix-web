@@ -1,0 +1,83 @@
+[package]
+name = "actix-net"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix net utils"
+readme = "README.md"
+keywords = ["http", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://actix.rs/api/actix-net/stable/actix_web/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-server",
+              "web-programming::http-client",
+              "web-programming::websocket"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+
+[package.metadata.docs.rs]
+features = ["ssl", "tls", "rust-tls"]
+
+[badges]
+travis-ci = { repository = "actix/actix-net", branch = "master" }
+appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+codecov = { repository = "actix/actix-net", branch = "master", service = "github" }
+
+[lib]
+name = "actix_net"
+path = "src/lib.rs"
+
+[features]
+default = []
+
+# tls
+tls = ["native-tls"]
+
+# openssl
+ssl = ["openssl", "tokio-openssl"]
+
+# rustls
+rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
+
+[dependencies]
+actix = "0.7.0"
+
+log = "0.4"
+num_cpus = "1.0"
+rand = "0.5"
+time = "0.1"
+parking_lot = "0.6"
+failure = "^0.1.2"
+
+# io
+mio = "^0.6.13"
+net2 = "0.2"
+bytes = "0.4"
+byteorder = "1.2"
+futures = "0.1"
+slab = "0.4"
+tokio = "0.1"
+tokio-io = "0.1"
+tokio-tcp = "0.1"
+tokio-timer = "0.2"
+tokio-reactor = "0.1"
+
+tower-service = "0.1"
+
+# native-tls
+native-tls = { version="0.2", optional = true }
+
+# openssl
+openssl = { version="0.10", optional = true }
+tokio-openssl = { version="0.2", optional = true }
+
+#rustls
+rustls = { version = "^0.13.1", optional = true }
+tokio-rustls = { version = "^0.7.2", optional = true }
+webpki = { version = "0.18", optional = true }
+webpki-roots = { version = "0.15", optional = true }
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
