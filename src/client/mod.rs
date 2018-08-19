@@ -40,6 +40,7 @@ pub(crate) use self::pipeline::Pipeline;
 pub use self::pipeline::{SendRequest, SendRequestError};
 pub use self::request::{ClientRequest, ClientRequestBuilder};
 pub use self::response::ClientResponse;
+pub use multipart_rfc7578::Form as MultipartForm;
 pub(crate) use self::writer::HttpClientWriter;
 
 use error::ResponseError;

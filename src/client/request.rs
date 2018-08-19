@@ -12,6 +12,7 @@ use serde::Serialize;
 use serde_json;
 use serde_urlencoded;
 use url::Url;
+use multipart_rfc7578::{Form, Body as MultipartBody};
 
 use super::connector::{ClientConnector, Connection};
 use super::pipeline::SendRequest;
@@ -707,6 +708,18 @@ impl ClientRequestBuilder {
         }
 
         self.body(body)
+    }
+
+    /// Set a multipart body and generate `ClientRequest`.
+    ///
+    /// `ClientRequestBuilder` can not be used after this call.
+    pub fn multipart(&mut self, form: Form) -> Result<ClientRequest, Error>
+    {
+        self.header(header::CONTENT_TYPE, form.content_type());
+        if let Some(len) = form.content_length() {
+            self.header(header::CONTENT_LENGTH, len.to_string());
+        }
+        self.streaming(MultipartBody::from(form))
     }
 
     /// Set a streaming body and generate `ClientRequest`.

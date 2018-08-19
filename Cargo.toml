@@ -126,6 +126,9 @@ webpki-roots = { version = "0.15", optional = true }
 # unix sockets
 tokio-uds = { version="0.2", optional = true }
 
+#multipart for client
+multipart-rfc7578 = "0.6"
+
 [dev-dependencies]
 env_logger = "0.6"
 serde_derive = "1.0"
