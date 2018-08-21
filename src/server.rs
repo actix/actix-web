@@ -164,7 +164,8 @@ impl Server {
         N::Error: fmt::Display,
     {
         let token = Token(self.services.len());
-        self.services.push(ServerNewService::create(srv.into()));
+        self.services
+            .push(ServerNewService::create(srv.into_new_service()));
         self.sockets.push((token, lst));
         self
     }

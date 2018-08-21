@@ -74,7 +74,7 @@ where
     T: NewService,
 {
     /// Create service
-    fn into(self) -> T;
+    fn into_new_service(self) -> T;
 }
 
 impl<T> IntoService<T> for T
@@ -90,7 +90,7 @@ impl<T> IntoNewService<T> for T
 where
     T: NewService,
 {
-    fn into(self) -> T {
+    fn into_new_service(self) -> T {
         self
     }
 }
@@ -198,7 +198,7 @@ where
     F: Fn(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    fn into(self) -> FnNewService<F, Req, Resp, Err, Fut> {
+    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, Fut> {
         FnNewService::new(self)
     }
 }
@@ -334,7 +334,9 @@ where
     Err1: 'static,
     Err2: 'static,
 {
-    fn into(self) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
+    fn into_new_service(
+        self,
+    ) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
         FnStateNewService::new(self.0, self.1)
     }
 }
@@ -456,7 +458,10 @@ where
 {
     /// Create new `AndThen` combinator
     pub fn new<F: IntoNewService<B>>(a: A, f: F) -> Self {
-        Self { a, b: f.into() }
+        Self {
+            a,
+            b: f.into_new_service(),
+        }
     }
 }
 
@@ -640,6 +645,20 @@ where
     }
 }
 
+impl<A, F, E> Clone for MapErrNewService<A, F, E>
+where
+    A: NewService + Clone,
+    F: Fn(A::InitError) -> E + Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            a: self.a.clone(),
+            f: self.f.clone(),
+            e: marker::PhantomData,
+        }
+    }
+}
+
 impl<A, F, E> NewService for MapErrNewService<A, F, E>
 where
     A: NewService + Clone,
@@ -655,20 +674,6 @@ where
 
     fn new_service(&self) -> Self::Future {
         MapErrNewServiceFuture::new(self.a.new_service(), self.f.clone())
-    }
-}
-
-impl<A, F, E> Clone for MapErrNewService<A, F, E>
-where
-    A: NewService + Clone,
-    F: Fn(A::Error) -> E + Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            a: self.a.clone(),
-            f: self.f.clone(),
-            e: marker::PhantomData,
-        }
     }
 }
 
@@ -725,6 +730,20 @@ where
         Self {
             a,
             f,
+            e: marker::PhantomData,
+        }
+    }
+}
+
+impl<A, F, E> Clone for MapInitErr<A, F, E>
+where
+    A: NewService + Clone,
+    F: Fn(A::InitError) -> E + Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            a: self.a.clone(),
+            f: self.f.clone(),
             e: marker::PhantomData,
         }
     }
