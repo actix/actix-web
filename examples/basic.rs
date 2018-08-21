@@ -1,4 +1,5 @@
 //! simple composite service
+//! build: cargo run --example basic --features "ssl"
 //! to test: curl https://127.0.0.1:8443/ -k
 extern crate actix;
 extern crate actix_net;

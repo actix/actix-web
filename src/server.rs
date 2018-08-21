@@ -432,10 +432,6 @@ impl Connections {
         self.0.available()
     }
 
-    pub(crate) fn num_connections(&self) -> usize {
-        self.0.conn.load(Ordering::Relaxed)
-    }
-
     /// Report opened connection
     pub fn connection(&self) -> ConnectionTag {
         ConnectionTag::new(self.0.clone())

@@ -583,7 +583,7 @@ where
     type Future = MapErrFuture<A, F, E>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.a.poll_ready().map_err(|e| (self.f)(e))
+        self.a.poll_ready().map_err(&self.f)
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
@@ -619,7 +619,7 @@ where
     type Error = E;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.fut.poll().map_err(|e| (self.f)(e))
+        self.fut.poll().map_err(&self.f)
     }
 }
 
@@ -795,6 +795,6 @@ where
     type Error = E;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.fut.poll().map_err(|e| (self.f)(e))
+        self.fut.poll().map_err(&self.f)
     }
 }

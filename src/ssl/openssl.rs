@@ -6,7 +6,6 @@ use futures::{future, future::FutureResult, Async, Future, Poll};
 use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, SslAcceptorExt, SslStream};
-use tokio_tcp::TcpStream;
 use tower_service::{NewService, Service};
 
 use {IntoNewService, IoStream};

@@ -1,8 +1,10 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::{net, time};
 
-use futures::future;
 use futures::sync::mpsc::{SendError, UnboundedSender};
 use futures::sync::oneshot;
+use futures::{future, Future};
 
 use actix::msgs::StopArbiter;
 use actix::{
@@ -59,6 +61,7 @@ impl Message for StopWorker {
 pub(crate) struct Worker {
     // conns: Connections,
     services: Vec<BoxedServerService>,
+    counters: Vec<Arc<AtomicUsize>>,
 }
 
 impl Actor for Worker {
@@ -71,6 +74,7 @@ impl Worker {
     ) -> Self {
         let wrk = Worker {
             services: Vec::new(),
+            counters: services.iter().map(|i| i.counter()).collect(),
         };
 
         ctx.wait(
@@ -94,23 +98,26 @@ impl Worker {
     }
 
     fn shutdown_timeout(
-        &self, _ctx: &mut Context<Worker>, _tx: oneshot::Sender<bool>, _dur: time::Duration,
+        &self, ctx: &mut Context<Worker>, tx: oneshot::Sender<bool>, dur: time::Duration,
     ) {
         // sleep for 1 second and then check again
-        // ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
-        //     let num = slf.conns.num_connections();
-        //     if num == 0 {
-        //         let _ = tx.send(true);
-        //         Arbiter::current().do_send(StopArbiter(0));
-        //     } else if let Some(d) = dur.checked_sub(time::Duration::new(1, 0)) {
-        //         slf.shutdown_timeout(ctx, tx, d);
-        //     } else {
-        //         info!("Force shutdown http worker, {} connections", num);
-        //         slf.shutdown(true);
-        //         let _ = tx.send(false);
-        //         Arbiter::current().do_send(StopArbiter(0));
-        //     }
-        // });
+        ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
+            let num = slf
+                .counters
+                .iter()
+                .fold(0, |i, v| i + v.load(Ordering::Relaxed));
+            if num == 0 {
+                let _ = tx.send(true);
+                Arbiter::current().do_send(StopArbiter(0));
+            } else if let Some(d) = dur.checked_sub(time::Duration::new(1, 0)) {
+                slf.shutdown_timeout(ctx, tx, d);
+            } else {
+                info!("Force shutdown http worker, {} connections", num);
+                slf.shutdown(true);
+                let _ = tx.send(false);
+                Arbiter::current().do_send(StopArbiter(0));
+            }
+        });
     }
 }
 
@@ -126,27 +133,32 @@ impl Handler<Conn> for Worker {
 impl Handler<StopWorker> for Worker {
     type Result = Response<bool, ()>;
 
-    fn handle(&mut self, _msg: StopWorker, _ctx: &mut Context<Self>) -> Self::Result {
-        unimplemented!()
-        // let num = self.conns.num_connections();
-        // if num == 0 {
-        //     info!("Shutting down http worker, 0 connections");
-        //     Response::reply(Ok(true))
-        // } else if let Some(dur) = msg.graceful {
-        //     self.shutdown(false);
-        //     let (tx, rx) = oneshot::channel();
-        //     let num = self.conns.num_connections();
-        //     if num != 0 {
-        //         info!("Graceful http worker shutdown, {} connections", num);
-        //         self.shutdown_timeout(ctx, tx, dur);
-        //         Response::reply(Ok(true))
-        //     } else {
-        //         Response::async(rx.map_err(|_| ()))
-        //     }
-        // } else {
-        //     info!("Force shutdown http worker, {} connections", num);
-        //     self.shutdown(true);
-        //     Response::reply(Ok(false))
-        // }
+    fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
+        let num = self
+            .counters
+            .iter()
+            .fold(0, |i, v| i + v.load(Ordering::Relaxed));
+        if num == 0 {
+            info!("Shutting down http worker, 0 connections");
+            Response::reply(Ok(true))
+        } else if let Some(dur) = msg.graceful {
+            self.shutdown(false);
+            let (tx, rx) = oneshot::channel();
+            let num = self
+                .counters
+                .iter()
+                .fold(0, |i, v| i + v.load(Ordering::Relaxed));
+            if num != 0 {
+                info!("Graceful http worker shutdown, {} connections", num);
+                self.shutdown_timeout(ctx, tx, dur);
+                Response::reply(Ok(true))
+            } else {
+                Response::async(rx.map_err(|_| ()))
+            }
+        } else {
+            info!("Force shutdown http worker, {} connections", num);
+            self.shutdown(true);
+            Response::reply(Ok(false))
+        }
     }
 }
