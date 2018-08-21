@@ -127,6 +127,7 @@ extern crate tokio_uds;
 extern crate url;
 #[macro_use]
 extern crate serde;
+extern crate serde_urlencoded;
 #[cfg(feature = "brotli")]
 extern crate brotli2;
 extern crate encoding;
@@ -184,7 +185,6 @@ mod resource;
 mod route;
 mod router;
 mod scope;
-mod serde_urlencoded;
 mod uri;
 mod with;
 
