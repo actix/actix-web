@@ -20,6 +20,11 @@ pub trait NewServiceExt: NewService {
     where
         Self: Sized,
         F: Fn(Self::Error) -> E;
+
+    fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E>
+    where
+        Self: Sized,
+        F: Fn(Self::InitError) -> E;
 }
 
 impl<T> NewServiceExt for T
@@ -40,9 +45,17 @@ where
 
     fn map_err<F, E>(self, f: F) -> MapErrNewService<Self, F, E>
     where
-        F: Fn(Self::Error) -> E
+        F: Fn(Self::Error) -> E,
     {
         MapErrNewService::new(self, f)
+    }
+
+    fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E>
+    where
+        Self: Sized,
+        F: Fn(Self::InitError) -> E,
+    {
+        MapInitErr::new(self, f)
     }
 }
 
@@ -546,7 +559,11 @@ where
 {
     /// Create new `MapErr` combinator
     pub fn new(a: A, f: F) -> Self {
-        Self { a, f, e: marker::PhantomData }
+        Self {
+            a,
+            f,
+            e: marker::PhantomData,
+        }
     }
 }
 
@@ -615,7 +632,11 @@ where
 {
     /// Create new `MapErr` new service instance
     pub fn new(a: A, f: F) -> Self {
-        Self { a, f, e: marker::PhantomData }
+        Self {
+            a,
+            f,
+            e: marker::PhantomData,
+        }
     }
 }
 
@@ -657,7 +678,6 @@ where
     F: Fn(A::Error) -> E,
 {
     fut: A::Future,
-    a: Option<A::Service>,
     f: F,
 }
 
@@ -667,11 +687,7 @@ where
     F: Fn(A::Error) -> E,
 {
     fn new(fut: A::Future, f: F) -> Self {
-        MapErrNewServiceFuture {
-            f,
-            fut,
-            a: None,
-        }
+        MapErrNewServiceFuture { f, fut }
     }
 }
 
@@ -689,5 +705,77 @@ where
         } else {
             Ok(Async::NotReady)
         }
+    }
+}
+
+/// `MapInitErr` service combinator
+pub struct MapInitErr<A, F, E> {
+    a: A,
+    f: F,
+    e: marker::PhantomData<E>,
+}
+
+impl<A, F, E> MapInitErr<A, F, E>
+where
+    A: NewService,
+    F: Fn(A::InitError) -> E,
+{
+    /// Create new `MapInitErr` combinator
+    pub fn new(a: A, f: F) -> Self {
+        Self {
+            a,
+            f,
+            e: marker::PhantomData,
+        }
+    }
+}
+
+impl<A, F, E> NewService for MapInitErr<A, F, E>
+where
+    A: NewService,
+    F: Fn(A::InitError) -> E + Clone,
+{
+    type Request = A::Request;
+    type Response = A::Response;
+    type Error = A::Error;
+    type Service = A::Service;
+
+    type InitError = E;
+    type Future = MapInitErrFuture<A, F, E>;
+
+    fn new_service(&self) -> Self::Future {
+        MapInitErrFuture::new(self.a.new_service(), self.f.clone())
+    }
+}
+
+pub struct MapInitErrFuture<A, F, E>
+where
+    A: NewService,
+    F: Fn(A::InitError) -> E,
+{
+    f: F,
+    fut: A::Future,
+}
+
+impl<A, F, E> MapInitErrFuture<A, F, E>
+where
+    A: NewService,
+    F: Fn(A::InitError) -> E,
+{
+    fn new(fut: A::Future, f: F) -> Self {
+        MapInitErrFuture { f, fut }
+    }
+}
+
+impl<A, F, E> Future for MapInitErrFuture<A, F, E>
+where
+    A: NewService,
+    F: Fn(A::InitError) -> E,
+{
+    type Item = A::Service;
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.fut.poll().map_err(|e| (self.f)(e))
     }
 }
