@@ -135,6 +135,38 @@ impl<C: Config> Server<C> {
         self
     }
 
+    /// Run external configuration as part of the server building
+    /// process
+    ///
+    /// This function is useful for moving parts of configuration to a
+    /// different module or event library.
+    /// 
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{fs, middleware, App, HttpResponse};
+    ///
+    /// // this function could be located in different module
+    /// fn config(app: App) -> App {
+    ///     app.resource("/test", |r| {
+    ///         r.get().f(|_| HttpResponse::Ok());
+    ///         r.head().f(|_| HttpResponse::MethodNotAllowed());
+    ///     })
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .middleware(middleware::Logger::default())
+    ///         .configure(config)  // <- register resources
+    ///         .handler("/static", fs::StaticFiles::new(".").unwrap());
+    /// }
+    /// ```
+    pub fn configure<F>(self, cfg: F) -> Server<C>
+    where
+        F: Fn(Server<C>) -> Server<C>,
+    {
+        cfg(self)
+    }
+
     /// Add new service to server
     pub fn bind<T, U, N>(mut self, addr: U, srv: T) -> io::Result<Self>
     where
