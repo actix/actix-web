@@ -163,7 +163,7 @@ where
     }
 }
 
-pub struct FnNewService<F, Req, Resp, Err, Fut, Cfg>
+pub struct FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -172,10 +172,11 @@ where
     req: marker::PhantomData<Req>,
     resp: marker::PhantomData<Resp>,
     err: marker::PhantomData<Err>,
+    ierr: marker::PhantomData<IErr>,
     cfg: marker::PhantomData<Cfg>,
 }
 
-impl<F, Req, Resp, Err, Fut, Cfg> FnNewService<F, Req, Resp, Err, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut, Cfg> FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -186,12 +187,13 @@ where
             req: marker::PhantomData,
             resp: marker::PhantomData,
             err: marker::PhantomData,
+            ierr: marker::PhantomData,
             cfg: marker::PhantomData,
         }
     }
 }
 
-impl<F, Req, Resp, Err, Fut, Cfg> NewService for FnNewService<F, Req, Resp, Err, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut, Cfg> NewService for FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -202,27 +204,27 @@ where
     type Error = Err;
     type Service = FnService<F, Req, Resp, Err, Fut>;
     type Config = Cfg;
-    type InitError = ();
-    type Future = FutureResult<Self::Service, ()>;
+    type InitError = IErr;
+    type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self, cfg: Cfg) -> Self::Future {
         future::ok(FnService::new(self.f.clone()))
     }
 }
 
-impl<F, Req, Resp, Err, Fut, Cfg> IntoNewService<FnNewService<F, Req, Resp, Err, Fut, Cfg>>
+impl<F, Req, Resp, Err, IErr, Fut, Cfg> IntoNewService<FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>>
     for F
 where
     F: Fn(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
     Cfg: Clone,
 {
-    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, Fut, Cfg> {
+    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg> {
         FnNewService::new(self)
     }
 }
 
-impl<F, Req, Resp, Err, Fut, Cfg> Clone for FnNewService<F, Req, Resp, Err, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut, Cfg> Clone for FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,

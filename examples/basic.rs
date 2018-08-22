@@ -68,19 +68,13 @@ fn main() {
             SslAcceptorExt::accept_async(&acceptor, stream)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
         })
-        // convert closure to a `NewService` and convert init error
-        .into_new_service().map_init_err(|_| io::Error::new(io::ErrorKind::Other, ""))
+        // convert closure to a `NewService`
+        .into_new_service()
 
         // .and_then() combinator uses other service to convert incoming `Request` to a `Response`
         // and then uses that response as an input for next service.
         // in this case, on success we use `logger` service
-        .and_then(
-            // convert function to a Service and related NewService impl
-            logger.into_new_service()
-                // if service is a function actix-net generate NewService impl with InitError=(),
-                // but actix_net::Server requires io::Error as InitError,
-                // we need to convert it to a `io::Error`
-                .map_init_err(|_| io::Error::new(io::ErrorKind::Other, "")))
+        .and_then(logger)
 
         // next service uses two components, service state and service function
         // actix-net generates `NewService` impl that creates `ServiceState` instance for each new service
