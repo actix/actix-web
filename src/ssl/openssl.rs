@@ -1,29 +1,31 @@
 use std::marker::PhantomData;
-use std::net::Shutdown;
-use std::{io, time};
+// use std::net::Shutdown;
+use std::io;
 
 use futures::{future, future::FutureResult, Async, Future, Poll};
 use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, SslAcceptorExt, SslStream};
-use tower_service::{NewService, Service};
 
-use {IntoNewService, IoStream};
+use server_config::SslConfig;
+use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
 ///
 /// `alpn` feature enables `OpensslAcceptor` type
-pub struct OpensslService<T> {
+pub struct OpensslService<T, Cfg> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
+    cfg: PhantomData<Cfg>,
 }
 
-impl<T> OpensslService<T> {
+impl<T, Cfg> OpensslService<T, Cfg> {
     /// Create default `OpensslService`
     pub fn new(builder: SslAcceptorBuilder) -> Self {
         OpensslService {
             acceptor: builder.build(),
             io: PhantomData,
+            cfg: PhantomData,
         }
     }
 
@@ -44,27 +46,32 @@ impl<T> OpensslService<T> {
         Ok(OpensslService {
             acceptor: builder.build(),
             io: PhantomData,
+            cfg: PhantomData,
         })
     }
 }
-impl<T: AsyncRead + AsyncWrite> Clone for OpensslService<T> {
+impl<T: AsyncRead + AsyncWrite, Cfg> Clone for OpensslService<T, Cfg> {
     fn clone(&self) -> Self {
         Self {
             acceptor: self.acceptor.clone(),
             io: PhantomData,
+            cfg: PhantomData,
         }
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> NewService for OpensslService<T> {
+impl<T: AsyncRead + AsyncWrite, Cfg: Clone + AsRef<SslConfig>> NewService
+    for OpensslService<T, Cfg>
+{
     type Request = T;
     type Response = SslStream<T>;
     type Error = io::Error;
     type Service = OpensslAcceptor<T>;
+    type Config = Cfg;
     type InitError = io::Error;
     type Future = FutureResult<Self::Service, io::Error>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: Self::Config) -> Self::Future {
         future::ok(OpensslAcceptor {
             acceptor: self.acceptor.clone(),
             io: PhantomData,

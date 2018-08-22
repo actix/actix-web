@@ -7,7 +7,8 @@ use std::{fmt, io, net};
 use futures::{future, Future, Poll};
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
-use tower_service::{NewService, Service};
+
+use super::{Config, NewService, Service};
 
 pub(crate) type BoxedServerService = Box<
     Service<
@@ -55,14 +56,15 @@ where
     }
 }
 
-pub(crate) struct ServerNewService<T> {
+pub(crate) struct ServerNewService<T, C> {
     inner: T,
+    config: C,
     counter: Arc<AtomicUsize>,
 }
 
-impl<T> ServerNewService<T>
+impl<T, C: Config> ServerNewService<T, C>
 where
-    T: NewService<Request = TcpStream, Response = (), InitError = io::Error>
+    T: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
         + Clone
         + Send
         + 'static,
@@ -70,25 +72,26 @@ where
     T::Future: 'static,
     T::Error: fmt::Display,
 {
-    pub(crate) fn create(inner: T) -> Box<ServerServiceFactory + Send> {
+    pub(crate) fn create(inner: T, config: C) -> Box<ServerServiceFactory<C> + Send> {
         Box::new(Self {
             inner,
+            config,
             counter: Arc::new(AtomicUsize::new(0)),
         })
     }
 }
 
-pub trait ServerServiceFactory {
+pub trait ServerServiceFactory<C> {
     fn counter(&self) -> Arc<AtomicUsize>;
 
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send>;
+    fn clone_factory(&self) -> Box<ServerServiceFactory<C> + Send>;
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
 }
 
-impl<T> ServerServiceFactory for ServerNewService<T>
+impl<T, C: Config> ServerServiceFactory<C> for ServerNewService<T, C>
 where
-    T: NewService<Request = TcpStream, Response = (), InitError = io::Error>
+    T: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
         + Clone
         + Send
         + 'static,
@@ -100,28 +103,35 @@ where
         self.counter.clone()
     }
 
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
+    fn clone_factory(&self) -> Box<ServerServiceFactory<C> + Send> {
         Box::new(Self {
             inner: self.inner.clone(),
+            config: self.config.fork(),
             counter: Arc::new(AtomicUsize::new(0)),
         })
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
         let counter = self.counter.clone();
-        Box::new(self.inner.new_service().map_err(|_| ()).map(move |inner| {
-            let service: BoxedServerService = Box::new(ServerService { inner, counter });
-            service
-        }))
+        Box::new(
+            self.inner
+                .new_service(self.config.clone())
+                .map_err(|_| ())
+                .map(move |inner| {
+                    let service: BoxedServerService =
+                        Box::new(ServerService { inner, counter });
+                    service
+                }),
+        )
     }
 }
 
-impl ServerServiceFactory for Box<ServerServiceFactory> {
+impl<C> ServerServiceFactory<C> for Box<ServerServiceFactory<C>> {
     fn counter(&self) -> Arc<AtomicUsize> {
         self.as_ref().counter()
     }
 
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
+    fn clone_factory(&self) -> Box<ServerServiceFactory<C> + Send> {
         self.as_ref().clone_factory()
     }
 

@@ -15,8 +15,7 @@ use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use actix_net::service::NewServiceExt;
-use actix_net::{ssl, Server};
+use actix_net::{ssl, NewService, Server};
 
 #[derive(Debug)]
 struct ServiceState {
@@ -24,7 +23,7 @@ struct ServiceState {
 }
 
 fn service<T: AsyncRead + AsyncWrite>(
-    st: &mut ServiceState, stream: T,
+    st: &mut ServiceState, _: T,
 ) -> impl Future<Item = (), Error = io::Error> {
     let num = st.num.fetch_add(1, Ordering::Relaxed);
     println!("got ssl connection {:?}", num);
@@ -50,7 +49,7 @@ fn main() {
         Ok::<_, io::Error>(ServiceState { num: num.clone() })
     }));
 
-    Server::new().bind("0.0.0.0:8443", srv).unwrap().start();
+    Server::default().bind("0.0.0.0:8443", srv).unwrap().start();
 
     sys.run();
 }

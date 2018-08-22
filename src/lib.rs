@@ -65,16 +65,20 @@ use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+pub use tower_service::Service;
+
 pub(crate) mod accept;
 mod extensions;
 mod server;
+pub mod server_config;
 mod server_service;
 pub mod service;
 pub mod ssl;
 mod worker;
 
 pub use self::server::{ConnectionRateTag, ConnectionTag, Connections, Server};
-pub use service::{IntoNewService, IntoService};
+pub use server_config::Config;
+pub use service::{IntoNewService, IntoService, NewService};
 
 pub use extensions::Extensions;
 

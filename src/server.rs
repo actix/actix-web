@@ -10,7 +10,6 @@ use futures::{Future, Sink, Stream};
 use net2::TcpBuilder;
 use num_cpus;
 use tokio_tcp::TcpStream;
-use tower_service::NewService;
 
 use actix::{
     actors::signal, fut, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
@@ -18,8 +17,9 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
+use super::server_config::{Config, ServerConfig};
 use super::server_service::{ServerNewService, ServerServiceFactory};
-use super::service::IntoNewService;
+use super::service::{IntoNewService, NewService};
 use super::worker::{Conn, StopWorker, Worker, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
@@ -28,10 +28,11 @@ pub(crate) enum ServerCommand {
 }
 
 /// Server
-pub struct Server {
+pub struct Server<C = ServerConfig> {
+    config: C,
     threads: usize,
     workers: Vec<(usize, Addr<Worker>)>,
-    services: Vec<Box<ServerServiceFactory + Send>>,
+    services: Vec<Box<ServerServiceFactory<C> + Send>>,
     sockets: Vec<(Token, net::TcpListener)>,
     accept: AcceptLoop,
     exit: bool,
@@ -42,16 +43,17 @@ pub struct Server {
     maxconnrate: usize,
 }
 
-impl Default for Server {
+impl Default for Server<ServerConfig> {
     fn default() -> Self {
-        Self::new()
+        Self::new(ServerConfig::default())
     }
 }
 
-impl Server {
+impl<C: Config> Server<C> {
     /// Create new Server instance
-    pub fn new() -> Server {
+    pub fn new(config: C) -> Server<C> {
         Server {
+            config,
             threads: num_cpus::get(),
             workers: Vec::new(),
             services: Vec::new(),
@@ -81,7 +83,10 @@ impl Server {
     /// reached for each worker.
     ///
     /// By default max connections is set to a 100k.
-    pub fn maxconn(mut self, num: usize) -> Self {
+    pub fn maxconn(mut self, num: usize) -> Self
+    where
+        C: AsMut<Connections>,
+    {
         self.maxconn = num;
         self
     }
@@ -135,7 +140,7 @@ impl Server {
     where
         U: net::ToSocketAddrs,
         T: IntoNewService<N> + Clone,
-        N: NewService<Request = TcpStream, Response = (), InitError = io::Error>
+        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
             + Clone
             + Send
             + 'static,
@@ -155,7 +160,7 @@ impl Server {
     pub fn listen<T, N>(mut self, lst: net::TcpListener, srv: T) -> Self
     where
         T: IntoNewService<N>,
-        N: NewService<Request = TcpStream, Response = (), InitError = io::Error>
+        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
             + Clone
             + Send
             + 'static,
@@ -164,8 +169,10 @@ impl Server {
         N::Error: fmt::Display,
     {
         let token = Token(self.services.len());
-        self.services
-            .push(ServerNewService::create(srv.into_new_service()));
+        self.services.push(ServerNewService::create(
+            srv.into_new_service(),
+            self.config.clone(),
+        ));
         self.sockets.push((token, lst));
         self
     }
@@ -199,7 +206,7 @@ impl Server {
     }
 
     /// Starts Server Actor and returns its address
-    pub fn start(mut self) -> Addr<Server> {
+    pub fn start(mut self) -> Addr<Server<C>> {
         if self.sockets.is_empty() {
             panic!("Service should have at least one bound socket");
         } else {
@@ -251,7 +258,7 @@ impl Server {
         let (tx, rx) = unbounded::<Conn>();
         let conns = Connections::new(notify, self.maxconn, self.maxconnrate);
         let worker = WorkerClient::new(idx, tx, conns.clone());
-        let services: Vec<Box<ServerServiceFactory + Send>> =
+        let services: Vec<Box<ServerServiceFactory<C> + Send>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {
@@ -263,14 +270,14 @@ impl Server {
     }
 }
 
-impl Actor for Server {
+impl<C: Config> Actor for Server<C> {
     type Context = Context<Self>;
 }
 
 /// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
 /// message to `System` actor.
-impl Handler<signal::Signal> for Server {
+impl<C: Config> Handler<signal::Signal> for Server<C> {
     type Result = ();
 
     fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
@@ -295,7 +302,7 @@ impl Handler<signal::Signal> for Server {
     }
 }
 
-impl Handler<PauseServer> for Server {
+impl<C: Config> Handler<PauseServer> for Server<C> {
     type Result = ();
 
     fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) {
@@ -303,7 +310,7 @@ impl Handler<PauseServer> for Server {
     }
 }
 
-impl Handler<ResumeServer> for Server {
+impl<C: Config> Handler<ResumeServer> for Server<C> {
     type Result = ();
 
     fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) {
@@ -311,7 +318,7 @@ impl Handler<ResumeServer> for Server {
     }
 }
 
-impl Handler<StopServer> for Server {
+impl<C: Config> Handler<StopServer> for Server<C> {
     type Result = Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
@@ -366,7 +373,7 @@ impl Handler<StopServer> for Server {
 }
 
 /// Commands from accept threads
-impl StreamHandler<ServerCommand, ()> for Server {
+impl<C: Config> StreamHandler<ServerCommand, ()> for Server<C> {
     fn finished(&mut self, _: &mut Context<Self>) {}
 
     fn handle(&mut self, msg: ServerCommand, _: &mut Context<Self>) {
