@@ -2,7 +2,9 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
 pub trait Config: Send + Clone + Default + 'static {
-    fn fork(&self) -> Self;
+    fn fork(&self) -> Self {
+        self.clone()
+    }
 }
 
 #[derive(Clone, Default)]
