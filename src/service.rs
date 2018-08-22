@@ -207,7 +207,7 @@ where
     type InitError = IErr;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self, cfg: Cfg) -> Self::Future {
+    fn new_service(&self, _: Cfg) -> Self::Future {
         future::ok(FnService::new(self.f.clone()))
     }
 }
@@ -336,7 +336,7 @@ where
     type InitError = Err2;
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
-    fn new_service(&self, cfg: Cfg) -> Self::Future {
+    fn new_service(&self, _: Cfg) -> Self::Future {
         let f = self.f.clone();
         Box::new(
             (self.state)()

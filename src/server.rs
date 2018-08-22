@@ -70,7 +70,7 @@ impl<C: Config> Server<C> {
 
     /// Set number of workers to start.
     ///
-    /// By default http server uses number of available logical cpu as threads
+    /// By default server uses number of available logical cpu as threads
     /// count.
     pub fn workers(mut self, num: usize) -> Self {
         self.threads = num;

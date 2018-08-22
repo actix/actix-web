@@ -83,6 +83,9 @@ fn main() {
             Ok::<_, io::Error>(ServiceState { num: num.clone() })
         }));
 
+    // bind socket address and start workers. By default server uses number of
+    // available logical cpu as threads count. actix net start separate
+    // instances of service pipeline in each worker.
     Server::default().bind("0.0.0.0:8443", srv).unwrap().start();
 
     sys.run();
