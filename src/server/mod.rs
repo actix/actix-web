@@ -336,6 +336,7 @@ impl IntoAsyncIo for net::TcpStream {
     }
 }
 
+#[doc(hidden)]
 /// Trait implemented by types that could accept incomming socket connections.
 pub trait AcceptorService<Io: AsyncRead + AsyncWrite>: Clone {
     /// Established connection type
