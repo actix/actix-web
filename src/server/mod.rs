@@ -193,6 +193,7 @@ where
     HttpServer::new(factory)
 }
 
+#[doc(hidden)]
 bitflags! {
     ///Flags that can be used to configure HTTP Server.
     pub struct ServerFlags: u8 {
@@ -256,6 +257,7 @@ impl Message for StopServer {
 }
 
 /// Socket id token
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct Token(usize);
 
