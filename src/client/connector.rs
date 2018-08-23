@@ -24,7 +24,7 @@ use tokio_openssl::SslConnectorExt;
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
 use native_tls::{Error as TlsError, TlsConnector as NativeTlsConnector};
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
-use tokio_tls::{TlsConnector, TlsStream};
+use tokio_tls::{TlsConnector};
 
 #[cfg(
     all(
@@ -1342,6 +1342,9 @@ impl AsyncWrite for Connection {
         self.stream.shutdown()
     }
 }
+
+#[cfg(feature = "tls")]
+use tokio_tls::{TlsStream};
 
 #[cfg(feature = "tls")]
 /// This is temp solution untile actix-net migration
