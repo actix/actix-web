@@ -768,168 +768,161 @@ impl ClientConnector {
         ).map_err(move |_, act, _| {
             act.release_key(&key2);
             ()
-        })
-            .and_then(move |res, act, _| {
-                #[cfg(feature = "alpn")]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::Either::B(fut::err(()))
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            fut::Either::A(
-                                act.connector
-                                    .connect_async(&key.host, stream)
-                                    .into_actor(act)
-                                    .then(move |res, _, _| {
-                                        match res {
-                                            Err(e) => {
-                                                let _ = waiter.tx.send(Err(
-                                                    ClientConnectorError::SslError(e),
-                                                ));
-                                            }
-                                            Ok(stream) => {
-                                                let _ =
-                                                    waiter.tx.send(Ok(Connection::new(
-                                                        conn.0.clone(),
-                                                        Some(conn),
-                                                        Box::new(stream),
-                                                    )));
-                                            }
+        }).and_then(move |res, act, _| {
+            #[cfg(feature = "alpn")]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        fut::Either::A(
+                            act.connector
+                                .connect_async(&key.host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
                                         }
-                                        fut::ok(())
-                                    }),
-                            )
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                            fut::Either::B(fut::ok(()))
-                        }
-                    }
-                }
-
-                #[cfg(all(feature = "tls", not(feature = "alpn")))]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::Either::B(fut::err(()))
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            fut::Either::A(
-                                act.connector
-                                    .connect_async(&conn.0.host, stream)
-                                    .into_actor(act)
-                                    .then(move |res, _, _| {
-                                        match res {
-                                            Err(e) => {
-                                                let _ = waiter.tx.send(Err(
-                                                    ClientConnectorError::SslError(e),
-                                                ));
-                                            }
-                                            Ok(stream) => {
-                                                let _ =
-                                                    waiter.tx.send(Ok(Connection::new(
-                                                        conn.0.clone(),
-                                                        Some(conn),
-                                                        Box::new(stream),
-                                                    )));
-                                            }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
                                         }
-                                        fut::ok(())
-                                    }),
-                            )
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                            fut::Either::B(fut::ok(()))
-                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
                     }
                 }
+            }
 
-                #[cfg(
-                    all(
-                        feature = "rust-tls",
-                        not(any(feature = "alpn", feature = "tls"))
-                    )
-                )]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::Either::B(fut::err(()))
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            let host =
-                                DNSNameRef::try_from_ascii_str(&key.host).unwrap();
-                            fut::Either::A(
-                                act.connector
-                                    .connect_async(host, stream)
-                                    .into_actor(act)
-                                    .then(move |res, _, _| {
-                                        match res {
-                                            Err(e) => {
-                                                let _ = waiter.tx.send(Err(
-                                                    ClientConnectorError::SslError(e),
-                                                ));
-                                            }
-                                            Ok(stream) => {
-                                                let _ =
-                                                    waiter.tx.send(Ok(Connection::new(
-                                                        conn.0.clone(),
-                                                        Some(conn),
-                                                        Box::new(stream),
-                                                    )));
-                                            }
+            #[cfg(all(feature = "tls", not(feature = "alpn")))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        fut::Either::A(
+                            act.connector
+                                .connect_async(&conn.0.host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
                                         }
-                                        fut::ok(())
-                                    }),
-                            )
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                            fut::Either::B(fut::ok(()))
-                        }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
+                                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
                     }
                 }
+            }
 
-                #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::err(())
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            let _ = waiter
-                                .tx
-                                .send(Err(ClientConnectorError::SslIsNotSupported));
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                        };
-                        fut::ok(())
+            #[cfg(
+                all(
+                    feature = "rust-tls",
+                    not(any(feature = "alpn", feature = "tls"))
+                )
+            )]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        let host = DNSNameRef::try_from_ascii_str(&key.host).unwrap();
+                        fut::Either::A(
+                            act.connector
+                                .connect_async(host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
+                                        }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
+                                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
                     }
                 }
-            })
-            .spawn(ctx);
+            }
+
+            #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::err(())
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        let _ =
+                            waiter.tx.send(Err(ClientConnectorError::SslIsNotSupported));
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                    };
+                    fut::ok(())
+                }
+            }
+        }).spawn(ctx);
     }
 }
 

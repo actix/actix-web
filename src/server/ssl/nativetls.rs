@@ -2,7 +2,7 @@ use std::net::Shutdown;
 use std::{io, time};
 
 use futures::{Async, Future, Poll};
-use native_tls::{self, TlsAcceptor, HandshakeError};
+use native_tls::{self, HandshakeError, TlsAcceptor};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use server::{AcceptorService, IoStream};
@@ -29,14 +29,16 @@ pub struct TlsStream<S> {
 
 /// Future returned from `NativeTlsAcceptor::accept` which will resolve
 /// once the accept handshake has finished.
-pub struct Accept<S>{
+pub struct Accept<S> {
     inner: Option<Result<native_tls::TlsStream<S>, HandshakeError<S>>>,
 }
 
 impl NativeTlsAcceptor {
     /// Create `NativeTlsAcceptor` instance
     pub fn new(acceptor: TlsAcceptor) -> Self {
-        NativeTlsAcceptor { acceptor: acceptor.into() }
+        NativeTlsAcceptor {
+            acceptor: acceptor.into(),
+        }
     }
 }
 
@@ -49,7 +51,9 @@ impl<Io: IoStream> AcceptorService<Io> for NativeTlsAcceptor {
     }
 
     fn accept(&self, io: Io) -> Self::Future {
-        Accept { inner: Some(self.acceptor.accept(io)) }
+        Accept {
+            inner: Some(self.acceptor.accept(io)),
+        }
     }
 }
 
@@ -78,18 +82,19 @@ impl<Io: IoStream> Future for Accept<Io> {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.inner.take().expect("cannot poll MidHandshake twice") {
             Ok(stream) => Ok(TlsStream { inner: stream }.into()),
-            Err(HandshakeError::Failure(e)) => Err(io::Error::new(io::ErrorKind::Other, e)),
-            Err(HandshakeError::WouldBlock(s)) => {
-                match s.handshake() {
-                    Ok(stream) => Ok(TlsStream { inner: stream }.into()),
-                    Err(HandshakeError::Failure(e)) => 
-                        Err(io::Error::new(io::ErrorKind::Other, e)),
-                    Err(HandshakeError::WouldBlock(s)) => {
-                        self.inner = Some(Err(HandshakeError::WouldBlock(s)));
-                        Ok(Async::NotReady)
-                    }
-                }
+            Err(HandshakeError::Failure(e)) => {
+                Err(io::Error::new(io::ErrorKind::Other, e))
             }
+            Err(HandshakeError::WouldBlock(s)) => match s.handshake() {
+                Ok(stream) => Ok(TlsStream { inner: stream }.into()),
+                Err(HandshakeError::Failure(e)) => {
+                    Err(io::Error::new(io::ErrorKind::Other, e))
+                }
+                Err(HandshakeError::WouldBlock(s)) => {
+                    self.inner = Some(Err(HandshakeError::WouldBlock(s)));
+                    Ok(Async::NotReady)
+                }
+            },
         }
     }
 }
@@ -124,9 +129,7 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     }
 }
 
-
-impl<S: AsyncRead + AsyncWrite> AsyncRead for TlsStream<S> {
-}
+impl<S: AsyncRead + AsyncWrite> AsyncRead for TlsStream<S> {}
 
 impl<S: AsyncRead + AsyncWrite> AsyncWrite for TlsStream<S> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {

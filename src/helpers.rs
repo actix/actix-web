@@ -279,8 +279,7 @@ mod tests {
                     true,
                     StatusCode::MOVED_PERMANENTLY,
                 ))
-            })
-            .finish();
+            }).finish();
 
         // trailing slashes
         let params = vec![

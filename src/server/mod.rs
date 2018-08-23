@@ -125,12 +125,12 @@ mod h1writer;
 mod h2;
 mod h2writer;
 pub(crate) mod helpers;
+mod http;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
 mod server;
 pub(crate) mod settings;
-mod http;
 mod ssl;
 mod worker;
 
@@ -138,12 +138,12 @@ use actix::Message;
 
 pub use self::message::Request;
 
+pub use self::http::HttpServer;
 #[doc(hidden)]
 pub use self::server::{
     ConnectionRateTag, ConnectionTag, Connections, Server, Service, ServiceHandler,
 };
 pub use self::settings::ServerSettings;
-pub use self::http::HttpServer;
 
 #[doc(hidden)]
 pub use self::ssl::*;

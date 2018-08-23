@@ -264,7 +264,8 @@ impl<S> HttpRequest<S> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.request().inner.headers.get_all(header::COOKIE) {
-                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                let s =
+                    str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 for cookie_str in s.split(';').map(|s| s.trim()) {
                     if !cookie_str.is_empty() {
                         cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());

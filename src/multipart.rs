@@ -756,10 +756,7 @@ mod tests {
                             {
                                 use http::header::{DispositionParam, DispositionType};
                                 let cd = field.content_disposition().unwrap();
-                                assert_eq!(
-                                    cd.disposition,
-                                    DispositionType::FormData
-                                );
+                                assert_eq!(cd.disposition, DispositionType::FormData);
                                 assert_eq!(
                                     cd.parameters[0],
                                     DispositionParam::Name("file".into())
@@ -813,7 +810,6 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 }

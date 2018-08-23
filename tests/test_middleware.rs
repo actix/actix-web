@@ -84,11 +84,10 @@ fn test_middleware_multiple() {
             response: Arc::clone(&act_num2),
             finish: Arc::clone(&act_num3),
         }).middleware(MiddlewareTest {
-                start: Arc::clone(&act_num1),
-                response: Arc::clone(&act_num2),
-                finish: Arc::clone(&act_num3),
-            })
-            .handler(|_| HttpResponse::Ok())
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).handler(|_| HttpResponse::Ok())
     });
 
     let request = srv.get().finish().unwrap();
@@ -143,11 +142,10 @@ fn test_resource_middleware_multiple() {
             response: Arc::clone(&act_num2),
             finish: Arc::clone(&act_num3),
         }).middleware(MiddlewareTest {
-                start: Arc::clone(&act_num1),
-                response: Arc::clone(&act_num2),
-                finish: Arc::clone(&act_num3),
-            })
-            .handler(|_| HttpResponse::Ok())
+            start: Arc::clone(&act_num1),
+            response: Arc::clone(&act_num2),
+            finish: Arc::clone(&act_num3),
+        }).handler(|_| HttpResponse::Ok())
     });
 
     let request = srv.get().finish().unwrap();
@@ -176,8 +174,7 @@ fn test_scope_middleware() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -207,13 +204,11 @@ fn test_scope_middleware_multiple() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .middleware(MiddlewareTest {
+                }).middleware(MiddlewareTest {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -242,8 +237,7 @@ fn test_middleware_async_handler() {
                 start: Arc::clone(&act_num1),
                 response: Arc::clone(&act_num2),
                 finish: Arc::clone(&act_num3),
-            })
-            .resource("/", |r| {
+            }).resource("/", |r| {
                 r.route().a(|_| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(|_| Ok(HttpResponse::Ok()))
@@ -312,8 +306,7 @@ fn test_scope_middleware_async_handler() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| {
+                }).resource("/test", |r| {
                     r.route().a(|_| {
                         Delay::new(Instant::now() + Duration::from_millis(10))
                             .and_then(|_| Ok(HttpResponse::Ok()))
@@ -379,8 +372,7 @@ fn test_scope_middleware_async_error() {
                     start: Arc::clone(&act_req),
                     response: Arc::clone(&act_resp),
                     finish: Arc::clone(&act_fin),
-                })
-                .resource("/test", |r| r.f(index_test_middleware_async_error))
+                }).resource("/test", |r| r.f(index_test_middleware_async_error))
         })
     });
 
@@ -514,13 +506,11 @@ fn test_async_middleware_multiple() {
                 start: Arc::clone(&act_num1),
                 response: Arc::clone(&act_num2),
                 finish: Arc::clone(&act_num3),
-            })
-            .middleware(MiddlewareAsyncTest {
+            }).middleware(MiddlewareAsyncTest {
                 start: Arc::clone(&act_num1),
                 response: Arc::clone(&act_num2),
                 finish: Arc::clone(&act_num3),
-            })
-            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+            }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -550,13 +540,11 @@ fn test_async_sync_middleware_multiple() {
                 start: Arc::clone(&act_num1),
                 response: Arc::clone(&act_num2),
                 finish: Arc::clone(&act_num3),
-            })
-            .middleware(MiddlewareTest {
+            }).middleware(MiddlewareTest {
                 start: Arc::clone(&act_num1),
                 response: Arc::clone(&act_num2),
                 finish: Arc::clone(&act_num3),
-            })
-            .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+            }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
     });
 
     let request = srv.get().uri(srv.url("/test")).finish().unwrap();
@@ -587,8 +575,7 @@ fn test_async_scope_middleware() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -620,13 +607,11 @@ fn test_async_scope_middleware_multiple() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .middleware(MiddlewareAsyncTest {
+                }).middleware(MiddlewareAsyncTest {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -658,13 +643,11 @@ fn test_async_async_scope_middleware_multiple() {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .middleware(MiddlewareTest {
+                }).middleware(MiddlewareTest {
                     start: Arc::clone(&act_num1),
                     response: Arc::clone(&act_num2),
                     finish: Arc::clone(&act_num3),
-                })
-                .resource("/test", |r| r.f(|_| HttpResponse::Ok()))
+                }).resource("/test", |r| r.f(|_| HttpResponse::Ok()))
         })
     });
 
@@ -1012,8 +995,7 @@ fn test_session_storage_middleware() {
         App::new()
             .middleware(SessionStorage::new(
                 CookieSessionBackend::signed(&[0; 32]).secure(false),
-            ))
-            .resource("/index", move |r| {
+            )).resource("/index", move |r| {
                 r.f(|req| {
                     let res = req.session().set(COMPLEX_NAME, COMPLEX_PAYLOAD);
                     assert!(res.is_ok());
@@ -1033,8 +1015,7 @@ fn test_session_storage_middleware() {
 
                     HttpResponse::Ok()
                 })
-            })
-            .resource("/expect_cookie", move |r| {
+            }).resource("/expect_cookie", move |r| {
                 r.f(|req| {
                     let _cookies = req.cookies().expect("To get cookies");
 

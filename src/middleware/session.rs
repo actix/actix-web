@@ -579,8 +579,7 @@ mod tests {
             App::new()
                 .middleware(SessionStorage::new(
                     CookieSessionBackend::signed(&[0; 32]).secure(false),
-                ))
-                .resource("/", |r| {
+                )).resource("/", |r| {
                     r.f(|req| {
                         let _ = req.session().set("counter", 100);
                         "test"
@@ -599,8 +598,7 @@ mod tests {
             App::new()
                 .middleware(SessionStorage::new(
                     CookieSessionBackend::signed(&[0; 32]).secure(false),
-                ))
-                .resource("/", |r| {
+                )).resource("/", |r| {
                     r.with(|ses: Session| {
                         let _ = ses.set("counter", 100);
                         "test"

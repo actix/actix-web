@@ -103,7 +103,7 @@ impl<T> Path<T> {
 
 impl<T> From<T> for Path<T> {
     fn from(inner: T) -> Path<T> {
-        Path{inner}
+        Path { inner }
     }
 }
 
@@ -802,8 +802,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
@@ -837,8 +837,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         match Option::<Form<Info>>::from_request(&req, &cfg)
             .poll()
@@ -857,8 +857,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"bye=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .finish();
 
         match Option::<Form<Info>>::from_request(&req, &cfg)
             .poll()
@@ -875,8 +875,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
             .poll()
@@ -895,8 +895,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"bye=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .finish();
 
         match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
             .poll()

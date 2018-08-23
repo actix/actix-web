@@ -93,8 +93,7 @@ fn origin(headers: &HeaderMap) -> Option<Result<Cow<str>, CsrfError>> {
                 .to_str()
                 .map_err(|_| CsrfError::BadOrigin)
                 .map(|o| o.into())
-        })
-        .or_else(|| {
+        }).or_else(|| {
             headers.get(header::REFERER).map(|referer| {
                 Uri::try_from(Bytes::from(referer.as_bytes()))
                     .ok()
@@ -251,7 +250,7 @@ mod tests {
             "Referer",
             "https://www.example.com/some/path?query=param",
         ).method(Method::POST)
-            .finish();
+        .finish();
 
         assert!(csrf.start(&req).is_ok());
     }

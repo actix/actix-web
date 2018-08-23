@@ -513,8 +513,7 @@ where
             .fold(BytesMut::new(), |mut b, c| {
                 b.extend_from_slice(c);
                 b
-            })
-            .freeze()
+            }).freeze()
     }
 }
 
@@ -553,8 +552,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -578,8 +576,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -596,8 +593,7 @@ mod tests {
                 payload.readany().err().unwrap();
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -625,8 +621,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -659,8 +654,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -693,8 +687,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -715,7 +708,6 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 }

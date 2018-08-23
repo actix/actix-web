@@ -20,8 +20,9 @@ impl<T, R, F: Fn(T) -> R + 'static> FnWith<T, R> for F {
 
 #[doc(hidden)]
 pub trait WithFactory<T, S, R>: 'static
-where T: FromRequest<S>,
-      R: Responder,
+where
+    T: FromRequest<S>,
+    R: Responder,
 {
     fn create(self) -> With<T, S, R>;
 
@@ -30,10 +31,11 @@ where T: FromRequest<S>,
 
 #[doc(hidden)]
 pub trait WithAsyncFactory<T, S, R, I, E>: 'static
-where T: FromRequest<S>,
-      R: Future<Item=I, Error=E>,
-      I: Responder,
-      E: Into<Error>,
+where
+    T: FromRequest<S>,
+    R: Future<Item = I, Error = E>,
+    I: Responder,
+    E: Into<Error>,
 {
     fn create(self) -> WithAsync<T, S, R, I, E>;
 
@@ -305,7 +307,6 @@ where
     }
 }
 
-
 macro_rules! with_factory_tuple ({$(($n:tt, $T:ident)),+} => {
     impl<$($T,)+ State, Func, Res> WithFactory<($($T,)+), State, Res> for Func
     where Func: Fn($($T,)+) -> Res + 'static,
@@ -349,8 +350,27 @@ with_factory_tuple!((a, A), (b, B), (c, C), (d, D));
 with_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E));
 with_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F));
 with_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G));
-with_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G), (h, H));
-with_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G), (h, H), (i, I));
+with_factory_tuple!(
+    (a, A),
+    (b, B),
+    (c, C),
+    (d, D),
+    (e, E),
+    (f, F),
+    (g, G),
+    (h, H)
+);
+with_factory_tuple!(
+    (a, A),
+    (b, B),
+    (c, C),
+    (d, D),
+    (e, E),
+    (f, F),
+    (g, G),
+    (h, H),
+    (i, I)
+);
 
 with_async_factory_tuple!((a, A));
 with_async_factory_tuple!((a, A), (b, B));
@@ -359,5 +379,24 @@ with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D));
 with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E));
 with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F));
 with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G));
-with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G), (h, H));
-with_async_factory_tuple!((a, A), (b, B), (c, C), (d, D), (e, E), (f, F), (g, G), (h, H), (i, I));
+with_async_factory_tuple!(
+    (a, A),
+    (b, B),
+    (c, C),
+    (d, D),
+    (e, E),
+    (f, F),
+    (g, G),
+    (h, H)
+);
+with_async_factory_tuple!(
+    (a, A),
+    (b, B),
+    (c, C),
+    (d, D),
+    (e, E),
+    (f, F),
+    (g, G),
+    (h, H),
+    (i, I)
+);

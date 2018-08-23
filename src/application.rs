@@ -776,8 +776,7 @@ mod tests {
             .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/test").method(Method::GET).request();
         let resp = app.run(req);

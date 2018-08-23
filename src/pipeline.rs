@@ -52,9 +52,7 @@ impl<S: 'static, H: PipelineHandler<S>> PipelineState<S, H> {
             PipelineState::Finishing(ref mut state) => state.poll(info, mws),
             PipelineState::Completed(ref mut state) => state.poll(info),
             PipelineState::Response(ref mut state) => state.poll(info, mws),
-            PipelineState::None | PipelineState::Error => {
-                None
-            }
+            PipelineState::None | PipelineState::Error => None,
         }
     }
 }
@@ -448,10 +446,16 @@ impl<S: 'static, H> ProcessResponse<S, H> {
     ) -> Option<PipelineState<S, H>> {
         // connection is dead at this point
         match mem::replace(&mut self.iostate, IOState::Done) {
-            IOState::Response =>
-                Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap())),
-            IOState::Payload(_) =>
-                Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap())),
+            IOState::Response => Some(FinishingMiddlewares::init(
+                info,
+                mws,
+                self.resp.take().unwrap(),
+            )),
+            IOState::Payload(_) => Some(FinishingMiddlewares::init(
+                info,
+                mws,
+                self.resp.take().unwrap(),
+            )),
             IOState::Actor(mut ctx) => {
                 if info.disconnected.take().is_some() {
                     ctx.disconnected();
@@ -467,18 +471,25 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     Frame::Chunk(None) => {
                                         info.context = Some(ctx);
                                         return Some(FinishingMiddlewares::init(
-                                            info, mws, self.resp.take().unwrap(),
-                                        ))
+                                            info,
+                                            mws,
+                                            self.resp.take().unwrap(),
+                                        ));
                                     }
                                     Frame::Chunk(Some(_)) => (),
-                                    Frame::Drain(fut) => {let _ = fut.send(());},
+                                    Frame::Drain(fut) => {
+                                        let _ = fut.send(());
+                                    }
                                 }
                             }
                         }
-                        Ok(Async::Ready(None)) =>
+                        Ok(Async::Ready(None)) => {
                             return Some(FinishingMiddlewares::init(
-                                info, mws, self.resp.take().unwrap(),
-                            )),
+                                info,
+                                mws,
+                                self.resp.take().unwrap(),
+                            ))
+                        }
                         Ok(Async::NotReady) => {
                             self.iostate = IOState::Actor(ctx);
                             return None;
@@ -486,12 +497,20 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                         Err(err) => {
                             info.context = Some(ctx);
                             info.error = Some(err);
-                            return Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
+                            return Some(FinishingMiddlewares::init(
+                                info,
+                                mws,
+                                self.resp.take().unwrap(),
+                            ));
                         }
                     }
                 }
             }
-            IOState::Done => Some(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()))
+            IOState::Done => Some(FinishingMiddlewares::init(
+                info,
+                mws,
+                self.resp.take().unwrap(),
+            )),
         }
     }
 
@@ -505,22 +524,32 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                 'inner: loop {
                     let result = match mem::replace(&mut self.iostate, IOState::Done) {
                         IOState::Response => {
-                            let encoding =
-                                self.resp.as_ref().unwrap().content_encoding().unwrap_or(info.encoding);
+                            let encoding = self
+                                .resp
+                                .as_ref()
+                                .unwrap()
+                                .content_encoding()
+                                .unwrap_or(info.encoding);
 
-                            let result =
-                                match io.start(&info.req, self.resp.as_mut().unwrap(), encoding) {
-                                    Ok(res) => res,
-                                    Err(err) => {
-                                        info.error = Some(err.into());
-                                        return Ok(FinishingMiddlewares::init(
-                                            info, mws, self.resp.take().unwrap(),
-                                        ));
-                                    }
-                                };
+                            let result = match io.start(
+                                &info.req,
+                                self.resp.as_mut().unwrap(),
+                                encoding,
+                            ) {
+                                Ok(res) => res,
+                                Err(err) => {
+                                    info.error = Some(err.into());
+                                    return Ok(FinishingMiddlewares::init(
+                                        info,
+                                        mws,
+                                        self.resp.take().unwrap(),
+                                    ));
+                                }
+                            };
 
                             if let Some(err) = self.resp.as_ref().unwrap().error() {
-                                if self.resp.as_ref().unwrap().status().is_server_error() {
+                                if self.resp.as_ref().unwrap().status().is_server_error()
+                                {
                                     error!(
                                         "Error occured during request handling, status: {} {}",
                                         self.resp.as_ref().unwrap().status(), err
@@ -556,7 +585,9 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 if let Err(err) = io.write_eof() {
                                     info.error = Some(err.into());
                                     return Ok(FinishingMiddlewares::init(
-                                        info, mws, self.resp.take().unwrap(),
+                                        info,
+                                        mws,
+                                        self.resp.take().unwrap(),
                                     ));
                                 }
                                 break;
@@ -567,7 +598,9 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     Err(err) => {
                                         info.error = Some(err.into());
                                         return Ok(FinishingMiddlewares::init(
-                                            info, mws, self.resp.take().unwrap(),
+                                            info,
+                                            mws,
+                                            self.resp.take().unwrap(),
                                         ));
                                     }
                                     Ok(result) => result,
@@ -580,7 +613,9 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             Err(err) => {
                                 info.error = Some(err);
                                 return Ok(FinishingMiddlewares::init(
-                                    info, mws, self.resp.take().unwrap(),
+                                    info,
+                                    mws,
+                                    self.resp.take().unwrap(),
                                 ));
                             }
                         },
@@ -603,26 +638,30 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                                     info.error = Some(err.into());
                                                     return Ok(
                                                         FinishingMiddlewares::init(
-                                                            info, mws, self.resp.take().unwrap(),
+                                                            info,
+                                                            mws,
+                                                            self.resp.take().unwrap(),
                                                         ),
                                                     );
                                                 }
                                                 break 'inner;
                                             }
-                                            Frame::Chunk(Some(chunk)) => {
-                                                match io.write(&chunk) {
-                                                    Err(err) => {
-                                                        info.context = Some(ctx);
-                                                        info.error = Some(err.into());
-                                                        return Ok(
-                                                            FinishingMiddlewares::init(
-                                                                info, mws, self.resp.take().unwrap(),
-                                                            ),
-                                                        );
-                                                    }
-                                                    Ok(result) => res = Some(result),
+                                            Frame::Chunk(Some(chunk)) => match io
+                                                .write(&chunk)
+                                            {
+                                                Err(err) => {
+                                                    info.context = Some(ctx);
+                                                    info.error = Some(err.into());
+                                                    return Ok(
+                                                        FinishingMiddlewares::init(
+                                                            info,
+                                                            mws,
+                                                            self.resp.take().unwrap(),
+                                                        ),
+                                                    );
                                                 }
-                                            }
+                                                Ok(result) => res = Some(result),
+                                            },
                                             Frame::Drain(fut) => self.drain = Some(fut),
                                         }
                                     }
@@ -642,7 +681,9 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                     info.context = Some(ctx);
                                     info.error = Some(err);
                                     return Ok(FinishingMiddlewares::init(
-                                        info, mws, self.resp.take().unwrap(),
+                                        info,
+                                        mws,
+                                        self.resp.take().unwrap(),
                                     ));
                                 }
                             }
@@ -682,7 +723,11 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                             info.context = Some(ctx);
                         }
                         info.error = Some(err.into());
-                        return Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
+                        return Ok(FinishingMiddlewares::init(
+                            info,
+                            mws,
+                            self.resp.take().unwrap(),
+                        ));
                     }
                 }
             }
@@ -696,11 +741,19 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                     Ok(_) => (),
                     Err(err) => {
                         info.error = Some(err.into());
-                        return Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()));
+                        return Ok(FinishingMiddlewares::init(
+                            info,
+                            mws,
+                            self.resp.take().unwrap(),
+                        ));
                     }
                 }
                 self.resp.as_mut().unwrap().set_response_size(io.written());
-                Ok(FinishingMiddlewares::init(info, mws, self.resp.take().unwrap()))
+                Ok(FinishingMiddlewares::init(
+                    info,
+                    mws,
+                    self.resp.take().unwrap(),
+                ))
             }
             _ => Err(PipelineState::Response(self)),
         }

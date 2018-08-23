@@ -71,7 +71,7 @@ fn start_ws_resource(req: &HttpRequest) -> Result<HttpResponse, Error> {
 
 #[test]
 fn test_simple_path() {
-    const PATH:&str = "/v1/ws/";
+    const PATH: &str = "/v1/ws/";
 
     // Create a websocket at a specific path.
     let mut srv = test::TestServer::new(|app| {
@@ -102,7 +102,6 @@ fn test_simple_path() {
         Some(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
     );
 }
-
 
 #[test]
 fn test_empty_close_code() {
@@ -214,8 +213,7 @@ impl Ws2 {
                     act.send(ctx);
                 }
                 actix::fut::ok(())
-            })
-            .wait(ctx);
+            }).wait(ctx);
     }
 }
 

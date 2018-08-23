@@ -250,9 +250,7 @@ impl<H: 'static> Writer for H2Writer<H> {
                             return Ok(Async::Ready(()));
                         }
                     }
-                    Err(e) => {
-                        return Err(io::Error::new(io::ErrorKind::Other, e))
-                    }
+                    Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
                 }
             }
         }

@@ -127,7 +127,6 @@ extern crate tokio_uds;
 extern crate url;
 #[macro_use]
 extern crate serde;
-extern crate serde_urlencoded;
 #[cfg(feature = "brotli")]
 extern crate brotli2;
 extern crate encoding;
@@ -135,6 +134,7 @@ extern crate encoding;
 extern crate flate2;
 extern crate h2 as http2;
 extern crate num_cpus;
+extern crate serde_urlencoded;
 #[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
@@ -256,12 +256,12 @@ pub mod dev {
     pub use extractor::{FormConfig, PayloadConfig};
     pub use handler::{AsyncResult, Handler};
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use pipeline::Pipeline;
     pub use httpresponse::HttpResponseBuilder;
     pub use info::ConnectionInfo;
     pub use json::{JsonBody, JsonConfig};
     pub use param::{FromParam, Params};
     pub use payload::{Payload, PayloadBuffer};
+    pub use pipeline::Pipeline;
     pub use resource::Resource;
     pub use route::Route;
     pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
@@ -283,7 +283,9 @@ pub mod http {
     /// Various http headers
     pub mod header {
         pub use header::*;
-        pub use header::{ContentDisposition, DispositionType, DispositionParam, Charset, LanguageTag};
+        pub use header::{
+            Charset, ContentDisposition, DispositionParam, DispositionType, LanguageTag,
+        };
     }
     pub use header::ContentEncoding;
     pub use httpresponse::ConnectionType;

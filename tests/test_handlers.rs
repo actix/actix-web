@@ -191,8 +191,7 @@ fn test_form_extractor() {
         .uri(srv.url("/test1/index.html"))
         .form(FormData {
             username: "test".to_string(),
-        })
-        .unwrap();
+        }).unwrap();
     let response = srv.execute(request.send()).unwrap();
     assert!(response.status().is_success());
 
@@ -306,8 +305,7 @@ fn test_path_and_query_extractor2_async() {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
-                        })
-                        .responder()
+                        }).responder()
                 },
             )
         });
@@ -336,8 +334,7 @@ fn test_path_and_query_extractor3_async() {
                 Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
-                    })
-                    .responder()
+                    }).responder()
             })
         });
     });
@@ -361,8 +358,7 @@ fn test_path_and_query_extractor4_async() {
                 Delay::new(Instant::now() + Duration::from_millis(10))
                     .and_then(move |_| {
                         Ok(format!("Welcome {} - {}!", p.username, data.0))
-                    })
-                    .responder()
+                    }).responder()
             })
         });
     });
@@ -387,8 +383,7 @@ fn test_path_and_query_extractor2_async2() {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
-                        })
-                        .responder()
+                        }).responder()
                 },
             )
         });
@@ -422,15 +417,13 @@ fn test_path_and_query_extractor2_async2() {
 fn test_path_and_query_extractor2_async3() {
     let mut srv = test::TestServer::new(|app| {
         app.resource("/{username}/index.html", |r| {
-            r.route().with(
-                |data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
+            r.route()
+                .with(|data: Json<Value>, p: Path<PParam>, _: Query<PParam>| {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", p.username, data.0))
-                        })
-                        .responder()
-                },
-            )
+                        }).responder()
+                })
         });
     });
 
@@ -467,8 +460,7 @@ fn test_path_and_query_extractor2_async4() {
                     Delay::new(Instant::now() + Duration::from_millis(10))
                         .and_then(move |_| {
                             Ok(format!("Welcome {} - {}!", data.1.username, (data.0).0))
-                        })
-                        .responder()
+                        }).responder()
                 })
         });
     });

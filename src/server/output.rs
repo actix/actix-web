@@ -273,10 +273,9 @@ impl Output {
 
         let enc = match encoding {
             #[cfg(feature = "flate2")]
-            ContentEncoding::Deflate => ContentEncoder::Deflate(ZlibEncoder::new(
-                transfer,
-                Compression::fast(),
-            )),
+            ContentEncoding::Deflate => {
+                ContentEncoder::Deflate(ZlibEncoder::new(transfer, Compression::fast()))
+            }
             #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => {
                 ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::fast()))

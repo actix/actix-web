@@ -302,10 +302,9 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
     req.replace_body(body);
     let enc = match encoding {
         #[cfg(feature = "flate2")]
-        ContentEncoding::Deflate => ContentEncoder::Deflate(ZlibEncoder::new(
-            transfer,
-            Compression::default(),
-        )),
+        ContentEncoding::Deflate => {
+            ContentEncoder::Deflate(ZlibEncoder::new(transfer, Compression::default()))
+        }
         #[cfg(feature = "flate2")]
         ContentEncoding::Gzip => {
             ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::default()))

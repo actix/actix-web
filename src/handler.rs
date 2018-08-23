@@ -354,15 +354,16 @@ impl<T, E: Into<Error>> From<Result<T, E>> for AsyncResult<T> {
 }
 
 impl<T, E> From<Result<Box<Future<Item = T, Error = E>>, E>> for AsyncResult<T>
-where T: 'static,
-      E: Into<Error> + 'static
+where
+    T: 'static,
+    E: Into<Error> + 'static,
 {
     #[inline]
     fn from(res: Result<Box<Future<Item = T, Error = E>>, E>) -> Self {
         match res {
-            Ok(fut) => AsyncResult(
-                Some(AsyncResultItem::Future(
-                    Box::new(fut.map_err(|e| e.into()))))),
+            Ok(fut) => AsyncResult(Some(AsyncResultItem::Future(Box::new(
+                fut.map_err(|e| e.into()),
+            )))),
             Err(err) => AsyncResult(Some(AsyncResultItem::Err(err.into()))),
         }
     }

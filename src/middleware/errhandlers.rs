@@ -131,7 +131,7 @@ mod tests {
                 ErrorHandlers::new()
                     .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
             ).middleware(MiddlewareOne)
-                .handler(|_| HttpResponse::Ok())
+            .handler(|_| HttpResponse::Ok())
         });
 
         let request = srv.get().finish().unwrap();

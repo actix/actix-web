@@ -1,16 +1,21 @@
-use std::{mem, net};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use std::time::Duration;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::{mem, net};
 
-use num_cpus;
-use futures::{Future, Stream, Sink};
 use futures::sync::{mpsc, mpsc::unbounded};
+use futures::{Future, Sink, Stream};
+use num_cpus;
 
-use actix::{fut, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext,
-            Context, Handler, Response, System, StreamHandler, WrapFuture};
+use actix::{
+    fut, signal, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
+    Response, StreamHandler, System, WrapFuture,
+};
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::worker::{StopWorker, Worker, WorkerClient, Conn};
+use super::worker::{Conn, StopWorker, Worker, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
 #[doc(hidden)]
@@ -39,7 +44,9 @@ impl Service for Box<Service> {
 /// TCP connections.
 pub trait ServiceHandler {
     /// Handle incoming stream
-    fn handle(&mut self, token: Token, io: net::TcpStream, peer: Option<net::SocketAddr>);
+    fn handle(
+        &mut self, token: Token, io: net::TcpStream, peer: Option<net::SocketAddr>,
+    );
 
     /// Shutdown open handlers
     fn shutdown(&self, _: bool) {}
@@ -156,7 +163,7 @@ impl Server {
     /// Add new service to server
     pub fn service<T>(mut self, srv: T) -> Self
     where
-        T: Into<(Box<Service>, Vec<(Token, net::TcpListener)>)>
+        T: Into<(Box<Service>, Vec<(Token, net::TcpListener)>)>,
     {
         let (srv, sockets) = srv.into();
         self.services.push(srv);
@@ -213,8 +220,9 @@ impl Server {
                     info!("Starting server on http://{:?}", s.1.local_addr().ok());
                 }
             }
-            let rx = self.accept.start(
-                mem::replace(&mut self.sockets, Vec::new()), workers);
+            let rx = self
+                .accept
+                .start(mem::replace(&mut self.sockets, Vec::new()), workers);
 
             // start http server actor
             let signals = self.subscribe_to_signals();
@@ -242,7 +250,9 @@ impl Server {
         }
     }
 
-    fn start_worker(&self, idx: usize, notify: AcceptNotify) -> (Addr<Worker>, WorkerClient) {
+    fn start_worker(
+        &self, idx: usize, notify: AcceptNotify,
+    ) -> (Addr<Worker>, WorkerClient) {
         let (tx, rx) = unbounded::<Conn<net::TcpStream>>();
         let conns = Connections::new(notify, self.maxconn, self.maxconnrate);
         let worker = WorkerClient::new(idx, tx, conns.clone());
@@ -250,7 +260,10 @@ impl Server {
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {
             ctx.add_message_stream(rx);
-            let handlers: Vec<_> = services.into_iter().map(|s| s.create(conns.clone())).collect();
+            let handlers: Vec<_> = services
+                .into_iter()
+                .map(|s| s.create(conns.clone()))
+                .collect();
             Worker::new(conns, handlers)
         });
 
@@ -258,8 +271,7 @@ impl Server {
     }
 }
 
-impl Actor for Server
-{
+impl Actor for Server {
     type Context = Context<Self>;
 }
 
@@ -391,7 +403,8 @@ impl StreamHandler<ServerCommand, ()> for Server {
                         break;
                     }
 
-                    let (addr, worker) = self.start_worker(new_idx, self.accept.get_notify());
+                    let (addr, worker) =
+                        self.start_worker(new_idx, self.accept.get_notify());
                     self.workers.push((new_idx, addr));
                     self.accept.send(Command::Worker(worker));
                 }
@@ -413,14 +426,15 @@ impl Connections {
             0
         };
 
-        Connections (
-            Arc::new(ConnectionsInner {
-                notify,
-                maxconn, maxconnrate,
-                maxconn_low, maxconnrate_low,
-                conn: AtomicUsize::new(0),
-                connrate: AtomicUsize::new(0),
-            }))
+        Connections(Arc::new(ConnectionsInner {
+            notify,
+            maxconn,
+            maxconnrate,
+            maxconn_low,
+            maxconnrate_low,
+            conn: AtomicUsize::new(0),
+            connrate: AtomicUsize::new(0),
+        }))
     }
 
     pub(crate) fn available(&self) -> bool {
@@ -473,7 +487,6 @@ impl ConnectionsInner {
             self.notify.notify();
         }
     }
-
 }
 
 /// Type responsible for max connection stat.
@@ -498,7 +511,7 @@ impl Drop for ConnectionTag {
 /// Type responsible for max connection rate stat.
 ///
 /// Max connections rate stat get updated on drop.
-pub struct ConnectionRateTag (Arc<ConnectionsInner>);
+pub struct ConnectionRateTag(Arc<ConnectionsInner>);
 
 impl ConnectionRateTag {
     fn new(inner: Arc<ConnectionsInner>) -> Self {

@@ -115,46 +115,51 @@ where
                         if disconnected {
                             item.flags.insert(EntryFlags::EOF);
                         } else {
-                        let retry = item.payload.need_read() == PayloadStatus::Read;
-                        loop {
-                            match item.task.poll_io(&mut item.stream) {
-                                Ok(Async::Ready(ready)) => {
-                                    if ready {
+                            let retry = item.payload.need_read() == PayloadStatus::Read;
+                            loop {
+                                match item.task.poll_io(&mut item.stream) {
+                                    Ok(Async::Ready(ready)) => {
+                                        if ready {
+                                            item.flags.insert(
+                                                EntryFlags::EOF | EntryFlags::FINISHED,
+                                            );
+                                        } else {
+                                            item.flags.insert(EntryFlags::EOF);
+                                        }
+                                        not_ready = false;
+                                    }
+                                    Ok(Async::NotReady) => {
+                                        if item.payload.need_read()
+                                            == PayloadStatus::Read
+                                            && !retry
+                                        {
+                                            continue;
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("Unhandled error: {}", err);
                                         item.flags.insert(
-                                            EntryFlags::EOF | EntryFlags::FINISHED,
+                                            EntryFlags::EOF
+                                                | EntryFlags::ERROR
+                                                | EntryFlags::WRITE_DONE,
                                         );
-                                    } else {
-                                        item.flags.insert(EntryFlags::EOF);
-                                    }
-                                    not_ready = false;
-                                }
-                                Ok(Async::NotReady) => {
-                                    if item.payload.need_read() == PayloadStatus::Read
-                                        && !retry
-                                    {
-                                        continue;
+                                        item.stream.reset(Reason::INTERNAL_ERROR);
                                     }
                                 }
-                                Err(err) => {
-                                    error!("Unhandled error: {}", err);
-                                    item.flags.insert(
-                                        EntryFlags::EOF
-                                            | EntryFlags::ERROR
-                                            | EntryFlags::WRITE_DONE,
-                                    );
-                                    item.stream.reset(Reason::INTERNAL_ERROR);
-                                }
+                                break;
                             }
-                            break;
-                        }
                         }
                     }
-                    
-                    if item.flags.contains(EntryFlags::EOF) && !item.flags.contains(EntryFlags::FINISHED) {
+
+                    if item.flags.contains(EntryFlags::EOF)
+                        && !item.flags.contains(EntryFlags::FINISHED)
+                    {
                         match item.task.poll_completed() {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
-                                item.flags.insert(EntryFlags::FINISHED | EntryFlags::WRITE_DONE);
+                                item.flags.insert(
+                                    EntryFlags::FINISHED | EntryFlags::WRITE_DONE,
+                                );
                             }
                             Err(err) => {
                                 item.flags.insert(

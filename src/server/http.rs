@@ -403,19 +403,24 @@ where
     }
 }
 
-impl<H: IntoHttpHandler> Into<(Box<Service>, Vec<(Token, net::TcpListener)>)> for HttpServer<H> {
+impl<H: IntoHttpHandler> Into<(Box<Service>, Vec<(Token, net::TcpListener)>)>
+    for HttpServer<H>
+{
     fn into(mut self) -> (Box<Service>, Vec<(Token, net::TcpListener)>) {
         let sockets: Vec<_> = mem::replace(&mut self.sockets, Vec::new())
             .into_iter()
             .map(|item| (item.token, item.lst))
             .collect();
 
-        (Box::new(HttpService {
-            factory: self.factory,
-            host: self.host,
-            keep_alive: self.keep_alive,
-            handlers: self.handlers,
-        }), sockets)
+        (
+            Box::new(HttpService {
+                factory: self.factory,
+                host: self.host,
+                keep_alive: self.keep_alive,
+                handlers: self.handlers,
+            }),
+            sockets,
+        )
     }
 }
 

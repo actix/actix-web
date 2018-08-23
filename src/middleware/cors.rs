@@ -387,12 +387,10 @@ impl<S> Middleware<S> for Cors {
                             header::ACCESS_CONTROL_MAX_AGE,
                             format!("{}", max_age).as_str(),
                         );
-                    })
-                    .if_some(headers, |headers, resp| {
+                    }).if_some(headers, |headers, resp| {
                         let _ =
                             resp.header(header::ACCESS_CONTROL_ALLOW_HEADERS, headers);
-                    })
-                    .if_true(self.inner.origins.is_all(), |resp| {
+                    }).if_true(self.inner.origins.is_all(), |resp| {
                         if self.inner.send_wildcard {
                             resp.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
                         } else {
@@ -402,17 +400,14 @@ impl<S> Middleware<S> for Cors {
                                 origin.clone(),
                             );
                         }
-                    })
-                    .if_true(self.inner.origins.is_some(), |resp| {
+                    }).if_true(self.inner.origins.is_some(), |resp| {
                         resp.header(
                             header::ACCESS_CONTROL_ALLOW_ORIGIN,
                             self.inner.origins_str.as_ref().unwrap().clone(),
                         );
-                    })
-                    .if_true(self.inner.supports_credentials, |resp| {
+                    }).if_true(self.inner.supports_credentials, |resp| {
                         resp.header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
-                    })
-                    .header(
+                    }).header(
                         header::ACCESS_CONTROL_ALLOW_METHODS,
                         &self
                             .inner
@@ -420,8 +415,7 @@ impl<S> Middleware<S> for Cors {
                             .iter()
                             .fold(String::new(), |s, v| s + "," + v.as_str())
                             .as_str()[1..],
-                    )
-                    .finish(),
+                    ).finish(),
             ))
         } else {
             // Only check requests with a origin header.
@@ -838,9 +832,10 @@ impl<S: 'static> CorsBuilder<S> {
 
         if !self.expose_hdrs.is_empty() {
             cors.expose_hdrs = Some(
-                self.expose_hdrs.iter()
+                self.expose_hdrs
+                    .iter()
                     .fold(String::new(), |s, v| format!("{}, {}", s, v.as_str()))[2..]
-                    .to_owned()
+                    .to_owned(),
             );
         }
         Cors {
@@ -977,8 +972,7 @@ mod tests {
             .header(
                 header::ACCESS_CONTROL_REQUEST_HEADERS,
                 "AUTHORIZATION,ACCEPT",
-            )
-            .method(Method::OPTIONS)
+            ).method(Method::OPTIONS)
             .finish();
 
         let resp = cors.start(&req).unwrap().response();
@@ -1102,7 +1096,8 @@ mod tests {
         );
 
         {
-            let headers = resp.headers()
+            let headers = resp
+                .headers()
                 .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
                 .unwrap()
                 .to_str()

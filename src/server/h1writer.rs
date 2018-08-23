@@ -152,8 +152,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let reason = msg.reason().as_bytes();
             if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
-                    256
-                        + msg.headers().len() * AVERAGE_HEADER_SIZE
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE
                         + bytes.len()
                         + reason.len(),
                 );

@@ -369,11 +369,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
                 .body("This resource only supports GET and HEAD."));
         }
 
-        let etag = if C::is_use_etag() {
-            self.etag()
-        } else {
-            None
-        };
+        let etag = if C::is_use_etag() { self.etag() } else { None };
         let last_modified = if C::is_use_last_modifier() {
             self.last_modified()
         } else {
@@ -518,7 +514,8 @@ impl Stream for ChunkedReadFile {
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
                 file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+                let nbytes =
+                    file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
@@ -869,8 +866,7 @@ impl HttpRange {
                         length: length as u64,
                     }))
                 }
-            })
-            .collect::<Result<_, _>>()?;
+            }).collect::<Result<_, _>>()?;
 
         let ranges: Vec<HttpRange> = all_ranges.into_iter().filter_map(|x| x).collect();
 
@@ -986,9 +982,7 @@ mod tests {
         use header::{ContentDisposition, DispositionParam, DispositionType};
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
-            parameters: vec![DispositionParam::Filename(
-                String::from("test.png")
-            )],
+            parameters: vec![DispositionParam::Filename(String::from("test.png"))],
         };
         let mut file = NamedFile::open("tests/test.png")
             .unwrap()

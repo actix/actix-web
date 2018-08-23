@@ -174,8 +174,7 @@ mod tests {
             .header(
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
-            )
-            .request();
+            ).request();
 
         let mut info = ConnectionInfo::default();
         info.update(&req);

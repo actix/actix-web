@@ -166,9 +166,9 @@ impl H1Decoder {
                                     {
                                         true
                                     } else {
-                                        version == Version::HTTP_11
-                                            && !(conn.contains("close")
-                                                || conn.contains("upgrade"))
+                                        version == Version::HTTP_11 && !(conn
+                                            .contains("close")
+                                            || conn.contains("upgrade"))
                                     }
                                 } else {
                                     false
