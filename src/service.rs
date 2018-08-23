@@ -390,7 +390,8 @@ pub struct AndThen<A, B> {
 impl<A, B> AndThen<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    A::Error: Into<B::Error>,
+    B: Service<Request = A::Response>,
 {
     /// Create new `AndThen` combinator
     pub fn new(a: A, b: B) -> Self {
@@ -404,7 +405,8 @@ where
 impl<A, B> Service for AndThen<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    A::Error: Into<B::Error>,
+    B: Service<Request = A::Response>,
 {
     type Request = A::Request;
     type Response = B::Response;
@@ -412,11 +414,12 @@ where
     type Future = AndThenFuture<A, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        let res = self.a.poll_ready();
-        if let Ok(Async::Ready(_)) = res {
-            self.b.borrow_mut().poll_ready()
-        } else {
-            res
+        match self.a.poll_ready() {
+            Ok(Async::Ready(_)) => {
+                self.b.borrow_mut().poll_ready()
+            },
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(err) => Err(err.into())
         }
     }
 
@@ -428,7 +431,8 @@ where
 pub struct AndThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    A::Error: Into<B::Error>,
+    B: Service<Request = A::Response>,
 {
     b: Rc<RefCell<B>>,
     fut_b: Option<B::Future>,
@@ -438,7 +442,8 @@ where
 impl<A, B> AndThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    A::Error: Into<B::Error>,
+    B: Service<Request = A::Response>,
 {
     fn new(fut_a: A::Future, b: Rc<RefCell<B>>) -> Self {
         AndThenFuture {
@@ -452,7 +457,8 @@ where
 impl<A, B> Future for AndThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    A::Error: Into<B::Error>,
+    B: Service<Request = A::Response>,
 {
     type Item = B::Response;
     type Error = B::Error;
@@ -462,12 +468,13 @@ where
             return fut.poll();
         }
 
-        match self.fut_a.poll()? {
-            Async::Ready(resp) => {
+        match self.fut_a.poll() {
+            Ok(Async::Ready(resp)) => {
                 self.fut_b = Some(self.b.borrow_mut().call(resp));
                 self.poll()
             }
-            Async::NotReady => Ok(Async::NotReady),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(err) => Err(err.into())
         }
     }
 }
@@ -496,15 +503,15 @@ impl<A, B> NewService for AndThenNewService<A, B>
 where
     A: NewService<
         Response = B::Request,
-        Error = B::Error,
         Config = B::Config,
         InitError = B::InitError,
     >,
+    A::Error: Into<B::Error>,
     B: NewService,
 {
     type Request = A::Request;
     type Response = B::Response;
-    type Error = A::Error;
+    type Error = B::Error;
     type Service = AndThen<A::Service, B::Service>;
 
     type Config = A::Config;
@@ -518,7 +525,8 @@ where
 
 impl<A, B> Clone for AndThenNewService<A, B>
 where
-    A: NewService<Response = B::Request, Error = B::Error, InitError = B::InitError> + Clone,
+    A: NewService<Response = B::Request, InitError = B::InitError> + Clone,
+    A::Error: Into<B::Error>,
     B: NewService + Clone,
 {
     fn clone(&self) -> Self {
@@ -557,8 +565,9 @@ where
 
 impl<A, B> Future for AndThenNewServiceFuture<A, B>
 where
-    A: NewService<Response = B::Request, Error = B::Error, InitError = B::InitError>,
-    B: NewService,
+    A: NewService,
+    A::Error: Into<B::Error>,
+    B: NewService<Request = A::Response, InitError = A::InitError>,
 {
     type Item = AndThen<A::Service, B::Service>;
     type Error = B::InitError;
@@ -608,7 +617,8 @@ where
 impl<A, F, E> Service for MapErr<A, F, E>
 where
     A: Service,
-    F: Fn(A::Error) -> E + Clone,
+    F: Fn(A::Error) -> E,
+    F: Clone,
 {
     type Request = A::Request;
     type Response = A::Response;
@@ -681,7 +691,7 @@ where
 impl<A, F, E> Clone for MapErrNewService<A, F, E>
 where
     A: NewService + Clone,
-    F: Fn(A::InitError) -> E + Clone,
+    F: Fn(A::Error) -> E + Clone,
 {
     fn clone(&self) -> Self {
         Self {
