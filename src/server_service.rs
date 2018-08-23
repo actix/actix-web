@@ -56,23 +56,21 @@ where
     }
 }
 
-pub(crate) struct ServerNewService<T, C> {
-    inner: T,
+pub(crate) struct ServerNewService<F, T, C> where F: Fn() -> T + Send + Clone {
+    inner: F,
     config: C,
     counter: Arc<AtomicUsize>,
 }
 
-impl<T, C: Config> ServerNewService<T, C>
+impl<F, T, C: Config> ServerNewService<F, T, C>
 where
-    T: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
-        + Clone
-        + Send
-        + 'static,
+    F: Fn() -> T + Send + Clone + 'static,
+    T: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
     T::Service: 'static,
     T::Future: 'static,
     T::Error: fmt::Display,
 {
-    pub(crate) fn create(inner: T, config: C) -> Box<ServerServiceFactory<C> + Send> {
+    pub(crate) fn create(inner: F, config: C) -> Box<ServerServiceFactory<C> + Send> {
         Box::new(Self {
             inner,
             config,
@@ -89,11 +87,10 @@ pub trait ServerServiceFactory<C> {
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
 }
 
-impl<T, C: Config> ServerServiceFactory<C> for ServerNewService<T, C>
+impl<F, T, C: Config> ServerServiceFactory<C> for ServerNewService<F, T, C>
 where
+    F: Fn() -> T + Send + Clone + 'static,
     T: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
-        + Clone
-        + Send
         + 'static,
     T::Service: 'static,
     T::Future: 'static,
@@ -114,7 +111,7 @@ where
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
         let counter = self.counter.clone();
         Box::new(
-            self.inner
+            (self.inner)()
                 .new_service(self.config.clone())
                 .map_err(|_| ())
                 .map(move |inner| {

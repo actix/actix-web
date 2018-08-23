@@ -19,7 +19,7 @@ use actix::{
 use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::server_config::{Config, ServerConfig};
 use super::server_service::{ServerNewService, ServerServiceFactory};
-use super::service::{IntoNewService, NewService};
+use super::service::NewService;
 use super::worker::{Conn, StopWorker, Worker, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
@@ -168,14 +168,11 @@ impl<C: Config> Server<C> {
     }
 
     /// Add new service to server
-    pub fn bind<T, U, N>(mut self, addr: U, srv: T) -> io::Result<Self>
+    pub fn bind<F, U, N>(mut self, addr: U, factory: F) -> io::Result<Self>
     where
+        F: Fn() -> N + Copy + Send + 'static,
         U: net::ToSocketAddrs,
-        T: IntoNewService<N> + Clone,
-        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
-            + Clone
-            + Send
-            + 'static,
+        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
         N::Service: 'static,
         N::Future: 'static,
         N::Error: fmt::Display,
@@ -183,28 +180,22 @@ impl<C: Config> Server<C> {
         let sockets = bind_addr(addr)?;
 
         for lst in sockets {
-            self = self.listen(lst, srv.clone())
+            self = self.listen(lst, factory.clone())
         }
         Ok(self)
     }
 
     /// Add new service to server
-    pub fn listen<T, N>(mut self, lst: net::TcpListener, srv: T) -> Self
+    pub fn listen<F, N>(mut self, lst: net::TcpListener, factory: F) -> Self
     where
-        T: IntoNewService<N>,
-        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error>
-            + Clone
-            + Send
-            + 'static,
+        F: Fn() -> N + Copy + Send + 'static,
+        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
         N::Service: 'static,
         N::Future: 'static,
         N::Error: fmt::Display,
     {
         let token = Token(self.services.len());
-        self.services.push(ServerNewService::create(
-            srv.into_new_service(),
-            self.config.clone(),
-        ));
+        self.services.push(ServerNewService::create(factory, self.config.clone()));
         self.sockets.push((token, lst));
         self
     }
