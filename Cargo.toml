@@ -118,9 +118,7 @@ webpki-roots = { version = "0.15", optional = true }
 # unix sockets
 tokio-uds = { version="0.2", optional = true }
 
-# forked url_encoded
-itoa = "0.4"
-dtoa = "0.4"
+serde_urlencoded = "^0.5.3"
 
 [dev-dependencies]
 env_logger = "0.5"
