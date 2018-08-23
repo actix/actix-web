@@ -22,9 +22,9 @@ use openssl::ssl::{Error as OpensslError, SslConnector, SslMethod};
 use tokio_openssl::SslConnectorExt;
 
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
-use native_tls::{Error as TlsError, TlsConnector, TlsStream};
+use native_tls::{Error as TlsError, TlsConnector as NativeTlsConnector};
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
-use tokio_tls::TlsConnectorExt;
+use tokio_tls::{TlsConnector, TlsStream};
 
 #[cfg(
     all(
@@ -301,14 +301,14 @@ impl Default for ClientConnector {
         #[cfg(all(feature = "tls", not(feature = "alpn")))]
         {
             let (tx, rx) = mpsc::unbounded();
-            let builder = TlsConnector::builder().unwrap();
+            let builder = NativeTlsConnector::builder();
             ClientConnector {
                 stats: ClientConnectorStats::default(),
                 subscriber: None,
                 acq_tx: tx,
                 acq_rx: Some(rx),
                 resolver: None,
-                connector: builder.build().unwrap(),
+                connector: builder.build().unwrap().into(),
                 conn_lifetime: Duration::from_secs(75),
                 conn_keep_alive: Duration::from_secs(15),
                 limit: 100,
@@ -822,7 +822,7 @@ impl ClientConnector {
                     if conn.0.ssl {
                         fut::Either::A(
                             act.connector
-                                .connect_async(&conn.0.host, stream)
+                                .connect(&conn.0.host, stream)
                                 .into_actor(act)
                                 .then(move |res, _, _| {
                                     match res {
@@ -1340,5 +1340,25 @@ impl io::Write for Connection {
 impl AsyncWrite for Connection {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.stream.shutdown()
+    }
+}
+
+#[cfg(feature = "tls")]
+/// This is temp solution untile actix-net migration
+impl<Io: IoStream> IoStream for TlsStream<Io> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
     }
 }
