@@ -14,7 +14,7 @@ use regex::Regex;
 use std::fmt::{self, Write};
 
 /// Split at the index of the first `needle` if it exists or at the end.
-fn split_once<'a>(haystack: &'a str, needle: char) -> (&'a str, &'a str) {
+fn split_once(haystack: &str, needle: char) -> (&str, &str) {
     haystack.find(needle).map_or_else(
         || (haystack, ""),
         |sc| {
@@ -26,7 +26,7 @@ fn split_once<'a>(haystack: &'a str, needle: char) -> (&'a str, &'a str) {
 
 /// Split at the index of the first `needle` if it exists or at the end, trim the right of the
 /// first part and the left of the last part.
-fn split_once_and_trim<'a>(haystack: &'a str, needle: char) -> (&'a str, &'a str) {
+fn split_once_and_trim(haystack: &str, needle: char) -> (&str, &str) {
     let (first, last) = split_once(haystack, needle);
     (first.trim_right(), last.trim_left())
 }
@@ -114,20 +114,20 @@ impl DispositionParam {
     /// Returns `true` if the paramater is [`Unknown`](DispositionParam::Unknown) and the `name`
     #[inline]
     /// matches.
-    pub fn is_unknown<'a, T: AsRef<str>>(&self, name: T) -> bool {
+    pub fn is_unknown<T: AsRef<str>>(&self, name: T) -> bool {
         self.as_unknown(name).is_some()
     }
 
     /// Returns `true` if the paramater is [`UnknownExt`](DispositionParam::UnknownExt) and the
     /// `name` matches.
     #[inline]
-    pub fn is_unknown_ext<'a, T: AsRef<str>>(&self, name: T) -> bool {
+    pub fn is_unknown_ext<T: AsRef<str>>(&self, name: T) -> bool {
         self.as_unknown_ext(name).is_some()
     }
 
     /// Returns the name if applicable.
     #[inline]
-    pub fn as_name<'a>(&'a self) -> Option<&'a str> {
+    pub fn as_name(&self) -> Option<&str> {
         match self {
             DispositionParam::Name(ref name) => Some(name.as_str()),
             _ => None,
@@ -136,18 +136,18 @@ impl DispositionParam {
 
     /// Returns the filename if applicable.
     #[inline]
-    pub fn as_filename<'a>(&'a self) -> Option<&'a str> {
+    pub fn as_filename(&self) -> Option<&str> {
         match self {
-            &DispositionParam::Filename(ref filename) => Some(filename.as_str()),
+            DispositionParam::Filename(ref filename) => Some(filename.as_str()),
             _ => None,
         }
     }
 
     /// Returns the filename* if applicable.
     #[inline]
-    pub fn as_filename_ext<'a>(&'a self) -> Option<&'a ExtendedValue> {
+    pub fn as_filename_ext(&self) -> Option<&ExtendedValue> {
         match self {
-            &DispositionParam::FilenameExt(ref value) => Some(value),
+            DispositionParam::FilenameExt(ref value) => Some(value),
             _ => None,
         }
     }
@@ -155,9 +155,9 @@ impl DispositionParam {
     /// Returns the value of the unrecognized regular parameter if it is
     /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
     #[inline]
-    pub fn as_unknown<'a, T: AsRef<str>>(&'a self, name: T) -> Option<&'a str> {
+    pub fn as_unknown<T: AsRef<str>>(&self, name: T) -> Option<&str> {
         match self {
-            &DispositionParam::Unknown(ref ext_name, ref value)
+            DispositionParam::Unknown(ref ext_name, ref value)
                 if ext_name.eq_ignore_ascii_case(name.as_ref()) =>
             {
                 Some(value.as_str())
@@ -169,11 +169,9 @@ impl DispositionParam {
     /// Returns the value of the unrecognized extended parameter if it is
     /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
     #[inline]
-    pub fn as_unknown_ext<'a, T: AsRef<str>>(
-        &'a self, name: T,
-    ) -> Option<&'a ExtendedValue> {
+    pub fn as_unknown_ext<T: AsRef<str>>(&self, name: T) -> Option<&ExtendedValue> {
         match self {
-            &DispositionParam::UnknownExt(ref ext_name, ref value)
+            DispositionParam::UnknownExt(ref ext_name, ref value)
                 if ext_name.eq_ignore_ascii_case(name.as_ref()) =>
             {
                 Some(value)
@@ -276,7 +274,7 @@ impl ContentDisposition {
         let hv = String::from_utf8(hv.as_bytes().to_vec())
             .map_err(|_| ::error::ParseError::Header)?;
         let (disp_type, mut left) = split_once_and_trim(hv.as_str().trim(), ';');
-        if disp_type.len() == 0 {
+        if disp_type.is_empty() {
             return Err(::error::ParseError::Header);
         }
         let mut cd = ContentDisposition {
@@ -284,9 +282,9 @@ impl ContentDisposition {
             parameters: Vec::new(),
         };
 
-        while left.len() > 0 {
+        while !left.is_empty() {
             let (param_name, new_left) = split_once_and_trim(left, '=');
-            if param_name.len() == 0 || param_name == "*" || new_left.len() == 0 {
+            if param_name.is_empty() || param_name == "*" || new_left.is_empty() {
                 return Err(::error::ParseError::Header);
             }
             left = new_left;
@@ -315,34 +313,28 @@ impl ContentDisposition {
                         if escaping {
                             escaping = false;
                             quoted_string.push(c);
-                        } else {
-                            if c == 0x5c
+                        } else if c == 0x5c {
                             // backslash
-                            {
-                                escaping = true;
-                            } else if c == 0x22
+                            escaping = true;
+                        } else if c == 0x22 {
                             // double quote
-                            {
-                                end = Some(i + 1); // cuz skipped 1 for the leading quote
-                                break;
-                            } else {
-                                quoted_string.push(c);
-                            }
+                            end = Some(i + 1); // cuz skipped 1 for the leading quote
+                            break;
+                        } else {
+                            quoted_string.push(c);
                         }
                     }
                     left = &left[end.ok_or(::error::ParseError::Header)? + 1..];
                     left = split_once(left, ';').1.trim_left();
                     // In fact, it should not be Err if the above code is correct.
-                    let quoted_string = String::from_utf8(quoted_string)
-                        .map_err(|_| ::error::ParseError::Header)?;
-                    quoted_string
+                    String::from_utf8(quoted_string).map_err(|_| ::error::ParseError::Header)?
                 } else {
                     // token: won't contains semicolon according to RFC 2616 Section 2.2
                     let (token, new_left) = split_once_and_trim(left, ';');
                     left = new_left;
                     token.to_owned()
                 };
-                if value.len() == 0 {
+                if value.is_empty() {
                     return Err(::error::ParseError::Header);
                 }
 
@@ -397,12 +389,12 @@ impl ContentDisposition {
     }
 
     /// Return the value of *name* if exists.  
-    pub fn get_name<'a>(&'a self) -> Option<&'a str> {
+    pub fn get_name(&self) -> Option<&str> {
         self.parameters.iter().filter_map(|p| p.as_name()).nth(0)
     }
 
     /// Return the value of *filename* if exists.  
-    pub fn get_filename<'a>(&'a self) -> Option<&'a str> {
+    pub fn get_filename(&self) -> Option<&str> {
         self.parameters
             .iter()
             .filter_map(|p| p.as_filename())
@@ -410,7 +402,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of *filename\** if exists.  
-    pub fn get_filename_ext<'a>(&'a self) -> Option<&'a ExtendedValue> {
+    pub fn get_filename_ext(&self) -> Option<&ExtendedValue> {
         self.parameters
             .iter()
             .filter_map(|p| p.as_filename_ext())
@@ -418,7 +410,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the parameter which the `name` matches.
-    pub fn get_unknown<'a, T: AsRef<str>>(&'a self, name: T) -> Option<&'a str> {
+    pub fn get_unknown<T: AsRef<str>>(&self, name: T) -> Option<&str> {
         let name = name.as_ref();
         self.parameters
             .iter()
@@ -427,9 +419,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the extended parameter which the `name` matches.
-    pub fn get_unknown_ext<'a, T: AsRef<str>>(
-        &'a self, name: T,
-    ) -> Option<&'a ExtendedValue> {
+    pub fn get_unknown_ext<T: AsRef<str>>(&self, name: T) -> Option<&ExtendedValue> {
         let name = name.as_ref();
         self.parameters
             .iter()
