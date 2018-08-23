@@ -13,8 +13,9 @@ use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::worker::{StopWorker, Worker, WorkerClient, Conn};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
-///Describes service that could be used
-///with [Server](struct.Server.html)
+#[doc(hidden)]
+/// Describes service that could be used
+/// with [Server](struct.Server.html)
 pub trait Service: Send + 'static {
     /// Clone service
     fn clone(&self) -> Box<Service>;
@@ -33,8 +34,9 @@ impl Service for Box<Service> {
     }
 }
 
-///Describes the way serivce handles incoming
-///TCP connections.
+#[doc(hidden)]
+/// Describes the way serivce handles incoming
+/// TCP connections.
 pub trait ServiceHandler {
     /// Handle incoming stream
     fn handle(&mut self, token: Token, io: net::TcpStream, peer: Option<net::SocketAddr>);
@@ -47,7 +49,8 @@ pub(crate) enum ServerCommand {
     WorkerDied(usize),
 }
 
-///Server
+/// Generic server
+#[doc(hidden)]
 pub struct Server {
     threads: usize,
     workers: Vec<(usize, Addr<Worker>)>,

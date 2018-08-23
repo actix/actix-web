@@ -175,11 +175,11 @@ where
     }
 
     /// Disable `HTTP/2` support
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use acceptor service with proper ServerFlags parama"
-    )]
+    // #[doc(hidden)]
+    // #[deprecated(
+    //     since = "0.7.4",
+    //     note = "please use acceptor service with proper ServerFlags parama"
+    // )]
     pub fn no_http2(mut self) -> Self {
         self.no_http2 = true;
         self
@@ -217,6 +217,7 @@ where
         self
     }
 
+    #[doc(hidden)]
     /// Use listener for accepting incoming connection requests
     pub fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
     where
@@ -234,11 +235,6 @@ where
     }
 
     #[cfg(feature = "tls")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::listen_with()` and `actix_web::server::NativeTlsAcceptor` instead"
-    )]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// HttpServer does not change any configuration for TcpListener,
@@ -250,11 +246,6 @@ where
     }
 
     #[cfg(feature = "alpn")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::listen_with()` and `actix_web::server::OpensslAcceptor` instead"
-    )]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
@@ -274,11 +265,6 @@ where
     }
 
     #[cfg(feature = "rust-tls")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::listen_with()` and `actix_web::server::RustlsAcceptor` instead"
-    )]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
@@ -313,6 +299,7 @@ where
     }
 
     /// Start listening for incoming connections with supplied acceptor.
+    #[doc(hidden)]
     #[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
     pub fn bind_with<S, A>(mut self, addr: S, acceptor: A) -> io::Result<Self>
     where
@@ -365,11 +352,6 @@ where
     }
 
     #[cfg(feature = "tls")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::bind_with()` and `actix_web::server::NativeTlsAcceptor` instead"
-    )]
     /// The ssl socket address to bind
     ///
     /// To bind multiple addresses this method can be called multiple times.
@@ -382,11 +364,6 @@ where
     }
 
     #[cfg(feature = "alpn")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::bind_with()` and `actix_web::server::OpensslAcceptor` instead"
-    )]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
@@ -407,11 +384,6 @@ where
     }
 
     #[cfg(feature = "rust-tls")]
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.7.4",
-        note = "please use `actix_web::HttpServer::bind_with()` and `actix_web::server::RustlsAcceptor` instead"
-    )]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"

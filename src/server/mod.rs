@@ -137,11 +137,15 @@ mod worker;
 use actix::Message;
 
 pub use self::message::Request;
+
+#[doc(hidden)]
 pub use self::server::{
     ConnectionRateTag, ConnectionTag, Connections, Server, Service, ServiceHandler,
 };
 pub use self::settings::ServerSettings;
 pub use self::http::HttpServer;
+
+#[doc(hidden)]
 pub use self::ssl::*;
 
 #[doc(hidden)]

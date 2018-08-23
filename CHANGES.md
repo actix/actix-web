@@ -1,6 +1,6 @@
 # Changes
 
-## [0.8.0] - 2018-08-xx
+## [0.7.4] - 2018-08-xx
 
 ### Added
 
@@ -15,6 +15,8 @@
 ### Changed
 
 * It is allowed to use function with up to 10 parameters for handler with `extractor parameters`.
+ `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
+  even for handler with one parameter.
 
 * native-tls - 0.2
 

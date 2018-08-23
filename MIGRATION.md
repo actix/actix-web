@@ -1,4 +1,4 @@
-## 0.8
+## 0.7.4
 
 * `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
   even for handler with one parameter.
