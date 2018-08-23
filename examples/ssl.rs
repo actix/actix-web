@@ -43,13 +43,17 @@ fn main() {
         .unwrap();
 
     let num = Arc::new(AtomicUsize::new(0));
+    let openssl = ssl::OpensslService::new(builder);
 
-    // configure service
-    let srv = ssl::OpensslService::new(builder).and_then((service, move || {
-        Ok::<_, io::Error>(ServiceState { num: num.clone() })
-    }));
+    // server start mutiple workers, it runs supplied `Fn` in each worker.
+    Server::default().bind("0.0.0.0:8443", move || {
+        let num = num.clone();
 
-    Server::default().bind("0.0.0.0:8443", srv).unwrap().start();
+        // configure service
+        openssl.clone().and_then((service, move || {
+            Ok::<_, io::Error>(ServiceState { num: num.clone() })
+        }))
+    }).unwrap().start();
 
     sys.run();
 }

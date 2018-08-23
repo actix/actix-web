@@ -170,7 +170,7 @@ impl<C: Config> Server<C> {
     /// Add new service to server
     pub fn bind<F, U, N>(mut self, addr: U, factory: F) -> io::Result<Self>
     where
-        F: Fn() -> N + Copy + Send + 'static,
+        F: Fn() -> N + Clone + Send + 'static,
         U: net::ToSocketAddrs,
         N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
         N::Service: 'static,
@@ -188,7 +188,7 @@ impl<C: Config> Server<C> {
     /// Add new service to server
     pub fn listen<F, N>(mut self, lst: net::TcpListener, factory: F) -> Self
     where
-        F: Fn() -> N + Copy + Send + 'static,
+        F: Fn() -> N + Clone + Send + 'static,
         N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
         N::Service: 'static,
         N::Future: 'static,
