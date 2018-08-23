@@ -20,7 +20,7 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslAcceptorExt;
 
-use actix_net::{IntoNewService, NewService, Server};
+use actix_net::{IntoNewService, NewServiceExt, Server};
 
 /// Simple logger service, it just prints fact of the new connections
 fn logger<T: AsyncRead + AsyncWrite + fmt::Debug>(

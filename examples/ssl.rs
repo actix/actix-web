@@ -15,7 +15,7 @@ use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use actix_net::{ssl, NewService, Server};
+use actix_net::{ssl, NewServiceExt, Server};
 
 #[derive(Debug)]
 struct ServiceState {
@@ -46,14 +46,16 @@ fn main() {
     let openssl = ssl::OpensslService::new(builder);
 
     // server start mutiple workers, it runs supplied `Fn` in each worker.
-    Server::default().bind("0.0.0.0:8443", move || {
-        let num = num.clone();
+    Server::default()
+        .bind("0.0.0.0:8443", move || {
+            let num = num.clone();
 
-        // configure service
-        openssl.clone().and_then((service, move || {
-            Ok::<_, io::Error>(ServiceState { num: num.clone() })
-        }))
-    }).unwrap().start();
+            // configure service
+            openssl.clone().and_then((service, move || {
+                Ok::<_, io::Error>(ServiceState { num: num.clone() })
+            }))
+        }).unwrap()
+        .start();
 
     sys.run();
 }

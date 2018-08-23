@@ -45,20 +45,18 @@ extern crate webpki_roots;
 
 use actix::Message;
 
-/// re-export for convinience. as a note, actix-net does not use `tower_service::NewService` trait.
-pub use tower_service::Service;
+/// re-export for convinience
+pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
 mod server;
-pub mod server_config;
 mod server_service;
 pub mod service;
 pub mod ssl;
 mod worker;
 
 pub use server::Server;
-pub use server_config::Config;
-pub use service::{IntoNewService, IntoService, NewService};
+pub use service::{IntoNewService, IntoService, NewServiceExt};
 
 /// Pause accepting incoming connections
 ///

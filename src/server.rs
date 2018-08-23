@@ -17,10 +17,9 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::server_config::{Config, ServerConfig};
 use super::server_service::{ServerNewService, ServerServiceFactory};
-use super::service::NewService;
 use super::worker::{Conn, StopWorker, Worker, WorkerClient};
+use super::NewService;
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
 pub(crate) enum ServerCommand {
@@ -28,11 +27,10 @@ pub(crate) enum ServerCommand {
 }
 
 /// Server
-pub struct Server<C = ServerConfig> {
-    config: C,
+pub struct Server {
     threads: usize,
     workers: Vec<(usize, Addr<Worker>)>,
-    services: Vec<Box<ServerServiceFactory<C> + Send>>,
+    services: Vec<Box<ServerServiceFactory + Send>>,
     sockets: Vec<(Token, net::TcpListener)>,
     accept: AcceptLoop,
     exit: bool,
@@ -43,17 +41,16 @@ pub struct Server<C = ServerConfig> {
     maxconnrate: usize,
 }
 
-impl Default for Server<ServerConfig> {
+impl Default for Server {
     fn default() -> Self {
-        Self::new(ServerConfig::default())
+        Self::new()
     }
 }
 
-impl<C: Config> Server<C> {
+impl Server {
     /// Create new Server instance
-    pub fn new(config: C) -> Server<C> {
+    pub fn new() -> Server {
         Server {
-            config,
             threads: num_cpus::get(),
             workers: Vec::new(),
             services: Vec::new(),
@@ -83,10 +80,7 @@ impl<C: Config> Server<C> {
     /// reached for each worker.
     ///
     /// By default max connections is set to a 100k.
-    pub fn maxconn(mut self, num: usize) -> Self
-    where
-        C: AsMut<Connections>,
-    {
+    pub fn maxconn(mut self, num: usize) -> Self {
         self.maxconn = num;
         self
     }
@@ -140,7 +134,7 @@ impl<C: Config> Server<C> {
     ///
     /// This function is useful for moving parts of configuration to a
     /// different module or event library.
-    /// 
+    ///
     /// ```rust
     /// # extern crate actix_web;
     /// use actix_web::{fs, middleware, App, HttpResponse};
@@ -160,9 +154,9 @@ impl<C: Config> Server<C> {
     ///         .handler("/static", fs::StaticFiles::new(".").unwrap());
     /// }
     /// ```
-    pub fn configure<F>(self, cfg: F) -> Server<C>
+    pub fn configure<F>(self, cfg: F) -> Server
     where
-        F: Fn(Server<C>) -> Server<C>,
+        F: Fn(Server) -> Server,
     {
         cfg(self)
     }
@@ -172,7 +166,7 @@ impl<C: Config> Server<C> {
     where
         F: Fn() -> N + Clone + Send + 'static,
         U: net::ToSocketAddrs,
-        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
+        N: NewService<Request = TcpStream, Response = (), InitError = io::Error> + 'static,
         N::Service: 'static,
         N::Future: 'static,
         N::Error: fmt::Display,
@@ -189,13 +183,13 @@ impl<C: Config> Server<C> {
     pub fn listen<F, N>(mut self, lst: net::TcpListener, factory: F) -> Self
     where
         F: Fn() -> N + Clone + Send + 'static,
-        N: NewService<Request = TcpStream, Response = (), Config = C, InitError = io::Error> + 'static,
+        N: NewService<Request = TcpStream, Response = (), InitError = io::Error> + 'static,
         N::Service: 'static,
         N::Future: 'static,
         N::Error: fmt::Display,
     {
         let token = Token(self.services.len());
-        self.services.push(ServerNewService::create(factory, self.config.clone()));
+        self.services.push(ServerNewService::create(factory));
         self.sockets.push((token, lst));
         self
     }
@@ -229,7 +223,7 @@ impl<C: Config> Server<C> {
     }
 
     /// Starts Server Actor and returns its address
-    pub fn start(mut self) -> Addr<Server<C>> {
+    pub fn start(mut self) -> Addr<Server> {
         if self.sockets.is_empty() {
             panic!("Service should have at least one bound socket");
         } else {
@@ -281,7 +275,7 @@ impl<C: Config> Server<C> {
         let (tx, rx) = unbounded::<Conn>();
         let conns = Connections::new(notify, self.maxconn, self.maxconnrate);
         let worker = WorkerClient::new(idx, tx, conns.clone());
-        let services: Vec<Box<ServerServiceFactory<C> + Send>> =
+        let services: Vec<Box<ServerServiceFactory + Send>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {
@@ -293,14 +287,14 @@ impl<C: Config> Server<C> {
     }
 }
 
-impl<C: Config> Actor for Server<C> {
+impl Actor for Server {
     type Context = Context<Self>;
 }
 
 /// Signals support
 /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
 /// message to `System` actor.
-impl<C: Config> Handler<signal::Signal> for Server<C> {
+impl Handler<signal::Signal> for Server {
     type Result = ();
 
     fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
@@ -325,7 +319,7 @@ impl<C: Config> Handler<signal::Signal> for Server<C> {
     }
 }
 
-impl<C: Config> Handler<PauseServer> for Server<C> {
+impl Handler<PauseServer> for Server {
     type Result = ();
 
     fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) {
@@ -333,7 +327,7 @@ impl<C: Config> Handler<PauseServer> for Server<C> {
     }
 }
 
-impl<C: Config> Handler<ResumeServer> for Server<C> {
+impl Handler<ResumeServer> for Server {
     type Result = ();
 
     fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) {
@@ -341,7 +335,7 @@ impl<C: Config> Handler<ResumeServer> for Server<C> {
     }
 }
 
-impl<C: Config> Handler<StopServer> for Server<C> {
+impl Handler<StopServer> for Server {
     type Result = Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
@@ -396,7 +390,7 @@ impl<C: Config> Handler<StopServer> for Server<C> {
 }
 
 /// Commands from accept threads
-impl<C: Config> StreamHandler<ServerCommand, ()> for Server<C> {
+impl StreamHandler<ServerCommand, ()> for Server {
     fn finished(&mut self, _: &mut Context<Self>) {}
 
     fn handle(&mut self, msg: ServerCommand, _: &mut Context<Self>) {
@@ -461,16 +455,6 @@ impl Connections {
     pub(crate) fn available(&self) -> bool {
         self.0.available()
     }
-
-    /// Report opened connection
-    pub fn connection(&self) -> ConnectionTag {
-        ConnectionTag::new(self.0.clone())
-    }
-
-    /// Report rate connection, rate is usually ssl handshake
-    pub fn connection_rate(&self) -> ConnectionRateTag {
-        ConnectionRateTag::new(self.0.clone())
-    }
 }
 
 #[derive(Default)]
@@ -503,44 +487,6 @@ impl ConnectionsInner {
         if connrate > self.maxconnrate_low && connrate <= self.maxconnrate {
             self.notify.notify();
         }
-    }
-}
-
-/// Type responsible for max connection stat.
-///
-/// Max connections stat get updated on drop.
-pub struct ConnectionTag(Arc<ConnectionsInner>);
-
-impl ConnectionTag {
-    fn new(inner: Arc<ConnectionsInner>) -> Self {
-        inner.conn.fetch_add(1, Ordering::Relaxed);
-        ConnectionTag(inner)
-    }
-}
-
-impl Drop for ConnectionTag {
-    fn drop(&mut self) {
-        let conn = self.0.conn.fetch_sub(1, Ordering::Relaxed);
-        self.0.notify_maxconn(conn);
-    }
-}
-
-/// Type responsible for max connection rate stat.
-///
-/// Max connections rate stat get updated on drop.
-pub struct ConnectionRateTag(Arc<ConnectionsInner>);
-
-impl ConnectionRateTag {
-    fn new(inner: Arc<ConnectionsInner>) -> Self {
-        inner.connrate.fetch_add(1, Ordering::Relaxed);
-        ConnectionRateTag(inner)
-    }
-}
-
-impl Drop for ConnectionRateTag {
-    fn drop(&mut self) {
-        let connrate = self.0.connrate.fetch_sub(1, Ordering::Relaxed);
-        self.0.notify_maxconnrate(connrate);
     }
 }
 

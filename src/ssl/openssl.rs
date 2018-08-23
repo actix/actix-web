@@ -7,25 +7,22 @@ use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, SslAcceptorExt, SslStream};
 
-use server_config::SslConfig;
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
 ///
 /// `alpn` feature enables `OpensslAcceptor` type
-pub struct OpensslService<T, Cfg> {
+pub struct OpensslService<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
-    cfg: PhantomData<Cfg>,
 }
 
-impl<T, Cfg> OpensslService<T, Cfg> {
+impl<T> OpensslService<T> {
     /// Create default `OpensslService`
     pub fn new(builder: SslAcceptorBuilder) -> Self {
         OpensslService {
             acceptor: builder.build(),
             io: PhantomData,
-            cfg: PhantomData,
         }
     }
 
@@ -46,32 +43,27 @@ impl<T, Cfg> OpensslService<T, Cfg> {
         Ok(OpensslService {
             acceptor: builder.build(),
             io: PhantomData,
-            cfg: PhantomData,
         })
     }
 }
-impl<T: AsyncRead + AsyncWrite, Cfg> Clone for OpensslService<T, Cfg> {
+impl<T: AsyncRead + AsyncWrite> Clone for OpensslService<T> {
     fn clone(&self) -> Self {
         Self {
             acceptor: self.acceptor.clone(),
             io: PhantomData,
-            cfg: PhantomData,
         }
     }
 }
 
-impl<T: AsyncRead + AsyncWrite, Cfg: Clone + AsRef<SslConfig>> NewService
-    for OpensslService<T, Cfg>
-{
+impl<T: AsyncRead + AsyncWrite> NewService for OpensslService<T> {
     type Request = T;
     type Response = SslStream<T>;
     type Error = io::Error;
     type Service = OpensslAcceptor<T>;
-    type Config = Cfg;
     type InitError = io::Error;
     type Future = FutureResult<Self::Service, io::Error>;
 
-    fn new_service(&self, _: Self::Config) -> Self::Future {
+    fn new_service(&self) -> Self::Future {
         future::ok(OpensslAcceptor {
             acceptor: self.acceptor.clone(),
             io: PhantomData,

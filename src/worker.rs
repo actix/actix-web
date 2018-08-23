@@ -69,8 +69,8 @@ impl Actor for Worker {
 }
 
 impl Worker {
-    pub(crate) fn new<C: 'static>(
-        ctx: &mut Context<Self>, services: Vec<Box<ServerServiceFactory<C> + Send>>,
+    pub(crate) fn new(
+        ctx: &mut Context<Self>, services: Vec<Box<ServerServiceFactory + Send>>,
     ) -> Self {
         let wrk = Worker {
             services: Vec::new(),

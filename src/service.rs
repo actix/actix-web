@@ -3,44 +3,9 @@ use std::marker;
 use std::rc::Rc;
 
 use futures::{future, future::FutureResult, Async, Future, IntoFuture, Poll};
-use tower_service::Service;
+use tower_service::{NewService, Service};
 
-/// Creates new `Service` values.
-///
-/// Acts as a service factory. This is useful for cases where new `Service`
-/// values must be produced. One case is a TCP servier listener. The listner
-/// accepts new TCP streams, obtains a new `Service` value using the
-/// `NewService` trait, and uses that new `Service` value to process inbound
-/// requests on that new TCP stream.
-pub trait NewService {
-    /// Requests handled by the service
-    type Request;
-
-    /// Responses given by the service
-    type Response;
-
-    /// Errors produced by the service
-    type Error;
-
-    /// The `Service` value created by this factory
-    type Service: Service<
-        Request = Self::Request,
-        Response = Self::Response,
-        Error = Self::Error,
-    >;
-
-    /// Pipeline configuration
-    type Config: Clone;
-
-    /// Errors produced while building a service.
-    type InitError;
-
-    /// The future of the `Service` instance.
-    type Future: Future<Item = Self::Service, Error = Self::InitError>;
-
-    /// Create and return a new service value asynchronously.
-    fn new_service(&self, Self::Config) -> Self::Future;
-
+pub trait NewServiceExt: NewService {
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
     where
         Self: Sized,
@@ -48,7 +13,6 @@ pub trait NewService {
         B: NewService<
             Request = Self::Response,
             Error = Self::Error,
-            Config = Self::Config,
             InitError = Self::InitError,
         >,
     {
@@ -71,6 +35,8 @@ pub trait NewService {
         MapInitErr::new(self, f)
     }
 }
+
+impl<T: NewService> NewServiceExt for T {}
 
 /// Trait for types that can be converted to a Service
 pub trait IntoService<T>
@@ -163,7 +129,7 @@ where
     }
 }
 
-pub struct FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
+pub struct FnNewService<F, Req, Resp, Err, IErr, Fut>
 where
     F: Fn(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -173,10 +139,9 @@ where
     resp: marker::PhantomData<Resp>,
     err: marker::PhantomData<Err>,
     ierr: marker::PhantomData<IErr>,
-    cfg: marker::PhantomData<Cfg>,
 }
 
-impl<F, Req, Resp, Err, IErr, Fut, Cfg> FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut> FnNewService<F, Req, Resp, Err, IErr, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -188,43 +153,39 @@ where
             resp: marker::PhantomData,
             err: marker::PhantomData,
             ierr: marker::PhantomData,
-            cfg: marker::PhantomData,
         }
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut, Cfg> NewService for FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut> NewService for FnNewService<F, Req, Resp, Err, IErr, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
-    Cfg: Clone,
 {
     type Request = Req;
     type Response = Resp;
     type Error = Err;
     type Service = FnService<F, Req, Resp, Err, Fut>;
-    type Config = Cfg;
     type InitError = IErr;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self, _: Cfg) -> Self::Future {
+    fn new_service(&self) -> Self::Future {
         future::ok(FnService::new(self.f.clone()))
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut, Cfg> IntoNewService<FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>>
+impl<F, Req, Resp, Err, IErr, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, IErr, Fut>>
     for F
 where
     F: Fn(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
-    Cfg: Clone,
 {
-    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg> {
+    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, IErr, Fut> {
         FnNewService::new(self)
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut, Cfg> Clone for FnNewService<F, Req, Resp, Err, IErr, Fut, Cfg>
+impl<F, Req, Resp, Err, IErr, Fut> Clone for FnNewService<F, Req, Resp, Err, IErr, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -282,7 +243,7 @@ where
 }
 
 /// `NewService` for state and handler functions
-pub struct FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg> {
+pub struct FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
     f: F1,
     state: F2,
     s: marker::PhantomData<S>,
@@ -292,11 +253,10 @@ pub struct FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg> 
     err2: marker::PhantomData<Err2>,
     fut1: marker::PhantomData<Fut1>,
     fut2: marker::PhantomData<Fut2>,
-    cfg: marker::PhantomData<Cfg>,
 }
 
-impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
-    FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
+impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
+    FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
 {
     fn new(f: F1, state: F2) -> Self {
         FnStateNewService {
@@ -309,13 +269,12 @@ impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
             err2: marker::PhantomData,
             fut1: marker::PhantomData,
             fut2: marker::PhantomData,
-            cfg: marker::PhantomData,
         }
     }
 }
 
-impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg> NewService
-    for FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
+impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> NewService
+    for FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
 where
     S: 'static,
     F1: Fn(&mut S, Req) -> Fut1 + Clone + 'static,
@@ -326,17 +285,15 @@ where
     Resp: 'static,
     Err1: 'static,
     Err2: 'static,
-    Cfg: Clone,
 {
     type Request = Req;
     type Response = Resp;
     type Error = Err1;
     type Service = FnStateService<S, F1, Req, Resp, Err1, Fut1>;
-    type Config = Cfg;
     type InitError = Err2;
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
-    fn new_service(&self, _: Cfg) -> Self::Future {
+    fn new_service(&self) -> Self::Future {
         let f = self.f.clone();
         Box::new(
             (self.state)()
@@ -346,9 +303,8 @@ where
     }
 }
 
-impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
-    IntoNewService<FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>>
-    for (F1, F2)
+impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
+    IntoNewService<FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>> for (F1, F2)
 where
     S: 'static,
     F1: Fn(&mut S, Req) -> Fut1 + Clone + 'static,
@@ -359,17 +315,16 @@ where
     Resp: 'static,
     Err1: 'static,
     Err2: 'static,
-    Cfg: Clone,
 {
     fn into_new_service(
         self,
-    ) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg> {
+    ) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
         FnStateNewService::new(self.0, self.1)
     }
 }
 
-impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg> Clone
-    for FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2, Cfg>
+impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> Clone
+    for FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
 where
     F1: Fn(&mut S, Req) -> Fut1 + Clone + 'static,
     F2: Fn() -> Fut2 + Clone,
@@ -415,11 +370,9 @@ where
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         match self.a.poll_ready() {
-            Ok(Async::Ready(_)) => {
-                self.b.borrow_mut().poll_ready()
-            },
+            Ok(Async::Ready(_)) => self.b.borrow_mut().poll_ready(),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err.into())
+            Err(err) => Err(err.into()),
         }
     }
 
@@ -474,7 +427,7 @@ where
                 self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err.into())
+            Err(err) => Err(err.into()),
         }
     }
 }
@@ -501,11 +454,7 @@ where
 
 impl<A, B> NewService for AndThenNewService<A, B>
 where
-    A: NewService<
-        Response = B::Request,
-        Config = B::Config,
-        InitError = B::InitError,
-    >,
+    A: NewService<Response = B::Request, InitError = B::InitError>,
     A::Error: Into<B::Error>,
     B: NewService,
 {
@@ -514,12 +463,11 @@ where
     type Error = B::Error;
     type Service = AndThen<A::Service, B::Service>;
 
-    type Config = A::Config;
     type InitError = A::InitError;
     type Future = AndThenNewServiceFuture<A, B>;
 
-    fn new_service(&self, cfg: A::Config) -> Self::Future {
-        AndThenNewServiceFuture::new(self.a.new_service(cfg.clone()), self.b.new_service(cfg))
+    fn new_service(&self) -> Self::Future {
+        AndThenNewServiceFuture::new(self.a.new_service(), self.b.new_service())
     }
 }
 
@@ -712,12 +660,11 @@ where
     type Error = E;
     type Service = MapErr<A::Service, F, E>;
 
-    type Config = A::Config;
     type InitError = A::InitError;
     type Future = MapErrNewServiceFuture<A, F, E>;
 
-    fn new_service(&self, cfg: Self::Config) -> Self::Future {
-        MapErrNewServiceFuture::new(self.a.new_service(cfg), self.f.clone())
+    fn new_service(&self) -> Self::Future {
+        MapErrNewServiceFuture::new(self.a.new_service(), self.f.clone())
     }
 }
 
@@ -803,12 +750,11 @@ where
     type Error = A::Error;
     type Service = A::Service;
 
-    type Config = A::Config;
     type InitError = E;
     type Future = MapInitErrFuture<A, F, E>;
 
-    fn new_service(&self, cfg: Self::Config) -> Self::Future {
-        MapInitErrFuture::new(self.a.new_service(cfg), self.f.clone())
+    fn new_service(&self) -> Self::Future {
+        MapInitErrFuture::new(self.a.new_service(), self.f.clone())
     }
 }
 
