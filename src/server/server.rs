@@ -217,7 +217,7 @@ impl Server {
             // start accept thread
             for sock in &self.sockets {
                 for s in sock.iter() {
-                    info!("Starting server on http://{:?}", s.1.local_addr().ok());
+                    info!("Starting server on http://{}", s.1.local_addr().unwrap());
                 }
             }
             let rx = self
