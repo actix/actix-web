@@ -59,7 +59,7 @@ pub mod ssl;
 mod worker;
 mod connector;
 
-pub use connector::Connector;
+pub use connector::{Connector, ConnectorError};
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt};
 
