@@ -90,6 +90,79 @@ where
     }
 }
 
+pub struct Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
+where
+    S: Service,
+    F: Fn(Cfg) -> Fut,
+    Fut: IntoFuture<Item = S, Error = Err>,
+{
+    f: F,
+    err: marker::PhantomData<Err>,
+    cfg: marker::PhantomData<Cfg>,
+    fut: marker::PhantomData<Fut>,
+    s: marker::PhantomData<S>,
+}
+
+impl<F, S, Err, Fut, Cfg> Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
+where
+    S: Service,
+    F: Fn(Cfg) -> Fut + 'static,
+    Fut: IntoFuture<Item = S, Error = Err>,
+{
+    fn new(f: F) -> Self {
+        Fn2NewConfigurableService{
+            f,
+            err: marker::PhantomData,
+            cfg: marker::PhantomData,
+            fut: marker::PhantomData,
+            s: marker::PhantomData
+        }
+    }
+}
+
+impl<F, S, Err, Fut, Cfg>
+    IntoNewConfigurableService<Fn2NewConfigurableService<F, S, Err, Fut, Cfg>>
+    for F
+where
+    S: Service,
+    F: Fn(Cfg) -> Fut + 'static,
+    Fut: IntoFuture<Item = S, Error = Err>,
+{
+    fn into_new_service(self) -> Fn2NewConfigurableService<F, S, Err, Fut, Cfg> {
+        Fn2NewConfigurableService::new(self)
+    }
+}
+
+impl<F, S, Err, Fut, Cfg> Clone for Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
+where
+    S: Service,
+    F: Fn(Cfg) -> Fut + Clone + 'static,
+    Fut: IntoFuture<Item = S, Error = Err>,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.f.clone())
+    }
+}
+
+impl<F, S, Err, Fut, Cfg> NewConfigurableService for Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
+where
+    S: Service,
+    F: Fn(Cfg) -> Fut,
+    Fut: IntoFuture<Item = S, Error = Err>,
+{
+    type Request = S::Request;
+    type Response = S::Response;
+    type Error = S::Error;
+    type Service = S;
+    type Config = Cfg;
+    type InitError = Err;
+    type Future = Fut::Future;
+
+    fn new_service(&self, cfg: Cfg) -> Self::Future {
+        (self.f)(cfg).into_future()
+    }
+}
+
 pub struct FnNewConfigurableService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut,

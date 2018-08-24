@@ -521,12 +521,16 @@ where
     type Error = B::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Async::Ready(service) = self.fut_a.poll()? {
-            self.a = Some(service);
+        if self.a.is_none() {
+            if let Async::Ready(service) = self.fut_a.poll()? {
+                self.a = Some(service);
+            }
         }
 
-        if let Async::Ready(service) = self.fut_b.poll()? {
-            self.b = Some(service);
+        if self.b.is_none() {
+            if let Async::Ready(service) = self.fut_b.poll()? {
+                self.b = Some(service);
+            }
         }
 
         if self.a.is_some() && self.b.is_some() {
