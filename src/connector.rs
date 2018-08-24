@@ -62,7 +62,7 @@ impl Service for Connector {
     fn call(&mut self, addr: String) -> Self::Future {
         ConnectorFuture {
             fut: ResolveFut::new(addr, 0, &self.resolver),
-            fut2: None
+            fut2: None,
         }
     }
 }
@@ -78,14 +78,14 @@ impl Future for ConnectorFuture {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut2 {
-            return fut.poll()
+            return fut.poll();
         }
         match self.fut.poll()? {
             Async::Ready(addrs) => {
                 self.fut2 = Some(TcpConnector::new(addrs));
                 self.poll()
-            },
-            Async::NotReady => Ok(Async::NotReady)
+            }
+            Async::NotReady => Ok(Async::NotReady),
         }
     }
 }

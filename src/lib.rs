@@ -52,13 +52,15 @@ use actix::Message;
 pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
+mod configurable;
+mod connector;
 mod server;
 mod server_service;
 pub mod service;
 pub mod ssl;
 mod worker;
-mod connector;
 
+pub use configurable::NewConfigurableService;
 pub use connector::{Connector, ConnectorError};
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt};
