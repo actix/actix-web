@@ -11,17 +11,20 @@
 #[macro_use]
 extern crate log;
 extern crate bytes;
+#[macro_use]
 extern crate failure;
 extern crate futures;
 extern crate mio;
 extern crate net2;
 extern crate num_cpus;
 extern crate slab;
+extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 extern crate tokio_timer;
 extern crate tower_service;
+extern crate trust_dns_resolver;
 
 #[macro_use]
 extern crate actix;
@@ -54,7 +57,9 @@ mod server_service;
 pub mod service;
 pub mod ssl;
 mod worker;
+mod connector;
 
+pub use connector::Connector;
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt};
 

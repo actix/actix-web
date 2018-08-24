@@ -49,12 +49,13 @@ net2 = "0.2"
 bytes = "0.4"
 futures = "0.1"
 slab = "0.4"
+tokio = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-reactor = "0.1"
-
 tower-service = "0.1"
+trust-dns-resolver = "0.10.0-alpha.2"
 
 # native-tls
 native-tls = { version="0.2", optional = true }
