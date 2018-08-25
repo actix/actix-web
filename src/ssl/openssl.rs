@@ -1,26 +1,25 @@
-use std::marker::PhantomData;
-// use std::net::Shutdown;
 use std::io;
+use std::marker::PhantomData;
 
-use futures::{future, future::FutureResult, Async, Future, Poll};
-use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use futures::{future, future::FutureResult, Async, Poll};
+use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_openssl::{AcceptAsync, SslAcceptorExt, SslStream};
+use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
 ///
-/// `alpn` feature enables `OpensslAcceptor` type
-pub struct OpensslService<T> {
+/// `ssl` feature enables `OpensslAcceptor` type
+pub struct OpensslAcceptor<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
 }
 
-impl<T> OpensslService<T> {
-    /// Create default `OpensslService`
+impl<T> OpensslAcceptor<T> {
+    /// Create default `OpensslAcceptor`
     pub fn new(builder: SslAcceptorBuilder) -> Self {
-        OpensslService {
+        OpensslAcceptor {
             acceptor: builder.build(),
             io: PhantomData,
         }
@@ -40,13 +39,13 @@ impl<T> OpensslService<T> {
         });
         builder.set_alpn_protos(&protos[..])?;
 
-        Ok(OpensslService {
+        Ok(OpensslAcceptor {
             acceptor: builder.build(),
             io: PhantomData,
         })
     }
 }
-impl<T: AsyncRead + AsyncWrite> Clone for OpensslService<T> {
+impl<T: AsyncRead + AsyncWrite> Clone for OpensslAcceptor<T> {
     fn clone(&self) -> Self {
         Self {
             acceptor: self.acceptor.clone(),
@@ -55,69 +54,102 @@ impl<T: AsyncRead + AsyncWrite> Clone for OpensslService<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> NewService for OpensslService<T> {
+impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
     type Request = T;
     type Response = SslStream<T>;
-    type Error = io::Error;
-    type Service = OpensslAcceptor<T>;
+    type Error = Error;
+    type Service = OpensslAcceptorService<T>;
     type InitError = io::Error;
     type Future = FutureResult<Self::Service, io::Error>;
 
     fn new_service(&self) -> Self::Future {
-        future::ok(OpensslAcceptor {
+        future::ok(OpensslAcceptorService {
             acceptor: self.acceptor.clone(),
             io: PhantomData,
         })
     }
 }
 
-pub struct OpensslAcceptor<T> {
+pub struct OpensslAcceptorService<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
 }
 
-impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptor<T> {
+impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
     type Request = T;
     type Response = SslStream<T>;
-    type Error = io::Error;
-    type Future = AcceptorFuture<T>;
+    type Error = Error;
+    type Future = AcceptAsync<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        AcceptorFuture(SslAcceptorExt::accept_async(&self.acceptor, req))
+        SslAcceptorExt::accept_async(&self.acceptor, req)
     }
 }
 
-pub struct AcceptorFuture<T>(AcceptAsync<T>);
+/// Openssl connector factory
+pub struct OpensslConnector<T> {
+    connector: SslConnector,
+    io: PhantomData<T>,
+}
 
-impl<T: AsyncRead + AsyncWrite> Future for AcceptorFuture<T> {
-    type Item = SslStream<T>;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0
-            .poll()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+impl<T> OpensslConnector<T> {
+    pub fn new(connector: SslConnector) -> Self {
+        OpensslConnector {
+            connector,
+            io: PhantomData,
+        }
     }
 }
 
-// impl<T: IoStream> IoStream for SslStream<T> {
-//     #[inline]
-//     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-//         let _ = self.get_mut().shutdown();
-//         Ok(())
-//     }
+impl<T> Clone for OpensslConnector<T> {
+    fn clone(&self) -> Self {
+        Self {
+            connector: self.connector.clone(),
+            io: PhantomData,
+        }
+    }
+}
 
-//     #[inline]
-//     fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-//         self.get_mut().get_mut().set_nodelay(nodelay)
-//     }
+impl<T: AsyncRead + AsyncWrite> NewService for OpensslConnector<T> {
+    type Request = T;
+    type Response = SslStream<T>;
+    type Error = Error;
+    type Service = OpensslConnectorService<T>;
+    type InitError = io::Error;
+    type Future = FutureResult<Self::Service, Self::InitError>;
 
-//     #[inline]
-//     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-//         self.get_mut().get_mut().set_linger(dur)
-//     }
-// }
+    fn new_service(&self) -> Self::Future {
+        future::ok(OpensslConnectorService {
+            connector: self.connector.clone(),
+            io: PhantomData,
+        })
+    }
+}
+
+pub trait OpensslDomain {
+    fn domain(&self) -> &str;
+}
+
+pub struct OpensslConnectorService<T> {
+    connector: SslConnector,
+    io: PhantomData<T>,
+}
+
+impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
+    type Request = T;
+    type Response = SslStream<T>;
+    type Error = Error;
+    type Future = ConnectAsync<T>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        SslConnectorExt::connect_async(&self.connector, "", req)
+    }
+}

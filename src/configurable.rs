@@ -110,19 +110,18 @@ where
     Fut: IntoFuture<Item = S, Error = Err>,
 {
     fn new(f: F) -> Self {
-        Fn2NewConfigurableService{
+        Fn2NewConfigurableService {
             f,
             err: marker::PhantomData,
             cfg: marker::PhantomData,
             fut: marker::PhantomData,
-            s: marker::PhantomData
+            s: marker::PhantomData,
         }
     }
 }
 
 impl<F, S, Err, Fut, Cfg>
-    IntoNewConfigurableService<Fn2NewConfigurableService<F, S, Err, Fut, Cfg>>
-    for F
+    IntoNewConfigurableService<Fn2NewConfigurableService<F, S, Err, Fut, Cfg>> for F
 where
     S: Service,
     F: Fn(Cfg) -> Fut + 'static,
@@ -144,7 +143,8 @@ where
     }
 }
 
-impl<F, S, Err, Fut, Cfg> NewConfigurableService for Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
+impl<F, S, Err, Fut, Cfg> NewConfigurableService
+    for Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
 where
     S: Service,
     F: Fn(Cfg) -> Fut,

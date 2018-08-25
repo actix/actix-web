@@ -2,7 +2,7 @@
 #[cfg(feature = "ssl")]
 mod openssl;
 #[cfg(feature = "ssl")]
-pub use self::openssl::OpensslService;
+pub use self::openssl::{OpensslAcceptor, OpensslConnector};
 
 // #[cfg(feature = "tls")]
 // mod nativetls;
