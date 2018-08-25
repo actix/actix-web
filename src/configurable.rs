@@ -12,7 +12,7 @@ use service::{AndThen, FnService, MapErr};
 /// accepts new TCP streams, obtains a new `Service` value using the
 /// `NewConfigurableService` trait, and uses that new `Service` value to
 /// process inbound requests on that new TCP stream.
-pub trait NewConfigurableService {
+pub trait NewConfigurableService<C> {
     /// Requests handled by the service
     type Request;
 
@@ -29,9 +29,6 @@ pub trait NewConfigurableService {
         Error = Self::Error,
     >;
 
-    /// Pipeline configuration
-    type Config;
-
     /// Errors produced while building a service.
     type InitError;
 
@@ -39,23 +36,23 @@ pub trait NewConfigurableService {
     type Future: Future<Item = Self::Service, Error = Self::InitError>;
 
     /// Create and return a new service value asynchronously.
-    fn new_service(&self, Self::Config) -> Self::Future;
+    fn new_service(&self, C) -> Self::Future;
 
-    fn and_then<F, B>(self, new_service: F) -> AndThenNewConfigurableService<Self, B>
+    fn and_then<F, B>(self, new_service: F) -> AndThenNewConfigurableService<Self, B, C>
     where
         Self: Sized,
-        F: IntoNewConfigurableService<B>,
+        F: IntoNewConfigurableService<B, C>,
         B: NewConfigurableService<
+            C,
             Request = Self::Response,
             Error = Self::Error,
-            Config = Self::Config,
             InitError = Self::InitError,
         >,
     {
         AndThenNewConfigurableService::new(self, new_service)
     }
 
-    fn map_err<F, E>(self, f: F) -> MapErrNewConfigurableService<Self, F, E>
+    fn map_err<F, E>(self, f: F) -> MapErrNewConfigurableService<Self, F, E, C>
     where
         Self: Sized,
         F: Fn(Self::Error) -> E,
@@ -63,7 +60,7 @@ pub trait NewConfigurableService {
         MapErrNewConfigurableService::new(self, f)
     }
 
-    fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E>
+    fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E, C>
     where
         Self: Sized,
         F: Fn(Self::InitError) -> E,
@@ -73,17 +70,17 @@ pub trait NewConfigurableService {
 }
 
 /// Trait for types that can be converted to a Service
-pub trait IntoNewConfigurableService<T>
+pub trait IntoNewConfigurableService<T, C>
 where
-    T: NewConfigurableService,
+    T: NewConfigurableService<C>,
 {
     /// Create service
     fn into_new_service(self) -> T;
 }
 
-impl<T> IntoNewConfigurableService<T> for T
+impl<T, C> IntoNewConfigurableService<T, C> for T
 where
-    T: NewConfigurableService,
+    T: NewConfigurableService<C>,
 {
     fn into_new_service(self) -> T {
         self
@@ -121,7 +118,7 @@ where
 }
 
 impl<F, S, Err, Fut, Cfg>
-    IntoNewConfigurableService<Fn2NewConfigurableService<F, S, Err, Fut, Cfg>> for F
+    IntoNewConfigurableService<Fn2NewConfigurableService<F, S, Err, Fut, Cfg>, Cfg> for F
 where
     S: Service,
     F: Fn(Cfg) -> Fut + 'static,
@@ -143,7 +140,7 @@ where
     }
 }
 
-impl<F, S, Err, Fut, Cfg> NewConfigurableService
+impl<F, S, Err, Fut, Cfg> NewConfigurableService<Cfg>
     for Fn2NewConfigurableService<F, S, Err, Fut, Cfg>
 where
     S: Service,
@@ -154,7 +151,6 @@ where
     type Response = S::Response;
     type Error = S::Error;
     type Service = S;
-    type Config = Cfg;
     type InitError = Err;
     type Future = Fut::Future;
 
@@ -194,7 +190,7 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut, Cfg> NewConfigurableService
+impl<F, Req, Resp, Err, IErr, Fut, Cfg> NewConfigurableService<Cfg>
     for FnNewConfigurableService<F, Req, Resp, Err, IErr, Fut, Cfg>
 where
     F: Fn(Req) -> Fut + Clone,
@@ -204,7 +200,6 @@ where
     type Response = Resp;
     type Error = Err;
     type Service = FnService<F, Req, Resp, Err, Fut>;
-    type Config = Cfg;
     type InitError = IErr;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
@@ -214,7 +209,7 @@ where
 }
 
 impl<F, Req, Resp, Err, IErr, Fut, Cfg>
-    IntoNewConfigurableService<FnNewConfigurableService<F, Req, Resp, Err, IErr, Fut, Cfg>>
+    IntoNewConfigurableService<FnNewConfigurableService<F, Req, Resp, Err, IErr, Fut, Cfg>, Cfg>
     for F
 where
     F: Fn(Req) -> Fut + Clone + 'static,
@@ -237,46 +232,51 @@ where
 }
 
 /// `AndThenNewConfigurableService` new service combinator
-pub struct AndThenNewConfigurableService<A, B> {
+pub struct AndThenNewConfigurableService<A, B, C>
+where
+    A: NewConfigurableService<C>,
+    B: NewConfigurableService<C>
+{
     a: A,
     b: B,
+    c: marker::PhantomData<C>,
 }
 
-impl<A, B> AndThenNewConfigurableService<A, B>
+impl<A, B, C> AndThenNewConfigurableService<A, B, C>
 where
-    A: NewConfigurableService,
-    B: NewConfigurableService,
+    A: NewConfigurableService<C>,
+    B: NewConfigurableService<C>,
 {
     /// Create new `AndThen` combinator
-    pub fn new<F: IntoNewConfigurableService<B>>(a: A, f: F) -> Self {
+    pub fn new<F: IntoNewConfigurableService<B, C>>(a: A, f: F) -> Self {
         Self {
             a,
             b: f.into_new_service(),
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, B> NewConfigurableService for AndThenNewConfigurableService<A, B>
+impl<A, B, C> NewConfigurableService<C> for AndThenNewConfigurableService<A, B, C>
 where
     A: NewConfigurableService<
+        C,
         Response = B::Request,
-        Config = B::Config,
         InitError = B::InitError,
     >,
-    A::Config: Clone,
     A::Error: Into<B::Error>,
-    B: NewConfigurableService,
+    B: NewConfigurableService<C>,
+    C: Clone,
 {
     type Request = A::Request;
     type Response = B::Response;
     type Error = B::Error;
     type Service = AndThen<A::Service, B::Service>;
 
-    type Config = A::Config;
     type InitError = A::InitError;
-    type Future = AndThenNewConfigurableServiceFuture<A, B>;
+    type Future = AndThenNewConfigurableServiceFuture<A, B, C>;
 
-    fn new_service(&self, cfg: A::Config) -> Self::Future {
+    fn new_service(&self, cfg: C) -> Self::Future {
         AndThenNewConfigurableServiceFuture::new(
             self.a.new_service(cfg.clone()),
             self.b.new_service(cfg),
@@ -284,35 +284,37 @@ where
     }
 }
 
-impl<A, B> Clone for AndThenNewConfigurableService<A, B>
+impl<A, B, C> Clone for AndThenNewConfigurableService<A, B, C>
 where
-    A: NewConfigurableService<Response = B::Request, InitError = B::InitError> + Clone,
+    A: NewConfigurableService<C, Response = B::Request, InitError = B::InitError> + Clone,
     A::Error: Into<B::Error>,
-    B: NewConfigurableService + Clone,
+    B: NewConfigurableService<C> + Clone,
 {
     fn clone(&self) -> Self {
         Self {
             a: self.a.clone(),
             b: self.b.clone(),
+            c: marker::PhantomData,
         }
     }
 }
 
-pub struct AndThenNewConfigurableServiceFuture<A, B>
+pub struct AndThenNewConfigurableServiceFuture<A, B, C>
 where
-    A: NewConfigurableService,
-    B: NewConfigurableService,
+    A: NewConfigurableService<C>,
+    B: NewConfigurableService<C>,
 {
     fut_b: B::Future,
     fut_a: A::Future,
     a: Option<A::Service>,
     b: Option<B::Service>,
+    c: marker::PhantomData<C>,
 }
 
-impl<A, B> AndThenNewConfigurableServiceFuture<A, B>
+impl<A, B, C> AndThenNewConfigurableServiceFuture<A, B, C>
 where
-    A: NewConfigurableService,
-    B: NewConfigurableService,
+    A: NewConfigurableService<C>,
+    B: NewConfigurableService<C>,
 {
     fn new(fut_a: A::Future, fut_b: B::Future) -> Self {
         AndThenNewConfigurableServiceFuture {
@@ -320,15 +322,16 @@ where
             fut_b,
             a: None,
             b: None,
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, B> Future for AndThenNewConfigurableServiceFuture<A, B>
+impl<A, B, C> Future for AndThenNewConfigurableServiceFuture<A, B, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     A::Error: Into<B::Error>,
-    B: NewConfigurableService<Request = A::Response, InitError = A::InitError>,
+    B: NewConfigurableService<C, Request = A::Response, InitError = A::InitError>,
 {
     type Item = AndThen<A::Service, B::Service>;
     type Error = B::InitError;
@@ -354,15 +357,19 @@ where
 }
 
 /// `MapErrNewService` new service combinator
-pub struct MapErrNewConfigurableService<A, F, E> {
+pub struct MapErrNewConfigurableService<A, F, E, C>
+where
+    A: NewConfigurableService<C>
+{
     a: A,
     f: F,
     e: marker::PhantomData<E>,
+    c: marker::PhantomData<C>,
 }
 
-impl<A, F, E> MapErrNewConfigurableService<A, F, E>
+impl<A, F, E, C> MapErrNewConfigurableService<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::Error) -> E,
 {
     /// Create new `MapErr` new service instance
@@ -371,13 +378,14 @@ where
             a,
             f,
             e: marker::PhantomData,
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, F, E> Clone for MapErrNewConfigurableService<A, F, E>
+impl<A, F, E, C> Clone for MapErrNewConfigurableService<A, F, E, C>
 where
-    A: NewConfigurableService + Clone,
+    A: NewConfigurableService<C> + Clone,
     F: Fn(A::Error) -> E + Clone,
 {
     fn clone(&self) -> Self {
@@ -385,13 +393,14 @@ where
             a: self.a.clone(),
             f: self.f.clone(),
             e: marker::PhantomData,
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, F, E> NewConfigurableService for MapErrNewConfigurableService<A, F, E>
+impl<A, F, E, C> NewConfigurableService<C> for MapErrNewConfigurableService<A, F, E, C>
 where
-    A: NewConfigurableService + Clone,
+    A: NewConfigurableService<C> + Clone,
     F: Fn(A::Error) -> E + Clone,
 {
     type Request = A::Request;
@@ -399,27 +408,26 @@ where
     type Error = E;
     type Service = MapErr<A::Service, F, E>;
 
-    type Config = A::Config;
     type InitError = A::InitError;
-    type Future = MapErrNewConfigurableServiceFuture<A, F, E>;
+    type Future = MapErrNewConfigurableServiceFuture<A, F, E, C>;
 
-    fn new_service(&self, cfg: Self::Config) -> Self::Future {
+    fn new_service(&self, cfg: C) -> Self::Future {
         MapErrNewConfigurableServiceFuture::new(self.a.new_service(cfg), self.f.clone())
     }
 }
 
-pub struct MapErrNewConfigurableServiceFuture<A, F, E>
+pub struct MapErrNewConfigurableServiceFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::Error) -> E,
 {
     fut: A::Future,
     f: F,
 }
 
-impl<A, F, E> MapErrNewConfigurableServiceFuture<A, F, E>
+impl<A, F, E, C> MapErrNewConfigurableServiceFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::Error) -> E,
 {
     fn new(fut: A::Future, f: F) -> Self {
@@ -427,9 +435,9 @@ where
     }
 }
 
-impl<A, F, E> Future for MapErrNewConfigurableServiceFuture<A, F, E>
+impl<A, F, E, C> Future for MapErrNewConfigurableServiceFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::Error) -> E + Clone,
 {
     type Item = MapErr<A::Service, F, E>;
@@ -445,15 +453,19 @@ where
 }
 
 /// `MapInitErr` service combinator
-pub struct MapInitErr<A, F, E> {
+pub struct MapInitErr<A, F, E, C>
+where
+    A: NewConfigurableService<C>
+{
     a: A,
     f: F,
     e: marker::PhantomData<E>,
+    c: marker::PhantomData<C>,
 }
 
-impl<A, F, E> MapInitErr<A, F, E>
+impl<A, F, E, C> MapInitErr<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::InitError) -> E,
 {
     /// Create new `MapInitErr` combinator
@@ -462,13 +474,14 @@ where
             a,
             f,
             e: marker::PhantomData,
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, F, E> Clone for MapInitErr<A, F, E>
+impl<A, F, E, C> Clone for MapInitErr<A, F, E, C>
 where
-    A: NewConfigurableService + Clone,
+    A: NewConfigurableService<C> + Clone,
     F: Fn(A::InitError) -> E + Clone,
 {
     fn clone(&self) -> Self {
@@ -476,13 +489,14 @@ where
             a: self.a.clone(),
             f: self.f.clone(),
             e: marker::PhantomData,
+            c: marker::PhantomData,
         }
     }
 }
 
-impl<A, F, E> NewConfigurableService for MapInitErr<A, F, E>
+impl<A, F, E, C> NewConfigurableService<C> for MapInitErr<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::InitError) -> E + Clone,
 {
     type Request = A::Request;
@@ -490,27 +504,26 @@ where
     type Error = A::Error;
     type Service = A::Service;
 
-    type Config = A::Config;
     type InitError = E;
-    type Future = MapInitErrFuture<A, F, E>;
+    type Future = MapInitErrFuture<A, F, E, C>;
 
-    fn new_service(&self, cfg: Self::Config) -> Self::Future {
+    fn new_service(&self, cfg: C) -> Self::Future {
         MapInitErrFuture::new(self.a.new_service(cfg), self.f.clone())
     }
 }
 
-pub struct MapInitErrFuture<A, F, E>
+pub struct MapInitErrFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::InitError) -> E,
 {
     f: F,
     fut: A::Future,
 }
 
-impl<A, F, E> MapInitErrFuture<A, F, E>
+impl<A, F, E, C> MapInitErrFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::InitError) -> E,
 {
     fn new(fut: A::Future, f: F) -> Self {
@@ -518,9 +531,9 @@ where
     }
 }
 
-impl<A, F, E> Future for MapInitErrFuture<A, F, E>
+impl<A, F, E, C> Future for MapInitErrFuture<A, F, E, C>
 where
-    A: NewConfigurableService,
+    A: NewConfigurableService<C>,
     F: Fn(A::InitError) -> E,
 {
     type Item = A::Service;
