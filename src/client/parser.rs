@@ -41,10 +41,10 @@ impl HttpResponseParser {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         if buf.is_empty() {
             match io.read_available(buf) {
-                Ok(Async::Ready(true)) => {
+                Ok(Async::Ready((_, true))) => {
                     return Err(HttpResponseParserError::Disconnect)
                 }
-                Ok(Async::Ready(false)) => (),
+                Ok(Async::Ready((_, false))) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => return Err(HttpResponseParserError::Error(err.into())),
             }
@@ -63,10 +63,10 @@ impl HttpResponseParser {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
                     match io.read_available(buf) {
-                        Ok(Async::Ready(true)) => {
+                        Ok(Async::Ready((_, true))) => {
                             return Err(HttpResponseParserError::Disconnect)
                         }
-                        Ok(Async::Ready(false)) => (),
+                        Ok(Async::Ready((_, false))) => (),
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Err(err) => {
                             return Err(HttpResponseParserError::Error(err.into()))
@@ -87,8 +87,8 @@ impl HttpResponseParser {
             loop {
                 // read payload
                 let (not_ready, stream_finished) = match io.read_available(buf) {
-                    Ok(Async::Ready(true)) => (false, true),
-                    Ok(Async::Ready(false)) => (false, false),
+                    Ok(Async::Ready((_, true))) => (false, true),
+                    Ok(Async::Ready((_, false))) => (false, false),
                     Ok(Async::NotReady) => (true, false),
                     Err(err) => return Err(err.into()),
                 };

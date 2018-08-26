@@ -94,6 +94,7 @@ where
             };
         }
 
+        let mut is_eof = false;
         let kind = match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
                 let result = h1.poll();
@@ -120,15 +121,26 @@ where
                 return result;
             }
             Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
+                let mut disconnect = false;
                 match io.read_available(buf) {
-                    Ok(Async::Ready(true)) | Err(_) => {
-                        debug!("Ignored premature client disconnection");
-                        if let Some(n) = self.node.as_mut() {
-                            n.remove()
-                        };
-                        return Err(());
+                    Ok(Async::Ready((read_some, stream_closed))) => {
+                        is_eof = stream_closed;
+                        // Only disconnect if no data was read.
+                        if is_eof && !read_some {
+                            disconnect = true;
+                        }
+                    }
+                    Err(_) => {
+                        disconnect = true;
                     }
                     _ => (),
+                }
+                if disconnect {
+                    debug!("Ignored premature client disconnection");
+                    if let Some(n) = self.node.as_mut() {
+                        n.remove()
+                    };
+                    return Err(());
                 }
 
                 if buf.len() >= 14 {
@@ -149,7 +161,7 @@ where
             match kind {
                 ProtocolKind::Http1 => {
                     self.proto =
-                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf)));
+                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf, is_eof)));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {
