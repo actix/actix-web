@@ -611,7 +611,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
         h1.poll_io();
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
@@ -623,7 +623,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));
