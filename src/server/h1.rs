@@ -90,10 +90,10 @@ where
 {
     pub fn new(
         settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
-        buf: BytesMut,
+        buf: BytesMut, is_eof: bool,
     ) -> Self {
         Http1 {
-            flags: Flags::KEEPALIVE,
+            flags: Flags::KEEPALIVE | if is_eof { Flags::DISCONNECTED } else { Flags::empty() },
             stream: H1Writer::new(stream, Rc::clone(&settings)),
             decoder: H1Decoder::new(),
             payload: None,
@@ -129,6 +129,21 @@ where
         self.stream.disconnected();
         for task in &mut self.tasks {
             task.pipe.disconnected();
+        }
+    }
+
+    fn client_disconnect(&mut self) {
+        // notify all tasks
+        self.notify_disconnect();
+        // kill keepalive
+        self.keepalive_timer.take();
+
+        // on parse error, stop reading stream but tasks need to be
+        // completed
+        self.flags.insert(Flags::ERROR);
+
+        if let Some(mut payload) = self.payload.take() {
+            payload.set_error(PayloadError::Incomplete);
         }
     }
 
@@ -188,38 +203,21 @@ where
             && self.can_read()
         {
             match self.stream.get_mut().read_available(&mut self.buf) {
-                Ok(Async::Ready(disconnected)) => {
-                    if disconnected {
-                        // notify all tasks
-                        self.notify_disconnect();
-                        // kill keepalive
-                        self.keepalive_timer.take();
-
-                        // on parse error, stop reading stream but tasks need to be
-                        // completed
-                        self.flags.insert(Flags::ERROR);
-
-                        if let Some(mut payload) = self.payload.take() {
-                            payload.set_error(PayloadError::Incomplete);
-                        }
-                    } else {
+                Ok(Async::Ready((read_some, disconnected))) => {
+                    if read_some {
                         self.parse();
+                    }
+                    if disconnected {
+                        // delay disconnect until all tasks have finished.
+                        self.flags.insert(Flags::DISCONNECTED);
+                        if self.tasks.is_empty() {
+                            self.client_disconnect();
+                        }
                     }
                 }
                 Ok(Async::NotReady) => (),
                 Err(_) => {
-                    // notify all tasks
-                    self.notify_disconnect();
-                    // kill keepalive
-                    self.keepalive_timer.take();
-
-                    // on parse error, stop reading stream but tasks need to be
-                    // completed
-                    self.flags.insert(Flags::ERROR);
-
-                    if let Some(mut payload) = self.payload.take() {
-                        payload.set_error(PayloadError::Incomplete);
-                    }
+                    self.client_disconnect();
                 }
             }
         }
@@ -331,8 +329,13 @@ where
             }
         }
 
-        // deal with keep-alive
+        // deal with keep-alive and steam eof (client-side write shutdown)
         if self.tasks.is_empty() {
+            // handle stream eof
+            if self.flags.contains(Flags::DISCONNECTED) {
+                self.client_disconnect();
+                return Ok(Async::Ready(false));
+            }
             // no keep-alive
             if self.flags.contains(Flags::ERROR)
                 || (!self.flags.contains(Flags::KEEPALIVE)

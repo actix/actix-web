@@ -390,7 +390,7 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 
-    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<bool, io::Error> {
+    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<(bool, bool), io::Error> {
         let mut read_some = false;
         loop {
             if buf.remaining_mut() < LW_BUFFER_SIZE {
@@ -400,7 +400,7 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
                 match self.read(buf.bytes_mut()) {
                     Ok(n) => {
                         if n == 0 {
-                            return Ok(Async::Ready(!read_some));
+                            return Ok(Async::Ready((read_some, true)));
                         } else {
                             read_some = true;
                             buf.advance_mut(n);
@@ -409,7 +409,7 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
                     Err(e) => {
                         return if e.kind() == io::ErrorKind::WouldBlock {
                             if read_some {
-                                Ok(Async::Ready(false))
+                                Ok(Async::Ready((read_some, false)))
                             } else {
                                 Ok(Async::NotReady)
                             }
