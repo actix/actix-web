@@ -115,7 +115,7 @@ impl<T> Clone for OpensslConnector<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite> NewService for OpensslConnector<T> {
-    type Request = T;
+    type Request = (String, T);
     type Response = SslStream<T>;
     type Error = Error;
     type Service = OpensslConnectorService<T>;
@@ -130,17 +130,13 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslConnector<T> {
     }
 }
 
-pub trait OpensslDomain {
-    fn domain(&self) -> &str;
-}
-
 pub struct OpensslConnectorService<T> {
     connector: SslConnector,
     io: PhantomData<T>,
 }
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
-    type Request = T;
+    type Request = (String, T);
     type Response = SslStream<T>;
     type Error = Error;
     type Future = ConnectAsync<T>;
@@ -149,7 +145,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
-        SslConnectorExt::connect_async(&self.connector, "", req)
+    fn call(&mut self, (host, stream): Self::Request) -> Self::Future {
+        SslConnectorExt::connect_async(&self.connector, &host, stream)
     }
 }

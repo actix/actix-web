@@ -235,7 +235,7 @@ where
 pub struct AndThenNewConfigurableService<A, B, C>
 where
     A: NewConfigurableService<C>,
-    B: NewConfigurableService<C>
+    B: NewConfigurableService<C>,
 {
     a: A,
     b: B,
@@ -259,11 +259,7 @@ where
 
 impl<A, B, C> NewConfigurableService<C> for AndThenNewConfigurableService<A, B, C>
 where
-    A: NewConfigurableService<
-        C,
-        Response = B::Request,
-        InitError = B::InitError,
-    >,
+    A: NewConfigurableService<C, Response = B::Request, InitError = B::InitError>,
     A::Error: Into<B::Error>,
     B: NewConfigurableService<C>,
     C: Clone,
@@ -359,7 +355,7 @@ where
 /// `MapErrNewService` new service combinator
 pub struct MapErrNewConfigurableService<A, F, E, C>
 where
-    A: NewConfigurableService<C>
+    A: NewConfigurableService<C>,
 {
     a: A,
     f: F,
@@ -455,7 +451,7 @@ where
 /// `MapInitErr` service combinator
 pub struct MapInitErr<A, F, E, C>
 where
-    A: NewConfigurableService<C>
+    A: NewConfigurableService<C>,
 {
     a: A,
     f: F,

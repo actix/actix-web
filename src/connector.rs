@@ -51,7 +51,7 @@ impl Connector {
 
 impl Service for Connector {
     type Request = String;
-    type Response = TcpStream;
+    type Response = (String, TcpStream);
     type Error = ConnectorError;
     type Future = ConnectorFuture;
 
@@ -60,25 +60,32 @@ impl Service for Connector {
     }
 
     fn call(&mut self, addr: String) -> Self::Future {
+        let fut = ResolveFut::new(&addr, 0, &self.resolver);
+
         ConnectorFuture {
-            fut: ResolveFut::new(addr, 0, &self.resolver),
+            fut,
+            addr: Some(addr),
             fut2: None,
         }
     }
 }
 
 pub struct ConnectorFuture {
+    addr: Option<String>,
     fut: ResolveFut,
     fut2: Option<TcpConnector>,
 }
 
 impl Future for ConnectorFuture {
-    type Item = TcpStream;
+    type Item = (String, TcpStream);
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut2 {
-            return fut.poll();
+            return match fut.poll()? {
+                Async::Ready(stream) => Ok(Async::Ready((self.addr.take().unwrap(), stream))),
+                Async::NotReady => Ok(Async::NotReady),
+            };
         }
         match self.fut.poll()? {
             Async::Ready(addrs) => {
@@ -100,7 +107,7 @@ struct ResolveFut {
 }
 
 impl ResolveFut {
-    pub fn new(addr: String, port: u16, resolver: &AsyncResolver) -> Self {
+    pub fn new(addr: &str, port: u16, resolver: &AsyncResolver) -> Self {
         // we need to do dns resolution
         match ResolveFut::parse(addr.as_ref(), port) {
             Ok((host, port)) => ResolveFut {
