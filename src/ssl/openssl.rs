@@ -1,7 +1,7 @@
 use std::io;
 use std::marker::PhantomData;
 
-use futures::{future, future::FutureResult, Async, Poll};
+use futures::{future, future::FutureResult, Async, Poll, Future};
 use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
@@ -116,7 +116,7 @@ impl<T> Clone for OpensslConnector<T> {
 
 impl<T: AsyncRead + AsyncWrite> NewService for OpensslConnector<T> {
     type Request = (String, T);
-    type Response = SslStream<T>;
+    type Response = (String, SslStream<T>);
     type Error = Error;
     type Service = OpensslConnectorService<T>;
     type InitError = io::Error;
@@ -137,15 +137,38 @@ pub struct OpensslConnectorService<T> {
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
     type Request = (String, T);
-    type Response = SslStream<T>;
+    type Response = (String, SslStream<T>);
     type Error = Error;
-    type Future = ConnectAsync<T>;
+    type Future = ConnectAsyncExt<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, (host, stream): Self::Request) -> Self::Future {
-        SslConnectorExt::connect_async(&self.connector, &host, stream)
+        ConnectAsyncExt { 
+            fut: SslConnectorExt::connect_async(&self.connector, &host, stream),
+            host: Some(host)
+        }
+    }
+}
+
+pub struct ConnectAsyncExt<T> {
+    fut: ConnectAsync<T>,
+    host: Option<String>,
+}
+
+impl<T> Future for ConnectAsyncExt<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
+    type Item = (String, SslStream<T>);
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.fut.poll()? {
+            Async::Ready(stream) => Ok(Async::Ready((self.host.take().unwrap(), stream))),
+            Async::NotReady => Ok(Async::NotReady)
+        }
     }
 }
