@@ -1,7 +1,7 @@
 use std::io;
 use std::marker::PhantomData;
 
-use futures::{future, future::FutureResult, Async, Poll, Future};
+use futures::{future, future::FutureResult, Async, Future, Poll};
 use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
@@ -146,9 +146,9 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
     }
 
     fn call(&mut self, (host, stream): Self::Request) -> Self::Future {
-        ConnectAsyncExt { 
+        ConnectAsyncExt {
             fut: SslConnectorExt::connect_async(&self.connector, &host, stream),
-            host: Some(host)
+            host: Some(host),
         }
     }
 }
@@ -168,7 +168,7 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll()? {
             Async::Ready(stream) => Ok(Async::Ready((self.host.take().unwrap(), stream))),
-            Async::NotReady => Ok(Async::NotReady)
+            Async::NotReady => Ok(Async::NotReady),
         }
     }
 }
