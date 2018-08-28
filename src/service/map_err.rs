@@ -115,7 +115,7 @@ where
 
 impl<A, F, E> NewService for MapErrNewService<A, F, E>
 where
-    A: NewService + Clone,
+    A: NewService,
     F: Fn(A::Error) -> E + Clone,
 {
     type Request = A::Request;

@@ -4,12 +4,14 @@ use tower_service::{NewService, Service};
 mod and_then;
 mod fn_service;
 mod fn_state_service;
+mod map;
 mod map_err;
 mod map_init_err;
 
 pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::fn_service::FnService;
 pub use self::fn_state_service::FnStateService;
+pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
 
@@ -25,6 +27,14 @@ pub trait NewServiceExt: NewService {
         >,
     {
         AndThenNewService::new(self, new_service)
+    }
+
+    fn map<F, R>(self, f: F) -> MapNewService<Self, F, R>
+    where
+        Self: Sized,
+        F: Fn(Self::Response) -> R,
+    {
+        MapNewService::new(self, f)
     }
 
     fn map_err<F, E>(self, f: F) -> MapErrNewService<Self, F, E>
