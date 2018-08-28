@@ -61,7 +61,7 @@ pub mod ssl;
 mod worker;
 
 pub use configurable::{IntoNewConfigurableService, NewConfigurableService};
-pub use connector::{Connector, ConnectorError};
+pub use connector::{ConnectionInfo, Connector, ConnectorError};
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt};
 

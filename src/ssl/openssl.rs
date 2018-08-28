@@ -6,6 +6,7 @@ use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnect
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
+use connector::ConnectionInfo;
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
@@ -115,8 +116,8 @@ impl<T> Clone for OpensslConnector<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite> NewService for OpensslConnector<T> {
-    type Request = (String, T);
-    type Response = (String, SslStream<T>);
+    type Request = (ConnectionInfo, T);
+    type Response = (ConnectionInfo, SslStream<T>);
     type Error = Error;
     type Service = OpensslConnectorService<T>;
     type InitError = io::Error;
@@ -136,8 +137,8 @@ pub struct OpensslConnectorService<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
-    type Request = (String, T);
-    type Response = (String, SslStream<T>);
+    type Request = (ConnectionInfo, T);
+    type Response = (ConnectionInfo, SslStream<T>);
     type Error = Error;
     type Future = ConnectAsyncExt<T>;
 
@@ -145,24 +146,24 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (host, stream): Self::Request) -> Self::Future {
+    fn call(&mut self, (info, stream): Self::Request) -> Self::Future {
         ConnectAsyncExt {
-            fut: SslConnectorExt::connect_async(&self.connector, &host, stream),
-            host: Some(host),
+            fut: SslConnectorExt::connect_async(&self.connector, &info.host, stream),
+            host: Some(info),
         }
     }
 }
 
 pub struct ConnectAsyncExt<T> {
     fut: ConnectAsync<T>,
-    host: Option<String>,
+    host: Option<ConnectionInfo>,
 }
 
 impl<T> Future for ConnectAsyncExt<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Item = (String, SslStream<T>);
+    type Item = (ConnectionInfo, SslStream<T>);
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {

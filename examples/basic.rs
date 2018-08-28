@@ -64,14 +64,16 @@ fn main() {
     // bind socket address and start workers. By default server uses number of
     // available logical cpu as threads count. actix net start separate
     // instances of service pipeline in each worker.
-    Server::default().bind(
-        // configure service pipeline
-        "0.0.0.0:8443", move || {
-            let num = num.clone();
-            let acceptor = acceptor.clone();
+    Server::default()
+        .bind(
+            // configure service pipeline
+            "0.0.0.0:8443",
+            move || {
+                let num = num.clone();
+                let acceptor = acceptor.clone();
 
-            // service for converting incoming TcpStream to a SslStream<TcpStream>
-            (move |stream| {
+                // service for converting incoming TcpStream to a SslStream<TcpStream>
+                (move |stream| {
                 SslAcceptorExt::accept_async(&acceptor, stream)
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
             })
@@ -89,7 +91,9 @@ fn main() {
             .and_then((service, move || {
                 Ok::<_, io::Error>(ServiceState { num: num.clone() })
             }))
-    }).unwrap().start();
+            },
+        ).unwrap()
+        .start();
 
     sys.run();
 }
