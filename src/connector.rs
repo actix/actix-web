@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::io;
 use std::net::SocketAddr;
 
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, future::ok};
 use tokio;
 use tokio_tcp::{ConnectFuture, TcpStream};
 use tower_service::Service;
@@ -46,6 +46,18 @@ impl Connector {
         };
 
         Connector { resolver }
+    }
+
+    pub fn new_service<E>() -> impl Future<Item=Connector, Error=E> {
+        ok(Connector::new())
+    }
+}
+
+impl Clone for Connector {
+    fn clone(&self) -> Self {
+        Connector {
+            resolver: self.resolver.clone(),
+        }
     }
 }
 

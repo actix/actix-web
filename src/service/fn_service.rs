@@ -34,6 +34,21 @@ where
     }
 }
 
+impl<F, Req, Resp, E, Fut> Clone for FnService<F, Req, Resp, E, Fut>
+where
+    F: Fn(Req) -> Fut + Clone,
+    Fut: IntoFuture<Item = Resp, Error = E>,
+{
+    fn clone(&self) -> Self {
+        FnService {
+            f: self.f.clone(),
+            req: marker::PhantomData,
+            resp: marker::PhantomData,
+            err: marker::PhantomData,
+        }
+    }
+}
+
 impl<F, Req, Resp, E, Fut> Service for FnService<F, Req, Resp, E, Fut>
 where
     F: Fn(Req) -> Fut,
