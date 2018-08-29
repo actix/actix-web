@@ -46,7 +46,7 @@ pub struct ConnectionInfo {
     pub addr: SocketAddr,
 }
 
-pub struct Connector<T> {
+pub struct Connector<T=String> {
     resolver: AsyncResolver,
     req: PhantomData<T>,
 }
