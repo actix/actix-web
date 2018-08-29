@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.5] - 2018-09-xx
+
+### Added
+
+* Added the ability to pass a custom `TlsConnector`.
+
 ## [0.7.4] - 2018-08-23
 
 ### Added
