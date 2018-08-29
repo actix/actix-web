@@ -9,11 +9,38 @@ mod map_err;
 mod map_init_err;
 
 pub use self::and_then::{AndThen, AndThenNewService};
-pub use self::fn_service::{FnService, FnNewService};
-pub use self::fn_state_service::{FnStateService, FnStateNewService};
+pub use self::fn_service::{FnNewService, FnService};
+pub use self::fn_state_service::{FnStateNewService, FnStateService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
+
+pub trait ServiceExt: Service {
+    fn and_then<F, B>(self, new_service: F) -> AndThen<Self, B>
+    where
+        Self: Sized,
+        F: IntoService<B>,
+        B: Service<Request = Self::Response, Error = Self::Error>,
+    {
+        AndThen::new(self, new_service.into_service())
+    }
+
+    fn map<F, R>(self, f: F) -> Map<Self, F, R>
+    where
+        Self: Sized,
+        F: Fn(Self::Response) -> R,
+    {
+        Map::new(self, f)
+    }
+
+    fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
+    where
+        Self: Sized,
+        F: Fn(Self::Error) -> E,
+    {
+        MapErr::new(self, f)
+    }
+}
 
 pub trait NewServiceExt: NewService {
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
@@ -54,6 +81,7 @@ pub trait NewServiceExt: NewService {
     }
 }
 
+impl<T: Service> ServiceExt for T {}
 impl<T: NewService> NewServiceExt for T {}
 
 /// Trait for types that can be converted to a Service
@@ -62,7 +90,7 @@ where
     T: Service,
 {
     /// Create service
-    fn into(self) -> T;
+    fn into_service(self) -> T;
 }
 
 /// Trait for types that can be converted to a Service
@@ -78,7 +106,7 @@ impl<T> IntoService<T> for T
 where
     T: Service,
 {
-    fn into(self) -> T {
+    fn into_service(self) -> T {
         self
     }
 }
@@ -97,7 +125,7 @@ where
     F: Fn(Req) -> Fut + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    fn into(self) -> FnService<F, Req, Resp, Err, Fut> {
+    fn into_service(self) -> FnService<F, Req, Resp, Err, Fut> {
         FnService::new(self)
     }
 }
