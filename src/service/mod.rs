@@ -9,8 +9,8 @@ mod map_err;
 mod map_init_err;
 
 pub use self::and_then::{AndThen, AndThenNewService};
-pub use self::fn_service::FnService;
-pub use self::fn_state_service::FnStateService;
+pub use self::fn_service::{FnService, FnNewService};
+pub use self::fn_state_service::{FnStateService, FnStateNewService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
