@@ -52,7 +52,7 @@ use actix::Message;
 pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
-mod configurable;
+pub mod configurable;
 mod connector;
 mod server;
 mod server_service;
