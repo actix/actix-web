@@ -85,7 +85,7 @@ where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    fn new(f: F) -> Self {
+    pub fn new(f: F) -> Self {
         FnNewService {
             f,
             req: marker::PhantomData,
