@@ -53,7 +53,7 @@ pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
 pub mod configurable;
-mod connector;
+pub mod connector;
 mod server;
 mod server_service;
 pub mod service;
@@ -61,7 +61,6 @@ pub mod ssl;
 mod worker;
 
 pub use configurable::{IntoNewConfigurableService, NewConfigurableService};
-pub use connector::{ConnectionInfo, Connector, ConnectorError};
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt, ServiceExt};
 
