@@ -126,6 +126,7 @@ impl<A, B> NewService for AndThenNewService<A, B>
 where
     A: NewService<Response = B::Request, InitError = B::InitError>,
     A::Error: Into<B::Error>,
+    A::InitError: Into<B::InitError>,
     B: NewService,
 {
     type Request = A::Request;
@@ -133,7 +134,7 @@ where
     type Error = B::Error;
     type Service = AndThen<A::Service, B::Service>;
 
-    type InitError = A::InitError;
+    type InitError = B::InitError;
     type Future = AndThenNewServiceFuture<A, B>;
 
     fn new_service(&self) -> Self::Future {
@@ -145,6 +146,7 @@ impl<A, B> Clone for AndThenNewService<A, B>
 where
     A: NewService<Response = B::Request, InitError = B::InitError> + Clone,
     A::Error: Into<B::Error>,
+    A::InitError: Into<B::InitError>,
     B: NewService + Clone,
 {
     fn clone(&self) -> Self {
@@ -185,14 +187,15 @@ impl<A, B> Future for AndThenNewServiceFuture<A, B>
 where
     A: NewService,
     A::Error: Into<B::Error>,
-    B: NewService<Request = A::Response, InitError = A::InitError>,
+    A::InitError: Into<B::InitError>,
+    B: NewService<Request = A::Response>,
 {
     type Item = AndThen<A::Service, B::Service>;
     type Error = B::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if self.a.is_none() {
-            if let Async::Ready(service) = self.fut_a.poll()? {
+            if let Async::Ready(service) = self.fut_a.poll().map_err(|e| e.into())? {
                 self.a = Some(service);
             }
         }
