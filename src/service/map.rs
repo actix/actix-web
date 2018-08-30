@@ -1,7 +1,7 @@
 use std::marker;
 
 use futures::{Async, Future, Poll};
-use tower_service::{NewService, Service};
+use {NewService, Service};
 
 /// `Map` service combinator
 pub struct Map<A, F, R> {

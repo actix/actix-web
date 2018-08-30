@@ -7,6 +7,7 @@ mod fn_state_service;
 mod map;
 mod map_err;
 mod map_init_err;
+mod partial;
 
 pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::fn_service::{FnNewService, FnService};
@@ -14,6 +15,7 @@ pub use self::fn_state_service::{FnStateNewService, FnStateService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
+pub use self::partial::{Partial, PartialNewService};
 
 pub trait ServiceExt: Service {
     fn and_then<F, B>(self, new_service: F) -> AndThen<Self, B>
@@ -78,6 +80,14 @@ pub trait NewServiceExt: NewService {
         F: Fn(Self::InitError) -> E,
     {
         MapInitErr::new(self, f)
+    }
+
+    fn partial<F, Req, Resp>(self, f: F) -> PartialNewService<Self, F, Req, Resp>
+    where
+        Self: Sized,
+        F: Fn(Req) -> (Self::Request, Resp),
+    {
+        PartialNewService::new(self, f)
     }
 }
 
