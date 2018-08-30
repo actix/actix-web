@@ -92,6 +92,13 @@ impl<T: HostAware> Connector<T> {
     > + Clone {
         move || -> FutureResult<Connector<T>, E> { ok(Connector::new(cfg.clone(), opts)) }
     }
+
+    pub fn change_request<T2: HostAware>(&self) -> Connector<T2> {
+        Connector {
+            resolver: self.resolver.clone(),
+            req: PhantomData,
+        }
+    }
 }
 
 impl<T> Clone for Connector<T> {
