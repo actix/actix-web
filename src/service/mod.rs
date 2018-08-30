@@ -1,4 +1,4 @@
-use futures::{Future, IntoFuture};
+use futures::IntoFuture;
 
 mod and_then;
 mod apply;
@@ -10,7 +10,7 @@ mod map_init_err;
 mod map_request;
 
 pub use self::and_then::{AndThen, AndThenNewService};
-pub use self::apply::{Apply, ApplyNewService};
+pub use self::apply::{Apply, ApplyService};
 pub use self::fn_service::{FnNewService, FnService};
 pub use self::fn_state_service::{FnStateNewService, FnStateService};
 pub use self::map::{Map, MapNewService};
@@ -47,18 +47,6 @@ pub trait ServiceExt: Service {
 }
 
 pub trait NewServiceExt: NewService {
-    fn apply<T, F, R, Req, Resp, Err, F2>(
-        f: F, service: F2,
-    ) -> ApplyNewService<T, F, R, Req, Resp, Err>
-    where
-        T: NewService,
-        F: Fn(Req, &mut T::Service) -> R + Clone,
-        R: Future<Item = Resp, Error = Err>,
-        F2: IntoNewService<T>,
-    {
-        ApplyNewService::new(f, service.into_new_service())
-    }
-
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
     where
         Self: Sized,
