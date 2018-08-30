@@ -91,7 +91,7 @@ impl<T: HostAware> Connector<T> {
         InitError = E,
     > + Clone {
         move || -> FutureResult<Connector<T>, E> {
-            ok(Connector::new(cfg.clone(), opts.clone()))
+            ok(Connector::new(cfg.clone(), opts))
         }
     }
 }

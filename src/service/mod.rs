@@ -1,23 +1,23 @@
-use futures::IntoFuture;
-use tower_service::{NewService, Service};
+use futures::{Future, IntoFuture};
 
 mod and_then;
+mod apply;
 mod fn_service;
 mod fn_state_service;
 mod map;
 mod map_err;
 mod map_init_err;
 mod map_request;
-mod partial;
 
 pub use self::and_then::{AndThen, AndThenNewService};
+pub use self::apply::{Apply, ApplyNewService};
 pub use self::fn_service::{FnNewService, FnService};
 pub use self::fn_state_service::{FnStateNewService, FnStateService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
 pub use self::map_request::{MapReq, MapReqNewService};
-pub use self::partial::{Partial, PartialNewService};
+use {NewService, Service};
 
 pub trait ServiceExt: Service {
     fn and_then<F, B>(self, new_service: F) -> AndThen<Self, B>
@@ -47,6 +47,18 @@ pub trait ServiceExt: Service {
 }
 
 pub trait NewServiceExt: NewService {
+    fn apply<T, F, R, Req, Resp, Err, F2>(
+        f: F, service: F2,
+    ) -> ApplyNewService<T, F, R, Req, Resp, Err>
+    where
+        T: NewService,
+        F: Fn(Req, &mut T::Service) -> R + Clone,
+        R: Future<Item = Resp, Error = Err>,
+        F2: IntoNewService<T>,
+    {
+        ApplyNewService::new(f, service.into_new_service())
+    }
+
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
     where
         Self: Sized,
@@ -90,14 +102,6 @@ pub trait NewServiceExt: NewService {
         F: Fn(Self::InitError) -> E,
     {
         MapInitErr::new(self, f)
-    }
-
-    fn partial<F, Req, Resp>(self, f: F) -> PartialNewService<Self, F, Req, Resp>
-    where
-        Self: Sized,
-        F: Fn(Req) -> (Self::Request, Resp),
-    {
-        PartialNewService::new(self, f)
     }
 }
 
