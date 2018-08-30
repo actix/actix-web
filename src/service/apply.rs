@@ -16,6 +16,7 @@ pub struct ApplyService<T, F, R, Req, Resp, Err> {
 impl<T, F, R, Req, Resp, Err> ApplyService<T, F, R, Req, Resp, Err>
 where
     T: Service,
+    T::Error: Into<Err>,
     F: Fn(Req, &mut T) -> R,
     R: Future<Item = Resp, Error = Err>,
 {
@@ -155,6 +156,7 @@ where
 impl<T, F, R, Req, Resp, Err> Future for ApplyFuture<T, F, R, Req, Resp, Err>
 where
     T: NewService,
+    T::Error: Into<Err>,
     F: Fn(Req, &mut T::Service) -> R,
     R: Future<Item = Resp, Error = Err>,
 {
