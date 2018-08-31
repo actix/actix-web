@@ -39,6 +39,23 @@ impl HttpResponseParser {
         T: IoStream,
     {
         loop {
+            // Don't call parser until we have data to parse.
+            if !buf.is_empty() {
+                match HttpResponseParser::parse_message(buf)
+                    .map_err(HttpResponseParserError::Error)?
+                {
+                    Async::Ready((msg, decoder)) => {
+                        self.decoder = decoder;
+                        return Ok(Async::Ready(msg));
+                    }
+                    Async::NotReady => {
+                        if buf.capacity() >= MAX_BUFFER_SIZE {
+                            return Err(HttpResponseParserError::Error(ParseError::TooLarge));
+                        }
+                        // Parser needs more data.
+                    }
+                }
+            }
             // Read some more data into the buffer for the parser.
             match io.read_available(buf) {
                 Ok(Async::Ready((false, true))) => {
@@ -48,22 +65,6 @@ impl HttpResponseParser {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     return Err(HttpResponseParserError::Error(err.into()))
-                }
-            }
-
-            // Call HTTP response parser.
-            match HttpResponseParser::parse_message(buf)
-                .map_err(HttpResponseParserError::Error)?
-            {
-                Async::Ready((msg, decoder)) => {
-                    self.decoder = decoder;
-                    return Ok(Async::Ready(msg));
-                }
-                Async::NotReady => {
-                    if buf.capacity() >= MAX_BUFFER_SIZE {
-                        return Err(HttpResponseParserError::Error(ParseError::TooLarge));
-                    }
-                    // Parser needs more data.  Loop and read more data.
                 }
             }
         }
