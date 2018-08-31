@@ -39,6 +39,7 @@ impl HttpResponseParser {
         T: IoStream,
     {
         loop {
+            // Read some more data into the buffer for the parser.
             match io.read_available(buf) {
                 Ok(Async::Ready((false, true))) => {
                     return Err(HttpResponseParserError::Disconnect)
@@ -49,6 +50,8 @@ impl HttpResponseParser {
                     return Err(HttpResponseParserError::Error(err.into()))
                 }
             }
+
+            // Call HTTP response parser.
             match HttpResponseParser::parse_message(buf)
                 .map_err(HttpResponseParserError::Error)?
             {
@@ -60,6 +63,7 @@ impl HttpResponseParser {
                     if buf.capacity() >= MAX_BUFFER_SIZE {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
+                    // Parser needs more data.  Loop and read more data.
                 }
             }
         }
