@@ -41,7 +41,8 @@ impl HttpResponseParser {
         // if buf is empty parse_message will always return NotReady, let's avoid that
         if buf.is_empty() {
             match io.read_available(buf) {
-                Ok(Async::Ready((_, true))) => {
+                Ok(Async::Ready((true, true))) => (),
+                Ok(Async::Ready((false, true))) => {
                     return Err(HttpResponseParserError::Disconnect)
                 }
                 Ok(Async::Ready((_, false))) => (),
@@ -63,7 +64,8 @@ impl HttpResponseParser {
                         return Err(HttpResponseParserError::Error(ParseError::TooLarge));
                     }
                     match io.read_available(buf) {
-                        Ok(Async::Ready((_, true))) => {
+                        Ok(Async::Ready((true, true))) => (),
+                        Ok(Async::Ready((false, true))) => {
                             return Err(HttpResponseParserError::Disconnect)
                         }
                         Ok(Async::Ready((_, false))) => (),
