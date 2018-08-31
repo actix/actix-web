@@ -4,7 +4,7 @@ use futures::{Async, Future, Poll};
 use {IntoNewService, NewService, Service};
 
 /// `ApplyService` service combinator
-pub struct ApplyService<T, F, R, Req, Resp, Err> {
+pub struct Apply<T, F, R, Req, Resp, Err> {
     service: T,
     f: F,
     r: PhantomData<R>,
@@ -13,7 +13,7 @@ pub struct ApplyService<T, F, R, Req, Resp, Err> {
     e: PhantomData<Err>,
 }
 
-impl<T, F, R, Req, Resp, Err> ApplyService<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> Apply<T, F, R, Req, Resp, Err>
 where
     T: Service,
     T::Error: Into<Err>,
@@ -33,7 +33,7 @@ where
     }
 }
 
-impl<T, F, R, Req, Resp, Err> Service for ApplyService<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> Service for Apply<T, F, R, Req, Resp, Err>
 where
     T: Service,
     T::Error: Into<Err>,
@@ -54,8 +54,8 @@ where
     }
 }
 
-/// `Apply` new service combinator
-pub struct Apply<T, F, R, Req, Resp, Err> {
+/// `ApplyNewService` new service combinator
+pub struct ApplyNewService<T, F, R, Req, Resp, Err> {
     service: T,
     f: F,
     r: PhantomData<R>,
@@ -64,13 +64,13 @@ pub struct Apply<T, F, R, Req, Resp, Err> {
     e: PhantomData<Err>,
 }
 
-impl<T, F, R, Req, Resp, Err> Apply<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> ApplyNewService<T, F, R, Req, Resp, Err>
 where
     T: NewService,
     F: Fn(Req, &mut T::Service) -> R,
     R: Future<Item = Resp, Error = Err>,
 {
-    /// Create new `Partial` new service instance
+    /// Create new `ApplyNewService` new service instance
     pub fn new<F1: IntoNewService<T>>(f: F, service: F1) -> Self {
         Self {
             f,
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<T, F, R, Req, Resp, Err> Clone for Apply<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> Clone for ApplyNewService<T, F, R, Req, Resp, Err>
 where
     T: NewService + Clone,
     F: Fn(Req, &mut T::Service) -> R + Clone,
@@ -101,7 +101,7 @@ where
     }
 }
 
-impl<T, F, R, Req, Resp, Err> NewService for Apply<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> NewService for ApplyNewService<T, F, R, Req, Resp, Err>
 where
     T: NewService,
     T::Error: Into<Err>,
@@ -111,17 +111,17 @@ where
     type Request = Req;
     type Response = Resp;
     type Error = Err;
-    type Service = ApplyService<T::Service, F, R, Req, Resp, Err>;
+    type Service = Apply<T::Service, F, R, Req, Resp, Err>;
 
     type InitError = T::InitError;
-    type Future = ApplyFuture<T, F, R, Req, Resp, Err>;
+    type Future = ApplyNewServiceFuture<T, F, R, Req, Resp, Err>;
 
     fn new_service(&self) -> Self::Future {
-        ApplyFuture::new(self.service.new_service(), self.f.clone())
+        ApplyNewServiceFuture::new(self.service.new_service(), self.f.clone())
     }
 }
 
-pub struct ApplyFuture<T, F, R, Req, Resp, Err>
+pub struct ApplyNewServiceFuture<T, F, R, Req, Resp, Err>
 where
     T: NewService,
     F: Fn(Req, &mut T::Service) -> R,
@@ -135,14 +135,14 @@ where
     e: PhantomData<Err>,
 }
 
-impl<T, F, R, Req, Resp, Err> ApplyFuture<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> ApplyNewServiceFuture<T, F, R, Req, Resp, Err>
 where
     T: NewService,
     F: Fn(Req, &mut T::Service) -> R,
     R: Future<Item = Resp, Error = Err>,
 {
     fn new(fut: T::Future, f: F) -> Self {
-        ApplyFuture {
+        ApplyNewServiceFuture {
             f: Some(f),
             fut,
             r: PhantomData,
@@ -153,22 +153,19 @@ where
     }
 }
 
-impl<T, F, R, Req, Resp, Err> Future for ApplyFuture<T, F, R, Req, Resp, Err>
+impl<T, F, R, Req, Resp, Err> Future for ApplyNewServiceFuture<T, F, R, Req, Resp, Err>
 where
     T: NewService,
     T::Error: Into<Err>,
     F: Fn(Req, &mut T::Service) -> R,
     R: Future<Item = Resp, Error = Err>,
 {
-    type Item = ApplyService<T::Service, F, R, Req, Resp, Err>;
+    type Item = Apply<T::Service, F, R, Req, Resp, Err>;
     type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Async::Ready(service) = self.fut.poll()? {
-            Ok(Async::Ready(ApplyService::new(
-                self.f.take().unwrap(),
-                service,
-            )))
+            Ok(Async::Ready(Apply::new(self.f.take().unwrap(), service)))
         } else {
             Ok(Async::NotReady)
         }
