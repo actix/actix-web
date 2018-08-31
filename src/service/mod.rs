@@ -20,12 +20,12 @@ pub use self::map_request::{MapReq, MapReqNewService};
 use {NewService, Service};
 
 pub trait ServiceExt: Service {
-    fn apply<F, R, Req, Resp, Err>(self, f: F) -> Apply<Self, F, R, Req, Resp, Err>
+    fn apply<F, R, Req>(self, f: F) -> Apply<Self, F, R, Req>
     where
         Self: Sized,
-        Self::Error: Into<Err>,
+        Self::Error: Into<<R::Future as Future>::Error>,
         F: Fn(Req, &mut Self) -> R,
-        R: Future<Item = Resp, Error = Err>,
+        R: IntoFuture,
     {
         Apply::new(f, self)
     }
@@ -57,12 +57,12 @@ pub trait ServiceExt: Service {
 }
 
 pub trait NewServiceExt: NewService {
-    fn apply<F, R, Req, Resp, Err>(self, f: F) -> ApplyNewService<Self, F, R, Req, Resp, Err>
+    fn apply<F, R, Req>(self, f: F) -> ApplyNewService<Self, F, R, Req>
     where
         Self: Sized,
-        Self::Error: Into<Err>,
+        Self::Error: Into<<R::Future as Future>::Error>,
         F: Fn(Req, &mut Self::Service) -> R + Clone,
-        R: Future<Item = Resp, Error = Err>,
+        R: IntoFuture,
     {
         ApplyNewService::new(f, self)
     }
