@@ -178,7 +178,7 @@ where
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
                 Err(err) => {
-                    debug!("Error sendips ng data: {}", err);
+                    debug!("Error sending data: {}", err);
                     return Err(());
                 }
             }
