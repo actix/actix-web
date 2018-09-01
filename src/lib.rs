@@ -58,6 +58,7 @@ mod server;
 mod server_service;
 pub mod service;
 pub mod ssl;
+pub mod stream;
 mod worker;
 
 pub use configurable::{IntoNewConfigurableService, NewConfigurableService};
