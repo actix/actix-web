@@ -22,7 +22,7 @@ impl HttpHandlerTask for ServerError {
             helpers::write_status_line(self.0, self.1.as_u16(), bytes);
         }
         // Convert Status Code to Reason.
-        let reason = self.1.canonical_reason().unwrap_or("<unknown status code>");
+        let reason = self.1.canonical_reason().unwrap_or("");
         io.buffer().extend_from_slice(reason.as_bytes());
         // No response body.
         io.buffer().extend_from_slice(b"\r\ncontent-length: 0\r\n");
