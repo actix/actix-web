@@ -933,6 +933,29 @@ fn test_application() {
 }
 
 #[test]
+fn test_default_404_handler_response() {
+    let mut srv = test::TestServer::with_factory(|| {
+        App::new()
+            .prefix("/app")
+            .resource("", |r| r.f(|_| HttpResponse::Ok()))
+            .resource("/", |r| r.f(|_| HttpResponse::Ok()))
+    });
+    let addr = srv.addr();
+
+    let mut buf = [0; 24];
+    let request = TcpStream::connect(&addr)
+        .and_then(|sock| {
+            tokio::io::write_all(sock, "HEAD / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .and_then(|(sock, _)| tokio::io::read_exact(sock, &mut buf))
+                .and_then(|(_, buf)| Ok(buf))
+        })
+        .map_err(|e| panic!("{:?}", e));
+    let response = srv.execute(request).unwrap();
+    let rep = String::from_utf8_lossy(&response[..]);
+    assert!(rep.contains("HTTP/1.1 404 Not Found"));
+}
+
+#[test]
 fn test_server_cookies() {
     use actix_web::http;
 
