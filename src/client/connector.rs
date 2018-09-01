@@ -292,7 +292,6 @@ impl ClientConnector {
     /// # extern crate futures;
     /// # use futures::{future, Future};
     /// # use std::io::Write;
-    /// # use std::process;
     /// # use actix_web::actix::Actor;
     /// extern crate openssl;
     /// use actix_web::{actix, client::ClientConnector, client::Connect};
@@ -337,10 +336,8 @@ impl ClientConnector {
     /// # #![cfg(feature = "rust-tls")]
     /// # extern crate actix_web;
     /// # extern crate futures;
-    /// # extern crate tokio;
     /// # use futures::{future, Future};
     /// # use std::io::Write;
-    /// # use std::process;
     /// # use actix_web::actix::Actor;
     /// extern crate rustls;
     /// extern crate webpki_roots;
@@ -380,6 +377,42 @@ impl ClientConnector {
         feature = "tls",
         not(any(feature = "alpn", feature = "rust-tls"))
     ))]
+    /// Create `ClientConnector` actor with custom `SslConnector` instance.
+    ///
+    /// By default `ClientConnector` uses very a simple SSL configuration.
+    /// With `with_connector` method it is possible to use a custom
+    /// `SslConnector` object.
+    ///
+    /// ```rust
+    /// # #![cfg(feature = "tls")]
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// # use futures::{future, Future};
+    /// # use std::io::Write;
+    /// # use actix_web::actix::Actor;
+    /// extern crate native_tls;
+    /// extern crate webpki_roots;
+    /// use native_tls::TlsConnector;
+    /// use actix_web::{actix, client::ClientConnector, client::Connect};
+    ///
+    /// fn main() {
+    ///     actix::run(|| {
+    ///         let connector = TlsConnector::new().unwrap();
+    ///         let conn = ClientConnector::with_connector(connector.into()).start();
+    ///
+    ///         conn.send(
+    ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
+    ///                 .map_err(|_| ())
+    ///                 .and_then(|res| {
+    ///                     if let Ok(mut stream) = res {
+    ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    ///                     }
+    /// #                   actix::System::current().stop();
+    ///                     Ok(())
+    ///                 })
+    ///     });
+    /// }
+    /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
         // keep level of indirection for docstrings matching featureflags
         Self::with_connector_impl(connector)
