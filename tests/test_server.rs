@@ -933,7 +933,7 @@ fn test_application() {
 }
 
 #[test]
-fn test_issue_490() {
+fn test_default_404_handler_response() {
     let mut srv = test::TestServer::with_factory(|| {
         App::new()
             .prefix("/app")
