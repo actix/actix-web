@@ -6,6 +6,11 @@
 
 * Added the ability to pass a custom `TlsConnector`.
 
+### Fixed
+
+* Handle socket read disconnect
+
+
 ## [0.7.4] - 2018-08-23
 
 ### Added
