@@ -19,36 +19,28 @@ use tokio_timer::Delay;
 #[cfg(feature = "alpn")]
 use {
     openssl::ssl::{Error as SslError, SslConnector, SslMethod},
-    tokio_openssl::SslConnectorExt
+    tokio_openssl::SslConnectorExt,
 };
 
 #[cfg(all(feature = "tls", not(feature = "alpn")))]
 use {
     native_tls::{Error as SslError, TlsConnector as NativeTlsConnector},
-    tokio_tls::TlsConnector as SslConnector
+    tokio_tls::TlsConnector as SslConnector,
 };
 
-#[cfg(
-    all(
-        feature = "rust-tls",
-        not(any(feature = "alpn", feature = "tls"))
-    )
-)]
+#[cfg(all(
+    feature = "rust-tls",
+    not(any(feature = "alpn", feature = "tls"))
+))]
 use {
-    rustls::ClientConfig,
-    std::io::Error as SslError,
-    std::sync::Arc,
-    tokio_rustls::ClientConfigExt,
-    webpki::DNSNameRef,
-    webpki_roots,
+    rustls::ClientConfig, std::io::Error as SslError, std::sync::Arc,
+    tokio_rustls::ClientConfigExt, webpki::DNSNameRef, webpki_roots,
 };
 
-#[cfg(
-    all(
-        feature = "rust-tls",
-        not(any(feature = "alpn", feature = "tls"))
-    )
-)]
+#[cfg(all(
+    feature = "rust-tls",
+    not(any(feature = "alpn", feature = "tls"))
+))]
 type SslConnector = Arc<ClientConfig>;
 
 #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
@@ -255,17 +247,19 @@ impl Default for ClientConnector {
     fn default() -> ClientConnector {
         let connector = {
             #[cfg(all(feature = "alpn"))]
-            { SslConnector::builder(SslMethod::tls()).unwrap().build() }
+            {
+                SslConnector::builder(SslMethod::tls()).unwrap().build()
+            }
 
             #[cfg(all(feature = "tls", not(feature = "alpn")))]
-            { NativeTlsConnector::builder().build().unwrap().into() }
+            {
+                NativeTlsConnector::builder().build().unwrap().into()
+            }
 
-            #[cfg(
-                all(
-                    feature = "rust-tls",
-                    not(any(feature = "alpn", feature = "tls"))
-                )
-            )]
+            #[cfg(all(
+                feature = "rust-tls",
+                not(any(feature = "alpn", feature = "tls"))
+            ))]
             {
                 let mut config = ClientConfig::new();
                 config
@@ -275,7 +269,9 @@ impl Default for ClientConnector {
             }
 
             #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
-            { () }
+            {
+                ()
+            }
         };
 
         ClientConnector::with_connector_impl(connector)
@@ -327,12 +323,10 @@ impl ClientConnector {
         Self::with_connector_impl(connector)
     }
 
-    #[cfg(
-        all(
-            feature = "rust-tls",
-            not(any(feature = "alpn", feature = "tls"))
-        )
-    )]
+    #[cfg(all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "tls"))
+    ))]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
     /// By default `ClientConnector` uses very a simple SSL configuration.
@@ -382,12 +376,10 @@ impl ClientConnector {
         Self::with_connector_impl(Arc::new(connector))
     }
 
-    #[cfg(
-        all(
-            feature = "tls",
-            not(any(feature = "alpn", feature = "rust-tls"))
-        )
-    )]
+    #[cfg(all(
+        feature = "tls",
+        not(any(feature = "alpn", feature = "rust-tls"))
+    ))]
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
         // keep level of indirection for docstrings matching featureflags
         Self::with_connector_impl(connector)
@@ -772,12 +764,10 @@ impl ClientConnector {
                 }
             }
 
-            #[cfg(
-                all(
-                    feature = "rust-tls",
-                    not(any(feature = "alpn", feature = "tls"))
-                )
-            )]
+            #[cfg(all(
+                feature = "rust-tls",
+                not(any(feature = "alpn", feature = "tls"))
+            ))]
             match res {
                 Err(err) => {
                     let _ = waiter.tx.send(Err(err.into()));
@@ -1263,7 +1253,7 @@ impl AsyncWrite for Connection {
 }
 
 #[cfg(feature = "tls")]
-use tokio_tls::{TlsStream};
+use tokio_tls::TlsStream;
 
 #[cfg(feature = "tls")]
 /// This is temp solution untile actix-net migration
