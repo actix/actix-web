@@ -236,7 +236,6 @@ macro_rules! FROM_STR {
     ($type:ty) => {
         impl FromParam for $type {
             type Err = InternalError<<$type as FromStr>::Err>;
-        
             fn from_param(val: &str) -> Result<Self, Self::Err> {
                 <$type as FromStr>::from_str(val)
                     .map_err(|e| InternalError::new(e, StatusCode::BAD_REQUEST))

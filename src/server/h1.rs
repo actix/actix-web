@@ -22,13 +22,14 @@ use super::{HttpHandler, HttpHandlerTask, IoStream};
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
-    struct Flags: u8 {
-        const STARTED = 0b0000_0001;
-        const ERROR = 0b0000_0010;
-        const KEEPALIVE = 0b0000_0100;
-        const SHUTDOWN = 0b0000_1000;
-        const DISCONNECTED = 0b0001_0000;
-        const POLLED = 0b0010_0000;
+    pub struct Flags: u8 {
+        const STARTED            = 0b0000_0001;
+        const ERROR              = 0b0000_0010;
+        const KEEPALIVE          = 0b0000_0100;
+        const SHUTDOWN           = 0b0000_1000;
+        const READ_DISCONNECTED  = 0b0001_0000;
+        const WRITE_DISCONNECTED = 0b0010_0000;
+        const POLLED             = 0b0100_0000;
     }
 }
 
@@ -93,7 +94,11 @@ where
         buf: BytesMut, is_eof: bool,
     ) -> Self {
         Http1 {
-            flags: Flags::KEEPALIVE | if is_eof { Flags::DISCONNECTED } else { Flags::empty() },
+            flags: if is_eof {
+                Flags::READ_DISCONNECTED
+            } else {
+                Flags::KEEPALIVE
+            },
             stream: H1Writer::new(stream, Rc::clone(&settings)),
             decoder: H1Decoder::new(),
             payload: None,
@@ -117,6 +122,13 @@ where
 
     #[inline]
     fn can_read(&self) -> bool {
+        if self
+            .flags
+            .intersects(Flags::ERROR | Flags::READ_DISCONNECTED)
+        {
+            return false;
+        }
+
         if let Some(ref info) = self.payload {
             info.need_read() == PayloadStatus::Read
         } else {
@@ -125,6 +137,8 @@ where
     }
 
     fn notify_disconnect(&mut self) {
+        self.flags.insert(Flags::WRITE_DISCONNECTED);
+
         // notify all tasks
         self.stream.disconnected();
         for task in &mut self.tasks {
@@ -163,6 +177,11 @@ where
 
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
+            if self.flags.intersects(
+                Flags::ERROR | Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED,
+            ) {
+                return Ok(Async::Ready(()));
+            }
             match self.stream.poll_completed(true) {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
@@ -197,11 +216,9 @@ where
             self.flags.insert(Flags::POLLED);
             return;
         }
+
         // read io from socket
-        if !self.flags.intersects(Flags::ERROR)
-            && self.tasks.len() < MAX_PIPELINED_MESSAGES
-            && self.can_read()
-        {
+        if self.can_read() && self.tasks.len() < MAX_PIPELINED_MESSAGES {
             match self.stream.get_mut().read_available(&mut self.buf) {
                 Ok(Async::Ready((read_some, disconnected))) => {
                     if read_some {
@@ -209,7 +226,7 @@ where
                     }
                     if disconnected {
                         // delay disconnect until all tasks have finished.
-                        self.flags.insert(Flags::DISCONNECTED);
+                        self.flags.insert(Flags::READ_DISCONNECTED);
                         if self.tasks.is_empty() {
                             self.client_disconnect();
                         }
@@ -231,7 +248,10 @@ where
         let mut idx = 0;
         while idx < self.tasks.len() {
             // only one task can do io operation in http/1
-            if !io && !self.tasks[idx].flags.contains(EntryFlags::EOF) {
+            if !io
+                && !self.tasks[idx].flags.contains(EntryFlags::EOF)
+                && !self.flags.contains(Flags::WRITE_DISCONNECTED)
+            {
                 // io is corrupted, send buffer
                 if self.tasks[idx].flags.contains(EntryFlags::ERROR) {
                     if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
@@ -295,7 +315,6 @@ where
         }
 
         // cleanup finished tasks
-        let max = self.tasks.len() >= MAX_PIPELINED_MESSAGES;
         while !self.tasks.is_empty() {
             if self.tasks[0]
                 .flags
@@ -305,10 +324,6 @@ where
             } else {
                 break;
             }
-        }
-        // read more message
-        if max && self.tasks.len() >= MAX_PIPELINED_MESSAGES {
-            return Ok(Async::Ready(true));
         }
 
         // check stream state
@@ -332,8 +347,7 @@ where
         // deal with keep-alive and steam eof (client-side write shutdown)
         if self.tasks.is_empty() {
             // handle stream eof
-            if self.flags.contains(Flags::DISCONNECTED) {
-                self.client_disconnect();
+            if self.flags.contains(Flags::READ_DISCONNECTED) {
                 return Ok(Async::Ready(false));
             }
             // no keep-alive
@@ -451,7 +465,14 @@ where
                         break;
                     }
                 }
-                Ok(None) => break,
+                Ok(None) => {
+                    if self.flags.contains(Flags::READ_DISCONNECTED)
+                        && self.tasks.is_empty()
+                    {
+                        self.client_disconnect();
+                    }
+                    break;
+                }
                 Err(e) => {
                     self.flags.insert(Flags::ERROR);
                     if let Some(mut payload) = self.payload.take() {
@@ -606,13 +627,25 @@ mod tests {
     }
 
     #[test]
-    fn test_req_parse() {
+    fn test_req_parse1() {
         let buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
+        h1.poll_io();
+        assert_eq!(h1.tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_req_parse2() {
+        let buf = Buffer::new("");
+        let readbuf =
+            BytesMut::from(Vec::<u8>::from(&b"GET /test HTTP/1.1\r\n\r\n"[..]));
+        let settings = Rc::new(wrk_settings());
+
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
     }
@@ -623,7 +656,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));

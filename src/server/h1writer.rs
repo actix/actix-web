@@ -63,7 +63,9 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags = Flags::KEEPALIVE;
     }
 
-    pub fn disconnected(&mut self) {}
+    pub fn disconnected(&mut self) {
+        self.flags.insert(Flags::DISCONNECTED);
+    }
 
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
@@ -268,10 +270,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                         let pl: &[u8] = payload.as_ref();
                         let n = match Self::write_data(&mut self.stream, pl) {
                             Err(err) => {
-                                if err.kind() == io::ErrorKind::WriteZero {
-                                    self.disconnected();
-                                }
-
+                                self.disconnected();
                                 return Err(err);
                             }
                             Ok(val) => val,
@@ -315,14 +314,15 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
+        if self.flags.contains(Flags::DISCONNECTED) {
+            return Err(io::Error::new(io::ErrorKind::Other, "disconnected"));
+        }
+
         if !self.buffer.is_empty() {
             let written = {
                 match Self::write_data(&mut self.stream, self.buffer.as_ref().as_ref()) {
                     Err(err) => {
-                        if err.kind() == io::ErrorKind::WriteZero {
-                            self.disconnected();
-                        }
-
+                        self.disconnected();
                         return Err(err);
                     }
                     Ok(val) => val,
@@ -339,7 +339,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             self.stream.poll_flush()?;
             self.stream.shutdown()
         } else {
-            self.stream.poll_flush()
+            Ok(self.stream.poll_flush()?)
         }
     }
 }
