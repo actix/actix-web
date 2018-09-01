@@ -67,6 +67,16 @@ fn test_simple() {
 }
 
 #[test]
+fn test_connection_close() {
+    let mut srv =
+        test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+
+    let request = srv.get().header("Connection", "close").finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
 fn test_with_query_parameter() {
     let mut srv = test::TestServer::new(|app| {
         app.handler(|req: &HttpRequest| match req.query().get("qp") {
