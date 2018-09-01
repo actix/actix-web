@@ -291,9 +291,8 @@ where
             } else if !self.tasks[idx].flags.contains(EntryFlags::FINISHED) {
                 match self.tasks[idx].pipe.poll_completed() {
                     Ok(Async::NotReady) => (),
-                    Ok(Async::Ready(_)) => {
-                        self.tasks[idx].flags.insert(EntryFlags::FINISHED)
-                    }
+                    Ok(Async::Ready(_)) =>
+                        self.tasks[idx].flags.insert(EntryFlags::FINISHED),
                     Err(err) => {
                         self.notify_disconnect();
                         self.tasks[idx].flags.insert(EntryFlags::ERROR);
@@ -618,13 +617,24 @@ mod tests {
     }
 
     #[test]
-    fn test_req_parse() {
+    fn test_req_parse1() {
         let buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
+        h1.poll_io();
+        assert_eq!(h1.tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_req_parse2() {
+        let buf = Buffer::new("");
+        let readbuf = BytesMut::from(Vec::<u8>::from(&b"GET /test HTTP/1.1\r\n\r\n"[..]));
+        let settings = Rc::new(wrk_settings());
+
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
     }
@@ -635,7 +645,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));
