@@ -94,7 +94,11 @@ where
         buf: BytesMut, is_eof: bool,
     ) -> Self {
         Http1 {
-            flags: if is_eof { Flags::READ_DISCONNECTED } else { Flags::KEEPALIVE },
+            flags: if is_eof {
+                Flags::READ_DISCONNECTED
+            } else {
+                Flags::KEEPALIVE
+            },
             stream: H1Writer::new(stream, Rc::clone(&settings)),
             decoder: H1Decoder::new(),
             payload: None,
@@ -118,8 +122,11 @@ where
 
     #[inline]
     fn can_read(&self) -> bool {
-        if self.flags.intersects(Flags::ERROR | Flags::READ_DISCONNECTED) {
-            return false
+        if self
+            .flags
+            .intersects(Flags::ERROR | Flags::READ_DISCONNECTED)
+        {
+            return false;
         }
 
         if let Some(ref info) = self.payload {
@@ -171,14 +178,15 @@ where
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
             if self.flags.intersects(
-                Flags::ERROR | Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED) {
-                return Ok(Async::Ready(()))
+                Flags::ERROR | Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED,
+            ) {
+                return Ok(Async::Ready(()));
             }
             match self.stream.poll_completed(true) {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
                 Err(err) => {
-                    debug!("Error sendips ng data: {}", err);
+                    debug!("Error sending data: {}", err);
                     return Err(());
                 }
             }
@@ -240,7 +248,8 @@ where
         let mut idx = 0;
         while idx < self.tasks.len() {
             // only one task can do io operation in http/1
-            if !io && !self.tasks[idx].flags.contains(EntryFlags::EOF)
+            if !io
+                && !self.tasks[idx].flags.contains(EntryFlags::EOF)
                 && !self.flags.contains(Flags::WRITE_DISCONNECTED)
             {
                 // io is corrupted, send buffer
@@ -320,9 +329,7 @@ where
         // check stream state
         if self.flags.contains(Flags::STARTED) {
             match self.stream.poll_completed(false) {
-                Ok(Async::NotReady) => {
-                    return Ok(Async::NotReady)
-                },
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
                     self.notify_disconnect();
@@ -459,11 +466,13 @@ where
                     }
                 }
                 Ok(None) => {
-                    if self.flags.contains(Flags::READ_DISCONNECTED) && self.tasks.is_empty() {
+                    if self.flags.contains(Flags::READ_DISCONNECTED)
+                        && self.tasks.is_empty()
+                    {
                         self.client_disconnect();
                     }
-                    break
-                },
+                    break;
+                }
                 Err(e) => {
                     self.flags.insert(Flags::ERROR);
                     if let Some(mut payload) = self.payload.take() {
@@ -618,13 +627,25 @@ mod tests {
     }
 
     #[test]
-    fn test_req_parse() {
+    fn test_req_parse1() {
         let buf = Buffer::new("GET /test HTTP/1.1\r\n\r\n");
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
+        h1.poll_io();
+        assert_eq!(h1.tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_req_parse2() {
+        let buf = Buffer::new("");
+        let readbuf =
+            BytesMut::from(Vec::<u8>::from(&b"GET /test HTTP/1.1\r\n\r\n"[..]));
+        let settings = Rc::new(wrk_settings());
+
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
     }
@@ -635,7 +656,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));

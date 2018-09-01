@@ -50,7 +50,9 @@ impl HttpResponseParser {
                     }
                     Async::NotReady => {
                         if buf.capacity() >= MAX_BUFFER_SIZE {
-                            return Err(HttpResponseParserError::Error(ParseError::TooLarge));
+                            return Err(HttpResponseParserError::Error(
+                                ParseError::TooLarge,
+                            ));
                         }
                         // Parser needs more data.
                     }
@@ -63,9 +65,7 @@ impl HttpResponseParser {
                 }
                 Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(err) => {
-                    return Err(HttpResponseParserError::Error(err.into()))
-                }
+                Err(err) => return Err(HttpResponseParserError::Error(err.into())),
             }
         }
     }

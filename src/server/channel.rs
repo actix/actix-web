@@ -160,8 +160,9 @@ where
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto =
-                        Some(HttpProtocol::H1(h1::Http1::new(settings, io, addr, buf, is_eof)));
+                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
+                        settings, io, addr, buf, is_eof,
+                    )));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {
