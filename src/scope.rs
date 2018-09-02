@@ -304,7 +304,7 @@ impl<S: 'static> Scope<S> {
     ///
     /// fn main() {
     ///     let app = App::new().scope("/scope-prefix", |scope| {
-    ///         handler("/app", |req: &HttpRequest| match *req.method() {
+    ///         scope.handler("/app", |req: &HttpRequest| match *req.method() {
     ///             http::Method::GET => HttpResponse::Ok(),
     ///             http::Method::POST => HttpResponse::MethodNotAllowed(),
     ///             _ => HttpResponse::NotFound(),
