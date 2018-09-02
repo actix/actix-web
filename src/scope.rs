@@ -183,7 +183,7 @@ impl<S: 'static> Scope<S> {
     where
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
-        let rdef = ResourceDef::prefix(&path);
+        let rdef = ResourceDef::prefix(&insert_slash(path));
         let scope = Scope {
             rdef: rdef.clone(),
             filters: Vec::new(),
@@ -230,9 +230,11 @@ impl<S: 'static> Scope<S> {
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        Rc::get_mut(&mut self.router)
-            .unwrap()
-            .register_route(path, method, f);
+        Rc::get_mut(&mut self.router).unwrap().register_route(
+            &insert_slash(path),
+            method,
+            f,
+        );
         self
     }
 
@@ -264,7 +266,7 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource
-        let mut resource = Resource::new(ResourceDef::new(path));
+        let mut resource = Resource::new(ResourceDef::new(&insert_slash(path)));
         f(&mut resource);
 
         Rc::get_mut(&mut self.router)
@@ -311,19 +313,17 @@ impl<S: 'static> Scope<S> {
     /// }
     /// ```
     pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Scope<S> {
-        {
-            let mut path = path.trim().trim_right_matches('/').to_owned();
-            if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/')
-            }
-            if path.len() > 1 && path.ends_with('/') {
-                path.pop();
-            }
-
-            Rc::get_mut(&mut self.router)
-                .expect("Multiple copies of scope router")
-                .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
+        let mut path = path.trim().trim_right_matches('/').to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/')
         }
+        if path.len() > 1 && path.ends_with('/') {
+            path.pop();
+        }
+
+        Rc::get_mut(&mut self.router)
+            .expect("Multiple copies of scope router")
+            .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
         self
     }
 
@@ -340,6 +340,14 @@ impl<S: 'static> Scope<S> {
             .push(Box::new(mw));
         self
     }
+}
+
+fn insert_slash(path: &str) -> String {
+    let mut path = path.to_owned();
+    if !path.is_empty() && !path.starts_with('/') {
+        path.insert(0, '/');
+    };
+    path
 }
 
 impl<S: 'static> RouteHandler<S> for Scope<S> {
@@ -845,6 +853,34 @@ mod tests {
     }
 
     #[test]
+    fn test_scope_route_without_leading_slash() {
+        let app = App::new()
+            .scope("app", |scope| {
+                scope
+                    .route("path1", Method::GET, |_: HttpRequest<_>| HttpResponse::Ok())
+                    .route("path1", Method::DELETE, |_: HttpRequest<_>| {
+                        HttpResponse::Ok()
+                    })
+            }).finish();
+
+        let req = TestRequest::with_uri("/app/path1").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::DELETE)
+            .request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
     fn test_scope_filter() {
         let app = App::new()
             .scope("/app", |scope| {
@@ -1004,6 +1040,20 @@ mod tests {
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
+                    scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
+                })
+            }).finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_nested_scope_no_slash() {
+        let app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("t1", |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
                 })
             }).finish();

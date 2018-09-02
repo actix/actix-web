@@ -1,6 +1,6 @@
 # Changes
 
-## [0.7.5] - 2018-09-xx
+## [0.7.5] - 2018-09-02
 
 ### Added
 
@@ -12,6 +12,8 @@
 ### Fixed
 
 * Handle socket read disconnect
+
+* Handling scoped paths without leading slashes #460
 
 
 ## [0.7.4] - 2018-08-23
