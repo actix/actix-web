@@ -6,6 +6,9 @@
 
 * Added the ability to pass a custom `TlsConnector`.
 
+* Allow to register handlers on scope level #465
+
+
 ### Fixed
 
 * Handle socket read disconnect

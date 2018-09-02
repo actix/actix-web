@@ -5,7 +5,10 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler};
+use handler::{
+    AsyncResult, AsyncResultItem, FromRequest, Handler, Responder, RouteHandler,
+    WrapHandler,
+};
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -283,6 +286,44 @@ impl<S: 'static> Scope<S> {
             .expect("Multiple copies of scope router")
             .register_default_resource(resource.into());
 
+        self
+    }
+
+    /// Configure handler for specific path prefix.
+    ///
+    /// A path prefix consists of valid path segments, i.e for the
+    /// prefix `/app` any request with the paths `/app`, `/app/` or
+    /// `/app/test` would match, but the path `/application` would
+    /// not.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().scope("/scope-prefix", |scope| {
+    ///         handler("/app", |req: &HttpRequest| match *req.method() {
+    ///             http::Method::GET => HttpResponse::Ok(),
+    ///             http::Method::POST => HttpResponse::MethodNotAllowed(),
+    ///             _ => HttpResponse::NotFound(),
+    ///         })
+    ///     });
+    /// }
+    /// ```
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Scope<S> {
+        {
+            let mut path = path.trim().trim_right_matches('/').to_owned();
+            if !path.is_empty() && !path.starts_with('/') {
+                path.insert(0, '/')
+            }
+            if path.len() > 1 && path.ends_with('/') {
+                path.pop();
+            }
+
+            Rc::get_mut(&mut self.router)
+                .expect("Multiple copies of scope router")
+                .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
+        }
         self
     }
 
@@ -1119,5 +1160,33 @@ mod tests {
         let req = TestRequest::with_uri("/app2/non-exist").request();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_handler() {
+        let app = App::new()
+            .scope("/scope", |scope| {
+                scope.handler("/test", |_: &_| HttpResponse::Ok())
+            }).finish();
+
+        let req = TestRequest::with_uri("/scope/test").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/test/").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/test/app").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/testapp").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/scope/blah").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 }
