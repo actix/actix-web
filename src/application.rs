@@ -447,11 +447,8 @@ where
         {
             let mut path = path.trim().trim_right_matches('/').to_owned();
             if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/')
-            }
-            if path.len() > 1 && path.ends_with('/') {
-                path.pop();
-            }
+                path.insert(0, '/');
+            };
             self.parts
                 .as_mut()
                 .expect("Use after finish")

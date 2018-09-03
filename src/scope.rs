@@ -313,14 +313,7 @@ impl<S: 'static> Scope<S> {
     /// }
     /// ```
     pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Scope<S> {
-        let mut path = path.trim().trim_right_matches('/').to_owned();
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/')
-        }
-        if path.len() > 1 && path.ends_with('/') {
-            path.pop();
-        }
-
+        let path = insert_slash(path.trim().trim_right_matches('/'));
         Rc::get_mut(&mut self.router)
             .expect("Multiple copies of scope router")
             .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
