@@ -2,7 +2,7 @@ use futures::unsync::mpsc;
 use futures::{Async, Future, Poll, Stream};
 use tokio::executor::current_thread::spawn;
 
-use super::{IntoService, Service};
+use super::Service;
 
 pub struct StreamDispatcher<S: Stream, T> {
     stream: S,
@@ -18,12 +18,12 @@ where
     T: Service<Request = Result<S::Item, S::Error>, Response = (), Error = ()>,
     T::Future: 'static,
 {
-    pub fn new<F: IntoService<T>>(stream: S, service: F) -> Self {
+    pub fn new<F: Into<T>>(stream: S, service: F) -> Self {
         let (stop_tx, stop_rx) = mpsc::unbounded();
         StreamDispatcher {
             stream,
             item: None,
-            service: service.into_service(),
+            service: service.into(),
             stop_rx,
             stop_tx,
         }

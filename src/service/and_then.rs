@@ -4,8 +4,6 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 use tower_service::{NewService, Service};
 
-use super::IntoNewService;
-
 /// `AndThen` service combinator
 pub struct AndThen<A, B> {
     a: A,
@@ -114,11 +112,8 @@ where
     B: NewService,
 {
     /// Create new `AndThen` combinator
-    pub fn new<F: IntoNewService<B>>(a: A, f: F) -> Self {
-        Self {
-            a,
-            b: f.into_new_service(),
-        }
+    pub fn new<F: Into<B>>(a: A, f: F) -> Self {
+        Self { a, b: f.into() }
     }
 }
 

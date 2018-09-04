@@ -63,7 +63,7 @@ mod worker;
 
 pub use configurable::{IntoNewConfigurableService, NewConfigurableService};
 pub use server::Server;
-pub use service::{IntoNewService, IntoService, NewServiceExt, ServiceExt};
+pub use service::{NewServiceExt, ServiceExt};
 
 /// Pause accepting incoming connections
 ///
