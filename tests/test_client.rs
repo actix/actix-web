@@ -494,7 +494,6 @@ fn client_read_until_eof() {
     let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
         .finish()
         .unwrap();
-    println!("TEST: {:?}", req);
     let response = sys.block_on(req.send()).unwrap();
     assert!(response.status().is_success());
 
