@@ -13,6 +13,7 @@ extern crate log;
 extern crate bytes;
 #[macro_use]
 extern crate failure;
+extern crate actix;
 extern crate futures;
 extern crate mio;
 extern crate net2;
@@ -25,9 +26,6 @@ extern crate tokio_tcp;
 extern crate tokio_timer;
 extern crate tower_service;
 extern crate trust_dns_resolver;
-
-#[macro_use]
-extern crate actix;
 
 #[cfg(feature = "tls")]
 extern crate native_tls;

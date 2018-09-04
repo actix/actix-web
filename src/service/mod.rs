@@ -7,7 +7,6 @@ mod fn_state_service;
 mod map;
 mod map_err;
 mod map_init_err;
-mod map_request;
 
 pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::apply::{Apply, ApplyNewService};
@@ -16,7 +15,6 @@ pub use self::fn_state_service::{FnStateNewService, FnStateService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
-pub use self::map_request::{MapReq, MapReqNewService};
 use {NewService, Service};
 
 pub trait ServiceExt: Service {
@@ -94,14 +92,6 @@ pub trait NewServiceExt: NewService {
         F: Fn(Self::Error) -> E,
     {
         MapErrNewService::new(self, f)
-    }
-
-    fn map_request<F, R>(self, f: F) -> MapReqNewService<Self, F, R>
-    where
-        Self: Sized,
-        F: Fn(R) -> Self::Request,
-    {
-        MapReqNewService::new(self, f)
     }
 
     fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E>
