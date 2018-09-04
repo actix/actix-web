@@ -259,14 +259,18 @@ where
 
 impl<A, B, C> NewConfigurableService<C> for AndThenNewConfigurableService<A, B, C>
 where
-    A: NewConfigurableService<C, Response = B::Request, InitError = B::InitError>,
-    A::Error: Into<B::Error>,
-    B: NewConfigurableService<C>,
+    A: NewConfigurableService<C>,
+    B: NewConfigurableService<
+        C,
+        Request = A::Response,
+        Error = A::Error,
+        InitError = A::InitError,
+    >,
     C: Clone,
 {
     type Request = A::Request;
     type Response = B::Response;
-    type Error = B::Error;
+    type Error = A::Error;
     type Service = AndThen<A::Service, B::Service>;
 
     type InitError = A::InitError;
@@ -282,9 +286,13 @@ where
 
 impl<A, B, C> Clone for AndThenNewConfigurableService<A, B, C>
 where
-    A: NewConfigurableService<C, Response = B::Request, InitError = B::InitError> + Clone,
-    A::Error: Into<B::Error>,
-    B: NewConfigurableService<C> + Clone,
+    A: NewConfigurableService<C> + Clone,
+    B: NewConfigurableService<
+            C,
+            Request = A::Response,
+            Error = A::Error,
+            InitError = A::InitError,
+        > + Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -326,18 +334,22 @@ where
 impl<A, B, C> Future for AndThenNewConfigurableServiceFuture<A, B, C>
 where
     A: NewConfigurableService<C>,
-    A::Error: Into<B::Error>,
-    B: NewConfigurableService<C, Request = A::Response, InitError = A::InitError>,
+    B: NewConfigurableService<
+        C,
+        Request = A::Response,
+        Error = A::Error,
+        InitError = A::InitError,
+    >,
 {
     type Item = AndThen<A::Service, B::Service>;
-    type Error = B::InitError;
+    type Error = A::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Async::Ready(service) = self.fut_a.poll()? {
             self.a = Some(service);
         }
 
-        if let Async::Ready(service) = self.fut_b.poll()? {
+        if let Async::Ready(service) = self.fut_b.poll().map_err(|e| e.into())? {
             self.b = Some(service);
         }
 

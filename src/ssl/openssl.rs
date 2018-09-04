@@ -92,38 +92,57 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
 }
 
 /// Openssl connector factory
-pub struct OpensslConnector<T, Io> {
+pub struct OpensslConnector<T, Io, E> {
     connector: SslConnector,
     t: PhantomData<T>,
     io: PhantomData<Io>,
+    _e: PhantomData<E>,
 }
 
-impl<T, Io> OpensslConnector<T, Io> {
+impl<T, Io, E> OpensslConnector<T, Io, E> {
     pub fn new(connector: SslConnector) -> Self {
         OpensslConnector {
             connector,
             t: PhantomData,
             io: PhantomData,
+            _e: PhantomData,
         }
     }
 }
 
-impl<T, Io> Clone for OpensslConnector<T, Io> {
-    fn clone(&self) -> Self {
-        Self {
-            connector: self.connector.clone(),
+impl<T, Io: AsyncRead + AsyncWrite> OpensslConnector<T, Io, ()> {
+    pub fn service(
+        connector: SslConnector,
+    ) -> impl Service<
+        Request = (T, ConnectionInfo, Io),
+        Response = (T, ConnectionInfo, SslStream<Io>),
+        Error = Error,
+    > {
+        OpensslConnectorService {
+            connector: connector,
             t: PhantomData,
             io: PhantomData,
         }
     }
 }
 
-impl<T, Io: AsyncRead + AsyncWrite> NewService for OpensslConnector<T, Io> {
+impl<T, Io, E> Clone for OpensslConnector<T, Io, E> {
+    fn clone(&self) -> Self {
+        Self {
+            connector: self.connector.clone(),
+            t: PhantomData,
+            io: PhantomData,
+            _e: PhantomData,
+        }
+    }
+}
+
+impl<T, Io: AsyncRead + AsyncWrite, E> NewService for OpensslConnector<T, Io, E> {
     type Request = (T, ConnectionInfo, Io);
     type Response = (T, ConnectionInfo, SslStream<Io>);
     type Error = Error;
     type Service = OpensslConnectorService<T, Io>;
-    type InitError = io::Error;
+    type InitError = E;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {

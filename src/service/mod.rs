@@ -4,6 +4,7 @@ mod and_then;
 mod apply;
 mod fn_service;
 mod fn_state_service;
+mod from_err;
 mod map;
 mod map_err;
 mod map_init_err;
@@ -12,6 +13,7 @@ pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::apply::{Apply, ApplyNewService};
 pub use self::fn_service::{FnNewService, FnService};
 pub use self::fn_state_service::{FnStateNewService, FnStateService};
+pub use self::from_err::FromErr;
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
@@ -35,6 +37,14 @@ pub trait ServiceExt: Service {
         B: Service<Request = Self::Response, Error = Self::Error>,
     {
         AndThen::new(self, service.into_service())
+    }
+
+    fn from_err<E>(self) -> FromErr<Self, E>
+    where
+        Self: Sized,
+        E: From<Self::Error>,
+    {
+        FromErr::new(self)
     }
 
     fn map<F, R>(self, f: F) -> Map<Self, F, R>

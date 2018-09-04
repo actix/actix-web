@@ -15,8 +15,7 @@ pub struct AndThen<A, B> {
 impl<A, B> AndThen<A, B>
 where
     A: Service,
-    A::Error: Into<B::Error>,
-    B: Service<Request = A::Response>,
+    B: Service<Request = A::Response, Error = A::Error>,
 {
     /// Create new `AndThen` combinator
     pub fn new(a: A, b: B) -> Self {
@@ -30,19 +29,18 @@ where
 impl<A, B> Service for AndThen<A, B>
 where
     A: Service,
-    A::Error: Into<B::Error>,
-    B: Service<Request = A::Response>,
+    B: Service<Request = A::Response, Error = A::Error>,
 {
     type Request = A::Request;
     type Response = B::Response;
-    type Error = B::Error;
+    type Error = A::Error;
     type Future = AndThenFuture<A, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         match self.a.poll_ready() {
-            Ok(Async::Ready(_)) => self.b.borrow_mut().poll_ready(),
+            Ok(Async::Ready(_)) => self.b.borrow_mut().poll_ready().map_err(|e| e.into()),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
         }
     }
 
@@ -54,8 +52,7 @@ where
 pub struct AndThenFuture<A, B>
 where
     A: Service,
-    A::Error: Into<B::Error>,
-    B: Service<Request = A::Response>,
+    B: Service<Request = A::Response, Error = A::Error>,
 {
     b: Rc<RefCell<B>>,
     fut_b: Option<B::Future>,
@@ -65,8 +62,7 @@ where
 impl<A, B> AndThenFuture<A, B>
 where
     A: Service,
-    A::Error: Into<B::Error>,
-    B: Service<Request = A::Response>,
+    B: Service<Request = A::Response, Error = A::Error>,
 {
     fn new(fut_a: A::Future, b: Rc<RefCell<B>>) -> Self {
         AndThenFuture {
@@ -80,15 +76,15 @@ where
 impl<A, B> Future for AndThenFuture<A, B>
 where
     A: Service,
-    A::Error: Into<B::Error>,
-    B: Service<Request = A::Response>,
+    B: Service<Request = A::Response, Error = A::Error>,
+    B::Error: Into<A::Error>,
 {
     type Item = B::Response;
-    type Error = B::Error;
+    type Error = A::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut_b {
-            return fut.poll();
+            return fut.poll().map_err(|e| e.into());
         }
 
         match self.fut_a.poll() {
@@ -97,7 +93,7 @@ where
                 self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
         }
     }
 }
@@ -124,17 +120,15 @@ where
 
 impl<A, B> NewService for AndThenNewService<A, B>
 where
-    A: NewService<Response = B::Request, InitError = B::InitError>,
-    A::Error: Into<B::Error>,
-    A::InitError: Into<B::InitError>,
-    B: NewService,
+    A: NewService,
+    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError>,
 {
     type Request = A::Request;
     type Response = B::Response;
-    type Error = B::Error;
+    type Error = A::Error;
     type Service = AndThen<A::Service, B::Service>;
 
-    type InitError = B::InitError;
+    type InitError = A::InitError;
     type Future = AndThenNewServiceFuture<A, B>;
 
     fn new_service(&self) -> Self::Future {
@@ -144,10 +138,8 @@ where
 
 impl<A, B> Clone for AndThenNewService<A, B>
 where
-    A: NewService<Response = B::Request, InitError = B::InitError> + Clone,
-    A::Error: Into<B::Error>,
-    A::InitError: Into<B::InitError>,
-    B: NewService + Clone,
+    A: NewService + Clone,
+    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError> + Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -186,22 +178,20 @@ where
 impl<A, B> Future for AndThenNewServiceFuture<A, B>
 where
     A: NewService,
-    A::Error: Into<B::Error>,
-    A::InitError: Into<B::InitError>,
-    B: NewService<Request = A::Response>,
+    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError>,
 {
     type Item = AndThen<A::Service, B::Service>;
-    type Error = B::InitError;
+    type Error = A::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if self.a.is_none() {
-            if let Async::Ready(service) = self.fut_a.poll().map_err(|e| e.into())? {
+            if let Async::Ready(service) = self.fut_a.poll()? {
                 self.a = Some(service);
             }
         }
 
         if self.b.is_none() {
-            if let Async::Ready(service) = self.fut_b.poll()? {
+            if let Async::Ready(service) = self.fut_b.poll().map_err(|e| e.into())? {
                 self.b = Some(service);
             }
         }
