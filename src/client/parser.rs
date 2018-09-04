@@ -20,6 +20,7 @@ const MAX_HEADERS: usize = 96;
 #[derive(Default)]
 pub struct HttpResponseParser {
     decoder: Option<EncodingDecoder>,
+    eof: bool, // indicate that we read payload until stream eof
 }
 
 #[derive(Debug, Fail)]
@@ -44,8 +45,14 @@ impl HttpResponseParser {
                 match HttpResponseParser::parse_message(buf)
                     .map_err(HttpResponseParserError::Error)?
                 {
-                    Async::Ready((msg, decoder)) => {
-                        self.decoder = decoder;
+                    Async::Ready((msg, info)) => {
+                        if let Some((decoder, eof)) = info {
+                            self.eof = eof;
+                            self.decoder = Some(decoder);
+                        } else {
+                            self.eof = false;
+                            self.decoder = None;
+                        }
                         return Ok(Async::Ready(msg));
                     }
                     Async::NotReady => {
@@ -97,7 +104,12 @@ impl HttpResponseParser {
                             return Ok(Async::NotReady);
                         }
                         if stream_finished {
-                            return Err(PayloadError::Incomplete);
+                            // read untile eof?
+                            if self.eof {
+                                return Ok(Async::Ready(None));
+                            } else {
+                                return Err(PayloadError::Incomplete);
+                            }
                         }
                     }
                     Err(err) => return Err(err.into()),
@@ -110,7 +122,7 @@ impl HttpResponseParser {
 
     fn parse_message(
         buf: &mut BytesMut,
-    ) -> Poll<(ClientResponse, Option<EncodingDecoder>), ParseError> {
+    ) -> Poll<(ClientResponse, Option<(EncodingDecoder, bool)>), ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
         let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
@@ -156,12 +168,12 @@ impl HttpResponseParser {
         }
 
         let decoder = if status == StatusCode::SWITCHING_PROTOCOLS {
-            Some(EncodingDecoder::eof())
+            Some((EncodingDecoder::eof(), true))
         } else if let Some(len) = hdrs.get(header::CONTENT_LENGTH) {
             // Content-Length
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
-                    Some(EncodingDecoder::length(len))
+                    Some((EncodingDecoder::length(len), false))
                 } else {
                     debug!("illegal Content-Length: {:?}", len);
                     return Err(ParseError::Header);
@@ -172,7 +184,18 @@ impl HttpResponseParser {
             }
         } else if chunked(&hdrs)? {
             // Chunked encoding
-            Some(EncodingDecoder::chunked())
+            Some((EncodingDecoder::chunked(), false))
+        } else if let Some(value) = hdrs.get(header::CONNECTION) {
+            let close = if let Ok(s) = value.to_str() {
+                s == "close"
+            } else {
+                false
+            };
+            if close {
+                Some((EncodingDecoder::eof(), true))
+            } else {
+                None
+            }
         } else {
             None
         };

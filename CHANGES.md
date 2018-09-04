@@ -15,6 +15,10 @@
 
 * Handling scoped paths without leading slashes #460
 
+### Changed
+
+* Read client response until eof if connection header set to close #464
+
 
 ## [0.7.4] - 2018-08-23
 

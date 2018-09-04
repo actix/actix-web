@@ -8,7 +8,8 @@ extern crate rand;
 #[cfg(all(unix, feature = "uds"))]
 extern crate tokio_uds;
 
-use std::io::Read;
+use std::io::{Read, Write};
+use std::{net, thread};
 
 use bytes::Bytes;
 use flate2::read::GzDecoder;
@@ -469,4 +470,35 @@ fn test_default_headers() {
         env!("CARGO_PKG_VERSION"),
         "\""
     )));
+}
+
+#[test]
+fn client_read_until_eof() {
+    let addr = test::TestServer::unused_addr();
+
+    thread::spawn(move || {
+        let lst = net::TcpListener::bind(addr).unwrap();
+
+        for stream in lst.incoming() {
+            let mut stream = stream.unwrap();
+            let mut b = [0; 1000];
+            let _ = stream.read(&mut b).unwrap();
+            let _ = stream
+                .write_all(b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\nwelcome!");
+        }
+    });
+
+    let mut sys = actix::System::new("test");
+
+    // client request
+    let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+        .finish()
+        .unwrap();
+    println!("TEST: {:?}", req);
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"welcome!"));
 }
