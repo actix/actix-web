@@ -6,7 +6,7 @@ use futures::{
 };
 use tower_service::{NewService, Service};
 
-use super::IntoNewService;
+use super::{IntoNewService, IntoService};
 
 pub struct FnService<F, Req, Resp, E, Fut>
 where
@@ -65,6 +65,16 @@ where
 
     fn call(&mut self, req: Req) -> Self::Future {
         (self.f)(req).into_future()
+    }
+}
+
+impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>> for F
+where
+    F: Fn(Req) -> Fut + 'static,
+    Fut: IntoFuture<Item = Resp, Error = Err>,
+{
+    fn into_service(self) -> FnService<F, Req, Resp, Err, Fut> {
+        FnService::new(self)
     }
 }
 

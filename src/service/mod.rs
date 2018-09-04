@@ -103,15 +103,15 @@ pub trait NewServiceExt: NewService {
     }
 }
 
-impl<T: Service> ServiceExt for T {}
-impl<T: NewService> NewServiceExt for T {}
+impl<T: ?Sized> ServiceExt for T where T: Service {}
+impl<T: ?Sized> NewServiceExt for T where T: NewService {}
 
-/// Trait for types that can be converted to a Service
+/// Trait for types that can be converted to a `Service`
 pub trait IntoService<T>
 where
     T: Service,
 {
-    /// Create service
+    /// Convert to a `Service`
     fn into_service(self) -> T;
 }
 
@@ -120,7 +120,7 @@ pub trait IntoNewService<T>
 where
     T: NewService,
 {
-    /// Create service
+    /// Convert to an `NewService`
     fn into_new_service(self) -> T;
 }
 
@@ -139,15 +139,5 @@ where
 {
     fn into_new_service(self) -> T {
         self
-    }
-}
-
-impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>> for F
-where
-    F: Fn(Req) -> Fut + 'static,
-    Fut: IntoFuture<Item = Resp, Error = Err>,
-{
-    fn into_service(self) -> FnService<F, Req, Resp, Err, Fut> {
-        FnService::new(self)
     }
 }
