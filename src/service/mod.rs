@@ -31,10 +31,10 @@ pub trait ServiceExt: Service {
     fn and_then<F, B>(self, service: F) -> AndThen<Self, B>
     where
         Self: Sized,
-        F: Into<B>,
+        F: IntoService<B>,
         B: Service<Request = Self::Response, Error = Self::Error>,
     {
-        AndThen::new(self, service.into())
+        AndThen::new(self, service.into_service())
     }
 
     fn map<F, R>(self, f: F) -> Map<Self, F, R>
@@ -68,7 +68,7 @@ pub trait NewServiceExt: NewService {
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
     where
         Self: Sized,
-        F: Into<B>,
+        F: IntoNewService<B>,
         B: NewService<
             Request = Self::Response,
             Error = Self::Error,
@@ -103,15 +103,51 @@ pub trait NewServiceExt: NewService {
     }
 }
 
-impl<T: ?Sized> ServiceExt for T where T: Service {}
-impl<T: ?Sized> NewServiceExt for T where T: NewService {}
+impl<T: Service> ServiceExt for T {}
+impl<T: NewService> NewServiceExt for T {}
 
-impl<F, Req, Resp, Err, Fut> From<F> for FnService<F, Req, Resp, Err, Fut>
+/// Trait for types that can be converted to a Service
+pub trait IntoService<T>
+where
+    T: Service,
+{
+    /// Create service
+    fn into_service(self) -> T;
+}
+
+/// Trait for types that can be converted to a Service
+pub trait IntoNewService<T>
+where
+    T: NewService,
+{
+    /// Create service
+    fn into_new_service(self) -> T;
+}
+
+impl<T> IntoService<T> for T
+where
+    T: Service,
+{
+    fn into_service(self) -> T {
+        self
+    }
+}
+
+impl<T> IntoNewService<T> for T
+where
+    T: NewService,
+{
+    fn into_new_service(self) -> T {
+        self
+    }
+}
+
+impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>> for F
 where
     F: Fn(Req) -> Fut + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    fn from(f: F) -> FnService<F, Req, Resp, Err, Fut> {
-        FnService::new(f)
+    fn into_service(self) -> FnService<F, Req, Resp, Err, Fut> {
+        FnService::new(self)
     }
 }

@@ -3,6 +3,8 @@ use std::marker;
 use futures::{Async, Future, IntoFuture, Poll};
 use tower_service::{NewService, Service};
 
+use super::IntoNewService;
+
 pub struct FnStateService<S, F, Req, Resp, Err, Fut>
 where
     F: Fn(&mut S, Req) -> Fut,
@@ -111,8 +113,8 @@ where
     }
 }
 
-impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> From<(F1, F2)>
-    for FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
+impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
+    IntoNewService<FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>> for (F1, F2)
 where
     S: 'static,
     F1: Fn(&mut S, Req) -> Fut1 + Clone + 'static,
@@ -124,8 +126,10 @@ where
     Err1: 'static,
     Err2: 'static,
 {
-    fn from(data: (F1, F2)) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
-        FnStateNewService::new(data.0, data.1)
+    fn into_new_service(
+        self,
+    ) -> FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
+        FnStateNewService::new(self.0, self.1)
     }
 }
 
