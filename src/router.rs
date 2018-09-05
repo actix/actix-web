@@ -815,73 +815,56 @@ impl ResourceDef {
         Ok(())
     }
 
-    fn parse(
-        pattern: &str, for_prefix: bool,
-    ) -> (String, Vec<PatternElement>, bool, usize) {
+    fn parse_param(
+        pattern: &str,
+    ) -> (PatternElement, String, &str) {
         const DEFAULT_PATTERN: &str = "[^/]+";
-
-        let mut re1 = String::from("^");
-        let mut re2 = String::new();
-        let mut el = String::new();
-        let mut in_param = false;
-        let mut in_param_pattern = false;
-        let mut param_name = String::new();
-        let mut param_pattern = String::from(DEFAULT_PATTERN);
-        let mut is_dynamic = false;
-        let mut elems = Vec::new();
-        let mut len = 0;
-
-        for ch in pattern.chars() {
-            if in_param {
-                // In parameter segment: `{....}`
-                if ch == '}' {
-                    elems.push(PatternElement::Var(param_name.clone()));
-                    re1.push_str(&format!(r"(?P<{}>{})", &param_name, &param_pattern));
-
-                    param_name.clear();
-                    param_pattern = String::from(DEFAULT_PATTERN);
-
-                    len = 0;
-                    in_param_pattern = false;
-                    in_param = false;
-                } else if ch == ':' {
-                    // The parameter name has been determined; custom pattern land
-                    in_param_pattern = true;
-                    param_pattern.clear();
-                } else if in_param_pattern {
-                    // Ignore leading whitespace for pattern
-                    if !(ch == ' ' && param_pattern.is_empty()) {
-                        param_pattern.push(ch);
-                    }
-                } else {
-                    param_name.push(ch);
-                }
-            } else if ch == '{' {
-                in_param = true;
-                is_dynamic = true;
-                elems.push(PatternElement::Str(el.clone()));
-                el.clear();
-            } else {
-                re1.push_str(escape(&ch.to_string()).as_str());
-                re2.push(ch);
-                el.push(ch);
-                len += 1;
+        let mut params_nesting = 0usize;
+        let close_idx = pattern.find(|c| match c {
+            '{' => {params_nesting += 1; false},
+            '}' => {params_nesting -= 1; params_nesting == 0},
+            _ => false
+        }).expect("malformed param");
+        let (mut param, rem) = pattern.split_at(close_idx + 1);
+        param = &param[1..param.len() - 1]; // Remove outer brackets
+        let (name, pattern) = match param.find(":") {
+            Some(idx) => {
+                let (name, pattern) = param.split_at(idx);
+                (name, &pattern[1..])
             }
-        }
-
-        if !el.is_empty() {
-            elems.push(PatternElement::Str(el.clone()));
-        }
-
-        let re = if is_dynamic {
-            if !for_prefix {
-                re1.push('$');
-            }
-            re1
-        } else {
-            re2
+            None => (param, DEFAULT_PATTERN)
         };
-        (re, elems, is_dynamic, len)
+        (PatternElement::Var(name.to_string()), format!(r"(?P<{}>{})", &name, &pattern), rem)
+    }
+
+    fn parse(
+        mut pattern: &str, for_prefix: bool,
+    ) -> (String, Vec<PatternElement>, bool, usize) {
+        if pattern.find("{").is_none() {
+            return (String::from(pattern), vec![PatternElement::Str(String::from(pattern))], false, pattern.chars().count())
+        };
+
+        let mut elems = Vec::new();
+        let mut re = String::from("^");
+
+        while let Some(idx) = pattern.find("{") {
+            let (prefix, rem) = pattern.split_at(idx);
+            elems.push(PatternElement::Str(String::from(prefix)));
+            re.push_str(&escape(prefix));
+            let (param_pattern, re_part, rem) = Self::parse_param(rem);
+            elems.push(param_pattern);
+            re.push_str(&re_part);
+            pattern = rem;
+        }
+
+        elems.push(PatternElement::Str(String::from(pattern)));
+        re.push_str(&escape(pattern));
+
+        if !for_prefix {
+            re.push_str("$");
+        }
+
+        (re, elems, true, pattern.chars().count())
     }
 }
 
@@ -1072,6 +1055,16 @@ mod tests {
         let info = re.match_with_params(&req, 0).unwrap();
         assert_eq!(info.get("version").unwrap(), "151");
         assert_eq!(info.get("id").unwrap(), "adahg32");
+
+        let re = ResourceDef::new("/{id:[[:digit:]]{6}}");
+        assert!(re.is_match("/012345"));
+        assert!(!re.is_match("/012"));
+        assert!(!re.is_match("/01234567"));
+        assert!(!re.is_match("/XXXXXX"));
+
+        let req = TestRequest::with_uri("/012345").finish();
+        let info = re.match_with_params(&req, 0).unwrap();
+        assert_eq!(info.get("id").unwrap(), "012345");
     }
 
     #[test]
