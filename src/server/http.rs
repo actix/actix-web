@@ -73,7 +73,7 @@ where
             backlog: 2048,
             keep_alive: KeepAlive::Os,
             shutdown_timeout: 30,
-            exit: true,
+            exit: false,
             no_http2: false,
             no_signals: false,
             maxconn: 102_400,
