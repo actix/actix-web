@@ -25,6 +25,20 @@ where
     }
 }
 
+impl<A, F, E> Clone for MapErr<A, F, E>
+where
+    A: Service + Clone,
+    F: Fn(A::Error) -> E + Clone,
+{
+    fn clone(&self) -> Self {
+        MapErr {
+            a: self.a.clone(),
+            f: self.f.clone(),
+            e: marker::PhantomData,
+        }
+    }
+}
+
 impl<A, F, E> Service for MapErr<A, F, E>
 where
     A: Service,

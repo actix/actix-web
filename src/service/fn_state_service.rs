@@ -33,6 +33,23 @@ where
     }
 }
 
+impl<S, F, Req, Resp, Err, Fut> Clone for FnStateService<S, F, Req, Resp, Err, Fut>
+where
+    S: Clone,
+    F: Fn(&mut S, Req) -> Fut + Clone,
+    Fut: IntoFuture<Item = Resp, Error = Err>,
+{
+    fn clone(&self) -> Self {
+        FnStateService {
+            f: self.f.clone(),
+            state: self.state.clone(),
+            req: marker::PhantomData,
+            resp: marker::PhantomData,
+            err: marker::PhantomData,
+        }
+    }
+}
+
 impl<S, F, Req, Resp, Err, Fut> Service for FnStateService<S, F, Req, Resp, Err, Fut>
 where
     F: Fn(&mut S, Req) -> Fut,

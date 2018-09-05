@@ -25,11 +25,24 @@ where
     }
 }
 
+impl<A, F, R> Clone for Map<A, F, R>
+where
+    A: Service + Clone,
+    F: Fn(A::Response) -> R + Clone,
+{
+    fn clone(&self) -> Self {
+        Map {
+            a: self.a.clone(),
+            f: self.f.clone(),
+            r: marker::PhantomData,
+        }
+    }
+}
+
 impl<A, F, R> Service for Map<A, F, R>
 where
     A: Service,
-    F: Fn(A::Response) -> R,
-    F: Clone,
+    F: Fn(A::Response) -> R + Clone,
 {
     type Request = A::Request;
     type Response = R;
