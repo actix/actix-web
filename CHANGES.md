@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.6] - 2018-09-xx
+
+### Fixed
+
+* Fix system_exit in HttpServer #501
+
+
 ## [0.7.5] - 2018-09-04
 
 ### Added
