@@ -20,6 +20,19 @@ impl<A: Service, E: From<A::Error>> FromErr<A, E> {
     }
 }
 
+impl<A, E> Clone for FromErr<A, E>
+where
+    A: Service + Clone,
+    E: From<A::Error>,
+{
+    fn clone(&self) -> Self {
+        FromErr {
+            service: self.service.clone(),
+            f: PhantomData,
+        }
+    }
+}
+
 impl<A, E> Service for FromErr<A, E>
 where
     A: Service,
