@@ -17,7 +17,7 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::server_service::{ServerNewService, ServerServiceFactory};
+use super::server_service::{self, ServerNewService, ServerServiceFactory};
 use super::worker::{Conn, StopWorker, Worker, WorkerClient};
 use super::NewService;
 use super::{PauseServer, ResumeServer, StopServer, Token};
@@ -37,8 +37,6 @@ pub struct Server {
     shutdown_timeout: u16,
     signals: Option<Addr<signal::ProcessSignals>>,
     no_signals: bool,
-    maxconn: usize,
-    maxconnrate: usize,
 }
 
 impl Default for Server {
@@ -60,8 +58,6 @@ impl Server {
             shutdown_timeout: 30,
             signals: None,
             no_signals: false,
-            maxconn: 102_400,
-            maxconnrate: 256,
         }
     }
 
@@ -79,20 +75,9 @@ impl Server {
     /// All socket listeners will stop accepting connections when this limit is
     /// reached for each worker.
     ///
-    /// By default max connections is set to a 100k.
-    pub fn maxconn(mut self, num: usize) -> Self {
-        self.maxconn = num;
-        self
-    }
-
-    /// Sets the maximum per-worker concurrent connection establish process.
-    ///
-    /// All listeners will stop accepting connections when this limit is
-    /// reached. It can be used to limit the global SSL CPU usage.
-    ///
-    /// By default max connections is set to a 256.
-    pub fn maxconnrate(mut self, num: usize) -> Self {
-        self.maxconnrate = num;
+    /// By default max connections is set to a 25k per worker.
+    pub fn maxconn(self, num: usize) -> Self {
+        server_service::max_concurrent_connections(num);
         self
     }
 
@@ -273,7 +258,7 @@ impl Server {
 
     fn start_worker(&self, idx: usize, notify: AcceptNotify) -> (Addr<Worker>, WorkerClient) {
         let (tx, rx) = unbounded::<Conn>();
-        let conns = Connections::new(notify, self.maxconn, self.maxconnrate);
+        let conns = Connections::new(notify, 0, 0);
         let worker = WorkerClient::new(idx, tx, conns.clone());
         let services: Vec<Box<ServerServiceFactory + Send>> =
             self.services.iter().map(|v| v.clone_factory()).collect();

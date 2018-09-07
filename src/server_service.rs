@@ -1,10 +1,10 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::cell::Cell;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{fmt, io, net};
 
-use futures::{future, Future, Poll};
+use futures::task::AtomicTask;
+use futures::{future, Async, Future, Poll};
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
@@ -19,9 +19,38 @@ pub(crate) type BoxedServerService = Box<
     >,
 >;
 
+const MAX_CONNS: AtomicUsize = AtomicUsize::new(25600);
+
+/// Sets the maximum per-worker number of concurrent connections.
+///
+/// All socket listeners will stop accepting connections when this limit is
+/// reached for each worker.
+///
+/// By default max connections is set to a 25k per worker.
+pub fn max_concurrent_connections(num: usize) {
+    MAX_CONNS.store(num, Ordering::Relaxed);
+}
+
+pub(crate) fn num_connections() -> usize {
+    MAX_CONNS_COUNTER.with(|counter| counter.total())
+}
+
+thread_local! {
+    static MAX_CONNS_COUNTER: Counter = Counter::new(MAX_CONNS.load(Ordering::Relaxed));
+}
+
 pub(crate) struct ServerService<T> {
-    inner: T,
-    counter: Arc<AtomicUsize>,
+    service: T,
+    counter: Counter,
+}
+
+impl<T> ServerService<T> {
+    fn new(service: T) -> Self {
+        MAX_CONNS_COUNTER.with(|counter| ServerService {
+            service,
+            counter: counter.clone(),
+        })
+    }
 }
 
 impl<T> Service for ServerService<T>
@@ -36,7 +65,11 @@ where
     type Future = Box<Future<Item = (), Error = ()>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.inner.poll_ready().map_err(|_| ())
+        if self.counter.check() {
+            self.service.poll_ready().map_err(|_| ())
+        } else {
+            Ok(Async::NotReady)
+        }
     }
 
     fn call(&mut self, stream: net::TcpStream) -> Self::Future {
@@ -45,11 +78,14 @@ where
         });
 
         if let Ok(stream) = stream {
-            let counter = self.counter.clone();
-            let _ = counter.fetch_add(1, Ordering::Relaxed);
-            Box::new(self.inner.call(stream).map_err(|_| ()).map(move |_| {
-                let _ = counter.fetch_sub(1, Ordering::Relaxed);
-            }))
+            let guard = self.counter.get();
+
+            Box::new(
+                self.service
+                    .call(stream)
+                    .map_err(|_| ())
+                    .map(move |_| drop(guard)),
+            )
         } else {
             Box::new(future::err(()))
         }
@@ -61,7 +97,6 @@ where
     F: Fn() -> T + Send + Clone,
 {
     inner: F,
-    counter: Arc<AtomicUsize>,
 }
 
 impl<F, T> ServerNewService<F, T>
@@ -73,16 +108,11 @@ where
     T::Error: fmt::Display,
 {
     pub(crate) fn create(inner: F) -> Box<ServerServiceFactory + Send> {
-        Box::new(Self {
-            inner,
-            counter: Arc::new(AtomicUsize::new(0)),
-        })
+        Box::new(Self { inner })
     }
 }
 
 pub trait ServerServiceFactory {
-    fn counter(&self) -> Arc<AtomicUsize>;
-
     fn clone_factory(&self) -> Box<ServerServiceFactory + Send>;
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
@@ -96,26 +126,19 @@ where
     T::Future: 'static,
     T::Error: fmt::Display,
 {
-    fn counter(&self) -> Arc<AtomicUsize> {
-        self.counter.clone()
-    }
-
     fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
         Box::new(Self {
             inner: self.inner.clone(),
-            counter: Arc::new(AtomicUsize::new(0)),
         })
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
-        let counter = self.counter.clone();
         Box::new(
             (self.inner)()
                 .new_service()
                 .map_err(|_| ())
                 .map(move |inner| {
-                    let service: BoxedServerService =
-                        Box::new(ServerService { inner, counter });
+                    let service: BoxedServerService = Box::new(ServerService::new(inner));
                     service
                 }),
         )
@@ -123,15 +146,79 @@ where
 }
 
 impl ServerServiceFactory for Box<ServerServiceFactory> {
-    fn counter(&self) -> Arc<AtomicUsize> {
-        self.as_ref().counter()
-    }
-
     fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
         self.as_ref().clone_factory()
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
         self.as_ref().create()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Counter(Rc<CounterInner>);
+
+struct CounterInner {
+    count: Cell<usize>,
+    maxconn: usize,
+    task: AtomicTask,
+}
+
+impl Counter {
+    pub fn new(maxconn: usize) -> Self {
+        Counter(Rc::new(CounterInner {
+            maxconn,
+            count: Cell::new(0),
+            task: AtomicTask::new(),
+        }))
+    }
+
+    pub fn get(&self) -> CounterGuard {
+        CounterGuard::new(self.0.clone())
+    }
+
+    pub fn check(&self) -> bool {
+        self.0.check()
+    }
+
+    pub fn total(&self) -> usize {
+        self.0.count.get()
+    }
+}
+
+pub(crate) struct CounterGuard(Rc<CounterInner>);
+
+impl CounterGuard {
+    fn new(inner: Rc<CounterInner>) -> Self {
+        inner.inc();
+        CounterGuard(inner)
+    }
+}
+
+impl Drop for CounterGuard {
+    fn drop(&mut self) {
+        self.0.dec();
+    }
+}
+
+impl CounterInner {
+    fn inc(&self) {
+        let num = self.count.get() + 1;
+        self.count.set(num);
+        if num == self.maxconn {
+            self.task.register();
+        }
+    }
+
+    fn dec(&self) {
+        let num = self.count.get();
+        self.count.set(num - 1);
+        if num == self.maxconn {
+            self.task.notify();
+        }
+    }
+
+    fn check(&self) -> bool {
+        self.count.get() < self.maxconn
     }
 }

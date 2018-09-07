@@ -1,17 +1,14 @@
-use std::cell::Cell;
 use std::io;
 use std::marker::PhantomData;
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
 
-use futures::task::AtomicTask;
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
 use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
-use super::MAX_CONN;
+use super::MAX_CONN_COUNTER;
 use connector::ConnectionInfo;
+use server_service::{Counter, CounterGuard};
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
@@ -70,10 +67,12 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
     type Future = FutureResult<Self::Service, io::Error>;
 
     fn new_service(&self) -> Self::Future {
-        ok(OpensslAcceptorService {
-            acceptor: self.acceptor.clone(),
-            io: PhantomData,
-            inner: Rc::new(Inner::default()),
+        MAX_CONN_COUNTER.with(|counter| {
+            ok(OpensslAcceptorService {
+                acceptor: self.acceptor.clone(),
+                io: PhantomData,
+                counter: counter.clone(),
+            })
         })
     }
 }
@@ -81,7 +80,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
 pub struct OpensslAcceptorService<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
-    inner: Rc<Inner>,
+    counter: Counter,
 }
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
@@ -91,7 +90,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
     type Future = OpensslAcceptorServiceFut<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        if self.inner.check() {
+        if self.counter.check() {
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
@@ -99,50 +98,10 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        self.inner.inc();
-
         OpensslAcceptorServiceFut {
-            inner: self.inner.clone(),
+            _guard: self.counter.get(),
             fut: SslAcceptorExt::accept_async(&self.acceptor, req),
         }
-    }
-}
-
-struct Inner {
-    maxconn: usize,
-    count: Cell<usize>,
-    task: AtomicTask,
-}
-
-impl Default for Inner {
-    fn default() -> Inner {
-        Inner {
-            maxconn: MAX_CONN.load(Ordering::Relaxed),
-            count: Cell::new(0),
-            task: AtomicTask::new(),
-        }
-    }
-}
-
-impl Inner {
-    fn inc(&self) {
-        let num = self.count.get() + 1;
-        self.count.set(num);
-        if num == self.maxconn {
-            self.task.register();
-        }
-    }
-
-    fn dec(&self) {
-        let num = self.count.get();
-        self.count.set(num - 1);
-        if num == self.maxconn {
-            self.task.notify();
-        }
-    }
-
-    fn check(&self) -> bool {
-        self.count.get() < self.maxconn
     }
 }
 
@@ -151,7 +110,7 @@ where
     T: AsyncRead + AsyncWrite,
 {
     fut: AcceptAsync<T>,
-    inner: Rc<Inner>,
+    _guard: CounterGuard,
 }
 
 impl<T: AsyncRead + AsyncWrite> Future for OpensslAcceptorServiceFut<T> {
@@ -159,14 +118,7 @@ impl<T: AsyncRead + AsyncWrite> Future for OpensslAcceptorServiceFut<T> {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let res = self.fut.poll();
-
-        if let Ok(Async::NotReady) = res {
-            Ok(Async::NotReady)
-        } else {
-            self.inner.dec();
-            res
-        }
+        self.fut.poll()
     }
 }
 
