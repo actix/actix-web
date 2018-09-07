@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{fmt, io, net};
+use std::{fmt, net};
 
 use futures::task::AtomicTask;
 use futures::{future, Async, Future, Poll};
@@ -102,7 +102,7 @@ where
 impl<F, T> ServerNewService<F, T>
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), InitError = io::Error> + 'static,
+    T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
     T::Error: fmt::Display,
@@ -121,7 +121,7 @@ pub trait ServerServiceFactory {
 impl<F, T> ServerServiceFactory for ServerNewService<F, T>
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), InitError = io::Error> + 'static,
+    T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
     T::Error: fmt::Display,
@@ -136,7 +136,6 @@ where
         Box::new(
             (self.inner)()
                 .new_service()
-                .map_err(|_| ())
                 .map(move |inner| {
                     let service: BoxedServerService = Box::new(ServerService::new(inner));
                     service
