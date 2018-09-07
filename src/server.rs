@@ -1,7 +1,3 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
 use std::time::Duration;
 use std::{fmt, io, mem, net};
 
@@ -18,7 +14,7 @@ use actix::{
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::server_service::{self, ServerNewService, ServerServiceFactory};
-use super::worker::{Conn, StopWorker, Worker, WorkerClient};
+use super::worker::{Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
 use super::NewService;
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
@@ -258,14 +254,14 @@ impl Server {
 
     fn start_worker(&self, idx: usize, notify: AcceptNotify) -> (Addr<Worker>, WorkerClient) {
         let (tx, rx) = unbounded::<Conn>();
-        let conns = Connections::new(notify, 0, 0);
-        let worker = WorkerClient::new(idx, tx, conns.clone());
+        let avail = WorkerAvailability::new(notify);
+        let worker = WorkerClient::new(idx, tx, avail.clone());
         let services: Vec<Box<ServerServiceFactory + Send>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {
             ctx.add_message_stream(rx);
-            Worker::new(ctx, services)
+            Worker::new(ctx, services, avail)
         });
 
         (addr, worker)
@@ -409,68 +405,6 @@ impl StreamHandler<ServerCommand, ()> for Server {
                     self.accept.send(Command::Worker(worker));
                 }
             }
-        }
-    }
-}
-
-#[derive(Clone, Default)]
-/// Contains information about connection.
-pub struct Connections(Arc<ConnectionsInner>);
-
-impl Connections {
-    fn new(notify: AcceptNotify, maxconn: usize, maxconnrate: usize) -> Self {
-        let maxconn_low = if maxconn > 10 { maxconn - 10 } else { 0 };
-        let maxconnrate_low = if maxconnrate > 10 {
-            maxconnrate - 10
-        } else {
-            0
-        };
-
-        Connections(Arc::new(ConnectionsInner {
-            notify,
-            maxconn,
-            maxconnrate,
-            maxconn_low,
-            maxconnrate_low,
-            conn: AtomicUsize::new(0),
-            connrate: AtomicUsize::new(0),
-        }))
-    }
-
-    pub(crate) fn available(&self) -> bool {
-        self.0.available()
-    }
-}
-
-#[derive(Default)]
-struct ConnectionsInner {
-    notify: AcceptNotify,
-    conn: AtomicUsize,
-    connrate: AtomicUsize,
-    maxconn: usize,
-    maxconnrate: usize,
-    maxconn_low: usize,
-    maxconnrate_low: usize,
-}
-
-impl ConnectionsInner {
-    fn available(&self) -> bool {
-        if self.maxconnrate <= self.connrate.load(Ordering::Relaxed) {
-            false
-        } else {
-            self.maxconn > self.conn.load(Ordering::Relaxed)
-        }
-    }
-
-    fn notify_maxconn(&self, maxconn: usize) {
-        if maxconn > self.maxconn_low && maxconn <= self.maxconn {
-            self.notify.notify();
-        }
-    }
-
-    fn notify_maxconnrate(&self, connrate: usize) {
-        if connrate > self.maxconnrate_low && connrate <= self.maxconnrate {
-            self.notify.notify();
         }
     }
 }

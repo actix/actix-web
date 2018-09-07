@@ -26,6 +26,7 @@ extern crate tokio_timer;
 extern crate tower_service;
 extern crate trust_dns_resolver;
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate actix;
 

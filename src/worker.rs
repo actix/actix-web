@@ -1,8 +1,10 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::{net, time};
 
 use futures::sync::mpsc::{SendError, UnboundedSender};
 use futures::sync::oneshot;
-use futures::{future, Future};
+use futures::{future, Async, Future, Poll};
 
 use actix::msgs::StopArbiter;
 use actix::{
@@ -10,8 +12,9 @@ use actix::{
     Response, WrapFuture,
 };
 
-use super::server_service::{self, BoxedServerService, ServerServiceFactory};
-use super::{server::Connections, Token};
+use super::accept::AcceptNotify;
+use super::server_service::{self, BoxedServerService, ServerMessage, ServerServiceFactory};
+use super::Token;
 
 #[derive(Message)]
 pub(crate) struct Conn {
@@ -25,12 +28,12 @@ pub(crate) struct Conn {
 pub(crate) struct WorkerClient {
     pub idx: usize,
     tx: UnboundedSender<Conn>,
-    conns: Connections,
+    avail: WorkerAvailability,
 }
 
 impl WorkerClient {
-    pub fn new(idx: usize, tx: UnboundedSender<Conn>, conns: Connections) -> Self {
-        WorkerClient { idx, tx, conns }
+    pub fn new(idx: usize, tx: UnboundedSender<Conn>, avail: WorkerAvailability) -> Self {
+        WorkerClient { idx, tx, avail }
     }
 
     pub fn send(&self, msg: Conn) -> Result<(), SendError<Conn>> {
@@ -38,7 +41,33 @@ impl WorkerClient {
     }
 
     pub fn available(&self) -> bool {
-        self.conns.available()
+        self.avail.available()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct WorkerAvailability {
+    notify: AcceptNotify,
+    available: Arc<AtomicBool>,
+}
+
+impl WorkerAvailability {
+    pub fn new(notify: AcceptNotify) -> Self {
+        WorkerAvailability {
+            notify,
+            available: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn available(&self) -> bool {
+        self.available.load(Ordering::Acquire)
+    }
+
+    pub fn set(&self, val: bool) {
+        let old = self.available.swap(val, Ordering::Release);
+        if !old && val {
+            self.notify.notify()
+        }
     }
 }
 
@@ -57,9 +86,8 @@ impl Message for StopWorker {
 /// Worker accepts Socket objects via unbounded channel and start requests
 /// processing.
 pub(crate) struct Worker {
-    // conns: Connections,
     services: Vec<BoxedServerService>,
-    // counters: Vec<Arc<AtomicUsize>>,
+    availability: WorkerAvailability,
 }
 
 impl Actor for Worker {
@@ -69,10 +97,11 @@ impl Actor for Worker {
 impl Worker {
     pub(crate) fn new(
         ctx: &mut Context<Self>, services: Vec<Box<ServerServiceFactory + Send>>,
+        availability: WorkerAvailability,
     ) -> Self {
         let wrk = Worker {
+            availability,
             services: Vec::new(),
-            // counters: services.iter().map(|i| i.counter()).collect(),
         };
 
         ctx.wait(
@@ -82,8 +111,10 @@ impl Worker {
                     error!("Can not start worker: {:?}", e);
                     Arbiter::current().do_send(StopArbiter(0));
                     ctx.stop();
-                }).and_then(|services, act, _| {
+                }).and_then(|services, act, ctx| {
                     act.services.extend(services);
+                    act.availability.set(true);
+                    ctx.spawn(CheckReadiness(true));
                     fut::ok(())
                 }),
         );
@@ -91,12 +122,20 @@ impl Worker {
         wrk
     }
 
-    fn shutdown(&self, _force: bool) {
-        // self.services.iter().for_each(|h| h.shutdown(force));
+    fn shutdown(&mut self, force: bool) {
+        if force {
+            self.services.iter_mut().for_each(|h| {
+                h.call(ServerMessage::ForceShutdown);
+            });
+        } else {
+            self.services.iter_mut().for_each(|h| {
+                h.call(ServerMessage::Shutdown);
+            });
+        }
     }
 
     fn shutdown_timeout(
-        &self, ctx: &mut Context<Worker>, tx: oneshot::Sender<bool>, dur: time::Duration,
+        &mut self, ctx: &mut Context<Worker>, tx: oneshot::Sender<bool>, dur: time::Duration,
     ) {
         // sleep for 1 second and then check again
         ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
@@ -120,7 +159,7 @@ impl Handler<Conn> for Worker {
     type Result = ();
 
     fn handle(&mut self, msg: Conn, _: &mut Context<Self>) {
-        Arbiter::spawn(self.services[msg.handler.0].call(msg.io))
+        Arbiter::spawn(self.services[msg.handler.0].call(ServerMessage::Connect(msg.io)))
     }
 }
 
@@ -149,5 +188,28 @@ impl Handler<StopWorker> for Worker {
             self.shutdown(true);
             Response::reply(Ok(false))
         }
+    }
+}
+
+struct CheckReadiness(bool);
+
+impl ActorFuture for CheckReadiness {
+    type Item = ();
+    type Error = ();
+    type Actor = Worker;
+
+    fn poll(&mut self, act: &mut Worker, _: &mut Context<Worker>) -> Poll<(), ()> {
+        let mut val = true;
+        for service in &mut act.services {
+            if let Ok(Async::NotReady) = service.poll_ready() {
+                val = false;
+                break;
+            }
+        }
+        if self.0 != val {
+            self.0 = val;
+            act.availability.set(val);
+        }
+        Ok(Async::NotReady)
     }
 }

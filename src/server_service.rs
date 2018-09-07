@@ -3,16 +3,23 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{fmt, net};
 
+use futures::future::{err, ok};
 use futures::task::AtomicTask;
-use futures::{future, Async, Future, Poll};
+use futures::{Async, Future, Poll};
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
 use super::{NewService, Service};
 
+pub enum ServerMessage {
+    Connect(net::TcpStream),
+    Shutdown,
+    ForceShutdown,
+}
+
 pub(crate) type BoxedServerService = Box<
     Service<
-        Request = net::TcpStream,
+        Request = ServerMessage,
         Response = (),
         Error = (),
         Future = Box<Future<Item = (), Error = ()>>,
@@ -59,7 +66,7 @@ where
     T::Future: 'static,
     T::Error: fmt::Display + 'static,
 {
-    type Request = net::TcpStream;
+    type Request = ServerMessage;
     type Response = ();
     type Error = ();
     type Future = Box<Future<Item = (), Error = ()>>;
@@ -72,22 +79,27 @@ where
         }
     }
 
-    fn call(&mut self, stream: net::TcpStream) -> Self::Future {
-        let stream = TcpStream::from_std(stream, &Handle::default()).map_err(|e| {
-            error!("Can not convert to an async tcp stream: {}", e);
-        });
+    fn call(&mut self, req: ServerMessage) -> Self::Future {
+        match req {
+            ServerMessage::Connect(stream) => {
+                let stream = TcpStream::from_std(stream, &Handle::default()).map_err(|e| {
+                    error!("Can not convert to an async tcp stream: {}", e);
+                });
 
-        if let Ok(stream) = stream {
-            let guard = self.counter.get();
+                if let Ok(stream) = stream {
+                    let guard = self.counter.get();
 
-            Box::new(
-                self.service
-                    .call(stream)
-                    .map_err(|_| ())
-                    .map(move |_| drop(guard)),
-            )
-        } else {
-            Box::new(future::err(()))
+                    Box::new(
+                        self.service
+                            .call(stream)
+                            .map_err(|_| ())
+                            .map(move |_| drop(guard)),
+                    )
+                } else {
+                    Box::new(err(()))
+                }
+            }
+            _ => Box::new(ok(())),
         }
     }
 }
@@ -133,14 +145,10 @@ where
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
-        Box::new(
-            (self.inner)()
-                .new_service()
-                .map(move |inner| {
-                    let service: BoxedServerService = Box::new(ServerService::new(inner));
-                    service
-                }),
-        )
+        Box::new((self.inner)().new_service().map(move |inner| {
+            let service: BoxedServerService = Box::new(ServerService::new(inner));
+            service
+        }))
     }
 }
 
