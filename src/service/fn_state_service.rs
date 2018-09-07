@@ -12,9 +12,7 @@ where
 {
     f: F,
     state: S,
-    req: marker::PhantomData<Req>,
-    resp: marker::PhantomData<Resp>,
-    err: marker::PhantomData<Err>,
+    _t: marker::PhantomData<(Req, Resp, Err)>,
 }
 
 impl<S, F, Req, Resp, Err, Fut> FnStateService<S, F, Req, Resp, Err, Fut>
@@ -26,9 +24,7 @@ where
         FnStateService {
             f,
             state,
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }
@@ -43,9 +39,7 @@ where
         FnStateService {
             f: self.f.clone(),
             state: self.state.clone(),
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }
@@ -73,13 +67,7 @@ where
 pub struct FnStateNewService<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2> {
     f: F1,
     state: F2,
-    s: marker::PhantomData<S>,
-    req: marker::PhantomData<Req>,
-    resp: marker::PhantomData<Resp>,
-    err1: marker::PhantomData<Err1>,
-    err2: marker::PhantomData<Err2>,
-    fut1: marker::PhantomData<Fut1>,
-    fut2: marker::PhantomData<Fut2>,
+    _t: marker::PhantomData<(S, Req, Resp, Err1, Err2, Fut1, Fut2)>,
 }
 
 impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
@@ -89,13 +77,7 @@ impl<S, F1, F2, Req, Resp, Err1, Err2, Fut1, Fut2>
         FnStateNewService {
             f,
             state,
-            s: marker::PhantomData,
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err1: marker::PhantomData,
-            err2: marker::PhantomData,
-            fut1: marker::PhantomData,
-            fut2: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }

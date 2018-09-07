@@ -14,9 +14,7 @@ where
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
     f: F,
-    req: marker::PhantomData<Req>,
-    resp: marker::PhantomData<Resp>,
-    err: marker::PhantomData<E>,
+    _t: marker::PhantomData<(Req, Resp, E)>,
 }
 
 impl<F, Req, Resp, E, Fut> FnService<F, Req, Resp, E, Fut>
@@ -27,9 +25,7 @@ where
     pub fn new(f: F) -> Self {
         FnService {
             f,
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }
@@ -42,9 +38,7 @@ where
     fn clone(&self) -> Self {
         FnService {
             f: self.f.clone(),
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }
@@ -84,10 +78,7 @@ where
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     f: F,
-    req: marker::PhantomData<Req>,
-    resp: marker::PhantomData<Resp>,
-    err: marker::PhantomData<Err>,
-    ierr: marker::PhantomData<IErr>,
+    _t: marker::PhantomData<(Req, Resp, Err, IErr)>,
 }
 
 impl<F, Req, Resp, Err, IErr, Fut> FnNewService<F, Req, Resp, Err, IErr, Fut>
@@ -98,10 +89,7 @@ where
     pub fn new(f: F) -> Self {
         FnNewService {
             f,
-            req: marker::PhantomData,
-            resp: marker::PhantomData,
-            err: marker::PhantomData,
-            ierr: marker::PhantomData,
+            _t: marker::PhantomData,
         }
     }
 }

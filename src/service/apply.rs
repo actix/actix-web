@@ -7,7 +7,7 @@ use {IntoNewService, NewService, Service};
 pub struct Apply<T, F, R, Req> {
     service: T,
     f: F,
-    r: PhantomData<Fn(Req) -> R>,
+    r: PhantomData<(Req, R)>,
 }
 
 impl<T, F, R, Req> Apply<T, F, R, Req>
