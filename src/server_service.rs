@@ -62,7 +62,7 @@ impl<T> ServerService<T> {
 
 impl<T> Service for ServerService<T>
 where
-    T: Service<Request = TcpStream, Response = ()>,
+    T: Service<Request = TcpStream, Response = (), Error = ()>,
     T::Future: 'static,
     T::Error: 'static,
 {
@@ -114,7 +114,7 @@ where
 impl<F, T> ServerNewService<F, T>
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
+    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
 {
@@ -132,7 +132,7 @@ pub trait ServerServiceFactory {
 impl<F, T> ServerServiceFactory for ServerNewService<F, T>
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
+    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
 {

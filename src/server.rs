@@ -147,7 +147,7 @@ impl Server {
     where
         F: Fn() -> N + Clone + Send + 'static,
         U: net::ToSocketAddrs,
-        N: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
+        N: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
         N::Service: 'static,
         N::Future: 'static,
     {
@@ -163,7 +163,7 @@ impl Server {
     pub fn listen<F, N>(mut self, lst: net::TcpListener, factory: F) -> Self
     where
         F: Fn() -> N + Clone + Send + 'static,
-        N: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
+        N: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
         N::Service: 'static,
         N::Future: 'static,
     {
