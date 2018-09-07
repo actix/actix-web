@@ -8,6 +8,14 @@
 //!
 // #![warn(missing_docs)]
 
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(
+        declare_interior_mutable_const,
+        borrow_interior_mutable_const
+    )
+)]
+
 #[macro_use]
 extern crate log;
 extern crate bytes;

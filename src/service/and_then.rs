@@ -51,7 +51,7 @@ where
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         match self.a.poll_ready() {
-            Ok(Async::Ready(_)) => self.b.borrow_mut().poll_ready().map_err(|e| e.into()),
+            Ok(Async::Ready(_)) => self.b.borrow_mut().poll_ready(),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(err) => Err(err),
         }
@@ -97,7 +97,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut_b {
-            return fut.poll().map_err(|e| e.into());
+            return fut.poll();
         }
 
         match self.fut_a.poll() {
@@ -204,7 +204,7 @@ where
         }
 
         if self.b.is_none() {
-            if let Async::Ready(service) = self.fut_b.poll().map_err(|e| e.into())? {
+            if let Async::Ready(service) = self.fut_b.poll()? {
                 self.b = Some(service);
             }
         }

@@ -1,7 +1,7 @@
 use std::cell::Cell;
+use std::net;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{fmt, net};
 
 use futures::future::{err, ok};
 use futures::task::AtomicTask;
@@ -64,7 +64,7 @@ impl<T> Service for ServerService<T>
 where
     T: Service<Request = TcpStream, Response = ()>,
     T::Future: 'static,
-    T::Error: fmt::Display + 'static,
+    T::Error: 'static,
 {
     type Request = ServerMessage;
     type Response = ();
@@ -117,7 +117,6 @@ where
     T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
-    T::Error: fmt::Display,
 {
     pub(crate) fn create(inner: F) -> Box<ServerServiceFactory + Send> {
         Box::new(Self { inner })
@@ -136,7 +135,6 @@ where
     T: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
     T::Service: 'static,
     T::Future: 'static,
-    T::Error: fmt::Display,
 {
     fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
         Box::new(Self {

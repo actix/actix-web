@@ -349,7 +349,7 @@ where
             self.a = Some(service);
         }
 
-        if let Async::Ready(service) = self.fut_b.poll().map_err(|e| e.into())? {
+        if let Async::Ready(service) = self.fut_b.poll()? {
             self.b = Some(service);
         }
 

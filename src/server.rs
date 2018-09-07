@@ -1,5 +1,5 @@
 use std::time::Duration;
-use std::{fmt, io, mem, net};
+use std::{io, mem, net};
 
 use futures::sync::{mpsc, mpsc::unbounded};
 use futures::{Future, Sink, Stream};
@@ -150,7 +150,6 @@ impl Server {
         N: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
         N::Service: 'static,
         N::Future: 'static,
-        N::Error: fmt::Display,
     {
         let sockets = bind_addr(addr)?;
 
@@ -167,7 +166,6 @@ impl Server {
         N: NewService<Request = TcpStream, Response = (), InitError = ()> + 'static,
         N::Service: 'static,
         N::Future: 'static,
-        N::Error: fmt::Display,
     {
         let token = Token(self.services.len());
         self.services.push(ServerNewService::create(factory));
