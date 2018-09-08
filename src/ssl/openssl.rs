@@ -1,4 +1,3 @@
-use std::io;
 use std::marker::PhantomData;
 
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
@@ -44,7 +43,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
     type Error = Error;
     type Service = OpensslAcceptorService<T>;
     type InitError = ();
-    type Future = FutureResult<Self::Service, io::Error>;
+    type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
         MAX_CONN_COUNTER.with(|conns| {
