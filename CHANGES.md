@@ -5,7 +5,13 @@
 ### Fixed
 
 * Fix system_exit in HttpServer #501
+
 * Fix parsing of route param containin regexes with repetition #500
+
+### Changes
+
+* Unhide `SessionBackend` and `SessionImpl` traits #455
+
 
 ## [0.7.5] - 2018-09-04
 

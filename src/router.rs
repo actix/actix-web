@@ -815,16 +815,21 @@ impl ResourceDef {
         Ok(())
     }
 
-    fn parse_param(
-        pattern: &str,
-    ) -> (PatternElement, String, &str) {
+    fn parse_param(pattern: &str) -> (PatternElement, String, &str) {
         const DEFAULT_PATTERN: &str = "[^/]+";
         let mut params_nesting = 0usize;
-        let close_idx = pattern.find(|c| match c {
-            '{' => {params_nesting += 1; false},
-            '}' => {params_nesting -= 1; params_nesting == 0},
-            _ => false
-        }).expect("malformed param");
+        let close_idx = pattern
+            .find(|c| match c {
+                '{' => {
+                    params_nesting += 1;
+                    false
+                }
+                '}' => {
+                    params_nesting -= 1;
+                    params_nesting == 0
+                }
+                _ => false,
+            }).expect("malformed param");
         let (mut param, rem) = pattern.split_at(close_idx + 1);
         param = &param[1..param.len() - 1]; // Remove outer brackets
         let (name, pattern) = match param.find(":") {
@@ -832,16 +837,25 @@ impl ResourceDef {
                 let (name, pattern) = param.split_at(idx);
                 (name, &pattern[1..])
             }
-            None => (param, DEFAULT_PATTERN)
+            None => (param, DEFAULT_PATTERN),
         };
-        (PatternElement::Var(name.to_string()), format!(r"(?P<{}>{})", &name, &pattern), rem)
+        (
+            PatternElement::Var(name.to_string()),
+            format!(r"(?P<{}>{})", &name, &pattern),
+            rem,
+        )
     }
 
     fn parse(
         mut pattern: &str, for_prefix: bool,
     ) -> (String, Vec<PatternElement>, bool, usize) {
         if pattern.find("{").is_none() {
-            return (String::from(pattern), vec![PatternElement::Str(String::from(pattern))], false, pattern.chars().count())
+            return (
+                String::from(pattern),
+                vec![PatternElement::Str(String::from(pattern))],
+                false,
+                pattern.chars().count(),
+            );
         };
 
         let mut elems = Vec::new();

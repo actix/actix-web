@@ -101,6 +101,7 @@ tokio-io = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-reactor = "0.1"
+tokio-current-thread = "0.1"
 
 # native-tls
 native-tls = { version="0.2", optional = true }

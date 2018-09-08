@@ -204,6 +204,7 @@ impl Paused {
 /// `ClientConnector` type is responsible for transport layer of a
 /// client connection.
 pub struct ClientConnector {
+    #[allow(dead_code)]
     connector: SslConnector,
 
     stats: ClientConnectorStats,

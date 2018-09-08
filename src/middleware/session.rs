@@ -270,14 +270,17 @@ impl<S: 'static, T: SessionBackend<S>> Middleware<S> for SessionStorage<T, S> {
 }
 
 /// A simple key-value storage interface that is internally used by `Session`.
-#[doc(hidden)]
 pub trait SessionImpl: 'static {
+    /// Get session value by key
     fn get(&self, key: &str) -> Option<&str>;
 
+    /// Set session value
     fn set(&mut self, key: &str, value: String);
 
+    /// Remove specific key from session
     fn remove(&mut self, key: &str);
 
+    /// Remove all values from session
     fn clear(&mut self);
 
     /// Write session to storage backend.
@@ -285,9 +288,10 @@ pub trait SessionImpl: 'static {
 }
 
 /// Session's storage backend trait definition.
-#[doc(hidden)]
 pub trait SessionBackend<S>: Sized + 'static {
+    /// Session item
     type Session: SessionImpl;
+    /// Future that reads session
     type ReadFuture: Future<Item = Self::Session, Error = Error>;
 
     /// Parse the session from request and load data from a storage backend.
