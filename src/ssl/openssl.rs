@@ -43,7 +43,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
     type Response = SslStream<T>;
     type Error = Error;
     type Service = OpensslAcceptorService<T>;
-    type InitError = io::Error;
+    type InitError = ();
     type Future = FutureResult<Self::Service, io::Error>;
 
     fn new_service(&self) -> Self::Future {
