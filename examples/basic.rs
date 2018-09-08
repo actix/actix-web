@@ -9,11 +9,11 @@ extern crate tokio_io;
 extern crate tokio_openssl;
 extern crate tokio_tcp;
 
+use std::fmt;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::{fmt, io};
 
 use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -25,7 +25,7 @@ use actix_net::{IntoNewService, NewServiceExt, Server};
 /// Simple logger service, it just prints fact of the new connections
 fn logger<T: AsyncRead + AsyncWrite + fmt::Debug>(
     stream: T,
-) -> impl Future<Item = T, Error = io::Error> {
+) -> impl Future<Item = T, Error = ()> {
     println!("New connection: {:?}", stream);
     future::ok(stream)
 }
@@ -40,7 +40,7 @@ struct ServiceState {
 /// Service function for our stateful service
 fn service<T: AsyncRead + AsyncWrite>(
     st: &mut ServiceState, _stream: T,
-) -> impl Future<Item = (), Error = io::Error> {
+) -> impl Future<Item = (), Error = ()> {
     let num = st.num.fetch_add(1, Ordering::Relaxed);
     println!("got ssl connection {:?}", num);
     future::ok(())
@@ -75,7 +75,7 @@ fn main() {
                 // service for converting incoming TcpStream to a SslStream<TcpStream>
                 (move |stream| {
                 SslAcceptorExt::accept_async(&acceptor, stream)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                    .map_err(|e| println!("Openssl error: {}", e))
             })
             // convert closure to a `NewService`
             .into_new_service()
@@ -89,7 +89,7 @@ fn main() {
             // actix-net generates `NewService` impl that creates `ServiceState` instance for each new service
             // and use `service` function as `Service::call`
             .and_then((service, move || {
-                Ok::<_, io::Error>(ServiceState { num: num.clone() })
+                Ok(ServiceState { num: num.clone() })
             }))
             },
         ).unwrap()

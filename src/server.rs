@@ -5,17 +5,17 @@ use futures::sync::{mpsc, mpsc::unbounded};
 use futures::{Future, Sink, Stream};
 use net2::TcpBuilder;
 use num_cpus;
-use tokio_tcp::TcpStream;
 
 use actix::{
     actors::signal, fut, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
     Response, StreamHandler, System, WrapFuture,
 };
 
+pub use super::server_service::ServerServiceFactory;
+
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::server_service::{ServerNewService, ServerServiceFactory};
+use super::server_service::{InternalServerServiceFactory, ServerNewService};
 use super::worker::{self, Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
-use super::NewService;
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
 pub(crate) enum ServerCommand {
@@ -26,7 +26,7 @@ pub(crate) enum ServerCommand {
 pub struct Server {
     threads: usize,
     workers: Vec<(usize, Addr<Worker>)>,
-    services: Vec<Box<ServerServiceFactory + Send>>,
+    services: Vec<Box<InternalServerServiceFactory>>,
     sockets: Vec<(Token, net::TcpListener)>,
     accept: AcceptLoop,
     exit: bool,
@@ -143,13 +143,10 @@ impl Server {
     }
 
     /// Add new service to server
-    pub fn bind<F, U, N>(mut self, addr: U, factory: F) -> io::Result<Self>
+    pub fn bind<F, U>(mut self, addr: U, factory: F) -> io::Result<Self>
     where
-        F: Fn() -> N + Clone + Send + 'static,
+        F: ServerServiceFactory,
         U: net::ToSocketAddrs,
-        N: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
-        N::Service: 'static,
-        N::Future: 'static,
     {
         let sockets = bind_addr(addr)?;
 
@@ -160,12 +157,9 @@ impl Server {
     }
 
     /// Add new service to server
-    pub fn listen<F, N>(mut self, lst: net::TcpListener, factory: F) -> Self
+    pub fn listen<F>(mut self, lst: net::TcpListener, factory: F) -> Self
     where
-        F: Fn() -> N + Clone + Send + 'static,
-        N: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
-        N::Service: 'static,
-        N::Future: 'static,
+        F: ServerServiceFactory,
     {
         let token = Token(self.services.len());
         self.services.push(ServerNewService::create(factory));
@@ -254,7 +248,7 @@ impl Server {
         let (tx, rx) = unbounded::<Conn>();
         let avail = WorkerAvailability::new(notify);
         let worker = WorkerClient::new(idx, tx, avail.clone());
-        let services: Vec<Box<ServerServiceFactory + Send>> =
+        let services: Vec<Box<InternalServerServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         let addr = Arbiter::start(move |ctx: &mut Context<_>| {

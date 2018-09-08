@@ -65,58 +65,67 @@ where
     }
 }
 
-pub(crate) struct ServerNewService<F, T>
-where
-    F: Fn() -> T + Send + Clone,
-{
+pub(crate) struct ServerNewService<F: ServerServiceFactory> {
     inner: F,
 }
 
-impl<F, T> ServerNewService<F, T>
+impl<F> ServerNewService<F>
 where
-    F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
-    T::Service: 'static,
-    T::Future: 'static,
+    F: ServerServiceFactory,
 {
-    pub(crate) fn create(inner: F) -> Box<ServerServiceFactory + Send> {
+    pub(crate) fn create(inner: F) -> Box<InternalServerServiceFactory> {
         Box::new(Self { inner })
     }
 }
 
-pub trait ServerServiceFactory {
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send>;
+pub(crate) trait InternalServerServiceFactory: Send {
+    fn clone_factory(&self) -> Box<InternalServerServiceFactory>;
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
 }
 
-impl<F, T> ServerServiceFactory for ServerNewService<F, T>
+impl<F> InternalServerServiceFactory for ServerNewService<F>
 where
-    F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()> + 'static,
-    T::Service: 'static,
-    T::Future: 'static,
+    F: ServerServiceFactory,
 {
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
+    fn clone_factory(&self) -> Box<InternalServerServiceFactory> {
         Box::new(Self {
             inner: self.inner.clone(),
         })
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
-        Box::new((self.inner)().new_service().map(move |inner| {
+        Box::new(self.inner.create().new_service().map(move |inner| {
             let service: BoxedServerService = Box::new(ServerService::new(inner));
             service
         }))
     }
 }
 
-impl ServerServiceFactory for Box<ServerServiceFactory> {
-    fn clone_factory(&self) -> Box<ServerServiceFactory + Send> {
+impl InternalServerServiceFactory for Box<InternalServerServiceFactory> {
+    fn clone_factory(&self) -> Box<InternalServerServiceFactory> {
         self.as_ref().clone_factory()
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
         self.as_ref().create()
+    }
+}
+
+pub trait ServerServiceFactory: Send + Clone + 'static {
+    type NewService: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()>;
+
+    fn create(&self) -> Self::NewService;
+}
+
+impl<F, T> ServerServiceFactory for F
+where
+    F: Fn() -> T + Send + Clone + 'static,
+    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()>,
+{
+    type NewService = T;
+
+    fn create(&self) -> T {
+        (self)()
     }
 }

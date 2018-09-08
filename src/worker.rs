@@ -17,7 +17,7 @@ use actix::{
 };
 
 use super::accept::AcceptNotify;
-use super::server_service::{BoxedServerService, ServerMessage, ServerServiceFactory};
+use super::server_service::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
 use super::Token;
 
 #[derive(Message)]
@@ -122,7 +122,7 @@ impl Actor for Worker {
 
 impl Worker {
     pub(crate) fn new(
-        ctx: &mut Context<Self>, services: Vec<Box<ServerServiceFactory + Send>>,
+        ctx: &mut Context<Self>, services: Vec<Box<InternalServerServiceFactory>>,
         availability: WorkerAvailability,
     ) -> Self {
         let wrk = MAX_CONNS_COUNTER.with(|conns| Worker {

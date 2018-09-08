@@ -5,7 +5,6 @@ extern crate openssl;
 extern crate tokio_io;
 extern crate tokio_tcp;
 
-use std::io;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -24,7 +23,7 @@ struct ServiceState {
 
 fn service<T: AsyncRead + AsyncWrite>(
     st: &mut ServiceState, _: T,
-) -> impl Future<Item = (), Error = io::Error> {
+) -> impl Future<Item = (), Error = ()> {
     let num = st.num.fetch_add(1, Ordering::Relaxed);
     println!("got ssl connection {:?}", num);
     future::ok(())
@@ -43,7 +42,7 @@ fn main() {
         .unwrap();
 
     let num = Arc::new(AtomicUsize::new(0));
-    let openssl = ssl::OpensslAcceptor::new(builder);
+    let openssl = ssl::OpensslAcceptor::new(builder.build());
 
     // server start mutiple workers, it runs supplied `Fn` in each worker.
     Server::default()
@@ -53,10 +52,8 @@ fn main() {
             // configure service
             openssl
                 .clone()
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                .and_then((service, move || {
-                    Ok::<_, io::Error>(ServiceState { num: num.clone() })
-                }))
+                .map_err(|e| println!("Openssl error: {}", e))
+                .and_then((service, move || Ok(ServiceState { num: num.clone() })))
         }).unwrap()
         .start();
 
