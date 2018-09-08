@@ -108,15 +108,13 @@
 //! ```
 use std::net::Shutdown;
 use std::rc::Rc;
-use std::{io, net, time};
+use std::{io, time};
 
 use bytes::{BufMut, BytesMut};
-use futures::{Async, Future, Poll};
+use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
-pub(crate) mod accept;
 mod channel;
 mod error;
 pub(crate) mod h1;
@@ -129,24 +127,14 @@ mod http;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
-mod server;
 pub(crate) mod settings;
 mod ssl;
-mod worker;
 
 use actix::Message;
 
-pub use self::message::Request;
-
 pub use self::http::HttpServer;
-#[doc(hidden)]
-pub use self::server::{
-    ConnectionRateTag, ConnectionTag, Connections, Server, Service, ServiceHandler,
-};
+pub use self::message::Request;
 pub use self::settings::ServerSettings;
-
-#[doc(hidden)]
-pub use self::ssl::*;
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
@@ -320,35 +308,6 @@ impl<T: HttpHandler> IntoHttpHandler for T {
     fn into_handler(self) -> Self::Handler {
         self
     }
-}
-
-pub(crate) trait IntoAsyncIo {
-    type Io: AsyncRead + AsyncWrite;
-
-    fn into_async_io(self) -> Result<Self::Io, io::Error>;
-}
-
-impl IntoAsyncIo for net::TcpStream {
-    type Io = TcpStream;
-
-    fn into_async_io(self) -> Result<Self::Io, io::Error> {
-        TcpStream::from_std(self, &Handle::default())
-    }
-}
-
-#[doc(hidden)]
-/// Trait implemented by types that could accept incomming socket connections.
-pub trait AcceptorService<Io: AsyncRead + AsyncWrite>: Clone {
-    /// Established connection type
-    type Accepted: IoStream;
-    /// Future describes async accept process.
-    type Future: Future<Item = Self::Accepted, Error = io::Error> + 'static;
-
-    /// Establish new connection
-    fn accept(&self, io: Io) -> Self::Future;
-
-    /// Scheme
-    fn scheme(&self) -> &'static str;
 }
 
 #[doc(hidden)]

@@ -17,7 +17,7 @@ use tokio_timer::{Delay, Interval};
 
 use super::channel::Node;
 use super::message::{Request, RequestPool};
-use super::server::{ConnectionRateTag, ConnectionTag, Connections};
+// use super::server::{ConnectionRateTag, ConnectionTag, Connections};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
@@ -140,7 +140,6 @@ pub(crate) struct WorkerSettings<H> {
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
-    conns: Connections,
     node: RefCell<Node<()>>,
     date: UnsafeCell<Date>,
 }
@@ -148,9 +147,8 @@ pub(crate) struct WorkerSettings<H> {
 impl<H: 'static> WorkerSettings<H> {
     pub(crate) fn create(
         apps: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
-        conns: Connections,
     ) -> Rc<WorkerSettings<H>> {
-        let settings = Rc::new(Self::new(apps, keep_alive, settings, conns));
+        let settings = Rc::new(Self::new(apps, keep_alive, settings));
 
         // periodic date update
         let s = settings.clone();
@@ -169,7 +167,7 @@ impl<H: 'static> WorkerSettings<H> {
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
-        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings, conns: Connections,
+        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -185,7 +183,6 @@ impl<H> WorkerSettings<H> {
             date: UnsafeCell::new(Date::new()),
             keep_alive,
             ka_enabled,
-            conns,
         }
     }
 
@@ -227,10 +224,6 @@ impl<H> WorkerSettings<H> {
         RequestPool::get(self.messages)
     }
 
-    pub fn connection(&self) -> ConnectionTag {
-        self.conns.connection()
-    }
-
     fn update_date(&self) {
         // Unsafe: WorkerSetting is !Sync and !Send
         unsafe { &mut *self.date.get() }.update();
@@ -248,11 +241,6 @@ impl<H> WorkerSettings<H> {
         } else {
             dst.extend_from_slice(date_bytes);
         }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn connection_rate(&self) -> ConnectionRateTag {
-        self.conns.connection_rate()
     }
 }
 

@@ -8,7 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use super::settings::WorkerSettings;
-use super::{h1, h2, ConnectionTag, HttpHandler, IoStream};
+use super::{h1, h2, HttpHandler, IoStream};
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
@@ -32,7 +32,6 @@ where
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
     ka_timeout: Option<Delay>,
-    _tag: ConnectionTag,
 }
 
 impl<T, H> HttpChannel<T, H>
@@ -43,11 +42,9 @@ where
     pub(crate) fn new(
         settings: Rc<WorkerSettings<H>>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
-        let _tag = settings.connection();
         let ka_timeout = settings.keep_alive_timer();
 
         HttpChannel {
-            _tag,
             ka_timeout,
             node: None,
             proto: Some(HttpProtocol::Unknown(

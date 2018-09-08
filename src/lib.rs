@@ -140,6 +140,8 @@ extern crate serde_urlencoded;
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate smallvec;
+
+extern crate actix_net;
 #[macro_use]
 extern crate actix as actix_inner;
 

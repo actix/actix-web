@@ -35,7 +35,7 @@ default = ["session", "brotli", "flate2-c"]
 tls = ["native-tls", "tokio-tls"]
 
 # openssl
-alpn = ["openssl", "tokio-openssl"]
+alpn = ["openssl", "tokio-openssl", "actix-net/ssl"]
 
 # rustls
 rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
@@ -57,6 +57,7 @@ flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
 actix = "0.7.0"
+actix-net = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.9"
 bitflags = "1.0"
