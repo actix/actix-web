@@ -2,13 +2,13 @@ use std::io;
 use std::marker::PhantomData;
 
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
-use openssl::ssl::{AlpnError, Error, SslAcceptor, SslAcceptorBuilder, SslConnector};
+use openssl::ssl::{Error, SslAcceptor, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
 use super::MAX_CONN_COUNTER;
 use connector::ConnectionInfo;
-use server_service::{Counter, CounterGuard};
+use worker::{Connections, ConnectionsGuard};
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
@@ -21,31 +21,11 @@ pub struct OpensslAcceptor<T> {
 
 impl<T> OpensslAcceptor<T> {
     /// Create default `OpensslAcceptor`
-    pub fn new(builder: SslAcceptorBuilder) -> Self {
+    pub fn new(acceptor: SslAcceptor) -> Self {
         OpensslAcceptor {
-            acceptor: builder.build(),
+            acceptor,
             io: PhantomData,
         }
-    }
-
-    /// Create `OpensslWith` with `HTTP1.1` and `HTTP2`.
-    pub fn for_http(mut builder: SslAcceptorBuilder) -> io::Result<Self> {
-        let protos = b"\x08http/1.1\x02h2";
-
-        builder.set_alpn_select_callback(|_, protos| {
-            const H2: &[u8] = b"\x02h2";
-            if protos.windows(3).any(|window| window == H2) {
-                Ok(b"h2")
-            } else {
-                Err(AlpnError::NOACK)
-            }
-        });
-        builder.set_alpn_protos(&protos[..])?;
-
-        Ok(OpensslAcceptor {
-            acceptor: builder.build(),
-            io: PhantomData,
-        })
     }
 }
 
@@ -67,11 +47,11 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
     type Future = FutureResult<Self::Service, io::Error>;
 
     fn new_service(&self) -> Self::Future {
-        MAX_CONN_COUNTER.with(|counter| {
+        MAX_CONN_COUNTER.with(|conns| {
             ok(OpensslAcceptorService {
                 acceptor: self.acceptor.clone(),
+                conns: conns.clone(),
                 io: PhantomData,
-                counter: counter.clone(),
             })
         })
     }
@@ -80,7 +60,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
 pub struct OpensslAcceptorService<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
-    counter: Counter,
+    conns: Connections,
 }
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
@@ -90,7 +70,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
     type Future = OpensslAcceptorServiceFut<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        if self.counter.check() {
+        if self.conns.check() {
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
@@ -99,7 +79,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
         OpensslAcceptorServiceFut {
-            _guard: self.counter.get(),
+            _guard: self.conns.get(),
             fut: SslAcceptorExt::accept_async(&self.acceptor, req),
         }
     }
@@ -110,7 +90,7 @@ where
     T: AsyncRead + AsyncWrite,
 {
     fut: AcceptAsync<T>,
-    _guard: CounterGuard,
+    _guard: ConnectionsGuard,
 }
 
 impl<T: AsyncRead + AsyncWrite> Future for OpensslAcceptorServiceFut<T> {
