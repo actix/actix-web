@@ -1,14 +1,12 @@
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
+use std::{cmp, io};
+
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::server::SendResponse;
 use http2::{Reason, SendStream};
 use modhttp::Response;
-use std::rc::Rc;
-use std::{cmp, io};
-
-use http::{HttpTryFrom, Method, Version};
 
 use super::helpers;
 use super::message::Request;
@@ -20,6 +18,7 @@ use header::ContentEncoding;
 use http::header::{
     HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
+use http::{HttpTryFrom, Method, Version};
 use httpresponse::HttpResponse;
 
 const CHUNK_SIZE: usize = 16_384;
@@ -40,12 +39,12 @@ pub(crate) struct H2Writer<H: 'static> {
     written: u64,
     buffer: Output,
     buffer_capacity: usize,
-    settings: Rc<WorkerSettings<H>>,
+    settings: WorkerSettings<H>,
 }
 
 impl<H: 'static> H2Writer<H> {
     pub fn new(
-        respond: SendResponse<Bytes>, settings: Rc<WorkerSettings<H>>,
+        respond: SendResponse<Bytes>, settings: WorkerSettings<H>,
     ) -> H2Writer<H> {
         H2Writer {
             stream: None,

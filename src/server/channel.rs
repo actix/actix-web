@@ -1,5 +1,4 @@
 use std::net::{Shutdown, SocketAddr};
-use std::rc::Rc;
 use std::{io, ptr, time};
 
 use bytes::{Buf, BufMut, BytesMut};
@@ -15,7 +14,7 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
     H1(h1::Http1<T, H>),
     H2(h2::Http2<T, H>),
-    Unknown(Rc<WorkerSettings<H>>, Option<SocketAddr>, T, BytesMut),
+    Unknown(WorkerSettings<H>, Option<SocketAddr>, T, BytesMut),
 }
 
 enum ProtocolKind {
@@ -40,7 +39,7 @@ where
     H: HttpHandler + 'static,
 {
     pub(crate) fn new(
-        settings: Rc<WorkerSettings<H>>, io: T, peer: Option<SocketAddr>,
+        settings: WorkerSettings<H>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
         let ka_timeout = settings.keep_alive_timer();
 

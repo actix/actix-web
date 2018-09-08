@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::{io, mem, net, time};
 
@@ -10,7 +9,7 @@ use futures::{Async, Poll, Stream};
 use net2::TcpBuilder;
 use num_cpus;
 
-use actix_net::{ssl, NewService, Service, Server};
+use actix_net::{ssl, NewService, Server, Service};
 
 //#[cfg(feature = "tls")]
 //use native_tls::TlsAcceptor;
@@ -603,7 +602,7 @@ where
     H: HttpHandler,
     Io: IoStream,
 {
-    settings: Rc<WorkerSettings<H>>,
+    settings: WorkerSettings<H>,
     tcp_ka: Option<time::Duration>,
     _t: PhantomData<Io>,
 }
@@ -621,7 +620,7 @@ where
         } else {
             None
         };
-        let settings = WorkerSettings::create(apps, keep_alive, settings);
+        let settings = WorkerSettings::new(apps, keep_alive, settings);
 
         HttpServiceHandler {
             tcp_ka,
@@ -647,7 +646,7 @@ where
 
     fn call(&mut self, mut req: Self::Request) -> Self::Future {
         let _ = req.set_nodelay(true);
-        HttpChannel::new(Rc::clone(&self.settings), req, None)
+        HttpChannel::new(self.settings.clone(), req, None)
     }
 
     // fn shutdown(&self, force: bool) {

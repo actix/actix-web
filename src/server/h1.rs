@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
@@ -43,7 +42,7 @@ bitflags! {
 
 pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
     flags: Flags,
-    settings: Rc<WorkerSettings<H>>,
+    settings: WorkerSettings<H>,
     addr: Option<SocketAddr>,
     stream: H1Writer<T, H>,
     decoder: H1Decoder,
@@ -90,7 +89,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
+        settings: WorkerSettings<H>, stream: T, addr: Option<SocketAddr>,
         buf: BytesMut, is_eof: bool, keepalive_timer: Option<Delay>,
     ) -> Self {
         Http1 {
@@ -99,7 +98,7 @@ where
             } else {
                 Flags::KEEPALIVE
             },
-            stream: H1Writer::new(stream, Rc::clone(&settings)),
+            stream: H1Writer::new(stream, settings.clone()),
             decoder: H1Decoder::new(),
             payload: None,
             tasks: VecDeque::new(),
@@ -112,7 +111,7 @@ where
 
     #[inline]
     pub fn settings(&self) -> &WorkerSettings<H> {
-        self.settings.as_ref()
+        &self.settings
     }
 
     #[inline]

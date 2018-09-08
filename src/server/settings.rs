@@ -2,22 +2,21 @@ use std::cell::{RefCell, RefMut, UnsafeCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{env, fmt, net};
 
-use actix::Arbiter;
 use bytes::BytesMut;
-use futures::Stream;
+use futures::{future, Future};
 use futures_cpupool::CpuPool;
 use http::StatusCode;
 use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
-use tokio_timer::{Delay, Interval};
+use tokio_timer::{sleep, Delay, Interval};
+use tokio_current_thread::spawn;
 
 use super::channel::Node;
 use super::message::{Request, RequestPool};
-// use super::server::{ConnectionRateTag, ConnectionTag, Connections};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
@@ -134,34 +133,21 @@ impl ServerSettings {
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
 
-pub(crate) struct WorkerSettings<H> {
+pub(crate) struct WorkerSettings<H>(Rc<Inner<H>>);
+
+struct Inner<H> {
     h: Vec<H>,
     keep_alive: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
     node: RefCell<Node<()>>,
-    date: UnsafeCell<Date>,
+    date: UnsafeCell<(bool, Date)>,
 }
 
-impl<H: 'static> WorkerSettings<H> {
-    pub(crate) fn create(
-        apps: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
-    ) -> Rc<WorkerSettings<H>> {
-        let settings = Rc::new(Self::new(apps, keep_alive, settings));
-
-        // periodic date update
-        let s = settings.clone();
-        Arbiter::spawn(
-            Interval::new(Instant::now(), Duration::from_secs(1))
-                .map_err(|_| ())
-                .and_then(move |_| {
-                    s.update_date();
-                    Ok(())
-                }).fold((), |(), _| Ok(())),
-        );
-
-        settings
+impl<H> Clone for WorkerSettings<H> {
+    fn clone(&self) -> Self {
+        WorkerSettings(self.0.clone())
     }
 }
 
@@ -175,23 +161,23 @@ impl<H> WorkerSettings<H> {
             KeepAlive::Disabled => (0, false),
         };
 
-        WorkerSettings {
+        WorkerSettings(Rc::new(Inner {
             h,
+            keep_alive,
+            ka_enabled,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             node: RefCell::new(Node::head()),
-            date: UnsafeCell::new(Date::new()),
-            keep_alive,
-            ka_enabled,
-        }
+            date: UnsafeCell::new((false, Date::new())),
+        }))
     }
 
     pub fn head(&self) -> RefMut<Node<()>> {
-        self.node.borrow_mut()
+        self.0.node.borrow_mut()
     }
 
     pub fn handlers(&self) -> &Vec<H> {
-        &self.h
+        &self.0.h
     }
 
     pub fn keep_alive_timer(&self) -> Option<Delay> {
@@ -205,33 +191,49 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn keep_alive(&self) -> u64 {
-        self.keep_alive
+        self.0.keep_alive
     }
 
     pub fn keep_alive_enabled(&self) -> bool {
-        self.ka_enabled
+        self.0.ka_enabled
     }
 
     pub fn get_bytes(&self) -> BytesMut {
-        self.bytes.get_bytes()
+        self.0.bytes.get_bytes()
     }
 
     pub fn release_bytes(&self, bytes: BytesMut) {
-        self.bytes.release_bytes(bytes)
+        self.0.bytes.release_bytes(bytes)
     }
 
     pub fn get_request(&self) -> Request {
-        RequestPool::get(self.messages)
+        RequestPool::get(self.0.messages)
     }
 
     fn update_date(&self) {
         // Unsafe: WorkerSetting is !Sync and !Send
-        unsafe { &mut *self.date.get() }.update();
+        unsafe { (&mut *self.0.date.get()).0 = false };
     }
+}
 
+impl<H: 'static> WorkerSettings<H> {
     pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
         // Unsafe: WorkerSetting is !Sync and !Send
-        let date_bytes = unsafe { &(*self.date.get()).bytes };
+        let date_bytes = unsafe {
+            let date = &mut (*self.0.date.get());
+            if !date.0 {
+                date.1.update();
+                date.0 = true;
+
+                // periodic date update
+                let s = self.clone();
+                spawn(sleep(Duration::from_secs(1)).then(move |_| {
+                    s.update_date();
+                    future::ok(())
+                }));
+            }
+            &date.1.bytes
+        };
         if full {
             let mut buf: [u8; 39] = [0; 39];
             buf[..6].copy_from_slice(b"date: ");

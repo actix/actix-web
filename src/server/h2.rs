@@ -38,7 +38,7 @@ where
     H: HttpHandler + 'static,
 {
     flags: Flags,
-    settings: Rc<WorkerSettings<H>>,
+    settings: WorkerSettings<H>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry<H>>,
@@ -58,7 +58,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes,
+        settings: WorkerSettings<H>, io: T, addr: Option<SocketAddr>, buf: Bytes,
         keepalive_timer: Option<Delay>,
     ) -> Self {
         let extensions = io.extensions();
@@ -83,7 +83,7 @@ where
     }
 
     pub fn settings(&self) -> &WorkerSettings<H> {
-        self.settings.as_ref()
+        &self.settings
     }
 
     pub fn poll(&mut self) -> Poll<(), ()> {
@@ -224,7 +224,7 @@ where
                                 body,
                                 resp,
                                 self.addr,
-                                &self.settings,
+                                self.settings.clone(),
                                 self.extensions.clone(),
                             ));
                         }
@@ -343,7 +343,7 @@ struct Entry<H: HttpHandler + 'static> {
 impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
         parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
-        addr: Option<SocketAddr>, settings: &Rc<WorkerSettings<H>>,
+        addr: Option<SocketAddr>, settings: WorkerSettings<H>,
         extensions: Option<Rc<Extensions>>,
     ) -> Entry<H>
     where
@@ -387,7 +387,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
                 ))
             }),
             payload: psender,
-            stream: H2Writer::new(resp, Rc::clone(settings)),
+            stream: H2Writer::new(resp, settings),
             flags: EntryFlags::empty(),
             recv,
         }

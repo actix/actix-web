@@ -1,7 +1,6 @@
 // #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
 use std::io::{self, Write};
-use std::rc::Rc;
 
 use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
@@ -38,11 +37,11 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     headers_size: u32,
     buffer: Output,
     buffer_capacity: usize,
-    settings: Rc<WorkerSettings<H>>,
+    settings: WorkerSettings<H>,
 }
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
-    pub fn new(stream: T, settings: Rc<WorkerSettings<H>>) -> H1Writer<T, H> {
+    pub fn new(stream: T, settings: WorkerSettings<H>) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
             written: 0,
