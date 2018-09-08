@@ -115,6 +115,8 @@ use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
+pub use actix_net::{PauseServer, ResumeServer, StopServer};
+
 mod channel;
 mod error;
 pub(crate) mod h1;
@@ -128,9 +130,9 @@ pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
 pub(crate) mod settings;
-mod ssl;
 
-use actix::Message;
+mod ssl;
+pub use self::ssl::*;
 
 pub use self::http::HttpServer;
 pub use self::message::Request;
@@ -218,40 +220,6 @@ impl From<Option<usize>> for KeepAlive {
         } else {
             KeepAlive::Disabled
         }
-    }
-}
-
-/// Pause accepting incoming connections
-///
-/// If socket contains some pending connection, they might be dropped.
-/// All opened connection remains active.
-#[derive(Message)]
-pub struct PauseServer;
-
-/// Resume accepting incoming connections
-#[derive(Message)]
-pub struct ResumeServer;
-
-/// Stop incoming connection processing, stop all workers and exit.
-///
-/// If server starts with `spawn()` method, then spawned thread get terminated.
-pub struct StopServer {
-    /// Whether to try and shut down gracefully
-    pub graceful: bool,
-}
-
-impl Message for StopServer {
-    type Result = Result<(), ()>;
-}
-
-/// Socket id token
-#[doc(hidden)]
-#[derive(Clone, Copy)]
-pub struct Token(usize);
-
-impl Token {
-    pub(crate) fn new(val: usize) -> Token {
-        Token(val)
     }
 }
 

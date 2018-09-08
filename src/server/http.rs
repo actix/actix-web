@@ -2,19 +2,19 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{io, mem, net, time};
 
-use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, System};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, System};
+use actix_net::{ssl, NewService, NewServiceExt, Server, Service};
 
 use futures::future::{ok, FutureResult};
 use futures::{Async, Poll, Stream};
 use net2::TcpBuilder;
 use num_cpus;
-
-use actix_net::{ssl, NewService, Server, Service};
+use tokio_tcp::TcpStream;
 
 //#[cfg(feature = "tls")]
 //use native_tls::TlsAcceptor;
 
-#[cfg(feature = "alpn")]
+#[cfg(any(feature = "alpn", feature = "ssl"))]
 use openssl::ssl::SslAcceptorBuilder;
 
 //#[cfg(feature = "rust-tls")]
@@ -25,9 +25,10 @@ use super::settings::{ServerSettings, WorkerSettings};
 use super::{HttpHandler, IntoHttpHandler, IoStream, KeepAlive};
 
 struct Socket<H: IntoHttpHandler> {
+    scheme: &'static str,
     lst: net::TcpListener,
     addr: net::SocketAddr,
-    handler: Box<IoStreamHandler<H>>,
+    handler: Box<ServiceFactory<H>>,
 }
 
 /// An HTTP Server
@@ -194,10 +195,7 @@ where
     /// and the user should be presented with an enumeration of which
     /// socket requires which protocol.
     pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
-        self.sockets
-            .iter()
-            .map(|s| (s.addr, s.handler.scheme()))
-            .collect()
+        self.sockets.iter().map(|s| (s.addr, s.scheme)).collect()
     }
 
     /// Use listener for accepting incoming connection requests
@@ -209,7 +207,8 @@ where
         self.sockets.push(Socket {
             lst,
             addr,
-            handler: Box::new(SimpleHandler {
+            scheme: "http",
+            handler: Box::new(SimpleFactory {
                 addr,
                 factory: self.factory.clone(),
             }),
@@ -218,22 +217,28 @@ where
         self
     }
 
-    // #[doc(hidden)]
-    // /// Use listener for accepting incoming connection requests
-    // pub fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
-    // where
-    //     A: AcceptorService<TcpStream> + Send + 'static,
-    // {
-    //     let token = Token(self.handlers.len());
-    //     let addr = lst.local_addr().unwrap();
-    //     self.handlers.push(Box::new(StreamHandler::new(
-    //         lst.local_addr().unwrap(),
-    //         acceptor,
-    //     )));
-    //     self.sockets.push(Socket { lst, addr, token });
+    #[doc(hidden)]
+    /// Use listener for accepting incoming connection requests
+    pub(crate) fn listen_with<T, F>(mut self, lst: net::TcpListener, acceptor: F) -> Self
+    where
+        F: Fn() -> T + Send + Clone + 'static,
+        T: NewService<Request = TcpStream, Error = (), InitError = ()> + Clone + 'static,
+        T::Response: IoStream,
+    {
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            lst,
+            addr,
+            scheme: "https",
+            handler: Box::new(AcceptorFactory {
+                addr,
+                acceptor,
+                factory: self.factory.clone(),
+            }),
+        });
 
-    //     self
-    // }
+        self
+    }
 
     // #[cfg(feature = "tls")]
     // /// Use listener for accepting incoming tls connection requests
@@ -246,24 +251,27 @@ where
     //    self.listen_with(lst, NativeTlsAcceptor::new(acceptor))
     // }
 
-    // #[cfg(feature = "alpn")]
-    // /// Use listener for accepting incoming tls connection requests
-    // ///
-    // /// This method sets alpn protocols to "h2" and "http/1.1"
-    // pub fn listen_ssl(
-    //     self, lst: net::TcpListener, builder: SslAcceptorBuilder,
-    // ) -> io::Result<Self> {
-    //    use super::{OpensslAcceptor, ServerFlags};
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn listen_ssl(
+        self, lst: net::TcpListener, builder: SslAcceptorBuilder,
+    ) -> io::Result<Self> {
+        use super::{openssl_acceptor_with_flags, ServerFlags};
 
-    // alpn support
-    //    let flags = if self.no_http2 {
-    //        ServerFlags::HTTP1
-    //    } else {
-    //        ServerFlags::HTTP1 | ServerFlags::HTTP2
-    //    };
+        let flags = if self.no_http2 {
+            ServerFlags::HTTP1
+        } else {
+            ServerFlags::HTTP1 | ServerFlags::HTTP2
+        };
 
-    //    Ok(self.listen_with(lst, OpensslAcceptor::with_flags(builder, flags)?))
-    // }
+        let acceptor = openssl_acceptor_with_flags(builder, flags)?;
+
+        Ok(self.listen_with(lst, move || {
+            ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ())
+        }))
+    }
 
     // #[cfg(feature = "rust-tls")]
     // /// Use listener for accepting incoming tls connection requests
@@ -400,60 +408,6 @@ where
     // }
 }
 
-struct HttpService<H, F, Io>
-where
-    H: HttpHandler,
-    F: IntoHttpHandler<Handler = H>,
-    Io: IoStream,
-{
-    factory: Arc<Fn() -> Vec<F> + Send + Sync>,
-    addr: net::SocketAddr,
-    host: Option<String>,
-    keep_alive: KeepAlive,
-    _t: PhantomData<(H, Io)>,
-}
-
-impl<H, F, Io> NewService for HttpService<H, F, Io>
-where
-    H: HttpHandler,
-    F: IntoHttpHandler<Handler = H>,
-    Io: IoStream,
-{
-    type Request = Io;
-    type Response = ();
-    type Error = ();
-    type InitError = ();
-    type Service = HttpServiceHandler<H, Io>;
-    type Future = FutureResult<Self::Service, Self::Error>;
-
-    fn new_service(&self) -> Self::Future {
-        let s = ServerSettings::new(Some(self.addr), &self.host, false);
-        let apps: Vec<_> = (*self.factory)()
-            .into_iter()
-            .map(|h| h.into_handler())
-            .collect();
-
-        ok(HttpServiceHandler::new(apps, self.keep_alive, s))
-    }
-}
-
-impl<H, F, Io> Clone for HttpService<H, F, Io>
-where
-    H: HttpHandler,
-    F: IntoHttpHandler<Handler = H>,
-    Io: IoStream,
-{
-    fn clone(&self) -> HttpService<H, F, Io> {
-        HttpService {
-            addr: self.addr,
-            factory: self.factory.clone(),
-            host: self.host.clone(),
-            keep_alive: self.keep_alive,
-            _t: PhantomData,
-        }
-    }
-}
-
 impl<H: IntoHttpHandler> HttpServer<H> {
     /// Start listening for incoming connections.
     ///
@@ -500,8 +454,9 @@ impl<H: IntoHttpHandler> HttpServer<H> {
         for socket in sockets {
             let Socket {
                 lst,
-                addr: _,
                 handler,
+                addr: _,
+                scheme: _,
             } = socket;
             srv = handler.register(srv, lst, self.host.clone(), self.keep_alive);
         }
@@ -597,6 +552,43 @@ impl<H: IntoHttpHandler> HttpServer<H> {
 //     }
 // }
 
+struct HttpService<H, F, Io>
+where
+    H: HttpHandler,
+    F: IntoHttpHandler<Handler = H>,
+    Io: IoStream,
+{
+    factory: Arc<Fn() -> Vec<F> + Send + Sync>,
+    addr: net::SocketAddr,
+    host: Option<String>,
+    keep_alive: KeepAlive,
+    _t: PhantomData<(H, Io)>,
+}
+
+impl<H, F, Io> NewService for HttpService<H, F, Io>
+where
+    H: HttpHandler,
+    F: IntoHttpHandler<Handler = H>,
+    Io: IoStream,
+{
+    type Request = Io;
+    type Response = ();
+    type Error = ();
+    type InitError = ();
+    type Service = HttpServiceHandler<H, Io>;
+    type Future = FutureResult<Self::Service, Self::Error>;
+
+    fn new_service(&self) -> Self::Future {
+        let s = ServerSettings::new(Some(self.addr), &self.host, false);
+        let apps: Vec<_> = (*self.factory)()
+            .into_iter()
+            .map(|h| h.into_handler())
+            .collect();
+
+        ok(HttpServiceHandler::new(apps, self.keep_alive, s))
+    }
+}
+
 struct HttpServiceHandler<H, Io>
 where
     H: HttpHandler,
@@ -656,21 +648,17 @@ where
     // }
 }
 
-trait IoStreamHandler<H>: Send
+trait ServiceFactory<H>
 where
     H: IntoHttpHandler,
 {
-    fn addr(&self) -> net::SocketAddr;
-
-    fn scheme(&self) -> &'static str;
-
     fn register(
         &self, server: Server, lst: net::TcpListener, host: Option<String>,
         keep_alive: KeepAlive,
     ) -> Server;
 }
 
-struct SimpleHandler<H>
+struct SimpleFactory<H>
 where
     H: IntoHttpHandler,
 {
@@ -678,27 +666,19 @@ where
     pub factory: Arc<Fn() -> Vec<H> + Send + Sync>,
 }
 
-impl<H: IntoHttpHandler> Clone for SimpleHandler<H> {
+impl<H: IntoHttpHandler> Clone for SimpleFactory<H> {
     fn clone(&self) -> Self {
-        SimpleHandler {
+        SimpleFactory {
             addr: self.addr,
             factory: self.factory.clone(),
         }
     }
 }
 
-impl<H> IoStreamHandler<H> for SimpleHandler<H>
+impl<H> ServiceFactory<H> for SimpleFactory<H>
 where
     H: IntoHttpHandler + 'static,
 {
-    fn addr(&self) -> net::SocketAddr {
-        self.addr
-    }
-
-    fn scheme(&self) -> &'static str {
-        "http"
-    }
-
     fn register(
         &self, server: Server, lst: net::TcpListener, host: Option<String>,
         keep_alive: KeepAlive,
@@ -712,6 +692,59 @@ where
             host: host.clone(),
             factory: factory.clone(),
             _t: PhantomData,
+        })
+    }
+}
+
+struct AcceptorFactory<T, F, H>
+where
+    F: Fn() -> T + Send + Clone + 'static,
+    T: NewService,
+    H: IntoHttpHandler,
+{
+    pub addr: net::SocketAddr,
+    pub acceptor: F,
+    pub factory: Arc<Fn() -> Vec<H> + Send + Sync>,
+}
+
+impl<T, F, H> Clone for AcceptorFactory<T, F, H>
+where
+    F: Fn() -> T + Send + Clone + 'static,
+    T: NewService,
+    H: IntoHttpHandler,
+{
+    fn clone(&self) -> Self {
+        AcceptorFactory {
+            addr: self.addr,
+            acceptor: self.acceptor.clone(),
+            factory: self.factory.clone(),
+        }
+    }
+}
+
+impl<T, F, H> ServiceFactory<H> for AcceptorFactory<T, F, H>
+where
+    F: Fn() -> T + Send + Clone + 'static,
+    H: IntoHttpHandler + 'static,
+    T: NewService<Request = TcpStream, Error = (), InitError = ()> + Clone + 'static,
+    T::Response: IoStream,
+{
+    fn register(
+        &self, server: Server, lst: net::TcpListener, host: Option<String>,
+        keep_alive: KeepAlive,
+    ) -> Server {
+        let addr = self.addr;
+        let factory = self.factory.clone();
+        let acceptor = self.acceptor.clone();
+
+        server.listen(lst, move || {
+            (acceptor)().and_then(HttpService {
+                keep_alive,
+                addr,
+                host: host.clone(),
+                factory: factory.clone(),
+                _t: PhantomData,
+            })
         })
     }
 }

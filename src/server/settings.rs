@@ -303,6 +303,8 @@ impl SharedBytesPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::future;
+    use tokio::runtime::current_thread;
 
     #[test]
     fn test_date_len() {
@@ -311,16 +313,20 @@ mod tests {
 
     #[test]
     fn test_date() {
-        let settings = WorkerSettings::<()>::new(
-            Vec::new(),
-            KeepAlive::Os,
-            ServerSettings::default(),
-            Connections::default(),
-        );
-        let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1, true);
-        let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2, true);
-        assert_eq!(buf1, buf2);
+        let mut rt = current_thread::Runtime::new().unwrap();
+
+        let _ = rt.block_on(future::lazy(|| {
+            let settings = WorkerSettings::<()>::new(
+                Vec::new(),
+                KeepAlive::Os,
+                ServerSettings::default(),
+            );
+            let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+            settings.set_date(&mut buf1, true);
+            let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+            settings.set_date(&mut buf2, true);
+            assert_eq!(buf1, buf2);
+            future::ok::<_, ()>(())
+        }));
     }
 }

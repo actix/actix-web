@@ -64,8 +64,8 @@
 //! ## Package feature
 //!
 //! * `tls` - enables ssl support via `native-tls` crate
-//! * `alpn` - enables ssl support via `openssl` crate, require for `http/2`
-//!    support
+//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `uds` - enables support for making client requests via Unix Domain Sockets.
 //!   Unix only. Not necessary for *serving* requests.
 //! * `session` - enables session support, includes `ring` crate as

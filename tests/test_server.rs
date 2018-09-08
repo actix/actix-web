@@ -30,6 +30,7 @@ use modhttp::Request;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use tokio::runtime::current_thread::Runtime;
+use tokio_current_thread::spawn;
 use tokio_tcp::TcpStream;
 
 use actix_web::*;
@@ -904,7 +905,7 @@ fn test_h2() {
             let (response, _) = client.send_request(request, false).unwrap();
 
             // Spawn a task to run the conn...
-            current_thread::spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
+            spawn(h2.map_err(|e| println!("GOT ERR={:?}", e)));
 
             response.and_then(|response| {
                 assert_eq!(response.status(), http::StatusCode::OK);

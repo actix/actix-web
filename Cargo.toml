@@ -35,6 +35,9 @@ default = ["session", "brotli", "flate2-c"]
 tls = ["native-tls", "tokio-tls"]
 
 # openssl
+ssl = ["openssl", "tokio-openssl", "actix-net/ssl"]
+
+# deprecated, use "ssl"
 alpn = ["openssl", "tokio-openssl", "actix-net/ssl"]
 
 # rustls
