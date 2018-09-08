@@ -27,6 +27,7 @@ extern crate net2;
 extern crate num_cpus;
 extern crate slab;
 extern crate tokio;
+extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_tcp;

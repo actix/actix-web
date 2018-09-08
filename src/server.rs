@@ -13,8 +13,8 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::server_service::{self, ServerNewService, ServerServiceFactory};
-use super::worker::{Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
+use super::server_service::{ServerNewService, ServerServiceFactory};
+use super::worker::{self, Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
 use super::NewService;
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
@@ -73,7 +73,7 @@ impl Server {
     ///
     /// By default max connections is set to a 25k per worker.
     pub fn maxconn(self, num: usize) -> Self {
-        server_service::max_concurrent_connections(num);
+        worker::max_concurrent_connections(num);
         self
     }
 
