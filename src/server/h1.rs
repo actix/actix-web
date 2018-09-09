@@ -410,45 +410,52 @@ where
                     self.keepalive_timer.take();
 
                     // search handler for request
-                    for h in self.settings.handlers().iter() {
-                        msg = match h.handle(msg) {
-                            Ok(mut pipe) => {
-                                if self.tasks.is_empty() {
-                                    match pipe.poll_io(&mut self.stream) {
-                                        Ok(Async::Ready(ready)) => {
-                                            // override keep-alive state
-                                            if self.stream.keepalive() {
-                                                self.flags.insert(Flags::KEEPALIVE);
-                                            } else {
-                                                self.flags.remove(Flags::KEEPALIVE);
-                                            }
-                                            // prepare stream for next response
-                                            self.stream.reset();
+                    match self.settings.handler().handle(msg) {
+                        Ok(mut pipe) => {
+                            if self.tasks.is_empty() {
+                                match pipe.poll_io(&mut self.stream) {
+                                    Ok(Async::Ready(ready)) => {
+                                        // override keep-alive state
+                                        if self.stream.keepalive() {
+                                            self.flags.insert(Flags::KEEPALIVE);
+                                        } else {
+                                            self.flags.remove(Flags::KEEPALIVE);
+                                        }
+                                        // prepare stream for next response
+                                        self.stream.reset();
 
-                                            if !ready {
-                                                let item = Entry {
-                                                    pipe: EntryPipe::Task(pipe),
-                                                    flags: EntryFlags::EOF,
-                                                };
-                                                self.tasks.push_back(item);
-                                            }
-                                            continue 'outer;
+                                        if !ready {
+                                            let item = Entry {
+                                                pipe: EntryPipe::Task(pipe),
+                                                flags: EntryFlags::EOF,
+                                            };
+                                            self.tasks.push_back(item);
                                         }
-                                        Ok(Async::NotReady) => {}
-                                        Err(err) => {
-                                            error!("Unhandled error: {}", err);
-                                            self.flags.insert(Flags::ERROR);
-                                            return;
-                                        }
+                                        continue 'outer;
+                                    }
+                                    Ok(Async::NotReady) => {}
+                                    Err(err) => {
+                                        error!("Unhandled error: {}", err);
+                                        self.flags.insert(Flags::ERROR);
+                                        return;
                                     }
                                 }
-                                self.tasks.push_back(Entry {
-                                    pipe: EntryPipe::Task(pipe),
-                                    flags: EntryFlags::empty(),
-                                });
-                                continue 'outer;
                             }
-                            Err(msg) => msg,
+                            self.tasks.push_back(Entry {
+                                pipe: EntryPipe::Task(pipe),
+                                flags: EntryFlags::empty(),
+                            });
+                            continue 'outer;
+                        }
+                        Err(msg) => {
+                            // handler is not found
+                            self.tasks.push_back(Entry {
+                                pipe: EntryPipe::Error(ServerError::err(
+                                    Version::HTTP_11,
+                                    StatusCode::NOT_FOUND,
+                                )),
+                                flags: EntryFlags::empty(),
+                            });
                         }
                     }
 

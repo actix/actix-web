@@ -368,28 +368,20 @@ impl<H: HttpHandler + 'static> Entry<H> {
         let psender = PayloadType::new(msg.headers(), psender);
 
         // start request processing
-        let mut task = None;
-        for h in settings.handlers().iter() {
-            msg = match h.handle(msg) {
-                Ok(t) => {
-                    task = Some(t);
-                    break;
-                }
-                Err(msg) => msg,
-            }
-        }
+        let task = match settings.handler().handle(msg) {
+            Ok(task) => EntryPipe::Task(task),
+            Err(msg) => EntryPipe::Error(ServerError::err(
+                Version::HTTP_2,
+                StatusCode::NOT_FOUND,
+            )),
+        };
 
         Entry {
-            task: task.map(EntryPipe::Task).unwrap_or_else(|| {
-                EntryPipe::Error(ServerError::err(
-                    Version::HTTP_2,
-                    StatusCode::NOT_FOUND,
-                ))
-            }),
+            task,
+            recv,
             payload: psender,
             stream: H2Writer::new(resp, settings),
             flags: EntryFlags::empty(),
-            recv,
         }
     }
 

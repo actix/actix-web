@@ -103,14 +103,12 @@ impl TestServer {
     }
 
     /// Start new test server with application factory
-    pub fn with_factory<F, U, H>(factory: F) -> Self
+    pub fn with_factory<F, H>(factory: F) -> Self
     where
-        F: Fn() -> U + Send + Clone + 'static,
-        U: IntoIterator<Item = H>,
+        F: Fn() -> H + Send + Clone + 'static,
         H: IntoHttpHandler + 'static,
     {
         let (tx, rx) = mpsc::channel();
-        let factory = move || (factory.clone())().into_iter().collect();
 
         // run server in separate thread
         thread::spawn(move || {
@@ -118,7 +116,7 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            let _ = HttpServer::with_factory(factory)
+            let _ = HttpServer::new(factory)
                 .disable_signals()
                 .listen(tcp)
                 .keep_alive(5)
@@ -328,10 +326,10 @@ where
 
             let sys = System::new("actix-test-server");
             let state = self.state;
-            let mut srv = HttpServer::with_factory(move || {
+            let mut srv = HttpServer::new(move || {
                 let mut app = TestApp::new(state());
                 config(&mut app);
-                vec![app]
+                app
             }).workers(1)
             .keep_alive(5)
             .disable_signals();

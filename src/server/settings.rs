@@ -136,7 +136,7 @@ const DATE_VALUE_LENGTH: usize = 29;
 pub(crate) struct WorkerSettings<H>(Rc<Inner<H>>);
 
 struct Inner<H> {
-    h: Vec<H>,
+    handler: H,
     keep_alive: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
@@ -153,7 +153,7 @@ impl<H> Clone for WorkerSettings<H> {
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
-        h: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
+        handler: H, keep_alive: KeepAlive, settings: ServerSettings,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -162,7 +162,7 @@ impl<H> WorkerSettings<H> {
         };
 
         WorkerSettings(Rc::new(Inner {
-            h,
+            handler,
             keep_alive,
             ka_enabled,
             bytes: Rc::new(SharedBytesPool::new()),
@@ -176,8 +176,8 @@ impl<H> WorkerSettings<H> {
         self.0.node.borrow_mut()
     }
 
-    pub fn handlers(&self) -> &Vec<H> {
-        &self.0.h
+    pub fn handler(&self) -> &H {
+        &self.0.handler
     }
 
     pub fn keep_alive_timer(&self) -> Option<Delay> {

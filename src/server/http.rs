@@ -39,7 +39,7 @@ struct Socket<H: IntoHttpHandler> {
 pub struct HttpServer<H, F>
 where
     H: IntoHttpHandler + 'static,
-    F: Fn() -> Vec<H> + Send + Clone,
+    F: Fn() -> H + Send + Clone,
 {
     factory: F,
     host: Option<String>,
@@ -58,33 +58,10 @@ where
 impl<H, F> HttpServer<H, F>
 where
     H: IntoHttpHandler + 'static,
-    F: Fn() -> Vec<H> + Send + Clone + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
 {
     /// Create new http server with application factory
-    pub fn new<F1, U>(factory: F1) -> HttpServer<H, impl Fn() -> Vec<H> + Send + Clone>
-    where
-        F1: Fn() -> U + Send + Clone,
-        U: IntoIterator<Item = H> + 'static,
-    {
-        let f = move || (factory.clone())().into_iter().collect();
-
-        HttpServer {
-            threads: num_cpus::get(),
-            factory: f,
-            host: None,
-            backlog: 2048,
-            keep_alive: KeepAlive::Os,
-            shutdown_timeout: 30,
-            exit: false,
-            no_http2: false,
-            no_signals: false,
-            maxconn: 25_600,
-            maxconnrate: 256,
-            sockets: Vec::new(),
-        }
-    }
-
-    pub(crate) fn with_factory(factory: F) -> HttpServer<H, F> {
+    pub fn new(factory: F) -> HttpServer<H, F> {
         HttpServer {
             factory,
             threads: num_cpus::get(),
@@ -489,7 +466,7 @@ where
     // }
 }
 
-impl<H: IntoHttpHandler, F: Fn() -> Vec<H> + Send + Clone> HttpServer<H, F> {
+impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     /// Start listening for incoming connections.
     ///
     /// This method starts number of http workers in separate threads.
@@ -629,7 +606,7 @@ impl<H: IntoHttpHandler, F: Fn() -> Vec<H> + Send + Clone> HttpServer<H, F> {
 
 struct HttpService<F, H, Io>
 where
-    F: Fn() -> Vec<H>,
+    F: Fn() -> H,
     H: IntoHttpHandler,
     Io: IoStream,
 {
@@ -642,7 +619,7 @@ where
 
 impl<F, H, Io> NewService for HttpService<F, H, Io>
 where
-    F: Fn() -> Vec<H>,
+    F: Fn() -> H,
     H: IntoHttpHandler,
     Io: IoStream,
 {
@@ -655,12 +632,9 @@ where
 
     fn new_service(&self) -> Self::Future {
         let s = ServerSettings::new(Some(self.addr), &self.host, false);
-        let apps: Vec<_> = (self.factory)()
-            .into_iter()
-            .map(|h| h.into_handler())
-            .collect();
+        let app = (self.factory)().into_handler();
 
-        ok(HttpServiceHandler::new(apps, self.keep_alive, s))
+        ok(HttpServiceHandler::new(app, self.keep_alive, s))
     }
 }
 
@@ -680,14 +654,14 @@ where
     Io: IoStream,
 {
     fn new(
-        apps: Vec<H>, keep_alive: KeepAlive, settings: ServerSettings,
+        app: H, keep_alive: KeepAlive, settings: ServerSettings,
     ) -> HttpServiceHandler<H, Io> {
         let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
             Some(time::Duration::new(val as u64, 0))
         } else {
             None
         };
-        let settings = WorkerSettings::new(apps, keep_alive, settings);
+        let settings = WorkerSettings::new(app, keep_alive, settings);
 
         HttpServiceHandler {
             tcp_ka,
@@ -733,7 +707,7 @@ where
 struct SimpleFactory<H, F, P>
 where
     H: IntoHttpHandler,
-    F: Fn() -> Vec<H> + Send + Clone,
+    F: Fn() -> H + Send + Clone,
     P: HttpPipelineFactory<Io = TcpStream>,
 {
     pub addr: net::SocketAddr,
@@ -744,7 +718,7 @@ where
 impl<H: IntoHttpHandler, F, P> Clone for SimpleFactory<H, F, P>
 where
     P: HttpPipelineFactory<Io = TcpStream>,
-    F: Fn() -> Vec<H> + Send + Clone,
+    F: Fn() -> H + Send + Clone,
 {
     fn clone(&self) -> Self {
         SimpleFactory {
@@ -758,7 +732,7 @@ where
 impl<H, F, P> ServiceFactory<H> for SimpleFactory<H, F, P>
 where
     H: IntoHttpHandler + 'static,
-    F: Fn() -> Vec<H> + Send + Clone + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
     P: HttpPipelineFactory<Io = TcpStream>,
 {
     fn register(&self, server: Server, lst: net::TcpListener) -> Server {
@@ -894,7 +868,7 @@ where
 
 struct DefaultPipelineFactory<F, H, Io>
 where
-    F: Fn() -> Vec<H> + Send + Clone,
+    F: Fn() -> H + Send + Clone,
 {
     factory: F,
     host: Option<String>,
@@ -906,7 +880,7 @@ where
 impl<F, H, Io> DefaultPipelineFactory<F, H, Io>
 where
     Io: IoStream + Send,
-    F: Fn() -> Vec<H> + Send + Clone + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
     H: IntoHttpHandler + 'static,
 {
     fn new(
@@ -925,7 +899,7 @@ where
 impl<F, H, Io> Clone for DefaultPipelineFactory<F, H, Io>
 where
     Io: IoStream,
-    F: Fn() -> Vec<H> + Send + Clone,
+    F: Fn() -> H + Send + Clone,
     H: IntoHttpHandler,
 {
     fn clone(&self) -> Self {
@@ -942,7 +916,7 @@ where
 impl<F, H, Io> HttpPipelineFactory for DefaultPipelineFactory<F, H, Io>
 where
     Io: IoStream + Send,
-    F: Fn() -> Vec<H> + Send + Clone + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
     H: IntoHttpHandler + 'static,
 {
     type Io = Io;
