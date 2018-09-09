@@ -637,7 +637,7 @@ where
 
     fn shutdown(&self, force: bool) {
         if force {
-            self.settings.head().traverse::<TcpStream, H>();
+            self.settings.head().traverse(|ch: &mut HttpChannel<TcpStream, H>| ch.shutdown());
         }
     }
 }
