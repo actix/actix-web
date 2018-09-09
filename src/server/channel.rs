@@ -77,7 +77,7 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.node.is_some() {
+        if self.node.is_none() {
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
