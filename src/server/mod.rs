@@ -174,13 +174,13 @@ const HW_BUFFER_SIZE: usize = 32_768;
 ///     sys.run();
 /// }
 /// ```
-pub fn new<F, U, H>(factory: F) -> HttpServer<H>
+pub fn new<F, U, H>(factory: F) -> HttpServer<H, impl Fn() -> Vec<H> + Send + Clone>
 where
-    F: Fn() -> U + Sync + Send + 'static,
-    U: IntoIterator<Item = H> + 'static,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: IntoIterator<Item = H>,
     H: IntoHttpHandler + 'static,
 {
-    HttpServer::new(factory)
+    HttpServer::with_factory(move || (factory.clone())().into_iter().collect())
 }
 
 #[doc(hidden)]

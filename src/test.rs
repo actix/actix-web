@@ -79,13 +79,13 @@ impl TestServer {
     /// middlewares or set handlers for test application.
     pub fn new<F>(config: F) -> Self
     where
-        F: Sync + Send + 'static + Fn(&mut TestApp<()>),
+        F: Clone + Send + 'static + Fn(&mut TestApp<()>),
     {
         TestServerBuilder::new(|| ()).start(config)
     }
 
     /// Create test server builder
-    pub fn build() -> TestServerBuilder<()> {
+    pub fn build() -> TestServerBuilder<(), impl Fn() -> () + Clone + Send + 'static> {
         TestServerBuilder::new(|| ())
     }
 
@@ -94,9 +94,9 @@ impl TestServer {
     /// This method can be used for constructing application state.
     /// Also it can be used for external dependency initialization,
     /// like creating sync actors for diesel integration.
-    pub fn build_with_state<F, S>(state: F) -> TestServerBuilder<S>
+    pub fn build_with_state<S, F>(state: F) -> TestServerBuilder<S, F>
     where
-        F: Fn() -> S + Sync + Send + 'static,
+        F: Fn() -> S + Clone + Send + 'static,
         S: 'static,
     {
         TestServerBuilder::new(state)
@@ -105,11 +105,12 @@ impl TestServer {
     /// Start new test server with application factory
     pub fn with_factory<F, U, H>(factory: F) -> Self
     where
-        F: Fn() -> U + Sync + Send + 'static,
-        U: IntoIterator<Item = H> + 'static,
+        F: Fn() -> U + Send + Clone + 'static,
+        U: IntoIterator<Item = H>,
         H: IntoHttpHandler + 'static,
     {
         let (tx, rx) = mpsc::channel();
+        let factory = move || (factory.clone())().into_iter().collect();
 
         // run server in separate thread
         thread::spawn(move || {
@@ -117,7 +118,7 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            HttpServer::new(factory)
+            let _ = HttpServer::with_factory(factory)
                 .disable_signals()
                 .listen(tcp)
                 .keep_alive(5)
@@ -261,22 +262,25 @@ impl Drop for TestServer {
 ///
 /// This type can be used to construct an instance of `TestServer` through a
 /// builder-like pattern.
-pub struct TestServerBuilder<S> {
-    state: Box<Fn() -> S + Sync + Send + 'static>,
+pub struct TestServerBuilder<S, F>
+where
+    F: Fn() -> S + Send + Clone + 'static,
+{
+    state: F,
     #[cfg(feature = "alpn")]
     ssl: Option<SslAcceptorBuilder>,
     #[cfg(feature = "rust-tls")]
     rust_ssl: Option<ServerConfig>,
 }
 
-impl<S: 'static> TestServerBuilder<S> {
+impl<S: 'static, F> TestServerBuilder<S, F>
+where
+    F: Fn() -> S + Send + Clone + 'static,
+{
     /// Create a new test server
-    pub fn new<F>(state: F) -> TestServerBuilder<S>
-    where
-        F: Fn() -> S + Sync + Send + 'static,
-    {
+    pub fn new(state: F) -> TestServerBuilder<S, F> {
         TestServerBuilder {
-            state: Box::new(state),
+            state,
             #[cfg(feature = "alpn")]
             ssl: None,
             #[cfg(feature = "rust-tls")]
@@ -300,9 +304,9 @@ impl<S: 'static> TestServerBuilder<S> {
 
     #[allow(unused_mut)]
     /// Configure test application and run test server
-    pub fn start<F>(mut self, config: F) -> TestServer
+    pub fn start<C>(mut self, config: C) -> TestServer
     where
-        F: Sync + Send + 'static + Fn(&mut TestApp<S>),
+        C: Fn(&mut TestApp<S>) + Clone + Send + 'static,
     {
         let (tx, rx) = mpsc::channel();
 
@@ -324,7 +328,7 @@ impl<S: 'static> TestServerBuilder<S> {
 
             let sys = System::new("actix-test-server");
             let state = self.state;
-            let mut srv = HttpServer::new(move || {
+            let mut srv = HttpServer::with_factory(move || {
                 let mut app = TestApp::new(state());
                 config(&mut app);
                 vec![app]
