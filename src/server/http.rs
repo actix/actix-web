@@ -3,7 +3,8 @@ use std::{io, mem, net, time};
 
 use actix::{Actor, Addr, AsyncContext, Context, Handler, System};
 use actix_net::server::{Server, ServerServiceFactory};
-use actix_net::{ssl, NewService, NewServiceExt, Service};
+use actix_net::service::{NewService, NewServiceExt, Service};
+use actix_net::ssl;
 
 use futures::future::{ok, FutureResult};
 use futures::{Async, Poll, Stream};

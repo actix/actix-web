@@ -370,7 +370,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
         // start request processing
         let task = match settings.handler().handle(msg) {
             Ok(task) => EntryPipe::Task(task),
-            Err(msg) => EntryPipe::Error(ServerError::err(
+            Err(_) => EntryPipe::Error(ServerError::err(
                 Version::HTTP_2,
                 StatusCode::NOT_FOUND,
             )),

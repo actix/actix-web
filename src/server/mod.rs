@@ -115,7 +115,7 @@ use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
-pub use actix_net::{PauseServer, ResumeServer, StopServer};
+pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
 
 mod channel;
 mod error;
@@ -124,25 +124,25 @@ pub(crate) mod h1decoder;
 mod h1writer;
 mod h2;
 mod h2writer;
+mod handler;
 pub(crate) mod helpers;
 mod http;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
 pub(crate) mod settings;
-
 mod ssl;
-pub use self::ssl::*;
 
+pub use self::handler::*;
 pub use self::http::HttpServer;
 pub use self::message::Request;
 pub use self::settings::ServerSettings;
+pub use self::ssl::*;
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
 
 use body::Binary;
-use error::Error;
 use extensions::Extensions;
 use header::ContentEncoding;
 use httpresponse::HttpResponse;
@@ -219,61 +219,6 @@ impl From<Option<usize>> for KeepAlive {
         } else {
             KeepAlive::Disabled
         }
-    }
-}
-
-/// Low level http request handler
-#[allow(unused_variables)]
-pub trait HttpHandler: 'static {
-    /// Request handling task
-    type Task: HttpHandlerTask;
-
-    /// Handle request
-    fn handle(&self, req: Request) -> Result<Self::Task, Request>;
-}
-
-impl HttpHandler for Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
-    type Task = Box<HttpHandlerTask>;
-
-    fn handle(&self, req: Request) -> Result<Box<HttpHandlerTask>, Request> {
-        self.as_ref().handle(req)
-    }
-}
-
-/// Low level http request handler
-pub trait HttpHandlerTask {
-    /// Poll task, this method is used before or after *io* object is available
-    fn poll_completed(&mut self) -> Poll<(), Error> {
-        Ok(Async::Ready(()))
-    }
-
-    /// Poll task when *io* object is available
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
-
-    /// Connection is disconnected
-    fn disconnected(&mut self) {}
-}
-
-impl HttpHandlerTask for Box<HttpHandlerTask> {
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
-        self.as_mut().poll_io(io)
-    }
-}
-
-/// Conversion helper trait
-pub trait IntoHttpHandler {
-    /// The associated type which is result of conversion.
-    type Handler: HttpHandler;
-
-    /// Convert into `HttpHandler` object.
-    fn into_handler(self) -> Self::Handler;
-}
-
-impl<T: HttpHandler> IntoHttpHandler for T {
-    type Handler = T;
-
-    fn into_handler(self) -> Self::Handler {
-        self
     }
 }
 
