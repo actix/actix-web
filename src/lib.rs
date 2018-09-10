@@ -62,7 +62,6 @@ use actix::Message;
 pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
-pub mod configurable;
 pub mod connector;
 pub mod server;
 mod server_service;
@@ -71,7 +70,6 @@ pub mod ssl;
 pub mod stream;
 mod worker;
 
-pub use configurable::{IntoNewConfigurableService, NewConfigurableService};
 pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt, ServiceExt};
 
