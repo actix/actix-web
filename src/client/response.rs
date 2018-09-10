@@ -95,12 +95,12 @@ impl ClientResponse {
 
 impl fmt::Debug for ClientResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(f, "\nClientResponse {:?} {}", self.version(), self.status());
-        let _ = writeln!(f, "  headers:");
+        writeln!(f, "\nClientResponse {:?} {}", self.version(), self.status())?;
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 

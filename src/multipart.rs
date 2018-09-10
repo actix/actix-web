@@ -441,13 +441,13 @@ where
 
 impl<S> fmt::Debug for Field<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(f, "\nMultipartField: {}", self.ct);
-        let _ = writeln!(f, "  boundary: {}", self.inner.borrow().boundary);
-        let _ = writeln!(f, "  headers:");
+        writeln!(f, "\nMultipartField: {}", self.ct)?;
+        writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
