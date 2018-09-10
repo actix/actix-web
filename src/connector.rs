@@ -150,6 +150,7 @@ impl<T: HostAware> Future for ConnectorFuture<T> {
     }
 }
 
+#[derive(Clone)]
 pub struct DefaultConnector<T: HostAware>(Connector<T>);
 
 impl<T: HostAware> Default for DefaultConnector<T> {
