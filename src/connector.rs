@@ -150,6 +150,51 @@ impl<T: HostAware> Future for ConnectorFuture<T> {
     }
 }
 
+pub struct DefaultConnector<T: HostAware>(Connector<T>);
+
+impl<T: HostAware> Default for DefaultConnector<T> {
+    fn default() -> Self {
+        DefaultConnector(Connector::default())
+    }
+}
+
+impl<T: HostAware> DefaultConnector<T> {
+    pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
+        DefaultConnector(Connector::new(cfg, opts))
+    }
+}
+
+impl<T: HostAware> Service for DefaultConnector<T> {
+    type Request = T;
+    type Response = TcpStream;
+    type Error = ConnectorError;
+    type Future = DefaultConnectorFuture<T>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.0.poll_ready()
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        DefaultConnectorFuture {
+            fut: self.0.call(req),
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct DefaultConnectorFuture<T: HostAware> {
+    fut: ConnectorFuture<T>,
+}
+
+impl<T: HostAware> Future for DefaultConnectorFuture<T> {
+    type Item = TcpStream;
+    type Error = ConnectorError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        Ok(Async::Ready(try_ready!(self.fut.poll()).2))
+    }
+}
+
 /// Resolver future
 struct ResolveFut<T> {
     req: Option<T>,
