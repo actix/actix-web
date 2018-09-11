@@ -54,6 +54,13 @@ impl<T: HostAware> Resolver<T> {
             req: PhantomData,
         }
     }
+
+    pub fn change_request<T2: HostAware>(&self) -> Resolver<T2> {
+        Resolver {
+            resolver: self.resolver.clone(),
+            req: PhantomData,
+        }
+    }
 }
 
 impl<T> Clone for Resolver<T> {
@@ -67,7 +74,7 @@ impl<T> Clone for Resolver<T> {
 
 impl<T: HostAware> Service for Resolver<T> {
     type Request = T;
-    type Response = VecDeque<SocketAddr>;
+    type Response = (T, String, VecDeque<SocketAddr>);
     type Error = ResolverError;
     type Future = ResolverFuture<T>;
 
@@ -83,11 +90,12 @@ impl<T: HostAware> Service for Resolver<T> {
 #[doc(hidden)]
 /// Resolver future
 pub struct ResolverFuture<T> {
+    req: Option<T>,
     port: u16,
     lookup: Option<Background<LookupIpFuture>>,
     addrs: Option<VecDeque<SocketAddr>>,
     error: Option<ResolverError>,
-    req: PhantomData<T>,
+    host: Option<String>,
 }
 
 impl<T: HostAware> ResolverFuture<T> {
@@ -99,17 +107,19 @@ impl<T: HostAware> ResolverFuture<T> {
                 ResolverFuture {
                     port,
                     lookup,
+                    req: Some(addr),
+                    host: Some(host.to_owned()),
                     addrs: None,
                     error: None,
-                    req: PhantomData,
                 }
             }
             Err(err) => ResolverFuture {
                 port,
+                req: None,
+                host: None,
                 lookup: None,
                 addrs: None,
                 error: Some(err),
-                req: PhantomData,
             },
         }
     }
@@ -126,14 +136,18 @@ impl<T: HostAware> ResolverFuture<T> {
 }
 
 impl<T: HostAware> Future for ResolverFuture<T> {
-    type Item = VecDeque<SocketAddr>;
+    type Item = (T, String, VecDeque<SocketAddr>);
     type Error = ResolverError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(err) = self.error.take() {
             Err(err)
         } else if let Some(addrs) = self.addrs.take() {
-            Ok(Async::Ready(addrs))
+            Ok(Async::Ready((
+                self.req.take().unwrap(),
+                self.host.take().unwrap(),
+                addrs,
+            )))
         } else {
             match self.lookup.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -142,7 +156,11 @@ impl<T: HostAware> Future for ResolverFuture<T> {
                         .iter()
                         .map(|ip| SocketAddr::new(ip, self.port))
                         .collect();
-                    Ok(Async::Ready(addrs))
+                    Ok(Async::Ready((
+                        self.req.take().unwrap(),
+                        self.host.take().unwrap(),
+                        addrs,
+                    )))
                 }
                 Err(err) => Err(ResolverError::Resolve(err)),
             }
