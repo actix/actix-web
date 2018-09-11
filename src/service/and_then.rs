@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use futures::{Async, Future, Poll};
-use tower_service::{NewService, Service};
 
-use super::IntoNewService;
+use super::{IntoNewService, NewService, Service};
 
 /// `AndThen` service combinator
 pub struct AndThen<A, B> {

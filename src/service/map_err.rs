@@ -1,7 +1,8 @@
 use std::marker;
 
 use futures::{Async, Future, Poll};
-use tower_service::{NewService, Service};
+
+use super::{NewService, Service};
 
 /// `MapErr` service combinator
 pub struct MapErr<A, F, E> {

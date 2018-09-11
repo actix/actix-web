@@ -11,7 +11,7 @@ use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::system_conf::read_system_conf;
 
 use super::resolver::{HostAware, Resolver, ResolverError, ResolverFuture};
-use super::{NewService, Service};
+use super::service::{NewService, Service};
 
 // #[derive(Fail, Debug)]
 #[derive(Debug)]

@@ -57,14 +57,9 @@ extern crate webpki;
 #[cfg(feature = "rust-tls")]
 extern crate webpki_roots;
 
-/// re-export for convinience
-pub use tower_service::{NewService, Service};
-
 pub mod connector;
 pub mod resolver;
 pub mod server;
 pub mod service;
 pub mod ssl;
 pub mod stream;
-
-pub use service::{IntoNewService, IntoService, NewServiceExt, ServiceExt};

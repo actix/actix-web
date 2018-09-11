@@ -11,7 +11,7 @@ use trust_dns_resolver::lookup_ip::LookupIpFuture;
 use trust_dns_resolver::system_conf::read_system_conf;
 use trust_dns_resolver::{AsyncResolver, Background};
 
-use super::Service;
+use super::service::Service;
 
 #[derive(Debug)]
 pub enum ResolverError {

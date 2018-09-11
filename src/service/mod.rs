@@ -1,5 +1,8 @@
 use futures::{Future, IntoFuture};
 
+/// re-export for convinience
+pub use tower_service::{NewService, Service};
+
 mod and_then;
 mod apply;
 mod fn_service;
@@ -17,7 +20,6 @@ pub use self::from_err::FromErr;
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
-use {NewService, Service};
 
 pub trait ServiceExt: Service {
     fn apply<F, R, Req>(self, f: F) -> Apply<Self, F, R, Req>

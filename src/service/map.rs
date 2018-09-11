@@ -1,7 +1,8 @@
 use std::marker;
 
 use futures::{Async, Future, Poll};
-use {NewService, Service};
+
+use super::{NewService, Service};
 
 /// `Map` service combinator
 pub struct Map<A, F, R> {

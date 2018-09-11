@@ -2,7 +2,7 @@ use futures::unsync::mpsc;
 use futures::{Async, Future, Poll, Stream};
 use tokio::executor::current_thread::spawn;
 
-use super::{IntoService, Service};
+use super::service::{IntoService, Service};
 
 pub struct StreamDispatcher<S: Stream, T> {
     stream: S,

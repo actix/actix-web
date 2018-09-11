@@ -4,9 +4,8 @@ use futures::{
     future::{ok, FutureResult},
     Async, IntoFuture, Poll,
 };
-use tower_service::{NewService, Service};
 
-use super::{IntoNewService, IntoService};
+use super::{IntoNewService, IntoService, NewService, Service};
 
 pub struct FnService<F, Req, Resp, E, Fut>
 where

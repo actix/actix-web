@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use futures::{Future, Poll};
-use tower_service::Service;
+
+use super::Service;
 
 pub struct FromErr<A, E>
 where

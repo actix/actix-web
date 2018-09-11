@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use futures::{Async, Future, IntoFuture, Poll};
-use {IntoNewService, NewService, Service};
+
+use super::{IntoNewService, NewService, Service};
 
 /// `Apply` service combinator
 pub struct Apply<T, F, R, Req> {

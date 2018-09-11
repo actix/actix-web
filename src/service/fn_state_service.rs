@@ -1,9 +1,8 @@
 use std::marker;
 
 use futures::{Async, Future, IntoFuture, Poll};
-use tower_service::{NewService, Service};
 
-use super::IntoNewService;
+use super::{IntoNewService, NewService, Service};
 
 pub struct FnStateService<S, F, Req, Resp, Err, Fut>
 where
