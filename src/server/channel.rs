@@ -55,7 +55,7 @@ where
         }
     }
 
-    fn shutdown(&mut self) {
+    pub(crate) fn shutdown(&mut self) {
         match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
                 let io = h1.io();
@@ -77,7 +77,7 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.node.is_some() {
+        if self.node.is_none() {
             let el = self as *mut _;
             self.node = Some(Node::new(el));
             let _ = match self.proto {
@@ -232,7 +232,7 @@ impl Node<()> {
         }
     }
 
-    pub(crate) fn traverse<T, H>(&self)
+    pub(crate) fn traverse<T, H, F: Fn(&mut HttpChannel<T, H>)>(&self, f: F)
     where
         T: IoStream,
         H: HttpHandler + 'static,
@@ -247,7 +247,7 @@ impl Node<()> {
                     if !n.element.is_null() {
                         let ch: &mut HttpChannel<T, H> =
                             &mut *(&mut *(n.element as *mut _) as *mut () as *mut _);
-                        ch.shutdown();
+                        f(ch);
                     }
                 }
             } else {

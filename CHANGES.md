@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.7] - 2018-09-xx
+
+### Fixed
+
+* Fix linked list of HttpChannels #504
+
 ## [0.7.6] - 2018-09-07
 
 ### Fixed
