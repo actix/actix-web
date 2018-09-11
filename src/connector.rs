@@ -63,6 +63,16 @@ impl<T: HostAware> Connector<T> {
         }
     }
 
+    pub fn with_resolver(
+        resolver: Resolver<T>,
+    ) -> impl Service<
+        Request = T,
+        Response = (T, ConnectionInfo, TcpStream),
+        Error = ConnectorError,
+    > + Clone {
+        Connector { resolver }
+    }
+
     pub fn new_service<E>() -> impl NewService<
         Request = T,
         Response = (T, ConnectionInfo, TcpStream),
