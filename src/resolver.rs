@@ -13,6 +13,7 @@ use trust_dns_resolver::{AsyncResolver, Background};
 
 use super::Service;
 
+#[derive(Debug)]
 pub enum ResolverError {
     Resolve(ResolveError),
     InvalidInput,

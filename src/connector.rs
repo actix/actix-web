@@ -14,7 +14,7 @@ use super::resolver::{HostAware, Resolver, ResolverError, ResolverFuture};
 use super::{NewService, Service};
 
 // #[derive(Fail, Debug)]
-
+#[derive(Debug)]
 pub enum ConnectorError {
     /// Failed to resolve the hostname
     // #[fail(display = "Failed resolving hostname: {}", _0)]
