@@ -126,6 +126,7 @@ impl<T: HostAware> Service for Connector<T> {
     }
 }
 
+#[doc(hidden)]
 pub struct ConnectorFuture<T: HostAware> {
     fut: ResolverFuture<T>,
     fut2: Option<TcpConnector<T>>,
@@ -199,6 +200,7 @@ impl<T: HostAware> Future for DefaultConnectorFuture<T> {
     }
 }
 
+#[doc(hidden)]
 /// Tcp stream connector
 pub struct TcpConnector<T> {
     req: Option<T>,
