@@ -3,12 +3,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{io, mem, net, time};
 
-use actix::{Actor, Addr, AsyncContext, Context, Handler, System};
+use actix::{Arbiter, Actor, Addr, AsyncContext, Context, Handler, System};
 
 use futures::{Future, Stream};
 use net2::{TcpBuilder, TcpStreamExt};
 use num_cpus;
-use tokio_current_thread::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
@@ -585,7 +584,7 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-        spawn(HttpChannel::new(
+        Arbiter::spawn(HttpChannel::new(
             Rc::clone(&self.settings),
             msg.io,
             msg.peer,
@@ -693,7 +692,7 @@ where
         };
         let _ = io.set_nodelay(true);
 
-        spawn(HttpChannel::new(h, io, peer));
+        Arbiter::spawn(HttpChannel::new(h, io, peer));
     }
 }
 
@@ -753,10 +752,10 @@ where
         let _ = io.set_nodelay(true);
 
         let rate = h.connection_rate();
-        spawn(self.acceptor.accept(io).then(move |res| {
+        Arbiter::spawn(self.acceptor.accept(io).then(move |res| {
             drop(rate);
             match res {
-                Ok(io) => spawn(HttpChannel::new(h, io, peer)),
+                Ok(io) => Arbiter::spawn(HttpChannel::new(h, io, peer)),
                 Err(err) => trace!("Can not establish connection: {}", err),
             }
             Ok(())

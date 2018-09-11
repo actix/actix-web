@@ -1,10 +1,13 @@
 # Changes
 
-## [0.7.7] - 2018-09-xx
+## [0.7.7] - 2018-09-11
 
 ### Fixed
 
 * Fix linked list of HttpChannels #504
+
+* Fix requests to TestServer fail #508
+
 
 ## [0.7.6] - 2018-09-07
 
