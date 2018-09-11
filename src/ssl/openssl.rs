@@ -7,7 +7,7 @@ use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, 
 
 use super::MAX_CONN_COUNTER;
 use connector::ConnectionInfo;
-use worker::{Connections, ConnectionsGuard};
+use server::{Connections, ConnectionsGuard};
 use {NewService, Service};
 
 /// Support `SSL` connections via openssl package
