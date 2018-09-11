@@ -75,23 +75,20 @@ fn main() {
 
                 // service for converting incoming TcpStream to a SslStream<TcpStream>
                 (move |stream| {
-                SslAcceptorExt::accept_async(&acceptor, stream)
-                    .map_err(|e| println!("Openssl error: {}", e))
-            })
-            // convert closure to a `NewService`
-            .into_new_service()
-
-            // .and_then() combinator uses other service to convert incoming `Request` to a `Response`
-            // and then uses that response as an input for next service.
-            // in this case, on success we use `logger` service
-            .and_then(logger)
-
-            // next service uses two components, service state and service function
-            // actix-net generates `NewService` impl that creates `ServiceState` instance for each new service
-            // and use `service` function as `Service::call`
-            .and_then((service, move || {
-                Ok(ServiceState { num: num.clone() })
-            }))
+                    SslAcceptorExt::accept_async(&acceptor, stream)
+                        .map_err(|e| println!("Openssl error: {}", e))
+                })
+                // convert closure to a `NewService`
+                .into_new_service()
+                // .and_then() combinator uses other service to convert incoming `Request` to a
+                // `Response` and then uses that response as an input for next
+                // service. in this case, on success we use `logger` service
+                .and_then(logger)
+                // next service uses two components, service state and service function
+                // actix-net generates `NewService` impl that creates `ServiceState` instance
+                // for each new service and use `service` function as
+                // `Service::call`
+                .and_then((service, move || Ok(ServiceState { num: num.clone() })))
             },
         ).unwrap()
         .start();

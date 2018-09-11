@@ -5,7 +5,6 @@
 //! * `tls` - enables ssl support via `native-tls` crate
 //! * `ssl` - enables ssl support via `openssl` crate
 //! * `rust-tls` - enables ssl support via `rustls` crate
-//!
 // #![warn(missing_docs)]
 
 #![cfg_attr(
