@@ -64,6 +64,7 @@ pub use tower_service::{NewService, Service};
 
 pub(crate) mod accept;
 pub mod connector;
+pub mod resolver;
 pub mod server;
 mod server_service;
 pub mod service;
