@@ -1,12 +1,12 @@
 # Actix net [![Build Status](https://travis-ci.org/actix/actix-net.svg?branch=master)](https://travis-ci.org/actix/actix-net) [![codecov](https://codecov.io/gh/actix/actix-net/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-net) [![crates.io](https://meritbadge.herokuapp.com/actix-net)](https://crates.io/crates/actix-net) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Actix web is a simple, pragmatic and extremely fast web framework for Rust.
+Actix net - framework for compossible network services
 
 ## Documentation & community resources
 
 * [API Documentation (Development)](https://actix.rs/actix-web/actix_net/)
 * [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web](https://crates.io/crates/actix-net)
+* Cargo package: [actix-net](https://crates.io/crates/actix-net)
 * Minimum supported Rust version: 1.26 or later
 
 ## Example
