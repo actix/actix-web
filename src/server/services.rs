@@ -5,7 +5,7 @@ use futures::{Future, Poll};
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
-use super::{NewService, Service};
+use {NewService, Service};
 
 pub enum ServerMessage {
     Connect(net::TcpStream),

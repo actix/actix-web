@@ -11,10 +11,8 @@ use actix::{
     Response, StreamHandler, System, WrapFuture,
 };
 
-pub use super::server_service::ServerServiceFactory;
-
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::server_service::{InternalServerServiceFactory, ServerNewService};
+use super::services::{InternalServerServiceFactory, ServerNewService, ServerServiceFactory};
 use super::worker::{self, Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 

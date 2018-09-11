@@ -17,7 +17,7 @@ use actix::{
 };
 
 use super::accept::AcceptNotify;
-use super::server_service::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
+use super::services::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
 use super::Token;
 
 #[derive(Message)]

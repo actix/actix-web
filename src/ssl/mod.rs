@@ -1,7 +1,7 @@
 //! SSL Services
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::worker::Connections;
+use super::server::Connections;
 
 #[cfg(feature = "ssl")]
 mod openssl;

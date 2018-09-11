@@ -57,47 +57,14 @@ extern crate webpki;
 #[cfg(feature = "rust-tls")]
 extern crate webpki_roots;
 
-use actix::Message;
-
 /// re-export for convinience
 pub use tower_service::{NewService, Service};
 
-pub(crate) mod accept;
 pub mod connector;
 pub mod resolver;
 pub mod server;
-mod server_service;
 pub mod service;
 pub mod ssl;
 pub mod stream;
-mod worker;
 
-pub use server::Server;
 pub use service::{IntoNewService, IntoService, NewServiceExt, ServiceExt};
-
-/// Pause accepting incoming connections
-///
-/// If socket contains some pending connection, they might be dropped.
-/// All opened connection remains active.
-#[derive(Message)]
-pub struct PauseServer;
-
-/// Resume accepting incoming connections
-#[derive(Message)]
-pub struct ResumeServer;
-
-/// Stop incoming connection processing, stop all workers and exit.
-///
-/// If server starts with `spawn()` method, then spawned thread get terminated.
-pub struct StopServer {
-    /// Whether to try and shut down gracefully
-    pub graceful: bool,
-}
-
-impl Message for StopServer {
-    type Result = Result<(), ()>;
-}
-
-/// Socket id token
-#[derive(Clone, Copy)]
-pub(crate) struct Token(usize);
