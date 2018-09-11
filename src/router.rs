@@ -832,7 +832,7 @@ impl ResourceDef {
             }).expect("malformed param");
         let (mut param, rem) = pattern.split_at(close_idx + 1);
         param = &param[1..param.len() - 1]; // Remove outer brackets
-        let (name, pattern) = match param.find(":") {
+        let (name, pattern) = match param.find(':') {
             Some(idx) => {
                 let (name, pattern) = param.split_at(idx);
                 (name, &pattern[1..])
@@ -849,7 +849,7 @@ impl ResourceDef {
     fn parse(
         mut pattern: &str, for_prefix: bool,
     ) -> (String, Vec<PatternElement>, bool, usize) {
-        if pattern.find("{").is_none() {
+        if pattern.find('{').is_none() {
             return (
                 String::from(pattern),
                 vec![PatternElement::Str(String::from(pattern))],
@@ -861,7 +861,7 @@ impl ResourceDef {
         let mut elems = Vec::new();
         let mut re = String::from("^");
 
-        while let Some(idx) = pattern.find("{") {
+        while let Some(idx) = pattern.find('{') {
             let (prefix, rem) = pattern.split_at(idx);
             elems.push(PatternElement::Str(String::from(prefix)));
             re.push_str(&escape(prefix));

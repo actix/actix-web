@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{io, mem, net, time};
 
-use actix::{Arbiter, Actor, Addr, AsyncContext, Context, Handler, System};
+use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, System};
 
 use futures::{Future, Stream};
 use net2::{TcpBuilder, TcpStreamExt};
@@ -636,7 +636,9 @@ where
 
     fn shutdown(&self, force: bool) {
         if force {
-            self.settings.head().traverse(|ch: &mut HttpChannel<TcpStream, H>| ch.shutdown());
+            self.settings
+                .head()
+                .traverse(|ch: &mut HttpChannel<TcpStream, H>| ch.shutdown());
         }
     }
 }
