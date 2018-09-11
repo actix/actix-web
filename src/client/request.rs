@@ -254,16 +254,16 @@ impl ClientRequest {
 
 impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(
+        writeln!(
             f,
             "\nClientRequest {:?} {}:{}",
             self.version, self.method, self.uri
-        );
-        let _ = writeln!(f, "  headers:");
+        )?;
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
@@ -750,16 +750,16 @@ fn parts<'a>(
 impl fmt::Debug for ClientRequestBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ref parts) = self.request {
-            let res = writeln!(
+            writeln!(
                 f,
                 "\nClientRequestBuilder {:?} {}:{}",
                 parts.version, parts.method, parts.uri
-            );
-            let _ = writeln!(f, "  headers:");
+            )?;
+            writeln!(f, "  headers:")?;
             for (key, val) in parts.headers.iter() {
-                let _ = writeln!(f, "    {:?}: {:?}", key, val);
+                writeln!(f, "    {:?}: {:?}", key, val)?;
             }
-            res
+            Ok(())
         } else {
             write!(f, "ClientRequestBuilder(Consumed)")
         }

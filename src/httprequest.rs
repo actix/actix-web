@@ -354,24 +354,24 @@ impl<S> FromRequest<S> for HttpRequest<S> {
 
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(
+        writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",
             self.version(),
             self.method(),
             self.path()
-        );
+        )?;
         if !self.query_string().is_empty() {
-            let _ = writeln!(f, "  query: ?{:?}", self.query_string());
+            writeln!(f, "  query: ?{:?}", self.query_string())?;
         }
         if !self.match_info().is_empty() {
-            let _ = writeln!(f, "  params: {:?}", self.match_info());
+            writeln!(f, "  params: {:?}", self.match_info())?;
         }
-        let _ = writeln!(f, "  headers:");
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
