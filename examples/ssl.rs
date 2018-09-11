@@ -14,7 +14,9 @@ use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use actix_net::{ssl, NewServiceExt, Server};
+use actix_net::server::Server;
+use actix_net::service::NewServiceExt;
+use actix_net::ssl;
 
 #[derive(Debug)]
 struct ServiceState {
