@@ -5,7 +5,10 @@ use futures::{Async, Future, Poll};
 
 use super::{IntoNewService, NewService, Service};
 
-/// `AndThen` service combinator
+/// Service for the `and_then` combinator, chaining a computation onto the end
+/// of another service which completes successfully.
+///
+/// This is created by the `ServiceExt::and_then` method.
 pub struct AndThen<A, B> {
     a: A,
     b: Rc<RefCell<B>>,
@@ -216,5 +219,71 @@ where
         } else {
             Ok(Async::NotReady)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{ok, FutureResult};
+    use futures::{Async, Poll};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use super::*;
+    use service::{Service, ServiceExt};
+
+    struct Srv1(Rc<Cell<usize>>);
+    impl Service for Srv1 {
+        type Request = &'static str;
+        type Response = &'static str;
+        type Error = ();
+        type Future = FutureResult<Self::Response, ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            self.0.set(self.0.get() + 1);
+            Ok(Async::Ready(()))
+        }
+
+        fn call(&mut self, req: Self::Request) -> Self::Future {
+            ok(req)
+        }
+    }
+
+    #[derive(Clone)]
+    struct Srv2(Rc<Cell<usize>>);
+
+    impl Service for Srv2 {
+        type Request = &'static str;
+        type Response = (&'static str, &'static str);
+        type Error = ();
+        type Future = FutureResult<Self::Response, ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            self.0.set(self.0.get() + 1);
+            Ok(Async::Ready(()))
+        }
+
+        fn call(&mut self, req: Self::Request) -> Self::Future {
+            ok((req, "srv2"))
+        }
+    }
+
+    #[test]
+    fn test_poll_ready() {
+        let cnt = Rc::new(Cell::new(0));
+        let mut srv = Srv1(cnt.clone()).and_then(Srv2(cnt.clone()));
+        let res = srv.poll_ready();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready(()));
+        assert_eq!(cnt.get(), 2);
+    }
+
+    #[test]
+    fn test_call() {
+        let cnt = Rc::new(Cell::new(0));
+        let mut srv = Srv1(cnt.clone()).and_then(Srv2(cnt));
+        let res = srv.call("srv1").poll();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready(("srv1", "srv2")));
     }
 }

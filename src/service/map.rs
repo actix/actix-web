@@ -4,11 +4,16 @@ use futures::{Async, Future, Poll};
 
 use super::{NewService, Service};
 
-/// `Map` service combinator
-pub struct Map<A, F, R> {
-    a: A,
+/// Service for the `map` combinator, changing the type of a service's response.
+///
+/// This is created by the `ServiceExt::map` method.
+pub struct Map<A, F, R>
+where
+    A: Service,
+    F: Fn(A::Response) -> R,
+{
+    service: A,
     f: F,
-    r: marker::PhantomData<R>,
 }
 
 impl<A, F, R> Map<A, F, R>
@@ -17,12 +22,8 @@ where
     F: Fn(A::Response) -> R,
 {
     /// Create new `Map` combinator
-    pub fn new(a: A, f: F) -> Self {
-        Self {
-            a,
-            f,
-            r: marker::PhantomData,
-        }
+    pub fn new(service: A, f: F) -> Self {
+        Self { service, f }
     }
 }
 
@@ -33,9 +34,8 @@ where
 {
     fn clone(&self) -> Self {
         Map {
-            a: self.a.clone(),
+            service: self.service.clone(),
             f: self.f.clone(),
-            r: marker::PhantomData,
         }
     }
 }
@@ -51,11 +51,11 @@ where
     type Future = MapFuture<A, F, R>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.a.poll_ready()
+        self.service.poll_ready()
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        MapFuture::new(self.a.call(req), self.f.clone())
+        MapFuture::new(self.service.call(req), self.f.clone())
     }
 }
 
@@ -181,5 +181,45 @@ where
         } else {
             Ok(Async::NotReady)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{ok, FutureResult};
+
+    use super::*;
+    use service::{Service, ServiceExt};
+
+    struct Srv;
+    impl Service for Srv {
+        type Request = ();
+        type Response = ();
+        type Error = ();
+        type Future = FutureResult<(), ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            Ok(Async::Ready(()))
+        }
+
+        fn call(&mut self, _: ()) -> Self::Future {
+            ok(())
+        }
+    }
+
+    #[test]
+    fn test_poll_ready() {
+        let mut srv = Srv.map(|_| "ok");
+        let res = srv.poll_ready();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready(()));
+    }
+
+    #[test]
+    fn test_call() {
+        let mut srv = Srv.map(|_| "ok");
+        let res = srv.call(()).poll();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready("ok"));
     }
 }

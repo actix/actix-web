@@ -4,11 +4,17 @@ use futures::{Async, Future, Poll};
 
 use super::{NewService, Service};
 
-/// `MapErr` service combinator
-pub struct MapErr<A, F, E> {
-    a: A,
+/// Service for the `map_err` combinator, changing the type of a service's
+/// error.
+///
+/// This is created by the `ServiceExt::map_err` method.
+pub struct MapErr<A, F, E>
+where
+    A: Service,
+    F: Fn(A::Error) -> E,
+{
+    service: A,
     f: F,
-    e: marker::PhantomData<E>,
 }
 
 impl<A, F, E> MapErr<A, F, E>
@@ -17,12 +23,8 @@ where
     F: Fn(A::Error) -> E,
 {
     /// Create new `MapErr` combinator
-    pub fn new(a: A, f: F) -> Self {
-        Self {
-            a,
-            f,
-            e: marker::PhantomData,
-        }
+    pub fn new(service: A, f: F) -> Self {
+        Self { service, f }
     }
 }
 
@@ -33,9 +35,8 @@ where
 {
     fn clone(&self) -> Self {
         MapErr {
-            a: self.a.clone(),
+            service: self.service.clone(),
             f: self.f.clone(),
-            e: marker::PhantomData,
         }
     }
 }
@@ -52,11 +53,11 @@ where
     type Future = MapErrFuture<A, F, E>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.a.poll_ready().map_err(&self.f)
+        self.service.poll_ready().map_err(&self.f)
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        MapErrFuture::new(self.a.call(req), self.f.clone())
+        MapErrFuture::new(self.service.call(req), self.f.clone())
     }
 }
 
@@ -179,5 +180,46 @@ where
         } else {
             Ok(Async::NotReady)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{err, FutureResult};
+
+    use super::*;
+    use service::{Service, ServiceExt};
+
+    struct Srv;
+
+    impl Service for Srv {
+        type Request = ();
+        type Response = ();
+        type Error = ();
+        type Future = FutureResult<(), ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            Err(())
+        }
+
+        fn call(&mut self, _: ()) -> Self::Future {
+            err(())
+        }
+    }
+
+    #[test]
+    fn test_poll_ready() {
+        let mut srv = Srv.map_err(|_| "error");
+        let res = srv.poll_ready();
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), "error");
+    }
+
+    #[test]
+    fn test_call() {
+        let mut srv = Srv.map_err(|_| "error");
+        let res = srv.call(()).poll();
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), "error");
     }
 }

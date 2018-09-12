@@ -4,6 +4,9 @@ use futures::{Future, Poll};
 
 use super::Service;
 
+/// Service for the `from_err` combinator, changing the error type of a service.
+///
+/// This is created by the `ServiceExt::from_err` method.
 pub struct FromErr<A, E>
 where
     A: Service,
@@ -71,5 +74,54 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.fut.poll().map_err(E::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{err, FutureResult};
+
+    use super::*;
+    use service::{Service, ServiceExt};
+
+    struct Srv;
+    impl Service for Srv {
+        type Request = ();
+        type Response = ();
+        type Error = ();
+        type Future = FutureResult<(), ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            Err(())
+        }
+
+        fn call(&mut self, _: ()) -> Self::Future {
+            err(())
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct Error;
+
+    impl From<()> for Error {
+        fn from(_: ()) -> Self {
+            Error
+        }
+    }
+
+    #[test]
+    fn test_poll_ready() {
+        let mut srv = Srv.from_err::<Error>();
+        let res = srv.poll_ready();
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), Error);
+    }
+
+    #[test]
+    fn test_call() {
+        let mut srv = Srv.from_err::<Error>();
+        let res = srv.call(()).poll();
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), Error);
     }
 }

@@ -167,3 +167,37 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{ok, FutureResult};
+    use futures::{Async, Future, Poll};
+
+    use service::{Service, ServiceExt};
+
+    #[derive(Clone)]
+    struct Srv;
+    impl Service for Srv {
+        type Request = ();
+        type Response = ();
+        type Error = ();
+        type Future = FutureResult<(), ()>;
+
+        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+            Ok(Async::Ready(()))
+        }
+
+        fn call(&mut self, _: ()) -> Self::Future {
+            ok(())
+        }
+    }
+
+    #[test]
+    fn test_call() {
+        let mut srv =
+            Srv.apply(|req: &'static str, srv| srv.call(()).map(move |res| (req, res)));
+        let res = srv.call("srv").poll();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready(("srv", ())));
+    }
+}
