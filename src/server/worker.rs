@@ -20,7 +20,7 @@ use super::accept::AcceptNotify;
 use super::services::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
 use super::Token;
 
-#[derive(Message)]
+#[derive(Debug, Message)]
 pub(crate) struct Conn {
     pub io: net::TcpStream,
     pub handler: Token,
@@ -148,7 +148,7 @@ impl Worker {
                 }).and_then(|services, act, ctx| {
                     act.services.extend(services);
                     let mut readiness = CheckReadiness {
-                        avail: true,
+                        avail: false,
                         idx: 0,
                         fut: None,
                     };

@@ -37,5 +37,5 @@ impl Message for StopServer {
 }
 
 /// Socket id token
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Token(usize);
