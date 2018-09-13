@@ -27,6 +27,7 @@ extern crate net2;
 extern crate num_cpus;
 extern crate slab;
 extern crate tokio;
+extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_reactor;
@@ -57,6 +58,7 @@ extern crate webpki;
 extern crate webpki_roots;
 
 pub mod connector;
+pub mod framed;
 pub mod resolver;
 pub mod server;
 pub mod service;
