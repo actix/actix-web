@@ -1,12 +1,9 @@
-use std::cell::Cell;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::{mem, net, time};
 
 use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::sync::oneshot;
-use futures::task::AtomicTask;
 use futures::{future, Async, Future, Poll, Stream};
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
@@ -17,6 +14,7 @@ use actix::{Arbiter, Message};
 use super::accept::AcceptNotify;
 use super::services::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
 use super::Token;
+use counter::Counter;
 
 pub(crate) enum WorkerCommand {
     Message(Conn),
@@ -50,8 +48,8 @@ pub(crate) fn num_connections() -> usize {
 }
 
 thread_local! {
-    static MAX_CONNS_COUNTER: Connections =
-        Connections::new(MAX_CONNS.load(Ordering::Relaxed));
+    static MAX_CONNS_COUNTER: Counter =
+        Counter::new(MAX_CONNS.load(Ordering::Relaxed));
 }
 
 #[derive(Clone)]
@@ -122,7 +120,7 @@ pub(crate) struct Worker {
     rx: UnboundedReceiver<WorkerCommand>,
     services: Vec<BoxedServerService>,
     availability: WorkerAvailability,
-    conns: Connections,
+    conns: Counter,
     factories: Vec<Box<InternalServerServiceFactory>>,
     state: WorkerState,
 }
@@ -308,8 +306,7 @@ impl Future for Worker {
                     match self.rx.poll() {
                         // handle incoming tcp stream
                         Ok(Async::Ready(Some(WorkerCommand::Message(msg)))) => {
-                            match self.check_readiness()
-                            {
+                            match self.check_readiness() {
                                 Ok(true) => {
                                     let guard = self.conns.get();
                                     spawn(
@@ -320,7 +317,7 @@ impl Future for Worker {
                                                 val
                                             }),
                                     );
-                                    continue
+                                    continue;
                                 }
                                 Ok(false) => {
                                     trace!("Serveice is unsavailable");
@@ -330,12 +327,14 @@ impl Future for Worker {
                                 Err(idx) => {
                                     trace!("Serveice failed, restarting");
                                     self.availability.set(false);
-                                    self.state =
-                                        WorkerState::Restarting(idx, self.factories[idx].create());
+                                    self.state = WorkerState::Restarting(
+                                        idx,
+                                        self.factories[idx].create(),
+                                    );
                                 }
                             }
                             return self.poll();
-                        },
+                        }
                         // `StopWorker` message handler
                         Ok(Async::Ready(Some(WorkerCommand::Stop(graceful, tx)))) => {
                             self.availability.set(false);
@@ -377,73 +376,5 @@ impl Future for Worker {
         };
 
         Ok(Async::NotReady)
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct Connections(Rc<ConnectionsInner>);
-
-struct ConnectionsInner {
-    count: Cell<usize>,
-    maxconn: usize,
-    task: AtomicTask,
-}
-
-impl Connections {
-    pub fn new(maxconn: usize) -> Self {
-        Connections(Rc::new(ConnectionsInner {
-            maxconn,
-            count: Cell::new(0),
-            task: AtomicTask::new(),
-        }))
-    }
-
-    pub fn get(&self) -> ConnectionsGuard {
-        ConnectionsGuard::new(self.0.clone())
-    }
-
-    pub fn check(&self) -> bool {
-        self.0.check()
-    }
-
-    pub fn total(&self) -> usize {
-        self.0.count.get()
-    }
-}
-
-pub(crate) struct ConnectionsGuard(Rc<ConnectionsInner>);
-
-impl ConnectionsGuard {
-    fn new(inner: Rc<ConnectionsInner>) -> Self {
-        inner.inc();
-        ConnectionsGuard(inner)
-    }
-}
-
-impl Drop for ConnectionsGuard {
-    fn drop(&mut self) {
-        self.0.dec();
-    }
-}
-
-impl ConnectionsInner {
-    fn inc(&self) {
-        let num = self.count.get() + 1;
-        self.count.set(num);
-        if num == self.maxconn {
-            self.task.register();
-        }
-    }
-
-    fn dec(&self) {
-        let num = self.count.get();
-        self.count.set(num - 1);
-        if num == self.maxconn {
-            self.task.notify();
-        }
-    }
-
-    fn check(&self) -> bool {
-        self.count.get() < self.maxconn
     }
 }

@@ -7,7 +7,7 @@ use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, 
 
 use super::MAX_CONN_COUNTER;
 use connector::ConnectionInfo;
-use server::{Connections, ConnectionsGuard};
+use counter::{Counter, CounterGuard};
 use service::{NewService, Service};
 
 /// Support `SSL` connections via openssl package
@@ -59,7 +59,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
 pub struct OpensslAcceptorService<T> {
     acceptor: SslAcceptor,
     io: PhantomData<T>,
-    conns: Connections,
+    conns: Counter,
 }
 
 impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
@@ -89,7 +89,7 @@ where
     T: AsyncRead + AsyncWrite,
 {
     fut: AcceptAsync<T>,
-    _guard: ConnectionsGuard,
+    _guard: CounterGuard,
 }
 
 impl<T: AsyncRead + AsyncWrite> Future for OpensslAcceptorServiceFut<T> {

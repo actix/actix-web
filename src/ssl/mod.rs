@@ -1,7 +1,7 @@
 //! SSL Services
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::server::Connections;
+use super::counter::Counter;
 
 #[cfg(feature = "ssl")]
 mod openssl;
@@ -21,7 +21,7 @@ pub fn max_concurrent_ssl_connect(num: usize) {
 }
 
 thread_local! {
-    static MAX_CONN_COUNTER: Connections = Connections::new(MAX_CONN.load(Ordering::Relaxed));
+    static MAX_CONN_COUNTER: Counter = Counter::new(MAX_CONN.load(Ordering::Relaxed));
 }
 
 // #[cfg(feature = "tls")]

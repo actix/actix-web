@@ -10,9 +10,6 @@ mod worker;
 pub use self::server::Server;
 pub use self::services::ServerServiceFactory;
 
-#[allow(unused_imports)]
-pub(crate) use self::worker::{Connections, ConnectionsGuard};
-
 /// Pause accepting incoming connections
 ///
 /// If socket contains some pending connection, they might be dropped.
