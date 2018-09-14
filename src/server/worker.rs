@@ -169,7 +169,7 @@ impl Worker {
     }
 
     fn check_readiness(&mut self) -> Result<bool, usize> {
-        let mut ready = self.conns.check();
+        let mut ready = self.conns.available();
         let mut failed = None;
         for (idx, service) in self.services.iter_mut().enumerate() {
             match service.poll_ready() {

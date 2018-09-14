@@ -69,7 +69,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
     type Future = OpensslAcceptorServiceFut<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        if self.conns.check() {
+        if self.conns.available() {
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)

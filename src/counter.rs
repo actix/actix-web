@@ -11,15 +11,15 @@ pub struct Counter(Rc<CounterInner>);
 
 struct CounterInner {
     count: Cell<usize>,
-    max: usize,
+    capacity: usize,
     task: AtomicTask,
 }
 
 impl Counter {
     /// Create `Counter` instance and set max value.
-    pub fn new(max: usize) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Counter(Rc::new(CounterInner {
-            max,
+            capacity,
             count: Cell::new(0),
             task: AtomicTask::new(),
         }))
@@ -29,10 +29,12 @@ impl Counter {
         CounterGuard::new(self.0.clone())
     }
 
-    pub fn check(&self) -> bool {
-        self.0.check()
+    /// Check if counter is not at capacity
+    pub fn available(&self) -> bool {
+        self.0.available()
     }
 
+    /// Get total number of acquired counts
     pub fn total(&self) -> usize {
         self.0.count.get()
     }
@@ -57,7 +59,7 @@ impl CounterInner {
     fn inc(&self) {
         let num = self.count.get() + 1;
         self.count.set(num);
-        if num == self.max {
+        if num == self.capacity {
             self.task.register();
         }
     }
@@ -65,12 +67,12 @@ impl CounterInner {
     fn dec(&self) {
         let num = self.count.get();
         self.count.set(num - 1);
-        if num == self.max {
+        if num == self.capacity {
             self.task.notify();
         }
     }
 
-    fn check(&self) -> bool {
-        self.count.get() < self.max
+    fn available(&self) -> bool {
+        self.count.get() < self.capacity
     }
 }
