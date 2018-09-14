@@ -58,6 +58,7 @@ extern crate webpki_roots;
 pub mod connector;
 pub mod counter;
 pub mod framed;
+pub mod inflight;
 pub mod resolver;
 pub mod server;
 pub mod service;
