@@ -367,11 +367,11 @@ impl Accept {
             while !self.workers.is_empty() {
                 match self.workers[self.next].send(msg) {
                     Ok(_) => (),
-                    Err(err) => {
+                    Err(tmp) => {
                         let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
                             self.workers[self.next].idx,
                         ));
-                        msg = err.into_inner();
+                        msg = tmp;
                         self.workers.swap_remove(self.next);
                         if self.workers.is_empty() {
                             error!("No workers");
@@ -395,11 +395,11 @@ impl Accept {
                             self.next = (self.next + 1) % self.workers.len();
                             return;
                         }
-                        Err(err) => {
+                        Err(tmp) => {
                             let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
                                 self.workers[self.next].idx,
                             ));
-                            msg = err.into_inner();
+                            msg = tmp;
                             self.workers.swap_remove(self.next);
                             if self.workers.is_empty() {
                                 error!("No workers");

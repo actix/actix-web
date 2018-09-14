@@ -41,7 +41,6 @@ actix = "0.7.0"
 
 log = "0.4"
 num_cpus = "1.0"
-failure = "^0.1.2"
 
 # io
 mio = "^0.6.13"

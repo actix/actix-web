@@ -7,13 +7,13 @@ use net2::TcpBuilder;
 use num_cpus;
 
 use actix::{
-    actors::signal, fut, Actor, ActorFuture, Addr, Arbiter, AsyncContext, Context, Handler,
-    Response, StreamHandler, System, WrapFuture,
+    actors::signal, fut, msgs::Execute, Actor, ActorFuture, Addr, Arbiter, AsyncContext,
+    Context, Handler, Response, StreamHandler, System, WrapFuture,
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::services::{InternalServerServiceFactory, ServerNewService, ServerServiceFactory};
-use super::worker::{self, Conn, StopWorker, Worker, WorkerAvailability, WorkerClient};
+use super::worker::{self, Worker, WorkerAvailability, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
 pub(crate) enum ServerCommand {
@@ -23,7 +23,7 @@ pub(crate) enum ServerCommand {
 /// Server
 pub struct Server {
     threads: usize,
-    workers: Vec<(usize, Addr<Worker>)>,
+    workers: Vec<(usize, WorkerClient)>,
     services: Vec<Box<InternalServerServiceFactory>>,
     sockets: Vec<(Token, net::TcpListener)>,
     accept: AcceptLoop,
@@ -183,9 +183,9 @@ impl Server {
             // start workers
             let mut workers = Vec::new();
             for idx in 0..self.threads {
-                let (addr, worker) = self.start_worker(idx, self.accept.get_notify());
-                workers.push(worker);
-                self.workers.push((idx, addr));
+                let worker = self.start_worker(idx, self.accept.get_notify());
+                workers.push(worker.clone());
+                self.workers.push((idx, worker));
             }
 
             // start accept thread
@@ -222,19 +222,19 @@ impl Server {
         }
     }
 
-    fn start_worker(&self, idx: usize, notify: AcceptNotify) -> (Addr<Worker>, WorkerClient) {
-        let (tx, rx) = unbounded::<Conn>();
+    fn start_worker(&self, idx: usize, notify: AcceptNotify) -> WorkerClient {
+        let (tx, rx) = unbounded();
         let avail = WorkerAvailability::new(notify);
         let worker = WorkerClient::new(idx, tx, avail.clone());
         let services: Vec<Box<InternalServerServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
-        let addr = Arbiter::start(move |ctx: &mut Context<_>| {
-            ctx.add_message_stream(rx);
-            Worker::new(ctx, services, avail)
-        });
+        Arbiter::new(format!("actix-worker-{}", idx)).do_send(Execute::new(|| {
+            Worker::start(rx, services, avail);
+            Ok::<_, ()>(())
+        }));
 
-        (addr, worker)
+        worker
     }
 }
 
@@ -306,7 +306,7 @@ impl Handler<StopServer> for Server {
             ctx.spawn(
                 worker
                     .1
-                    .send(StopWorker { graceful: dur })
+                    .stop(dur)
                     .into_actor(self)
                     .then(move |_, slf, ctx| {
                         slf.workers.pop();
@@ -370,8 +370,8 @@ impl StreamHandler<ServerCommand, ()> for Server {
                         break;
                     }
 
-                    let (addr, worker) = self.start_worker(new_idx, self.accept.get_notify());
-                    self.workers.push((new_idx, addr));
+                    let worker = self.start_worker(new_idx, self.accept.get_notify());
+                    self.workers.push((new_idx, worker.clone()));
                     self.accept.send(Command::Worker(worker));
                 }
             }

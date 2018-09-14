@@ -2,23 +2,28 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::{net, time};
+use std::{mem, net, time};
 
-use futures::sync::mpsc::{SendError, UnboundedSender};
+use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::sync::oneshot;
 use futures::task::AtomicTask;
-use futures::{future, Async, Future, Poll};
+use futures::{future, Async, Future, Poll, Stream};
 use tokio_current_thread::spawn;
+use tokio_timer::{sleep, Delay};
 
 use actix::msgs::StopArbiter;
-use actix::{
-    fut, Actor, ActorContext, ActorFuture, Arbiter, AsyncContext, Context, Handler, Message,
-    Response, WrapFuture,
-};
+use actix::{Arbiter, Message};
 
 use super::accept::AcceptNotify;
 use super::services::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
 use super::Token;
+
+pub(crate) enum WorkerCommand {
+    Message(Conn),
+    /// Stop worker message. Returns `true` on successful shutdown
+    /// and `false` if some connections still alive.
+    Stop(Option<time::Duration>, oneshot::Sender<bool>),
+}
 
 #[derive(Debug, Message)]
 pub(crate) struct Conn {
@@ -52,21 +57,34 @@ thread_local! {
 #[derive(Clone)]
 pub(crate) struct WorkerClient {
     pub idx: usize,
-    tx: UnboundedSender<Conn>,
+    tx: UnboundedSender<WorkerCommand>,
     avail: WorkerAvailability,
 }
 
 impl WorkerClient {
-    pub fn new(idx: usize, tx: UnboundedSender<Conn>, avail: WorkerAvailability) -> Self {
+    pub fn new(
+        idx: usize, tx: UnboundedSender<WorkerCommand>, avail: WorkerAvailability,
+    ) -> Self {
         WorkerClient { idx, tx, avail }
     }
 
-    pub fn send(&self, msg: Conn) -> Result<(), SendError<Conn>> {
-        self.tx.unbounded_send(msg)
+    pub fn send(&self, msg: Conn) -> Result<(), Conn> {
+        self.tx
+            .unbounded_send(WorkerCommand::Message(msg))
+            .map_err(|e| match e.into_inner() {
+                WorkerCommand::Message(msg) => msg,
+                _ => panic!(),
+            })
     }
 
     pub fn available(&self) -> bool {
         self.avail.available()
+    }
+
+    pub fn stop(&self, graceful: Option<time::Duration>) -> oneshot::Receiver<bool> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.tx.unbounded_send(WorkerCommand::Stop(graceful, tx));
+        rx
     }
 }
 
@@ -96,69 +114,48 @@ impl WorkerAvailability {
     }
 }
 
-/// Stop worker message. Returns `true` on successful shutdown
-/// and `false` if some connections still alive.
-pub(crate) struct StopWorker {
-    pub graceful: Option<time::Duration>,
-}
-
-impl Message for StopWorker {
-    type Result = Result<bool, ()>;
-}
-
 /// Http worker
 ///
 /// Worker accepts Socket objects via unbounded channel and start requests
 /// processing.
 pub(crate) struct Worker {
+    rx: UnboundedReceiver<WorkerCommand>,
     services: Vec<BoxedServerService>,
     availability: WorkerAvailability,
     conns: Connections,
     factories: Vec<Box<InternalServerServiceFactory>>,
-}
-
-impl Actor for Worker {
-    type Context = Context<Self>;
+    state: WorkerState,
 }
 
 impl Worker {
-    pub(crate) fn new(
-        ctx: &mut Context<Self>, factories: Vec<Box<InternalServerServiceFactory>>,
-        availability: WorkerAvailability,
-    ) -> Self {
+    pub(crate) fn start(
+        rx: UnboundedReceiver<WorkerCommand>,
+        factories: Vec<Box<InternalServerServiceFactory>>, availability: WorkerAvailability,
+    ) {
         availability.set(false);
-        let wrk = MAX_CONNS_COUNTER.with(|conns| Worker {
+        let mut wrk = MAX_CONNS_COUNTER.with(|conns| Worker {
+            rx,
             availability,
             factories,
             services: Vec::new(),
             conns: conns.clone(),
+            state: WorkerState::Unavailable(Vec::new()),
         });
 
         let mut fut = Vec::new();
         for factory in &wrk.factories {
             fut.push(factory.create());
         }
-        ctx.wait(
+        spawn(
             future::join_all(fut)
-                .into_actor(&wrk)
-                .map_err(|e, _, ctx| {
+                .map_err(|e| {
                     error!("Can not start worker: {:?}", e);
                     Arbiter::current().do_send(StopArbiter(0));
-                    ctx.stop();
-                }).and_then(|services, act, ctx| {
-                    act.services.extend(services);
-                    let mut readiness = CheckReadiness {
-                        avail: false,
-                        idx: 0,
-                        fut: None,
-                    };
-                    let _ = readiness.poll(act, ctx);
-                    ctx.spawn(readiness);
-                    fut::ok(())
+                }).and_then(move |services| {
+                    wrk.services.extend(services);
+                    wrk
                 }),
         );
-
-        wrk
     }
 
     fn shutdown(&mut self, force: bool) {
@@ -173,121 +170,203 @@ impl Worker {
         }
     }
 
-    fn shutdown_timeout(
-        &mut self, ctx: &mut Context<Worker>, tx: oneshot::Sender<bool>, dur: time::Duration,
-    ) {
-        // sleep for 1 second and then check again
-        ctx.run_later(time::Duration::new(1, 0), move |slf, ctx| {
-            let num = num_connections();
-            if num == 0 {
-                let _ = tx.send(true);
-                Arbiter::current().do_send(StopArbiter(0));
-            } else if let Some(d) = dur.checked_sub(time::Duration::new(1, 0)) {
-                slf.shutdown_timeout(ctx, tx, d);
-            } else {
-                info!("Force shutdown http worker, {} connections", num);
-                slf.shutdown(true);
-                let _ = tx.send(false);
-                Arbiter::current().do_send(StopArbiter(0));
+    fn check_readiness(&mut self) -> Result<bool, usize> {
+        let mut ready = self.conns.check();
+        let mut failed = None;
+        for (idx, service) in self.services.iter_mut().enumerate() {
+            match service.poll_ready() {
+                Ok(Async::Ready(_)) => (),
+                Ok(Async::NotReady) => ready = false,
+                Err(_) => {
+                    error!("Service readiness check returned error, restarting");
+                    failed = Some(idx);
+                }
             }
-        });
-    }
-}
-
-impl Handler<Conn> for Worker {
-    type Result = ();
-
-    fn handle(&mut self, msg: Conn, _: &mut Context<Self>) {
-        let guard = self.conns.get();
-        spawn(
-            self.services[msg.handler.0]
-                .call(ServerMessage::Connect(msg.io))
-                .map(|val| {
-                    drop(guard);
-                    val
-                }),
-        )
-    }
-}
-
-/// `StopWorker` message handler
-impl Handler<StopWorker> for Worker {
-    type Result = Response<bool, ()>;
-
-    fn handle(&mut self, msg: StopWorker, ctx: &mut Context<Self>) -> Self::Result {
-        let num = num_connections();
-        if num == 0 {
-            info!("Shutting down http worker, 0 connections");
-            Response::reply(Ok(true))
-        } else if let Some(dur) = msg.graceful {
-            self.shutdown(false);
-            let (tx, rx) = oneshot::channel();
-            let num = num_connections();
-            if num != 0 {
-                info!("Graceful http worker shutdown, {} connections", num);
-                self.shutdown_timeout(ctx, tx, dur);
-                Response::reply(Ok(true))
-            } else {
-                Response::async(rx.map_err(|_| ()))
-            }
+        }
+        if let Some(idx) = failed {
+            Err(idx)
         } else {
-            info!("Force shutdown http worker, {} connections", num);
-            self.shutdown(true);
-            Response::reply(Ok(false))
+            Ok(ready)
         }
     }
 }
 
-struct CheckReadiness {
-    avail: bool,
-    idx: usize,
-    fut: Option<Box<Future<Item = BoxedServerService, Error = ()>>>,
+enum WorkerState {
+    None,
+    Available,
+    Unavailable(Vec<Conn>),
+    Restarting(usize, Box<Future<Item = BoxedServerService, Error = ()>>),
+    Shutdown(Delay, Delay, oneshot::Sender<bool>),
 }
 
-impl ActorFuture for CheckReadiness {
+impl Future for Worker {
     type Item = ();
     type Error = ();
-    type Actor = Worker;
 
-    fn poll(&mut self, act: &mut Worker, ctx: &mut Context<Worker>) -> Poll<(), ()> {
-        if self.fut.is_some() {
-            match self.fut.as_mut().unwrap().poll() {
-                Ok(Async::Ready(service)) => {
-                    trace!("Service has been restarted");
-                    act.services[self.idx] = service;
-                    self.fut.take();
-                }
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(_) => {
-                    panic!("Can not restart service");
-                }
-            }
-        }
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let state = mem::replace(&mut self.state, WorkerState::None);
 
-        let mut ready = act.conns.check();
-        if ready {
-            // check if service is restarting
-            let mut failed = None;
-            for (idx, service) in act.services.iter_mut().enumerate() {
-                match service.poll_ready() {
-                    Ok(Async::Ready(_)) => (),
-                    Ok(Async::NotReady) => ready = false,
-                    Err(_) => {
-                        error!("Service readiness check returned error, restarting");
-                        failed = Some(idx);
+        match state {
+            WorkerState::Unavailable(mut conns) => {
+                match self.check_readiness() {
+                    Ok(true) => {
+                        self.state = WorkerState::Available;
+
+                        // process requests from wait queue
+                        while let Some(msg) = conns.pop() {
+                            match self.check_readiness() {
+                                Ok(true) => {
+                                    let guard = self.conns.get();
+                                    spawn(
+                                        self.services[msg.handler.0]
+                                            .call(ServerMessage::Connect(msg.io))
+                                            .map(|val| {
+                                                drop(guard);
+                                                val
+                                            }),
+                                    )
+                                }
+                                Ok(false) => {
+                                    self.state = WorkerState::Unavailable(conns);
+                                    return self.poll();
+                                }
+                                Err(idx) => {
+                                    self.state = WorkerState::Restarting(
+                                        idx,
+                                        self.factories[idx].create(),
+                                    );
+                                    return self.poll();
+                                }
+                            }
+                        }
+                        self.availability.set(true);
+                        return self.poll();
+                    }
+                    Ok(false) => {
+                        self.state = WorkerState::Unavailable(conns);
+                        return Ok(Async::NotReady);
+                    }
+                    Err(idx) => {
+                        self.state = WorkerState::Restarting(idx, self.factories[idx].create());
+                        return self.poll();
                     }
                 }
             }
-            if let Some(idx) = failed {
-                self.idx = idx;
-                self.fut = Some(act.factories[idx].create());
-                return self.poll(act, ctx);
+            WorkerState::Restarting(idx, mut fut) => {
+                match fut.poll() {
+                    Ok(Async::Ready(service)) => {
+                        trace!("Service has been restarted");
+                        self.services[idx] = service;
+                        self.state = WorkerState::Unavailable(Vec::new());
+                    }
+                    Ok(Async::NotReady) => {
+                        self.state = WorkerState::Restarting(idx, fut);
+                        return Ok(Async::NotReady);
+                    }
+                    Err(_) => {
+                        panic!("Can not restart service");
+                    }
+                }
+                return self.poll();
             }
-        }
-        if self.avail != ready {
-            self.avail = ready;
-            act.availability.set(ready);
-        }
+            WorkerState::Shutdown(mut t1, mut t2, tx) => {
+                let num = num_connections();
+                if num == 0 {
+                    let _ = tx.send(true);
+                    Arbiter::current().do_send(StopArbiter(0));
+                    return Ok(Async::Ready(()));
+                }
+
+                // check graceful timeout
+                match t2.poll().unwrap() {
+                    Async::NotReady => (),
+                    Async::Ready(_) => {
+                        self.shutdown(true);
+                        let _ = tx.send(false);
+                        Arbiter::current().do_send(StopArbiter(0));
+                        return Ok(Async::Ready(()));
+                    }
+                }
+
+                // sleep for 1 second and then check again
+                match t1.poll().unwrap() {
+                    Async::NotReady => (),
+                    Async::Ready(_) => {
+                        t1 = sleep(time::Duration::from_secs(1));
+                        let _ = t1.poll();
+                    }
+                }
+                self.state = WorkerState::Shutdown(t1, t2, tx);
+                return Ok(Async::NotReady);
+            }
+            WorkerState::Available => {
+                loop {
+                    match self.rx.poll() {
+                        // handle incoming tcp stream
+                        Ok(Async::Ready(Some(WorkerCommand::Message(msg)))) => match self
+                            .check_readiness()
+                        {
+                            Ok(true) => {
+                                let guard = self.conns.get();
+                                spawn(
+                                    self.services[msg.handler.0]
+                                        .call(ServerMessage::Connect(msg.io))
+                                        .map(|val| {
+                                            drop(guard);
+                                            val
+                                        }),
+                                );
+                            }
+                            Ok(false) => {
+                                self.availability.set(false);
+                                self.state = WorkerState::Unavailable(vec![msg]);
+                            }
+                            Err(idx) => {
+                                self.availability.set(false);
+                                self.state =
+                                    WorkerState::Restarting(idx, self.factories[idx].create());
+                            }
+                        },
+                        // `StopWorker` message handler
+                        Ok(Async::Ready(Some(WorkerCommand::Stop(graceful, tx)))) => {
+                            self.availability.set(false);
+                            let num = num_connections();
+                            if num == 0 {
+                                info!("Shutting down http worker, 0 connections");
+                                let _ = tx.send(true);
+                                return Ok(Async::Ready(()));
+                            } else if let Some(dur) = graceful {
+                                self.shutdown(false);
+                                let num = num_connections();
+                                if num != 0 {
+                                    info!("Graceful http worker shutdown, {} connections", num);
+                                    break Some(WorkerState::Shutdown(
+                                        sleep(time::Duration::from_secs(1)),
+                                        sleep(dur),
+                                        tx,
+                                    ));
+                                } else {
+                                    let _ = tx.send(true);
+                                    return Ok(Async::Ready(()));
+                                }
+                            } else {
+                                info!("Force shutdown http worker, {} connections", num);
+                                self.shutdown(true);
+                                let _ = tx.send(false);
+                                return Ok(Async::Ready(()));
+                            }
+                        }
+                        Ok(Async::NotReady) => {
+                            self.state = WorkerState::Available;
+                            return Ok(Async::NotReady);
+                        }
+                        Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
+                    }
+                }
+            }
+            WorkerState::None => panic!(),
+        };
+
         Ok(Async::NotReady)
     }
 }
