@@ -91,7 +91,7 @@ where
 {
     pub fn new(
         settings: Rc<WorkerSettings<H>>, stream: T, addr: Option<SocketAddr>,
-        buf: BytesMut, is_eof: bool,
+        buf: BytesMut, is_eof: bool, keepalive_timer: Option<Delay>,
     ) -> Self {
         Http1 {
             flags: if is_eof {
@@ -103,10 +103,10 @@ where
             decoder: H1Decoder::new(),
             payload: None,
             tasks: VecDeque::new(),
-            keepalive_timer: None,
             addr,
             buf,
             settings,
+            keepalive_timer,
         }
     }
 
@@ -364,7 +364,7 @@ where
             if self.keepalive_timer.is_none() && keep_alive > 0 {
                 trace!("Start keep-alive timer");
                 let mut timer =
-                    Delay::new(Instant::now() + Duration::new(keep_alive, 0));
+                    Delay::new(Instant::now() + Duration::from_secs(keep_alive));
                 // register timer
                 let _ = timer.poll();
                 self.keepalive_timer = Some(timer);
@@ -632,7 +632,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false, None);
         h1.poll_io();
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
@@ -645,7 +645,7 @@ mod tests {
             BytesMut::from(Vec::<u8>::from(&b"GET /test HTTP/1.1\r\n\r\n"[..]));
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, true, None);
         h1.poll_io();
         assert_eq!(h1.tasks.len(), 1);
     }
@@ -656,7 +656,7 @@ mod tests {
         let readbuf = BytesMut::new();
         let settings = Rc::new(wrk_settings());
 
-        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false);
+        let mut h1 = Http1::new(Rc::clone(&settings), buf, None, readbuf, false, None);
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));

@@ -5,6 +5,7 @@ use std::{io, ptr, time};
 use bytes::{Buf, BufMut, BytesMut};
 use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_timer::Delay;
 
 use super::settings::WorkerSettings;
 use super::{h1, h2, ConnectionTag, HttpHandler, IoStream};
@@ -30,6 +31,7 @@ where
 {
     proto: Option<HttpProtocol<T, H>>,
     node: Option<Node<HttpChannel<T, H>>>,
+    ka_timeout: Option<Delay>,
     _tag: ConnectionTag,
 }
 
@@ -42,9 +44,11 @@ where
         settings: Rc<WorkerSettings<H>>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
         let _tag = settings.connection();
+        let ka_timeout = settings.keep_alive_timer();
 
         HttpChannel {
             _tag,
+            ka_timeout,
             node: None,
             proto: Some(HttpProtocol::Unknown(
                 settings,
@@ -77,6 +81,21 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // keep-alive timer
+        if let Some(ref mut timer) = self.ka_timeout {
+            match timer.poll() {
+                Ok(Async::Ready(_)) => {
+                    trace!("Slow request timed out, close connection");
+                    if let Some(n) = self.node.as_mut() {
+                        n.remove()
+                    };
+                    return Ok(Async::Ready(()));
+                }
+                Ok(Async::NotReady) => (),
+                Err(_) => panic!("Something is really wrong"),
+            }
+        }
+
         if self.node.is_none() {
             let el = self as *mut _;
             self.node = Some(Node::new(el));
@@ -161,7 +180,12 @@ where
             match kind {
                 ProtocolKind::Http1 => {
                     self.proto = Some(HttpProtocol::H1(h1::Http1::new(
-                        settings, io, addr, buf, is_eof,
+                        settings,
+                        io,
+                        addr,
+                        buf,
+                        is_eof,
+                        self.ka_timeout.take(),
                     )));
                     return self.poll();
                 }
@@ -171,6 +195,7 @@ where
                         io,
                         addr,
                         buf.freeze(),
+                        self.ka_timeout.take(),
                     )));
                     return self.poll();
                 }

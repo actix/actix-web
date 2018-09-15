@@ -13,7 +13,7 @@ use http::StatusCode;
 use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
-use tokio_timer::Interval;
+use tokio_timer::{Delay, Interval};
 
 use super::channel::Node;
 use super::message::{Request, RequestPool};
@@ -195,6 +195,16 @@ impl<H> WorkerSettings<H> {
 
     pub fn handlers(&self) -> &Vec<H> {
         &self.h
+    }
+
+    pub fn keep_alive_timer(&self) -> Option<Delay> {
+        if self.keep_alive != 0 {
+            Some(Delay::new(
+                Instant::now() + Duration::from_secs(self.keep_alive),
+            ))
+        } else {
+            None
+        }
     }
 
     pub fn keep_alive(&self) -> u64 {

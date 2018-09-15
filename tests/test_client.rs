@@ -407,24 +407,29 @@ fn test_client_cookie_handling() {
         let cookie2 = cookie2b.clone();
         app.handler(move |req: &HttpRequest| {
             // Check cookies were sent correctly
-            req.cookie("cookie1").ok_or_else(err)
-                    .and_then(|c1| if c1.value() == "value1" {
+            req.cookie("cookie1")
+                .ok_or_else(err)
+                .and_then(|c1| {
+                    if c1.value() == "value1" {
                         Ok(())
                     } else {
                         Err(err())
-                    })
-                    .and_then(|()| req.cookie("cookie2").ok_or_else(err))
-                    .and_then(|c2| if c2.value() == "value2" {
+                    }
+                }).and_then(|()| req.cookie("cookie2").ok_or_else(err))
+                .and_then(|c2| {
+                    if c2.value() == "value2" {
                         Ok(())
                     } else {
                         Err(err())
-                    })
-                    // Send some cookies back
-                    .map(|_| HttpResponse::Ok()
-                         .cookie(cookie1.clone())
-                         .cookie(cookie2.clone())
-                         .finish()
-                    )
+                    }
+                })
+                // Send some cookies back
+                .map(|_| {
+                    HttpResponse::Ok()
+                        .cookie(cookie1.clone())
+                        .cookie(cookie2.clone())
+                        .finish()
+                })
         })
     });
 

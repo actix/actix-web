@@ -451,10 +451,13 @@ impl Accept {
                                     Delay::new(
                                         Instant::now() + Duration::from_millis(510),
                                     ).map_err(|_| ())
-                                    .and_then(move |_| {
-                                        let _ = r.set_readiness(mio::Ready::readable());
-                                        Ok(())
-                                    }),
+                                    .and_then(
+                                        move |_| {
+                                            let _ =
+                                                r.set_readiness(mio::Ready::readable());
+                                            Ok(())
+                                        },
+                                    ),
                                 );
                                 Ok(())
                             },

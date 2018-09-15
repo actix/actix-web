@@ -59,6 +59,7 @@ where
 {
     pub fn new(
         settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes,
+        keepalive_timer: Option<Delay>,
     ) -> Self {
         let extensions = io.extensions();
         Http2 {
@@ -68,10 +69,10 @@ where
                 unread: if buf.is_empty() { None } else { Some(buf) },
                 inner: io,
             })),
-            keepalive_timer: None,
             addr,
             settings,
             extensions,
+            keepalive_timer,
         }
     }
 

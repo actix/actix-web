@@ -821,11 +821,9 @@ mod tests {
                 scope
                     .route("/path1", Method::GET, |_: HttpRequest<_>| {
                         HttpResponse::Ok()
-                    }).route(
-                        "/path1",
-                        Method::DELETE,
-                        |_: HttpRequest<_>| HttpResponse::Ok(),
-                    )
+                    }).route("/path1", Method::DELETE, |_: HttpRequest<_>| {
+                        HttpResponse::Ok()
+                    })
             }).finish();
 
         let req = TestRequest::with_uri("/app/path1").request();

@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.8] - 2018-09-xx
+
+### Added
+
+* Use server `Keep-Alive` setting as slow request timeout.
+
+
 ## [0.7.7] - 2018-09-11
 
 ### Fixed

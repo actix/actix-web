@@ -120,6 +120,7 @@ impl TestServer {
             HttpServer::new(factory)
                 .disable_signals()
                 .listen(tcp)
+                .keep_alive(5)
                 .start();
 
             tx.send((System::current(), local_addr, TestServer::get_conn()))
@@ -328,6 +329,7 @@ impl<S: 'static> TestServerBuilder<S> {
                 config(&mut app);
                 vec![app]
             }).workers(1)
+            .keep_alive(5)
             .disable_signals();
 
             tx.send((System::current(), addr, TestServer::get_conn()))
