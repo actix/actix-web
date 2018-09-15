@@ -2,7 +2,7 @@ use std::cell::{RefCell, RefMut, UnsafeCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Instant, Duration};
 use std::{env, fmt, net};
 
 use bytes::BytesMut;
@@ -12,7 +12,7 @@ use http::StatusCode;
 use lazycell::LazyCell;
 use parking_lot::Mutex;
 use time;
-use tokio_timer::{sleep, Delay, Interval};
+use tokio_timer::{sleep, Delay};
 use tokio_current_thread::spawn;
 
 use super::channel::Node;
@@ -181,9 +181,10 @@ impl<H> WorkerSettings<H> {
     }
 
     pub fn keep_alive_timer(&self) -> Option<Delay> {
-        if self.keep_alive != 0 {
+        let ka = self.0.keep_alive;
+        if ka != 0 {
             Some(Delay::new(
-                Instant::now() + Duration::from_secs(self.keep_alive),
+                Instant::now() + Duration::from_secs(ka),
             ))
         } else {
             None
