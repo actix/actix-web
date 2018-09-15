@@ -6,6 +6,10 @@
 
 * Use server `Keep-Alive` setting as slow request timeout.
 
+### Changed
+
+* Use 5 seconds keep-alive timer by default.
+
 
 ## [0.7.7] - 2018-09-11
 

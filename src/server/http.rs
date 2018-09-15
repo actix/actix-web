@@ -70,7 +70,7 @@ where
             factory: Arc::new(f),
             host: None,
             backlog: 2048,
-            keep_alive: KeepAlive::Os,
+            keep_alive: KeepAlive::Timeout(5),
             shutdown_timeout: 30,
             exit: false,
             no_http2: false,
@@ -131,7 +131,7 @@ where
 
     /// Set server keep-alive setting.
     ///
-    /// By default keep alive is set to a `Os`.
+    /// By default keep alive is set to a 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
         self.keep_alive = val.into();
         self
