@@ -4,7 +4,7 @@
 
 ### Added
 
-* Use server `Keep-Alive` setting as slow request timeout.
+* Use server `Keep-Alive` setting as slow request timeout #439
 
 ### Changed
 
