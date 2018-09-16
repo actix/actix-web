@@ -10,6 +10,10 @@
 
 * Use 5 seconds keep-alive timer by default.
 
+### Fixed
+
+* Fixed wrong error message for i16 type #510
+
 
 ## [0.7.7] - 2018-09-11
 
