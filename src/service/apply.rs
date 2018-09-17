@@ -19,7 +19,7 @@ where
     R: IntoFuture,
 {
     /// Create new `Apply` combinator
-    pub fn new(f: F, service: T) -> Self {
+    pub fn new(service: T, f: F) -> Self {
         Self {
             service,
             f,
@@ -79,7 +79,7 @@ where
     R: IntoFuture,
 {
     /// Create new `ApplyNewService` new service instance
-    pub fn new<F1: IntoNewService<T>>(f: F, service: F1) -> Self {
+    pub fn new<F1: IntoNewService<T>>(service: F1, f: F) -> Self {
         Self {
             f,
             service: service.into_new_service(),
@@ -161,7 +161,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Async::Ready(service) = self.fut.poll()? {
-            Ok(Async::Ready(Apply::new(self.f.take().unwrap(), service)))
+            Ok(Async::Ready(Apply::new(service, self.f.take().unwrap())))
         } else {
             Ok(Async::NotReady)
         }
