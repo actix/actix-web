@@ -208,13 +208,14 @@ impl<T> Node<T> {
         }
     }
 
-    fn insert<I>(&mut self, next: &mut Node<I>) {
+    fn insert<I>(&mut self, next_el: &mut Node<I>) {
         unsafe {
-            let next: *mut Node<T> = next as *const _ as *mut _;
+            let next: *mut Node<T> = next_el as *const _ as *mut _;
 
-            if let Some(ref mut next2) = self.next {
+            if let Some(next2) = self.next {
                 let n = next2.as_mut().unwrap();
                 n.prev = Some(next);
+                next_el.next = Some(next2 as *mut _);
             }
             self.next = Some(next);
 
@@ -226,13 +227,13 @@ impl<T> Node<T> {
     fn remove(&mut self) {
         unsafe {
             self.element = ptr::null_mut();
-            let mut next = self.next.take();
-            let mut prev = self.prev.take();
+            let next = self.next.take();
+            let prev = self.prev.take();
 
-            if let Some(ref mut prev) = prev {
+            if let Some(prev) = prev {
                 prev.as_mut().unwrap().next = next;
             }
-            if let Some(ref mut next) = next {
+            if let Some(next) = next {
                 next.as_mut().unwrap().prev = prev;
             }
         }
