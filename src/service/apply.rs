@@ -173,7 +173,7 @@ mod tests {
     use futures::future::{ok, FutureResult};
     use futures::{Async, Future, Poll};
 
-    use service::{Service, ServiceExt};
+    use service::{IntoService, Service, ServiceExt};
 
     #[derive(Clone)]
     struct Srv;
@@ -194,8 +194,12 @@ mod tests {
 
     #[test]
     fn test_call() {
-        let mut srv =
-            Srv.apply(|req: &'static str, srv| srv.call(()).map(move |res| (req, res)));
+        let blank = |req| Ok(req);
+
+        let mut srv = blank.into_service().apply(Srv, |req: &'static str, srv| {
+            srv.call(()).map(move |res| (req, res))
+        });
+        assert!(srv.poll_ready().is_ok());
         let res = srv.call("srv").poll();
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), Async::Ready(("srv", ())));
