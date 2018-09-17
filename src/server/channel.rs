@@ -226,11 +226,14 @@ impl<T> Node<T> {
     fn remove(&mut self) {
         unsafe {
             self.element = ptr::null_mut();
-            let next = self.next.take();
+            let mut next = self.next.take();
             let mut prev = self.prev.take();
 
             if let Some(ref mut prev) = prev {
                 prev.as_mut().unwrap().next = next;
+            }
+            if let Some(ref mut next) = next {
+                next.as_mut().unwrap().prev = prev;
             }
         }
     }
