@@ -72,6 +72,18 @@ where
     }
 }
 
+impl<T, H> Drop for HttpChannel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
+    fn drop(&mut self) {
+        if let Some(mut node) = self.node.take() {
+            node.remove()
+        }
+    }
+}
+
 impl<T, H> Future for HttpChannel<T, H>
 where
     T: IoStream,
@@ -86,9 +98,6 @@ where
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Slow request timed out, close connection");
-                    if let Some(n) = self.node.as_mut() {
-                        n.remove()
-                    };
                     return Ok(Async::Ready(()));
                 }
                 Ok(Async::NotReady) => (),
@@ -116,28 +125,10 @@ where
         let mut is_eof = false;
         let kind = match self.proto {
             Some(HttpProtocol::H1(ref mut h1)) => {
-                let result = h1.poll();
-                match result {
-                    Ok(Async::Ready(())) | Err(_) => {
-                        if let Some(n) = self.node.as_mut() {
-                            n.remove()
-                        };
-                    }
-                    _ => (),
-                }
-                return result;
+                return h1.poll();
             }
             Some(HttpProtocol::H2(ref mut h2)) => {
-                let result = h2.poll();
-                match result {
-                    Ok(Async::Ready(())) | Err(_) => {
-                        if let Some(n) = self.node.as_mut() {
-                            n.remove()
-                        };
-                    }
-                    _ => (),
-                }
-                return result;
+                return h2.poll();
             }
             Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
                 let mut disconnect = false;
@@ -156,9 +147,6 @@ where
                 }
                 if disconnect {
                     debug!("Ignored premature client disconnection");
-                    if let Some(n) = self.node.as_mut() {
-                        n.remove()
-                    };
                     return Err(());
                 }
 
