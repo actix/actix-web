@@ -24,16 +24,20 @@ pub use self::map_init_err::MapInitErr;
 /// An extension trait for `Service`s that provides a variety of convenient
 /// adapters
 pub trait ServiceExt: Service {
-    /// Apply function to specified service and use it as a next service in chain.
-    fn apply<S, F, R>(self, service: S, f: F) -> AndThen<Self, Apply<S, F, R, Self::Response>>
+    /// Apply function to specified service and use it as a next service in
+    /// chain.
+    fn apply<S, I, F, R>(
+        self, service: I, f: F,
+    ) -> AndThen<Self, Apply<S, F, R, Self::Response>>
     where
         Self: Sized,
         S: Service,
         S::Error: Into<<R::Future as Future>::Error>,
+        I: IntoService<S>,
         F: Fn(Self::Response, &mut S) -> R,
         R: IntoFuture<Error = Self::Error>,
     {
-        self.and_then(Apply::new(service, f))
+        self.and_then(Apply::new(service.into_service(), f))
     }
 
     /// Call another service after call to this one has resolved successfully.
@@ -102,13 +106,14 @@ pub trait ServiceExt: Service {
 }
 
 pub trait NewServiceExt: NewService {
-    fn apply<S, F, R>(
-        self, service: S, f: F,
+    fn apply<S, I, F, R>(
+        self, service: I, f: F,
     ) -> AndThenNewService<Self, ApplyNewService<S, F, R, Self::Response>>
     where
         Self: Sized,
         S: NewService<InitError = Self::InitError>,
         S::Error: Into<<R::Future as Future>::Error>,
+        I: IntoNewService<S>,
         F: Fn(Self::Response, &mut S::Service) -> R + Clone,
         R: IntoFuture<Error = Self::Error>,
     {

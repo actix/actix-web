@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use futures::{Async, Future, IntoFuture, Poll};
 
-use super::{IntoNewService, NewService, Service};
+use super::{IntoNewService, IntoService, NewService, Service};
 
 /// `Apply` service combinator
 pub struct Apply<T, F, R, Req> {
@@ -19,9 +19,9 @@ where
     R: IntoFuture,
 {
     /// Create new `Apply` combinator
-    pub fn new(service: T, f: F) -> Self {
+    pub fn new<I: IntoService<T>>(service: I, f: F) -> Self {
         Self {
-            service,
+            service: service.into_service(),
             f,
             r: PhantomData,
         }
