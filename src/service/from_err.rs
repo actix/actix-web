@@ -217,5 +217,4 @@ mod tests {
             panic!()
         }
     }
-
 }

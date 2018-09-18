@@ -230,7 +230,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use service::{Service, ServiceExt};
+    use service::{NewServiceExt, Service, ServiceExt};
 
     struct Srv1(Rc<Cell<usize>>);
     impl Service for Srv1 {
@@ -285,5 +285,22 @@ mod tests {
         let res = srv.call("srv1").poll();
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), Async::Ready(("srv1", "srv2")));
+    }
+
+    #[test]
+    fn test_new_service() {
+        let cnt = Rc::new(Cell::new(0));
+        let cnt2 = cnt.clone();
+        let blank = move || Ok::<_, ()>(Srv1(cnt2.clone()));
+        let new_srv = blank
+            .into_new_service()
+            .and_then(move || Ok(Srv2(cnt.clone())));
+        if let Async::Ready(mut srv) = new_srv.new_service().poll().unwrap() {
+            let res = srv.call("srv1").poll();
+            assert!(res.is_ok());
+            assert_eq!(res.unwrap(), Async::Ready(("srv1", "srv2")));
+        } else {
+            panic!()
+        }
     }
 }

@@ -189,7 +189,7 @@ mod tests {
     use futures::future::{ok, FutureResult};
 
     use super::*;
-    use service::{Service, ServiceExt};
+    use service::{IntoNewService, NewServiceExt, Service, ServiceExt};
 
     struct Srv;
     impl Service for Srv {
@@ -221,5 +221,18 @@ mod tests {
         let res = srv.call(()).poll();
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), Async::Ready("ok"));
+    }
+
+    #[test]
+    fn test_new_service() {
+        let blank = || Ok::<_, ()>(Srv);
+        let new_srv = blank.into_new_service().map(|_| "ok");
+        if let Async::Ready(mut srv) = new_srv.new_service().poll().unwrap() {
+            let res = srv.call(()).poll();
+            assert!(res.is_ok());
+            assert_eq!(res.unwrap(), Async::Ready("ok"));
+        } else {
+            panic!()
+        }
     }
 }
