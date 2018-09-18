@@ -112,9 +112,9 @@ impl WorkerAvailability {
     }
 }
 
-/// Http worker
+/// Service worker
 ///
-/// Worker accepts Socket objects via unbounded channel and start requests
+/// Worker accepts Socket objects via unbounded channel and starts stream
 /// processing.
 pub(crate) struct Worker {
     rx: UnboundedReceiver<WorkerCommand>,
@@ -168,15 +168,22 @@ impl Worker {
         }
     }
 
-    fn check_readiness(&mut self) -> Result<bool, usize> {
+    fn check_readiness(&mut self, trace: bool) -> Result<bool, usize> {
         let mut ready = self.conns.available();
         let mut failed = None;
         for (idx, service) in self.services.iter_mut().enumerate() {
             match service.poll_ready() {
-                Ok(Async::Ready(_)) => (),
+                Ok(Async::Ready(_)) => {
+                    if trace {
+                        trace!("Service {:?} is available", self.factories[idx].name());
+                    }
+                }
                 Ok(Async::NotReady) => ready = false,
                 Err(_) => {
-                    error!("Service readiness check returned error, restarting");
+                    error!(
+                        "Service {:?} readiness check returned error, restarting",
+                        self.factories[idx].name()
+                    );
                     failed = Some(idx);
                 }
             }
@@ -206,14 +213,13 @@ impl Future for Worker {
 
         match state {
             WorkerState::Unavailable(mut conns) => {
-                match self.check_readiness() {
+                match self.check_readiness(true) {
                     Ok(true) => {
-                        trace!("Serveice is available");
                         self.state = WorkerState::Available;
 
                         // process requests from wait queue
                         while let Some(msg) = conns.pop() {
-                            match self.check_readiness() {
+                            match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
                                     spawn(
@@ -226,12 +232,15 @@ impl Future for Worker {
                                     )
                                 }
                                 Ok(false) => {
-                                    trace!("Serveice is unavailable");
+                                    trace!("Worker is unavailable");
                                     self.state = WorkerState::Unavailable(conns);
                                     return self.poll();
                                 }
                                 Err(idx) => {
-                                    trace!("Serveice failed, restarting");
+                                    trace!(
+                                        "Service {:?} failed, restarting",
+                                        self.factories[idx].name()
+                                    );
                                     self.state = WorkerState::Restarting(
                                         idx,
                                         self.factories[idx].create(),
@@ -248,7 +257,10 @@ impl Future for Worker {
                         return Ok(Async::NotReady);
                     }
                     Err(idx) => {
-                        trace!("Serveice failed, restarting");
+                        trace!(
+                            "Service {:?} failed, restarting",
+                            self.factories[idx].name()
+                        );
                         self.state = WorkerState::Restarting(idx, self.factories[idx].create());
                         return self.poll();
                     }
@@ -257,7 +269,10 @@ impl Future for Worker {
             WorkerState::Restarting(idx, mut fut) => {
                 match fut.poll() {
                     Ok(Async::Ready(service)) => {
-                        trace!("Service has been restarted");
+                        trace!(
+                            "Service {:?} has been restarted",
+                            self.factories[idx].name()
+                        );
                         self.services[idx] = service;
                         self.state = WorkerState::Unavailable(Vec::new());
                     }
@@ -266,7 +281,7 @@ impl Future for Worker {
                         return Ok(Async::NotReady);
                     }
                     Err(_) => {
-                        panic!("Can not restart service");
+                        panic!("Can not restart {:?} service", self.factories[idx].name());
                     }
                 }
                 return self.poll();
@@ -306,7 +321,7 @@ impl Future for Worker {
                     match self.rx.poll() {
                         // handle incoming tcp stream
                         Ok(Async::Ready(Some(WorkerCommand::Message(msg)))) => {
-                            match self.check_readiness() {
+                            match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
                                     spawn(
@@ -320,12 +335,15 @@ impl Future for Worker {
                                     continue;
                                 }
                                 Ok(false) => {
-                                    trace!("Serveice is unsavailable");
+                                    trace!("Worker is unavailable");
                                     self.availability.set(false);
                                     self.state = WorkerState::Unavailable(vec![msg]);
                                 }
                                 Err(idx) => {
-                                    trace!("Serveice failed, restarting");
+                                    trace!(
+                                        "Service {:?} failed, restarting",
+                                        self.factories[idx].name()
+                                    );
                                     self.availability.set(false);
                                     self.state = WorkerState::Restarting(
                                         idx,
@@ -340,14 +358,14 @@ impl Future for Worker {
                             self.availability.set(false);
                             let num = num_connections();
                             if num == 0 {
-                                info!("Shutting down http worker, 0 connections");
+                                info!("Shutting down worker, 0 connections");
                                 let _ = tx.send(true);
                                 return Ok(Async::Ready(()));
                             } else if let Some(dur) = graceful {
                                 self.shutdown(false);
                                 let num = num_connections();
                                 if num != 0 {
-                                    info!("Graceful http worker shutdown, {} connections", num);
+                                    info!("Graceful worker shutdown, {} connections", num);
                                     break Some(WorkerState::Shutdown(
                                         sleep(time::Duration::from_secs(1)),
                                         sleep(dur),
@@ -358,7 +376,7 @@ impl Future for Worker {
                                     return Ok(Async::Ready(()));
                                 }
                             } else {
-                                info!("Force shutdown http worker, {} connections", num);
+                                info!("Force shutdown worker, {} connections", num);
                                 self.shutdown(true);
                                 let _ = tx.send(false);
                                 return Ok(Async::Ready(()));

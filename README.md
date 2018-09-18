@@ -29,7 +29,7 @@ fn main() {
     Server::default()
         .bind(
             // configure service pipeline
-            "0.0.0.0:8443",
+            "basic", "0.0.0.0:8443",
             move || {
                 let num = num.clone();
                 let acceptor = acceptor.clone();

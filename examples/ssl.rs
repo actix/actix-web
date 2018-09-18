@@ -48,7 +48,7 @@ fn main() {
 
     // server start mutiple workers, it runs supplied `Fn` in each worker.
     Server::default()
-        .bind("0.0.0.0:8443", move || {
+        .bind("test-ssl", "0.0.0.0:8443", move || {
             let num = num.clone();
 
             // configure service

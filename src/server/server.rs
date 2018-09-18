@@ -121,7 +121,7 @@ impl Server {
     }
 
     /// Add new service to server
-    pub fn bind<F, U>(mut self, addr: U, factory: F) -> io::Result<Self>
+    pub fn bind<F, U, N: AsRef<str>>(mut self, name: N, addr: U, factory: F) -> io::Result<Self>
     where
         F: ServerServiceFactory,
         U: net::ToSocketAddrs,
@@ -129,18 +129,21 @@ impl Server {
         let sockets = bind_addr(addr)?;
 
         for lst in sockets {
-            self = self.listen(lst, factory.clone())
+            self = self.listen(name.as_ref(), lst, factory.clone())
         }
         Ok(self)
     }
 
     /// Add new service to server
-    pub fn listen<F>(mut self, lst: net::TcpListener, factory: F) -> Self
+    pub fn listen<F, N: AsRef<str>>(
+        mut self, name: N, lst: net::TcpListener, factory: F,
+    ) -> Self
     where
         F: ServerServiceFactory,
     {
         let token = Token(self.services.len());
-        self.services.push(ServerNewService::create(factory));
+        self.services
+            .push(ServerNewService::create(name.as_ref().to_string(), factory));
         self.sockets.push((token, lst));
         self
     }
@@ -178,7 +181,7 @@ impl Server {
         if self.sockets.is_empty() {
             panic!("Service should have at least one bound socket");
         } else {
-            info!("Starting {} http workers", self.threads);
+            info!("Starting {} workers", self.threads);
 
             // start workers
             let mut workers = Vec::new();
@@ -190,7 +193,7 @@ impl Server {
 
             // start accept thread
             for sock in &self.sockets {
-                info!("Starting server on http://{:?}", sock.1.local_addr().ok());
+                info!("Starting server on {}", sock.1.local_addr().ok().unwrap());
             }
             let rx = self
                 .accept
@@ -229,7 +232,7 @@ impl Server {
         let services: Vec<Box<InternalServerServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
-        Arbiter::new(format!("actix-worker-{}", idx)).do_send(Execute::new(|| {
+        Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(|| {
             Worker::start(rx, services, avail);
             Ok::<_, ()>(())
         }));

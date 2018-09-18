@@ -3,17 +3,18 @@
 //! to test: curl https://127.0.0.1:8443/ -k
 extern crate actix;
 extern crate actix_net;
+extern crate env_logger;
 extern crate futures;
 extern crate openssl;
 extern crate tokio_io;
 extern crate tokio_openssl;
 extern crate tokio_tcp;
 
-use std::fmt;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
+use std::{env, fmt};
 
 use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -48,6 +49,9 @@ fn service<T: AsyncRead + AsyncWrite>(
 }
 
 fn main() {
+    env::set_var("RUST_LOG", "actix_net=trace");
+    env_logger::init();
+
     let sys = actix::System::new("test");
 
     // load ssl keys
@@ -68,6 +72,7 @@ fn main() {
     Server::default()
         .bind(
             // configure service pipeline
+            "basic",
             "0.0.0.0:8443",
             move || {
                 let num = num.clone();

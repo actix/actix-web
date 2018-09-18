@@ -72,6 +72,9 @@ tokio-rustls = { version = "^0.7.2", optional = true }
 webpki = { version = "0.18", optional = true }
 webpki-roots = { version = "0.15", optional = true }
 
+[dev-dependencies]
+env_logger = "0.5"
+
 [profile.release]
 lto = true
 opt-level = 3

@@ -66,6 +66,7 @@ where
 }
 
 pub(crate) struct ServerNewService<F: ServerServiceFactory> {
+    name: String,
     inner: F,
 }
 
@@ -73,12 +74,14 @@ impl<F> ServerNewService<F>
 where
     F: ServerServiceFactory,
 {
-    pub(crate) fn create(inner: F) -> Box<InternalServerServiceFactory> {
-        Box::new(Self { inner })
+    pub(crate) fn create(name: String, inner: F) -> Box<InternalServerServiceFactory> {
+        Box::new(Self { name, inner })
     }
 }
 
 pub(crate) trait InternalServerServiceFactory: Send {
+    fn name(&self) -> &str;
+
     fn clone_factory(&self) -> Box<InternalServerServiceFactory>;
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
@@ -88,8 +91,13 @@ impl<F> InternalServerServiceFactory for ServerNewService<F>
 where
     F: ServerServiceFactory,
 {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
     fn clone_factory(&self) -> Box<InternalServerServiceFactory> {
         Box::new(Self {
+            name: self.name.clone(),
             inner: self.inner.clone(),
         })
     }
@@ -103,6 +111,10 @@ where
 }
 
 impl InternalServerServiceFactory for Box<InternalServerServiceFactory> {
+    fn name(&self) -> &str {
+        self.as_ref().name()
+    }
+
     fn clone_factory(&self) -> Box<InternalServerServiceFactory> {
         self.as_ref().clone_factory()
     }
