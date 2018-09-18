@@ -141,7 +141,7 @@ pub trait NewServiceExt: NewService {
     fn from_err<E>(self) -> FromErrNewService<Self, E>
     where
         Self: Sized,
-        E: From<Self::Error> + From<Self::InitError>,
+        E: From<Self::Error>,
     {
         FromErrNewService::new(self)
     }

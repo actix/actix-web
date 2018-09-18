@@ -89,7 +89,7 @@ pub struct FromErrNewService<A, E> {
 impl<A, E> FromErrNewService<A, E>
 where
     A: NewService,
-    E: From<A::Error> + From<A::InitError>,
+    E: From<A::Error>,
 {
     /// Create new `FromErr` new service instance
     pub fn new(a: A) -> Self {
@@ -100,7 +100,7 @@ where
 impl<A, E> Clone for FromErrNewService<A, E>
 where
     A: NewService + Clone,
-    E: From<A::Error> + From<A::InitError>,
+    E: From<A::Error>,
 {
     fn clone(&self) -> Self {
         Self {
@@ -113,14 +113,14 @@ where
 impl<A, E> NewService for FromErrNewService<A, E>
 where
     A: NewService,
-    E: From<A::Error> + From<A::InitError>,
+    E: From<A::Error>,
 {
     type Request = A::Request;
     type Response = A::Response;
     type Error = E;
     type Service = FromErr<A::Service, E>;
 
-    type InitError = E;
+    type InitError = A::InitError;
     type Future = FromErrNewServiceFuture<A, E>;
 
     fn new_service(&self) -> Self::Future {
@@ -134,7 +134,7 @@ where
 pub struct FromErrNewServiceFuture<A, E>
 where
     A: NewService,
-    E: From<A::Error> + From<A::InitError>,
+    E: From<A::Error>,
 {
     fut: A::Future,
     e: PhantomData<E>,
@@ -143,10 +143,10 @@ where
 impl<A, E> Future for FromErrNewServiceFuture<A, E>
 where
     A: NewService,
-    E: From<A::Error> + From<A::InitError>,
+    E: From<A::Error>,
 {
     type Item = FromErr<A::Service, E>;
-    type Error = E;
+    type Error = A::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Async::Ready(service) = self.fut.poll()? {
