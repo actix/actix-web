@@ -93,7 +93,10 @@ where
     }
 }
 
-/// `MapErrNewService` new service combinator
+/// NewService for the `map_err` combinator, changing the type of a new
+/// service's error.
+///
+/// This is created by the `NewServiceExt::map_err` method.
 pub struct MapErrNewService<A, F, E> {
     a: A,
     f: F,

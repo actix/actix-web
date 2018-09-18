@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use futures::{Future, Poll};
+use futures::{Async, Future, Poll};
 
-use super::Service;
+use super::{NewService, Service};
 
 /// Service for the `from_err` combinator, changing the error type of a service.
 ///
@@ -77,12 +77,92 @@ where
     }
 }
 
+/// NewService for the `from_err` combinator, changing the type of a new
+/// service's error.
+///
+/// This is created by the `NewServiceExt::from_err` method.
+pub struct FromErrNewService<A, E> {
+    a: A,
+    e: PhantomData<E>,
+}
+
+impl<A, E> FromErrNewService<A, E>
+where
+    A: NewService,
+    E: From<A::Error> + From<A::InitError>,
+{
+    /// Create new `FromErr` new service instance
+    pub fn new(a: A) -> Self {
+        Self { a, e: PhantomData }
+    }
+}
+
+impl<A, E> Clone for FromErrNewService<A, E>
+where
+    A: NewService + Clone,
+    E: From<A::Error> + From<A::InitError>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            a: self.a.clone(),
+            e: PhantomData,
+        }
+    }
+}
+
+impl<A, E> NewService for FromErrNewService<A, E>
+where
+    A: NewService,
+    E: From<A::Error> + From<A::InitError>,
+{
+    type Request = A::Request;
+    type Response = A::Response;
+    type Error = E;
+    type Service = FromErr<A::Service, E>;
+
+    type InitError = E;
+    type Future = FromErrNewServiceFuture<A, E>;
+
+    fn new_service(&self) -> Self::Future {
+        FromErrNewServiceFuture {
+            fut: self.a.new_service(),
+            e: PhantomData,
+        }
+    }
+}
+
+pub struct FromErrNewServiceFuture<A, E>
+where
+    A: NewService,
+    E: From<A::Error> + From<A::InitError>,
+{
+    fut: A::Future,
+    e: PhantomData<E>,
+}
+
+impl<A, E> Future for FromErrNewServiceFuture<A, E>
+where
+    A: NewService,
+    E: From<A::Error> + From<A::InitError>,
+{
+    type Item = FromErr<A::Service, E>;
+    type Error = E;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Async::Ready(service) = self.fut.poll()? {
+            Ok(Async::Ready(FromErr::new(service)))
+        } else {
+            Ok(Async::NotReady)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use futures::future::{err, FutureResult};
 
     use super::*;
-    use service::{Service, ServiceExt};
+    use service::{IntoNewService, NewServiceExt, Service, ServiceExt};
 
     struct Srv;
     impl Service for Srv {
@@ -124,4 +204,18 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), Error);
     }
+
+    #[test]
+    fn test_new_service() {
+        let blank = || Ok::<_, ()>(Srv);
+        let new_srv = blank.into_new_service().from_err::<Error>();
+        if let Async::Ready(mut srv) = new_srv.new_service().poll().unwrap() {
+            let res = srv.call(()).poll();
+            assert!(res.is_err());
+            assert_eq!(res.err().unwrap(), Error);
+        } else {
+            panic!()
+        }
+    }
+
 }

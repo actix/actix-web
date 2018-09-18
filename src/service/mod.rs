@@ -16,7 +16,7 @@ pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::apply::{Apply, ApplyNewService};
 pub use self::fn_service::{FnNewService, FnService};
 pub use self::fn_state_service::{FnStateNewService, FnStateService};
-pub use self::from_err::FromErr;
+pub use self::from_err::{FromErr, FromErrNewService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
@@ -131,6 +131,19 @@ pub trait NewServiceExt: NewService {
         >,
     {
         AndThenNewService::new(self, new_service)
+    }
+
+    /// Map this service's error and new service's init error to any error
+    /// implementing `From` for this service`s `Error`.
+    ///
+    /// Note that this function consumes the receiving new service and returns a
+    /// wrapped version of it.
+    fn from_err<E>(self) -> FromErrNewService<Self, E>
+    where
+        Self: Sized,
+        E: From<Self::Error> + From<Self::InitError>,
+    {
+        FromErrNewService::new(self)
     }
 
     fn map<F, R>(self, f: F) -> MapNewService<Self, F, R>
