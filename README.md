@@ -47,14 +47,13 @@ fn main() {
             // in this case, on success we use `logger` service
             .and_then(logger)
 
-            // next service uses two components, service state and service function
-            // actix-net generates `NewService` impl that creates `ServiceState` instance for each new service
-            // and use `service` function as `Service::call`
-            .and_then((service, move || {
-                Ok(ServiceState { num: num.clone() })
-            }))
-            },
-        ).unwrap()
+            // Next service counts number of connections
+            .and_then(move |req| {
+                let num = num.fetch_add(1, Ordering::Relaxed);
+                println!("processed {:?} connections", num);
+                future::ok(())
+            })
+        }).unwrap()
         .start();
 
     sys.run();

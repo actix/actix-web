@@ -55,7 +55,11 @@ fn main() {
             openssl
                 .clone()
                 .map_err(|e| println!("Openssl error: {}", e))
-                .and_then((service, move || Ok(ServiceState { num: num.clone() })))
+                .and_then(move |_| {
+                    let num = num.fetch_add(1, Ordering::Relaxed);
+                    println!("got ssl connection {:?}", num);
+                    future::ok(())
+                })
         }).unwrap()
         .start();
 

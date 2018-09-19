@@ -32,22 +32,6 @@ fn logger<T: AsyncRead + AsyncWrite + fmt::Debug>(
     future::ok(stream)
 }
 
-/// Stateful service, counts number of connections, `ServiceState` is a state
-/// for the service
-#[derive(Debug)]
-struct ServiceState {
-    num: Arc<AtomicUsize>,
-}
-
-/// Service function for our stateful service
-fn service<T: AsyncRead + AsyncWrite>(
-    st: &mut ServiceState, _stream: T,
-) -> impl Future<Item = (), Error = ()> {
-    let num = st.num.fetch_add(1, Ordering::Relaxed);
-    println!("got ssl connection {:?}", num);
-    future::ok(())
-}
-
 fn main() {
     env::set_var("RUST_LOG", "actix_net=trace");
     env_logger::init();
@@ -89,11 +73,12 @@ fn main() {
                 // `Response` and then uses that response as an input for next
                 // service. in this case, on success we use `logger` service
                 .and_then(logger)
-                // next service uses two components, service state and service function
-                // actix-net generates `NewService` impl that creates `ServiceState` instance
-                // for each new service and use `service` function as
-                // `Service::call`
-                .and_then((service, move || Ok(ServiceState { num: num.clone() })))
+                // Next service counts number of connections
+                .and_then(move |_| {
+                    let num = num.fetch_add(1, Ordering::Relaxed);
+                    println!("got ssl connection {:?}", num);
+                    future::ok(())
+                })
             },
         ).unwrap()
         .start();
