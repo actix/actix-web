@@ -373,6 +373,16 @@ where
         Ok(Async::NotReady)
     }
 
+    fn push_response_entry(&mut self, status: StatusCode) {
+        self.tasks.push_back(Entry {
+            pipe: EntryPipe::Error(ServerError::err(
+                Version::HTTP_11,
+                status,
+            )),
+            flags: EntryFlags::empty(),
+        });
+    }
+
     pub fn parse(&mut self) {
         'outer: loop {
             match self.decoder.decode(&mut self.buf, &self.settings) {
@@ -439,13 +449,7 @@ where
                     }
 
                     // handler is not found
-                    self.tasks.push_back(Entry {
-                        pipe: EntryPipe::Error(ServerError::err(
-                            Version::HTTP_11,
-                            StatusCode::NOT_FOUND,
-                        )),
-                        flags: EntryFlags::empty(),
-                    });
+                    self.push_response_entry(StatusCode::NOT_FOUND);
                 }
                 Ok(Some(Message::Chunk(chunk))) => {
                     if let Some(ref mut payload) = self.payload {
@@ -453,6 +457,7 @@ where
                     } else {
                         error!("Internal server error: unexpected payload chunk");
                         self.flags.insert(Flags::ERROR);
+                        self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
                         break;
                     }
                 }
@@ -462,6 +467,7 @@ where
                     } else {
                         error!("Internal server error: unexpected eof");
                         self.flags.insert(Flags::ERROR);
+                        self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
                         break;
                     }
                 }
@@ -482,6 +488,9 @@ where
                         };
                         payload.set_error(e);
                     }
+
+                    //Malformed requests should be responded with 400
+                    self.push_response_entry(StatusCode::BAD_REQUEST);
                     break;
                 }
             }
@@ -660,6 +669,7 @@ mod tests {
         h1.poll_io();
         h1.poll_io();
         assert!(h1.flags.contains(Flags::ERROR));
+        assert_eq!(h1.tasks.len(), 1);
     }
 
     #[test]
