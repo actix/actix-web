@@ -60,9 +60,13 @@ pub mod connector;
 pub mod counter;
 pub mod framed;
 pub mod inflight;
+pub mod keepalive;
 pub mod resolver;
 pub mod server;
 pub mod service;
 pub mod ssl;
 pub mod stream;
-pub mod lowrestimer;
+pub mod timer;
+
+#[derive(Copy, Clone, Debug)]
+pub enum Never {}
