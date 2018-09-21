@@ -5,6 +5,7 @@
 ### Fixed
 
 * HTTP1 decoding errors are reported to the client. #512
+* Correctly compose multiple allowed origins in CORS. #517
 
 ## [0.7.8] - 2018-09-17
 
