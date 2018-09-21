@@ -244,6 +244,7 @@ macro_rules! FROM_STR {
     };
 }
 
+FROM_STR!(bool);
 FROM_STR!(u8);
 FROM_STR!(u16);
 FROM_STR!(u32);
