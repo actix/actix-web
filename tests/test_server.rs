@@ -11,6 +11,7 @@ extern crate rand;
 extern crate tokio;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
+extern crate tokio_current_thread as current_thread;
 
 use std::io::{Read, Write};
 use std::sync::Arc;
@@ -28,7 +29,6 @@ use h2::client as h2client;
 use modhttp::Request;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use tokio::executor::current_thread;
 use tokio::runtime::current_thread::Runtime;
 use tokio_tcp::TcpStream;
 

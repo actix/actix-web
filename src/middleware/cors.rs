@@ -826,8 +826,8 @@ impl<S: 'static> CorsBuilder<S> {
         if let AllOrSome::Some(ref origins) = cors.origins {
             let s = origins
                 .iter()
-                .fold(String::new(), |s, v| s + &v.to_string());
-            cors.origins_str = Some(HeaderValue::try_from(s.as_str()).unwrap());
+                .fold(String::new(), |s, v| format!("{}, {}", s, v));
+            cors.origins_str = Some(HeaderValue::try_from(&s[2..]).unwrap());
         }
 
         if !self.expose_hdrs.is_empty() {
@@ -1122,16 +1122,18 @@ mod tests {
         let cors = Cors::build()
             .disable_vary_header()
             .allowed_origin("https://www.example.com")
+            .allowed_origin("https://www.google.com")
             .finish();
         let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&req, resp).unwrap().response();
-        assert_eq!(
-            &b"https://www.example.com"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
-        );
+
+        let origins_str = resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().to_str().unwrap();
+
+        if origins_str.starts_with("https://www.example.com") {
+            assert_eq!("https://www.example.com, https://www.google.com", origins_str);
+        } else {
+            assert_eq!("https://www.google.com, https://www.example.com", origins_str);
+        }
     }
 
     #[test]
