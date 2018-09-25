@@ -60,7 +60,7 @@ where
     <U as Encoder>::Error: fmt::Debug + 'static,
 {
     type Request = Framed<T, U>;
-    type Response = FramedDispatcher<S::Service, T, U>;
+    type Response = FramedTransport<S::Service, T, U>;
     type Error = S::InitError;
     type InitError = S::InitError;
     type Service = FramedService<S, T, U>;
@@ -102,7 +102,7 @@ where
     <U as Encoder>::Error: fmt::Debug + 'static,
 {
     type Request = Framed<T, U>;
-    type Response = FramedDispatcher<S::Service, T, U>;
+    type Response = FramedTransport<S::Service, T, U>;
     type Error = S::InitError;
     type Future = FramedServiceResponseFuture<S, T, U>;
 
@@ -143,13 +143,13 @@ where
     <U as Encoder>::Item: fmt::Debug + 'static,
     <U as Encoder>::Error: fmt::Debug + 'static,
 {
-    type Item = FramedDispatcher<S::Service, T, U>;
+    type Item = FramedTransport<S::Service, T, U>;
     type Error = S::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll()? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(service) => Ok(Async::Ready(FramedDispatcher::new(
+            Async::Ready(service) => Ok(Async::Ready(FramedTransport::new(
                 self.framed.take().unwrap(),
                 service,
             ))),
@@ -157,9 +157,9 @@ where
     }
 }
 
-/// FramedDispatcher - is a future that reads frames from Framed object
+/// FramedTransport - is a future that reads frames from Framed object
 /// and pass then to the service.
-pub struct FramedDispatcher<S, T, U>
+pub struct FramedTransport<S, T, U>
 where
     S: Service,
     T: AsyncRead + AsyncWrite,
@@ -174,7 +174,7 @@ where
     flushed: bool,
 }
 
-impl<S, T, U> FramedDispatcher<S, T, U>
+impl<S, T, U> FramedTransport<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
@@ -186,7 +186,7 @@ where
 {
     pub fn new<F: IntoService<S>>(framed: Framed<T, U>, service: F) -> Self {
         let (write_tx, write_rx) = mpsc::channel(16);
-        FramedDispatcher {
+        FramedTransport {
             framed,
             item: None,
             service: service.into_service(),
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl<S, T, U> Future for FramedDispatcher<S, T, U>
+impl<S, T, U> Future for FramedTransport<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
