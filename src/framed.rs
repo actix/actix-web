@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use actix;
-use futures::future::{ok, Either, FutureResult};
+use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use tokio_codec::{Decoder, Encoder, Framed};
@@ -23,7 +23,7 @@ impl<S, T, U> FramedNewService<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: NewService<Request = Request<U>, Response = Option<Response<U>>> + Clone,
+    S: NewService<Request = Request<U>, Response = Response<U>> + Clone,
     <<S as NewService>::Service as Service>::Future: 'static,
     <<S as NewService>::Service as Service>::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -53,7 +53,7 @@ impl<S, T, U> NewService for FramedNewService<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: NewService<Request = Request<U>, Response = Option<Response<U>>> + Clone,
+    S: NewService<Request = Request<U>, Response = Response<U>> + Clone,
     <<S as NewService>::Service as Service>::Future: 'static,
     <<S as NewService>::Service as Service>::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -95,7 +95,7 @@ impl<S, T, U> Service for FramedService<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: NewService<Request = Request<U>, Response = Option<Response<U>>>,
+    S: NewService<Request = Request<U>, Response = Response<U>>,
     <<S as NewService>::Service as Service>::Future: 'static,
     <<S as NewService>::Service as Service>::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -124,7 +124,7 @@ pub struct FramedServiceResponseFuture<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: NewService<Request = Request<U>, Response = Option<Response<U>>>,
+    S: NewService<Request = Request<U>, Response = Response<U>>,
     <<S as NewService>::Service as Service>::Future: 'static,
     <<S as NewService>::Service as Service>::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -138,7 +138,7 @@ impl<S, T, U> Future for FramedServiceResponseFuture<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: NewService<Request = Request<U>, Response = Option<Response<U>>>,
+    S: NewService<Request = Request<U>, Response = Response<U>>,
     <<S as NewService>::Service as Service>::Future: 'static,
     <<S as NewService>::Service as Service>::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -194,7 +194,7 @@ impl<S, T, U> FramedTransport<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: Service<Request = Request<U>, Response = Option<Response<U>>>,
+    S: Service<Request = Request<U>, Response = Response<U>>,
     S::Future: 'static,
     S::Error: 'static,
     <U as Encoder>::Error: 'static,
@@ -218,7 +218,7 @@ impl<S, T, U> FramedTransport<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: Service<Request = Request<U>, Response = Option<Response<U>>>,
+    S: Service<Request = Request<U>, Response = Response<U>>,
     S::Future: 'static,
     S::Error: 'static,
     <U as Encoder>::Item: 'static,
@@ -234,17 +234,7 @@ where
                             Ok(Async::Ready(_)) => {
                                 let sender = self.write_tx.clone();
                                 actix::Arbiter::spawn(self.service.call(item).then(|item| {
-                                    let item = match item {
-                                        Ok(item) => {
-                                            if let Some(item) = item {
-                                                Ok(item)
-                                            } else {
-                                                return Either::B(ok(()));
-                                            }
-                                        }
-                                        Err(err) => Err(err),
-                                    };
-                                    Either::A(sender.send(item).map(|_| ()).map_err(|_| ()))
+                                    sender.send(item).map(|_| ()).map_err(|_| ())
                                 }));
                             }
                             Ok(Async::NotReady) => {
@@ -348,7 +338,7 @@ impl<S, T, U> Future for FramedTransport<S, T, U>
 where
     T: AsyncRead + AsyncWrite,
     U: Decoder + Encoder,
-    S: Service<Request = Request<U>, Response = Option<Response<U>>>,
+    S: Service<Request = Request<U>, Response = Response<U>>,
     S::Future: 'static,
     S::Error: 'static,
     <U as Encoder>::Item: 'static,
