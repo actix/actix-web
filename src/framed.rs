@@ -159,10 +159,10 @@ where
 }
 
 /// Framed transport errors
-pub enum FramedTransportError<S: Service, U: Encoder + Decoder> {
-    Decoder(<U as Decoder>::Error),
-    Encoder(<U as Encoder>::Error),
-    Service(S::Error),
+pub enum FramedTransportError<E1, E2, E3> {
+    Service(E1),
+    Encoder(E2),
+    Decoder(E3),
 }
 
 /// FramedTransport - is a future that reads frames from Framed object
@@ -185,8 +185,8 @@ where
 
 enum TransportState<S: Service, U: Encoder + Decoder> {
     Processing,
-    Error(FramedTransportError<S, U>),
-    EncoderError(FramedTransportError<S, U>),
+    Error(FramedTransportError<S::Error, <U as Encoder>::Error, <U as Decoder>::Error>),
+    EncoderError(FramedTransportError<S::Error, <U as Encoder>::Error, <U as Decoder>::Error>),
     Stopping,
 }
 
@@ -355,7 +355,7 @@ where
     <U as Encoder>::Error: 'static,
 {
     type Item = ();
-    type Error = FramedTransportError<S, U>;
+    type Error = FramedTransportError<S::Error, <U as Encoder>::Error, <U as Decoder>::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(&mut self.state, TransportState::Processing) {
