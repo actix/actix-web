@@ -11,6 +11,7 @@ pub mod cors;
 pub mod csrf;
 mod defaultheaders;
 mod errhandlers;
+pub mod etag;
 #[cfg(feature = "session")]
 pub mod identity;
 #[cfg(feature = "session")]
