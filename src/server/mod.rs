@@ -396,27 +396,29 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
             if buf.remaining_mut() < LW_BUFFER_SIZE {
                 buf.reserve(HW_BUFFER_SIZE);
             }
-            unsafe {
-                match self.read(buf.bytes_mut()) {
-                    Ok(n) => {
-                        if n == 0 {
-                            return Ok(Async::Ready((read_some, true)));
-                        } else {
-                            read_some = true;
+
+            let read = unsafe { self.read(buf.bytes_mut()) };
+            match read {
+                Ok(n) => {
+                    if n == 0 {
+                        return Ok(Async::Ready((read_some, true)));
+                    } else {
+                        read_some = true;
+                        unsafe {
                             buf.advance_mut(n);
                         }
                     }
-                    Err(e) => {
-                        return if e.kind() == io::ErrorKind::WouldBlock {
-                            if read_some {
-                                Ok(Async::Ready((read_some, false)))
-                            } else {
-                                Ok(Async::NotReady)
-                            }
+                }
+                Err(e) => {
+                    return if e.kind() == io::ErrorKind::WouldBlock {
+                        if read_some {
+                            Ok(Async::Ready((read_some, false)))
                         } else {
-                            Err(e)
-                        };
-                    }
+                            Ok(Async::NotReady)
+                        }
+                    } else {
+                        Err(e)
+                    };
                 }
             }
         }
