@@ -196,45 +196,49 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let mut pos = 0;
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
-            unsafe {
-                let mut buf = &mut *(buffer.bytes_mut() as *mut [u8]);
-                for (key, value) in msg.headers() {
-                    match *key {
-                        TRANSFER_ENCODING => continue,
-                        CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
-                            continue;
-                        },
-                        CONTENT_LENGTH => match info.length {
-                            ResponseLength::None => (),
-                            _ => continue,
-                        },
-                        DATE => {
-                            has_date = true;
-                        }
-                        _ => (),
+            let mut buf = unsafe { &mut *(buffer.bytes_mut() as *mut [u8]) };
+            for (key, value) in msg.headers() {
+                match *key {
+                    TRANSFER_ENCODING => continue,
+                    CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
+                        continue;
+                    },
+                    CONTENT_LENGTH => match info.length {
+                        ResponseLength::None => (),
+                        _ => continue,
+                    },
+                    DATE => {
+                        has_date = true;
                     }
+                    _ => (),
+                }
 
-                    let v = value.as_ref();
-                    let k = key.as_str().as_bytes();
-                    let len = k.len() + v.len() + 4;
-                    if len > remaining {
+                let v = value.as_ref();
+                let k = key.as_str().as_bytes();
+                let len = k.len() + v.len() + 4;
+                if len > remaining {
+                    unsafe {
                         buffer.advance_mut(pos);
-                        pos = 0;
-                        buffer.reserve(len);
-                        remaining = buffer.remaining_mut();
+                    }
+                    pos = 0;
+                    buffer.reserve(len);
+                    remaining = buffer.remaining_mut();
+                    unsafe {
                         buf = &mut *(buffer.bytes_mut() as *mut _);
                     }
-
-                    buf[pos..pos + k.len()].copy_from_slice(k);
-                    pos += k.len();
-                    buf[pos..pos + 2].copy_from_slice(b": ");
-                    pos += 2;
-                    buf[pos..pos + v.len()].copy_from_slice(v);
-                    pos += v.len();
-                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
-                    pos += 2;
-                    remaining -= len;
                 }
+
+                buf[pos..pos + k.len()].copy_from_slice(k);
+                pos += k.len();
+                buf[pos..pos + 2].copy_from_slice(b": ");
+                pos += 2;
+                buf[pos..pos + v.len()].copy_from_slice(v);
+                pos += v.len();
+                buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                pos += 2;
+                remaining -= len;
+            }
+            unsafe {
                 buffer.advance_mut(pos);
             }
 
