@@ -1127,12 +1127,23 @@ mod tests {
         let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&req, resp).unwrap().response();
 
-        let origins_str = resp.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).unwrap().to_str().unwrap();
+        let origins_str = resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         if origins_str.starts_with("https://www.example.com") {
-            assert_eq!("https://www.example.com, https://www.google.com", origins_str);
+            assert_eq!(
+                "https://www.example.com, https://www.google.com",
+                origins_str
+            );
         } else {
-            assert_eq!("https://www.google.com, https://www.example.com", origins_str);
+            assert_eq!(
+                "https://www.google.com, https://www.example.com",
+                origins_str
+            );
         }
     }
 

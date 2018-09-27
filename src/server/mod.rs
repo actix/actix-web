@@ -117,6 +117,7 @@ use tokio_tcp::TcpStream;
 
 pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
 
+pub(crate) mod builder;
 mod channel;
 mod error;
 pub(crate) mod h1;
@@ -130,6 +131,7 @@ mod http;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
+pub(crate) mod service;
 pub(crate) mod settings;
 mod ssl;
 

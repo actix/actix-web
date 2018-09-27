@@ -1,8 +1,8 @@
 //! Payload stream
 use bytes::{Bytes, BytesMut};
-use futures::task::Task;
 #[cfg(not(test))]
 use futures::task::current as current_task;
+use futures::task::Task;
 use futures::{Async, Poll, Stream};
 use std::cell::RefCell;
 use std::cmp;

@@ -10,9 +10,9 @@ extern crate http as modhttp;
 extern crate rand;
 extern crate tokio;
 extern crate tokio_current_thread;
+extern crate tokio_current_thread as current_thread;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
-extern crate tokio_current_thread as current_thread;
 
 use std::io::{Read, Write};
 use std::sync::Arc;

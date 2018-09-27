@@ -1,13 +1,10 @@
-use std::marker::PhantomData;
-use std::{io, mem, net, time};
+use std::{io, mem, net};
 
-use actix::{Actor, Addr, AsyncContext, Context, Handler, System};
-use actix_net::server::{Server, ServerServiceFactory};
-use actix_net::service::{NewService, NewServiceExt, Service};
+use actix::{Addr, System};
+use actix_net::server;
+use actix_net::service::NewService;
 use actix_net::ssl;
 
-use futures::future::{ok, FutureResult};
-use futures::{Async, Poll, Stream};
 use net2::TcpBuilder;
 use num_cpus;
 use tokio_tcp::TcpStream;
@@ -21,9 +18,9 @@ use openssl::ssl::SslAcceptorBuilder;
 //#[cfg(feature = "rust-tls")]
 //use rustls::ServerConfig;
 
-use super::channel::HttpChannel;
-use super::settings::{ServerSettings, WorkerSettings};
-use super::{HttpHandler, IntoHttpHandler, IoStream, KeepAlive};
+use super::builder::{AcceptorServiceFactory, HttpServiceBuilder, ServiceFactory};
+use super::builder::{DefaultAcceptor, DefaultPipelineFactory};
+use super::{IntoHttpHandler, IoStream, KeepAlive};
 
 struct Socket<H: IntoHttpHandler> {
     scheme: &'static str,
@@ -205,17 +202,16 @@ where
             lst,
             addr,
             scheme: "http",
-            handler: Box::new(SimpleFactory {
-                addr,
-                factory: self.factory.clone(),
-                pipeline: DefaultPipelineFactory {
+            handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
+                DefaultAcceptor,
+                DefaultPipelineFactory::new(
+                    self.factory.clone(),
+                    self.host.clone(),
                     addr,
-                    factory: self.factory.clone(),
-                    host: self.host.clone(),
-                    keep_alive: self.keep_alive,
-                    _t: PhantomData,
-                },
-            }),
+                    self.keep_alive,
+                ),
+            )),
         });
 
         self
@@ -239,6 +235,7 @@ where
             addr,
             scheme: "https",
             handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
                 acceptor,
                 DefaultPipelineFactory::new(
                     self.factory.clone(),
@@ -346,6 +343,7 @@ where
                 addr,
                 scheme: "https",
                 handler: Box::new(HttpServiceBuilder::new(
+                    self.factory.clone(),
                     acceptor.clone(),
                     DefaultPipelineFactory::new(
                         self.factory.clone(),
@@ -493,10 +491,10 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     ///    sys.run();  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> Addr<Server> {
+    pub fn start(mut self) -> Addr<server::Server> {
         ssl::max_concurrent_ssl_connect(self.maxconnrate);
 
-        let mut srv = Server::new()
+        let mut srv = server::Server::new()
             .workers(self.threads)
             .maxconn(self.maxconn)
             .shutdown_timeout(self.shutdown_timeout);
@@ -605,143 +603,6 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
 //     }
 // }
 
-struct HttpService<F, H, Io>
-where
-    F: Fn() -> H,
-    H: IntoHttpHandler,
-    Io: IoStream,
-{
-    factory: F,
-    addr: net::SocketAddr,
-    host: Option<String>,
-    keep_alive: KeepAlive,
-    _t: PhantomData<Io>,
-}
-
-impl<F, H, Io> NewService for HttpService<F, H, Io>
-where
-    F: Fn() -> H,
-    H: IntoHttpHandler,
-    Io: IoStream,
-{
-    type Request = Io;
-    type Response = ();
-    type Error = ();
-    type InitError = ();
-    type Service = HttpServiceHandler<H::Handler, Io>;
-    type Future = FutureResult<Self::Service, Self::Error>;
-
-    fn new_service(&self) -> Self::Future {
-        let s = ServerSettings::new(Some(self.addr), &self.host, false);
-        let app = (self.factory)().into_handler();
-
-        ok(HttpServiceHandler::new(app, self.keep_alive, s))
-    }
-}
-
-struct HttpServiceHandler<H, Io>
-where
-    H: HttpHandler,
-    Io: IoStream,
-{
-    settings: WorkerSettings<H>,
-    tcp_ka: Option<time::Duration>,
-    _t: PhantomData<Io>,
-}
-
-impl<H, Io> HttpServiceHandler<H, Io>
-where
-    H: HttpHandler,
-    Io: IoStream,
-{
-    fn new(
-        app: H, keep_alive: KeepAlive, settings: ServerSettings,
-    ) -> HttpServiceHandler<H, Io> {
-        let tcp_ka = if let KeepAlive::Tcp(val) = keep_alive {
-            Some(time::Duration::new(val as u64, 0))
-        } else {
-            None
-        };
-        let settings = WorkerSettings::new(app, keep_alive, settings);
-
-        HttpServiceHandler {
-            tcp_ka,
-            settings,
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<H, Io> Service for HttpServiceHandler<H, Io>
-where
-    H: HttpHandler,
-    Io: IoStream,
-{
-    type Request = Io;
-    type Response = ();
-    type Error = ();
-    type Future = HttpChannel<Io, H>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
-    }
-
-    fn call(&mut self, mut req: Self::Request) -> Self::Future {
-        let _ = req.set_nodelay(true);
-        HttpChannel::new(self.settings.clone(), req, None)
-    }
-
-    // fn shutdown(&self, force: bool) {
-    //     if force {
-    //         self.settings.head().traverse::<TcpStream, H>();
-    //     }
-    // }
-}
-
-trait ServiceFactory<H>
-where
-    H: IntoHttpHandler,
-{
-    fn register(&self, server: Server, lst: net::TcpListener) -> Server;
-}
-
-struct SimpleFactory<H, F, P>
-where
-    H: IntoHttpHandler,
-    F: Fn() -> H + Send + Clone,
-    P: HttpPipelineFactory<Io = TcpStream>,
-{
-    pub addr: net::SocketAddr,
-    pub factory: F,
-    pub pipeline: P,
-}
-
-impl<H: IntoHttpHandler, F, P> Clone for SimpleFactory<H, F, P>
-where
-    P: HttpPipelineFactory<Io = TcpStream>,
-    F: Fn() -> H + Send + Clone,
-{
-    fn clone(&self) -> Self {
-        SimpleFactory {
-            addr: self.addr,
-            factory: self.factory.clone(),
-            pipeline: self.pipeline.clone(),
-        }
-    }
-}
-
-impl<H, F, P> ServiceFactory<H> for SimpleFactory<H, F, P>
-where
-    H: IntoHttpHandler + 'static,
-    F: Fn() -> H + Send + Clone + 'static,
-    P: HttpPipelineFactory<Io = TcpStream>,
-{
-    fn register(&self, server: Server, lst: net::TcpListener) -> Server {
-        let pipeline = self.pipeline.clone();
-        server.listen(lst, move || pipeline.create())
-    }
-}
-
 fn create_tcp_listener(
     addr: net::SocketAddr, backlog: i32,
 ) -> io::Result<net::TcpListener> {
@@ -752,184 +613,4 @@ fn create_tcp_listener(
     builder.reuse_address(true)?;
     builder.bind(addr)?;
     Ok(builder.listen(backlog)?)
-}
-
-pub struct HttpServiceBuilder<H, A, P> {
-    acceptor: A,
-    pipeline: P,
-    t: PhantomData<H>,
-}
-
-impl<H, A, P> HttpServiceBuilder<H, A, P>
-where
-    A: AcceptorServiceFactory,
-    P: HttpPipelineFactory<Io = A::Io>,
-    H: IntoHttpHandler,
-{
-    pub fn new(acceptor: A, pipeline: P) -> Self {
-        Self {
-            acceptor,
-            pipeline,
-            t: PhantomData,
-        }
-    }
-
-    pub fn acceptor<A1>(self, acceptor: A1) -> HttpServiceBuilder<H, A1, P>
-    where
-        A1: AcceptorServiceFactory,
-    {
-        HttpServiceBuilder {
-            acceptor,
-            pipeline: self.pipeline,
-            t: PhantomData,
-        }
-    }
-
-    pub fn pipeline<P1>(self, pipeline: P1) -> HttpServiceBuilder<H, A, P1>
-    where
-        P1: HttpPipelineFactory,
-    {
-        HttpServiceBuilder {
-            pipeline,
-            acceptor: self.acceptor,
-            t: PhantomData,
-        }
-    }
-
-    fn finish(&self) -> impl ServerServiceFactory {
-        let acceptor = self.acceptor.clone();
-        let pipeline = self.pipeline.clone();
-
-        move || acceptor.create().and_then(pipeline.create())
-    }
-}
-
-impl<H, A, P> ServiceFactory<H> for HttpServiceBuilder<H, A, P>
-where
-    A: AcceptorServiceFactory,
-    P: HttpPipelineFactory<Io = A::Io>,
-    H: IntoHttpHandler,
-{
-    fn register(&self, server: Server, lst: net::TcpListener) -> Server {
-        server.listen(lst, self.finish())
-    }
-}
-
-pub trait AcceptorServiceFactory: Send + Clone + 'static {
-    type Io: IoStream + Send;
-    type NewService: NewService<
-        Request = TcpStream,
-        Response = Self::Io,
-        Error = (),
-        InitError = (),
-    >;
-
-    fn create(&self) -> Self::NewService;
-}
-
-impl<F, T> AcceptorServiceFactory for F
-where
-    F: Fn() -> T + Send + Clone + 'static,
-    T::Response: IoStream + Send,
-    T: NewService<Request = TcpStream, Error = (), InitError = ()>,
-{
-    type Io = T::Response;
-    type NewService = T;
-
-    fn create(&self) -> T {
-        (self)()
-    }
-}
-
-pub trait HttpPipelineFactory: Send + Clone + 'static {
-    type Io: IoStream;
-    type NewService: NewService<
-        Request = Self::Io,
-        Response = (),
-        Error = (),
-        InitError = (),
-    >;
-
-    fn create(&self) -> Self::NewService;
-}
-
-impl<F, T> HttpPipelineFactory for F
-where
-    F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Response = (), Error = (), InitError = ()>,
-    T::Request: IoStream,
-{
-    type Io = T::Request;
-    type NewService = T;
-
-    fn create(&self) -> T {
-        (self)()
-    }
-}
-
-struct DefaultPipelineFactory<F, H, Io>
-where
-    F: Fn() -> H + Send + Clone,
-{
-    factory: F,
-    host: Option<String>,
-    addr: net::SocketAddr,
-    keep_alive: KeepAlive,
-    _t: PhantomData<Io>,
-}
-
-impl<F, H, Io> DefaultPipelineFactory<F, H, Io>
-where
-    Io: IoStream + Send,
-    F: Fn() -> H + Send + Clone + 'static,
-    H: IntoHttpHandler + 'static,
-{
-    fn new(
-        factory: F, host: Option<String>, addr: net::SocketAddr, keep_alive: KeepAlive,
-    ) -> Self {
-        Self {
-            factory,
-            addr,
-            keep_alive,
-            host,
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<F, H, Io> Clone for DefaultPipelineFactory<F, H, Io>
-where
-    Io: IoStream,
-    F: Fn() -> H + Send + Clone,
-    H: IntoHttpHandler,
-{
-    fn clone(&self) -> Self {
-        Self {
-            factory: self.factory.clone(),
-            addr: self.addr,
-            keep_alive: self.keep_alive,
-            host: self.host.clone(),
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<F, H, Io> HttpPipelineFactory for DefaultPipelineFactory<F, H, Io>
-where
-    Io: IoStream + Send,
-    F: Fn() -> H + Send + Clone + 'static,
-    H: IntoHttpHandler + 'static,
-{
-    type Io = Io;
-    type NewService = HttpService<F, H, Io>;
-
-    fn create(&self) -> Self::NewService {
-        HttpService {
-            addr: self.addr,
-            keep_alive: self.keep_alive,
-            host: self.host.clone(),
-            factory: self.factory.clone(),
-            _t: PhantomData,
-        }
-    }
 }

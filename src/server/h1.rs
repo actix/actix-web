@@ -89,8 +89,8 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: WorkerSettings<H>, stream: T, addr: Option<SocketAddr>,
-        buf: BytesMut, is_eof: bool, keepalive_timer: Option<Delay>,
+        settings: WorkerSettings<H>, stream: T, addr: Option<SocketAddr>, buf: BytesMut,
+        is_eof: bool, keepalive_timer: Option<Delay>,
     ) -> Self {
         Http1 {
             flags: if is_eof {
@@ -379,10 +379,7 @@ where
 
     fn push_response_entry(&mut self, status: StatusCode) {
         self.tasks.push_back(Entry {
-            pipe: EntryPipe::Error(ServerError::err(
-                Version::HTTP_11,
-                status,
-            )),
+            pipe: EntryPipe::Error(ServerError::err(Version::HTTP_11, status)),
             flags: EntryFlags::empty(),
         });
     }
