@@ -98,6 +98,7 @@ where
     }
 }
 
+/// This trait indicates types that can create acceptor service for http server.
 pub trait AcceptorServiceFactory: Send + Clone + 'static {
     type Io: IoStream + Send;
     type NewService: NewService<
@@ -217,6 +218,7 @@ where
 }
 
 #[derive(Clone)]
+/// Default acceptor service convert `TcpStream` to a `tokio_tcp::TcpStream`
 pub(crate) struct DefaultAcceptor;
 
 impl AcceptorServiceFactory for DefaultAcceptor {

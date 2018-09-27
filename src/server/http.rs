@@ -268,6 +268,7 @@ where
         mut self, lst: net::TcpListener, builder: SslAcceptorBuilder,
     ) -> io::Result<Self> {
         use super::{openssl_acceptor_with_flags, ServerFlags};
+        use actix_net::service::NewServiceExt;
 
         let flags = if self.no_http2 {
             ServerFlags::HTTP1
@@ -283,6 +284,7 @@ where
             addr,
             scheme: "https",
             handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
                 move || ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ()),
                 DefaultPipelineFactory::new(
                     self.factory.clone(),
@@ -411,6 +413,7 @@ where
         S: net::ToSocketAddrs,
     {
         use super::{openssl_acceptor_with_flags, ServerFlags};
+        use actix_net::service::NewServiceExt;
 
         let sockets = self.bind2(addr)?;
 
@@ -431,6 +434,7 @@ where
                 addr,
                 scheme: "https",
                 handler: Box::new(HttpServiceBuilder::new(
+                    self.factory.clone(),
                     move || ssl::OpensslAcceptor::new(accpt.clone()).map_err(|_| ()),
                     DefaultPipelineFactory::new(
                         self.factory.clone(),

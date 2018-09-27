@@ -513,9 +513,7 @@ mod tests {
     use std::{cmp, io, time};
 
     use bytes::{Buf, Bytes, BytesMut};
-    use futures::future;
     use http::{Method, Version};
-    use tokio::runtime::current_thread;
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
