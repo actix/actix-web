@@ -12,7 +12,7 @@ use actix::msgs::StopArbiter;
 use actix::{Arbiter, Message};
 
 use super::accept::AcceptNotify;
-use super::services::{BoxedServerService, InternalServerServiceFactory, ServerMessage};
+use super::services::{BoxedServerService, InternalServiceFactory, ServerMessage};
 use super::Token;
 use counter::Counter;
 
@@ -20,7 +20,7 @@ pub(crate) enum WorkerCommand {
     Message(Conn),
     /// Stop worker message. Returns `true` on successful shutdown
     /// and `false` if some connections still alive.
-    Stop(Option<time::Duration>, oneshot::Sender<bool>),
+    Stop(bool, oneshot::Sender<bool>),
 }
 
 #[derive(Debug, Message)]
@@ -79,7 +79,7 @@ impl WorkerClient {
         self.avail.available()
     }
 
-    pub fn stop(&self, graceful: Option<time::Duration>) -> oneshot::Receiver<bool> {
+    pub fn stop(&self, graceful: bool) -> oneshot::Receiver<bool> {
         let (tx, rx) = oneshot::channel();
         let _ = self.tx.unbounded_send(WorkerCommand::Stop(graceful, tx));
         rx
@@ -121,20 +121,22 @@ pub(crate) struct Worker {
     services: Vec<BoxedServerService>,
     availability: WorkerAvailability,
     conns: Counter,
-    factories: Vec<Box<InternalServerServiceFactory>>,
+    factories: Vec<Box<InternalServiceFactory>>,
     state: WorkerState,
+    shutdown_timeout: time::Duration,
 }
 
 impl Worker {
     pub(crate) fn start(
-        rx: UnboundedReceiver<WorkerCommand>,
-        factories: Vec<Box<InternalServerServiceFactory>>, availability: WorkerAvailability,
+        rx: UnboundedReceiver<WorkerCommand>, factories: Vec<Box<InternalServiceFactory>>,
+        availability: WorkerAvailability, shutdown_timeout: time::Duration,
     ) {
         availability.set(false);
         let mut wrk = MAX_CONNS_COUNTER.with(|conns| Worker {
             rx,
             availability,
             factories,
+            shutdown_timeout,
             services: Vec::new(),
             conns: conns.clone(),
             state: WorkerState::Unavailable(Vec::new()),
@@ -159,11 +161,12 @@ impl Worker {
     fn shutdown(&mut self, force: bool) {
         if force {
             self.services.iter_mut().for_each(|h| {
-                h.call(ServerMessage::ForceShutdown);
+                let _ = h.call((None, ServerMessage::ForceShutdown));
             });
         } else {
-            self.services.iter_mut().for_each(|h| {
-                h.call(ServerMessage::Shutdown);
+            let timeout = self.shutdown_timeout;
+            self.services.iter_mut().for_each(move |h| {
+                let _ = h.call((None, ServerMessage::Shutdown(timeout.clone())));
             });
         }
     }
@@ -222,14 +225,8 @@ impl Future for Worker {
                             match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
-                                    spawn(
-                                        self.services[msg.handler.0]
-                                            .call(ServerMessage::Connect(msg.io))
-                                            .map(|val| {
-                                                drop(guard);
-                                                val
-                                            }),
-                                    )
+                                    let _ = self.services[msg.handler.0]
+                                        .call((Some(guard), ServerMessage::Connect(msg.io)));
                                 }
                                 Ok(false) => {
                                     trace!("Worker is unavailable");
@@ -324,14 +321,8 @@ impl Future for Worker {
                             match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
-                                    spawn(
-                                        self.services[msg.handler.0]
-                                            .call(ServerMessage::Connect(msg.io))
-                                            .map(|val| {
-                                                drop(guard);
-                                                val
-                                            }),
-                                    );
+                                    let _ = self.services[msg.handler.0]
+                                        .call((Some(guard), ServerMessage::Connect(msg.io)));
                                     continue;
                                 }
                                 Ok(false) => {
@@ -361,14 +352,14 @@ impl Future for Worker {
                                 info!("Shutting down worker, 0 connections");
                                 let _ = tx.send(true);
                                 return Ok(Async::Ready(()));
-                            } else if let Some(dur) = graceful {
+                            } else if graceful {
                                 self.shutdown(false);
                                 let num = num_connections();
                                 if num != 0 {
                                     info!("Graceful worker shutdown, {} connections", num);
                                     break Some(WorkerState::Shutdown(
                                         sleep(time::Duration::from_secs(1)),
-                                        sleep(dur),
+                                        sleep(self.shutdown_timeout),
                                         tx,
                                     ));
                                 } else {

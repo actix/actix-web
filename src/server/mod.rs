@@ -8,7 +8,7 @@ mod services;
 mod worker;
 
 pub use self::server::Server;
-pub use self::services::ServerServiceFactory;
+pub use self::services::{ServerMessage, ServiceFactory, StreamServiceFactory};
 
 /// Pause accepting incoming connections
 ///

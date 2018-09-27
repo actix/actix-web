@@ -12,7 +12,8 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::services::{InternalServerServiceFactory, ServerNewService, ServerServiceFactory};
+use super::services::{InternalServiceFactory, StreamNewService, StreamServiceFactory};
+use super::services::{ServiceFactory, ServiceNewService};
 use super::worker::{self, Worker, WorkerAvailability, WorkerClient};
 use super::{PauseServer, ResumeServer, StopServer, Token};
 
@@ -24,11 +25,11 @@ pub(crate) enum ServerCommand {
 pub struct Server {
     threads: usize,
     workers: Vec<(usize, WorkerClient)>,
-    services: Vec<Box<InternalServerServiceFactory>>,
+    services: Vec<Box<InternalServiceFactory>>,
     sockets: Vec<(Token, net::TcpListener)>,
     accept: AcceptLoop,
     exit: bool,
-    shutdown_timeout: u16,
+    shutdown_timeout: Duration,
     signals: Option<Addr<signal::ProcessSignals>>,
     no_signals: bool,
 }
@@ -49,7 +50,7 @@ impl Server {
             sockets: Vec::new(),
             accept: AcceptLoop::new(),
             exit: false,
-            shutdown_timeout: 30,
+            shutdown_timeout: Duration::from_secs(30),
             signals: None,
             no_signals: false,
         }
@@ -96,7 +97,7 @@ impl Server {
         self
     }
 
-    /// Timeout for graceful workers shutdown.
+    /// Timeout for graceful workers shutdown in seconds.
     ///
     /// After receiving a stop signal, workers have this much time to finish
     /// serving requests. Workers still alive after the timeout are force
@@ -104,7 +105,7 @@ impl Server {
     ///
     /// By default shutdown timeout sets to 30 seconds.
     pub fn shutdown_timeout(mut self, sec: u16) -> Self {
-        self.shutdown_timeout = sec;
+        self.shutdown_timeout = Duration::from_secs(u64::from(sec));
         self
     }
 
@@ -123,7 +124,7 @@ impl Server {
     /// Add new service to server
     pub fn bind<F, U, N: AsRef<str>>(mut self, name: N, addr: U, factory: F) -> io::Result<Self>
     where
-        F: ServerServiceFactory,
+        F: StreamServiceFactory,
         U: net::ToSocketAddrs,
     {
         let sockets = bind_addr(addr)?;
@@ -139,11 +140,27 @@ impl Server {
         mut self, name: N, lst: net::TcpListener, factory: F,
     ) -> Self
     where
-        F: ServerServiceFactory,
+        F: StreamServiceFactory,
     {
         let token = Token(self.services.len());
         self.services
-            .push(ServerNewService::create(name.as_ref().to_string(), factory));
+            .push(StreamNewService::create(name.as_ref().to_string(), factory));
+        self.sockets.push((token, lst));
+        self
+    }
+
+    /// Add new service to server
+    pub fn listen2<F, N: AsRef<str>>(
+        mut self, name: N, lst: net::TcpListener, factory: F,
+    ) -> Self
+    where
+        F: ServiceFactory,
+    {
+        let token = Token(self.services.len());
+        self.services.push(ServiceNewService::create(
+            name.as_ref().to_string(),
+            factory,
+        ));
         self.sockets.push((token, lst));
         self
     }
@@ -227,13 +244,14 @@ impl Server {
 
     fn start_worker(&self, idx: usize, notify: AcceptNotify) -> WorkerClient {
         let (tx, rx) = unbounded();
+        let timeout = self.shutdown_timeout;
         let avail = WorkerAvailability::new(notify);
         let worker = WorkerClient::new(idx, tx, avail.clone());
-        let services: Vec<Box<InternalServerServiceFactory>> =
+        let services: Vec<Box<InternalServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
-        Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(|| {
-            Worker::start(rx, services, avail);
+        Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(move || {
+            Worker::start(rx, services, avail, timeout.clone());
             Ok::<_, ()>(())
         }));
 
@@ -299,17 +317,12 @@ impl Handler<StopServer> for Server {
         // stop workers
         let (tx, rx) = mpsc::channel(1);
 
-        let dur = if msg.graceful {
-            Some(Duration::new(u64::from(self.shutdown_timeout), 0))
-        } else {
-            None
-        };
         for worker in &self.workers {
             let tx2 = tx.clone();
             ctx.spawn(
                 worker
                     .1
-                    .stop(dur)
+                    .stop(msg.graceful)
                     .into_actor(self)
                     .then(move |_, slf, ctx| {
                         slf.workers.pop();

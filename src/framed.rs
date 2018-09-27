@@ -233,29 +233,18 @@ where
     fn poll_service(&mut self) -> bool {
         match self.service.poll_ready() {
             Ok(Async::Ready(_)) => {
-                let mut item = self.request.take();
+                if let Some(item) = self.request.take() {
+                    let sender = self.write_tx.clone();
+                    actix::Arbiter::spawn(
+                        self.service
+                            .call(item)
+                            .then(|item| sender.send(item).map(|_| ()).map_err(|_| ())),
+                    );
+                }
+
                 loop {
-                    if let Some(item) = item {
-                        match self.service.poll_ready() {
-                            Ok(Async::Ready(_)) => {
-                                let sender = self.write_tx.clone();
-                                actix::Arbiter::spawn(self.service.call(item).then(|item| {
-                                    sender.send(item).map(|_| ()).map_err(|_| ())
-                                }));
-                            }
-                            Ok(Async::NotReady) => {
-                                self.request = Some(item);
-                                return false;
-                            }
-                            Err(err) => {
-                                self.state =
-                                    TransportState::Error(FramedTransportError::Service(err));
-                                return true;
-                            }
-                        }
-                    }
-                    match self.framed.poll() {
-                        Ok(Async::Ready(Some(el))) => item = Some(el),
+                    let item = match self.framed.poll() {
+                        Ok(Async::Ready(Some(el))) => el,
                         Err(err) => {
                             self.state =
                                 TransportState::Error(FramedTransportError::Decoder(err));
@@ -264,6 +253,26 @@ where
                         Ok(Async::NotReady) => return false,
                         Ok(Async::Ready(None)) => {
                             self.state = TransportState::Stopping;
+                            return true;
+                        }
+                    };
+
+                    match self.service.poll_ready() {
+                        Ok(Async::Ready(_)) => {
+                            let sender = self.write_tx.clone();
+                            actix::Arbiter::spawn(
+                                self.service
+                                    .call(item)
+                                    .then(|item| sender.send(item).map(|_| ()).map_err(|_| ())),
+                            );
+                        }
+                        Ok(Async::NotReady) => {
+                            self.request = Some(item);
+                            return false;
+                        }
+                        Err(err) => {
+                            self.state =
+                                TransportState::Error(FramedTransportError::Service(err));
                             return true;
                         }
                     }
