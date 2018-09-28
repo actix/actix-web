@@ -12,8 +12,11 @@ use service::{NewService, Service};
 
 /// Server message
 pub enum ServerMessage {
+    /// New stream
     Connect(net::TcpStream),
+    /// Gracefull shutdown
     Shutdown(Duration),
+    /// Force shutdown
     ForceShutdown,
 }
 
@@ -217,6 +220,18 @@ impl InternalServiceFactory for Box<InternalServiceFactory> {
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
         self.as_ref().create()
+    }
+}
+
+impl<F, T> ServiceFactory for F
+where
+    F: Fn() -> T + Send + Clone + 'static,
+    T: NewService<Request = ServerMessage, Response = (), Error = (), InitError = ()>,
+{
+    type NewService = T;
+
+    fn create(&self) -> T {
+        (self)()
     }
 }
 

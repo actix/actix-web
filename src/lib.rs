@@ -58,6 +58,7 @@ extern crate webpki_roots;
 pub mod cloneable;
 pub mod connector;
 pub mod counter;
+pub mod either;
 pub mod framed;
 pub mod inflight;
 pub mod keepalive;
