@@ -295,12 +295,7 @@ where
             handler: Box::new(HttpServiceBuilder::new(
                 self.factory.clone(),
                 move || ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ()),
-                DefaultPipelineFactory::new(
-                    self.factory.clone(),
-                    self.host.clone(),
-                    addr,
-                    self.keep_alive,
-                ),
+                DefaultPipelineFactory::new(),
             )),
         });
 
@@ -440,12 +435,7 @@ where
                 handler: Box::new(HttpServiceBuilder::new(
                     self.factory.clone(),
                     move || ssl::OpensslAcceptor::new(accpt.clone()).map_err(|_| ()),
-                    DefaultPipelineFactory::new(
-                        self.factory.clone(),
-                        self.host.clone(),
-                        addr,
-                        self.keep_alive,
-                    ),
+                    DefaultPipelineFactory::new(),
                 )),
             });
         }
