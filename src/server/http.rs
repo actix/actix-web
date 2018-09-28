@@ -20,14 +20,14 @@ use openssl::ssl::SslAcceptorBuilder;
 
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
 use super::builder::DefaultPipelineFactory;
-use super::builder::{HttpServiceBuilder, ServiceFactory};
+use super::builder::{HttpServiceBuilder, ServiceProvider};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
 
-struct Socket<H: IntoHttpHandler> {
+struct Socket {
     scheme: &'static str,
     lst: net::TcpListener,
     addr: net::SocketAddr,
-    handler: Box<ServiceFactory<H>>,
+    handler: Box<ServiceProvider>,
 }
 
 /// An HTTP Server
@@ -52,7 +52,7 @@ where
     maxconn: usize,
     maxconnrate: usize,
     client_timeout: usize,
-    sockets: Vec<Socket<H>>,
+    sockets: Vec<Socket>,
 }
 
 impl<H, F> HttpServer<H, F>

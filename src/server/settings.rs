@@ -330,8 +330,12 @@ mod tests {
         let mut rt = current_thread::Runtime::new().unwrap();
 
         let _ = rt.block_on(future::lazy(|| {
-            let settings =
-                WorkerSettings::<()>::new((), KeepAlive::Os, ServerSettings::default());
+            let settings = WorkerSettings::<()>::new(
+                (),
+                KeepAlive::Os,
+                0,
+                ServerSettings::default(),
+            );
             let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
             settings.set_date(&mut buf1, true);
             let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);

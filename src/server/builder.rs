@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::net;
 
 use actix_net::either::Either;
-use actix_net::server;
+use actix_net::server::{Server, ServiceFactory};
 use actix_net::service::{NewService, NewServiceExt};
 
 use super::acceptor::{AcceptorServiceFactory, AcceptorTimeout, TcpAcceptor};
@@ -11,14 +11,11 @@ use super::service::HttpService;
 use super::settings::{ServerSettings, WorkerSettings};
 use super::{IoStream, KeepAlive};
 
-pub(crate) trait ServiceFactory<H>
-where
-    H: IntoHttpHandler,
-{
+pub(crate) trait ServiceProvider {
     fn register(
-        &self, server: server::Server, lst: net::TcpListener, host: Option<String>,
+        &self, server: Server, lst: net::TcpListener, host: Option<String>,
         addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: usize,
-    ) -> server::Server;
+    ) -> Server;
 }
 
 pub struct HttpServiceBuilder<F, H, A, P>
@@ -73,7 +70,7 @@ where
     fn finish(
         &self, host: Option<String>, addr: net::SocketAddr, keep_alive: KeepAlive,
         client_timeout: usize,
-    ) -> impl server::ServiceFactory {
+    ) -> impl ServiceFactory {
         let factory = self.factory.clone();
         let pipeline = self.pipeline.clone();
         let acceptor = self.acceptor.clone();
@@ -119,7 +116,7 @@ where
     }
 }
 
-impl<F, H, A, P> ServiceFactory<H> for HttpServiceBuilder<F, H, A, P>
+impl<F, H, A, P> ServiceProvider for HttpServiceBuilder<F, H, A, P>
 where
     F: Fn() -> H + Send + Clone + 'static,
     A: AcceptorServiceFactory,
@@ -127,9 +124,9 @@ where
     H: IntoHttpHandler,
 {
     fn register(
-        &self, server: server::Server, lst: net::TcpListener, host: Option<String>,
+        &self, server: Server, lst: net::TcpListener, host: Option<String>,
         addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: usize,
-    ) -> server::Server {
+    ) -> Server {
         server.listen2(
             "actix-web",
             lst,

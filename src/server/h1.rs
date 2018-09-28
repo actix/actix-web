@@ -528,6 +528,7 @@ mod tests {
         WorkerSettings::<HttpApplication>::new(
             App::new().into_handler(),
             KeepAlive::Os,
+            5000,
             ServerSettings::default(),
         )
     }
