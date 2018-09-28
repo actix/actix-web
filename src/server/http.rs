@@ -219,11 +219,13 @@ where
             lst,
             addr,
             scheme: "http",
-            handler: Box::new(HttpServiceBuilder::new(
-                self.factory.clone(),
-                DefaultAcceptor,
-                DefaultPipelineFactory::new(),
-            )),
+            handler: Box::new(
+                HttpServiceBuilder::new(
+                    self.factory.clone(),
+                    DefaultAcceptor,
+                    DefaultPipelineFactory::new(),
+                ).no_client_timer(),
+            ),
         });
 
         self

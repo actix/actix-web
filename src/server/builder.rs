@@ -18,6 +18,7 @@ pub(crate) trait ServiceProvider {
     ) -> Server;
 }
 
+/// Utility type that builds complete http pipeline
 pub struct HttpServiceBuilder<F, H, A, P>
 where
     F: Fn() -> H + Send + Clone,
@@ -25,6 +26,7 @@ where
     factory: F,
     acceptor: A,
     pipeline: P,
+    no_client_timer: bool,
 }
 
 impl<F, H, A, P> HttpServiceBuilder<F, H, A, P>
@@ -40,7 +42,13 @@ where
             factory,
             pipeline,
             acceptor,
+            no_client_timer: false,
         }
+    }
+
+    pub(crate) fn no_client_timer(mut self) -> Self {
+        self.no_client_timer = true;
+        self
     }
 
     /// Use different acceptor factory
@@ -52,6 +60,7 @@ where
             acceptor,
             pipeline: self.pipeline,
             factory: self.factory.clone(),
+            no_client_timer: self.no_client_timer,
         }
     }
 
@@ -64,6 +73,7 @@ where
             pipeline,
             acceptor: self.acceptor,
             factory: self.factory.clone(),
+            no_client_timer: self.no_client_timer,
         }
     }
 
@@ -71,6 +81,11 @@ where
         &self, host: Option<String>, addr: net::SocketAddr, keep_alive: KeepAlive,
         client_timeout: usize,
     ) -> impl ServiceFactory {
+        let timeout = if self.no_client_timer {
+            0
+        } else {
+            client_timeout
+        };
         let factory = self.factory.clone();
         let pipeline = self.pipeline.clone();
         let acceptor = self.acceptor.clone();
@@ -79,11 +94,11 @@ where
             let settings = WorkerSettings::new(
                 app,
                 keep_alive,
-                client_timeout as u64,
+                timeout as u64,
                 ServerSettings::new(Some(addr), &host, false),
             );
 
-            if client_timeout == 0 {
+            if timeout == 0 {
                 Either::A(TcpAcceptor::new(
                     settings.clone(),
                     acceptor.create().and_then(pipeline.create(settings)),
@@ -91,7 +106,7 @@ where
             } else {
                 Either::B(TcpAcceptor::new(
                     settings.clone(),
-                    AcceptorTimeout::new(client_timeout, acceptor.create())
+                    AcceptorTimeout::new(timeout, acceptor.create())
                         .map_err(|_| ())
                         .and_then(pipeline.create(settings)),
                 ))
@@ -112,6 +127,7 @@ where
             factory: self.factory.clone(),
             acceptor: self.acceptor.clone(),
             pipeline: self.pipeline.clone(),
+            no_client_timer: self.no_client_timer,
         }
     }
 }
