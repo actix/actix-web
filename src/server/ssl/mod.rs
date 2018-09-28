@@ -1,7 +1,7 @@
 #[cfg(any(feature = "alpn", feature = "ssl"))]
 mod openssl;
 #[cfg(any(feature = "alpn", feature = "ssl"))]
-pub use self::openssl::*;
+pub use self::openssl::{openssl_acceptor_with_flags, OpensslAcceptor};
 
 #[cfg(feature = "tls")]
 mod nativetls;

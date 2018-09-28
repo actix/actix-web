@@ -520,6 +520,21 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
         self.start();
         sys.run();
     }
+
+    /// Register current http server as actix-net's server service
+    pub fn register(self, mut srv: Server) -> Server {
+        for socket in self.sockets {
+            srv = socket.handler.register(
+                srv,
+                socket.lst,
+                self.host.clone(),
+                socket.addr,
+                self.keep_alive.clone(),
+                self.client_timeout,
+            );
+        }
+        srv
+    }
 }
 
 fn create_tcp_listener(

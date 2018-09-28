@@ -1,14 +1,34 @@
 use std::net::Shutdown;
 use std::{io, time};
 
+use actix_net::ssl;
 use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslStream;
 
 use server::{IoStream, ServerFlags};
 
-/// Configure `SslAcceptorBuilder` with enabled `HTTP/2` and `HTTP1.1` support.
-pub fn openssl_acceptor(builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
-    openssl_acceptor_with_flags(builder, ServerFlags::HTTP1 | ServerFlags::HTTP2)
+/// Support `SSL` connections via openssl package
+///
+/// `ssl` feature enables `OpensslAcceptor` type
+pub struct OpensslAcceptor<T> {
+    _t: ssl::OpensslAcceptor<T>,
+}
+
+impl<T: AsyncRead + AsyncWrite> OpensslAcceptor<T> {
+    /// Create `OpensslAcceptor` with enabled `HTTP/2` and `HTTP1.1` support.
+    pub fn new(builder: SslAcceptorBuilder) -> io::Result<ssl::OpensslAcceptor<T>> {
+        OpensslAcceptor::with_flags(builder, ServerFlags::HTTP1 | ServerFlags::HTTP2)
+    }
+
+    /// Create `OpensslAcceptor` with custom server flags.
+    pub fn with_flags(
+        mut builder: SslAcceptorBuilder, flags: ServerFlags,
+    ) -> io::Result<ssl::OpensslAcceptor<T>> {
+        let acceptor = openssl_acceptor_with_flags(builder, flags)?;
+
+        Ok(ssl::OpensslAcceptor::new(acceptor))
+    }
 }
 
 /// Configure `SslAcceptorBuilder` with custom server flags.

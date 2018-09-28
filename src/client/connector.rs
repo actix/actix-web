@@ -290,7 +290,7 @@ impl Default for ClientConnector {
                 feature = "ssl",
                 feature = "tls",
                 feature = "rust-tls",
-            ),))]
+            )))]
             {
                 ()
             }

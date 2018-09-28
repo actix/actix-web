@@ -32,6 +32,25 @@ where
     no_client_timer: bool,
 }
 
+impl<F, H, A, Io> HttpServiceBuilder<F, H, A, DefaultPipelineFactory<H::Handler, Io>>
+where
+    Io: IoStream + Send,
+    F: Fn() -> H + Send + Clone + 'static,
+    H: IntoHttpHandler,
+    A: AcceptorServiceFactory,
+    <A::NewService as NewService>::InitError: fmt::Debug,
+{
+    /// Create http service builder with default pipeline factory
+    pub fn with_default_pipeline(factory: F, acceptor: A) -> Self {
+        Self {
+            factory,
+            acceptor,
+            pipeline: DefaultPipelineFactory::new(),
+            no_client_timer: false,
+        }
+    }
+}
+
 impl<F, H, A, P> HttpServiceBuilder<F, H, A, P>
 where
     F: Fn() -> H + Send + Clone + 'static,
