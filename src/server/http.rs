@@ -9,8 +9,8 @@ use net2::TcpBuilder;
 use num_cpus;
 use tokio_tcp::TcpStream;
 
-//#[cfg(feature = "tls")]
-//use native_tls::TlsAcceptor;
+#[cfg(feature = "tls")]
+use native_tls::TlsAcceptor;
 
 #[cfg(any(feature = "alpn", feature = "ssl"))]
 use openssl::ssl::SslAcceptorBuilder;
@@ -258,16 +258,27 @@ where
         self
     }
 
-    // #[cfg(feature = "tls")]
-    // /// Use listener for accepting incoming tls connection requests
-    // ///
-    // /// HttpServer does not change any configuration for TcpListener,
-    // /// it needs to be configured before passing it to listen() method.
-    // pub fn listen_tls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
-    //     use super::NativeTlsAcceptor;
-    //
-    //    self.listen_with(lst, NativeTlsAcceptor::new(acceptor))
-    // }
+    #[cfg(feature = "tls")]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// HttpServer does not change any configuration for TcpListener,
+    /// it needs to be configured before passing it to listen() method.
+    pub fn listen_tls(mut self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
+        use actix_net::service::NewServiceExt;
+
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            lst,
+            addr,
+            scheme: "https",
+            handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
+                move || ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ()),
+                DefaultPipelineFactory::new(),
+            )),
+        });
+        self
+    }
 
     #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Use listener for accepting incoming tls connection requests

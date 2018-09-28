@@ -32,7 +32,7 @@ path = "src/lib.rs"
 default = ["session", "brotli", "flate2-c"]
 
 # tls
-tls = ["native-tls", "tokio-tls"]
+tls = ["native-tls", "tokio-tls", "actix-net/tls"]
 
 # openssl
 ssl = ["openssl", "tokio-openssl", "actix-net/ssl"]
@@ -41,7 +41,7 @@ ssl = ["openssl", "tokio-openssl", "actix-net/ssl"]
 alpn = ["openssl", "tokio-openssl", "actix-net/ssl"]
 
 # rustls
-rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
+rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots", "actix-net/rust-tls"]
 
 # unix sockets
 uds = ["tokio-uds"]
