@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::net;
+use std::{fmt, net};
 
 use actix_net::either::Either;
 use actix_net::server::{Server, ServiceFactory};
@@ -37,6 +37,7 @@ where
     F: Fn() -> H + Send + Clone + 'static,
     H: IntoHttpHandler,
     A: AcceptorServiceFactory,
+    <A::NewService as NewService>::InitError: fmt::Debug,
     P: HttpPipelineFactory<H::Handler, Io = A::Io>,
 {
     /// Create http service builder
@@ -58,6 +59,7 @@ where
     pub fn acceptor<A1>(self, acceptor: A1) -> HttpServiceBuilder<F, H, A1, P>
     where
         A1: AcceptorServiceFactory,
+        <A1::NewService as NewService>::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
             acceptor,
@@ -153,6 +155,7 @@ impl<F, H, A, P> ServiceProvider for HttpServiceBuilder<F, H, A, P>
 where
     F: Fn() -> H + Send + Clone + 'static,
     A: AcceptorServiceFactory,
+    <A::NewService as NewService>::InitError: fmt::Debug,
     P: HttpPipelineFactory<H::Handler, Io = A::Io>,
     H: IntoHttpHandler,
 {

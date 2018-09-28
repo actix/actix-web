@@ -1,5 +1,5 @@
-use std::net;
 use std::time::Duration;
+use std::{fmt, net};
 
 use actix_net::server::ServerMessage;
 use actix_net::service::{NewService, Service};
@@ -27,6 +27,7 @@ where
     F: Fn() -> T + Send + Clone + 'static,
     T::Response: IoStream + Send,
     T: NewService<Request = TcpStream>,
+    T::InitError: fmt::Debug,
 {
     type Io = T::Response;
     type NewService = T;
@@ -84,6 +85,7 @@ pub(crate) struct TcpAcceptor<T> {
 impl<T, E> TcpAcceptor<T>
 where
     T: NewService<Request = TcpStream, Error = AcceptorError<E>>,
+    T::InitError: fmt::Debug,
 {
     pub(crate) fn new(inner: T) -> Self {
         TcpAcceptor { inner }
@@ -93,6 +95,7 @@ where
 impl<T, E> NewService for TcpAcceptor<T>
 where
     T: NewService<Request = TcpStream, Error = AcceptorError<E>>,
+    T::InitError: fmt::Debug,
 {
     type Request = net::TcpStream;
     type Response = T::Response;
@@ -111,6 +114,7 @@ where
 pub(crate) struct TcpAcceptorResponse<T>
 where
     T: NewService<Request = TcpStream>,
+    T::InitError: fmt::Debug,
 {
     fut: T::Future,
 }
@@ -118,15 +122,20 @@ where
 impl<T> Future for TcpAcceptorResponse<T>
 where
     T: NewService<Request = TcpStream>,
+    T::InitError: fmt::Debug,
 {
     type Item = TcpAcceptorService<T::Service>;
     type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll()? {
-            Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(service) => {
+        match self.fut.poll() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(service)) => {
                 Ok(Async::Ready(TcpAcceptorService { inner: service }))
+            }
+            Err(e) => {
+                error!("Can not create accetor service: {:?}", e);
+                Err(e)
             }
         }
     }

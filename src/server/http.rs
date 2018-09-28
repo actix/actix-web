@@ -1,7 +1,8 @@
-use std::{io, mem, net};
+use std::{fmt, io, mem, net};
 
 use actix::{Addr, System};
 use actix_net::server::Server;
+use actix_net::service::NewService;
 use actix_net::ssl;
 
 use net2::TcpBuilder;
@@ -233,6 +234,7 @@ where
     pub(crate) fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
     where
         A: AcceptorServiceFactory,
+        <A::NewService as NewService>::InitError: fmt::Debug,
     {
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
@@ -254,7 +256,7 @@ where
     ///
     /// HttpServer does not change any configuration for TcpListener,
     /// it needs to be configured before passing it to listen() method.
-    pub fn listen_tls(mut self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
+    pub fn listen_tls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
         use actix_net::service::NewServiceExt;
 
         self.listen_with(lst, move || {
@@ -288,7 +290,7 @@ where
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn listen_rustls(mut self, lst: net::TcpListener, config: ServerConfig) -> Self {
+    pub fn listen_rustls(self, lst: net::TcpListener, config: ServerConfig) -> Self {
         use super::{RustlsAcceptor, ServerFlags};
         use actix_net::service::NewServiceExt;
 
@@ -324,6 +326,7 @@ where
     where
         S: net::ToSocketAddrs,
         A: AcceptorServiceFactory,
+        <A::NewService as NewService>::InitError: fmt::Debug,
     {
         let sockets = self.bind2(addr)?;
 
