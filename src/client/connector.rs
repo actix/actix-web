@@ -50,8 +50,8 @@ type SslConnector = Arc<ClientConfig>;
     feature = "alpn",
     feature = "ssl",
     feature = "tls",
-    feature = "rust-tls",
-),))]
+    feature = "rust-tls"
+)))]
 type SslConnector = ();
 
 use server::IoStream;

@@ -66,6 +66,10 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags.insert(Flags::DISCONNECTED);
     }
 
+    pub fn upgrade(&self) -> bool {
+        self.flags.contains(Flags::UPGRADE)
+    }
+
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
     }

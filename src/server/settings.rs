@@ -137,7 +137,7 @@ pub struct WorkerSettings<H>(Rc<Inner<H>>);
 
 struct Inner<H> {
     handler: H,
-    keep_alive: u64,
+    keep_alive: Option<Duration>,
     client_timeout: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
@@ -161,6 +161,11 @@ impl<H> WorkerSettings<H> {
             KeepAlive::Os | KeepAlive::Tcp(_) => (0, true),
             KeepAlive::Disabled => (0, false),
         };
+        let keep_alive = if ka_enabled && keep_alive > 0 {
+            Some(Duration::from_secs(keep_alive))
+        } else {
+            None
+        };
 
         WorkerSettings(Rc::new(Inner {
             handler,
@@ -183,33 +188,13 @@ impl<H> WorkerSettings<H> {
     }
 
     #[inline]
-    pub fn keep_alive_timer(&self) -> Option<Delay> {
-        let ka = self.0.keep_alive;
-        if ka != 0 {
-            Some(Delay::new(Instant::now() + Duration::from_secs(ka)))
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn keep_alive(&self) -> u64 {
+    pub fn keep_alive(&self) -> Option<Duration> {
         self.0.keep_alive
     }
 
     #[inline]
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
-    }
-
-    #[inline]
-    pub fn client_timer(&self) -> Option<Delay> {
-        let delay = self.0.client_timeout;
-        if delay != 0 {
-            Some(Delay::new(Instant::now() + Duration::from_millis(delay)))
-        } else {
-            None
-        }
     }
 
     pub(crate) fn get_bytes(&self) -> BytesMut {
@@ -231,6 +216,34 @@ impl<H> WorkerSettings<H> {
 }
 
 impl<H: 'static> WorkerSettings<H> {
+    #[inline]
+    pub fn client_timer(&self) -> Option<Delay> {
+        let delay = self.0.client_timeout;
+        if delay != 0 {
+            Some(Delay::new(self.now() + Duration::from_millis(delay)))
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn keep_alive_timer(&self) -> Option<Delay> {
+        if let Some(ka) = self.0.keep_alive {
+            Some(Delay::new(self.now() + ka))
+        } else {
+            None
+        }
+    }
+
+    /// Keep-alive expire time
+    pub fn keep_alive_expire(&self) -> Option<Instant> {
+        if let Some(ka) = self.0.keep_alive {
+            Some(self.now() + ka)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn set_date(&self, dst: &mut BytesMut, full: bool) {
         // Unsafe: WorkerSetting is !Sync and !Send
         let date_bytes = unsafe {
@@ -258,9 +271,29 @@ impl<H: 'static> WorkerSettings<H> {
             dst.extend_from_slice(date_bytes);
         }
     }
+
+    #[inline]
+    pub(crate) fn now(&self) -> Instant {
+        unsafe {
+            let date = &mut (*self.0.date.get());
+            if !date.0 {
+                date.1.update();
+                date.0 = true;
+
+                // periodic date update
+                let s = self.clone();
+                spawn(sleep(Duration::from_secs(1)).then(move |_| {
+                    s.update_date();
+                    future::ok(())
+                }));
+            }
+            date.1.current
+        }
+    }
 }
 
 struct Date {
+    current: Instant,
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
 }
@@ -268,6 +301,7 @@ struct Date {
 impl Date {
     fn new() -> Date {
         let mut date = Date {
+            current: Instant::now(),
             bytes: [0; DATE_VALUE_LENGTH],
             pos: 0,
         };
@@ -276,6 +310,7 @@ impl Date {
     }
     fn update(&mut self) {
         self.pos = 0;
+        self.current = Instant::now();
         write!(self, "{}", time::at_utc(time::get_time()).rfc822()).unwrap();
     }
 }

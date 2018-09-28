@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{cmp, io, mem};
 
 use bytes::{Buf, Bytes};
@@ -232,16 +232,15 @@ where
                             // start keep-alive timer
                             if self.tasks.is_empty() {
                                 if self.settings.keep_alive_enabled() {
-                                    let keep_alive = self.settings.keep_alive();
-                                    if keep_alive > 0 && self.keepalive_timer.is_none() {
-                                        trace!("Start keep-alive timer");
-                                        let mut timeout = Delay::new(
-                                            Instant::now()
-                                                + Duration::new(keep_alive, 0),
-                                        );
-                                        // register timeout
-                                        let _ = timeout.poll();
-                                        self.keepalive_timer = Some(timeout);
+                                    if self.keepalive_timer.is_none() {
+                                        if let Some(ka) = self.settings.keep_alive() {
+                                            trace!("Start keep-alive timer");
+                                            let mut timeout =
+                                                Delay::new(Instant::now() + ka);
+                                            // register timeout
+                                            let _ = timeout.poll();
+                                            self.keepalive_timer = Some(timeout);
+                                        }
                                     }
                                 } else {
                                     // keep-alive disable, drop connection
