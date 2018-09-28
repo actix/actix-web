@@ -60,8 +60,8 @@ flate2-rust = ["flate2/rust_backend"]
 
 [dependencies]
 actix = "0.7.0"
-actix-net = { git="https://github.com/actix/actix-net.git" }
-#actix-net = { path = "../actix-net" }
+#actix-net = { git="https://github.com/actix/actix-net.git" }
+actix-net = { path = "../actix-net" }
 
 base64 = "0.9"
 bitflags = "1.0"

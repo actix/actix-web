@@ -51,7 +51,7 @@ type SslConnector = Arc<ClientConfig>;
     feature = "ssl",
     feature = "tls",
     feature = "rust-tls",
-),))]
+)))]
 type SslConnector = ();
 
 use server::IoStream;
@@ -290,7 +290,7 @@ impl Default for ClientConnector {
                 feature = "ssl",
                 feature = "tls",
                 feature = "rust-tls",
-            ),))]
+            )))]
             {
                 ()
             }

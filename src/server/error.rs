@@ -1,8 +1,23 @@
+use std::io;
+
 use futures::{Async, Poll};
 
 use super::{helpers, HttpHandlerTask, Writer};
 use http::{StatusCode, Version};
 use Error;
+
+/// Errors produced by `AcceptorError` service.
+#[derive(Debug)]
+pub enum AcceptorError<T> {
+    /// The inner service error
+    Service(T),
+
+    /// Io specific error
+    Io(io::Error),
+
+    /// The request did not complete within the specified timeout.
+    Timeout,
+}
 
 pub(crate) struct ServerError(Version, StatusCode);
 

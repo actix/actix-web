@@ -1,7 +1,6 @@
 use std::net::{Shutdown, SocketAddr};
 use std::{io, ptr, time};
 
-use actix::Message;
 use bytes::{Buf, BufMut, BytesMut};
 use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -281,10 +280,6 @@ where
     T: AsyncRead + AsyncWrite + 'static,
 {
     io: T,
-}
-
-impl<T: AsyncRead + AsyncWrite + 'static> Message for WrapperStream<T> {
-    type Result = ();
 }
 
 impl<T> WrapperStream<T>

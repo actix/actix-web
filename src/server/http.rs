@@ -1,13 +1,11 @@
 use std::{io, mem, net};
 
-use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, System};
+use actix::{Addr, System};
 use actix_net::server::Server;
 use actix_net::ssl;
 
-use futures::Stream;
 use net2::TcpBuilder;
 use num_cpus;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "tls")]
 use native_tls::TlsAcceptor;
@@ -20,9 +18,6 @@ use rustls::ServerConfig;
 
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
 use super::builder::{DefaultPipelineFactory, HttpServiceBuilder, ServiceProvider};
-use super::channel::{HttpChannel, WrapperStream};
-use super::handler::HttpHandler;
-use super::settings::{ServerSettings, WorkerSettings};
 use super::{IntoHttpHandler, KeepAlive};
 
 struct Socket {
@@ -42,9 +37,10 @@ where
     H: IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone,
 {
-    factory: F,
-    host: Option<String>,
-    keep_alive: KeepAlive,
+    pub(super) factory: F,
+    pub(super) host: Option<String>,
+    pub(super) keep_alive: KeepAlive,
+    pub(super) client_timeout: usize,
     backlog: i32,
     threads: usize,
     exit: bool,
@@ -53,7 +49,6 @@ where
     no_signals: bool,
     maxconn: usize,
     maxconnrate: usize,
-    client_timeout: usize,
     sockets: Vec<Socket>,
 }
 
@@ -521,61 +516,6 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
         let sys = System::new("http-server");
         self.start();
         sys.run();
-    }
-}
-
-impl<H, F> HttpServer<H, F>
-where
-    H: IntoHttpHandler,
-    F: Fn() -> H + Send + Clone,
-{
-    #[doc(hidden)]
-    #[deprecated(since = "0.7.8")]
-    /// Start listening for incoming connections from a stream.
-    ///
-    /// This method uses only one thread for handling incoming connections.
-    pub fn start_incoming<T, S>(self, stream: S, secure: bool)
-    where
-        S: Stream<Item = T, Error = io::Error> + 'static,
-        T: AsyncRead + AsyncWrite + 'static,
-    {
-        // set server settings
-        let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let apps = (self.factory)().into_handler();
-        let settings = WorkerSettings::new(
-            apps,
-            self.keep_alive,
-            self.client_timeout as u64,
-            ServerSettings::new(Some(addr), &self.host, secure),
-        );
-
-        // start server
-        HttpIncoming::create(move |ctx| {
-            ctx.add_message_stream(
-                stream.map_err(|_| ()).map(move |t| WrapperStream::new(t)),
-            );
-            HttpIncoming { settings }
-        });
-    }
-}
-
-struct HttpIncoming<H: HttpHandler> {
-    settings: WorkerSettings<H>,
-}
-
-impl<H: HttpHandler> Actor for HttpIncoming<H> {
-    type Context = Context<Self>;
-}
-
-impl<T, H> Handler<WrapperStream<T>> for HttpIncoming<H>
-where
-    T: AsyncRead + AsyncWrite,
-    H: HttpHandler,
-{
-    type Result = ();
-
-    fn handle(&mut self, msg: WrapperStream<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::spawn(HttpChannel::new(self.settings.clone(), msg, None));
     }
 }
 

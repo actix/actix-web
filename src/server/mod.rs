@@ -129,6 +129,7 @@ mod h2writer;
 mod handler;
 pub(crate) mod helpers;
 mod http;
+pub(crate) mod incoming;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;

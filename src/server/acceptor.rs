@@ -1,3 +1,4 @@
+use std::net;
 use std::time::Duration;
 
 use actix_net::server::ServerMessage;
@@ -8,6 +9,7 @@ use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 use tokio_timer::{sleep, Delay};
 
+use super::error::AcceptorError;
 use super::handler::HttpHandler;
 use super::settings::WorkerSettings;
 use super::IoStream;
@@ -15,12 +17,7 @@ use super::IoStream;
 /// This trait indicates types that can create acceptor service for http server.
 pub trait AcceptorServiceFactory: Send + Clone + 'static {
     type Io: IoStream + Send;
-    type NewService: NewService<
-        Request = TcpStream,
-        Response = Self::Io,
-        Error = (),
-        InitError = (),
-    >;
+    type NewService: NewService<Request = TcpStream, Response = Self::Io>;
 
     fn create(&self) -> Self::NewService;
 }
@@ -29,7 +26,7 @@ impl<F, T> AcceptorServiceFactory for F
 where
     F: Fn() -> T + Send + Clone + 'static,
     T::Response: IoStream + Send,
-    T: NewService<Request = TcpStream, Error = (), InitError = ()>,
+    T: NewService<Request = TcpStream>,
 {
     type Io = T::Response;
     type NewService = T;
@@ -80,142 +77,89 @@ impl Service for DefaultAcceptor {
     }
 }
 
-pub(crate) struct TcpAcceptor<T, H: HttpHandler> {
+pub(crate) struct TcpAcceptor<T> {
     inner: T,
-    settings: WorkerSettings<H>,
 }
 
-impl<T, H> TcpAcceptor<T, H>
+impl<T, E> TcpAcceptor<T>
 where
-    H: HttpHandler,
-    T: NewService<Request = TcpStream>,
+    T: NewService<Request = TcpStream, Error = AcceptorError<E>>,
 {
-    pub(crate) fn new(settings: WorkerSettings<H>, inner: T) -> Self {
-        TcpAcceptor { inner, settings }
+    pub(crate) fn new(inner: T) -> Self {
+        TcpAcceptor { inner }
     }
 }
 
-impl<T, H> NewService for TcpAcceptor<T, H>
+impl<T, E> NewService for TcpAcceptor<T>
 where
-    H: HttpHandler,
-    T: NewService<Request = TcpStream>,
+    T: NewService<Request = TcpStream, Error = AcceptorError<E>>,
 {
-    type Request = ServerMessage;
-    type Response = ();
-    type Error = ();
-    type InitError = ();
-    type Service = TcpAcceptorService<T::Service, H>;
-    type Future = TcpAcceptorResponse<T, H>;
+    type Request = net::TcpStream;
+    type Response = T::Response;
+    type Error = AcceptorError<E>;
+    type InitError = T::InitError;
+    type Service = TcpAcceptorService<T::Service>;
+    type Future = TcpAcceptorResponse<T>;
 
     fn new_service(&self) -> Self::Future {
         TcpAcceptorResponse {
             fut: self.inner.new_service(),
-            settings: self.settings.clone(),
         }
     }
 }
 
-pub(crate) struct TcpAcceptorResponse<T, H>
+pub(crate) struct TcpAcceptorResponse<T>
 where
-    H: HttpHandler,
     T: NewService<Request = TcpStream>,
 {
     fut: T::Future,
-    settings: WorkerSettings<H>,
 }
 
-impl<T, H> Future for TcpAcceptorResponse<T, H>
+impl<T> Future for TcpAcceptorResponse<T>
 where
-    H: HttpHandler,
     T: NewService<Request = TcpStream>,
 {
-    type Item = TcpAcceptorService<T::Service, H>;
-    type Error = ();
+    type Item = TcpAcceptorService<T::Service>;
+    type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll() {
-            Err(_) => Err(()),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(service)) => Ok(Async::Ready(TcpAcceptorService {
-                inner: service,
-                settings: self.settings.clone(),
-            })),
+        match self.fut.poll()? {
+            Async::NotReady => Ok(Async::NotReady),
+            Async::Ready(service) => {
+                Ok(Async::Ready(TcpAcceptorService { inner: service }))
+            }
         }
     }
 }
 
-pub(crate) struct TcpAcceptorService<T, H: HttpHandler> {
+pub(crate) struct TcpAcceptorService<T> {
     inner: T,
-    settings: WorkerSettings<H>,
 }
 
-impl<T, H> Service for TcpAcceptorService<T, H>
+impl<T, E> Service for TcpAcceptorService<T>
 where
-    H: HttpHandler,
-    T: Service<Request = TcpStream>,
+    T: Service<Request = TcpStream, Error = AcceptorError<E>>,
 {
-    type Request = ServerMessage;
-    type Response = ();
-    type Error = ();
-    type Future = Either<TcpAcceptorServiceFut<T::Future>, FutureResult<(), ()>>;
+    type Request = net::TcpStream;
+    type Response = T::Response;
+    type Error = AcceptorError<E>;
+    type Future = Either<T::Future, FutureResult<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.inner.poll_ready().map_err(|_| ())
+        self.inner.poll_ready()
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        match req {
-            ServerMessage::Connect(stream) => {
-                let stream =
-                    TcpStream::from_std(stream, &Handle::default()).map_err(|e| {
-                        error!("Can not convert to an async tcp stream: {}", e);
-                    });
+        let stream = TcpStream::from_std(req, &Handle::default()).map_err(|e| {
+            error!("Can not convert to an async tcp stream: {}", e);
+            AcceptorError::Io(e)
+        });
 
-                if let Ok(stream) = stream {
-                    Either::A(TcpAcceptorServiceFut {
-                        fut: self.inner.call(stream),
-                    })
-                } else {
-                    Either::B(err(()))
-                }
-            }
-            ServerMessage::Shutdown(timeout) => Either::B(ok(())),
-            ServerMessage::ForceShutdown => {
-                // self.settings.head().traverse::<TcpStream, H>();
-                Either::B(ok(()))
-            }
+        match stream {
+            Ok(stream) => Either::A(self.inner.call(stream)),
+            Err(e) => Either::B(err(e)),
         }
     }
-}
-
-pub(crate) struct TcpAcceptorServiceFut<T: Future> {
-    fut: T,
-}
-
-impl<T> Future for TcpAcceptorServiceFut<T>
-where
-    T: Future,
-{
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll() {
-            Err(_) => Err(()),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(_)) => Ok(Async::Ready(())),
-        }
-    }
-}
-
-/// Errors produced by `AcceptorTimeout` service.
-#[derive(Debug)]
-pub enum TimeoutError<T> {
-    /// The inner service error
-    Service(T),
-
-    /// The request did not complete within the specified timeout.
-    Timeout,
 }
 
 /// Acceptor timeout middleware
@@ -235,7 +179,7 @@ impl<T: NewService> AcceptorTimeout<T> {
 impl<T: NewService> NewService for AcceptorTimeout<T> {
     type Request = T::Request;
     type Response = T::Response;
-    type Error = TimeoutError<T::Error>;
+    type Error = AcceptorError<T::Error>;
     type InitError = T::InitError;
     type Service = AcceptorTimeoutService<T::Service>;
     type Future = AcceptorTimeoutFut<T>;
@@ -278,11 +222,11 @@ pub(crate) struct AcceptorTimeoutService<T> {
 impl<T: Service> Service for AcceptorTimeoutService<T> {
     type Request = T::Request;
     type Response = T::Response;
-    type Error = TimeoutError<T::Error>;
+    type Error = AcceptorError<T::Error>;
     type Future = AcceptorTimeoutResponse<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.inner.poll_ready().map_err(TimeoutError::Service)
+        self.inner.poll_ready().map_err(AcceptorError::Service)
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
@@ -299,17 +243,134 @@ pub(crate) struct AcceptorTimeoutResponse<T: Service> {
 }
 impl<T: Service> Future for AcceptorTimeoutResponse<T> {
     type Item = T::Response;
-    type Error = TimeoutError<T::Error>;
+    type Error = AcceptorError<T::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll() {
-            Ok(Async::NotReady) => match self.sleep.poll() {
-                Err(_) => Err(TimeoutError::Timeout),
-                Ok(Async::Ready(_)) => Err(TimeoutError::Timeout),
+        match self.fut.poll().map_err(AcceptorError::Service)? {
+            Async::NotReady => match self.sleep.poll() {
+                Err(_) => Err(AcceptorError::Timeout),
+                Ok(Async::Ready(_)) => Err(AcceptorError::Timeout),
                 Ok(Async::NotReady) => Ok(Async::NotReady),
             },
-            Ok(Async::Ready(resp)) => Ok(Async::Ready(resp)),
-            Err(err) => Err(TimeoutError::Service(err)),
+            Async::Ready(resp) => Ok(Async::Ready(resp)),
+        }
+    }
+}
+
+pub(crate) struct ServerMessageAcceptor<T, H: HttpHandler> {
+    inner: T,
+    settings: WorkerSettings<H>,
+}
+
+impl<T, H> ServerMessageAcceptor<T, H>
+where
+    H: HttpHandler,
+    T: NewService<Request = net::TcpStream>,
+{
+    pub(crate) fn new(settings: WorkerSettings<H>, inner: T) -> Self {
+        ServerMessageAcceptor { inner, settings }
+    }
+}
+
+impl<T, H> NewService for ServerMessageAcceptor<T, H>
+where
+    H: HttpHandler,
+    T: NewService<Request = net::TcpStream>,
+{
+    type Request = ServerMessage;
+    type Response = ();
+    type Error = T::Error;
+    type InitError = T::InitError;
+    type Service = ServerMessageAcceptorService<T::Service, H>;
+    type Future = ServerMessageAcceptorResponse<T, H>;
+
+    fn new_service(&self) -> Self::Future {
+        ServerMessageAcceptorResponse {
+            fut: self.inner.new_service(),
+            settings: self.settings.clone(),
+        }
+    }
+}
+
+pub(crate) struct ServerMessageAcceptorResponse<T, H>
+where
+    H: HttpHandler,
+    T: NewService<Request = net::TcpStream>,
+{
+    fut: T::Future,
+    settings: WorkerSettings<H>,
+}
+
+impl<T, H> Future for ServerMessageAcceptorResponse<T, H>
+where
+    H: HttpHandler,
+    T: NewService<Request = net::TcpStream>,
+{
+    type Item = ServerMessageAcceptorService<T::Service, H>;
+    type Error = T::InitError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.fut.poll()? {
+            Async::NotReady => Ok(Async::NotReady),
+            Async::Ready(service) => Ok(Async::Ready(ServerMessageAcceptorService {
+                inner: service,
+                settings: self.settings.clone(),
+            })),
+        }
+    }
+}
+
+pub(crate) struct ServerMessageAcceptorService<T, H: HttpHandler> {
+    inner: T,
+    settings: WorkerSettings<H>,
+}
+
+impl<T, H> Service for ServerMessageAcceptorService<T, H>
+where
+    H: HttpHandler,
+    T: Service<Request = net::TcpStream>,
+{
+    type Request = ServerMessage;
+    type Response = ();
+    type Error = T::Error;
+    type Future =
+        Either<ServerMessageAcceptorServiceFut<T>, FutureResult<(), Self::Error>>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.inner.poll_ready()
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        match req {
+            ServerMessage::Connect(stream) => {
+                Either::A(ServerMessageAcceptorServiceFut {
+                    fut: self.inner.call(stream),
+                })
+            }
+            ServerMessage::Shutdown(timeout) => Either::B(ok(())),
+            ServerMessage::ForceShutdown => {
+                // self.settings.head().traverse::<TcpStream, H>();
+                Either::B(ok(()))
+            }
+        }
+    }
+}
+
+pub(crate) struct ServerMessageAcceptorServiceFut<T: Service> {
+    fut: T::Future,
+}
+
+impl<T> Future for ServerMessageAcceptorServiceFut<T>
+where
+    T: Service,
+{
+    type Item = ();
+    type Error = T::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.fut.poll()? {
+            Async::NotReady => Ok(Async::NotReady),
+            Async::Ready(_) => Ok(Async::Ready(())),
         }
     }
 }

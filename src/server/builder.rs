@@ -5,7 +5,10 @@ use actix_net::either::Either;
 use actix_net::server::{Server, ServiceFactory};
 use actix_net::service::{NewService, NewServiceExt};
 
-use super::acceptor::{AcceptorServiceFactory, AcceptorTimeout, TcpAcceptor};
+use super::acceptor::{
+    AcceptorServiceFactory, AcceptorTimeout, ServerMessageAcceptor, TcpAcceptor,
+};
+use super::error::AcceptorError;
 use super::handler::{HttpHandler, IntoHttpHandler};
 use super::service::HttpService;
 use super::settings::{ServerSettings, WorkerSettings};
@@ -99,16 +102,30 @@ where
             );
 
             if timeout == 0 {
-                Either::A(TcpAcceptor::new(
+                Either::A(ServerMessageAcceptor::new(
                     settings.clone(),
-                    acceptor.create().and_then(pipeline.create(settings)),
+                    TcpAcceptor::new(acceptor.create().map_err(AcceptorError::Service))
+                        .map_err(|_| ())
+                        .map_init_err(|_| ())
+                        .and_then(
+                            pipeline
+                                .create(settings)
+                                .map_init_err(|_| ())
+                                .map_err(|_| ()),
+                        ),
                 ))
             } else {
-                Either::B(TcpAcceptor::new(
+                Either::B(ServerMessageAcceptor::new(
                     settings.clone(),
-                    AcceptorTimeout::new(timeout, acceptor.create())
+                    TcpAcceptor::new(AcceptorTimeout::new(timeout, acceptor.create()))
                         .map_err(|_| ())
-                        .and_then(pipeline.create(settings)),
+                        .map_init_err(|_| ())
+                        .and_then(
+                            pipeline
+                                .create(settings)
+                                .map_init_err(|_| ())
+                                .map_err(|_| ()),
+                        ),
                 ))
             }
         }
@@ -153,12 +170,7 @@ where
 
 pub trait HttpPipelineFactory<H: HttpHandler>: Send + Clone + 'static {
     type Io: IoStream;
-    type NewService: NewService<
-        Request = Self::Io,
-        Response = (),
-        Error = (),
-        InitError = (),
-    >;
+    type NewService: NewService<Request = Self::Io, Response = ()>;
 
     fn create(&self, settings: WorkerSettings<H>) -> Self::NewService;
 }
@@ -166,7 +178,7 @@ pub trait HttpPipelineFactory<H: HttpHandler>: Send + Clone + 'static {
 impl<F, T, H> HttpPipelineFactory<H> for F
 where
     F: Fn(WorkerSettings<H>) -> T + Send + Clone + 'static,
-    T: NewService<Response = (), Error = (), InitError = ()>,
+    T: NewService<Response = ()>,
     T::Request: IoStream,
     H: HttpHandler,
 {
