@@ -1,13 +1,11 @@
 use std::{io, mem, net};
 
 use actix::{Addr, System};
-use actix_net::server;
-use actix_net::service::NewService;
+use actix_net::server::Server;
 use actix_net::ssl;
 
 use net2::TcpBuilder;
 use num_cpus;
-use tokio_tcp::TcpStream;
 
 #[cfg(feature = "tls")]
 use native_tls::TlsAcceptor;
@@ -21,7 +19,7 @@ use rustls::ServerConfig;
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
 use super::builder::DefaultPipelineFactory;
 use super::builder::{HttpServiceBuilder, ServiceProvider};
-use super::{IntoHttpHandler, IoStream, KeepAlive};
+use super::{IntoHttpHandler, KeepAlive};
 
 struct Socket {
     scheme: &'static str,
@@ -233,15 +231,9 @@ where
 
     #[doc(hidden)]
     /// Use listener for accepting incoming connection requests
-    pub(crate) fn listen_with<T, A, Io>(
-        mut self, lst: net::TcpListener, acceptor: A,
-    ) -> Self
+    pub(crate) fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
     where
-        A: AcceptorServiceFactory<Io = Io>,
-        T: NewService<Request = TcpStream, Response = Io, Error = (), InitError = ()>
-            + Clone
-            + 'static,
-        Io: IoStream + Send,
+        A: AcceptorServiceFactory,
     {
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
@@ -266,18 +258,9 @@ where
     pub fn listen_tls(mut self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
         use actix_net::service::NewServiceExt;
 
-        let addr = lst.local_addr().unwrap();
-        self.sockets.push(Socket {
-            lst,
-            addr,
-            scheme: "https",
-            handler: Box::new(HttpServiceBuilder::new(
-                self.factory.clone(),
-                move || ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ()),
-                DefaultPipelineFactory::new(),
-            )),
-        });
-        self
+        self.listen_with(lst, move || {
+            ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
+        })
     }
 
     #[cfg(any(feature = "alpn", feature = "ssl"))]
@@ -285,7 +268,7 @@ where
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn listen_ssl(
-        mut self, lst: net::TcpListener, builder: SslAcceptorBuilder,
+        self, lst: net::TcpListener, builder: SslAcceptorBuilder,
     ) -> io::Result<Self> {
         use super::{openssl_acceptor_with_flags, ServerFlags};
         use actix_net::service::NewServiceExt;
@@ -297,20 +280,9 @@ where
         };
 
         let acceptor = openssl_acceptor_with_flags(builder, flags)?;
-
-        let addr = lst.local_addr().unwrap();
-        self.sockets.push(Socket {
-            lst,
-            addr,
-            scheme: "https",
-            handler: Box::new(HttpServiceBuilder::new(
-                self.factory.clone(),
-                move || ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ()),
-                DefaultPipelineFactory::new(),
-            )),
-        });
-
-        Ok(self)
+        Ok(self.listen_with(lst, move || {
+            ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ())
+        }))
     }
 
     #[cfg(feature = "rust-tls")]
@@ -328,22 +300,9 @@ where
             ServerFlags::HTTP1 | ServerFlags::HTTP2
         };
 
-        let addr = lst.local_addr().unwrap();
-        self.sockets.push(Socket {
-            lst,
-            addr,
-            scheme: "https",
-            handler: Box::new(HttpServiceBuilder::new(
-                self.factory.clone(),
-                move || {
-                    RustlsAcceptor::with_flags(config.clone(), flags).map_err(|_| ())
-                },
-                DefaultPipelineFactory::new(),
-            )),
-        });
-
-        //Ok(self)
-        self
+        self.listen_with(lst, move || {
+            RustlsAcceptor::with_flags(config.clone(), flags).map_err(|_| ())
+        })
     }
 
     /// The socket address to bind
@@ -416,32 +375,31 @@ where
         }
     }
 
-    // #[cfg(feature = "tls")]
-    // /// The ssl socket address to bind
-    // ///
-    // /// To bind multiple addresses this method can be called multiple times.
-    // pub fn bind_tls<S: net::ToSocketAddrs>(
-    //     self, addr: S, acceptor: TlsAcceptor,
-    // ) -> io::Result<Self> {
-    //     use super::NativeTlsAcceptor;
+    #[cfg(feature = "tls")]
+    /// The ssl socket address to bind
+    ///
+    /// To bind multiple addresses this method can be called multiple times.
+    pub fn bind_tls<S: net::ToSocketAddrs>(
+        self, addr: S, acceptor: TlsAcceptor,
+    ) -> io::Result<Self> {
+        use actix_net::service::NewServiceExt;
+        use actix_net::ssl::NativeTlsAcceptor;
 
-    //     self.bind_with(addr, NativeTlsAcceptor::new(acceptor))
-    // }
+        self.bind_with(addr, move || {
+            NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
+        })
+    }
 
     #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn bind_ssl<S>(
-        mut self, addr: S, builder: SslAcceptorBuilder,
-    ) -> io::Result<Self>
+    pub fn bind_ssl<S>(self, addr: S, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
         S: net::ToSocketAddrs,
     {
         use super::{openssl_acceptor_with_flags, ServerFlags};
         use actix_net::service::NewServiceExt;
-
-        let sockets = self.bind2(addr)?;
 
         // alpn support
         let flags = if !self.no_http2 {
@@ -451,43 +409,32 @@ where
         };
 
         let acceptor = openssl_acceptor_with_flags(builder, flags)?;
-
-        for lst in sockets {
-            let addr = lst.local_addr().unwrap();
-            let accpt = acceptor.clone();
-            self.sockets.push(Socket {
-                lst,
-                addr,
-                scheme: "https",
-                handler: Box::new(HttpServiceBuilder::new(
-                    self.factory.clone(),
-                    move || ssl::OpensslAcceptor::new(accpt.clone()).map_err(|_| ()),
-                    DefaultPipelineFactory::new(),
-                )),
-            });
-        }
-
-        Ok(self)
+        self.bind_with(addr, move || {
+            ssl::OpensslAcceptor::new(acceptor.clone()).map_err(|_| ())
+        })
     }
 
-    // #[cfg(feature = "rust-tls")]
-    // /// Start listening for incoming tls connections.
-    // ///
-    // /// This method sets alpn protocols to "h2" and "http/1.1"
-    // pub fn bind_rustls<S: net::ToSocketAddrs>(
-    //     self, addr: S, builder: ServerConfig,
-    // ) -> io::Result<Self> {
-    //     use super::{RustlsAcceptor, ServerFlags};
+    #[cfg(feature = "rust-tls")]
+    /// Start listening for incoming tls connections.
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn bind_rustls<S: net::ToSocketAddrs>(
+        self, addr: S, builder: ServerConfig,
+    ) -> io::Result<Self> {
+        use super::{RustlsAcceptor, ServerFlags};
+        use actix_net::service::NewServiceExt;
 
-    //     // alpn support
-    //     let flags = if !self.no_http2 {
-    //         ServerFlags::HTTP1
-    //     } else {
-    //         ServerFlags::HTTP1 | ServerFlags::HTTP2
-    //     };
+        // alpn support
+        let flags = if !self.no_http2 {
+            ServerFlags::HTTP1
+        } else {
+            ServerFlags::HTTP1 | ServerFlags::HTTP2
+        };
 
-    //     self.bind_with(addr, RustlsAcceptor::with_flags(builder, flags))
-    // }
+        self.bind_with(addr, move || {
+            RustlsAcceptor::with_flags(builder.clone(), flags).map_err(|_| ())
+        })
+    }
 }
 
 impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
@@ -516,10 +463,10 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     ///    sys.run();  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> Addr<server::Server> {
+    pub fn start(mut self) -> Addr<Server> {
         ssl::max_concurrent_ssl_connect(self.maxconnrate);
 
-        let mut srv = server::Server::new()
+        let mut srv = Server::new()
             .workers(self.threads)
             .maxconn(self.maxconn)
             .shutdown_timeout(self.shutdown_timeout);
