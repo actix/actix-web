@@ -15,8 +15,8 @@ use native_tls::TlsAcceptor;
 #[cfg(any(feature = "alpn", feature = "ssl"))]
 use openssl::ssl::SslAcceptorBuilder;
 
-//#[cfg(feature = "rust-tls")]
-//use rustls::ServerConfig;
+#[cfg(feature = "rust-tls")]
+use rustls::ServerConfig;
 
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
 use super::builder::DefaultPipelineFactory;
@@ -313,22 +313,38 @@ where
         Ok(self)
     }
 
-    // #[cfg(feature = "rust-tls")]
-    // /// Use listener for accepting incoming tls connection requests
-    // ///
-    // /// This method sets alpn protocols to "h2" and "http/1.1"
-    // pub fn listen_rustls(self, lst: net::TcpListener, builder: ServerConfig) -> Self {
-    //     use super::{RustlsAcceptor, ServerFlags};
+    #[cfg(feature = "rust-tls")]
+    /// Use listener for accepting incoming tls connection requests
+    ///
+    /// This method sets alpn protocols to "h2" and "http/1.1"
+    pub fn listen_rustls(mut self, lst: net::TcpListener, config: ServerConfig) -> Self {
+        use super::{RustlsAcceptor, ServerFlags};
+        use actix_net::service::NewServiceExt;
 
-    //     // alpn support
-    //     let flags = if self.no_http2 {
-    //         ServerFlags::HTTP1
-    //     } else {
-    //         ServerFlags::HTTP1 | ServerFlags::HTTP2
-    //     };
-    //
-    //     self.listen_with(lst, RustlsAcceptor::with_flags(builder, flags))
-    // }
+        // alpn support
+        let flags = if self.no_http2 {
+            ServerFlags::HTTP1
+        } else {
+            ServerFlags::HTTP1 | ServerFlags::HTTP2
+        };
+
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            lst,
+            addr,
+            scheme: "https",
+            handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
+                move || {
+                    RustlsAcceptor::with_flags(config.clone(), flags).map_err(|_| ())
+                },
+                DefaultPipelineFactory::new(),
+            )),
+        });
+
+        //Ok(self)
+        self
+    }
 
     /// The socket address to bind
     ///

@@ -19,8 +19,6 @@ use openssl::ssl::SslAcceptorBuilder;
 use rustls::ServerConfig;
 #[cfg(feature = "alpn")]
 use server::OpensslAcceptor;
-#[cfg(feature = "rust-tls")]
-use server::RustlsAcceptor;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -350,7 +348,7 @@ where
                 let ssl = self.rust_ssl.take();
                 if let Some(ssl) = ssl {
                     let tcp = net::TcpListener::bind(addr).unwrap();
-                    srv = srv.listen_with(tcp, RustlsAcceptor::new(ssl));
+                    srv = srv.listen_rustls(tcp, ssl);
                 }
             }
             if !has_ssl {

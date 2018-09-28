@@ -1,29 +1,25 @@
 use std::net::Shutdown;
-use std::sync::Arc;
 use std::{io, time};
 
+use actix_net::ssl; //::RustlsAcceptor;
 use rustls::{ClientSession, ServerConfig, ServerSession};
-use tokio_io::AsyncWrite;
-use tokio_rustls::{AcceptAsync, ServerConfigExt, TlsStream};
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_rustls::TlsStream;
 
-use server::{AcceptorService, IoStream, ServerFlags};
+use server::{IoStream, ServerFlags};
 
-#[derive(Clone)]
 /// Support `SSL` connections via rustls package
 ///
 /// `rust-tls` feature enables `RustlsAcceptor` type
-pub struct RustlsAcceptor {
-    config: Arc<ServerConfig>,
+pub struct RustlsAcceptor<T> {
+    _t: ssl::RustlsAcceptor<T>,
 }
 
-impl RustlsAcceptor {
-    /// Create `OpensslAcceptor` with enabled `HTTP/2` and `HTTP1.1` support.
-    pub fn new(config: ServerConfig) -> Self {
-        RustlsAcceptor::with_flags(config, ServerFlags::HTTP1 | ServerFlags::HTTP2)
-    }
-
-    /// Create `OpensslAcceptor` with custom server flags.
-    pub fn with_flags(mut config: ServerConfig, flags: ServerFlags) -> Self {
+impl<T: AsyncRead + AsyncWrite> RustlsAcceptor<T> {
+    /// Create `RustlsAcceptor` with custom server flags.
+    pub fn with_flags(
+        mut config: ServerConfig, flags: ServerFlags,
+    ) -> ssl::RustlsAcceptor<T> {
         let mut protos = Vec::new();
         if flags.contains(ServerFlags::HTTP2) {
             protos.push("h2".to_string());
@@ -35,22 +31,7 @@ impl RustlsAcceptor {
             config.set_protocols(&protos);
         }
 
-        RustlsAcceptor {
-            config: Arc::new(config),
-        }
-    }
-}
-
-impl<Io: IoStream> AcceptorService<Io> for RustlsAcceptor {
-    type Accepted = TlsStream<Io, ServerSession>;
-    type Future = AcceptAsync<Io>;
-
-    fn scheme(&self) -> &'static str {
-        "https"
-    }
-
-    fn accept(&self, io: Io) -> Self::Future {
-        ServerConfigExt::accept_async(&self.config, io)
+        ssl::RustlsAcceptor::new(config)
     }
 }
 
