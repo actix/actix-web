@@ -21,18 +21,13 @@ pub enum ServerMessage {
 }
 
 pub trait StreamServiceFactory: Send + Clone + 'static {
-    type NewService: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()>;
+    type NewService: NewService<Request = TcpStream, Response = ()>;
 
     fn create(&self) -> Self::NewService;
 }
 
 pub trait ServiceFactory: Send + Clone + 'static {
-    type NewService: NewService<
-        Request = ServerMessage,
-        Response = (),
-        Error = (),
-        InitError = (),
-    >;
+    type NewService: NewService<Request = ServerMessage, Response = ()>;
 
     fn create(&self) -> Self::NewService;
 }
@@ -66,7 +61,7 @@ impl<T> StreamService<T> {
 
 impl<T> Service for StreamService<T>
 where
-    T: Service<Request = TcpStream, Response = (), Error = ()>,
+    T: Service<Request = TcpStream, Response = ()>,
     T::Future: 'static,
     T::Error: 'static,
 {
@@ -87,7 +82,7 @@ where
                 });
 
                 if let Ok(stream) = stream {
-                    spawn(self.service.call(stream).map(move |val| {
+                    spawn(self.service.call(stream).map_err(|_| ()).map(move |val| {
                         drop(guard);
                         val
                     }));
@@ -113,7 +108,7 @@ impl<T> ServerService<T> {
 
 impl<T> Service for ServerService<T>
 where
-    T: Service<Request = ServerMessage, Response = (), Error = ()>,
+    T: Service<Request = ServerMessage, Response = ()>,
     T::Future: 'static,
     T::Error: 'static,
 {
@@ -127,7 +122,7 @@ where
     }
 
     fn call(&mut self, (guard, req): (Option<CounterGuard>, ServerMessage)) -> Self::Future {
-        spawn(self.service.call(req).map(move |val| {
+        spawn(self.service.call(req).map_err(|_| ()).map(move |val| {
             drop(guard);
             val
         }));
@@ -165,10 +160,16 @@ where
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
-        Box::new(self.inner.create().new_service().map(move |inner| {
-            let service: BoxedServerService = Box::new(ServerService::new(inner));
-            service
-        }))
+        Box::new(
+            self.inner
+                .create()
+                .new_service()
+                .map_err(|_| ())
+                .map(move |inner| {
+                    let service: BoxedServerService = Box::new(ServerService::new(inner));
+                    service
+                }),
+        )
     }
 }
 
@@ -202,10 +203,16 @@ where
     }
 
     fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
-        Box::new(self.inner.create().new_service().map(move |inner| {
-            let service: BoxedServerService = Box::new(StreamService::new(inner));
-            service
-        }))
+        Box::new(
+            self.inner
+                .create()
+                .new_service()
+                .map_err(|_| ())
+                .map(move |inner| {
+                    let service: BoxedServerService = Box::new(StreamService::new(inner));
+                    service
+                }),
+        )
     }
 }
 
@@ -226,7 +233,7 @@ impl InternalServiceFactory for Box<InternalServiceFactory> {
 impl<F, T> ServiceFactory for F
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = ServerMessage, Response = (), Error = (), InitError = ()>,
+    T: NewService<Request = ServerMessage, Response = ()>,
 {
     type NewService = T;
 
@@ -238,7 +245,7 @@ where
 impl<F, T> StreamServiceFactory for F
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = (), Error = (), InitError = ()>,
+    T: NewService<Request = TcpStream, Response = ()>,
 {
     type NewService = T;
 
