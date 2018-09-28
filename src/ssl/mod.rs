@@ -13,7 +13,10 @@ mod nativetls;
 #[cfg(feature = "tls")]
 pub use self::nativetls::{NativeTlsAcceptor, TlsStream};
 
-pub(crate) const MAX_CONN: AtomicUsize = AtomicUsize::new(256);
+#[cfg(feature = "rust-tls")]
+mod rustls;
+#[cfg(feature = "rust-tls")]
+pub use self::rustls::RustlsAcceptor;
 
 /// Sets the maximum per-worker concurrent ssl connection establish process.
 ///
@@ -25,11 +28,8 @@ pub fn max_concurrent_ssl_connect(num: usize) {
     MAX_CONN.store(num, Ordering::Relaxed);
 }
 
+pub(crate) const MAX_CONN: AtomicUsize = AtomicUsize::new(256);
+
 thread_local! {
     static MAX_CONN_COUNTER: Counter = Counter::new(MAX_CONN.load(Ordering::Relaxed));
 }
-
-// #[cfg(feature = "rust-tls")]
-// mod rustls;
-// #[cfg(feature = "rust-tls")]
-// pub use self::rustls::RustlsAcceptor;
