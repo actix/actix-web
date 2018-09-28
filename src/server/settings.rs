@@ -133,11 +133,12 @@ impl ServerSettings {
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
 
-pub(crate) struct WorkerSettings<H>(Rc<Inner<H>>);
+pub struct WorkerSettings<H>(Rc<Inner<H>>);
 
 struct Inner<H> {
     handler: H,
     keep_alive: u64,
+    client_timeout: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
@@ -153,7 +154,7 @@ impl<H> Clone for WorkerSettings<H> {
 
 impl<H> WorkerSettings<H> {
     pub(crate) fn new(
-        handler: H, keep_alive: KeepAlive, settings: ServerSettings,
+        handler: H, keep_alive: KeepAlive, client_timeout: u64, settings: ServerSettings,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -165,6 +166,7 @@ impl<H> WorkerSettings<H> {
             handler,
             keep_alive,
             ka_enabled,
+            client_timeout,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             node: RefCell::new(Node::head()),
@@ -172,14 +174,15 @@ impl<H> WorkerSettings<H> {
         }))
     }
 
-    pub fn head(&self) -> RefMut<Node<()>> {
+    pub(crate) fn head(&self) -> RefMut<Node<()>> {
         self.0.node.borrow_mut()
     }
 
-    pub fn handler(&self) -> &H {
+    pub(crate) fn handler(&self) -> &H {
         &self.0.handler
     }
 
+    #[inline]
     pub fn keep_alive_timer(&self) -> Option<Delay> {
         let ka = self.0.keep_alive;
         if ka != 0 {
@@ -189,23 +192,35 @@ impl<H> WorkerSettings<H> {
         }
     }
 
+    #[inline]
     pub fn keep_alive(&self) -> u64 {
         self.0.keep_alive
     }
 
+    #[inline]
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
 
-    pub fn get_bytes(&self) -> BytesMut {
+    #[inline]
+    pub fn client_timer(&self) -> Option<Delay> {
+        let delay = self.0.client_timeout;
+        if delay != 0 {
+            Some(Delay::new(Instant::now() + Duration::from_millis(delay)))
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_bytes(&self) -> BytesMut {
         self.0.bytes.get_bytes()
     }
 
-    pub fn release_bytes(&self, bytes: BytesMut) {
+    pub(crate) fn release_bytes(&self, bytes: BytesMut) {
         self.0.bytes.release_bytes(bytes)
     }
 
-    pub fn get_request(&self) -> Request {
+    pub(crate) fn get_request(&self) -> Request {
         RequestPool::get(self.0.messages)
     }
 
@@ -216,7 +231,7 @@ impl<H> WorkerSettings<H> {
 }
 
 impl<H: 'static> WorkerSettings<H> {
-    pub fn set_date(&self, dst: &mut BytesMut, full: bool) {
+    pub(crate) fn set_date(&self, dst: &mut BytesMut, full: bool) {
         // Unsafe: WorkerSetting is !Sync and !Send
         let date_bytes = unsafe {
             let date = &mut (*self.0.date.get());

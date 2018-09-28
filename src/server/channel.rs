@@ -41,7 +41,7 @@ where
     pub(crate) fn new(
         settings: WorkerSettings<H>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
-        let ka_timeout = settings.keep_alive_timer();
+        let ka_timeout = settings.client_timer();
 
         HttpChannel {
             ka_timeout,

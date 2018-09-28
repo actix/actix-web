@@ -117,6 +117,7 @@ use tokio_tcp::TcpStream;
 
 pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
 
+pub(crate) mod acceptor;
 pub(crate) mod builder;
 mod channel;
 mod error;
@@ -143,6 +144,9 @@ pub use self::ssl::*;
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
+
+#[doc(hidden)]
+pub use self::builder::HttpServiceBuilder;
 
 use body::Binary;
 use extensions::Extensions;

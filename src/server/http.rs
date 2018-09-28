@@ -18,8 +18,9 @@ use openssl::ssl::SslAcceptorBuilder;
 //#[cfg(feature = "rust-tls")]
 //use rustls::ServerConfig;
 
-use super::builder::{AcceptorServiceFactory, HttpServiceBuilder, ServiceFactory};
-use super::builder::{DefaultAcceptor, DefaultPipelineFactory};
+use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
+use super::builder::DefaultPipelineFactory;
+use super::builder::{HttpServiceBuilder, ServiceFactory};
 use super::{IntoHttpHandler, IoStream, KeepAlive};
 
 struct Socket<H: IntoHttpHandler> {
@@ -50,6 +51,7 @@ where
     no_signals: bool,
     maxconn: usize,
     maxconnrate: usize,
+    client_timeout: usize,
     sockets: Vec<Socket<H>>,
 }
 
@@ -72,6 +74,7 @@ where
             no_signals: false,
             maxconn: 25_600,
             maxconnrate: 256,
+            client_timeout: 5000,
             sockets: Vec::new(),
         }
     }
@@ -127,6 +130,20 @@ where
     /// By default keep alive is set to a 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
         self.keep_alive = val.into();
+        self
+    }
+
+    /// Set server client timneout in milliseconds for first request.
+    ///
+    /// Defines a timeout for reading client request header. If a client does not transmit
+    /// the entire set headers within this time, the request is terminated with
+    /// the 408 (Request Time-out) error.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default client timeout is set to 5000 milliseconds.
+    pub fn client_timeout(mut self, val: usize) -> Self {
+        self.client_timeout = val;
         self
     }
 
@@ -205,12 +222,7 @@ where
             handler: Box::new(HttpServiceBuilder::new(
                 self.factory.clone(),
                 DefaultAcceptor,
-                DefaultPipelineFactory::new(
-                    self.factory.clone(),
-                    self.host.clone(),
-                    addr,
-                    self.keep_alive,
-                ),
+                DefaultPipelineFactory::new(),
             )),
         });
 
@@ -237,12 +249,7 @@ where
             handler: Box::new(HttpServiceBuilder::new(
                 self.factory.clone(),
                 acceptor,
-                DefaultPipelineFactory::new(
-                    self.factory.clone(),
-                    self.host.clone(),
-                    addr,
-                    self.keep_alive,
-                ),
+                DefaultPipelineFactory::new(),
             )),
         });
 
@@ -347,12 +354,7 @@ where
                 handler: Box::new(HttpServiceBuilder::new(
                     self.factory.clone(),
                     acceptor.clone(),
-                    DefaultPipelineFactory::new(
-                        self.factory.clone(),
-                        self.host.clone(),
-                        addr,
-                        self.keep_alive,
-                    ),
+                    DefaultPipelineFactory::new(),
                 )),
             });
         }
@@ -513,7 +515,14 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
         let sockets = mem::replace(&mut self.sockets, Vec::new());
 
         for socket in sockets {
-            srv = socket.handler.register(srv, socket.lst);
+            srv = socket.handler.register(
+                srv,
+                socket.lst,
+                self.host.clone(),
+                socket.addr,
+                self.keep_alive.clone(),
+                self.client_timeout,
+            );
         }
         srv.start()
     }
