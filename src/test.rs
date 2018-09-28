@@ -13,12 +13,10 @@ use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
 
-#[cfg(feature = "alpn")]
+#[cfg(any(feature = "alpn", feature = "ssl"))]
 use openssl::ssl::SslAcceptorBuilder;
 #[cfg(feature = "rust-tls")]
 use rustls::ServerConfig;
-#[cfg(feature = "alpn")]
-use server::OpensslAcceptor;
 
 use application::{App, HttpApplication};
 use body::Binary;
@@ -136,7 +134,7 @@ impl TestServer {
     }
 
     fn get_conn() -> Addr<ClientConnector> {
-        #[cfg(feature = "alpn")]
+        #[cfg(any(feature = "alpn", feature = "ssl"))]
         {
             use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
@@ -144,7 +142,10 @@ impl TestServer {
             builder.set_verify(SslVerifyMode::NONE);
             ClientConnector::with_connector(builder.build()).start()
         }
-        #[cfg(all(feature = "rust-tls", not(feature = "alpn")))]
+        #[cfg(all(
+            feature = "rust-tls",
+            not(any(feature = "alpn", feature = "ssl"))
+        ))]
         {
             use rustls::ClientConfig;
             use std::fs::File;
@@ -154,7 +155,7 @@ impl TestServer {
             config.root_store.add_pem_file(pem_file).unwrap();
             ClientConnector::with_connector(config).start()
         }
-        #[cfg(not(any(feature = "alpn", feature = "rust-tls")))]
+        #[cfg(not(any(feature = "alpn", feature = "ssl", feature = "rust-tls")))]
         {
             ClientConnector::default().start()
         }
@@ -263,7 +264,7 @@ where
     F: Fn() -> S + Send + Clone + 'static,
 {
     state: F,
-    #[cfg(feature = "alpn")]
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     ssl: Option<SslAcceptorBuilder>,
     #[cfg(feature = "rust-tls")]
     rust_ssl: Option<ServerConfig>,
@@ -277,14 +278,14 @@ where
     pub fn new(state: F) -> TestServerBuilder<S, F> {
         TestServerBuilder {
             state,
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
             ssl: None,
             #[cfg(feature = "rust-tls")]
             rust_ssl: None,
         }
     }
 
-    #[cfg(feature = "alpn")]
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Create ssl server
     pub fn ssl(mut self, ssl: SslAcceptorBuilder) -> Self {
         self.ssl = Some(ssl);
@@ -308,7 +309,7 @@ where
 
         let mut has_ssl = false;
 
-        #[cfg(feature = "alpn")]
+        #[cfg(any(feature = "alpn", feature = "ssl"))]
         {
             has_ssl = has_ssl || self.ssl.is_some();
         }
@@ -335,12 +336,12 @@ where
             tx.send((System::current(), addr, TestServer::get_conn()))
                 .unwrap();
 
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
             {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
                     let tcp = net::TcpListener::bind(addr).unwrap();
-                    srv = srv.listen_with(tcp, OpensslAcceptor::new(ssl).unwrap());
+                    srv = srv.listen_ssl(tcp, ssl).unwrap();
                 }
             }
             #[cfg(feature = "rust-tls")]

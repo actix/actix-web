@@ -16,13 +16,16 @@ use http::{Error as HttpError, HttpTryFrom, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
-#[cfg(feature = "alpn")]
+#[cfg(any(feature = "alpn", feature = "ssl"))]
 use {
     openssl::ssl::{Error as SslError, SslConnector, SslMethod},
     tokio_openssl::SslConnectorExt,
 };
 
-#[cfg(all(feature = "tls", not(feature = "alpn")))]
+#[cfg(all(
+    feature = "tls",
+    not(any(feature = "alpn", feature = "ssl", feature = "rust-tls"))
+))]
 use {
     native_tls::{Error as SslError, TlsConnector as NativeTlsConnector},
     tokio_tls::TlsConnector as SslConnector,
@@ -30,7 +33,7 @@ use {
 
 #[cfg(all(
     feature = "rust-tls",
-    not(any(feature = "alpn", feature = "tls"))
+    not(any(feature = "alpn", feature = "tls", feature = "ssl"))
 ))]
 use {
     rustls::ClientConfig, std::io::Error as SslError, std::sync::Arc,
@@ -39,11 +42,16 @@ use {
 
 #[cfg(all(
     feature = "rust-tls",
-    not(any(feature = "alpn", feature = "tls"))
+    not(any(feature = "alpn", feature = "tls", feature = "ssl"))
 ))]
 type SslConnector = Arc<ClientConfig>;
 
-#[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
+#[cfg(not(any(
+    feature = "alpn",
+    feature = "ssl",
+    feature = "tls",
+    feature = "rust-tls",
+)))]
 type SslConnector = ();
 
 use server::IoStream;
@@ -150,7 +158,12 @@ pub enum ClientConnectorError {
     SslIsNotSupported,
 
     /// SSL error
-    #[cfg(any(feature = "tls", feature = "alpn", feature = "rust-tls"))]
+    #[cfg(any(
+        feature = "tls",
+        feature = "alpn",
+        feature = "ssl",
+        feature = "rust-tls",
+    ))]
     #[fail(display = "{}", _0)]
     SslError(#[cause] SslError),
 
@@ -247,19 +260,22 @@ impl SystemService for ClientConnector {}
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
         let connector = {
-            #[cfg(all(feature = "alpn"))]
+            #[cfg(all(any(feature = "alpn", feature = "ssl")))]
             {
                 SslConnector::builder(SslMethod::tls()).unwrap().build()
             }
 
-            #[cfg(all(feature = "tls", not(feature = "alpn")))]
+            #[cfg(all(
+                feature = "tls",
+                not(any(feature = "alpn", feature = "ssl", feature = "rust-tls"))
+            ))]
             {
                 NativeTlsConnector::builder().build().unwrap().into()
             }
 
             #[cfg(all(
                 feature = "rust-tls",
-                not(any(feature = "alpn", feature = "tls"))
+                not(any(feature = "alpn", feature = "tls", feature = "ssl"))
             ))]
             {
                 let mut config = ClientConfig::new();
@@ -269,7 +285,12 @@ impl Default for ClientConnector {
                 Arc::new(config)
             }
 
-            #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
+            #[cfg(not(any(
+                feature = "alpn",
+                feature = "ssl",
+                feature = "tls",
+                feature = "rust-tls",
+            )))]
             {
                 ()
             }
@@ -280,7 +301,7 @@ impl Default for ClientConnector {
 }
 
 impl ClientConnector {
-    #[cfg(feature = "alpn")]
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
     /// By default `ClientConnector` uses very a simple SSL configuration.
@@ -325,7 +346,7 @@ impl ClientConnector {
 
     #[cfg(all(
         feature = "rust-tls",
-        not(any(feature = "alpn", feature = "tls"))
+        not(any(feature = "alpn", feature = "ssl", feature = "tls"))
     ))]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
@@ -376,7 +397,7 @@ impl ClientConnector {
 
     #[cfg(all(
         feature = "tls",
-        not(any(feature = "alpn", feature = "rust-tls"))
+        not(any(feature = "ssl", feature = "alpn", feature = "rust-tls"))
     ))]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
@@ -714,7 +735,7 @@ impl ClientConnector {
             act.release_key(&key2);
             ()
         }).and_then(move |res, act, _| {
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
             match res {
                 Err(err) => {
                     let _ = waiter.tx.send(Err(err.into()));
@@ -756,7 +777,7 @@ impl ClientConnector {
                 }
             }
 
-            #[cfg(all(feature = "tls", not(feature = "alpn")))]
+            #[cfg(all(feature = "tls", not(any(feature = "alpn", feature = "ssl"))))]
             match res {
                 Err(err) => {
                     let _ = waiter.tx.send(Err(err.into()));
@@ -800,7 +821,7 @@ impl ClientConnector {
 
             #[cfg(all(
                 feature = "rust-tls",
-                not(any(feature = "alpn", feature = "tls"))
+                not(any(feature = "alpn", feature = "ssl", feature = "tls"))
             ))]
             match res {
                 Err(err) => {
@@ -844,7 +865,12 @@ impl ClientConnector {
                 }
             }
 
-            #[cfg(not(any(feature = "alpn", feature = "tls", feature = "rust-tls")))]
+            #[cfg(not(any(
+                feature = "alpn",
+                feature = "ssl",
+                feature = "tls",
+                feature = "rust-tls"
+            )))]
             match res {
                 Err(err) => {
                     let _ = waiter.tx.send(Err(err.into()));
