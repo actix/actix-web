@@ -1,11 +1,13 @@
 use std::{io, mem, net};
 
-use actix::{Addr, System};
+use actix::{Actor, Addr, Arbiter, AsyncContext, Context, Handler, System};
 use actix_net::server::Server;
 use actix_net::ssl;
 
+use futures::Stream;
 use net2::TcpBuilder;
 use num_cpus;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "tls")]
 use native_tls::TlsAcceptor;
@@ -17,8 +19,10 @@ use openssl::ssl::SslAcceptorBuilder;
 use rustls::ServerConfig;
 
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
-use super::builder::DefaultPipelineFactory;
-use super::builder::{HttpServiceBuilder, ServiceProvider};
+use super::builder::{DefaultPipelineFactory, HttpServiceBuilder, ServiceProvider};
+use super::channel::{HttpChannel, WrapperStream};
+use super::handler::HttpHandler;
+use super::settings::{ServerSettings, WorkerSettings};
 use super::{IntoHttpHandler, KeepAlive};
 
 struct Socket {
@@ -520,67 +524,60 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     }
 }
 
-// impl<H: IntoHttpHandler> HttpServer<H> {
-//     /// Start listening for incoming connections from a stream.
-//     ///
-//     /// This method uses only one thread for handling incoming connections.
-//     pub fn start_incoming<T, S>(self, stream: S, secure: bool)
-//     where
-//         S: Stream<Item = T, Error = io::Error> + Send + 'static,
-//         T: AsyncRead + AsyncWrite + Send + 'static,
-//     {
-//         // set server settings
-//         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
-//         let srv_settings = ServerSettings::new(Some(addr), &self.host, secure);
-//         let apps: Vec<_> = (*self.factory)()
-//             .into_iter()
-//             .map(|h| h.into_handler())
-//             .collect();
-//         let settings = WorkerSettings::create(
-//             apps,
-//             self.keep_alive,
-//             srv_settings,
-//         );
+impl<H, F> HttpServer<H, F>
+where
+    H: IntoHttpHandler,
+    F: Fn() -> H + Send + Clone,
+{
+    #[doc(hidden)]
+    #[deprecated(since = "0.7.8")]
+    /// Start listening for incoming connections from a stream.
+    ///
+    /// This method uses only one thread for handling incoming connections.
+    pub fn start_incoming<T, S>(self, stream: S, secure: bool)
+    where
+        S: Stream<Item = T, Error = io::Error> + 'static,
+        T: AsyncRead + AsyncWrite + 'static,
+    {
+        // set server settings
+        let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let apps = (self.factory)().into_handler();
+        let settings = WorkerSettings::new(
+            apps,
+            self.keep_alive,
+            self.client_timeout as u64,
+            ServerSettings::new(Some(addr), &self.host, secure),
+        );
 
-//         // start server
-//         HttpIncoming::create(move |ctx| {
-//             ctx.add_message_stream(stream.map_err(|_| ()).map(move |t| Conn {
-//                 io: WrapperStream::new(t),
-//                 handler: Token::new(0),
-//                 token: Token::new(0),
-//                 peer: None,
-//             }));
-//             HttpIncoming { settings }
-//         });
-//     }
-// }
+        // start server
+        HttpIncoming::create(move |ctx| {
+            ctx.add_message_stream(
+                stream.map_err(|_| ()).map(move |t| WrapperStream::new(t)),
+            );
+            HttpIncoming { settings }
+        });
+    }
+}
 
-// struct HttpIncoming<H: HttpHandler> {
-//     settings: Rc<WorkerSettings<H>>,
-// }
+struct HttpIncoming<H: HttpHandler> {
+    settings: WorkerSettings<H>,
+}
 
-// impl<H> Actor for HttpIncoming<H>
-// where
-//     H: HttpHandler,
-// {
-//     type Context = Context<Self>;
-// }
+impl<H: HttpHandler> Actor for HttpIncoming<H> {
+    type Context = Context<Self>;
+}
 
-// impl<T, H> Handler<Conn<T>> for HttpIncoming<H>
-// where
-//     T: IoStream,
-//     H: HttpHandler,
-// {
-//     type Result = ();
+impl<T, H> Handler<WrapperStream<T>> for HttpIncoming<H>
+where
+    T: AsyncRead + AsyncWrite,
+    H: HttpHandler,
+{
+    type Result = ();
 
-//     fn handle(&mut self, msg: Conn<T>, _: &mut Context<Self>) -> Self::Result {
-//         spawn(HttpChannel::new(
-//             Rc::clone(&self.settings),
-//             msg.io,
-//             msg.peer,
-//         ));
-//     }
-// }
+    fn handle(&mut self, msg: WrapperStream<T>, _: &mut Context<Self>) -> Self::Result {
+        Arbiter::spawn(HttpChannel::new(self.settings.clone(), msg, None));
+    }
+}
 
 fn create_tcp_listener(
     addr: net::SocketAddr, backlog: i32,
