@@ -5,11 +5,12 @@ use futures::future::{ok, FutureResult};
 use futures::{Async, Poll};
 
 use super::channel::HttpChannel;
+use super::error::HttpDispatchError;
 use super::handler::HttpHandler;
 use super::settings::WorkerSettings;
 use super::IoStream;
 
-pub(crate) struct HttpService<H, Io>
+pub struct HttpService<H, Io>
 where
     H: HttpHandler,
     Io: IoStream,
@@ -23,6 +24,7 @@ where
     H: HttpHandler,
     Io: IoStream,
 {
+    /// Create new `HttpService` instance.
     pub fn new(settings: WorkerSettings<H>) -> Self {
         HttpService {
             settings,
@@ -38,17 +40,17 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = ();
+    type Error = HttpDispatchError;
     type InitError = ();
     type Service = HttpServiceHandler<H, Io>;
-    type Future = FutureResult<Self::Service, Self::Error>;
+    type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
         ok(HttpServiceHandler::new(self.settings.clone()))
     }
 }
 
-pub(crate) struct HttpServiceHandler<H, Io>
+pub struct HttpServiceHandler<H, Io>
 where
     H: HttpHandler,
     Io: IoStream,
@@ -84,7 +86,7 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = ();
+    type Error = HttpDispatchError;
     type Future = HttpChannel<Io, H>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

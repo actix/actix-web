@@ -6,6 +6,7 @@ use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
+use super::error::HttpDispatchError;
 use super::settings::WorkerSettings;
 use super::{h1, h2, HttpHandler, IoStream};
 
@@ -86,7 +87,7 @@ where
     H: HttpHandler + 'static,
 {
     type Item = ();
-    type Error = ();
+    type Error = HttpDispatchError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         // keep-alive timer
@@ -127,6 +128,7 @@ where
                 return h2.poll();
             }
             Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
+                let mut err = None;
                 let mut disconnect = false;
                 match io.read_available(buf) {
                     Ok(Async::Ready((read_some, stream_closed))) => {
@@ -136,14 +138,16 @@ where
                             disconnect = true;
                         }
                     }
-                    Err(_) => {
-                        disconnect = true;
+                    Err(e) => {
+                        err = Some(e.into());
                     }
                     _ => (),
                 }
                 if disconnect {
                     debug!("Ignored premature client disconnection");
-                    return Err(());
+                    return Ok(Async::Ready(()));
+                } else if let Some(e) = err {
+                    return Err(e);
                 }
 
                 if buf.len() >= 14 {

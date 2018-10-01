@@ -1,4 +1,5 @@
 extern crate actix;
+extern crate actix_net;
 extern crate actix_web;
 #[cfg(feature = "brotli")]
 extern crate brotli2;
@@ -18,6 +19,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::{thread, time};
 
+use actix_net::server::Server;
 #[cfg(feature = "brotli")]
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::{Bytes, BytesMut};
@@ -1008,5 +1010,40 @@ fn test_server_cookies() {
     } else {
         assert_eq!(cookies[0], second_cookie);
         assert_eq!(cookies[1], first_cookie);
+    }
+}
+
+#[test]
+fn test_custom_pipeline() {
+    use actix::System;
+    use actix_web::server::{HttpService, KeepAlive, ServerSettings, WorkerSettings};
+
+    let addr = test::TestServer::unused_addr();
+
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                let app = App::new()
+                    .route("/", http::Method::GET, |_: HttpRequest| "OK")
+                    .finish();
+                let settings = WorkerSettings::new(
+                    app,
+                    KeepAlive::Disabled,
+                    10,
+                    ServerSettings::new(addr, "localhost", false),
+                );
+
+                HttpService::new(settings)
+            }).unwrap()
+            .run();
+    });
+
+    let mut sys = System::new("test");
+    {
+        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+            .finish()
+            .unwrap();
+        let response = sys.block_on(req.send()).unwrap();
+        assert!(response.status().is_success());
     }
 }

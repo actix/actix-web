@@ -140,14 +140,14 @@ mod ssl;
 pub use self::handler::*;
 pub use self::http::HttpServer;
 pub use self::message::Request;
-pub use self::settings::ServerSettings;
 pub use self::ssl::*;
+
+pub use self::error::{AcceptorError, HttpDispatchError};
+pub use self::service::HttpService;
+pub use self::settings::{ServerSettings, WorkerSettings};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
-
-#[doc(hidden)]
-pub use self::builder::HttpServiceBuilder;
 
 use body::Binary;
 use extensions::Extensions;

@@ -18,7 +18,7 @@ use openssl::ssl::SslAcceptorBuilder;
 use rustls::ServerConfig;
 
 use super::acceptor::{AcceptorServiceFactory, DefaultAcceptor};
-use super::builder::{DefaultPipelineFactory, HttpServiceBuilder, ServiceProvider};
+use super::builder::{HttpServiceBuilder, ServiceProvider};
 use super::{IntoHttpHandler, KeepAlive};
 
 struct Socket {
@@ -131,7 +131,7 @@ where
         self
     }
 
-    /// Set server client timneout in milliseconds for first request.
+    /// Set server client timeout in milliseconds for first request.
     ///
     /// Defines a timeout for reading client request header. If a client does not transmit
     /// the entire set headers within this time, the request is terminated with
@@ -218,11 +218,8 @@ where
             addr,
             scheme: "http",
             handler: Box::new(
-                HttpServiceBuilder::new(
-                    self.factory.clone(),
-                    DefaultAcceptor,
-                    DefaultPipelineFactory::new(),
-                ).no_client_timer(),
+                HttpServiceBuilder::new(self.factory.clone(), DefaultAcceptor)
+                    .no_client_timer(),
             ),
         });
 
@@ -231,7 +228,7 @@ where
 
     #[doc(hidden)]
     /// Use listener for accepting incoming connection requests
-    pub(crate) fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
+    pub fn listen_with<A>(mut self, lst: net::TcpListener, acceptor: A) -> Self
     where
         A: AcceptorServiceFactory,
         <A::NewService as NewService>::InitError: fmt::Debug,
@@ -241,11 +238,7 @@ where
             lst,
             addr,
             scheme: "https",
-            handler: Box::new(HttpServiceBuilder::new(
-                self.factory.clone(),
-                acceptor,
-                DefaultPipelineFactory::new(),
-            )),
+            handler: Box::new(HttpServiceBuilder::new(self.factory.clone(), acceptor)),
         });
 
         self
@@ -339,7 +332,6 @@ where
                 handler: Box::new(HttpServiceBuilder::new(
                     self.factory.clone(),
                     acceptor.clone(),
-                    DefaultPipelineFactory::new(),
                 )),
             });
         }
@@ -483,10 +475,15 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
         let sockets = mem::replace(&mut self.sockets, Vec::new());
 
         for socket in sockets {
+            let host = self
+                .host
+                .as_ref()
+                .map(|h| h.to_owned())
+                .unwrap_or_else(|| format!("{}", socket.addr));
             srv = socket.handler.register(
                 srv,
                 socket.lst,
-                self.host.clone(),
+                host,
                 socket.addr,
                 self.keep_alive.clone(),
                 self.client_timeout,
@@ -524,10 +521,15 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     /// Register current http server as actix-net's server service
     pub fn register(self, mut srv: Server) -> Server {
         for socket in self.sockets {
+            let host = self
+                .host
+                .as_ref()
+                .map(|h| h.to_owned())
+                .unwrap_or_else(|| format!("{}", socket.addr));
             srv = socket.handler.register(
                 srv,
                 socket.lst,
-                self.host.clone(),
+                host,
                 socket.addr,
                 self.keep_alive.clone(),
                 self.client_timeout,

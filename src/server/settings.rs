@@ -43,7 +43,7 @@ lazy_static! {
 
 /// Various server settings
 pub struct ServerSettings {
-    addr: Option<net::SocketAddr>,
+    addr: net::SocketAddr,
     secure: bool,
     host: String,
     cpu_pool: LazyCell<CpuPool>,
@@ -65,7 +65,7 @@ impl Clone for ServerSettings {
 impl Default for ServerSettings {
     fn default() -> Self {
         ServerSettings {
-            addr: None,
+            addr: "127.0.0.1:8080".parse().unwrap(),
             secure: false,
             host: "localhost:8080".to_owned(),
             responses: HttpResponsePool::get_pool(),
@@ -76,16 +76,8 @@ impl Default for ServerSettings {
 
 impl ServerSettings {
     /// Crate server settings instance
-    pub(crate) fn new(
-        addr: Option<net::SocketAddr>, host: &Option<String>, secure: bool,
-    ) -> ServerSettings {
-        let host = if let Some(ref host) = *host {
-            host.clone()
-        } else if let Some(ref addr) = addr {
-            format!("{}", addr)
-        } else {
-            "localhost".to_owned()
-        };
+    pub fn new(addr: net::SocketAddr, host: &str, secure: bool) -> ServerSettings {
+        let host = host.to_owned();
         let cpu_pool = LazyCell::new();
         let responses = HttpResponsePool::get_pool();
         ServerSettings {
@@ -98,7 +90,7 @@ impl ServerSettings {
     }
 
     /// Returns the socket address of the local half of this TCP connection
-    pub fn local_addr(&self) -> Option<net::SocketAddr> {
+    pub fn local_addr(&self) -> net::SocketAddr {
         self.addr
     }
 
@@ -153,7 +145,7 @@ impl<H> Clone for WorkerSettings<H> {
 }
 
 impl<H> WorkerSettings<H> {
-    pub(crate) fn new(
+    pub fn new(
         handler: H, keep_alive: KeepAlive, client_timeout: u64, settings: ServerSettings,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
@@ -188,11 +180,13 @@ impl<H> WorkerSettings<H> {
     }
 
     #[inline]
+    /// Keep alive duration if configured.
     pub fn keep_alive(&self) -> Option<Duration> {
         self.0.keep_alive
     }
 
     #[inline]
+    /// Return state of connection keep-alive funcitonality
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
@@ -217,6 +211,7 @@ impl<H> WorkerSettings<H> {
 
 impl<H: 'static> WorkerSettings<H> {
     #[inline]
+    /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
         let delay = self.0.client_timeout;
         if delay != 0 {
@@ -227,6 +222,7 @@ impl<H: 'static> WorkerSettings<H> {
     }
 
     #[inline]
+    /// Return keep-alive timer delay is configured.
     pub fn keep_alive_timer(&self) -> Option<Delay> {
         if let Some(ka) = self.0.keep_alive {
             Some(Delay::new(self.now() + ka))

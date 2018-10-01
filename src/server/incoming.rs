@@ -2,7 +2,7 @@
 use std::{io, net};
 
 use actix::{Actor, Arbiter, AsyncContext, Context, Handler, Message};
-use futures::Stream;
+use futures::{Future, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::channel::{HttpChannel, WrapperStream};
@@ -36,7 +36,7 @@ where
             apps,
             self.keep_alive,
             self.client_timeout as u64,
-            ServerSettings::new(Some(addr), &self.host, secure),
+            ServerSettings::new(addr, "127.0.0.1:8080", secure),
         );
 
         // start server
@@ -65,6 +65,8 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: WrapperStream<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::spawn(HttpChannel::new(self.settings.clone(), msg, None));
+        Arbiter::spawn(
+            HttpChannel::new(self.settings.clone(), msg, None).map_err(|_| ()),
+        );
     }
 }

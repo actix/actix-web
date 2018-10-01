@@ -10,7 +10,7 @@ use error::{Error, PayloadError};
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 
-use super::error::ServerError;
+use super::error::{HttpDispatchError, ServerError};
 use super::h1decoder::{DecoderError, H1Decoder, Message};
 use super::h1writer::H1Writer;
 use super::input::PayloadType;
@@ -172,7 +172,7 @@ where
     }
 
     #[inline]
-    pub fn poll(&mut self) -> Poll<(), ()> {
+    pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
         // check connection keep-alive
         if !self.poll_keep_alive() {
             return Ok(Async::Ready(()));
@@ -190,7 +190,7 @@ where
                 Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
-                    return Err(());
+                    return Err(err.into());
                 }
             }
         }
@@ -303,7 +303,7 @@ where
         }
     }
 
-    pub fn poll_handler(&mut self) -> Poll<bool, ()> {
+    pub fn poll_handler(&mut self) -> Poll<bool, HttpDispatchError> {
         let retry = self.can_read();
 
         // check in-flight messages
@@ -321,7 +321,7 @@ where
                         return Ok(Async::NotReady);
                     }
                     self.flags.insert(Flags::ERROR);
-                    return Err(());
+                    return Err(HttpDispatchError::AppError);
                 }
 
                 match self.tasks[idx].pipe.poll_io(&mut self.stream) {
@@ -404,7 +404,7 @@ where
                     debug!("Error sending data: {}", err);
                     self.read_disconnected();
                     self.write_disconnected();
-                    return Err(());
+                    return Err(err.into());
                 }
                 Ok(Async::Ready(_)) => {
                     // non consumed payload in that case close connection

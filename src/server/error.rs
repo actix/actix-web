@@ -1,6 +1,7 @@
 use std::io;
 
 use futures::{Async, Poll};
+use http2;
 
 use super::{helpers, HttpHandlerTask, Writer};
 use http::{StatusCode, Version};
@@ -17,6 +18,39 @@ pub enum AcceptorError<T> {
 
     /// The request did not complete within the specified timeout.
     Timeout,
+}
+
+#[derive(Fail, Debug)]
+/// A set of errors that can occur during dispatching http requests
+pub enum HttpDispatchError {
+    /// Application error
+    #[fail(display = "Application specific error")]
+    AppError,
+
+    /// An `io::Error` that occurred while trying to read or write to a network
+    /// stream.
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+
+    /// The first request did not complete within the specified timeout.
+    #[fail(display = "The first request did not complete within the specified timeout")]
+    SlowRequestTimeout,
+
+    /// HTTP2 error
+    #[fail(display = "HTTP2 error: {}", _0)]
+    Http2(http2::Error),
+}
+
+impl From<io::Error> for HttpDispatchError {
+    fn from(err: io::Error) -> Self {
+        HttpDispatchError::Io(err)
+    }
+}
+
+impl From<http2::Error> for HttpDispatchError {
+    fn from(err: http2::Error) -> Self {
+        HttpDispatchError::Http2(err)
+    }
 }
 
 pub(crate) struct ServerError(Version, StatusCode);

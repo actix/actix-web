@@ -19,7 +19,7 @@ use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use uri::Url;
 
-use super::error::ServerError;
+use super::error::{HttpDispatchError, ServerError};
 use super::h2writer::H2Writer;
 use super::input::PayloadType;
 use super::settings::WorkerSettings;
@@ -86,7 +86,7 @@ where
         &self.settings
     }
 
-    pub fn poll(&mut self) -> Poll<(), ()> {
+    pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
         // server
         if let State::Connection(ref mut conn) = self.state {
             // keep-alive timer
@@ -244,9 +244,7 @@ where
                                     }
                                 } else {
                                     // keep-alive disable, drop connection
-                                    return conn.poll_close().map_err(|e| {
-                                        error!("Error during connection close: {}", e)
-                                    });
+                                    return conn.poll_close().map_err(|e| e.into());
                                 }
                             } else {
                                 // keep-alive unset, rely on operating system
@@ -267,9 +265,7 @@ where
                 if not_ready {
                     if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED)
                     {
-                        return conn
-                            .poll_close()
-                            .map_err(|e| error!("Error during connection close: {}", e));
+                        return conn.poll_close().map_err(|e| e.into());
                     } else {
                         return Ok(Async::NotReady);
                     }
@@ -284,7 +280,7 @@ where
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     trace!("Error handling connection: {}", err);
-                    return Err(());
+                    return Err(err.into());
                 }
             }
         } else {
