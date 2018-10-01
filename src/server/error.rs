@@ -24,8 +24,8 @@ pub enum AcceptorError<T> {
 /// A set of errors that can occur during dispatching http requests
 pub enum HttpDispatchError {
     /// Application error
-    #[fail(display = "Application specific error")]
-    AppError,
+    #[fail(display = "Application specific error: {}", _0)]
+    App(Error),
 
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
@@ -39,6 +39,16 @@ pub enum HttpDispatchError {
     /// HTTP2 error
     #[fail(display = "HTTP2 error: {}", _0)]
     Http2(http2::Error),
+
+    /// Unknown error
+    #[fail(display = "Unknown error")]
+    Unknown,
+}
+
+impl From<Error> for HttpDispatchError {
+    fn from(err: Error) -> Self {
+        HttpDispatchError::App(err)
+    }
 }
 
 impl From<io::Error> for HttpDispatchError {

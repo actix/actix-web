@@ -285,12 +285,9 @@ impl Default for ClientConnector {
                 Arc::new(config)
             }
 
+            #[cfg_attr(rustfmt, rustfmt_skip)]
             #[cfg(not(any(
-                feature = "alpn",
-                feature = "ssl",
-                feature = "tls",
-                feature = "rust-tls",
-            )))]
+                feature = "alpn", feature = "ssl", feature = "tls", feature = "rust-tls")))]
             {
                 ()
             }

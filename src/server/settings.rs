@@ -145,6 +145,7 @@ impl<H> Clone for WorkerSettings<H> {
 }
 
 impl<H> WorkerSettings<H> {
+    /// Create instance of `WorkerSettings`
     pub fn new(
         handler: H, keep_alive: KeepAlive, client_timeout: u64, settings: ServerSettings,
     ) -> WorkerSettings<H> {

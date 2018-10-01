@@ -49,6 +49,7 @@ pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
     payload: Option<PayloadType>,
     buf: BytesMut,
     tasks: VecDeque<Entry<H>>,
+    error: Option<Error>,
     ka_enabled: bool,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
@@ -113,6 +114,7 @@ where
             decoder: H1Decoder::new(),
             payload: None,
             tasks: VecDeque::new(),
+            error: None,
             addr,
             buf,
             settings,
@@ -321,7 +323,11 @@ where
                         return Ok(Async::NotReady);
                     }
                     self.flags.insert(Flags::ERROR);
-                    return Err(HttpDispatchError::AppError);
+                    return Err(self
+                        .error
+                        .take()
+                        .map(|e| e.into())
+                        .unwrap_or(HttpDispatchError::Unknown));
                 }
 
                 match self.tasks[idx].pipe.poll_io(&mut self.stream) {
@@ -357,12 +363,13 @@ where
                         io = true;
                     }
                     Err(err) => {
+                        error!("Unhandled error1: {}", err);
                         // it is not possible to recover from error
                         // during pipe handling, so just drop connection
                         self.read_disconnected();
                         self.write_disconnected();
                         self.tasks[idx].flags.insert(EntryFlags::ERROR);
-                        error!("Unhandled error1: {}", err);
+                        self.error = Some(err);
                         continue;
                     }
                 }
@@ -373,10 +380,11 @@ where
                         self.tasks[idx].flags.insert(EntryFlags::FINISHED)
                     }
                     Err(err) => {
+                        error!("Unhandled error: {}", err);
                         self.read_disconnected();
                         self.write_disconnected();
                         self.tasks[idx].flags.insert(EntryFlags::ERROR);
-                        error!("Unhandled error: {}", err);
+                        self.error = Some(err);
                         continue;
                     }
                 }
