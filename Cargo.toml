@@ -126,8 +126,6 @@ webpki-roots = { version = "0.15", optional = true }
 # unix sockets
 tokio-uds = { version="0.2", optional = true }
 
-backtrace="*"
-
 [dev-dependencies]
 env_logger = "0.5"
 serde_derive = "1.0"
