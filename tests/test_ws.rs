@@ -393,6 +393,6 @@ fn test_ws_stopped() {
         assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
     });
 
-    thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_secs(3));
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }
