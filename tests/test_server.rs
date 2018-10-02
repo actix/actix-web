@@ -1016,7 +1016,10 @@ fn test_server_cookies() {
 #[test]
 fn test_custom_pipeline() {
     use actix::System;
-    use actix_web::server::{HttpService, KeepAlive, WorkerSettings};
+    use actix_net::service::NewServiceExt;
+    use actix_web::server::{
+        HttpService, KeepAlive, StreamConfiguration, WorkerSettings,
+    };
 
     let addr = test::TestServer::unused_addr();
 
@@ -1034,7 +1037,9 @@ fn test_custom_pipeline() {
                     .server_address(addr)
                     .finish();
 
-                HttpService::new(settings)
+                StreamConfiguration::new()
+                    .nodelay(true)
+                    .and_then(HttpService::new(settings))
             }).unwrap()
             .run();
     });

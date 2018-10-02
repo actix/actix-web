@@ -24,15 +24,18 @@ const MAX_PIPELINED_MESSAGES: usize = 16;
 bitflags! {
     pub struct Flags: u8 {
         const STARTED            = 0b0000_0001;
+        const KEEPALIVE_ENABLED  = 0b0000_0010;
         const KEEPALIVE          = 0b0000_0100;
         const SHUTDOWN           = 0b0000_1000;
         const READ_DISCONNECTED  = 0b0001_0000;
         const WRITE_DISCONNECTED = 0b0010_0000;
         const POLLED             = 0b0100_0000;
+
     }
 }
 
-pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
+/// Dispatcher for HTTP/1.1 protocol
+pub struct Http1Dispatcher<T: IoStream, H: HttpHandler + 'static> {
     flags: Flags,
     settings: WorkerSettings<H>,
     addr: Option<SocketAddr>,
@@ -42,7 +45,6 @@ pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
     buf: BytesMut,
     tasks: VecDeque<Entry<H>>,
     error: Option<HttpDispatchError>,
-    ka_enabled: bool,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
 }
@@ -79,7 +81,7 @@ impl<H: HttpHandler> Entry<H> {
     }
 }
 
-impl<T, H> Http1<T, H>
+impl<T, H> Http1Dispatcher<T, H>
 where
     T: IoStream,
     H: HttpHandler + 'static,
@@ -88,7 +90,6 @@ where
         settings: WorkerSettings<H>, stream: T, addr: Option<SocketAddr>, buf: BytesMut,
         is_eof: bool, keepalive_timer: Option<Delay>,
     ) -> Self {
-        let ka_enabled = settings.keep_alive_enabled();
         let (ka_expire, ka_timer) = if let Some(delay) = keepalive_timer {
             (delay.deadline(), Some(delay))
         } else if let Some(delay) = settings.keep_alive_timer() {
@@ -97,12 +98,16 @@ where
             (settings.now(), None)
         };
 
-        Http1 {
-            flags: if is_eof {
-                Flags::READ_DISCONNECTED
-            } else {
-                Flags::KEEPALIVE
-            },
+        let mut flags = if is_eof {
+            Flags::READ_DISCONNECTED
+        } else if settings.keep_alive_enabled() {
+            Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED
+        } else {
+            Flags::empty()
+        };
+
+        Http1Dispatcher {
+            flags,
             stream: H1Writer::new(stream, settings.clone()),
             decoder: H1Decoder::new(),
             payload: None,
@@ -113,7 +118,6 @@ where
             settings,
             ka_timer,
             ka_expire,
-            ka_enabled,
         }
     }
 
@@ -212,7 +216,7 @@ where
                         }
                         // no keep-alive
                         if self.flags.contains(Flags::STARTED)
-                            && (!self.ka_enabled
+                            && (!self.flags.contains(Flags::KEEPALIVE_ENABLED)
                                 || !self.flags.contains(Flags::KEEPALIVE))
                         {
                             self.flags.insert(Flags::SHUTDOWN);
@@ -280,7 +284,7 @@ where
 
     #[inline]
     /// read data from stream
-    pub fn poll_io(&mut self) -> Result<(), HttpDispatchError> {
+    pub(self) fn poll_io(&mut self) -> Result<(), HttpDispatchError> {
         if !self.flags.contains(Flags::POLLED) {
             self.parse()?;
             self.flags.insert(Flags::POLLED);
@@ -308,7 +312,7 @@ where
         Ok(())
     }
 
-    pub fn poll_handler(&mut self) -> Poll<bool, HttpDispatchError> {
+    pub(self) fn poll_handler(&mut self) -> Poll<bool, HttpDispatchError> {
         let retry = self.can_read();
 
         // process first pipelined response, only one task can do io operation in http/1
@@ -419,7 +423,7 @@ where
             .push_back(Entry::Error(ServerError::err(Version::HTTP_11, status)));
     }
 
-    pub fn parse(&mut self) -> Result<(), HttpDispatchError> {
+    pub(self) fn parse(&mut self) -> Result<(), HttpDispatchError> {
         let mut updated = false;
 
         'outer: loop {
@@ -686,7 +690,8 @@ mod tests {
             let readbuf = BytesMut::new();
             let settings = wrk_settings();
 
-            let mut h1 = Http1::new(settings.clone(), buf, None, readbuf, false, None);
+            let mut h1 =
+                Http1Dispatcher::new(settings.clone(), buf, None, readbuf, false, None);
             assert!(h1.poll_io().is_ok());
             assert!(h1.poll_io().is_ok());
             assert!(h1.flags.contains(Flags::READ_DISCONNECTED));

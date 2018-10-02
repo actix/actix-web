@@ -13,7 +13,7 @@ use super::{h1, h2, HttpHandler, IoStream};
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
 enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
-    H1(h1::Http1<T, H>),
+    H1(h1::Http1Dispatcher<T, H>),
     H2(h2::Http2<T, H>),
     Unknown(WorkerSettings<H>, Option<SocketAddr>, T, BytesMut),
 }
@@ -167,7 +167,7 @@ where
         if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto = Some(HttpProtocol::H1(h1::Http1::new(
+                    self.proto = Some(HttpProtocol::H1(h1::Http1Dispatcher::new(
                         settings,
                         io,
                         addr,
@@ -309,6 +309,10 @@ where
     }
     #[inline]
     fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
+        Ok(())
+    }
+    #[inline]
+    fn set_keepalive(&mut self, _: Option<time::Duration>) -> io::Result<()> {
         Ok(())
     }
 }

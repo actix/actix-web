@@ -51,6 +51,11 @@ impl<Io: IoStream> IoStream for TlsStream<Io, ClientSession> {
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         self.get_mut().0.set_linger(dur)
     }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().0.set_keepalive(dur)
+    }
 }
 
 impl<Io: IoStream> IoStream for TlsStream<Io, ServerSession> {
@@ -68,5 +73,10 @@ impl<Io: IoStream> IoStream for TlsStream<Io, ServerSession> {
     #[inline]
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         self.get_mut().0.set_linger(dur)
+    }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().0.set_keepalive(dur)
     }
 }

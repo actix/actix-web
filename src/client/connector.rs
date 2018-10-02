@@ -1283,6 +1283,11 @@ impl IoStream for Connection {
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         IoStream::set_linger(&mut *self.stream, dur)
     }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        IoStream::set_keepalive(&mut *self.stream, dur)
+    }
 }
 
 impl io::Read for Connection {

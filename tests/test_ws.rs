@@ -7,7 +7,7 @@ extern crate rand;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::{thread, time};
+use std::thread;
 
 use bytes::Bytes;
 use futures::Stream;

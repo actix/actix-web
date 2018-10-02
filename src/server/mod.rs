@@ -143,8 +143,10 @@ pub use self::message::Request;
 pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
-pub use self::service::HttpService;
 pub use self::settings::{ServerSettings, WorkerSettings, WorkerSettingsBuilder};
+
+#[doc(hidden)]
+pub use self::service::{HttpService, StreamConfiguration};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
@@ -268,6 +270,8 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
+
     fn read_available(&mut self, buf: &mut BytesMut) -> Poll<(bool, bool), io::Error> {
         let mut read_some = false;
         loop {
@@ -324,6 +328,11 @@ impl IoStream for ::tokio_uds::UnixStream {
     fn set_linger(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
         Ok(())
     }
+
+    #[inline]
+    fn set_keepalive(&mut self, _nodelay: bool) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 impl IoStream for TcpStream {
@@ -340,5 +349,10 @@ impl IoStream for TcpStream {
     #[inline]
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         TcpStream::set_linger(self, dur)
+    }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        TcpStream::set_keepalive(self, dur)
     }
 }
