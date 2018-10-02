@@ -9,6 +9,7 @@ use tokio_timer::Delay;
 use super::error::HttpDispatchError;
 use super::settings::WorkerSettings;
 use super::{h1, h2, HttpHandler, IoStream};
+use http::StatusCode;
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
@@ -42,11 +43,9 @@ where
     pub(crate) fn new(
         settings: WorkerSettings<H>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
-        let ka_timeout = settings.client_timer();
-
         HttpChannel {
-            ka_timeout,
             node: None,
+            ka_timeout: settings.client_timer(),
             proto: Some(HttpProtocol::Unknown(
                 settings,
                 peer,
@@ -91,10 +90,23 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         // keep-alive timer
-        if let Some(ref mut timer) = self.ka_timeout {
-            match timer.poll() {
+        if self.ka_timeout.is_some() {
+            match self.ka_timeout.as_mut().unwrap().poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Slow request timed out, close connection");
+                    if let Some(HttpProtocol::Unknown(settings, _, io, buf)) =
+                        self.proto.take()
+                    {
+                        self.proto =
+                            Some(HttpProtocol::H1(h1::Http1Dispatcher::for_error(
+                                settings,
+                                io,
+                                StatusCode::REQUEST_TIMEOUT,
+                                self.ka_timeout.take(),
+                                buf,
+                            )));
+                        return self.poll();
+                    }
                     return Ok(Async::Ready(()));
                 }
                 Ok(Async::NotReady) => (),
@@ -121,12 +133,8 @@ where
 
         let mut is_eof = false;
         let kind = match self.proto {
-            Some(HttpProtocol::H1(ref mut h1)) => {
-                return h1.poll();
-            }
-            Some(HttpProtocol::H2(ref mut h2)) => {
-                return h2.poll();
-            }
+            Some(HttpProtocol::H1(ref mut h1)) => return h1.poll(),
+            Some(HttpProtocol::H2(ref mut h2)) => return h2.poll(),
             Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
                 let mut err = None;
                 let mut disconnect = false;

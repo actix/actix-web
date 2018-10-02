@@ -1054,3 +1054,43 @@ fn test_custom_pipeline() {
         assert!(response.status().is_success());
     }
 }
+
+#[test]
+fn test_slow_request() {
+    use actix::System;
+    use std::net;
+    use std::sync::mpsc;
+    let (tx, rx) = mpsc::channel();
+
+    let addr = test::TestServer::unused_addr();
+
+    thread::spawn(move || {
+        System::run(move || {
+            let srv = server::new(|| {
+                vec![App::new().resource("/", |r| {
+                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                })]
+            });
+
+            let srv = srv.bind(addr).unwrap();
+            srv.client_timeout(200).start();
+            let _ = tx.send(System::current());
+        });
+    });
+    let sys = rx.recv().unwrap();
+
+    thread::sleep(time::Duration::from_millis(200));
+
+    let mut stream = net::TcpStream::connect(addr).unwrap();
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeou"));
+
+    let mut stream = net::TcpStream::connect(addr).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeou"));
+
+    sys.stop();
+}

@@ -8,6 +8,8 @@
 
 * Added slow request timeout setting
 
+* Respond with 408 response on slow request timeout #523
+
 
 ### Fixed
 

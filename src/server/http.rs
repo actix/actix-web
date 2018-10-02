@@ -232,10 +232,10 @@ where
             lst,
             addr,
             scheme: "http",
-            handler: Box::new(
-                HttpServiceBuilder::new(self.factory.clone(), DefaultAcceptor)
-                    .no_client_timer(),
-            ),
+            handler: Box::new(HttpServiceBuilder::new(
+                self.factory.clone(),
+                DefaultAcceptor,
+            )),
         });
 
         self
@@ -498,10 +498,10 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 .as_ref()
                 .map(|h| h.to_owned())
                 .unwrap_or_else(|| format!("{}", socket.addr));
-            let client_shutdown = if socket.scheme == "https" {
-                self.client_shutdown
+            let (secure, client_shutdown) = if socket.scheme == "https" {
+                (true, self.client_shutdown)
             } else {
-                0
+                (false, 0)
             };
             srv = socket.handler.register(
                 srv,
@@ -509,6 +509,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 host,
                 socket.addr,
                 self.keep_alive,
+                secure,
                 self.client_timeout,
                 client_shutdown,
             );
@@ -550,10 +551,10 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 .as_ref()
                 .map(|h| h.to_owned())
                 .unwrap_or_else(|| format!("{}", socket.addr));
-            let client_shutdown = if socket.scheme == "https" {
-                self.client_shutdown
+            let (secure, client_shutdown) = if socket.scheme == "https" {
+                (true, self.client_shutdown)
             } else {
-                0
+                (false, 0)
             };
             srv = socket.handler.register(
                 srv,
@@ -561,6 +562,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 host,
                 socket.addr,
                 self.keep_alive,
+                secure,
                 self.client_timeout,
                 client_shutdown,
             );

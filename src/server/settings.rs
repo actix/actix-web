@@ -232,6 +232,16 @@ impl<H: 'static> WorkerSettings<H> {
         }
     }
 
+    /// Client timeout for first request.
+    pub fn client_timer_expire(&self) -> Option<Instant> {
+        let delay = self.0.client_timeout;
+        if delay != 0 {
+            Some(self.now() + Duration::from_millis(delay))
+        } else {
+            None
+        }
+    }
+
     /// Client shutdown timer
     pub fn client_shutdown_timer(&self) -> Option<Instant> {
         let delay = self.0.client_shutdown;

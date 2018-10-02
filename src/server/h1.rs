@@ -121,6 +121,31 @@ where
         }
     }
 
+    pub(crate) fn for_error(
+        settings: WorkerSettings<H>, stream: T, status: StatusCode,
+        mut keepalive_timer: Option<Delay>, buf: BytesMut,
+    ) -> Self {
+        if let Some(deadline) = settings.client_timer_expire() {
+            let _ = keepalive_timer.as_mut().map(|delay| delay.reset(deadline));
+        }
+
+        let mut disp = Http1Dispatcher {
+            flags: Flags::STARTED | Flags::READ_DISCONNECTED,
+            stream: H1Writer::new(stream, settings.clone()),
+            decoder: H1Decoder::new(),
+            payload: None,
+            tasks: VecDeque::new(),
+            error: None,
+            addr: None,
+            ka_timer: keepalive_timer,
+            ka_expire: settings.now(),
+            buf,
+            settings,
+        };
+        disp.push_response_entry(status);
+        disp
+    }
+
     #[inline]
     pub fn settings(&self) -> &WorkerSettings<H> {
         &self.settings
@@ -133,7 +158,7 @@ where
 
     #[inline]
     fn can_read(&self) -> bool {
-        if self.flags.intersects(Flags::READ_DISCONNECTED) {
+        if self.flags.contains(Flags::READ_DISCONNECTED) {
             return false;
         }
 
@@ -250,6 +275,15 @@ where
                                 );
                                 let _ = IoStream::shutdown(io, Shutdown::Both);
                                 return Err(HttpDispatchError::ShutdownTimeout);
+                            } else if !self.flags.contains(Flags::STARTED) {
+                                // timeout on first request (slow request) return 408
+                                trace!("Slow request timeout");
+                                self.flags
+                                    .insert(Flags::STARTED | Flags::READ_DISCONNECTED);
+                                self.tasks.push_back(Entry::Error(ServerError::err(
+                                    Version::HTTP_11,
+                                    StatusCode::REQUEST_TIMEOUT,
+                                )));
                             } else {
                                 trace!("Keep-alive timeout, close connection");
                                 self.flags.insert(Flags::SHUTDOWN);
