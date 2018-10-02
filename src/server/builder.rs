@@ -59,18 +59,6 @@ where
             );
 
             if secure {
-                Either::A(ServerMessageAcceptor::new(
-                    settings.clone(),
-                    TcpAcceptor::new(acceptor.create().map_err(AcceptorError::Service))
-                        .map_err(|_| ())
-                        .map_init_err(|_| ())
-                        .and_then(
-                            HttpService::new(settings)
-                                .map_init_err(|_| ())
-                                .map_err(|_| ()),
-                        ),
-                ))
-            } else {
                 Either::B(ServerMessageAcceptor::new(
                     settings.clone(),
                     TcpAcceptor::new(AcceptorTimeout::new(
@@ -84,21 +72,19 @@ where
                             .map_err(|_| ()),
                     ),
                 ))
+            } else {
+                Either::A(ServerMessageAcceptor::new(
+                    settings.clone(),
+                    TcpAcceptor::new(acceptor.create().map_err(AcceptorError::Service))
+                        .map_err(|_| ())
+                        .map_init_err(|_| ())
+                        .and_then(
+                            HttpService::new(settings)
+                                .map_init_err(|_| ())
+                                .map_err(|_| ()),
+                        ),
+                ))
             }
-        }
-    }
-}
-
-impl<F, H, A> Clone for HttpServiceBuilder<F, H, A>
-where
-    F: Fn() -> H + Send + Clone,
-    H: IntoHttpHandler,
-    A: AcceptorServiceFactory,
-{
-    fn clone(&self) -> Self {
-        HttpServiceBuilder {
-            factory: self.factory.clone(),
-            acceptor: self.acceptor.clone(),
         }
     }
 }

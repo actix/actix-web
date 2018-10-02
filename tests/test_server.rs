@@ -15,6 +15,9 @@ extern crate tokio_current_thread as current_thread;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 
+#[cfg(feature = "ssl")]
+extern crate openssl;
+
 use std::io::{Read, Write};
 use std::sync::Arc;
 use std::{thread, time};
@@ -1084,13 +1087,13 @@ fn test_slow_request() {
     let mut stream = net::TcpStream::connect(addr).unwrap();
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 408 Request Timeou"));
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
 
     let mut stream = net::TcpStream::connect(addr).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 408 Request Timeou"));
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
 
     sys.stop();
 }
@@ -1106,9 +1109,9 @@ fn test_malformed_request() {
     thread::spawn(move || {
         System::run(move || {
             let srv = server::new(|| {
-                vec![App::new().resource("/", |r| {
+                App::new().resource("/", |r| {
                     r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-                })]
+                })
             });
 
             let _ = srv.bind(addr).unwrap().start();
@@ -1125,4 +1128,65 @@ fn test_malformed_request() {
     assert!(data.starts_with("HTTP/1.1 400 Bad Request"));
 
     sys.stop();
+}
+
+#[test]
+fn test_app_404() {
+    let mut srv = test::TestServer::with_factory(|| {
+        App::new().prefix("/prefix").resource("/", |r| {
+            r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+        })
+    });
+
+    let request = srv.client(http::Method::GET, "/prefix/").finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.client(http::Method::GET, "/").finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::NOT_FOUND);
+}
+
+#[test]
+#[cfg(feature = "ssl")]
+fn test_ssl_handshake_timeout() {
+    use actix::System;
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    use std::net;
+    use std::sync::mpsc;
+
+    let (tx, rx) = mpsc::channel();
+    let addr = test::TestServer::unused_addr();
+
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
+
+    thread::spawn(move || {
+        System::run(move || {
+            let srv = server::new(|| {
+                App::new().resource("/", |r| {
+                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                })
+            });
+
+            srv.bind_ssl(addr, builder)
+                .unwrap()
+                .workers(1)
+                .client_timeout(200)
+                .start();
+            let _ = tx.send(System::current());
+        });
+    });
+    let sys = rx.recv().unwrap();
+
+    let mut stream = net::TcpStream::connect(addr).unwrap();
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.is_empty())
 }

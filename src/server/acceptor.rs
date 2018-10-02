@@ -176,12 +176,15 @@ where
 /// Applies timeout to request prcoessing.
 pub(crate) struct AcceptorTimeout<T> {
     inner: T,
-    timeout: u64,
+    timeout: Duration,
 }
 
 impl<T: NewService> AcceptorTimeout<T> {
     pub(crate) fn new(timeout: u64, inner: T) -> Self {
-        Self { inner, timeout }
+        Self {
+            inner,
+            timeout: Duration::from_millis(timeout),
+        }
     }
 }
 
@@ -204,7 +207,7 @@ impl<T: NewService> NewService for AcceptorTimeout<T> {
 #[doc(hidden)]
 pub(crate) struct AcceptorTimeoutFut<T: NewService> {
     fut: T::Future,
-    timeout: u64,
+    timeout: Duration,
 }
 
 impl<T: NewService> Future for AcceptorTimeoutFut<T> {
@@ -225,7 +228,7 @@ impl<T: NewService> Future for AcceptorTimeoutFut<T> {
 /// Applies timeout to request prcoessing.
 pub(crate) struct AcceptorTimeoutService<T> {
     inner: T,
-    timeout: u64,
+    timeout: Duration,
 }
 
 impl<T: Service> Service for AcceptorTimeoutService<T> {
@@ -241,7 +244,7 @@ impl<T: Service> Service for AcceptorTimeoutService<T> {
     fn call(&mut self, req: Self::Request) -> Self::Future {
         AcceptorTimeoutResponse {
             fut: self.inner.call(req),
-            sleep: sleep(Duration::from_millis(self.timeout)),
+            sleep: sleep(self.timeout),
         }
     }
 }

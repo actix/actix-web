@@ -14,7 +14,7 @@ use futures::Stream;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
-#[cfg(feature = "alpn")]
+#[cfg(feature = "ssl")]
 extern crate openssl;
 #[cfg(feature = "rust-tls")]
 extern crate rustls;
@@ -282,7 +282,7 @@ fn test_server_send_bin() {
 }
 
 #[test]
-#[cfg(feature = "alpn")]
+#[cfg(feature = "ssl")]
 fn test_ws_server_ssl() {
     extern crate openssl;
     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
