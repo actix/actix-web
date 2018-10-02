@@ -11,7 +11,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
 use http::header::{ACCEPT_ENCODING, CONTENT_LENGTH};
-use http::Version;
+use http::{StatusCode, Version};
 
 use super::message::InnerRequest;
 use body::{Binary, Body};
@@ -192,7 +192,13 @@ impl Output {
         let transfer = match resp.body() {
             Body::Empty => {
                 if !info.head {
-                    info.length = ResponseLength::Zero;
+                    info.length = match resp.status() {
+                        StatusCode::NO_CONTENT
+                        | StatusCode::CONTINUE
+                        | StatusCode::SWITCHING_PROTOCOLS
+                        | StatusCode::PROCESSING => ResponseLength::None,
+                        _ => ResponseLength::Zero,
+                    };
                 }
                 *self = Output::Empty(buf);
                 return;
