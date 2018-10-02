@@ -284,7 +284,6 @@ fn test_server_send_bin() {
 #[test]
 #[cfg(feature = "ssl")]
 fn test_ws_server_ssl() {
-    extern crate openssl;
     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
     // load ssl keys
@@ -320,7 +319,6 @@ fn test_ws_server_ssl() {
 #[test]
 #[cfg(feature = "rust-tls")]
 fn test_ws_server_rust_tls() {
-    extern crate rustls;
     use rustls::internal::pemfile::{certs, rsa_private_keys};
     use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;

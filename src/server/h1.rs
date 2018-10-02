@@ -206,7 +206,7 @@ where
 
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
-            if self.flags.intersects(Flags::WRITE_DISCONNECTED) {
+            if self.flags.contains(Flags::WRITE_DISCONNECTED) {
                 return Ok(Async::Ready(()));
             }
             return self.poll_flush(true);
@@ -220,7 +220,7 @@ where
             self.poll_flush(false)?;
 
             // deal with keep-alive and stream eof (client-side write shutdown)
-            if self.tasks.is_empty() && self.flags.intersects(Flags::FLUSHED) {
+            if self.tasks.is_empty() && self.flags.contains(Flags::FLUSHED) {
                 // handle stream eof
                 if self
                     .flags

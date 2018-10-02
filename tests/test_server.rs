@@ -890,6 +890,100 @@ fn test_brotli_encoding_large() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(all(feature = "brotli", future = "ssl"))]
+#[test]
+fn test_ssl_brotli_encoding_large() {
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
+
+    let data = STR.repeat(10);
+    let mut srv = test::TestServer::build().ssl(builder).start(|app| {
+        app.handler(|req: &HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Identity)
+                        .body(bytes))
+                }).responder()
+        })
+    });
+
+    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv
+        .post()
+        .header(http::header::CONTENT_ENCODING, "br")
+        .body(enc)
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[cfg(future = "rust-ssl")]
+#[test]
+fn test_reading_deflate_encoding_large_random_ssl() {
+    use rustls::internal::pemfile::{certs, rsa_private_keys};
+    use rustls::{NoClientAuth, ServerConfig};
+    use std::fs::File;
+    use std::io::BufReader;
+
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = rsa_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(160_000)
+        .collect::<String>();
+
+    let mut srv = test::TestServer::build().rustls(config).start(|app| {
+        app.handler(|req: &HttpRequest| {
+            req.body()
+                .and_then(|bytes: Bytes| {
+                    Ok(HttpResponse::Ok()
+                        .content_encoding(http::ContentEncoding::Identity)
+                        .body(bytes))
+                }).responder()
+        })
+    });
+
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv
+        .post()
+        .header(http::header::CONTENT_ENCODING, "deflate")
+        .body(enc)
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.execute(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+}
+
 #[test]
 fn test_h2() {
     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
