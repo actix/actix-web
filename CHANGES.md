@@ -21,6 +21,7 @@
 
 * Responses with the following codes: 100, 101, 102, 204 -- are sent without Content-Length header. #521
 
+* Correct usage of `no_http2` flag in `bind_*` methods. #519
 
 ## [0.7.8] - 2018-09-17
 
