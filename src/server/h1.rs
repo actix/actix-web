@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
-use std::net::SocketAddr;
-use std::time::Instant;
+use std::net::{Shutdown, SocketAddr};
+use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
 use futures::{Async, Future, Poll};
@@ -239,6 +239,12 @@ where
                         if self.tasks.is_empty() {
                             // if we get timer during shutdown, just drop connection
                             if self.flags.contains(Flags::SHUTDOWN) {
+                                let io = self.stream.get_mut();
+                                let _ = IoStream::set_linger(
+                                    io,
+                                    Some(Duration::from_secs(0)),
+                                );
+                                let _ = IoStream::shutdown(io, Shutdown::Both);
                                 return Err(HttpDispatchError::ShutdownTimeout);
                             } else {
                                 trace!("Keep-alive timeout, close connection");
