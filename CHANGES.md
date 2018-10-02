@@ -19,7 +19,7 @@
 
 * Websocket server finished() isn't called if client disconnects #511
 
-* A responses with the following codes: 100, 101, 102, 204 -- are sent without Content-Length header. #521
+* Responses with the following codes: 100, 101, 102, 204 -- are sent without Content-Length header. #521
 
 
 ## [0.7.8] - 2018-09-17
