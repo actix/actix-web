@@ -5,7 +5,7 @@ use futures::{Async, Poll};
 use httparse;
 
 use super::message::{MessageFlags, Request};
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HttpTryFrom, Method, Uri, Version};
@@ -43,7 +43,7 @@ impl H1Decoder {
     }
 
     pub fn decode<H>(
-        &mut self, src: &mut BytesMut, settings: &WorkerSettings<H>,
+        &mut self, src: &mut BytesMut, settings: &ServiceConfig<H>,
     ) -> Result<Option<Message>, DecoderError> {
         // read payload
         if self.decoder.is_some() {
@@ -80,7 +80,7 @@ impl H1Decoder {
     }
 
     fn parse_message<H>(
-        &self, buf: &mut BytesMut, settings: &WorkerSettings<H>,
+        &self, buf: &mut BytesMut, settings: &ServiceConfig<H>,
     ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;

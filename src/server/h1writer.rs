@@ -8,7 +8,7 @@ use tokio_io::AsyncWrite;
 
 use super::helpers;
 use super::output::{Output, ResponseInfo, ResponseLength};
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::Request;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
@@ -37,11 +37,11 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     headers_size: u32,
     buffer: Output,
     buffer_capacity: usize,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
-    pub fn new(stream: T, settings: WorkerSettings<H>) -> H1Writer<T, H> {
+    pub fn new(stream: T, settings: ServiceConfig<H>) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
             written: 0,

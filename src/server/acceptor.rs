@@ -9,9 +9,10 @@ use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 use tokio_timer::{sleep, Delay};
 
+use super::channel::HttpProtocol;
 use super::error::AcceptorError;
 use super::handler::HttpHandler;
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::IoStream;
 
 /// This trait indicates types that can create acceptor service for http server.
@@ -271,7 +272,7 @@ impl<T: Service> Future for AcceptorTimeoutResponse<T> {
 
 pub(crate) struct ServerMessageAcceptor<T, H: HttpHandler> {
     inner: T,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<T, H> ServerMessageAcceptor<T, H>
@@ -279,7 +280,7 @@ where
     H: HttpHandler,
     T: NewService<Request = net::TcpStream>,
 {
-    pub(crate) fn new(settings: WorkerSettings<H>, inner: T) -> Self {
+    pub(crate) fn new(settings: ServiceConfig<H>, inner: T) -> Self {
         ServerMessageAcceptor { inner, settings }
     }
 }
@@ -310,7 +311,7 @@ where
     T: NewService<Request = net::TcpStream>,
 {
     fut: T::Future,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<T, H> Future for ServerMessageAcceptorResponse<T, H>
@@ -334,7 +335,7 @@ where
 
 pub(crate) struct ServerMessageAcceptorService<T, H: HttpHandler> {
     inner: T,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<T, H> Service for ServerMessageAcceptorService<T, H>
@@ -359,9 +360,11 @@ where
                     fut: self.inner.call(stream),
                 })
             }
-            ServerMessage::Shutdown(timeout) => Either::B(ok(())),
+            ServerMessage::Shutdown(_) => Either::B(ok(())),
             ServerMessage::ForceShutdown => {
-                // self.settings.head().traverse::<TcpStream, H>();
+                self.settings
+                    .head()
+                    .traverse(|proto: &mut HttpProtocol<TcpStream, H>| proto.shutdown());
                 Either::B(ok(()))
             }
         }

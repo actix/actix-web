@@ -16,7 +16,7 @@ use super::h1decoder::{DecoderError, H1Decoder, Message};
 use super::h1writer::H1Writer;
 use super::handler::{HttpHandler, HttpHandlerTask, HttpHandlerTaskFut};
 use super::input::PayloadType;
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::{IoStream, Writer};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
@@ -37,7 +37,7 @@ bitflags! {
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Http1Dispatcher<T: IoStream, H: HttpHandler + 'static> {
     flags: Flags,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
     addr: Option<SocketAddr>,
     stream: H1Writer<T, H>,
     decoder: H1Decoder,
@@ -87,7 +87,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: WorkerSettings<H>, stream: T, addr: Option<SocketAddr>, buf: BytesMut,
+        settings: ServiceConfig<H>, stream: T, addr: Option<SocketAddr>, buf: BytesMut,
         is_eof: bool, keepalive_timer: Option<Delay>,
     ) -> Self {
         let (ka_expire, ka_timer) = if let Some(delay) = keepalive_timer {
@@ -122,7 +122,7 @@ where
     }
 
     pub(crate) fn for_error(
-        settings: WorkerSettings<H>, stream: T, status: StatusCode,
+        settings: ServiceConfig<H>, stream: T, status: StatusCode,
         mut keepalive_timer: Option<Delay>, buf: BytesMut,
     ) -> Self {
         if let Some(deadline) = settings.client_timer_expire() {
@@ -147,7 +147,7 @@ where
     }
 
     #[inline]
-    pub fn settings(&self) -> &WorkerSettings<H> {
+    pub fn settings(&self) -> &ServiceConfig<H> {
         &self.settings
     }
 
@@ -259,7 +259,7 @@ where
                 Err(err) => {
                     debug!("Error sending data: {}", err);
                     self.client_disconnected(false);
-                    return Err(err.into());
+                    Err(err.into())
                 }
                 Ok(Async::Ready(_)) => {
                     // if payload is not consumed we can not use connection
@@ -347,10 +347,8 @@ where
         if self.can_read() && self.tasks.len() < MAX_PIPELINED_MESSAGES {
             match self.stream.get_mut().read_available(&mut self.buf) {
                 Ok(Async::Ready((read_some, disconnected))) => {
-                    if read_some {
-                        if self.parse()? {
-                            updated = true;
-                        }
+                    if read_some && self.parse()? {
+                        updated = true;
                     }
                     if disconnected {
                         self.client_disconnected(true);
@@ -397,11 +395,9 @@ where
 
                     // if read-backpressure is enabled and we consumed some data.
                     // we may read more dataand retry
-                    if !retry && self.can_read() {
-                        if self.poll_io()? {
-                            retry = self.can_read();
-                            continue;
-                        }
+                    if !retry && self.can_read() && self.poll_io()? {
+                        retry = self.can_read();
+                        continue;
                     }
                     break;
                 }
@@ -597,11 +593,11 @@ mod tests {
     use httpmessage::HttpMessage;
     use server::h1decoder::Message;
     use server::handler::IntoHttpHandler;
-    use server::settings::{ServerSettings, WorkerSettings};
+    use server::settings::{ServerSettings, ServiceConfig};
     use server::{KeepAlive, Request};
 
-    fn wrk_settings() -> WorkerSettings<HttpApplication> {
-        WorkerSettings::<HttpApplication>::new(
+    fn wrk_settings() -> ServiceConfig<HttpApplication> {
+        ServiceConfig::<HttpApplication>::new(
             App::new().into_handler(),
             KeepAlive::Os,
             5000,

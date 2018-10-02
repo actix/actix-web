@@ -1,5 +1,5 @@
 use std::net::{Shutdown, SocketAddr};
-use std::{io, ptr, time};
+use std::{io, mem, time};
 
 use bytes::{Buf, BufMut, BytesMut};
 use futures::{Async, Future, Poll};
@@ -7,16 +7,35 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use super::error::HttpDispatchError;
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::{h1, h2, HttpHandler, IoStream};
 use http::StatusCode;
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
-enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
+pub(crate) enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
     H1(h1::Http1Dispatcher<T, H>),
     H2(h2::Http2<T, H>),
-    Unknown(WorkerSettings<H>, Option<SocketAddr>, T, BytesMut),
+    Unknown(ServiceConfig<H>, Option<SocketAddr>, T, BytesMut),
+    None,
+}
+
+impl<T: IoStream, H: HttpHandler + 'static> HttpProtocol<T, H> {
+    pub(crate) fn shutdown(&mut self) {
+        match self {
+            HttpProtocol::H1(ref mut h1) => {
+                let io = h1.io();
+                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
+                let _ = IoStream::shutdown(io, Shutdown::Both);
+            }
+            HttpProtocol::H2(ref mut h2) => h2.shutdown(),
+            HttpProtocol::Unknown(_, _, io, _) => {
+                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
+                let _ = IoStream::shutdown(io, Shutdown::Both);
+            }
+            HttpProtocol::None => (),
+        }
+    }
 }
 
 enum ProtocolKind {
@@ -30,8 +49,8 @@ where
     T: IoStream,
     H: HttpHandler + 'static,
 {
-    proto: Option<HttpProtocol<T, H>>,
-    node: Option<Node<HttpChannel<T, H>>>,
+    node: Node<HttpProtocol<T, H>>,
+    node_reg: bool,
     ka_timeout: Option<Delay>,
 }
 
@@ -41,29 +60,19 @@ where
     H: HttpHandler + 'static,
 {
     pub(crate) fn new(
-        settings: WorkerSettings<H>, io: T, peer: Option<SocketAddr>,
+        settings: ServiceConfig<H>, io: T, peer: Option<SocketAddr>,
     ) -> HttpChannel<T, H> {
+        let ka_timeout = settings.client_timer();
+
         HttpChannel {
-            node: None,
-            ka_timeout: settings.client_timer(),
-            proto: Some(HttpProtocol::Unknown(
+            ka_timeout,
+            node_reg: false,
+            node: Node::new(HttpProtocol::Unknown(
                 settings,
                 peer,
                 io,
                 BytesMut::with_capacity(8192),
             )),
-        }
-    }
-
-    pub(crate) fn shutdown(&mut self) {
-        match self.proto {
-            Some(HttpProtocol::H1(ref mut h1)) => {
-                let io = h1.io();
-                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
-                let _ = IoStream::shutdown(io, Shutdown::Both);
-            }
-            Some(HttpProtocol::H2(ref mut h2)) => h2.shutdown(),
-            _ => (),
         }
     }
 }
@@ -74,9 +83,7 @@ where
     H: HttpHandler + 'static,
 {
     fn drop(&mut self) {
-        if let Some(mut node) = self.node.take() {
-            node.remove()
-        }
+        self.node.remove();
     }
 }
 
@@ -94,17 +101,16 @@ where
             match self.ka_timeout.as_mut().unwrap().poll() {
                 Ok(Async::Ready(_)) => {
                     trace!("Slow request timed out, close connection");
-                    if let Some(HttpProtocol::Unknown(settings, _, io, buf)) =
-                        self.proto.take()
-                    {
-                        self.proto =
-                            Some(HttpProtocol::H1(h1::Http1Dispatcher::for_error(
+                    let proto = mem::replace(self.node.get_mut(), HttpProtocol::None);
+                    if let HttpProtocol::Unknown(settings, _, io, buf) = proto {
+                        *self.node.get_mut() =
+                            HttpProtocol::H1(h1::Http1Dispatcher::for_error(
                                 settings,
                                 io,
                                 StatusCode::REQUEST_TIMEOUT,
                                 self.ka_timeout.take(),
                                 buf,
-                            )));
+                            ));
                         return self.poll();
                     }
                     return Ok(Async::Ready(()));
@@ -114,28 +120,22 @@ where
             }
         }
 
-        if self.node.is_none() {
-            let el = self as *mut _;
-            self.node = Some(Node::new(el));
-            let _ = match self.proto {
-                Some(HttpProtocol::H1(ref mut h1)) => {
-                    self.node.as_mut().map(|n| h1.settings().head().insert(n))
-                }
-                Some(HttpProtocol::H2(ref mut h2)) => {
-                    self.node.as_mut().map(|n| h2.settings().head().insert(n))
-                }
-                Some(HttpProtocol::Unknown(ref mut settings, _, _, _)) => {
-                    self.node.as_mut().map(|n| settings.head().insert(n))
-                }
-                None => unreachable!(),
+        if !self.node_reg {
+            self.node_reg = true;
+            let settings = match self.node.get_mut() {
+                HttpProtocol::H1(ref mut h1) => h1.settings().clone(),
+                HttpProtocol::H2(ref mut h2) => h2.settings().clone(),
+                HttpProtocol::Unknown(ref mut settings, _, _, _) => settings.clone(),
+                HttpProtocol::None => unreachable!(),
             };
+            settings.head().insert(&mut self.node);
         }
 
         let mut is_eof = false;
-        let kind = match self.proto {
-            Some(HttpProtocol::H1(ref mut h1)) => return h1.poll(),
-            Some(HttpProtocol::H2(ref mut h2)) => return h2.poll(),
-            Some(HttpProtocol::Unknown(_, _, ref mut io, ref mut buf)) => {
+        let kind = match self.node.get_mut() {
+            HttpProtocol::H1(ref mut h1) => return h1.poll(),
+            HttpProtocol::H2(ref mut h2) => return h2.poll(),
+            HttpProtocol::Unknown(_, _, ref mut io, ref mut buf) => {
                 let mut err = None;
                 let mut disconnect = false;
                 match io.read_available(buf) {
@@ -168,31 +168,32 @@ where
                     return Ok(Async::NotReady);
                 }
             }
-            None => unreachable!(),
+            HttpProtocol::None => unreachable!(),
         };
 
         // upgrade to specific http protocol
-        if let Some(HttpProtocol::Unknown(settings, addr, io, buf)) = self.proto.take() {
+        let proto = mem::replace(self.node.get_mut(), HttpProtocol::None);
+        if let HttpProtocol::Unknown(settings, addr, io, buf) = proto {
             match kind {
                 ProtocolKind::Http1 => {
-                    self.proto = Some(HttpProtocol::H1(h1::Http1Dispatcher::new(
+                    *self.node.get_mut() = HttpProtocol::H1(h1::Http1Dispatcher::new(
                         settings,
                         io,
                         addr,
                         buf,
                         is_eof,
                         self.ka_timeout.take(),
-                    )));
+                    ));
                     return self.poll();
                 }
                 ProtocolKind::Http2 => {
-                    self.proto = Some(HttpProtocol::H2(h2::Http2::new(
+                    *self.node.get_mut() = HttpProtocol::H2(h2::Http2::new(
                         settings,
                         io,
                         addr,
                         buf.freeze(),
                         self.ka_timeout.take(),
-                    )));
+                    ));
                     return self.poll();
                 }
             }
@@ -204,16 +205,20 @@ where
 pub(crate) struct Node<T> {
     next: Option<*mut Node<T>>,
     prev: Option<*mut Node<T>>,
-    element: *mut T,
+    element: T,
 }
 
 impl<T> Node<T> {
-    fn new(el: *mut T) -> Self {
+    fn new(element: T) -> Self {
         Node {
+            element,
             next: None,
             prev: None,
-            element: el,
         }
+    }
+
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.element
     }
 
     fn insert<I>(&mut self, next_el: &mut Node<I>) {
@@ -235,7 +240,6 @@ impl<T> Node<T> {
     }
 
     fn remove(&mut self) {
-        self.element = ptr::null_mut();
         let next = self.next.take();
         let prev = self.prev.take();
 
@@ -257,30 +261,28 @@ impl Node<()> {
         Node {
             next: None,
             prev: None,
-            element: ptr::null_mut(),
+            element: (),
         }
     }
 
-    pub(crate) fn traverse<T, H, F: Fn(&mut HttpChannel<T, H>)>(&self, f: F)
+    pub(crate) fn traverse<T, H, F: Fn(&mut HttpProtocol<T, H>)>(&self, f: F)
     where
         T: IoStream,
         H: HttpHandler + 'static,
     {
-        let mut next = self.next.as_ref();
-        loop {
-            if let Some(n) = next {
-                unsafe {
-                    let n: &Node<()> = &*(n.as_ref().unwrap() as *const _);
-                    next = n.next.as_ref();
+        if let Some(n) = self.next.as_ref() {
+            unsafe {
+                let mut next: &mut Node<HttpProtocol<T, H>> =
+                    &mut *(n.as_ref().unwrap() as *const _ as *mut _);
+                loop {
+                    f(&mut next.element);
 
-                    if !n.element.is_null() {
-                        let ch: &mut HttpChannel<T, H> =
-                            &mut *(&mut *(n.element as *mut _) as *mut () as *mut _);
-                        f(ch);
+                    next = if let Some(n) = next.next.as_ref() {
+                        &mut **n
+                    } else {
+                        return;
                     }
                 }
-            } else {
-                return;
             }
         }
     }

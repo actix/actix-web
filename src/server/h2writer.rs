@@ -14,7 +14,7 @@ use modhttp::Response;
 use super::helpers;
 use super::message::Request;
 use super::output::{Output, ResponseInfo, ResponseLength};
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
@@ -42,13 +42,11 @@ pub(crate) struct H2Writer<H: 'static> {
     written: u64,
     buffer: Output,
     buffer_capacity: usize,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<H: 'static> H2Writer<H> {
-    pub fn new(
-        respond: SendResponse<Bytes>, settings: WorkerSettings<H>,
-    ) -> H2Writer<H> {
+    pub fn new(respond: SendResponse<Bytes>, settings: ServiceConfig<H>) -> H2Writer<H> {
         H2Writer {
             stream: None,
             flags: Flags::empty(),

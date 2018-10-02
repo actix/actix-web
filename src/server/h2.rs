@@ -22,7 +22,7 @@ use uri::Url;
 use super::error::{HttpDispatchError, ServerError};
 use super::h2writer::H2Writer;
 use super::input::PayloadType;
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::{HttpHandler, HttpHandlerTask, IoStream, Writer};
 
 bitflags! {
@@ -38,7 +38,7 @@ where
     H: HttpHandler + 'static,
 {
     flags: Flags,
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry<H>>,
@@ -58,7 +58,7 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: WorkerSettings<H>, io: T, addr: Option<SocketAddr>, buf: Bytes,
+        settings: ServiceConfig<H>, io: T, addr: Option<SocketAddr>, buf: Bytes,
         keepalive_timer: Option<Delay>,
     ) -> Self {
         let extensions = io.extensions();
@@ -82,7 +82,7 @@ where
         self.keepalive_timer.take();
     }
 
-    pub fn settings(&self) -> &WorkerSettings<H> {
+    pub fn settings(&self) -> &ServiceConfig<H> {
         &self.settings
     }
 
@@ -338,7 +338,7 @@ struct Entry<H: HttpHandler + 'static> {
 impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
         parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
-        addr: Option<SocketAddr>, settings: WorkerSettings<H>,
+        addr: Option<SocketAddr>, settings: ServiceConfig<H>,
         extensions: Option<Rc<Extensions>>,
     ) -> Entry<H>
     where

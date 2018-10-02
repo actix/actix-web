@@ -1228,7 +1228,7 @@ fn test_custom_pipeline() {
     use actix::System;
     use actix_net::service::NewServiceExt;
     use actix_web::server::{
-        HttpService, KeepAlive, StreamConfiguration, WorkerSettings,
+        HttpService, KeepAlive, ServiceConfig, StreamConfiguration,
     };
 
     let addr = test::TestServer::unused_addr();
@@ -1239,7 +1239,7 @@ fn test_custom_pipeline() {
                 let app = App::new()
                     .route("/", http::Method::GET, |_: HttpRequest| "OK")
                     .finish();
-                let settings = WorkerSettings::build(app)
+                let settings = ServiceConfig::build(app)
                     .keep_alive(KeepAlive::Disabled)
                     .client_timeout(1000)
                     .client_shutdown(1000)

@@ -143,7 +143,7 @@ pub use self::message::Request;
 pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
-pub use self::settings::{ServerSettings, WorkerSettings, WorkerSettingsBuilder};
+pub use self::settings::{ServerSettings, ServiceConfig, ServiceConfigBuilder};
 
 #[doc(hidden)]
 pub use self::service::{HttpService, StreamConfiguration};

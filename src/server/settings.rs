@@ -127,7 +127,8 @@ impl ServerSettings {
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
 
-pub struct WorkerSettings<H>(Rc<Inner<H>>);
+/// Http service configuration
+pub struct ServiceConfig<H>(Rc<Inner<H>>);
 
 struct Inner<H> {
     handler: H,
@@ -141,18 +142,18 @@ struct Inner<H> {
     date: UnsafeCell<(bool, Date)>,
 }
 
-impl<H> Clone for WorkerSettings<H> {
+impl<H> Clone for ServiceConfig<H> {
     fn clone(&self) -> Self {
-        WorkerSettings(self.0.clone())
+        ServiceConfig(self.0.clone())
     }
 }
 
-impl<H> WorkerSettings<H> {
-    /// Create instance of `WorkerSettings`
+impl<H> ServiceConfig<H> {
+    /// Create instance of `ServiceConfig`
     pub(crate) fn new(
         handler: H, keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
         settings: ServerSettings,
-    ) -> WorkerSettings<H> {
+    ) -> ServiceConfig<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
             KeepAlive::Os | KeepAlive::Tcp(_) => (0, true),
@@ -164,7 +165,7 @@ impl<H> WorkerSettings<H> {
             None
         };
 
-        WorkerSettings(Rc::new(Inner {
+        ServiceConfig(Rc::new(Inner {
             handler,
             keep_alive,
             ka_enabled,
@@ -178,8 +179,8 @@ impl<H> WorkerSettings<H> {
     }
 
     /// Create worker settings builder.
-    pub fn build(handler: H) -> WorkerSettingsBuilder<H> {
-        WorkerSettingsBuilder::new(handler)
+    pub fn build(handler: H) -> ServiceConfigBuilder<H> {
+        ServiceConfigBuilder::new(handler)
     }
 
     pub(crate) fn head(&self) -> RefMut<Node<()>> {
@@ -220,7 +221,7 @@ impl<H> WorkerSettings<H> {
     }
 }
 
-impl<H: 'static> WorkerSettings<H> {
+impl<H: 'static> ServiceConfig<H> {
     #[inline]
     /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
@@ -319,11 +320,11 @@ impl<H: 'static> WorkerSettings<H> {
     }
 }
 
-/// An worker settings builder
+/// A service config builder
 ///
-/// This type can be used to construct an instance of `WorkerSettings` through a
+/// This type can be used to construct an instance of `ServiceConfig` through a
 /// builder-like pattern.
-pub struct WorkerSettingsBuilder<H> {
+pub struct ServiceConfigBuilder<H> {
     handler: H,
     keep_alive: KeepAlive,
     client_timeout: u64,
@@ -333,10 +334,10 @@ pub struct WorkerSettingsBuilder<H> {
     secure: bool,
 }
 
-impl<H> WorkerSettingsBuilder<H> {
-    /// Create instance of `WorkerSettingsBuilder`
-    pub fn new(handler: H) -> WorkerSettingsBuilder<H> {
-        WorkerSettingsBuilder {
+impl<H> ServiceConfigBuilder<H> {
+    /// Create instance of `ServiceConfigBuilder`
+    pub fn new(handler: H) -> ServiceConfigBuilder<H> {
+        ServiceConfigBuilder {
             handler,
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
@@ -419,12 +420,12 @@ impl<H> WorkerSettingsBuilder<H> {
         self
     }
 
-    /// Finish worker settings configuration and create `WorkerSettings` object.
-    pub fn finish(self) -> WorkerSettings<H> {
+    /// Finish service configuration and create `ServiceConfig` object.
+    pub fn finish(self) -> ServiceConfig<H> {
         let settings = ServerSettings::new(self.addr, &self.host, self.secure);
         let client_shutdown = if self.secure { self.client_shutdown } else { 0 };
 
-        WorkerSettings::new(
+        ServiceConfig::new(
             self.handler,
             self.keep_alive,
             self.client_timeout,
@@ -507,7 +508,7 @@ mod tests {
         let mut rt = current_thread::Runtime::new().unwrap();
 
         let _ = rt.block_on(future::lazy(|| {
-            let settings = WorkerSettings::<()>::new(
+            let settings = ServiceConfig::<()>::new(
                 (),
                 KeepAlive::Os,
                 0,

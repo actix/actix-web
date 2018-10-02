@@ -10,7 +10,7 @@ use super::acceptor::{
 use super::error::AcceptorError;
 use super::handler::IntoHttpHandler;
 use super::service::HttpService;
-use super::settings::{ServerSettings, WorkerSettings};
+use super::settings::{ServerSettings, ServiceConfig};
 use super::KeepAlive;
 
 pub(crate) trait ServiceProvider {
@@ -50,7 +50,7 @@ where
         let acceptor = self.acceptor.clone();
         move || {
             let app = (factory)().into_handler();
-            let settings = WorkerSettings::new(
+            let settings = ServiceConfig::new(
                 app,
                 keep_alive,
                 client_timeout,

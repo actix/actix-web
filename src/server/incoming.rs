@@ -8,7 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::channel::{HttpChannel, WrapperStream};
 use super::handler::{HttpHandler, IntoHttpHandler};
 use super::http::HttpServer;
-use super::settings::{ServerSettings, WorkerSettings};
+use super::settings::{ServerSettings, ServiceConfig};
 
 impl<T: AsyncRead + AsyncWrite + 'static> Message for WrapperStream<T> {
     type Result = ();
@@ -32,7 +32,7 @@ where
         // set server settings
         let addr: net::SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let apps = (self.factory)().into_handler();
-        let settings = WorkerSettings::new(
+        let settings = ServiceConfig::new(
             apps,
             self.keep_alive,
             self.client_timeout,
@@ -49,7 +49,7 @@ where
 }
 
 struct HttpIncoming<H: HttpHandler> {
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
 }
 
 impl<H: HttpHandler> Actor for HttpIncoming<H> {

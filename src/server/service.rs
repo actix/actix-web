@@ -8,7 +8,7 @@ use futures::{Async, Poll};
 use super::channel::HttpChannel;
 use super::error::HttpDispatchError;
 use super::handler::HttpHandler;
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::IoStream;
 
 /// `NewService` implementation for HTTP1/HTTP2 transports
@@ -17,7 +17,7 @@ where
     H: HttpHandler,
     Io: IoStream,
 {
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
     _t: PhantomData<Io>,
 }
 
@@ -27,7 +27,7 @@ where
     Io: IoStream,
 {
     /// Create new `HttpService` instance.
-    pub fn new(settings: WorkerSettings<H>) -> Self {
+    pub fn new(settings: ServiceConfig<H>) -> Self {
         HttpService {
             settings,
             _t: PhantomData,
@@ -57,7 +57,7 @@ where
     H: HttpHandler,
     Io: IoStream,
 {
-    settings: WorkerSettings<H>,
+    settings: ServiceConfig<H>,
     _t: PhantomData<Io>,
 }
 
@@ -66,7 +66,7 @@ where
     H: HttpHandler,
     Io: IoStream,
 {
-    fn new(settings: WorkerSettings<H>) -> HttpServiceHandler<H, Io> {
+    fn new(settings: ServiceConfig<H>) -> HttpServiceHandler<H, Io> {
         HttpServiceHandler {
             settings,
             _t: PhantomData,
@@ -103,6 +103,12 @@ pub struct StreamConfiguration<T, E> {
     _t: PhantomData<(T, E)>,
 }
 
+impl<T, E> Default for StreamConfiguration<T, E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, E> StreamConfiguration<T, E> {
     /// Create new `StreamConfigurationService` instance.
     pub fn new() -> Self {
@@ -136,8 +142,8 @@ impl<T: IoStream, E> NewService for StreamConfiguration<T, E> {
 
     fn new_service(&self) -> Self::Future {
         ok(StreamConfigurationService {
-            no_delay: self.no_delay.clone(),
-            tcp_ka: self.tcp_ka.clone(),
+            no_delay: self.no_delay,
+            tcp_ka: self.tcp_ka,
             _t: PhantomData,
         })
     }
