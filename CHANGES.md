@@ -2,6 +2,13 @@
 
 ## [0.7.9] - 2018-09-x
 
+### Added
+
+* Added client shutdown timeout setting
+
+* Added slow request timeout setting
+
+
 ### Fixed
 
 * HTTP1 decoding errors are reported to the client. #512

@@ -176,11 +176,11 @@ where
 /// Applies timeout to request prcoessing.
 pub(crate) struct AcceptorTimeout<T> {
     inner: T,
-    timeout: usize,
+    timeout: u64,
 }
 
 impl<T: NewService> AcceptorTimeout<T> {
-    pub(crate) fn new(timeout: usize, inner: T) -> Self {
+    pub(crate) fn new(timeout: u64, inner: T) -> Self {
         Self { inner, timeout }
     }
 }
@@ -204,7 +204,7 @@ impl<T: NewService> NewService for AcceptorTimeout<T> {
 #[doc(hidden)]
 pub(crate) struct AcceptorTimeoutFut<T: NewService> {
     fut: T::Future,
-    timeout: usize,
+    timeout: u64,
 }
 
 impl<T: NewService> Future for AcceptorTimeoutFut<T> {
@@ -215,7 +215,7 @@ impl<T: NewService> Future for AcceptorTimeoutFut<T> {
         let inner = try_ready!(self.fut.poll());
         Ok(Async::Ready(AcceptorTimeoutService {
             inner,
-            timeout: self.timeout as u64,
+            timeout: self.timeout,
         }))
     }
 }

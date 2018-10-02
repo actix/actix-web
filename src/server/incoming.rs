@@ -35,7 +35,8 @@ where
         let settings = WorkerSettings::new(
             apps,
             self.keep_alive,
-            self.client_timeout as u64,
+            self.client_timeout,
+            self.client_shutdown,
             ServerSettings::new(addr, "127.0.0.1:8080", secure),
         );
 

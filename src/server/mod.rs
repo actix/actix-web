@@ -144,7 +144,7 @@ pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
 pub use self::service::HttpService;
-pub use self::settings::{ServerSettings, WorkerSettings};
+pub use self::settings::{ServerSettings, WorkerSettings, WorkerSettingsBuilder};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;

@@ -1016,7 +1016,7 @@ fn test_server_cookies() {
 #[test]
 fn test_custom_pipeline() {
     use actix::System;
-    use actix_web::server::{HttpService, KeepAlive, ServerSettings, WorkerSettings};
+    use actix_web::server::{HttpService, KeepAlive, WorkerSettings};
 
     let addr = test::TestServer::unused_addr();
 
@@ -1026,12 +1026,13 @@ fn test_custom_pipeline() {
                 let app = App::new()
                     .route("/", http::Method::GET, |_: HttpRequest| "OK")
                     .finish();
-                let settings = WorkerSettings::new(
-                    app,
-                    KeepAlive::Disabled,
-                    10,
-                    ServerSettings::new(addr, "localhost", false),
-                );
+                let settings = WorkerSettings::build(app)
+                    .keep_alive(KeepAlive::Disabled)
+                    .client_timeout(1000)
+                    .client_shutdown(1000)
+                    .server_hostname("localhost")
+                    .server_address(addr)
+                    .finish();
 
                 HttpService::new(settings)
             }).unwrap()

@@ -16,12 +16,13 @@ use super::KeepAlive;
 pub(crate) trait ServiceProvider {
     fn register(
         &self, server: Server, lst: net::TcpListener, host: String,
-        addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: usize,
+        addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: u64,
+        client_shutdown: u64,
     ) -> Server;
 }
 
 /// Utility type that builds complete http pipeline
-pub struct HttpServiceBuilder<F, H, A>
+pub(crate) struct HttpServiceBuilder<F, H, A>
 where
     F: Fn() -> H + Send + Clone,
 {
@@ -51,22 +52,9 @@ where
         self
     }
 
-    /// Use different acceptor factory
-    pub fn acceptor<A1>(self, acceptor: A1) -> HttpServiceBuilder<F, H, A1>
-    where
-        A1: AcceptorServiceFactory,
-        <A1::NewService as NewService>::InitError: fmt::Debug,
-    {
-        HttpServiceBuilder {
-            acceptor,
-            factory: self.factory.clone(),
-            no_client_timer: self.no_client_timer,
-        }
-    }
-
     fn finish(
         &self, host: String, addr: net::SocketAddr, keep_alive: KeepAlive,
-        client_timeout: usize,
+        client_timeout: u64, client_shutdown: u64,
     ) -> impl ServiceFactory {
         let timeout = if self.no_client_timer {
             0
@@ -81,6 +69,7 @@ where
                 app,
                 keep_alive,
                 timeout as u64,
+                client_shutdown,
                 ServerSettings::new(addr, &host, false),
             );
 
@@ -137,12 +126,13 @@ where
 {
     fn register(
         &self, server: Server, lst: net::TcpListener, host: String,
-        addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: usize,
+        addr: net::SocketAddr, keep_alive: KeepAlive, client_timeout: u64,
+        client_shutdown: u64,
     ) -> Server {
         server.listen2(
             "actix-web",
             lst,
-            self.finish(host, addr, keep_alive, client_timeout),
+            self.finish(host, addr, keep_alive, client_timeout, client_shutdown),
         )
     }
 }

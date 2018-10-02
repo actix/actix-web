@@ -76,7 +76,9 @@ impl Default for ServerSettings {
 
 impl ServerSettings {
     /// Crate server settings instance
-    pub fn new(addr: net::SocketAddr, host: &str, secure: bool) -> ServerSettings {
+    pub(crate) fn new(
+        addr: net::SocketAddr, host: &str, secure: bool,
+    ) -> ServerSettings {
         let host = host.to_owned();
         let cpu_pool = LazyCell::new();
         let responses = HttpResponsePool::get_pool();
@@ -131,6 +133,7 @@ struct Inner<H> {
     handler: H,
     keep_alive: Option<Duration>,
     client_timeout: u64,
+    client_shutdown: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
@@ -146,8 +149,9 @@ impl<H> Clone for WorkerSettings<H> {
 
 impl<H> WorkerSettings<H> {
     /// Create instance of `WorkerSettings`
-    pub fn new(
-        handler: H, keep_alive: KeepAlive, client_timeout: u64, settings: ServerSettings,
+    pub(crate) fn new(
+        handler: H, keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
+        settings: ServerSettings,
     ) -> WorkerSettings<H> {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -165,11 +169,17 @@ impl<H> WorkerSettings<H> {
             keep_alive,
             ka_enabled,
             client_timeout,
+            client_shutdown,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             node: RefCell::new(Node::head()),
             date: UnsafeCell::new((false, Date::new())),
         }))
+    }
+
+    /// Create worker settings builder.
+    pub fn build(handler: H) -> WorkerSettingsBuilder<H> {
+        WorkerSettingsBuilder::new(handler)
     }
 
     pub(crate) fn head(&self) -> RefMut<Node<()>> {
@@ -217,6 +227,16 @@ impl<H: 'static> WorkerSettings<H> {
         let delay = self.0.client_timeout;
         if delay != 0 {
             Some(Delay::new(self.now() + Duration::from_millis(delay)))
+        } else {
+            None
+        }
+    }
+
+    /// Client shutdown timer
+    pub fn client_shutdown_timer(&self) -> Option<Instant> {
+        let delay = self.0.client_shutdown;
+        if delay != 0 {
+            Some(self.now() + Duration::from_millis(delay))
         } else {
             None
         }
@@ -286,6 +306,121 @@ impl<H: 'static> WorkerSettings<H> {
             }
             date.1.current
         }
+    }
+}
+
+/// An worker settings builder
+///
+/// This type can be used to construct an instance of `WorkerSettings` through a
+/// builder-like pattern.
+pub struct WorkerSettingsBuilder<H> {
+    handler: H,
+    keep_alive: KeepAlive,
+    client_timeout: u64,
+    client_shutdown: u64,
+    host: String,
+    addr: net::SocketAddr,
+    secure: bool,
+}
+
+impl<H> WorkerSettingsBuilder<H> {
+    /// Create instance of `WorkerSettingsBuilder`
+    pub fn new(handler: H) -> WorkerSettingsBuilder<H> {
+        WorkerSettingsBuilder {
+            handler,
+            keep_alive: KeepAlive::Timeout(5),
+            client_timeout: 5000,
+            client_shutdown: 5000,
+            secure: false,
+            host: "localhost".to_owned(),
+            addr: "127.0.0.1:8080".parse().unwrap(),
+        }
+    }
+
+    /// Enable secure flag for current server.
+    ///
+    /// By default this flag is set to false.
+    pub fn secure(mut self) -> Self {
+        self.secure = true;
+        self
+    }
+
+    /// Set server keep-alive setting.
+    ///
+    /// By default keep alive is set to a 5 seconds.
+    pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
+        self.keep_alive = val.into();
+        self
+    }
+
+    /// Set server client timeout in milliseconds for first request.
+    ///
+    /// Defines a timeout for reading client request header. If a client does not transmit
+    /// the entire set headers within this time, the request is terminated with
+    /// the 408 (Request Time-out) error.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default client timeout is set to 5000 milliseconds.
+    pub fn client_timeout(mut self, val: u64) -> Self {
+        self.client_timeout = val;
+        self
+    }
+
+    /// Set server connection shutdown timeout in milliseconds.
+    ///
+    /// Defines a timeout for shutdown connection. If a shutdown procedure does not complete
+    /// within this time, the request is dropped. This timeout affects only secure connections.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default client timeout is set to 5000 milliseconds.
+    pub fn client_shutdown(mut self, val: u64) -> Self {
+        self.client_shutdown = val;
+        self
+    }
+
+    /// Set server host name.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default host name is set to a "localhost" value.
+    pub fn server_hostname(mut self, val: &str) -> Self {
+        self.host = val.to_owned();
+        self
+    }
+
+    /// Set server ip address.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default server address is set to a "127.0.0.1:8080"
+    pub fn server_address<S: net::ToSocketAddrs>(mut self, addr: S) -> Self {
+        match addr.to_socket_addrs() {
+            Err(err) => error!("Can not convert to SocketAddr: {}", err),
+            Ok(mut addrs) => if let Some(addr) = addrs.next() {
+                self.addr = addr;
+            },
+        }
+        self
+    }
+
+    /// Finish worker settings configuration and create `WorkerSettings` object.
+    pub fn finish(self) -> WorkerSettings<H> {
+        let settings = ServerSettings::new(self.addr, &self.host, self.secure);
+        let client_shutdown = if self.secure { self.client_shutdown } else { 0 };
+
+        WorkerSettings::new(
+            self.handler,
+            self.keep_alive,
+            self.client_timeout,
+            client_shutdown,
+            settings,
+        )
     }
 }
 
@@ -365,6 +500,7 @@ mod tests {
             let settings = WorkerSettings::<()>::new(
                 (),
                 KeepAlive::Os,
+                0,
                 0,
                 ServerSettings::default(),
             );

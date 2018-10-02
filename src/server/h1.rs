@@ -243,8 +243,15 @@ where
                             } else {
                                 trace!("Keep-alive timeout, close connection");
                                 self.flags.insert(Flags::SHUTDOWN);
-                                // TODO: start shutdown timer
-                                return Ok(());
+
+                                // start shutdown timer
+                                if let Some(deadline) =
+                                    self.settings.client_shutdown_timer()
+                                {
+                                    timer.reset(deadline)
+                                } else {
+                                    return Ok(());
+                                }
                             }
                         } else if let Some(deadline) = self.settings.keep_alive_expire()
                         {
@@ -548,6 +555,7 @@ mod tests {
             App::new().into_handler(),
             KeepAlive::Os,
             5000,
+            2000,
             ServerSettings::default(),
         )
     }

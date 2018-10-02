@@ -41,7 +41,8 @@ where
     pub(super) factory: F,
     pub(super) host: Option<String>,
     pub(super) keep_alive: KeepAlive,
-    pub(super) client_timeout: usize,
+    pub(super) client_timeout: u64,
+    pub(super) client_shutdown: u64,
     backlog: i32,
     threads: usize,
     exit: bool,
@@ -73,6 +74,7 @@ where
             maxconn: 25_600,
             maxconnrate: 256,
             client_timeout: 5000,
+            client_shutdown: 5000,
             sockets: Vec::new(),
         }
     }
@@ -140,8 +142,21 @@ where
     /// To disable timeout set value to 0.
     ///
     /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_timeout(mut self, val: usize) -> Self {
+    pub fn client_timeout(mut self, val: u64) -> Self {
         self.client_timeout = val;
+        self
+    }
+
+    /// Set server connection shutdown timeout in milliseconds.
+    ///
+    /// Defines a timeout for shutdown connection. If a shutdown procedure does not complete
+    /// within this time, the request is dropped.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default client timeout is set to 5000 milliseconds.
+    pub fn client_shutdown(mut self, val: u64) -> Self {
+        self.client_shutdown = val;
         self
     }
 
@@ -480,6 +495,11 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 .as_ref()
                 .map(|h| h.to_owned())
                 .unwrap_or_else(|| format!("{}", socket.addr));
+            let client_shutdown = if socket.scheme == "https" {
+                self.client_shutdown
+            } else {
+                0
+            };
             srv = socket.handler.register(
                 srv,
                 socket.lst,
@@ -487,6 +507,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 socket.addr,
                 self.keep_alive,
                 self.client_timeout,
+                client_shutdown,
             );
         }
         srv.start()
@@ -526,6 +547,11 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 .as_ref()
                 .map(|h| h.to_owned())
                 .unwrap_or_else(|| format!("{}", socket.addr));
+            let client_shutdown = if socket.scheme == "https" {
+                self.client_shutdown
+            } else {
+                0
+            };
             srv = socket.handler.register(
                 srv,
                 socket.lst,
@@ -533,6 +559,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 socket.addr,
                 self.keep_alive,
                 self.client_timeout,
+                client_shutdown,
             );
         }
         srv
