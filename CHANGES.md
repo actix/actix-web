@@ -23,6 +23,7 @@
 
 * Correct usage of `no_http2` flag in `bind_*` methods. #519
 
+
 ## [0.7.8] - 2018-09-17
 
 ### Added

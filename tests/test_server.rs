@@ -15,8 +15,12 @@ extern crate tokio_current_thread as current_thread;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 
+#[cfg(feature = "tls")]
+extern crate native_tls;
 #[cfg(feature = "ssl")]
 extern crate openssl;
+#[cfg(feature = "rust-tls")]
+extern crate rustls;
 
 use std::io::{Read, Write};
 use std::sync::Arc;
@@ -890,10 +894,13 @@ fn test_brotli_encoding_large() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(all(feature = "brotli", future = "ssl"))]
+#[cfg(all(feature = "brotli", feature = "ssl"))]
 #[test]
-fn test_ssl_brotli_encoding_large() {
-    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+fn test_brotli_encoding_large_ssl() {
+    use actix::{Actor, System};
+    use openssl::ssl::{
+        SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode,
+    };
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -904,7 +911,7 @@ fn test_ssl_brotli_encoding_large() {
         .unwrap();
 
     let data = STR.repeat(10);
-    let mut srv = test::TestServer::build().ssl(builder).start(|app| {
+    let srv = test::TestServer::build().ssl(builder).start(|app| {
         app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
@@ -914,28 +921,39 @@ fn test_ssl_brotli_encoding_large() {
                 }).responder()
         })
     });
+    let mut rt = System::new("test");
 
+    // client connector
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let conn = client::ClientConnector::with_connector(builder.build()).start();
+
+    // body
     let mut e = BrotliEncoder::new(Vec::new(), 5);
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv
-        .post()
+    let request = client::ClientRequest::build()
+        .uri(srv.url("/"))
+        .method(http::Method::POST)
         .header(http::header::CONTENT_ENCODING, "br")
+        .with_connector(conn)
         .body(enc)
         .unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    let response = rt.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.execute(response.body()).unwrap();
+    let bytes = rt.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(future = "rust-ssl")]
+#[cfg(all(feature = "rust-tls", feature = "ssl"))]
 #[test]
 fn test_reading_deflate_encoding_large_random_ssl() {
+    use actix::{Actor, System};
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     use rustls::internal::pemfile::{certs, rsa_private_keys};
     use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;
@@ -954,7 +972,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
         .take(160_000)
         .collect::<String>();
 
-    let mut srv = test::TestServer::build().rustls(config).start(|app| {
+    let srv = test::TestServer::build().rustls(config).start(|app| {
         app.handler(|req: &HttpRequest| {
             req.body()
                 .and_then(|bytes: Bytes| {
@@ -965,23 +983,118 @@ fn test_reading_deflate_encoding_large_random_ssl() {
         })
     });
 
+    let mut rt = System::new("test");
+
+    // client connector
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let conn = client::ClientConnector::with_connector(builder.build()).start();
+
+    // encode data
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
     e.write_all(data.as_ref()).unwrap();
     let enc = e.finish().unwrap();
 
     // client request
-    let request = srv
-        .post()
+    let request = client::ClientRequest::build()
+        .uri(srv.url("/"))
+        .method(http::Method::POST)
         .header(http::header::CONTENT_ENCODING, "deflate")
+        .with_connector(conn)
         .body(enc)
         .unwrap();
-    let response = srv.execute(request.send()).unwrap();
+    let response = rt.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.execute(response.body()).unwrap();
+    let bytes = rt.block_on(response.body()).unwrap();
     assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
+}
+
+#[cfg(all(feature = "tls", feature = "ssl"))]
+#[test]
+fn test_reading_deflate_encoding_large_random_tls() {
+    use native_tls::{Identity, TlsAcceptor};
+    use openssl::ssl::{
+        SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode,
+    };
+    use std::fs::File;
+    use std::sync::mpsc;
+
+    use actix::{Actor, System};
+    let (tx, rx) = mpsc::channel();
+
+    // load ssl keys
+    let mut file = File::open("tests/identity.pfx").unwrap();
+    let mut identity = vec![];
+    file.read_to_end(&mut identity).unwrap();
+    let identity = Identity::from_pkcs12(&identity, "1").unwrap();
+    let acceptor = TlsAcceptor::new(identity).unwrap();
+
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
+
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(160_000)
+        .collect::<String>();
+
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        System::run(move || {
+            server::new(|| {
+                App::new().handler("/", |req: &HttpRequest| {
+                    req.body()
+                        .and_then(|bytes: Bytes| {
+                            Ok(HttpResponse::Ok()
+                                .content_encoding(http::ContentEncoding::Identity)
+                                .body(bytes))
+                        }).responder()
+                })
+            }).bind_tls(addr, acceptor)
+            .unwrap()
+            .start();
+            let _ = tx.send(System::current());
+        });
+    });
+    let sys = rx.recv().unwrap();
+
+    let mut rt = System::new("test");
+
+    // client connector
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let conn = client::ClientConnector::with_connector(builder.build()).start();
+
+    // encode data
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = client::ClientRequest::build()
+        .uri(format!("https://{}/", addr))
+        .method(http::Method::POST)
+        .header(http::header::CONTENT_ENCODING, "deflate")
+        .with_connector(conn)
+        .body(enc)
+        .unwrap();
+    let response = rt.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = rt.block_on(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+
+    let _ = sys.stop();
 }
 
 #[test]
@@ -1160,7 +1273,6 @@ fn test_slow_request() {
     let (tx, rx) = mpsc::channel();
 
     let addr = test::TestServer::unused_addr();
-
     thread::spawn(move || {
         System::run(move || {
             let srv = server::new(|| {
@@ -1282,5 +1394,7 @@ fn test_ssl_handshake_timeout() {
     let mut stream = net::TcpStream::connect(addr).unwrap();
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.is_empty())
+    assert!(data.is_empty());
+
+    let _ = sys.stop();
 }
