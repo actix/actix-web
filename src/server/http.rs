@@ -414,7 +414,7 @@ where
         use actix_net::service::NewServiceExt;
 
         // alpn support
-        let flags = if !self.no_http2 {
+        let flags = if self.no_http2 {
             ServerFlags::HTTP1
         } else {
             ServerFlags::HTTP1 | ServerFlags::HTTP2
@@ -437,7 +437,7 @@ where
         use actix_net::service::NewServiceExt;
 
         // alpn support
-        let flags = if !self.no_http2 {
+        let flags = if self.no_http2 {
             ServerFlags::HTTP1
         } else {
             ServerFlags::HTTP1 | ServerFlags::HTTP2
