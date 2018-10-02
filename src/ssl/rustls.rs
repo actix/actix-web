@@ -5,7 +5,7 @@ use std::sync::Arc;
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
 use rustls::{ServerConfig, ServerSession};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_rustls::{AcceptAsync, ServerConfigExt, TlsStream};
+use tokio_rustls::{Accept, TlsAcceptor, TlsStream};
 
 use super::MAX_CONN_COUNTER;
 use counter::{Counter, CounterGuard};
@@ -49,7 +49,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for RustlsAcceptor<T> {
     fn new_service(&self) -> Self::Future {
         MAX_CONN_COUNTER.with(|conns| {
             ok(RustlsAcceptorService {
-                config: self.config.clone(),
+                acceptor: self.config.clone().into(),
                 conns: conns.clone(),
                 io: PhantomData,
             })
@@ -58,7 +58,7 @@ impl<T: AsyncRead + AsyncWrite> NewService for RustlsAcceptor<T> {
 }
 
 pub struct RustlsAcceptorService<T> {
-    config: Arc<ServerConfig>,
+    acceptor: TlsAcceptor,
     io: PhantomData<T>,
     conns: Counter,
 }
@@ -80,7 +80,7 @@ impl<T: AsyncRead + AsyncWrite> Service for RustlsAcceptorService<T> {
     fn call(&mut self, req: Self::Request) -> Self::Future {
         RustlsAcceptorServiceFut {
             _guard: self.conns.get(),
-            fut: ServerConfigExt::accept_async(&self.config, req),
+            fut: self.acceptor.accept(req),
         }
     }
 }
@@ -89,7 +89,7 @@ pub struct RustlsAcceptorServiceFut<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    fut: AcceptAsync<T>,
+    fut: Accept<T>,
     _guard: CounterGuard,
 }
 
