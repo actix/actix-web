@@ -23,7 +23,7 @@ impl<T: AsyncRead + AsyncWrite> OpensslAcceptor<T> {
 
     /// Create `OpensslAcceptor` with custom server flags.
     pub fn with_flags(
-        mut builder: SslAcceptorBuilder, flags: ServerFlags,
+        builder: SslAcceptorBuilder, flags: ServerFlags,
     ) -> io::Result<ssl::OpensslAcceptor<T>> {
         let acceptor = openssl_acceptor_with_flags(builder, flags)?;
 

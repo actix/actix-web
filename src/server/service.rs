@@ -88,12 +88,15 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, mut req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Self::Request) -> Self::Future {
         HttpChannel::new(self.settings.clone(), req, None)
     }
 }
 
 /// `NewService` implementation for stream configuration service
+///
+/// Stream configuration service allows to change some socket level
+/// parameters. for example `tcp nodelay` or `tcp keep-alive`.
 pub struct StreamConfiguration<T, E> {
     no_delay: Option<bool>,
     tcp_ka: Option<Option<Duration>>,
@@ -141,6 +144,9 @@ impl<T: IoStream, E> NewService for StreamConfiguration<T, E> {
 }
 
 /// Stream configuration service
+///
+/// Stream configuration service allows to change some socket level
+/// parameters. for example `tcp nodelay` or `tcp keep-alive`.
 pub struct StreamConfigurationService<T, E> {
     no_delay: Option<bool>,
     tcp_ka: Option<Option<Duration>>,

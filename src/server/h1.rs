@@ -98,7 +98,7 @@ where
             (settings.now(), None)
         };
 
-        let mut flags = if is_eof {
+        let flags = if is_eof {
             Flags::READ_DISCONNECTED
         } else if settings.keep_alive_enabled() {
             Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED
@@ -662,6 +662,9 @@ mod tests {
             Ok(())
         }
         fn set_linger(&mut self, _: Option<time::Duration>) -> io::Result<()> {
+            Ok(())
+        }
+        fn set_keepalive(&mut self, _: Option<time::Duration>) -> io::Result<()> {
             Ok(())
         }
     }
