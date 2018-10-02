@@ -1039,6 +1039,7 @@ fn test_custom_pipeline() {
 
                 StreamConfiguration::new()
                     .nodelay(true)
+                    .tcp_keepalive(Some(time::Duration::from_secs(10)))
                     .and_then(HttpService::new(settings))
             }).unwrap()
             .run();
