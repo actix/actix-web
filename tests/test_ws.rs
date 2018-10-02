@@ -5,6 +5,10 @@ extern crate futures;
 extern crate http;
 extern crate rand;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{thread, time};
+
 use bytes::Bytes;
 use futures::Stream;
 use rand::distributions::Alphanumeric;
@@ -350,4 +354,45 @@ fn test_ws_server_rust_tls() {
         reader = r;
         assert_eq!(item, data);
     }
+}
+
+struct WsStopped(Arc<AtomicUsize>);
+
+impl Actor for WsStopped {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsStopped {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
+        match msg {
+            ws::Message::Text(text) => ctx.text(text),
+            _ => (),
+        }
+    }
+}
+
+#[test]
+fn test_ws_stopped() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let _ = thread::spawn(move || {
+        let num3 = num2.clone();
+        let mut srv = test::TestServer::new(move |app| {
+            let num4 = num3.clone();
+            app.handler(move |req| ws::start(req, WsStopped(num4.clone())))
+        });
+        let (reader, mut writer) = srv.ws().unwrap();
+
+        writer.text("text");
+        let (item, reader) = srv.execute(reader.into_future()).unwrap();
+        assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
+    });
+
+    thread::sleep(time::Duration::from_secs(1));
+    assert_eq!(num.load(Ordering::Relaxed), 1);
 }
