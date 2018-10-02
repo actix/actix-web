@@ -78,7 +78,7 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
         let d1 = n << 1;
         unsafe {
             ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize),
+                DEC_DIGITS_LUT.as_ptr().add(d1),
                 buf.as_mut_ptr().offset(18),
                 2,
             );
@@ -94,7 +94,7 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
         n /= 100;
         unsafe {
             ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().offset(d1 as isize),
+                DEC_DIGITS_LUT.as_ptr().add(d1),
                 buf.as_mut_ptr().offset(19),
                 2,
             )

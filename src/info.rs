@@ -16,7 +16,10 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     /// Create *ConnectionInfo* instance for a request.
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::cyclomatic_complexity)
+    )]
     pub fn update(&mut self, req: &Request) {
         let mut host = None;
         let mut scheme = None;

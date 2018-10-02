@@ -134,8 +134,7 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     ///
-    /// It is possible to use tuples for specifing multiple extractors for one
-    /// handler function.
+    /// It is possible to use multiple extractors for one handler function.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -152,9 +151,9 @@ impl<S: 'static> Route<S> {
     ///
     /// /// extract path info using serde
     /// fn index(
-    ///     info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>),
+    ///     path: Path<Info>, query: Query<HashMap<String, String>>, body: Json<Info>,
     /// ) -> Result<String> {
-    ///     Ok(format!("Welcome {}!", info.0.username))
+    ///     Ok(format!("Welcome {}!", path.username))
     /// }
     ///
     /// fn main() {

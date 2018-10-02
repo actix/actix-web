@@ -31,6 +31,7 @@ impl Hasher for IdHasher {
 
 type AnyMap = HashMap<TypeId, Box<Any>, BuildHasherDefault<IdHasher>>;
 
+#[derive(Default)]
 /// A type map of request extensions.
 pub struct Extensions {
     map: AnyMap,

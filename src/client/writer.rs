@@ -1,4 +1,7 @@
-#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::redundant_field_names)
+)]
 
 use std::cell::RefCell;
 use std::fmt::Write as FmtWrite;

@@ -1,5 +1,5 @@
 //! This is code from [Tungstenite project](https://github.com/snapview/tungstenite-rs)
-#![cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
 use std::ptr::copy_nonoverlapping;
 use std::slice;
 
@@ -19,7 +19,7 @@ impl<'a> ShortSlice<'a> {
 
 /// Faster version of `apply_mask()` which operates on 8-byte blocks.
 #[inline]
-#[cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
 pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
     // Extend the mask to 64 bits
     let mut mask_u64 = ((mask_u32 as u64) << 32) | (mask_u32 as u64);
@@ -50,7 +50,10 @@ pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
 // TODO: copy_nonoverlapping here compiles to call memcpy. While it is not so
 // inefficient, it could be done better. The compiler does not understand that
 // a `ShortSlice` must be smaller than a u64.
-#[cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::needless_pass_by_value)
+)]
 fn xor_short(buf: ShortSlice, mask: u64) {
     // Unsafe: we know that a `ShortSlice` fits in a u64
     unsafe {

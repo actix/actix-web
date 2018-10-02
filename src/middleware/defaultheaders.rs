@@ -48,7 +48,7 @@ impl DefaultHeaders {
 
     /// Set a header.
     #[inline]
-    #[cfg_attr(feature = "cargo-clippy", allow(match_wild_err_arm))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::match_wild_err_arm))]
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,

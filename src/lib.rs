@@ -80,6 +80,7 @@
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
     extern_prelude,
+    tool_lints,
 ))]
 #![warn(missing_docs)]
 

@@ -135,7 +135,7 @@ where
     /// instance for each thread, thus application state must be constructed
     /// multiple times. If you want to share state between different
     /// threads, a shared object should be used, e.g. `Arc`. Application
-    /// state does not need to be `Send` and `Sync`.
+    /// state does not need to be `Send` or `Sync`.
     pub fn with_state(state: S) -> App<S> {
         App {
             parts: Some(ApplicationParts {

@@ -59,7 +59,10 @@ pub struct Scope<S> {
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::new_without_default_derive)
+)]
 impl<S: 'static> Scope<S> {
     /// Create a new scope
     pub fn new(path: &str) -> Scope<S> {

@@ -12,7 +12,6 @@ trait FnWith<T, R>: 'static {
 }
 
 impl<T, R, F: Fn(T) -> R + 'static> FnWith<T, R> for F {
-    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
     fn call_with(self: &Self, arg: T) -> R {
         (*self)(arg)
     }
@@ -41,24 +40,6 @@ where
 
     fn create_with_config(self, T::Config) -> WithAsync<T, S, R, I, E>;
 }
-
-// impl<T1, T2, T3, S, F, R> WithFactory<(T1, T2, T3), S, R> for F
-// where F: Fn(T1, T2, T3) -> R + 'static,
-//       T1: FromRequest<S> + 'static,
-//       T2: FromRequest<S> + 'static,
-//       T3: FromRequest<S> + 'static,
-//       R: Responder + 'static,
-//       S: 'static,
-// {
-//     fn create(self) -> With<(T1, T2, T3), S, R> {
-//         With::new(move |(t1, t2, t3)| (self)(t1, t2, t3), (
-//             T1::Config::default(), T2::Config::default(), T3::Config::default()))
-//     }
-
-//     fn create_with_config(self, cfg: (T1::Config, T2::Config, T3::Config,)) -> With<(T1, T2, T3), S, R> {
-//         With::new(move |(t1, t2, t3)| (self)(t1, t2, t3), cfg)
-//     }
-// }
 
 #[doc(hidden)]
 pub struct With<T, S, R>

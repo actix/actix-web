@@ -151,10 +151,9 @@ impl Output {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut len = 0;
 
-        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let has_body = match resp.body() {
-            &Body::Empty => false,
-            &Body::Binary(ref bin) => {
+            Body::Empty => false,
+            Body::Binary(ref bin) => {
                 len = bin.len();
                 !(response_encoding == ContentEncoding::Auto && len < 96)
             }
@@ -190,16 +189,15 @@ impl Output {
         #[cfg(not(any(feature = "brotli", feature = "flate2")))]
         let mut encoding = ContentEncoding::Identity;
 
-        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let transfer = match resp.body() {
-            &Body::Empty => {
+            Body::Empty => {
                 if !info.head {
                     info.length = ResponseLength::Zero;
                 }
                 *self = Output::Empty(buf);
                 return;
             }
-            &Body::Binary(_) => {
+            Body::Binary(_) => {
                 #[cfg(any(feature = "brotli", feature = "flate2"))]
                 {
                     if !(encoding == ContentEncoding::Identity
@@ -244,7 +242,7 @@ impl Output {
                 }
                 return;
             }
-            &Body::Streaming(_) | &Body::Actor(_) => {
+            Body::Streaming(_) | Body::Actor(_) => {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");
@@ -441,7 +439,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<bool, io::Error> {
         let encoder =
@@ -483,7 +481,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
     #[inline(always)]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {

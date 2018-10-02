@@ -216,7 +216,7 @@ impl<H> WorkerSettings<H> {
 
     fn update_date(&self) {
         // Unsafe: WorkerSetting is !Sync and !Send
-        unsafe { (&mut *self.0.date.get()).0 = false };
+        unsafe { (*self.0.date.get()).0 = false };
     }
 }
 
