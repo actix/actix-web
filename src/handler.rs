@@ -530,7 +530,7 @@ where
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(state: State<MyApp>, path: Path<Info>)) -> String {
+/// fn index(state: State<MyApp>, path: Path<Info>) -> String {
 ///     format!("{} {}!", state.msg, path.username)
 /// }
 ///
