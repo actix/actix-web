@@ -1,5 +1,6 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::VecDeque;
+use std::fmt;
 use std::net::SocketAddr;
 use std::rc::Rc;
 
@@ -217,6 +218,26 @@ impl Request {
             return;
         }
         inner.pool.release(inner);
+    }
+}
+
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "\nRequest {:?} {}:{}",
+            self.version(),
+            self.method(),
+            self.path()
+        )?;
+        if let Some(q) = self.uri().query().as_ref() {
+            writeln!(f, "  query: ?{:?}", q)?;
+        }
+        writeln!(f, "  headers:")?;
+        for (key, val) in self.headers().iter() {
+            writeln!(f, "    {:?}: {:?}", key, val)?;
+        }
+        Ok(())
     }
 }
 

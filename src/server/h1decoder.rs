@@ -18,6 +18,7 @@ pub(crate) struct H1Decoder {
     decoder: Option<EncodingDecoder>,
 }
 
+#[derive(Debug)]
 pub(crate) enum Message {
     Message { msg: Request, payload: bool },
     Chunk(Bytes),

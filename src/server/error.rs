@@ -36,9 +36,21 @@ pub enum HttpDispatchError {
     #[fail(display = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
+    /// Shutdown timeout
+    #[fail(display = "Connection shutdown timeout")]
+    ShutdownTimeout,
+
     /// HTTP2 error
     #[fail(display = "HTTP2 error: {}", _0)]
     Http2(http2::Error),
+
+    /// Malformed request
+    #[fail(display = "Malformed request")]
+    MalformedRequest,
+
+    /// Internal error
+    #[fail(display = "Internal error")]
+    InternalError,
 
     /// Unknown error
     #[fail(display = "Unknown error")]

@@ -81,10 +81,6 @@
     specialization, // for impl ErrorResponse for std::error::Error
     extern_prelude,
 ))]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(decimal_literal_representation, suspicious_arithmetic_impl)
-)]
 #![warn(missing_docs)]
 
 #[macro_use]

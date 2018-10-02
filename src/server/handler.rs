@@ -1,4 +1,4 @@
-use futures::{Async, Poll};
+use futures::{Async, Future, Poll};
 
 use super::message::Request;
 use super::Writer;
@@ -39,6 +39,25 @@ pub trait HttpHandlerTask {
 impl HttpHandlerTask for Box<HttpHandlerTask> {
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
         self.as_mut().poll_io(io)
+    }
+}
+
+pub(super) struct HttpHandlerTaskFut<T: HttpHandlerTask> {
+    task: T,
+}
+
+impl<T: HttpHandlerTask> HttpHandlerTaskFut<T> {
+    pub(crate) fn new(task: T) -> Self {
+        Self { task }
+    }
+}
+
+impl<T: HttpHandlerTask> Future for HttpHandlerTaskFut<T> {
+    type Item = ();
+    type Error = ();
+
+    fn poll(&mut self) -> Poll<(), ()> {
+        self.task.poll_completed().map_err(|_| ())
     }
 }
 

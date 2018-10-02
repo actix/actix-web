@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use bytes::BytesMut;
 use futures::{Async, Future, Poll};
+use tokio_current_thread::spawn;
 use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
@@ -13,30 +14,21 @@ use payload::{Payload, PayloadStatus, PayloadWriter};
 use super::error::{HttpDispatchError, ServerError};
 use super::h1decoder::{DecoderError, H1Decoder, Message};
 use super::h1writer::H1Writer;
+use super::handler::{HttpHandler, HttpHandlerTask, HttpHandlerTaskFut};
 use super::input::PayloadType;
 use super::settings::WorkerSettings;
-use super::Writer;
-use super::{HttpHandler, HttpHandlerTask, IoStream};
+use super::{IoStream, Writer};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
     pub struct Flags: u8 {
         const STARTED            = 0b0000_0001;
-        const ERROR              = 0b0000_0010;
         const KEEPALIVE          = 0b0000_0100;
         const SHUTDOWN           = 0b0000_1000;
         const READ_DISCONNECTED  = 0b0001_0000;
         const WRITE_DISCONNECTED = 0b0010_0000;
         const POLLED             = 0b0100_0000;
-    }
-}
-
-bitflags! {
-    struct EntryFlags: u8 {
-        const EOF = 0b0000_0001;
-        const ERROR = 0b0000_0010;
-        const FINISHED = 0b0000_0100;
     }
 }
 
@@ -49,39 +41,40 @@ pub(crate) struct Http1<T: IoStream, H: HttpHandler + 'static> {
     payload: Option<PayloadType>,
     buf: BytesMut,
     tasks: VecDeque<Entry<H>>,
-    error: Option<Error>,
+    error: Option<HttpDispatchError>,
     ka_enabled: bool,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
 }
 
-struct Entry<H: HttpHandler> {
-    pipe: EntryPipe<H>,
-    flags: EntryFlags,
-}
-
-enum EntryPipe<H: HttpHandler> {
+enum Entry<H: HttpHandler> {
     Task(H::Task),
     Error(Box<HttpHandlerTask>),
 }
 
-impl<H: HttpHandler> EntryPipe<H> {
+impl<H: HttpHandler> Entry<H> {
+    fn into_task(self) -> H::Task {
+        match self {
+            Entry::Task(task) => task,
+            Entry::Error(_) => panic!(),
+        }
+    }
     fn disconnected(&mut self) {
         match *self {
-            EntryPipe::Task(ref mut task) => task.disconnected(),
-            EntryPipe::Error(ref mut task) => task.disconnected(),
+            Entry::Task(ref mut task) => task.disconnected(),
+            Entry::Error(ref mut task) => task.disconnected(),
         }
     }
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
         match *self {
-            EntryPipe::Task(ref mut task) => task.poll_io(io),
-            EntryPipe::Error(ref mut task) => task.poll_io(io),
+            Entry::Task(ref mut task) => task.poll_io(io),
+            Entry::Error(ref mut task) => task.poll_io(io),
         }
     }
     fn poll_completed(&mut self) -> Poll<(), Error> {
         match *self {
-            EntryPipe::Task(ref mut task) => task.poll_completed(),
-            EntryPipe::Error(ref mut task) => task.poll_completed(),
+            Entry::Task(ref mut task) => task.poll_completed(),
+            Entry::Error(ref mut task) => task.poll_completed(),
         }
     }
 }
@@ -136,10 +129,7 @@ where
 
     #[inline]
     fn can_read(&self) -> bool {
-        if self
-            .flags
-            .intersects(Flags::ERROR | Flags::READ_DISCONNECTED)
-        {
+        if self.flags.intersects(Flags::READ_DISCONNECTED) {
             return false;
         }
 
@@ -150,41 +140,46 @@ where
         }
     }
 
-    fn write_disconnected(&mut self) {
-        self.flags.insert(Flags::WRITE_DISCONNECTED);
-
-        // notify all tasks
-        self.stream.disconnected();
-        for task in &mut self.tasks {
-            task.pipe.disconnected();
-        }
-    }
-
-    fn read_disconnected(&mut self) {
-        self.flags.insert(
-            Flags::READ_DISCONNECTED
-            // on parse error, stop reading stream but tasks need to be
-            // completed
-            | Flags::ERROR,
-        );
-
+    // if checked is set to true, delay disconnect until all tasks have finished.
+    fn client_disconnected(&mut self, checked: bool) {
+        self.flags.insert(Flags::READ_DISCONNECTED);
         if let Some(mut payload) = self.payload.take() {
             payload.set_error(PayloadError::Incomplete);
+        }
+
+        if !checked || self.tasks.is_empty() {
+            self.flags.insert(Flags::WRITE_DISCONNECTED);
+            self.stream.disconnected();
+
+            // notify all tasks
+            for mut task in self.tasks.drain(..) {
+                task.disconnected();
+                match task.poll_completed() {
+                    Ok(Async::NotReady) => {
+                        // spawn not completed task, it does not require access to io
+                        // at this point
+                        spawn(HttpHandlerTaskFut::new(task.into_task()));
+                    }
+                    Ok(Async::Ready(_)) => (),
+                    Err(err) => {
+                        error!("Unhandled application error: {}", err);
+                    }
+                }
+            }
         }
     }
 
     #[inline]
     pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
         // check connection keep-alive
-        if !self.poll_keep_alive() {
-            return Ok(Async::Ready(()));
-        }
+        self.poll_keep_alive()?;
 
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
-            if self.flags.intersects(
-                Flags::ERROR | Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED,
-            ) {
+            if self
+                .flags
+                .intersects(Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED)
+            {
                 return Ok(Async::Ready(()));
             }
             match self.stream.poll_completed(true) {
@@ -197,44 +192,46 @@ where
             }
         }
 
-        self.poll_io();
+        self.poll_io()?;
 
-        loop {
+        if !self.flags.contains(Flags::WRITE_DISCONNECTED) {
             match self.poll_handler()? {
-                Async::Ready(true) => {
-                    self.poll_io();
-                }
+                Async::Ready(true) => self.poll(),
                 Async::Ready(false) => {
                     self.flags.insert(Flags::SHUTDOWN);
-                    return self.poll();
+                    self.poll()
                 }
                 Async::NotReady => {
                     // deal with keep-alive and steam eof (client-side write shutdown)
                     if self.tasks.is_empty() {
                         // handle stream eof
-                        if self.flags.contains(Flags::READ_DISCONNECTED) {
-                            self.flags.insert(Flags::SHUTDOWN);
-                            return self.poll();
+                        if self.flags.intersects(
+                            Flags::READ_DISCONNECTED | Flags::WRITE_DISCONNECTED,
+                        ) {
+                            return Ok(Async::Ready(()));
                         }
                         // no keep-alive
-                        if self.flags.contains(Flags::ERROR)
-                            || (!self.flags.contains(Flags::KEEPALIVE)
-                                || !self.ka_enabled)
-                                && self.flags.contains(Flags::STARTED)
+                        if self.flags.contains(Flags::STARTED)
+                            && (!self.ka_enabled
+                                || !self.flags.contains(Flags::KEEPALIVE))
                         {
                             self.flags.insert(Flags::SHUTDOWN);
                             return self.poll();
                         }
                     }
-                    return Ok(Async::NotReady);
+                    Ok(Async::NotReady)
                 }
             }
+        } else if let Some(err) = self.error.take() {
+            Err(err)
+        } else {
+            Ok(Async::Ready(()))
         }
     }
 
     /// keep-alive timer. returns `true` is keep-alive, otherwise drop
-    fn poll_keep_alive(&mut self) -> bool {
-        let timer = if let Some(ref mut timer) = self.ka_timer {
+    fn poll_keep_alive(&mut self) -> Result<(), HttpDispatchError> {
+        if let Some(ref mut timer) = self.ka_timer {
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
                     if timer.deadline() >= self.ka_expire {
@@ -242,43 +239,39 @@ where
                         if self.tasks.is_empty() {
                             // if we get timer during shutdown, just drop connection
                             if self.flags.contains(Flags::SHUTDOWN) {
-                                return false;
+                                return Err(HttpDispatchError::ShutdownTimeout);
                             } else {
                                 trace!("Keep-alive timeout, close connection");
                                 self.flags.insert(Flags::SHUTDOWN);
-                                None
+                                // TODO: start shutdown timer
+                                return Ok(());
                             }
-                        } else {
-                            self.settings.keep_alive_timer()
+                        } else if let Some(deadline) = self.settings.keep_alive_expire()
+                        {
+                            timer.reset(deadline)
                         }
                     } else {
-                        Some(Delay::new(self.ka_expire))
+                        timer.reset(self.ka_expire)
                     }
                 }
-                Ok(Async::NotReady) => None,
+                Ok(Async::NotReady) => (),
                 Err(e) => {
                     error!("Timer error {:?}", e);
-                    return false;
+                    return Err(HttpDispatchError::Unknown);
                 }
             }
-        } else {
-            None
-        };
-
-        if let Some(mut timer) = timer {
-            let _ = timer.poll();
-            self.ka_timer = Some(timer);
         }
-        true
+
+        Ok(())
     }
 
     #[inline]
     /// read data from stream
-    pub fn poll_io(&mut self) {
+    pub fn poll_io(&mut self) -> Result<(), HttpDispatchError> {
         if !self.flags.contains(Flags::POLLED) {
-            self.parse();
+            self.parse()?;
             self.flags.insert(Flags::POLLED);
-            return;
+            return Ok(());
         }
 
         // read io from socket
@@ -286,136 +279,118 @@ where
             match self.stream.get_mut().read_available(&mut self.buf) {
                 Ok(Async::Ready((read_some, disconnected))) => {
                     if read_some {
-                        self.parse();
+                        self.parse()?;
                     }
                     if disconnected {
-                        self.read_disconnected();
-                        // delay disconnect until all tasks have finished.
-                        if self.tasks.is_empty() {
-                            self.write_disconnected();
-                        }
+                        self.client_disconnected(true);
                     }
                 }
                 Ok(Async::NotReady) => (),
-                Err(_) => {
-                    self.read_disconnected();
-                    self.write_disconnected();
+                Err(err) => {
+                    self.client_disconnected(false);
+                    return Err(err.into());
                 }
             }
         }
+        Ok(())
     }
 
     pub fn poll_handler(&mut self) -> Poll<bool, HttpDispatchError> {
         let retry = self.can_read();
 
-        // check in-flight messages
-        let mut io = false;
-        let mut idx = 0;
-        while idx < self.tasks.len() {
-            // only one task can do io operation in http/1
-            if !io
-                && !self.tasks[idx].flags.contains(EntryFlags::EOF)
-                && !self.flags.contains(Flags::WRITE_DISCONNECTED)
-            {
-                // io is corrupted, send buffer
-                if self.tasks[idx].flags.contains(EntryFlags::ERROR) {
-                    if let Ok(Async::NotReady) = self.stream.poll_completed(true) {
-                        return Ok(Async::NotReady);
-                    }
-                    self.flags.insert(Flags::ERROR);
-                    return Err(self
-                        .error
-                        .take()
-                        .map(|e| e.into())
-                        .unwrap_or(HttpDispatchError::Unknown));
-                }
-
-                match self.tasks[idx].pipe.poll_io(&mut self.stream) {
-                    Ok(Async::Ready(ready)) => {
-                        // override keep-alive state
-                        if self.stream.keepalive() {
-                            self.flags.insert(Flags::KEEPALIVE);
-                        } else {
-                            self.flags.remove(Flags::KEEPALIVE);
-                        }
-                        // prepare stream for next response
-                        self.stream.reset();
-
-                        if ready {
-                            self.tasks[idx]
-                                .flags
-                                .insert(EntryFlags::EOF | EntryFlags::FINISHED);
-                        } else {
-                            self.tasks[idx].flags.insert(EntryFlags::EOF);
-                        }
-                    }
-                    // no more IO for this iteration
-                    Ok(Async::NotReady) => {
-                        // check if we need timer
-                        if self.ka_timer.is_some() && self.stream.upgrade() {
-                            self.ka_timer.take();
-                        }
-
-                        // check if previously read backpressure was enabled
-                        if self.can_read() && !retry {
-                            return Ok(Async::Ready(true));
-                        }
-                        io = true;
-                    }
-                    Err(err) => {
-                        error!("Unhandled error1: {}", err);
-                        // it is not possible to recover from error
-                        // during pipe handling, so just drop connection
-                        self.read_disconnected();
-                        self.write_disconnected();
-                        self.tasks[idx].flags.insert(EntryFlags::ERROR);
-                        self.error = Some(err);
-                        continue;
-                    }
-                }
-            } else if !self.tasks[idx].flags.contains(EntryFlags::FINISHED) {
-                match self.tasks[idx].pipe.poll_completed() {
-                    Ok(Async::NotReady) => (),
-                    Ok(Async::Ready(_)) => {
-                        self.tasks[idx].flags.insert(EntryFlags::FINISHED)
-                    }
-                    Err(err) => {
-                        error!("Unhandled error: {}", err);
-                        self.read_disconnected();
-                        self.write_disconnected();
-                        self.tasks[idx].flags.insert(EntryFlags::ERROR);
-                        self.error = Some(err);
-                        continue;
-                    }
-                }
-            }
-            idx += 1;
-        }
-
-        // cleanup finished tasks
+        // process first pipelined response, only one task can do io operation in http/1
         while !self.tasks.is_empty() {
-            if self.tasks[0]
-                .flags
-                .contains(EntryFlags::EOF | EntryFlags::FINISHED)
-            {
-                self.tasks.pop_front();
-            } else {
-                break;
+            match self.tasks[0].poll_io(&mut self.stream) {
+                Ok(Async::Ready(ready)) => {
+                    // override keep-alive state
+                    if self.stream.keepalive() {
+                        self.flags.insert(Flags::KEEPALIVE);
+                    } else {
+                        self.flags.remove(Flags::KEEPALIVE);
+                    }
+                    // prepare stream for next response
+                    self.stream.reset();
+
+                    let task = self.tasks.pop_front().unwrap();
+                    if !ready {
+                        // task is done with io operations but still needs to do more work
+                        spawn(HttpHandlerTaskFut::new(task.into_task()));
+                    }
+                }
+                Ok(Async::NotReady) => {
+                    // check if we need timer
+                    if self.ka_timer.is_some() && self.stream.upgrade() {
+                        self.ka_timer.take();
+                    }
+
+                    // if read-backpressure is enabled and we consumed some data.
+                    // we may read more data
+                    if !retry && self.can_read() {
+                        return Ok(Async::Ready(true));
+                    }
+                    break;
+                }
+                Err(err) => {
+                    error!("Unhandled error1: {}", err);
+                    // it is not possible to recover from error
+                    // during pipe handling, so just drop connection
+                    self.client_disconnected(false);
+                    return Err(err.into());
+                }
             }
         }
 
-        // check stream state
+        // check in-flight messages. all tasks must be alive,
+        // they need to produce response. if app returned error
+        // and we can not continue processing incoming requests.
+        let mut idx = 1;
+        while idx < self.tasks.len() {
+            let stop = match self.tasks[idx].poll_completed() {
+                Ok(Async::NotReady) => false,
+                Ok(Async::Ready(_)) => true,
+                Err(err) => {
+                    self.error = Some(err.into());
+                    true
+                }
+            };
+            if stop {
+                // error in task handling or task is completed,
+                // so no response for this task which means we can not read more requests
+                // because pipeline sequence is broken.
+                // but we can safely complete existing tasks
+                self.flags.insert(Flags::READ_DISCONNECTED);
+
+                for mut task in self.tasks.drain(idx..) {
+                    task.disconnected();
+                    match task.poll_completed() {
+                        Ok(Async::NotReady) => {
+                            // spawn not completed task, it does not require access to io
+                            // at this point
+                            spawn(HttpHandlerTaskFut::new(task.into_task()));
+                        }
+                        Ok(Async::Ready(_)) => (),
+                        Err(err) => {
+                            error!("Unhandled application error: {}", err);
+                        }
+                    }
+                }
+                break;
+            } else {
+                idx += 1;
+            }
+        }
+
+        // flush stream
         if self.flags.contains(Flags::STARTED) {
             match self.stream.poll_completed(false) {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
-                    self.read_disconnected();
-                    self.write_disconnected();
+                    self.client_disconnected(false);
                     return Err(err.into());
                 }
                 Ok(Async::Ready(_)) => {
-                    // non consumed payload in that case close connection
+                    // if payload is not consumed we can not use connection
                     if self.payload.is_some() && self.tasks.is_empty() {
                         return Ok(Async::Ready(false));
                     }
@@ -427,13 +402,11 @@ where
     }
 
     fn push_response_entry(&mut self, status: StatusCode) {
-        self.tasks.push_back(Entry {
-            pipe: EntryPipe::Error(ServerError::err(Version::HTTP_11, status)),
-            flags: EntryFlags::empty(),
-        });
+        self.tasks
+            .push_back(Entry::Error(ServerError::err(Version::HTTP_11, status)));
     }
 
-    pub fn parse(&mut self) {
+    pub fn parse(&mut self) -> Result<(), HttpDispatchError> {
         let mut updated = false;
 
         'outer: loop {
@@ -457,9 +430,9 @@ where
 
                     // search handler for request
                     match self.settings.handler().handle(msg) {
-                        Ok(mut pipe) => {
+                        Ok(mut task) => {
                             if self.tasks.is_empty() {
-                                match pipe.poll_io(&mut self.stream) {
+                                match task.poll_io(&mut self.stream) {
                                     Ok(Async::Ready(ready)) => {
                                         // override keep-alive state
                                         if self.stream.keepalive() {
@@ -471,42 +444,28 @@ where
                                         self.stream.reset();
 
                                         if !ready {
-                                            let item = Entry {
-                                                pipe: EntryPipe::Task(pipe),
-                                                flags: EntryFlags::EOF,
-                                            };
-                                            self.tasks.push_back(item);
+                                            // task is done with io operations
+                                            // but still needs to do more work
+                                            spawn(HttpHandlerTaskFut::new(task));
                                         }
                                         continue 'outer;
                                     }
                                     Ok(Async::NotReady) => (),
                                     Err(err) => {
                                         error!("Unhandled error: {}", err);
-                                        self.flags.insert(Flags::ERROR);
-                                        return;
+                                        self.client_disconnected(false);
+                                        return Err(err.into());
                                     }
                                 }
                             }
-                            self.tasks.push_back(Entry {
-                                pipe: EntryPipe::Task(pipe),
-                                flags: EntryFlags::empty(),
-                            });
+                            self.tasks.push_back(Entry::Task(task));
                             continue 'outer;
                         }
                         Err(_) => {
                             // handler is not found
-                            self.tasks.push_back(Entry {
-                                pipe: EntryPipe::Error(ServerError::err(
-                                    Version::HTTP_11,
-                                    StatusCode::NOT_FOUND,
-                                )),
-                                flags: EntryFlags::empty(),
-                            });
+                            self.push_response_entry(StatusCode::NOT_FOUND);
                         }
                     }
-
-                    // handler is not found
-                    self.push_response_entry(StatusCode::NOT_FOUND);
                 }
                 Ok(Some(Message::Chunk(chunk))) => {
                     updated = true;
@@ -514,8 +473,9 @@ where
                         payload.feed_data(chunk);
                     } else {
                         error!("Internal server error: unexpected payload chunk");
-                        self.flags.insert(Flags::ERROR);
+                        self.flags.insert(Flags::READ_DISCONNECTED);
                         self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
+                        self.error = Some(HttpDispatchError::InternalError);
                         break;
                     }
                 }
@@ -525,23 +485,19 @@ where
                         payload.feed_eof();
                     } else {
                         error!("Internal server error: unexpected eof");
-                        self.flags.insert(Flags::ERROR);
+                        self.flags.insert(Flags::READ_DISCONNECTED);
                         self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
+                        self.error = Some(HttpDispatchError::InternalError);
                         break;
                     }
                 }
                 Ok(None) => {
                     if self.flags.contains(Flags::READ_DISCONNECTED) {
-                        self.read_disconnected();
-                        if self.tasks.is_empty() {
-                            self.write_disconnected();
-                        }
+                        self.client_disconnected(true);
                     }
                     break;
                 }
                 Err(e) => {
-                    updated = false;
-                    self.flags.insert(Flags::ERROR);
                     if let Some(mut payload) = self.payload.take() {
                         let e = match e {
                             DecoderError::Io(e) => PayloadError::Io(e),
@@ -550,8 +506,10 @@ where
                         payload.set_error(e);
                     }
 
-                    //Malformed requests should be responded with 400
+                    // Malformed requests should be responded with 400
                     self.push_response_entry(StatusCode::BAD_REQUEST);
+                    self.flags.insert(Flags::READ_DISCONNECTED);
+                    self.error = Some(HttpDispatchError::MalformedRequest);
                     break;
                 }
             }
@@ -562,6 +520,7 @@ where
                 self.ka_expire = expire;
             }
         }
+        Ok(())
     }
 }
 
@@ -708,15 +667,15 @@ mod tests {
     #[test]
     fn test_req_parse_err() {
         let mut sys = System::new("test");
-        sys.block_on(future::lazy(|| {
+        let _ = sys.block_on(future::lazy(|| {
             let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
             let readbuf = BytesMut::new();
             let settings = wrk_settings();
 
             let mut h1 = Http1::new(settings.clone(), buf, None, readbuf, false, None);
-            h1.poll_io();
-            h1.poll_io();
-            assert!(h1.flags.contains(Flags::ERROR));
+            assert!(h1.poll_io().is_ok());
+            assert!(h1.poll_io().is_ok());
+            assert!(h1.flags.contains(Flags::READ_DISCONNECTED));
             assert_eq!(h1.tasks.len(), 1);
             future::ok::<_, ()>(())
         }));

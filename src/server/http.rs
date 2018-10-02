@@ -485,7 +485,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 socket.lst,
                 host,
                 socket.addr,
-                self.keep_alive.clone(),
+                self.keep_alive,
                 self.client_timeout,
             );
         }
@@ -531,7 +531,7 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
                 socket.lst,
                 host,
                 socket.addr,
-                self.keep_alive.clone(),
+                self.keep_alive,
                 self.client_timeout,
             );
         }

@@ -41,9 +41,7 @@ where
 
         // start server
         HttpIncoming::create(move |ctx| {
-            ctx.add_message_stream(
-                stream.map_err(|_| ()).map(move |t| WrapperStream::new(t)),
-            );
+            ctx.add_message_stream(stream.map_err(|_| ()).map(WrapperStream::new));
             HttpIncoming { settings }
         });
     }
