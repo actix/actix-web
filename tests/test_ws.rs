@@ -361,7 +361,7 @@ struct WsStopped(Arc<AtomicUsize>);
 impl Actor for WsStopped {
     type Context = ws::WebsocketContext<Self>;
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _: &mut Self::Context) {
         self.0.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -387,12 +387,10 @@ fn test_ws_stopped() {
             app.handler(move |req| ws::start(req, WsStopped(num4.clone())))
         });
         let (reader, mut writer) = srv.ws().unwrap();
-
         writer.text("text");
-        let (item, reader) = srv.execute(reader.into_future()).unwrap();
+        let (item, _) = srv.execute(reader.into_future()).unwrap();
         assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
-    });
+    }).join();
 
-    thread::sleep(time::Duration::from_secs(3));
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }
