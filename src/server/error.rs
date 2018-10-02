@@ -44,6 +44,10 @@ pub enum HttpDispatchError {
     #[fail(display = "HTTP2 error: {}", _0)]
     Http2(http2::Error),
 
+    /// Payload is not consumed
+    #[fail(display = "Task is completed but request's payload is not consumed")]
+    PayloadIsNotConsumed,
+
     /// Malformed request
     #[fail(display = "Malformed request")]
     MalformedRequest,

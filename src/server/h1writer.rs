@@ -62,6 +62,10 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags = Flags::KEEPALIVE;
     }
 
+    pub fn flushed(&mut self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn disconnected(&mut self) {
         self.flags.insert(Flags::DISCONNECTED);
     }

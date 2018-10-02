@@ -1094,3 +1094,35 @@ fn test_slow_request() {
 
     sys.stop();
 }
+
+#[test]
+fn test_malformed_request() {
+    use actix::System;
+    use std::net;
+    use std::sync::mpsc;
+    let (tx, rx) = mpsc::channel();
+
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        System::run(move || {
+            let srv = server::new(|| {
+                vec![App::new().resource("/", |r| {
+                    r.method(http::Method::GET).f(|_| HttpResponse::Ok())
+                })]
+            });
+
+            let _ = srv.bind(addr).unwrap().start();
+            let _ = tx.send(System::current());
+        });
+    });
+    let sys = rx.recv().unwrap();
+    thread::sleep(time::Duration::from_millis(200));
+
+    let mut stream = net::TcpStream::connect(addr).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP1.1\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 400 Bad Request"));
+
+    sys.stop();
+}

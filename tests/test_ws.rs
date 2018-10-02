@@ -7,7 +7,7 @@ extern crate rand;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::{thread, time};
 
 use bytes::Bytes;
 use futures::Stream;
@@ -380,17 +380,17 @@ fn test_ws_stopped() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
-    let _ = thread::spawn(move || {
+    let mut srv = test::TestServer::new(move |app| {
         let num3 = num2.clone();
-        let mut srv = test::TestServer::new(move |app| {
-            let num4 = num3.clone();
-            app.handler(move |req| ws::start(req, WsStopped(num4.clone())))
-        });
+        app.handler(move |req| ws::start(req, WsStopped(num3.clone())))
+    });
+    {
         let (reader, mut writer) = srv.ws().unwrap();
         writer.text("text");
         let (item, _) = srv.execute(reader.into_future()).unwrap();
         assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
-    }).join();
+    }
+    thread::sleep(time::Duration::from_millis(1000));
 
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }
