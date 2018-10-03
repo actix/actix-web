@@ -18,7 +18,7 @@ pub struct OpensslAcceptor<T> {
     io: PhantomData<T>,
 }
 
-impl<T: AsyncRead + AsyncWrite> OpensslAcceptor<T> {
+impl<T> OpensslAcceptor<T> {
     /// Create default `OpensslAcceptor`
     pub fn new(acceptor: SslAcceptor) -> Self {
         OpensslAcceptor {
