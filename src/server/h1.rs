@@ -733,7 +733,7 @@ mod tests {
             let settings = wrk_settings();
 
             let mut h1 =
-                Http1Dispatcher::new(settings.clone(), buf, None, readbuf, false, None);
+                Http1Dispatcher::new(settings.clone(), buf, readbuf, false, None);
             assert!(h1.poll_io().is_ok());
             assert!(h1.poll_io().is_ok());
             assert!(h1.flags.contains(Flags::READ_DISCONNECTED));
