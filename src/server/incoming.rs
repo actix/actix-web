@@ -64,8 +64,6 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: WrapperStream<T>, _: &mut Context<Self>) -> Self::Result {
-        Arbiter::spawn(
-            HttpChannel::new(self.settings.clone(), msg, None).map_err(|_| ()),
-        );
+        Arbiter::spawn(HttpChannel::new(self.settings.clone(), msg).map_err(|_| ()));
     }
 }

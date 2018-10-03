@@ -58,9 +58,9 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: ServiceConfig<H>, io: T, addr: Option<SocketAddr>, buf: Bytes,
-        keepalive_timer: Option<Delay>,
+        settings: ServiceConfig<H>, io: T, buf: Bytes, keepalive_timer: Option<Delay>,
     ) -> Self {
+        let addr = io.peer_addr();
         let extensions = io.extensions();
         Http2 {
             flags: Flags::empty(),

@@ -1,4 +1,4 @@
-use std::net::{Shutdown, SocketAddr};
+use std::net::Shutdown;
 use std::{io, mem, time};
 
 use bytes::{Buf, BufMut, BytesMut};
@@ -16,7 +16,7 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 pub(crate) enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
     H1(h1::Http1Dispatcher<T, H>),
     H2(h2::Http2<T, H>),
-    Unknown(ServiceConfig<H>, Option<SocketAddr>, T, BytesMut),
+    Unknown(ServiceConfig<H>, T, BytesMut),
     None,
 }
 
@@ -29,7 +29,7 @@ impl<T: IoStream, H: HttpHandler + 'static> HttpProtocol<T, H> {
                 let _ = IoStream::shutdown(io, Shutdown::Both);
             }
             HttpProtocol::H2(ref mut h2) => h2.shutdown(),
-            HttpProtocol::Unknown(_, _, io, _) => {
+            HttpProtocol::Unknown(_, io, _) => {
                 let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
                 let _ = IoStream::shutdown(io, Shutdown::Both);
             }
@@ -59,9 +59,7 @@ where
     T: IoStream,
     H: HttpHandler + 'static,
 {
-    pub(crate) fn new(
-        settings: ServiceConfig<H>, io: T, peer: Option<SocketAddr>,
-    ) -> HttpChannel<T, H> {
+    pub(crate) fn new(settings: ServiceConfig<H>, io: T) -> HttpChannel<T, H> {
         let ka_timeout = settings.client_timer();
 
         HttpChannel {
@@ -69,7 +67,6 @@ where
             node_reg: false,
             node: Node::new(HttpProtocol::Unknown(
                 settings,
-                peer,
                 io,
                 BytesMut::with_capacity(8192),
             )),
@@ -102,7 +99,7 @@ where
                 Ok(Async::Ready(_)) => {
                     trace!("Slow request timed out, close connection");
                     let proto = mem::replace(self.node.get_mut(), HttpProtocol::None);
-                    if let HttpProtocol::Unknown(settings, _, io, buf) = proto {
+                    if let HttpProtocol::Unknown(settings, io, buf) = proto {
                         *self.node.get_mut() =
                             HttpProtocol::H1(h1::Http1Dispatcher::for_error(
                                 settings,
@@ -125,7 +122,7 @@ where
             let settings = match self.node.get_mut() {
                 HttpProtocol::H1(ref mut h1) => h1.settings().clone(),
                 HttpProtocol::H2(ref mut h2) => h2.settings().clone(),
-                HttpProtocol::Unknown(ref mut settings, _, _, _) => settings.clone(),
+                HttpProtocol::Unknown(ref mut settings, _, _) => settings.clone(),
                 HttpProtocol::None => unreachable!(),
             };
             settings.head().insert(&mut self.node);
@@ -135,7 +132,7 @@ where
         let kind = match self.node.get_mut() {
             HttpProtocol::H1(ref mut h1) => return h1.poll(),
             HttpProtocol::H2(ref mut h2) => return h2.poll(),
-            HttpProtocol::Unknown(_, _, ref mut io, ref mut buf) => {
+            HttpProtocol::Unknown(_, ref mut io, ref mut buf) => {
                 let mut err = None;
                 let mut disconnect = false;
                 match io.read_available(buf) {
@@ -173,13 +170,12 @@ where
 
         // upgrade to specific http protocol
         let proto = mem::replace(self.node.get_mut(), HttpProtocol::None);
-        if let HttpProtocol::Unknown(settings, addr, io, buf) = proto {
+        if let HttpProtocol::Unknown(settings, io, buf) = proto {
             match kind {
                 ProtocolKind::Http1 => {
                     *self.node.get_mut() = HttpProtocol::H1(h1::Http1Dispatcher::new(
                         settings,
                         io,
-                        addr,
                         buf,
                         is_eof,
                         self.ka_timeout.take(),
@@ -190,7 +186,6 @@ where
                     *self.node.get_mut() = HttpProtocol::H2(h2::Http2::new(
                         settings,
                         io,
-                        addr,
                         buf.freeze(),
                         self.ka_timeout.take(),
                     ));
@@ -199,6 +194,70 @@ where
             }
         }
         unreachable!()
+    }
+}
+
+#[doc(hidden)]
+pub struct H1Channel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
+    node: Node<HttpProtocol<T, H>>,
+    node_reg: bool,
+}
+
+impl<T, H> H1Channel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
+    pub(crate) fn new(settings: ServiceConfig<H>, io: T) -> H1Channel<T, H> {
+        H1Channel {
+            node_reg: false,
+            node: Node::new(HttpProtocol::H1(h1::Http1Dispatcher::new(
+                settings,
+                io,
+                BytesMut::with_capacity(8192),
+                false,
+                None,
+            ))),
+        }
+    }
+}
+
+impl<T, H> Drop for H1Channel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
+    fn drop(&mut self) {
+        self.node.remove();
+    }
+}
+
+impl<T, H> Future for H1Channel<T, H>
+where
+    T: IoStream,
+    H: HttpHandler + 'static,
+{
+    type Item = ();
+    type Error = HttpDispatchError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if !self.node_reg {
+            self.node_reg = true;
+            let settings = match self.node.get_mut() {
+                HttpProtocol::H1(ref mut h1) => h1.settings().clone(),
+                _ => unreachable!(),
+            };
+            settings.head().insert(&mut self.node);
+        }
+
+        match self.node.get_mut() {
+            HttpProtocol::H1(ref mut h1) => h1.poll(),
+            _ => unreachable!(),
+        }
     }
 }
 

@@ -87,9 +87,10 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: ServiceConfig<H>, stream: T, addr: Option<SocketAddr>, buf: BytesMut,
-        is_eof: bool, keepalive_timer: Option<Delay>,
+        settings: ServiceConfig<H>, stream: T, buf: BytesMut, is_eof: bool,
+        keepalive_timer: Option<Delay>,
     ) -> Self {
+        let addr = stream.peer_addr();
         let (ka_expire, ka_timer) = if let Some(delay) = keepalive_timer {
             (delay.deadline(), Some(delay))
         } else if let Some(delay) = settings.keep_alive_timer() {
@@ -107,12 +108,12 @@ where
         };
 
         Http1Dispatcher {
-            flags,
             stream: H1Writer::new(stream, settings.clone()),
             decoder: H1Decoder::new(),
             payload: None,
             tasks: VecDeque::new(),
             error: None,
+            flags,
             addr,
             buf,
             settings,
@@ -337,9 +338,11 @@ where
     /// read data from the stream
     pub(self) fn poll_io(&mut self) -> Result<bool, HttpDispatchError> {
         if !self.flags.contains(Flags::POLLED) {
-            let updated = self.parse()?;
             self.flags.insert(Flags::POLLED);
-            return Ok(updated);
+            if !self.buf.is_empty() {
+                let updated = self.parse()?;
+                return Ok(updated);
+            }
         }
 
         // read io from socket

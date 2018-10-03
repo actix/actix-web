@@ -1,4 +1,4 @@
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
 use std::{io, time};
 
 use actix_net::ssl; //::RustlsAcceptor;
@@ -63,6 +63,11 @@ impl<Io: IoStream> IoStream for TlsStream<Io, ServerSession> {
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
         let _ = <Self as AsyncWrite>::shutdown(self);
         Ok(())
+    }
+
+    #[inline]
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        self.get_ref().0.peer_addr()
     }
 
     #[inline]

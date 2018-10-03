@@ -106,7 +106,7 @@
 //!     let _ = sys.run();
 //!}
 //! ```
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
 use std::{io, time};
 
@@ -143,10 +143,13 @@ pub use self::message::Request;
 pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
-pub use self::settings::{ServerSettings, ServiceConfig, ServiceConfigBuilder};
+pub use self::settings::ServerSettings;
 
 #[doc(hidden)]
-pub use self::service::{HttpService, StreamConfiguration};
+pub use self::settings::{ServiceConfig, ServiceConfigBuilder};
+
+#[doc(hidden)]
+pub use self::service::{H1Service, HttpService, StreamConfiguration};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
@@ -266,6 +269,12 @@ pub trait Writer {
 pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
 
+    /// Returns the socket address of the remote peer of this TCP connection.
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        None
+    }
+
+    /// Sets the value of the TCP_NODELAY option on this socket.
     fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
@@ -339,6 +348,11 @@ impl IoStream for TcpStream {
     #[inline]
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
         TcpStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        TcpStream::peer_addr(self).ok()
     }
 
     #[inline]

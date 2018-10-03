@@ -1,4 +1,4 @@
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
 use std::{io, time};
 
 use actix_net::ssl;
@@ -63,6 +63,11 @@ impl<T: IoStream> IoStream for SslStream<T> {
     fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
         let _ = self.get_mut().shutdown();
         Ok(())
+    }
+
+    #[inline]
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        self.get_ref().get_ref().peer_addr()
     }
 
     #[inline]

@@ -5,7 +5,7 @@ use actix_net::service::{NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Poll};
 
-use super::channel::HttpChannel;
+use super::channel::{H1Channel, HttpChannel};
 use super::error::HttpDispatchError;
 use super::handler::HttpHandler;
 use super::settings::ServiceConfig;
@@ -89,7 +89,90 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        HttpChannel::new(self.settings.clone(), req, None)
+        HttpChannel::new(self.settings.clone(), req)
+    }
+}
+
+/// `NewService` implementation for HTTP1 transport
+pub struct H1Service<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    settings: ServiceConfig<H>,
+    _t: PhantomData<Io>,
+}
+
+impl<H, Io> H1Service<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    /// Create new `HttpService` instance.
+    pub fn new(settings: ServiceConfig<H>) -> Self {
+        H1Service {
+            settings,
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<H, Io> NewService for H1Service<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    type Request = Io;
+    type Response = ();
+    type Error = HttpDispatchError;
+    type InitError = ();
+    type Service = H1ServiceHandler<H, Io>;
+    type Future = FutureResult<Self::Service, Self::InitError>;
+
+    fn new_service(&self) -> Self::Future {
+        ok(H1ServiceHandler::new(self.settings.clone()))
+    }
+}
+
+/// `Service` implementation for HTTP1 transport
+pub struct H1ServiceHandler<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    settings: ServiceConfig<H>,
+    _t: PhantomData<Io>,
+}
+
+impl<H, Io> H1ServiceHandler<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    fn new(settings: ServiceConfig<H>) -> H1ServiceHandler<H, Io> {
+        H1ServiceHandler {
+            settings,
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<H, Io> Service for H1ServiceHandler<H, Io>
+where
+    H: HttpHandler,
+    Io: IoStream,
+{
+    type Request = Io;
+    type Response = ();
+    type Error = HttpDispatchError;
+    type Future = H1Channel<Io, H>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        H1Channel::new(self.settings.clone(), req)
     }
 }
 
