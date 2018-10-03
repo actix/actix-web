@@ -5,51 +5,51 @@ use futures::{Async, Future, Poll};
 
 use super::{IntoNewService, NewService, Service};
 
-/// Service for the `and_then` combinator, chaining a computation onto the end
-/// of another service which completes successfully.
+/// Service for the `then` combinator, chaining a computation onto the end of
+/// another service.
 ///
-/// This is created by the `ServiceExt::and_then` method.
-pub struct AndThen<A, B> {
+/// This is created by the `ServiceExt::then` method.
+pub struct Then<A, B> {
     a: A,
     b: Rc<RefCell<B>>,
 }
 
-impl<A, B> AndThen<A, B>
+impl<A, B> Then<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
 {
-    /// Create new `AndThen` combinator
-    pub fn new(a: A, b: B) -> Self {
-        Self {
+    /// Create new `Then` combinator
+    pub fn new(a: A, b: B) -> Then<A, B> {
+        Then {
             a,
             b: Rc::new(RefCell::new(b)),
         }
     }
 }
 
-impl<A, B> Clone for AndThen<A, B>
+impl<A, B> Clone for Then<A, B>
 where
     A: Service + Clone,
-    B: Service<Request = A::Response, Error = A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
 {
     fn clone(&self) -> Self {
-        AndThen {
+        Then {
             a: self.a.clone(),
             b: self.b.clone(),
         }
     }
 }
 
-impl<A, B> Service for AndThen<A, B>
+impl<A, B> Service for Then<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
 {
     type Request = A::Request;
     type Response = B::Response;
-    type Error = A::Error;
-    type Future = AndThenFuture<A, B>;
+    type Error = B::Error;
+    type Future = ThenFuture<A, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         let _ = try_ready!(self.a.poll_ready());
@@ -57,27 +57,27 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        AndThenFuture::new(self.a.call(req), self.b.clone())
+        ThenFuture::new(self.a.call(req), self.b.clone())
     }
 }
 
-pub struct AndThenFuture<A, B>
+pub struct ThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>>,
 {
     b: Rc<RefCell<B>>,
     fut_b: Option<B::Future>,
     fut_a: A::Future,
 }
 
-impl<A, B> AndThenFuture<A, B>
+impl<A, B> ThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>>,
 {
     fn new(fut_a: A::Future, b: Rc<RefCell<B>>) -> Self {
-        AndThenFuture {
+        ThenFuture {
             b,
             fut_a,
             fut_b: None,
@@ -85,14 +85,13 @@ where
     }
 }
 
-impl<A, B> Future for AndThenFuture<A, B>
+impl<A, B> Future for ThenFuture<A, B>
 where
     A: Service,
-    B: Service<Request = A::Response, Error = A::Error>,
-    B::Error: Into<A::Error>,
+    B: Service<Request = Result<A::Response, A::Error>>,
 {
     type Item = B::Response;
-    type Error = A::Error;
+    type Error = B::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut_b {
@@ -101,22 +100,25 @@ where
 
         match self.fut_a.poll() {
             Ok(Async::Ready(resp)) => {
-                self.fut_b = Some(self.b.borrow_mut().call(resp));
+                self.fut_b = Some(self.b.borrow_mut().call(Ok(resp)));
+                self.poll()
+            }
+            Err(err) => {
+                self.fut_b = Some(self.b.borrow_mut().call(Err(err)));
                 self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err),
         }
     }
 }
 
-/// `AndThenNewService` new service combinator
-pub struct AndThenNewService<A, B> {
+/// `ThenNewService` new service combinator
+pub struct ThenNewService<A, B> {
     a: A,
     b: B,
 }
 
-impl<A, B> AndThenNewService<A, B>
+impl<A, B> ThenNewService<A, B>
 where
     A: NewService,
     B: NewService,
@@ -130,28 +132,36 @@ where
     }
 }
 
-impl<A, B> NewService for AndThenNewService<A, B>
+impl<A, B> NewService for ThenNewService<A, B>
 where
     A: NewService,
-    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError>,
+    B: NewService<
+        Request = Result<A::Response, A::Error>,
+        Error = A::Error,
+        InitError = A::InitError,
+    >,
 {
     type Request = A::Request;
     type Response = B::Response;
     type Error = A::Error;
-    type Service = AndThen<A::Service, B::Service>;
+    type Service = Then<A::Service, B::Service>;
 
     type InitError = A::InitError;
-    type Future = AndThenNewServiceFuture<A, B>;
+    type Future = ThenNewServiceFuture<A, B>;
 
     fn new_service(&self) -> Self::Future {
-        AndThenNewServiceFuture::new(self.a.new_service(), self.b.new_service())
+        ThenNewServiceFuture::new(self.a.new_service(), self.b.new_service())
     }
 }
 
-impl<A, B> Clone for AndThenNewService<A, B>
+impl<A, B> Clone for ThenNewService<A, B>
 where
     A: NewService + Clone,
-    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError> + Clone,
+    B: NewService<
+            Request = Result<A::Response, A::Error>,
+            Error = A::Error,
+            InitError = A::InitError,
+        > + Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -161,7 +171,7 @@ where
     }
 }
 
-pub struct AndThenNewServiceFuture<A, B>
+pub struct ThenNewServiceFuture<A, B>
 where
     A: NewService,
     B: NewService,
@@ -172,13 +182,13 @@ where
     b: Option<B::Service>,
 }
 
-impl<A, B> AndThenNewServiceFuture<A, B>
+impl<A, B> ThenNewServiceFuture<A, B>
 where
     A: NewService,
     B: NewService,
 {
     fn new(fut_a: A::Future, fut_b: B::Future) -> Self {
-        AndThenNewServiceFuture {
+        ThenNewServiceFuture {
             fut_a,
             fut_b,
             a: None,
@@ -187,12 +197,16 @@ where
     }
 }
 
-impl<A, B> Future for AndThenNewServiceFuture<A, B>
+impl<A, B> Future for ThenNewServiceFuture<A, B>
 where
     A: NewService,
-    B: NewService<Request = A::Response, Error = A::Error, InitError = A::InitError>,
+    B: NewService<
+        Request = Result<A::Response, A::Error>,
+        Error = A::Error,
+        InitError = A::InitError,
+    >,
 {
-    type Item = AndThen<A::Service, B::Service>;
+    type Item = Then<A::Service, B::Service>;
     type Error = A::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -209,7 +223,7 @@ where
         }
 
         if self.a.is_some() && self.b.is_some() {
-            Ok(Async::Ready(AndThen::new(
+            Ok(Async::Ready(Then::new(
                 self.a.take().unwrap(),
                 self.b.take().unwrap(),
             )))
@@ -221,20 +235,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::future::{ok, FutureResult};
+    use futures::future::{err, ok, FutureResult};
     use futures::{Async, Poll};
     use std::cell::Cell;
     use std::rc::Rc;
 
     use super::*;
-    use service::{NewServiceExt, Service, ServiceExt};
+    use service::{NewServiceExt, ServiceExt};
 
     struct Srv1(Rc<Cell<usize>>);
     impl Service for Srv1 {
-        type Request = &'static str;
+        type Request = Result<&'static str, &'static str>;
         type Response = &'static str;
         type Error = ();
-        type Future = FutureResult<Self::Response, ()>;
+        type Future = FutureResult<Self::Response, Self::Error>;
 
         fn poll_ready(&mut self) -> Poll<(), Self::Error> {
             self.0.set(self.0.get() + 1);
@@ -242,7 +256,10 @@ mod tests {
         }
 
         fn call(&mut self, req: Self::Request) -> Self::Future {
-            ok(req)
+            match req {
+                Ok(msg) => ok(msg),
+                Err(_) => err(()),
+            }
         }
     }
 
@@ -250,7 +267,7 @@ mod tests {
     struct Srv2(Rc<Cell<usize>>);
 
     impl Service for Srv2 {
-        type Request = &'static str;
+        type Request = Result<&'static str, ()>;
         type Response = (&'static str, &'static str);
         type Error = ();
         type Future = FutureResult<Self::Response, ()>;
@@ -261,14 +278,17 @@ mod tests {
         }
 
         fn call(&mut self, req: Self::Request) -> Self::Future {
-            ok((req, "srv2"))
+            match req {
+                Ok(msg) => ok((msg, "ok")),
+                Err(()) => ok(("srv2", "err")),
+            }
         }
     }
 
     #[test]
     fn test_poll_ready() {
         let cnt = Rc::new(Cell::new(0));
-        let mut srv = Srv1(cnt.clone()).and_then(Srv2(cnt.clone()));
+        let mut srv = Srv1(cnt.clone()).then(Srv2(cnt.clone()));
         let res = srv.poll_ready();
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), Async::Ready(()));
@@ -278,10 +298,15 @@ mod tests {
     #[test]
     fn test_call() {
         let cnt = Rc::new(Cell::new(0));
-        let mut srv = Srv1(cnt.clone()).and_then(Srv2(cnt));
-        let res = srv.call("srv1").poll();
+        let mut srv = Srv1(cnt.clone()).then(Srv2(cnt));
+
+        let res = srv.call(Ok("srv1")).poll();
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), Async::Ready(("srv1", "srv2")));
+        assert_eq!(res.unwrap(), Async::Ready(("srv1", "ok")));
+
+        let res = srv.call(Err("srv")).poll();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Async::Ready(("srv2", "err")));
     }
 
     #[test]
@@ -289,13 +314,15 @@ mod tests {
         let cnt = Rc::new(Cell::new(0));
         let cnt2 = cnt.clone();
         let blank = move || Ok::<_, ()>(Srv1(cnt2.clone()));
-        let new_srv = blank
-            .into_new_service()
-            .and_then(move || Ok(Srv2(cnt.clone())));
+        let new_srv = blank.into_new_service().then(move || Ok(Srv2(cnt.clone())));
         if let Async::Ready(mut srv) = new_srv.new_service().poll().unwrap() {
-            let res = srv.call("srv1").poll();
+            let res = srv.call(Ok("srv1")).poll();
             assert!(res.is_ok());
-            assert_eq!(res.unwrap(), Async::Ready(("srv1", "srv2")));
+            assert_eq!(res.unwrap(), Async::Ready(("srv1", "ok")));
+
+            let res = srv.call(Err("srv")).poll();
+            assert!(res.is_ok());
+            assert_eq!(res.unwrap(), Async::Ready(("srv2", "err")));
         } else {
             panic!()
         }

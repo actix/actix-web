@@ -10,6 +10,7 @@ mod from_err;
 mod map;
 mod map_err;
 mod map_init_err;
+mod then;
 
 pub use self::and_then::{AndThen, AndThenNewService};
 pub use self::apply::{Apply, ApplyNewService};
@@ -18,6 +19,7 @@ pub use self::from_err::{FromErr, FromErrNewService};
 pub use self::map::{Map, MapNewService};
 pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
+pub use self::then::{Then, ThenNewService};
 
 /// An extension trait for `Service`s that provides a variety of convenient
 /// adapters
@@ -67,6 +69,19 @@ pub trait ServiceExt: Service {
         E: From<Self::Error>,
     {
         FromErr::new(self)
+    }
+
+    /// Chain on a computation for when a call to the service finished,
+    /// passing the result of the call to the next service `B`.
+    ///
+    /// Note that this function consumes the receiving future and returns a
+    /// wrapped version of it.
+    fn then<B>(self, service: B) -> Then<Self, B>
+    where
+        Self: Sized,
+        B: Service<Request = Result<Self::Response, Self::Error>, Error = Self::Error>,
+    {
+        Then::new(self, service)
     }
 
     /// Map this service's output to a different type, returning a new service
@@ -131,7 +146,8 @@ pub trait NewServiceExt: NewService {
         AndThenNewService::new(self, new_service)
     }
 
-    /// Map this service's error and new service's init error to any error
+    /// `NewService` that create service to map this service's error
+    /// and new service's init error to any error
     /// implementing `From` for this service`s `Error`.
     ///
     /// Note that this function consumes the receiving new service and returns a
@@ -142,6 +158,25 @@ pub trait NewServiceExt: NewService {
         E: From<Self::Error>,
     {
         FromErrNewService::new(self)
+    }
+
+    /// Create `NewService` to chain on a computation for when a call to the
+    /// service finished, passing the result of the call to the next
+    /// service `B`.
+    ///
+    /// Note that this function consumes the receiving future and returns a
+    /// wrapped version of it.
+    fn then<F, B>(self, new_service: F) -> ThenNewService<Self, B>
+    where
+        Self: Sized,
+        F: IntoNewService<B>,
+        B: NewService<
+            Request = Result<Self::Response, Self::Error>,
+            Error = Self::Error,
+            InitError = Self::InitError,
+        >,
+    {
+        ThenNewService::new(self, new_service)
     }
 
     fn map<F, R>(self, f: F) -> MapNewService<Self, F, R>
