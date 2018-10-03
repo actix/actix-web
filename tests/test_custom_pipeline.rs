@@ -8,7 +8,7 @@ use actix::System;
 use actix_net::server::Server;
 use actix_net::service::NewServiceExt;
 use actix_web::server::{HttpService, KeepAlive, ServiceConfig, StreamConfiguration};
-use actix_web::{client, test, App, HttpRequest};
+use actix_web::{client, http, test, App, HttpRequest};
 
 #[test]
 fn test_custom_pipeline() {
