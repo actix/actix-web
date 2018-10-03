@@ -1,9 +1,7 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use futures::{Async, Future, Poll};
 
 use super::{IntoNewService, NewService, Service};
+use cell::Cell;
 
 /// Service for the `and_then` combinator, chaining a computation onto the end
 /// of another service which completes successfully.
@@ -11,7 +9,7 @@ use super::{IntoNewService, NewService, Service};
 /// This is created by the `ServiceExt::and_then` method.
 pub struct AndThen<A, B> {
     a: A,
-    b: Rc<RefCell<B>>,
+    b: Cell<B>,
 }
 
 impl<A, B> AndThen<A, B>
@@ -21,10 +19,7 @@ where
 {
     /// Create new `AndThen` combinator
     pub fn new(a: A, b: B) -> Self {
-        Self {
-            a,
-            b: Rc::new(RefCell::new(b)),
-        }
+        Self { a, b: Cell::new(b) }
     }
 }
 
@@ -66,7 +61,7 @@ where
     A: Service,
     B: Service<Request = A::Response, Error = A::Error>,
 {
-    b: Rc<RefCell<B>>,
+    b: Cell<B>,
     fut_b: Option<B::Future>,
     fut_a: A::Future,
 }
@@ -76,7 +71,7 @@ where
     A: Service,
     B: Service<Request = A::Response, Error = A::Error>,
 {
-    fn new(fut_a: A::Future, b: Rc<RefCell<B>>) -> Self {
+    fn new(fut_a: A::Future, b: Cell<B>) -> Self {
         AndThenFuture {
             b,
             fut_a,

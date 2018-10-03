@@ -1,9 +1,7 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use futures::{Async, Future, Poll};
 
 use super::{IntoNewService, NewService, Service};
+use cell::Cell;
 
 /// Service for the `then` combinator, chaining a computation onto the end of
 /// another service.
@@ -11,7 +9,7 @@ use super::{IntoNewService, NewService, Service};
 /// This is created by the `ServiceExt::then` method.
 pub struct Then<A, B> {
     a: A,
-    b: Rc<RefCell<B>>,
+    b: Cell<B>,
 }
 
 impl<A, B> Then<A, B>
@@ -21,10 +19,7 @@ where
 {
     /// Create new `Then` combinator
     pub fn new(a: A, b: B) -> Then<A, B> {
-        Then {
-            a,
-            b: Rc::new(RefCell::new(b)),
-        }
+        Then { a, b: Cell::new(b) }
     }
 }
 
@@ -66,7 +61,7 @@ where
     A: Service,
     B: Service<Request = Result<A::Response, A::Error>>,
 {
-    b: Rc<RefCell<B>>,
+    b: Cell<B>,
     fut_b: Option<B::Future>,
     fut_a: A::Future,
 }
@@ -76,7 +71,7 @@ where
     A: Service,
     B: Service<Request = Result<A::Response, A::Error>>,
 {
-    fn new(fut_a: A::Future, b: Rc<RefCell<B>>) -> Self {
+    fn new(fut_a: A::Future, b: Cell<B>) -> Self {
         ThenFuture {
             b,
             fut_a,
@@ -243,6 +238,7 @@ mod tests {
     use super::*;
     use service::{NewServiceExt, ServiceExt};
 
+    #[derive(Clone)]
     struct Srv1(Rc<Cell<usize>>);
     impl Service for Srv1 {
         type Request = Result<&'static str, &'static str>;
@@ -263,7 +259,6 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
     struct Srv2(Rc<Cell<usize>>);
 
     impl Service for Srv2 {
@@ -298,7 +293,7 @@ mod tests {
     #[test]
     fn test_call() {
         let cnt = Rc::new(Cell::new(0));
-        let mut srv = Srv1(cnt.clone()).then(Srv2(cnt));
+        let mut srv = Srv1(cnt.clone()).then(Srv2(cnt)).clone();
 
         let res = srv.call(Ok("srv1")).poll();
         assert!(res.is_ok());
@@ -315,7 +310,7 @@ mod tests {
         let cnt2 = cnt.clone();
         let blank = move || Ok::<_, ()>(Srv1(cnt2.clone()));
         let new_srv = blank.into_new_service().then(move || Ok(Srv2(cnt.clone())));
-        if let Async::Ready(mut srv) = new_srv.new_service().poll().unwrap() {
+        if let Async::Ready(mut srv) = new_srv.clone().new_service().poll().unwrap() {
             let res = srv.call(Ok("srv1")).poll();
             assert!(res.is_ok());
             assert_eq!(res.unwrap(), Async::Ready(("srv1", "ok")));

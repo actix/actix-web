@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use futures::future::{ok, FutureResult};
@@ -7,11 +5,12 @@ use futures::{Async, Future, Poll};
 use tokio_current_thread::spawn;
 use tokio_timer::sleep;
 
+use super::cell::Cell;
 use super::service::{NewService, Service};
 use super::Never;
 
 #[derive(Clone, Debug)]
-pub struct LowResTimer(Rc<RefCell<Inner>>);
+pub struct LowResTimer(Cell<Inner>);
 
 #[derive(Debug)]
 struct Inner {
@@ -30,7 +29,7 @@ impl Inner {
 
 impl LowResTimer {
     pub fn with_interval(interval: Duration) -> LowResTimer {
-        LowResTimer(Rc::new(RefCell::new(Inner::new(interval))))
+        LowResTimer(Cell::new(Inner::new(interval)))
     }
 
     pub fn timer(&self) -> LowResTimerService {
@@ -40,7 +39,7 @@ impl LowResTimer {
 
 impl Default for LowResTimer {
     fn default() -> Self {
-        LowResTimer(Rc::new(RefCell::new(Inner::new(Duration::from_secs(1)))))
+        LowResTimer(Cell::new(Inner::new(Duration::from_secs(1))))
     }
 }
 
@@ -58,11 +57,11 @@ impl NewService for LowResTimer {
 }
 
 #[derive(Clone, Debug)]
-pub struct LowResTimerService(Rc<RefCell<Inner>>);
+pub struct LowResTimerService(Cell<Inner>);
 
 impl LowResTimerService {
     pub fn with_resolution(resolution: Duration) -> LowResTimerService {
-        LowResTimerService(Rc::new(RefCell::new(Inner::new(resolution))))
+        LowResTimerService(Cell::new(Inner::new(resolution)))
     }
 
     /// Get current time. This function has to be called from

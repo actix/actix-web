@@ -1,19 +1,17 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use futures::Poll;
 
+use super::cell::Cell;
 use super::service::Service;
 
 /// Service that allows to turn non-clone service to a service with `Clone` impl
 pub struct CloneableService<S: Service + 'static> {
-    service: Rc<RefCell<S>>,
+    service: Cell<S>,
 }
 
 impl<S: Service + 'static> CloneableService<S> {
     pub fn new(service: S) -> Self {
         Self {
-            service: Rc::new(RefCell::new(service)),
+            service: Cell::new(service),
         }
     }
 }

@@ -36,6 +36,8 @@ ssl = ["openssl", "tokio-openssl"]
 # rustls
 rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 
+cell = []
+
 [dependencies]
 actix = "0.7.0"
 
