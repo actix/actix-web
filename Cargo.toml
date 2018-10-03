@@ -29,7 +29,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["session", "brotli", "flate2-c"]
+default = ["session", "brotli", "flate2-c", "cell"]
 
 # tls
 tls = ["native-tls", "tokio-tls", "actix-net/tls"]
@@ -57,6 +57,8 @@ flate2-c = ["flate2/miniz-sys"]
 
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
+
+cell = ["actix-net/cell"]
 
 [dependencies]
 actix = "0.7.0"
