@@ -273,10 +273,21 @@ impl Client {
     }
 }
 
+enum ContinuationOpCode {
+    Binary,
+    Text
+}
+
+struct Continuation {
+    opcode: ContinuationOpCode,
+    buffer: Vec<u8>,
+} 
+
 struct Inner {
     tx: UnboundedSender<Bytes>,
     rx: PayloadBuffer<Box<Pipeline>>,
     closed: bool,
+    continuation: Option<Continuation>,    
 }
 
 /// Future that implementes client websocket handshake process.
@@ -433,6 +444,7 @@ impl Future for ClientHandshake {
             tx: self.tx.take().unwrap(),
             rx: PayloadBuffer::new(resp.payload()),
             closed: false,
+            continuation: None,
         };
 
         let inner = Rc::new(RefCell::new(inner));
@@ -475,13 +487,46 @@ impl Stream for ClientReader {
         // read
         match Frame::parse(&mut inner.rx, no_masking, max_size) {
             Ok(Async::Ready(Some(frame))) => {
-                let (_finished, opcode, payload) = frame.unpack();
+                let (finished, opcode, payload) = frame.unpack();
 
                 match opcode {
-                    // continuation is not supported
                     OpCode::Continue => {
-                        inner.closed = true;
-                        Err(ProtocolError::NoContinuation)
+                        if !finished {
+                            let inner = &mut *inner;
+                            match inner.continuation {
+                                Some(ref mut continuation) => {
+                                    continuation.buffer.append(&mut Vec::from(payload.as_ref()));
+                                    Ok(Async::NotReady)
+                                }
+                                None => {
+                                    inner.closed = true;
+                                    Err(ProtocolError::BadContinuation)
+                                }
+                            }
+                        } else {
+                            match inner.continuation.take() {
+                                Some(Continuation {opcode, mut buffer}) => {
+                                    buffer.append(&mut Vec::from(payload.as_ref()));
+                                    match opcode {
+                                        ContinuationOpCode::Binary => 
+                                            Ok(Async::Ready(Some(Message::Binary(Binary::from(buffer))))),
+                                        ContinuationOpCode::Text => {
+                                            match String::from_utf8(buffer) {
+                                                Ok(s) => Ok(Async::Ready(Some(Message::Text(s)))),
+                                                Err(_) => {
+                                                    inner.closed = true;
+                                                    Err(ProtocolError::BadEncoding)
+                                                }
+                                            }                                            
+                                        }
+                                    }
+                                }
+                                None => {
+                                    inner.closed = true;
+                                    Err(ProtocolError::BadContinuation)
+                                }
+                            }
+                        }
                     }
                     OpCode::Bad => {
                         inner.closed = true;
@@ -498,15 +543,33 @@ impl Stream for ClientReader {
                     OpCode::Pong => Ok(Async::Ready(Some(Message::Pong(
                         String::from_utf8_lossy(payload.as_ref()).into(),
                     )))),
-                    OpCode::Binary => Ok(Async::Ready(Some(Message::Binary(payload)))),
+                    OpCode::Binary => {
+                        if finished {
+                            Ok(Async::Ready(Some(Message::Binary(payload))))
+                        } else {
+                            inner.continuation = Some(Continuation {
+                                opcode: ContinuationOpCode::Binary,
+                                buffer: Vec::from(payload.as_ref())
+                            });
+                            Ok(Async::NotReady)
+                        }
+                    }                    
                     OpCode::Text => {
-                        let tmp = Vec::from(payload.as_ref());
-                        match String::from_utf8(tmp) {
-                            Ok(s) => Ok(Async::Ready(Some(Message::Text(s)))),
-                            Err(_) => {
-                                inner.closed = true;
-                                Err(ProtocolError::BadEncoding)
+                        if finished { 
+                            let tmp = Vec::from(payload.as_ref());
+                            match String::from_utf8(tmp) {
+                                Ok(s) => Ok(Async::Ready(Some(Message::Text(s)))),
+                                Err(_) => {
+                                    inner.closed = true;
+                                    Err(ProtocolError::BadEncoding)
+                                }
                             }
+                        } else {
+                            inner.continuation = Some(Continuation {
+                                opcode: ContinuationOpCode::Text, 
+                                buffer: Vec::from(payload.as_ref())
+                            });
+                            Ok(Async::NotReady)                            
                         }
                     }
                 }
