@@ -146,6 +146,9 @@ pub use self::error::{AcceptorError, HttpDispatchError};
 pub use self::settings::ServerSettings;
 
 #[doc(hidden)]
+pub use self::acceptor::AcceptorTimeout;
+
+#[doc(hidden)]
 pub use self::settings::{ServiceConfig, ServiceConfigBuilder};
 
 #[doc(hidden)]

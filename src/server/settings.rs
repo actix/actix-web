@@ -282,7 +282,7 @@ impl<H: 'static> ServiceConfig<H> {
 
                 // periodic date update
                 let s = self.clone();
-                spawn(sleep(Duration::from_secs(1)).then(move |_| {
+                spawn(sleep(Duration::from_millis(500)).then(move |_| {
                     s.update_date();
                     future::ok(())
                 }));
@@ -310,7 +310,7 @@ impl<H: 'static> ServiceConfig<H> {
 
                 // periodic date update
                 let s = self.clone();
-                spawn(sleep(Duration::from_secs(1)).then(move |_| {
+                spawn(sleep(Duration::from_millis(500)).then(move |_| {
                     s.update_date();
                     future::ok(())
                 }));

@@ -172,10 +172,11 @@ where
     }
 }
 
+#[doc(hidden)]
 /// Acceptor timeout middleware
 ///
 /// Applies timeout to request prcoessing.
-pub(crate) struct AcceptorTimeout<T> {
+pub struct AcceptorTimeout<T> {
     inner: T,
     timeout: Duration,
 }
@@ -206,7 +207,7 @@ impl<T: NewService> NewService for AcceptorTimeout<T> {
 }
 
 #[doc(hidden)]
-pub(crate) struct AcceptorTimeoutFut<T: NewService> {
+pub struct AcceptorTimeoutFut<T: NewService> {
     fut: T::Future,
     timeout: Duration,
 }
@@ -224,10 +225,11 @@ impl<T: NewService> Future for AcceptorTimeoutFut<T> {
     }
 }
 
+#[doc(hidden)]
 /// Acceptor timeout service
 ///
 /// Applies timeout to request prcoessing.
-pub(crate) struct AcceptorTimeoutService<T> {
+pub struct AcceptorTimeoutService<T> {
     inner: T,
     timeout: Duration,
 }
@@ -250,10 +252,12 @@ impl<T: Service> Service for AcceptorTimeoutService<T> {
     }
 }
 
-pub(crate) struct AcceptorTimeoutResponse<T: Service> {
+#[doc(hidden)]
+pub struct AcceptorTimeoutResponse<T: Service> {
     fut: T::Future,
     sleep: Delay,
 }
+
 impl<T: Service> Future for AcceptorTimeoutResponse<T> {
     type Item = T::Response;
     type Error = AcceptorError<T::Error>;
