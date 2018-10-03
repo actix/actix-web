@@ -71,16 +71,16 @@ where
     }
 }
 
-pub struct FnNewService<F, Req, Resp, Err, IErr, Fut>
+pub struct FnNewService<F, Req, Resp, Err, Fut>
 where
     F: Fn(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     f: F,
-    _t: marker::PhantomData<(Req, Resp, Err, IErr)>,
+    _t: marker::PhantomData<(Req, Resp, Err)>,
 }
 
-impl<F, Req, Resp, Err, IErr, Fut> FnNewService<F, Req, Resp, Err, IErr, Fut>
+impl<F, Req, Resp, Err, Fut> FnNewService<F, Req, Resp, Err, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut> NewService for FnNewService<F, Req, Resp, Err, IErr, Fut>
+impl<F, Req, Resp, Err, Fut> NewService for FnNewService<F, Req, Resp, Err, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -102,7 +102,7 @@ where
     type Response = Resp;
     type Error = Err;
     type Service = FnService<F, Req, Resp, Err, Fut>;
-    type InitError = IErr;
+    type InitError = ();
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
@@ -110,18 +110,17 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, IErr, Fut>>
-    for F
+impl<F, Req, Resp, Err, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, Fut>> for F
 where
     F: Fn(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, IErr, Fut> {
+    fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, Fut> {
         FnNewService::new(self)
     }
 }
 
-impl<F, Req, Resp, Err, IErr, Fut> Clone for FnNewService<F, Req, Resp, Err, IErr, Fut>
+impl<F, Req, Resp, Err, Fut> Clone for FnNewService<F, Req, Resp, Err, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
