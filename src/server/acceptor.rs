@@ -182,7 +182,8 @@ pub struct AcceptorTimeout<T> {
 }
 
 impl<T: NewService> AcceptorTimeout<T> {
-    pub(crate) fn new(timeout: u64, inner: T) -> Self {
+    /// Create new `AcceptorTimeout` instance. timeout is in milliseconds.
+    pub fn new(timeout: u64, inner: T) -> Self {
         Self {
             inner,
             timeout: Duration::from_millis(timeout),
