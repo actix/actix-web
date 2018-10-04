@@ -241,10 +241,7 @@ impl fmt::Debug for Request {
     }
 }
 
-pub(crate) struct RequestPool(
-    RefCell<VecDeque<Rc<InnerRequest>>>,
-    RefCell<ServerSettings>,
-);
+pub struct RequestPool(RefCell<VecDeque<Rc<InnerRequest>>>, RefCell<ServerSettings>);
 
 thread_local!(static POOL: &'static RequestPool = RequestPool::create());
 
@@ -257,7 +254,7 @@ impl RequestPool {
         Box::leak(Box::new(pool))
     }
 
-    pub fn pool(settings: ServerSettings) -> &'static RequestPool {
+    pub(crate) fn pool(settings: ServerSettings) -> &'static RequestPool {
         POOL.with(|p| {
             *p.1.borrow_mut() = settings;
             *p
@@ -275,7 +272,7 @@ impl RequestPool {
 
     #[inline]
     /// Release request instance
-    pub fn release(&self, msg: Rc<InnerRequest>) {
+    pub(crate) fn release(&self, msg: Rc<InnerRequest>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
             v.push_front(msg);

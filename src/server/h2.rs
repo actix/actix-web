@@ -86,7 +86,7 @@ where
         &self.settings
     }
 
-    pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
+    pub fn poll(&mut self) -> Poll<(), HttpDispatchError<Error>> {
         // server
         if let State::Connection(ref mut conn) = self.state {
             // keep-alive timer

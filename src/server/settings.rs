@@ -215,6 +215,11 @@ impl<H> ServiceConfig<H> {
         RequestPool::get(self.0.messages)
     }
 
+    #[doc(hidden)]
+    pub fn request_pool(&self) -> &'static RequestPool {
+        self.0.messages
+    }
+
     fn update_date(&self) {
         // Unsafe: WorkerSetting is !Sync and !Send
         unsafe { (*self.0.date.get()).0 = false };

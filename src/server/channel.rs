@@ -9,6 +9,7 @@ use tokio_timer::Delay;
 use super::error::HttpDispatchError;
 use super::settings::ServiceConfig;
 use super::{h1, h2, HttpHandler, IoStream};
+use error::Error;
 use http::StatusCode;
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
@@ -90,7 +91,7 @@ where
     H: HttpHandler + 'static,
 {
     type Item = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         // keep-alive timer
@@ -242,7 +243,7 @@ where
     H: HttpHandler + 'static,
 {
     type Item = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if !self.node_reg {

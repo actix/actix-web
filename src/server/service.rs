@@ -10,6 +10,7 @@ use super::error::HttpDispatchError;
 use super::handler::HttpHandler;
 use super::settings::ServiceConfig;
 use super::IoStream;
+use error::Error;
 
 /// `NewService` implementation for HTTP1/HTTP2 transports
 pub struct HttpService<H, Io>
@@ -42,7 +43,7 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
     type InitError = ();
     type Service = HttpServiceHandler<H, Io>;
     type Future = FutureResult<Self::Service, Self::InitError>;
@@ -81,7 +82,7 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
     type Future = HttpChannel<Io, H>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -124,7 +125,7 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
     type InitError = ();
     type Service = H1ServiceHandler<H, Io>;
     type Future = FutureResult<Self::Service, Self::InitError>;
@@ -164,7 +165,7 @@ where
 {
     type Request = Io;
     type Response = ();
-    type Error = HttpDispatchError;
+    type Error = HttpDispatchError<Error>;
     type Future = H1Channel<Io, H>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

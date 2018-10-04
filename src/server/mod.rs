@@ -122,7 +122,10 @@ pub(crate) mod builder;
 mod channel;
 mod error;
 pub(crate) mod h1;
-pub(crate) mod h1decoder;
+#[doc(hidden)]
+pub mod h1codec;
+#[doc(hidden)]
+pub mod h1decoder;
 mod h1writer;
 mod h2;
 mod h2writer;
@@ -144,6 +147,9 @@ pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
 pub use self::settings::ServerSettings;
+
+#[doc(hidden)]
+pub mod h1disp;
 
 #[doc(hidden)]
 pub use self::acceptor::AcceptorTimeout;

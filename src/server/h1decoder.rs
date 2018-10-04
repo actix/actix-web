@@ -4,8 +4,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use httparse;
 
-use super::message::{MessageFlags, Request};
-use super::settings::ServiceConfig;
+use super::message::{MessageFlags, Request, RequestPool};
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HttpTryFrom, Method, Uri, Version};
@@ -16,35 +15,26 @@ const MAX_HEADERS: usize = 96;
 
 pub(crate) struct H1Decoder {
     decoder: Option<EncodingDecoder>,
+    pool: &'static RequestPool,
 }
 
 #[derive(Debug)]
-pub(crate) enum Message {
-    Message { msg: Request, payload: bool },
+pub enum Message {
+    Message(Request),
+    MessageWithPayload(Request),
     Chunk(Bytes),
     Eof,
 }
 
-#[derive(Debug)]
-pub(crate) enum DecoderError {
-    Io(io::Error),
-    Error(ParseError),
-}
-
-impl From<io::Error> for DecoderError {
-    fn from(err: io::Error) -> DecoderError {
-        DecoderError::Io(err)
-    }
-}
-
 impl H1Decoder {
-    pub fn new() -> H1Decoder {
-        H1Decoder { decoder: None }
+    pub fn new(pool: &'static RequestPool) -> H1Decoder {
+        H1Decoder {
+            pool,
+            decoder: None,
+        }
     }
 
-    pub fn decode<H>(
-        &mut self, src: &mut BytesMut, settings: &ServiceConfig<H>,
-    ) -> Result<Option<Message>, DecoderError> {
+    pub fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>, ParseError> {
         // read payload
         if self.decoder.is_some() {
             match self.decoder.as_mut().unwrap().decode(src)? {
@@ -57,21 +47,19 @@ impl H1Decoder {
             }
         }
 
-        match self
-            .parse_message(src, settings)
-            .map_err(DecoderError::Error)?
-        {
+        match self.parse_message(src)? {
             Async::Ready((msg, decoder)) => {
                 self.decoder = decoder;
-                Ok(Some(Message::Message {
-                    msg,
-                    payload: self.decoder.is_some(),
-                }))
+                if self.decoder.is_some() {
+                    Ok(Some(Message::MessageWithPayload(msg)))
+                } else {
+                    Ok(Some(Message::Message(msg)))
+                }
             }
             Async::NotReady => {
                 if src.len() >= MAX_BUFFER_SIZE {
                     error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                    Err(DecoderError::Error(ParseError::TooLarge))
+                    Err(ParseError::TooLarge)
                 } else {
                     Ok(None)
                 }
@@ -79,8 +67,8 @@ impl H1Decoder {
         }
     }
 
-    fn parse_message<H>(
-        &self, buf: &mut BytesMut, settings: &ServiceConfig<H>,
+    fn parse_message(
+        &self, buf: &mut BytesMut,
     ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
@@ -119,7 +107,7 @@ impl H1Decoder {
             let slice = buf.split_to(len).freeze();
 
             // convert headers
-            let mut msg = settings.get_request();
+            let mut msg = RequestPool::get(self.pool);
             {
                 let inner = msg.inner_mut();
                 inner

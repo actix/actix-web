@@ -7,15 +7,16 @@ use futures::{Async, Future, Poll};
 use tokio_current_thread::spawn;
 use tokio_timer::Delay;
 
-use error::{Error, PayloadError};
+use error::{Error, ParseError, PayloadError};
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 
 use super::error::{HttpDispatchError, ServerError};
-use super::h1decoder::{DecoderError, H1Decoder, Message};
+use super::h1decoder::{H1Decoder, Message};
 use super::h1writer::H1Writer;
 use super::handler::{HttpHandler, HttpHandlerTask, HttpHandlerTaskFut};
 use super::input::PayloadType;
+use super::message::Request;
 use super::settings::ServiceConfig;
 use super::{IoStream, Writer};
 
@@ -44,7 +45,7 @@ pub struct Http1Dispatcher<T: IoStream, H: HttpHandler + 'static> {
     payload: Option<PayloadType>,
     buf: BytesMut,
     tasks: VecDeque<Entry<H>>,
-    error: Option<HttpDispatchError>,
+    error: Option<HttpDispatchError<Error>>,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
 }
@@ -109,7 +110,7 @@ where
 
         Http1Dispatcher {
             stream: H1Writer::new(stream, settings.clone()),
-            decoder: H1Decoder::new(),
+            decoder: H1Decoder::new(settings.request_pool()),
             payload: None,
             tasks: VecDeque::new(),
             error: None,
@@ -133,7 +134,7 @@ where
         let mut disp = Http1Dispatcher {
             flags: Flags::STARTED | Flags::READ_DISCONNECTED | Flags::FLUSHED,
             stream: H1Writer::new(stream, settings.clone()),
-            decoder: H1Decoder::new(),
+            decoder: H1Decoder::new(settings.request_pool()),
             payload: None,
             tasks: VecDeque::new(),
             error: None,
@@ -201,7 +202,7 @@ where
     }
 
     #[inline]
-    pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
+    pub fn poll(&mut self) -> Poll<(), HttpDispatchError<Error>> {
         // check connection keep-alive
         self.poll_keep_alive()?;
 
@@ -247,7 +248,7 @@ where
     }
 
     /// Flush stream
-    fn poll_flush(&mut self, shutdown: bool) -> Poll<(), HttpDispatchError> {
+    fn poll_flush(&mut self, shutdown: bool) -> Poll<(), HttpDispatchError<Error>> {
         if shutdown || self.flags.contains(Flags::STARTED) {
             match self.stream.poll_completed(shutdown) {
                 Ok(Async::NotReady) => {
@@ -277,7 +278,7 @@ where
     }
 
     /// keep-alive timer. returns `true` is keep-alive, otherwise drop
-    fn poll_keep_alive(&mut self) -> Result<(), HttpDispatchError> {
+    fn poll_keep_alive(&mut self) -> Result<(), HttpDispatchError<Error>> {
         if let Some(ref mut timer) = self.ka_timer {
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
@@ -336,7 +337,7 @@ where
 
     #[inline]
     /// read data from the stream
-    pub(self) fn poll_io(&mut self) -> Result<bool, HttpDispatchError> {
+    pub(self) fn poll_io(&mut self) -> Result<bool, HttpDispatchError<Error>> {
         if !self.flags.contains(Flags::POLLED) {
             self.flags.insert(Flags::POLLED);
             if !self.buf.is_empty() {
@@ -367,7 +368,7 @@ where
         Ok(updated)
     }
 
-    pub(self) fn poll_handler(&mut self) -> Result<(), HttpDispatchError> {
+    pub(self) fn poll_handler(&mut self) -> Result<(), HttpDispatchError<Error>> {
         self.poll_io()?;
         let mut retry = self.can_read();
 
@@ -409,7 +410,7 @@ where
                     // it is not possible to recover from error
                     // during pipe handling, so just drop connection
                     self.client_disconnected(false);
-                    return Err(err.into());
+                    return Err(HttpDispatchError::App(err));
                 }
             }
         }
@@ -423,7 +424,7 @@ where
                 Ok(Async::NotReady) => false,
                 Ok(Async::Ready(_)) => true,
                 Err(err) => {
-                    self.error = Some(err.into());
+                    self.error = Some(HttpDispatchError::App(err));
                     true
                 }
             };
@@ -462,66 +463,75 @@ where
             .push_back(Entry::Error(ServerError::err(Version::HTTP_11, status)));
     }
 
-    pub(self) fn parse(&mut self) -> Result<bool, HttpDispatchError> {
+    fn handle_message(
+        &mut self, mut msg: Request, payload: bool,
+    ) -> Result<(), HttpDispatchError<Error>> {
+        self.flags.insert(Flags::STARTED);
+
+        if payload {
+            let (ps, pl) = Payload::new(false);
+            *msg.inner.payload.borrow_mut() = Some(pl);
+            self.payload = Some(PayloadType::new(&msg.inner.headers, ps));
+        }
+
+        // stream extensions
+        msg.inner_mut().stream_extensions = self.stream.get_mut().extensions();
+
+        // set remote addr
+        msg.inner_mut().addr = self.addr;
+
+        // search handler for request
+        match self.settings.handler().handle(msg) {
+            Ok(mut task) => {
+                if self.tasks.is_empty() {
+                    match task.poll_io(&mut self.stream) {
+                        Ok(Async::Ready(ready)) => {
+                            // override keep-alive state
+                            if self.stream.keepalive() {
+                                self.flags.insert(Flags::KEEPALIVE);
+                            } else {
+                                self.flags.remove(Flags::KEEPALIVE);
+                            }
+                            // prepare stream for next response
+                            self.stream.reset();
+
+                            if !ready {
+                                // task is done with io operations
+                                // but still needs to do more work
+                                spawn(HttpHandlerTaskFut::new(task));
+                            }
+                        }
+                        Ok(Async::NotReady) => (),
+                        Err(err) => {
+                            error!("Unhandled error: {}", err);
+                            self.client_disconnected(false);
+                            return Err(HttpDispatchError::App(err));
+                        }
+                    }
+                } else {
+                    self.tasks.push_back(Entry::Task(task));
+                }
+            }
+            Err(_) => {
+                // handler is not found
+                self.push_response_entry(StatusCode::NOT_FOUND);
+            }
+        }
+        Ok(())
+    }
+
+    pub(self) fn parse(&mut self) -> Result<bool, HttpDispatchError<Error>> {
         let mut updated = false;
 
         'outer: loop {
-            match self.decoder.decode(&mut self.buf, &self.settings) {
-                Ok(Some(Message::Message { mut msg, payload })) => {
+            match self.decoder.decode(&mut self.buf) {
+                Ok(Some(Message::Message(msg))) => {
                     updated = true;
-                    self.flags.insert(Flags::STARTED);
-
-                    if payload {
-                        let (ps, pl) = Payload::new(false);
-                        *msg.inner.payload.borrow_mut() = Some(pl);
-                        self.payload = Some(PayloadType::new(&msg.inner.headers, ps));
-                    }
-
-                    // stream extensions
-                    msg.inner_mut().stream_extensions =
-                        self.stream.get_mut().extensions();
-
-                    // set remote addr
-                    msg.inner_mut().addr = self.addr;
-
-                    // search handler for request
-                    match self.settings.handler().handle(msg) {
-                        Ok(mut task) => {
-                            if self.tasks.is_empty() {
-                                match task.poll_io(&mut self.stream) {
-                                    Ok(Async::Ready(ready)) => {
-                                        // override keep-alive state
-                                        if self.stream.keepalive() {
-                                            self.flags.insert(Flags::KEEPALIVE);
-                                        } else {
-                                            self.flags.remove(Flags::KEEPALIVE);
-                                        }
-                                        // prepare stream for next response
-                                        self.stream.reset();
-
-                                        if !ready {
-                                            // task is done with io operations
-                                            // but still needs to do more work
-                                            spawn(HttpHandlerTaskFut::new(task));
-                                        }
-                                        continue 'outer;
-                                    }
-                                    Ok(Async::NotReady) => (),
-                                    Err(err) => {
-                                        error!("Unhandled error: {}", err);
-                                        self.client_disconnected(false);
-                                        return Err(err.into());
-                                    }
-                                }
-                            }
-                            self.tasks.push_back(Entry::Task(task));
-                            continue 'outer;
-                        }
-                        Err(_) => {
-                            // handler is not found
-                            self.push_response_entry(StatusCode::NOT_FOUND);
-                        }
-                    }
+                    self.handle_message(msg, false)?;
+                }
+                Ok(Some(Message::MessageWithPayload(msg))) => {
+                    updated = true;
+                    self.handle_message(msg, true)?;
                 }
                 Ok(Some(Message::Chunk(chunk))) => {
                     updated = true;
@@ -556,8 +566,8 @@ where
                 Err(e) => {
                     if let Some(mut payload) = self.payload.take() {
                         let e = match e {
-                            DecoderError::Io(e) => PayloadError::Io(e),
-                            DecoderError::Error(_) => PayloadError::EncodingCorrupted,
+                            ParseError::Io(e) => PayloadError::Io(e),
+                            _ => PayloadError::EncodingCorrupted,
                         };
                         payload.set_error(e);
                     }
@@ -593,6 +603,7 @@ mod tests {
 
     use super::*;
     use application::{App, HttpApplication};
+    use error::ParseError;
     use httpmessage::HttpMessage;
     use server::h1decoder::Message;
     use server::handler::IntoHttpHandler;
@@ -612,13 +623,14 @@ mod tests {
     impl Message {
         fn message(self) -> Request {
             match self {
-                Message::Message { msg, payload: _ } => msg,
+                Message::Message(msg) => msg,
+                Message::MessageWithPayload(msg) => msg,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                Message::Message { msg: _, payload } => payload,
+                Message::MessageWithPayload(_) => true,
                 _ => panic!("error"),
             }
         }
@@ -639,7 +651,7 @@ mod tests {
     macro_rules! parse_ready {
         ($e:expr) => {{
             let settings = wrk_settings();
-            match H1Decoder::new().decode($e, &settings) {
+            match H1Decoder::new(settings.request_pool()).decode($e) {
                 Ok(Some(msg)) => msg.message(),
                 Ok(_) => unreachable!("Eof during parsing http request"),
                 Err(err) => unreachable!("Error during parsing http request: {:?}", err),
@@ -651,10 +663,10 @@ mod tests {
         ($e:expr) => {{
             let settings = wrk_settings();
 
-            match H1Decoder::new().decode($e, &settings) {
+            match H1Decoder::new(settings.request_pool()).decode($e) {
                 Err(err) => match err {
-                    DecoderError::Error(_) => (),
-                    _ => unreachable!("Parse error expected"),
+                    ParseError::Io(_) => unreachable!("Parse error expected"),
+                    _ => (),
                 },
                 _ => unreachable!("Error expected"),
             }
@@ -747,8 +759,8 @@ mod tests {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        match reader.decode(&mut buf, &settings) {
+        let mut reader = H1Decoder::new(settings.request_pool());
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
@@ -764,14 +776,14 @@ mod tests {
         let mut buf = BytesMut::from("PUT /test HTTP/1");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        match reader.decode(&mut buf, &settings) {
+        let mut reader = H1Decoder::new(settings.request_pool());
+        match reader.decode(&mut buf) {
             Ok(None) => (),
             _ => unreachable!("Error"),
         }
 
         buf.extend(b".1\r\n\r\n");
-        match reader.decode(&mut buf, &settings) {
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
@@ -787,8 +799,8 @@ mod tests {
         let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        match reader.decode(&mut buf, &settings) {
+        let mut reader = H1Decoder::new(settings.request_pool());
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_10);
@@ -805,20 +817,15 @@ mod tests {
             BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        match reader.decode(&mut buf, &settings) {
+        let mut reader = H1Decoder::new(settings.request_pool());
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
                 assert_eq!(
-                    reader
-                        .decode(&mut buf, &settings)
-                        .unwrap()
-                        .unwrap()
-                        .chunk()
-                        .as_ref(),
+                    reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
                     b"body"
                 );
             }
@@ -832,20 +839,15 @@ mod tests {
             BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        match reader.decode(&mut buf, &settings) {
+        let mut reader = H1Decoder::new(settings.request_pool());
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let mut req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
                 assert_eq!(*req.method(), Method::GET);
                 assert_eq!(req.path(), "/test");
                 assert_eq!(
-                    reader
-                        .decode(&mut buf, &settings)
-                        .unwrap()
-                        .unwrap()
-                        .chunk()
-                        .as_ref(),
+                    reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
                     b"body"
                 );
             }
@@ -857,11 +859,11 @@ mod tests {
     fn test_parse_partial_eof() {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
         let settings = wrk_settings();
-        let mut reader = H1Decoder::new();
-        assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
+        let mut reader = H1Decoder::new(settings.request_pool());
+        assert!(reader.decode(&mut buf).unwrap().is_none());
 
         buf.extend(b"\r\n");
-        match reader.decode(&mut buf, &settings) {
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
@@ -877,17 +879,17 @@ mod tests {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        let mut reader = H1Decoder::new(settings.request_pool());
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"t");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"es");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"t: value\r\n\r\n");
-        match reader.decode(&mut buf, &settings) {
+        match reader.decode(&mut buf) {
             Ok(Some(msg)) => {
                 let req = msg.message();
                 assert_eq!(req.version(), Version::HTTP_11);
@@ -907,8 +909,8 @@ mod tests {
              Set-Cookie: c2=cookie2\r\n\r\n",
         );
         let settings = wrk_settings();
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         let req = msg.message();
 
         let val: Vec<_> = req
@@ -1109,19 +1111,14 @@ mod tests {
              upgrade: websocket\r\n\r\n\
              some raw data",
         );
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         let req = msg.message();
         assert!(!req.keep_alive());
         assert!(req.upgrade());
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
             b"some raw data"
         );
     }
@@ -1169,32 +1166,22 @@ mod tests {
              transfer-encoding: chunked\r\n\r\n",
         );
         let settings = wrk_settings();
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         let req = msg.message();
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
             b"data"
         );
         assert_eq!(
-            reader
-                .decode(&mut buf, &settings)
-                .unwrap()
-                .unwrap()
-                .chunk()
-                .as_ref(),
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
             b"line"
         );
-        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
+        assert!(reader.decode(&mut buf).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1204,8 +1191,8 @@ mod tests {
              transfer-encoding: chunked\r\n\r\n",
         );
         let settings = wrk_settings();
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         let req = msg.message();
         assert!(req.chunked().unwrap());
@@ -1216,14 +1203,14 @@ mod tests {
               transfer-encoding: chunked\r\n\r\n"
                 .iter(),
         );
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"data");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"line");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.eof());
 
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         let req2 = msg.message();
         assert!(req2.chunked().unwrap());
@@ -1239,30 +1226,30 @@ mod tests {
         );
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         let req = msg.message();
         assert!(req.chunked().unwrap());
 
         buf.extend(b"4\r\n1111\r\n");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"1111");
 
         buf.extend(b"4\r\ndata\r");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"data");
 
         buf.extend(b"\n4");
-        assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
+        assert!(reader.decode(&mut buf).unwrap().is_none());
 
         buf.extend(b"\r");
-        assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
+        assert!(reader.decode(&mut buf).unwrap().is_none());
         buf.extend(b"\n");
-        assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
+        assert!(reader.decode(&mut buf).unwrap().is_none());
 
         buf.extend(b"li");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"li");
 
         //trailers
@@ -1270,12 +1257,12 @@ mod tests {
         //not_ready!(reader.parse(&mut buf, &mut readbuf));
 
         buf.extend(b"ne\r\n0\r\n");
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(msg.chunk().as_ref(), b"ne");
-        assert!(reader.decode(&mut buf, &settings).unwrap().is_none());
+        assert!(reader.decode(&mut buf).unwrap().is_none());
 
         buf.extend(b"\r\n");
-        assert!(reader.decode(&mut buf, &settings).unwrap().unwrap().eof());
+        assert!(reader.decode(&mut buf).unwrap().unwrap().eof());
     }
 
     #[test]
@@ -1286,17 +1273,17 @@ mod tests {
         );
         let settings = wrk_settings();
 
-        let mut reader = H1Decoder::new();
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let mut reader = H1Decoder::new(settings.request_pool());
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.is_payload());
         assert!(msg.message().chunked().unwrap());
 
         buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
+        let chunk = reader.decode(&mut buf).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"data"));
-        let chunk = reader.decode(&mut buf, &settings).unwrap().unwrap().chunk();
+        let chunk = reader.decode(&mut buf).unwrap().unwrap().chunk();
         assert_eq!(chunk, Bytes::from_static(b"line"));
-        let msg = reader.decode(&mut buf, &settings).unwrap().unwrap();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
         assert!(msg.eof());
     }
 }
