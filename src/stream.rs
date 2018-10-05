@@ -1,8 +1,10 @@
+use std::marker::PhantomData;
+
 use futures::unsync::mpsc;
-use futures::{Async, Future, Poll, Stream};
+use futures::{future, Async, Future, Poll, Stream};
 use tokio::executor::current_thread::spawn;
 
-use super::service::{IntoService, Service};
+use super::service::{IntoService, NewService, Service};
 
 pub struct StreamDispatcher<S: Stream, T> {
     stream: S,
@@ -85,6 +87,68 @@ impl<F: Future> Future for StreamDispatcherService<F> {
                 let _ = self.stop.unbounded_send(());
                 Ok(Async::Ready(()))
             }
+        }
+    }
+}
+
+/// `NewService` that implements, read one item from the stream.
+pub struct TakeItem<T> {
+    _t: PhantomData<T>,
+}
+
+impl<T> TakeItem<T> {
+    /// Create new `TakeRequest` instance.
+    pub fn new() -> Self {
+        TakeItem { _t: PhantomData }
+    }
+}
+
+impl<T: Stream> NewService for TakeItem<T> {
+    type Request = T;
+    type Response = (Option<T::Item>, T);
+    type Error = T::Error;
+    type InitError = ();
+    type Service = TakeItemService<T>;
+    type Future = future::FutureResult<Self::Service, Self::InitError>;
+
+    fn new_service(&self) -> Self::Future {
+        future::ok(TakeItemService { _t: PhantomData })
+    }
+}
+
+/// `NewService` that implements, read one request from framed object feature.
+pub struct TakeItemService<T> {
+    _t: PhantomData<T>,
+}
+
+impl<T: Stream> Service for TakeItemService<T> {
+    type Request = T;
+    type Response = (Option<T::Item>, T);
+    type Error = T::Error;
+    type Future = TakeItemServiceResponse<T>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        TakeItemServiceResponse { stream: Some(req) }
+    }
+}
+
+#[doc(hidden)]
+pub struct TakeItemServiceResponse<T: Stream> {
+    stream: Option<T>,
+}
+
+impl<T: Stream> Future for TakeItemServiceResponse<T> {
+    type Item = (Option<T::Item>, T);
+    type Error = T::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.stream.as_mut().expect("Use after finish").poll()? {
+            Async::Ready(item) => Ok(Async::Ready((item, self.stream.take().unwrap()))),
+            Async::NotReady => Ok(Async::NotReady),
         }
     }
 }
