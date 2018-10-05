@@ -219,6 +219,29 @@ where
             flushed: true,
         }
     }
+
+    /// Get reference to a service wrapped by `FramedTransport` instance.
+    pub fn get_ref(&self) -> &S {
+        &self.service
+    }
+
+    /// Get mutable reference to a service wrapped by `FramedTransport`
+    /// instance.
+    pub fn get_mut(&mut self) -> &mut S {
+        &mut self.service
+    }
+
+    /// Get reference to a framed instance wrapped by `FramedTransport`
+    /// instance.
+    pub fn get_framed(&self) -> &Framed<T, U> {
+        &self.framed
+    }
+
+    /// Get mutable reference to a framed instance wrapped by `FramedTransport`
+    /// instance.
+    pub fn get_framed_mut(&mut self) -> &mut Framed<T, U> {
+        &mut self.framed
+    }
 }
 
 impl<S, T, U> FramedTransport<S, T, U>
