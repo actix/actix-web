@@ -77,13 +77,11 @@
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
 //!
-#![cfg_attr(actix_nightly, feature(
-    specialization, // for impl ErrorResponse for std::error::Error
-    extern_prelude,
-    tool_lints,
-))]
+#![cfg_attr(actix_nightly, feature(tool_lints))]
 #![warn(missing_docs)]
+#![allow(unused_imports, unused_variables, dead_code)]
 
+extern crate actix;
 #[macro_use]
 extern crate log;
 extern crate base64;
@@ -140,108 +138,35 @@ extern crate serde_json;
 extern crate smallvec;
 
 extern crate actix_net;
-#[macro_use]
-extern crate actix as actix_inner;
 
 #[cfg(test)]
 #[macro_use]
 extern crate serde_derive;
 
-#[cfg(feature = "tls")]
-extern crate native_tls;
-#[cfg(feature = "tls")]
-extern crate tokio_tls;
-
-#[cfg(feature = "openssl")]
-extern crate openssl;
-#[cfg(feature = "openssl")]
-extern crate tokio_openssl;
-
-#[cfg(feature = "rust-tls")]
-extern crate rustls;
-#[cfg(feature = "rust-tls")]
-extern crate tokio_rustls;
-#[cfg(feature = "rust-tls")]
-extern crate webpki;
-#[cfg(feature = "rust-tls")]
-extern crate webpki_roots;
-
-mod application;
 mod body;
-mod context;
-mod de;
 mod extensions;
-mod extractor;
-mod handler;
 mod header;
-mod helpers;
 mod httpcodes;
 mod httpmessage;
-mod httprequest;
+//mod httprequest;
 mod httpresponse;
 mod info;
 mod json;
-mod param;
 mod payload;
-mod pipeline;
-mod resource;
-mod route;
-mod router;
-mod scope;
 mod uri;
-mod with;
 
-pub mod client;
 pub mod error;
-pub mod fs;
-pub mod middleware;
-pub mod multipart;
-pub mod pred;
 pub mod server;
-pub mod test;
-pub mod ws;
-pub use application::App;
+//pub mod test;
+//pub mod ws;
 pub use body::{Binary, Body};
-pub use context::HttpContext;
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;
-pub use extractor::{Form, Path, Query};
-pub use handler::{
-    AsyncResponder, Either, FromRequest, FutureResponse, Responder, State,
-};
 pub use httpmessage::HttpMessage;
-pub use httprequest::HttpRequest;
+//pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
-pub use scope::Scope;
 pub use server::Request;
-
-pub mod actix {
-    //! Re-exports [actix's](https://docs.rs/actix/) prelude
-
-    extern crate actix;
-    pub use self::actix::actors::resolver;
-    pub use self::actix::actors::signal;
-    pub use self::actix::fut;
-    pub use self::actix::msgs;
-    pub use self::actix::prelude::*;
-    pub use self::actix::{run, spawn};
-}
-
-#[cfg(feature = "openssl")]
-pub(crate) const HAS_OPENSSL: bool = true;
-#[cfg(not(feature = "openssl"))]
-pub(crate) const HAS_OPENSSL: bool = false;
-
-#[cfg(feature = "tls")]
-pub(crate) const HAS_TLS: bool = true;
-#[cfg(not(feature = "tls"))]
-pub(crate) const HAS_TLS: bool = false;
-
-#[cfg(feature = "rust-tls")]
-pub(crate) const HAS_RUSTLS: bool = true;
-#[cfg(not(feature = "rust-tls"))]
-pub(crate) const HAS_RUSTLS: bool = false;
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
@@ -255,19 +180,11 @@ pub mod dev {
     //! ```
 
     pub use body::BodyStream;
-    pub use context::Drain;
-    pub use extractor::{FormConfig, PayloadConfig};
-    pub use handler::{AsyncResult, Handler};
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;
     pub use info::ConnectionInfo;
-    pub use json::{JsonBody, JsonConfig};
-    pub use param::{FromParam, Params};
+    pub use json::JsonBody;
     pub use payload::{Payload, PayloadBuffer};
-    pub use pipeline::Pipeline;
-    pub use resource::Resource;
-    pub use route::Route;
-    pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
 }
 
 pub mod http {
@@ -280,8 +197,6 @@ pub mod http {
     pub use modhttp::{uri, Error, Extensions, HeaderMap, HttpTryFrom, Uri};
 
     pub use cookie::{Cookie, CookieBuilder};
-
-    pub use helpers::NormalizePath;
 
     /// Various http headers
     pub mod header {

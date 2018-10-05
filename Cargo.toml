@@ -1,8 +1,8 @@
 [package]
-name = "actix-web"
-version = "0.7.9"
+name = "actix-http"
+version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
+description = "Actix http"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
@@ -14,7 +14,6 @@ categories = ["network-programming", "asynchronous",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
-build = "build.rs"
 
 [package.metadata.docs.rs]
 features = ["tls", "alpn", "rust-tls", "session", "brotli", "flate2-c"]
@@ -25,7 +24,7 @@ appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
-name = "actix_web"
+name = "actix_http"
 path = "src/lib.rs"
 
 [features]
@@ -130,6 +129,7 @@ webpki-roots = { version = "0.15", optional = true }
 tokio-uds = { version="0.2", optional = true }
 
 [dev-dependencies]
+actix-web = "0.7"
 env_logger = "0.5"
 serde_derive = "1.0"
 
@@ -140,8 +140,3 @@ version_check = "0.1"
 lto = true
 opt-level = 3
 codegen-units = 1
-
-[workspace]
-members = [
-  "./",
-]

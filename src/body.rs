@@ -3,10 +3,7 @@ use futures::Stream;
 use std::sync::Arc;
 use std::{fmt, mem};
 
-use context::ActorHttpContext;
 use error::Error;
-use handler::Responder;
-use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 /// Type represent streaming body
@@ -21,8 +18,8 @@ pub enum Body {
     /// Unspecified streaming response. Developer is responsible for setting
     /// right `Content-Length` or `Transfer-Encoding` headers.
     Streaming(BodyStream),
-    /// Special body type for actor response.
-    Actor(Box<ActorHttpContext>),
+    // /// Special body type for actor response.
+    // Actor(Box<ActorHttpContext>),
 }
 
 /// Represents various types of binary body.
@@ -45,7 +42,7 @@ impl Body {
     #[inline]
     pub fn is_streaming(&self) -> bool {
         match *self {
-            Body::Streaming(_) | Body::Actor(_) => true,
+            Body::Streaming(_) => true,
             _ => false,
         }
     }
@@ -94,7 +91,7 @@ impl PartialEq for Body {
                 Body::Binary(ref b2) => b == b2,
                 _ => false,
             },
-            Body::Streaming(_) | Body::Actor(_) => false,
+            Body::Streaming(_) => false,
         }
     }
 }
@@ -105,7 +102,6 @@ impl fmt::Debug for Body {
             Body::Empty => write!(f, "Body::Empty"),
             Body::Binary(ref b) => write!(f, "Body::Binary({:?})", b),
             Body::Streaming(_) => write!(f, "Body::Streaming(_)"),
-            Body::Actor(_) => write!(f, "Body::Actor(_)"),
         }
     }
 }
@@ -116,12 +112,6 @@ where
 {
     fn from(b: T) -> Body {
         Body::Binary(b.into())
-    }
-}
-
-impl From<Box<ActorHttpContext>> for Body {
-    fn from(ctx: Box<ActorHttpContext>) -> Body {
-        Body::Actor(ctx)
     }
 }
 
@@ -251,17 +241,6 @@ impl AsRef<[u8]> for Binary {
             Binary::SharedString(ref s) => s.as_bytes(),
             Binary::SharedVec(ref s) => s.as_ref().as_ref(),
         }
-    }
-}
-
-impl Responder for Binary {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(HttpResponse::build_from(req)
-            .content_type("application/octet-stream")
-            .body(self))
     }
 }
 

@@ -1,4 +1,5 @@
 extern crate actix;
+extern crate actix_http;
 extern crate actix_net;
 extern crate actix_web;
 extern crate futures;
@@ -8,12 +9,12 @@ use std::thread;
 use actix::System;
 use actix_net::server::Server;
 use actix_net::service::{IntoNewService, IntoService};
+use actix_web::{client, test};
 use futures::future;
 
-use actix_web::server::h1disp::Http1Dispatcher;
-use actix_web::server::KeepAlive;
-use actix_web::server::ServiceConfig;
-use actix_web::{client, test, App, Error, HttpRequest, HttpResponse};
+use actix_http::server::h1disp::Http1Dispatcher;
+use actix_http::server::{KeepAlive, ServiceConfig};
+use actix_http::{Error, HttpResponse};
 
 #[test]
 fn test_h1_v2() {
@@ -21,10 +22,7 @@ fn test_h1_v2() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                let app = App::new()
-                    .route("/", http::Method::GET, |_: HttpRequest| "OK")
-                    .finish();
-                let settings = ServiceConfig::build(app)
+                let settings = ServiceConfig::build()
                     .keep_alive(KeepAlive::Disabled)
                     .client_timeout(1000)
                     .client_shutdown(1000)

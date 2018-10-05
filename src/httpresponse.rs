@@ -13,12 +13,10 @@ use serde::Serialize;
 use serde_json;
 
 use body::Body;
-use client::ClientResponse;
 use error::Error;
-use handler::Responder;
 use header::{ContentEncoding, Header, IntoHeaderValue};
 use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
+// use httprequest::HttpRequest;
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -720,33 +718,11 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl Responder for HttpResponseBuilder {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    #[inline]
-    fn respond_to<S>(mut self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(self.finish())
-    }
-}
-
 impl From<&'static str> for HttpResponse {
     fn from(val: &'static str) -> Self {
         HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
-    }
-}
-
-impl Responder for &'static str {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self))
     }
 }
 
@@ -758,35 +734,11 @@ impl From<&'static [u8]> for HttpResponse {
     }
 }
 
-impl Responder for &'static [u8] {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self))
-    }
-}
-
 impl From<String> for HttpResponse {
     fn from(val: String) -> Self {
         HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
-    }
-}
-
-impl Responder for String {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self))
     }
 }
 
@@ -798,18 +750,6 @@ impl<'a> From<&'a String> for HttpResponse {
     }
 }
 
-impl<'a> Responder for &'a String {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
-            .body(self))
-    }
-}
-
 impl From<Bytes> for HttpResponse {
     fn from(val: Bytes) -> Self {
         HttpResponse::Ok()
@@ -818,57 +758,11 @@ impl From<Bytes> for HttpResponse {
     }
 }
 
-impl Responder for Bytes {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self))
-    }
-}
-
 impl From<BytesMut> for HttpResponse {
     fn from(val: BytesMut) -> Self {
         HttpResponse::Ok()
             .content_type("application/octet-stream")
             .body(val)
-    }
-}
-
-impl Responder for BytesMut {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("application/octet-stream")
-            .body(self))
-    }
-}
-
-/// Create `HttpResponseBuilder` from `ClientResponse`
-///
-/// It is useful for proxy response. This implementation
-/// copies all responses's headers and status.
-impl<'a> From<&'a ClientResponse> for HttpResponseBuilder {
-    fn from(resp: &'a ClientResponse) -> HttpResponseBuilder {
-        let mut builder = HttpResponse::build(resp.status());
-        for (key, value) in resp.headers() {
-            builder.header(key.clone(), value.clone());
-        }
-        builder
-    }
-}
-
-impl<'a, S> From<&'a HttpRequest<S>> for HttpResponseBuilder {
-    fn from(req: &'a HttpRequest<S>) -> HttpResponseBuilder {
-        req.request()
-            .server_settings()
-            .get_response_builder(StatusCode::OK)
     }
 }
 
@@ -921,7 +815,7 @@ impl InnerHttpResponse {
         let body = match mem::replace(&mut self.body, Body::Empty) {
             Body::Empty => None,
             Body::Binary(mut bin) => Some(bin.take()),
-            Body::Streaming(_) | Body::Actor(_) => {
+            Body::Streaming(_) => {
                 error!("Streaming or Actor body is not support by error response");
                 None
             }

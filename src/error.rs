@@ -22,8 +22,7 @@ pub use url::ParseError as UrlParseError;
 // re-exports
 pub use cookie::ParseError as CookieParseError;
 
-use handler::Responder;
-use httprequest::HttpRequest;
+// use httprequest::HttpRequest;
 use httpresponse::{HttpResponse, HttpResponseParts};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
@@ -724,18 +723,6 @@ where
                 }
             }
         }
-    }
-}
-
-impl<T> Responder for InternalError<T>
-where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
-{
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, _: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        Err(self.into())
     }
 }
 

@@ -254,7 +254,7 @@ impl Output {
                 }
                 return;
             }
-            Body::Streaming(_) | Body::Actor(_) => {
+            Body::Streaming(_) => {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");

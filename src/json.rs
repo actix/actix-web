@@ -11,10 +11,9 @@ use serde::Serialize;
 use serde_json;
 
 use error::{Error, JsonPayloadError};
-use handler::{FromRequest, Responder};
 use http::StatusCode;
 use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
+// use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
 
 /// Json helper
@@ -113,102 +112,6 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
-    }
-}
-
-impl<T: Serialize> Responder for Json<T> {
-    type Item = HttpResponse;
-    type Error = Error;
-
-    fn respond_to<S>(self, req: &HttpRequest<S>) -> Result<HttpResponse, Error> {
-        let body = serde_json::to_string(&self.0)?;
-
-        Ok(req
-            .build_response(StatusCode::OK)
-            .content_type("application/json")
-            .body(body))
-    }
-}
-
-impl<T, S> FromRequest<S> for Json<T>
-where
-    T: DeserializeOwned + 'static,
-    S: 'static,
-{
-    type Config = JsonConfig<S>;
-    type Result = Box<Future<Item = Self, Error = Error>>;
-
-    #[inline]
-    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        let req2 = req.clone();
-        let err = Rc::clone(&cfg.ehandler);
-        Box::new(
-            JsonBody::new(req)
-                .limit(cfg.limit)
-                .map_err(move |e| (*err)(e, &req2))
-                .map(Json),
-        )
-    }
-}
-
-/// Json extractor configuration
-///
-/// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{error, http, App, HttpResponse, Json, Result};
-///
-/// #[derive(Deserialize)]
-/// struct Info {
-///     username: String,
-/// }
-///
-/// /// deserialize `Info` from request's body, max payload size is 4kb
-/// fn index(info: Json<Info>) -> Result<String> {
-///     Ok(format!("Welcome {}!", info.username))
-/// }
-///
-/// fn main() {
-///     let app = App::new().resource("/index.html", |r| {
-///         r.method(http::Method::POST)
-///               .with_config(index, |cfg| {
-///                   cfg.0.limit(4096)   // <- change json extractor configuration
-///                      .error_handler(|err, req| {  // <- create custom error response
-///                          error::InternalError::from_response(
-///                              err, HttpResponse::Conflict().finish()).into()
-///                          });
-///               })
-///     });
-/// }
-/// ```
-pub struct JsonConfig<S> {
-    limit: usize,
-    ehandler: Rc<Fn(JsonPayloadError, &HttpRequest<S>) -> Error>,
-}
-
-impl<S> JsonConfig<S> {
-    /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
-        self.limit = limit;
-        self
-    }
-
-    /// Set custom error handler
-    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn(JsonPayloadError, &HttpRequest<S>) -> Error + 'static,
-    {
-        self.ehandler = Rc::new(f);
-        self
-    }
-}
-
-impl<S> Default for JsonConfig<S> {
-    fn default() -> Self {
-        JsonConfig {
-            limit: 262_144,
-            ehandler: Rc::new(|e, _| e.into()),
-        }
     }
 }
 

@@ -117,33 +117,20 @@ use tokio_tcp::TcpStream;
 
 pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
 
-pub(crate) mod acceptor;
-pub(crate) mod builder;
-mod channel;
 mod error;
-pub(crate) mod h1;
+// pub(crate) mod h1;
 #[doc(hidden)]
 pub mod h1codec;
 #[doc(hidden)]
 pub mod h1decoder;
-mod h1writer;
-mod h2;
-mod h2writer;
-mod handler;
 pub(crate) mod helpers;
-mod http;
-pub(crate) mod incoming;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
-pub(crate) mod service;
+// pub(crate) mod service;
 pub(crate) mod settings;
-mod ssl;
 
-pub use self::handler::*;
-pub use self::http::HttpServer;
 pub use self::message::Request;
-pub use self::ssl::*;
 
 pub use self::error::{AcceptorError, HttpDispatchError};
 pub use self::settings::ServerSettings;
@@ -152,13 +139,10 @@ pub use self::settings::ServerSettings;
 pub mod h1disp;
 
 #[doc(hidden)]
-pub use self::acceptor::AcceptorTimeout;
-
-#[doc(hidden)]
 pub use self::settings::{ServiceConfig, ServiceConfigBuilder};
 
-#[doc(hidden)]
-pub use self::service::{H1Service, HttpService, StreamConfiguration};
+//#[doc(hidden)]
+//pub use self::service::{H1Service, HttpService, StreamConfiguration};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
@@ -174,53 +158,11 @@ pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 const LW_BUFFER_SIZE: usize = 4096;
 const HW_BUFFER_SIZE: usize = 32_768;
 
-/// Create new http server with application factory.
-///
-/// This is shortcut for `server::HttpServer::new()` method.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// use actix_web::{actix, server, App, HttpResponse};
-///
-/// fn main() {
-///     let sys = actix::System::new("example");  // <- create Actix system
-///
-///     server::new(
-///         || App::new()
-///             .resource("/", |r| r.f(|_| HttpResponse::Ok())))
-///         .bind("127.0.0.1:59090").unwrap()
-///         .start();
-///
-/// #       actix::System::current().stop();
-///     sys.run();
-/// }
-/// ```
-pub fn new<F, H>(factory: F) -> HttpServer<H, F>
-where
-    F: Fn() -> H + Send + Clone + 'static,
-    H: IntoHttpHandler + 'static,
-{
-    HttpServer::new(factory)
-}
-
-#[doc(hidden)]
-bitflags! {
-    ///Flags that can be used to configure HTTP Server.
-    pub struct ServerFlags: u8 {
-        ///Use HTTP1 protocol
-        const HTTP1 = 0b0000_0001;
-        ///Use HTTP2 protocol
-        const HTTP2 = 0b0000_0010;
-    }
-}
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting
 pub enum KeepAlive {
     /// Keep alive in seconds
     Timeout(usize),
-    /// Use `SO_KEEPALIVE` socket option, value in seconds
-    Tcp(usize),
     /// Relay on OS to shutdown tcp connection
     Os,
     /// Disabled
@@ -244,40 +186,8 @@ impl From<Option<usize>> for KeepAlive {
 }
 
 #[doc(hidden)]
-#[derive(Debug)]
-pub enum WriterState {
-    Done,
-    Pause,
-}
-
-#[doc(hidden)]
-/// Stream writer
-pub trait Writer {
-    /// number of bytes written to the stream
-    fn written(&self) -> u64;
-
-    #[doc(hidden)]
-    fn set_date(&mut self);
-
-    #[doc(hidden)]
-    fn buffer(&mut self) -> &mut BytesMut;
-
-    fn start(
-        &mut self, req: &Request, resp: &mut HttpResponse, encoding: ContentEncoding,
-    ) -> io::Result<WriterState>;
-
-    fn write(&mut self, payload: &Binary) -> io::Result<WriterState>;
-
-    fn write_eof(&mut self) -> io::Result<WriterState>;
-
-    fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error>;
-}
-
-#[doc(hidden)]
 /// Low-level io stream operations
 pub trait IoStream: AsyncRead + AsyncWrite + 'static {
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
-
     /// Returns the socket address of the remote peer of this TCP connection.
     fn peer_addr(&self) -> Option<SocketAddr> {
         None
@@ -289,54 +199,10 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 
     fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
-
-    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<(bool, bool), io::Error> {
-        let mut read_some = false;
-        loop {
-            if buf.remaining_mut() < LW_BUFFER_SIZE {
-                buf.reserve(HW_BUFFER_SIZE);
-            }
-
-            let read = unsafe { self.read(buf.bytes_mut()) };
-            match read {
-                Ok(n) => {
-                    if n == 0 {
-                        return Ok(Async::Ready((read_some, true)));
-                    } else {
-                        read_some = true;
-                        unsafe {
-                            buf.advance_mut(n);
-                        }
-                    }
-                }
-                Err(e) => {
-                    return if e.kind() == io::ErrorKind::WouldBlock {
-                        if read_some {
-                            Ok(Async::Ready((read_some, false)))
-                        } else {
-                            Ok(Async::NotReady)
-                        }
-                    } else {
-                        Err(e)
-                    };
-                }
-            }
-        }
-    }
-
-    /// Extra io stream extensions
-    fn extensions(&self) -> Option<Rc<Extensions>> {
-        None
-    }
 }
 
 #[cfg(all(unix, feature = "uds"))]
 impl IoStream for ::tokio_uds::UnixStream {
-    #[inline]
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
-        ::tokio_uds::UnixStream::shutdown(self, how)
-    }
-
     #[inline]
     fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
         Ok(())
@@ -354,11 +220,6 @@ impl IoStream for ::tokio_uds::UnixStream {
 }
 
 impl IoStream for TcpStream {
-    #[inline]
-    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
-        TcpStream::shutdown(self, how)
-    }
-
     #[inline]
     fn peer_addr(&self) -> Option<SocketAddr> {
         TcpStream::peer_addr(self).ok()

@@ -15,7 +15,6 @@ use error::{
 };
 use header::Header;
 use json::JsonBody;
-use multipart::Multipart;
 
 /// Trait that implements general purpose operations on http messages
 pub trait HttpMessage: Sized {
@@ -201,46 +200,6 @@ pub trait HttpMessage: Sized {
     /// ```
     fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
         JsonBody::new(self)
-    }
-
-    /// Return stream to http payload processes as multipart.
-    ///
-    /// Content-type: multipart/form-data;
-    ///
-    /// ## Server example
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// # extern crate env_logger;
-    /// # extern crate futures;
-    /// # use std::str;
-    /// # use actix_web::*;
-    /// # use actix_web::actix::fut::FinishStream;
-    /// # use futures::{Future, Stream};
-    /// # use futures::future::{ok, result, Either};
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
-    ///     req.multipart().from_err()       // <- get multipart stream for current request
-    ///        .and_then(|item| match item { // <- iterate over multipart items
-    ///            multipart::MultipartItem::Field(field) => {
-    ///                // Field in turn is stream of *Bytes* object
-    ///                Either::A(field.from_err()
-    ///                          .map(|c| println!("-- CHUNK: \n{:?}", str::from_utf8(&c)))
-    ///                          .finish())
-    ///             },
-    ///             multipart::MultipartItem::Nested(mp) => {
-    ///                 // Or item could be nested Multipart stream
-    ///                 Either::B(ok(()))
-    ///             }
-    ///         })
-    ///         .finish()  // <- Stream::finish() combinator from actix
-    ///         .map(|_| HttpResponse::Ok().into())
-    ///         .responder()
-    /// }
-    /// # fn main() {}
-    /// ```
-    fn multipart(&self) -> Multipart<Self::Stream> {
-        let boundary = Multipart::boundary(self.headers());
-        Multipart::new(boundary, self.payload())
     }
 
     /// Return stream of lines.

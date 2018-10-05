@@ -15,7 +15,6 @@ use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
-use super::channel::Node;
 use super::message::{Request, RequestPool};
 use super::KeepAlive;
 use body::Body;
@@ -128,35 +127,33 @@ impl ServerSettings {
 const DATE_VALUE_LENGTH: usize = 29;
 
 /// Http service configuration
-pub struct ServiceConfig<H>(Rc<Inner<H>>);
+pub struct ServiceConfig(Rc<Inner>);
 
-struct Inner<H> {
-    handler: H,
+struct Inner {
     keep_alive: Option<Duration>,
     client_timeout: u64,
     client_shutdown: u64,
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
-    node: RefCell<Node<()>>,
     date: UnsafeCell<(bool, Date)>,
 }
 
-impl<H> Clone for ServiceConfig<H> {
+impl Clone for ServiceConfig {
     fn clone(&self) -> Self {
         ServiceConfig(self.0.clone())
     }
 }
 
-impl<H> ServiceConfig<H> {
+impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub(crate) fn new(
-        handler: H, keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
+        keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
         settings: ServerSettings,
-    ) -> ServiceConfig<H> {
+    ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
-            KeepAlive::Os | KeepAlive::Tcp(_) => (0, true),
+            KeepAlive::Os => (0, true),
             KeepAlive::Disabled => (0, false),
         };
         let keep_alive = if ka_enabled && keep_alive > 0 {
@@ -166,29 +163,19 @@ impl<H> ServiceConfig<H> {
         };
 
         ServiceConfig(Rc::new(Inner {
-            handler,
             keep_alive,
             ka_enabled,
             client_timeout,
             client_shutdown,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
-            node: RefCell::new(Node::head()),
             date: UnsafeCell::new((false, Date::new())),
         }))
     }
 
     /// Create worker settings builder.
-    pub fn build(handler: H) -> ServiceConfigBuilder<H> {
-        ServiceConfigBuilder::new(handler)
-    }
-
-    pub(crate) fn head(&self) -> RefMut<Node<()>> {
-        self.0.node.borrow_mut()
-    }
-
-    pub(crate) fn handler(&self) -> &H {
-        &self.0.handler
+    pub fn build() -> ServiceConfigBuilder {
+        ServiceConfigBuilder::new()
     }
 
     #[inline]
@@ -226,7 +213,7 @@ impl<H> ServiceConfig<H> {
     }
 }
 
-impl<H: 'static> ServiceConfig<H> {
+impl ServiceConfig {
     #[inline]
     /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
@@ -329,8 +316,7 @@ impl<H: 'static> ServiceConfig<H> {
 ///
 /// This type can be used to construct an instance of `ServiceConfig` through a
 /// builder-like pattern.
-pub struct ServiceConfigBuilder<H> {
-    handler: H,
+pub struct ServiceConfigBuilder {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_shutdown: u64,
@@ -339,11 +325,10 @@ pub struct ServiceConfigBuilder<H> {
     secure: bool,
 }
 
-impl<H> ServiceConfigBuilder<H> {
+impl ServiceConfigBuilder {
     /// Create instance of `ServiceConfigBuilder`
-    pub fn new(handler: H) -> ServiceConfigBuilder<H> {
+    pub fn new() -> ServiceConfigBuilder {
         ServiceConfigBuilder {
-            handler,
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
             client_shutdown: 5000,
@@ -426,12 +411,11 @@ impl<H> ServiceConfigBuilder<H> {
     }
 
     /// Finish service configuration and create `ServiceConfig` object.
-    pub fn finish(self) -> ServiceConfig<H> {
+    pub fn finish(self) -> ServiceConfig {
         let settings = ServerSettings::new(self.addr, &self.host, self.secure);
         let client_shutdown = if self.secure { self.client_shutdown } else { 0 };
 
         ServiceConfig::new(
-            self.handler,
             self.keep_alive,
             self.client_timeout,
             client_shutdown,
