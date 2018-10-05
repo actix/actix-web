@@ -1,12 +1,11 @@
-// #![allow(unused_imports, unused_variables, dead_code)]
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
 use std::time::Instant;
 
+use actix_net::codec::Framed;
 use actix_net::service::Service;
 
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-// use tokio_current_thread::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
@@ -16,7 +15,6 @@ use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 use body::Body;
 use config::ServiceConfig;
 use error::DispatchError;
-use framed::Framed;
 use request::Request;
 use response::Response;
 

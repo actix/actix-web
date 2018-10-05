@@ -15,10 +15,12 @@ mod codec;
 mod frame;
 mod mask;
 mod proto;
+mod transport;
 
-pub use self::codec::Message;
+pub use self::codec::{Codec, Message};
 pub use self::frame::Frame;
 pub use self::proto::{CloseCode, CloseReason, OpCode};
+pub use self::transport::Transport;
 
 /// Websocket protocol errors
 #[derive(Fail, Debug)]
