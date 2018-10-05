@@ -3,7 +3,6 @@
 //! To setup a `WebSocket`, first do web socket handshake then on success
 //! convert `Payload` into a `WsStream` stream and then use `WsWriter` to
 //! communicate with the peer.
-//! ```
 use std::io;
 
 use error::ResponseError;

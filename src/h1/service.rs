@@ -1,15 +1,17 @@
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 
+use actix_net::codec::Framed;
 use actix_net::service::{IntoNewService, NewService, Service};
-use futures::{Async, Future, Poll};
+use futures::{future, Async, Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use config::ServiceConfig;
-use error::DispatchError;
+use error::{DispatchError, ParseError};
 use request::Request;
 use response::Response;
 
+use super::codec::{Codec, InMessage};
 use super::dispatcher::Dispatcher;
 
 /// `NewService` implementation for HTTP1 transport
@@ -119,5 +121,80 @@ where
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
         Dispatcher::new(req, self.cfg.clone(), self.srv.clone())
+    }
+}
+
+/// `NewService` that implements, read one request from framed object feature.
+pub struct TakeRequest<T> {
+    _t: PhantomData<T>,
+}
+
+impl<T> TakeRequest<T> {
+    /// Create new `TakeRequest` instance.
+    pub fn new() -> Self {
+        TakeRequest { _t: PhantomData }
+    }
+}
+
+impl<T> NewService for TakeRequest<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
+    type Request = Framed<T, Codec>;
+    type Response = (Option<InMessage>, Framed<T, Codec>);
+    type Error = ParseError;
+    type InitError = ();
+    type Service = TakeRequestService<T>;
+    type Future = future::FutureResult<Self::Service, Self::InitError>;
+
+    fn new_service(&self) -> Self::Future {
+        future::ok(TakeRequestService { _t: PhantomData })
+    }
+}
+
+/// `NewService` that implements, read one request from framed object feature.
+pub struct TakeRequestService<T> {
+    _t: PhantomData<T>,
+}
+
+impl<T> Service for TakeRequestService<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
+    type Request = Framed<T, Codec>;
+    type Response = (Option<InMessage>, Framed<T, Codec>);
+    type Error = ParseError;
+    type Future = TakeRequestServiceResponse<T>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, framed: Self::Request) -> Self::Future {
+        TakeRequestServiceResponse {
+            framed: Some(framed),
+        }
+    }
+}
+
+pub struct TakeRequestServiceResponse<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
+    framed: Option<Framed<T, Codec>>,
+}
+
+impl<T> Future for TakeRequestServiceResponse<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
+    type Item = (Option<InMessage>, Framed<T, Codec>);
+    type Error = ParseError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.framed.as_mut().unwrap().poll()? {
+            Async::Ready(item) => Ok(Async::Ready((item, self.framed.take().unwrap()))),
+            Async::NotReady => Ok(Async::NotReady),
+        }
     }
 }

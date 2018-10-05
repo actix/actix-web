@@ -7,4 +7,4 @@ mod service;
 
 pub use self::codec::{Codec, InMessage, OutMessage};
 pub use self::dispatcher::Dispatcher;
-pub use self::service::{H1Service, H1ServiceHandler};
+pub use self::service::{H1Service, H1ServiceHandler, TakeRequest};
