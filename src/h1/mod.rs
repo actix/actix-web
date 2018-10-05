@@ -2,7 +2,7 @@
 mod codec;
 mod decoder;
 mod dispatcher;
-mod response;
+mod encoder;
 mod service;
 
 pub use self::codec::{Codec, InMessage, OutMessage};

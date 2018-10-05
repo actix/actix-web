@@ -135,6 +135,9 @@ mod payload;
 mod request;
 mod uri;
 
+#[doc(hidden)]
+pub mod framed;
+
 pub mod error;
 pub mod h1;
 pub(crate) mod helpers;

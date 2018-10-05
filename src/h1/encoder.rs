@@ -24,15 +24,15 @@ pub(crate) enum ResponseLength {
 }
 
 #[derive(Debug)]
-pub(crate) struct ResponseInfo {
+pub(crate) struct ResponseEncoder {
     head: bool,
     pub length: ResponseLength,
     pub te: TransferEncoding,
 }
 
-impl Default for ResponseInfo {
+impl Default for ResponseEncoder {
     fn default() -> Self {
-        ResponseInfo {
+        ResponseEncoder {
             head: false,
             length: ResponseLength::None,
             te: TransferEncoding::empty(),
@@ -40,7 +40,7 @@ impl Default for ResponseInfo {
     }
 }
 
-impl ResponseInfo {
+impl ResponseEncoder {
     pub fn update(&mut self, resp: &mut HttpResponse, head: bool, version: Version) {
         self.head = head;
 

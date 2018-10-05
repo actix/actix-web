@@ -6,7 +6,6 @@ use std::time::Instant;
 use actix_net::service::Service;
 
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-use tokio_codec::Framed;
 // use tokio_current_thread::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
@@ -17,6 +16,7 @@ use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 use body::Body;
 use config::ServiceConfig;
 use error::DispatchError;
+use framed::Framed;
 use httpresponse::HttpResponse;
 use request::Request;
 
@@ -89,12 +89,13 @@ where
     pub fn with_timeout(
         stream: T, config: ServiceConfig, timeout: Option<Delay>, service: S,
     ) -> Self {
-        let flags = if config.keep_alive_enabled() {
+        let keepalive = config.keep_alive_enabled();
+        let flags = if keepalive {
             Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED | Flags::FLUSHED
         } else {
             Flags::FLUSHED
         };
-        let framed = Framed::new(stream, Codec::new());
+        let framed = Framed::new(stream, Codec::new(keepalive));
 
         let (ka_expire, ka_timer) = if let Some(delay) = timeout {
             (delay.deadline(), Some(delay))
@@ -235,6 +236,10 @@ where
                     let msg = item.take().expect("SendResponse is empty");
                     match self.framed.start_send(msg) {
                         Ok(AsyncSink::Ready) => {
+                            self.flags.set(
+                                Flags::KEEPALIVE,
+                                self.framed.get_codec().keepalive(),
+                            );
                             self.flags.remove(Flags::FLUSHED);
                             Some(Ok(State::None))
                         }
@@ -249,6 +254,10 @@ where
                     let (msg, body) = item.take().expect("SendResponse is empty");
                     match self.framed.start_send(msg) {
                         Ok(AsyncSink::Ready) => {
+                            self.flags.set(
+                                Flags::KEEPALIVE,
+                                self.framed.get_codec().keepalive(),
+                            );
                             self.flags.remove(Flags::FLUSHED);
                             Some(Ok(State::Payload(body)))
                         }
