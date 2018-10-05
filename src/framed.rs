@@ -6,9 +6,10 @@ use actix;
 use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-use tokio_codec::{Decoder, Encoder, Framed};
+use tokio_codec::{Decoder, Encoder};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use codec::Framed;
 use service::{IntoNewService, IntoService, NewService, Service};
 
 type Request<U> = <U as Decoder>::Item;

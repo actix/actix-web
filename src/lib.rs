@@ -57,6 +57,7 @@ extern crate webpki_roots;
 
 mod cell;
 pub mod cloneable;
+pub mod codec;
 pub mod connector;
 pub mod counter;
 pub mod either;
