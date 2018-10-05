@@ -412,3 +412,78 @@ where
         }
     }
 }
+
+pub struct IntoFramed<T, U, F>
+where
+    T: AsyncRead + AsyncWrite,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: Encoder + Decoder,
+{
+    factory: F,
+    _t: PhantomData<(T,)>,
+}
+
+impl<T, U, F> IntoFramed<T, U, F>
+where
+    T: AsyncRead + AsyncWrite,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: Encoder + Decoder,
+{
+    pub fn new(factory: F) -> Self {
+        IntoFramed {
+            factory,
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<T, U, F> NewService for IntoFramed<T, U, F>
+where
+    T: AsyncRead + AsyncWrite,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: Encoder + Decoder,
+{
+    type Request = T;
+    type Response = Framed<T, U>;
+    type Error = ();
+    type InitError = ();
+    type Service = IntoFramedService<T, U, F>;
+    type Future = FutureResult<Self::Service, Self::InitError>;
+
+    fn new_service(&self) -> Self::Future {
+        ok(IntoFramedService {
+            factory: self.factory.clone(),
+            _t: PhantomData,
+        })
+    }
+}
+
+pub struct IntoFramedService<T, U, F>
+where
+    T: AsyncRead + AsyncWrite,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: Encoder + Decoder,
+{
+    factory: F,
+    _t: PhantomData<(T,)>,
+}
+
+impl<T, U, F> Service for IntoFramedService<T, U, F>
+where
+    T: AsyncRead + AsyncWrite,
+    F: Fn() -> U + Send + Clone + 'static,
+    U: Encoder + Decoder,
+{
+    type Request = T;
+    type Response = Framed<T, U>;
+    type Error = ();
+    type Future = FutureResult<Self::Response, Self::Error>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        ok(Framed::new(req, (self.factory)()))
+    }
+}
