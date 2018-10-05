@@ -17,8 +17,6 @@ pub enum Body {
     /// Unspecified streaming response. Developer is responsible for setting
     /// right `Content-Length` or `Transfer-Encoding` headers.
     Streaming(BodyStream),
-    // /// Special body type for actor response.
-    // Actor(Box<ActorHttpContext>),
 }
 
 /// Represents various types of binary body.

@@ -1,24 +1,23 @@
-//! `WebSocket` support.
+//! WebSocket protocol support.
 //!
 //! To setup a `WebSocket`, first do web socket handshake then on success
 //! convert `Payload` into a `WsStream` stream and then use `WsWriter` to
 //! communicate with the peer.
 //! ```
-use bytes::Bytes;
-use futures::{Async, Poll, Stream};
-use http::{header, Method, StatusCode};
+use std::io;
 
-use body::Binary;
-use error::{PayloadError, ResponseError};
-use payload::PayloadBuffer;
+use error::ResponseError;
+use http::{header, Method, StatusCode};
 use request::Request;
 use response::{ConnectionType, Response, ResponseBuilder};
 
+mod codec;
 mod frame;
 mod mask;
 mod proto;
 
-pub use self::frame::{Frame, FramedMessage};
+pub use self::codec::Message;
+pub use self::frame::Frame;
 pub use self::proto::{CloseCode, CloseReason, OpCode};
 
 /// Websocket protocol errors
@@ -48,16 +47,16 @@ pub enum ProtocolError {
     /// Bad utf-8 encoding
     #[fail(display = "Bad utf-8 encoding.")]
     BadEncoding,
-    /// Payload error
-    #[fail(display = "Payload error: {}", _0)]
-    Payload(#[cause] PayloadError),
+    /// Io error
+    #[fail(display = "io error: {}", _0)]
+    Io(#[cause] io::Error),
 }
 
 impl ResponseError for ProtocolError {}
 
-impl From<PayloadError> for ProtocolError {
-    fn from(err: PayloadError) -> ProtocolError {
-        ProtocolError::Payload(err)
+impl From<io::Error> for ProtocolError {
+    fn from(err: io::Error) -> ProtocolError {
+        ProtocolError::Io(err)
     }
 }
 
@@ -107,21 +106,6 @@ impl ResponseError for HandshakeError {
             }
         }
     }
-}
-
-/// `WebSocket` Message
-#[derive(Debug, PartialEq)]
-pub enum Message {
-    /// Text message
-    Text(String),
-    /// Binary message
-    Binary(Binary),
-    /// Ping message
-    Ping(String),
-    /// Pong message
-    Pong(String),
-    /// Close message with optional reason
-    Close(Option<CloseReason>),
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -187,97 +171,6 @@ pub fn handshake(req: &Request) -> Result<ResponseBuilder, HandshakeError> {
         .header(header::TRANSFER_ENCODING, "chunked")
         .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
         .take())
-}
-
-/// Maps `Payload` stream into stream of `ws::Message` items
-pub struct WsStream<S> {
-    rx: PayloadBuffer<S>,
-    closed: bool,
-    max_size: usize,
-}
-
-impl<S> WsStream<S>
-where
-    S: Stream<Item = Bytes, Error = PayloadError>,
-{
-    /// Create new websocket frames stream
-    pub fn new(stream: S) -> WsStream<S> {
-        WsStream {
-            rx: PayloadBuffer::new(stream),
-            closed: false,
-            max_size: 65_536,
-        }
-    }
-
-    /// Set max frame size
-    ///
-    /// By default max size is set to 64kb
-    pub fn max_size(mut self, size: usize) -> Self {
-        self.max_size = size;
-        self
-    }
-}
-
-impl<S> Stream for WsStream<S>
-where
-    S: Stream<Item = Bytes, Error = PayloadError>,
-{
-    type Item = Message;
-    type Error = ProtocolError;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if self.closed {
-            return Ok(Async::Ready(None));
-        }
-
-        match Frame::parse(&mut self.rx, true, self.max_size) {
-            Ok(Async::Ready(Some(frame))) => {
-                let (finished, opcode, payload) = frame.unpack();
-
-                // continuation is not supported
-                if !finished {
-                    self.closed = true;
-                    return Err(ProtocolError::NoContinuation);
-                }
-
-                match opcode {
-                    OpCode::Continue => Err(ProtocolError::NoContinuation),
-                    OpCode::Bad => {
-                        self.closed = true;
-                        Err(ProtocolError::BadOpCode)
-                    }
-                    OpCode::Close => {
-                        self.closed = true;
-                        let close_reason = Frame::parse_close_payload(&payload);
-                        Ok(Async::Ready(Some(Message::Close(close_reason))))
-                    }
-                    OpCode::Ping => Ok(Async::Ready(Some(Message::Ping(
-                        String::from_utf8_lossy(payload.as_ref()).into(),
-                    )))),
-                    OpCode::Pong => Ok(Async::Ready(Some(Message::Pong(
-                        String::from_utf8_lossy(payload.as_ref()).into(),
-                    )))),
-                    OpCode::Binary => Ok(Async::Ready(Some(Message::Binary(payload)))),
-                    OpCode::Text => {
-                        let tmp = Vec::from(payload.as_ref());
-                        match String::from_utf8(tmp) {
-                            Ok(s) => Ok(Async::Ready(Some(Message::Text(s)))),
-                            Err(_) => {
-                                self.closed = true;
-                                Err(ProtocolError::BadEncoding)
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => {
-                self.closed = true;
-                Err(e)
-            }
-        }
-    }
 }
 
 #[cfg(test)]
