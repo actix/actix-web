@@ -10,7 +10,7 @@ use body::Body;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::Version;
+use http::{Method, Version};
 use httpresponse::HttpResponse;
 use request::RequestPool;
 use server::output::{ResponseInfo, ResponseLength};
@@ -27,6 +27,8 @@ pub enum OutMessage {
 pub struct Codec {
     decoder: H1Decoder,
     encoder: H1Writer,
+    head: bool,
+    version: Version,
 }
 
 impl Codec {
@@ -40,6 +42,8 @@ impl Codec {
         Codec {
             decoder: H1Decoder::with_pool(pool),
             encoder: H1Writer::new(),
+            head: false,
+            version: Version::HTTP_11,
         }
     }
 }
@@ -49,7 +53,17 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        self.decoder.decode(src)
+        let res = self.decoder.decode(src);
+
+        match res {
+            Ok(Some(InMessage::Message(ref req)))
+            | Ok(Some(InMessage::MessageWithPayload(ref req))) => {
+                self.head = req.inner.method == Method::HEAD;
+                self.version = req.inner.version;
+            }
+            _ => (),
+        }
+        res
     }
 }
 
@@ -62,7 +76,7 @@ impl Encoder for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             OutMessage::Response(res) => {
-                self.encoder.encode(res, dst)?;
+                self.encoder.encode(res, dst, self.head, self.version)?;
             }
             OutMessage::Payload(bytes) => {
                 dst.extend_from_slice(&bytes);
@@ -87,6 +101,7 @@ struct H1Writer {
     flags: Flags,
     written: u64,
     headers_size: u32,
+    info: ResponseInfo,
 }
 
 impl H1Writer {
@@ -95,6 +110,7 @@ impl H1Writer {
             flags: Flags::empty(),
             written: 0,
             headers_size: 0,
+            info: ResponseInfo::default(),
         }
     }
 
@@ -116,10 +132,11 @@ impl H1Writer {
     }
 
     fn encode(
-        &mut self, mut msg: HttpResponse, buffer: &mut BytesMut,
+        &mut self, mut msg: HttpResponse, buffer: &mut BytesMut, head: bool,
+        version: Version,
     ) -> io::Result<()> {
         // prepare task
-        let info = ResponseInfo::new(false); // req.inner.method == Method::HEAD);
+        self.info.update(&mut msg, head, version);
 
         //if msg.keep_alive().unwrap_or_else(|| req.keep_alive()) {
         //self.flags = Flags::STARTED | Flags::KEEPALIVE;
@@ -166,7 +183,7 @@ impl H1Writer {
             buffer.extend_from_slice(reason);
 
             // content length
-            match info.length {
+            match self.info.length {
                 ResponseLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
@@ -183,11 +200,6 @@ impl H1Writer {
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
             }
-            if let Some(ce) = info.content_encoding {
-                buffer.extend_from_slice(b"content-encoding: ");
-                buffer.extend_from_slice(ce.as_ref());
-                buffer.extend_from_slice(b"\r\n");
-            }
 
             // write headers
             let mut pos = 0;
@@ -197,7 +209,7 @@ impl H1Writer {
             for (key, value) in msg.headers() {
                 match *key {
                     TRANSFER_ENCODING => continue,
-                    CONTENT_LENGTH => match info.length {
+                    CONTENT_LENGTH => match self.info.length {
                         ResponseLength::None => (),
                         _ => continue,
                     },

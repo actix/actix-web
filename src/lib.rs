@@ -79,7 +79,7 @@
 //!
 #![cfg_attr(actix_nightly, feature(tool_lints))]
 // #![warn(missing_docs)]
-// #![allow(unused_imports, unused_variables, dead_code)]
+#![allow(dead_code)]
 
 extern crate actix;
 extern crate actix_net;

@@ -397,9 +397,9 @@ pub enum DispatchError<E: fmt::Debug + fmt::Display> {
     // #[fail(display = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
-    /// Shutdown timeout
+    /// Disconnect timeout. Makes sense for ssl streams.
     // #[fail(display = "Connection shutdown timeout")]
-    ShutdownTimeout,
+    DisconnectTimeout,
 
     /// Payload is not consumed
     // #[fail(display = "Task is completed but request's payload is not consumed")]

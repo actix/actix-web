@@ -1,7 +1,7 @@
 // #![allow(unused_imports, unused_variables, dead_code)]
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
-// use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use actix_net::service::Service;
 
@@ -9,7 +9,7 @@ use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use tokio_codec::Framed;
 // use tokio_current_thread::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
-// use tokio_timer::Delay;
+use tokio_timer::Delay;
 
 use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadStatus, PayloadWriter};
@@ -47,12 +47,14 @@ where
     flags: Flags,
     framed: Framed<T, Codec>,
     error: Option<DispatchError<S::Error>>,
+    config: ServiceConfig,
 
     state: State<S>,
     payload: Option<PayloadType>,
     messages: VecDeque<Request>,
 
-    config: ServiceConfig,
+    ka_expire: Instant,
+    ka_timer: Option<Delay>,
 }
 
 enum State<S: Service> {
@@ -81,8 +83,27 @@ where
 {
     /// Create http/1 dispatcher.
     pub fn new(stream: T, config: ServiceConfig, service: S) -> Self {
-        let flags = Flags::FLUSHED;
+        Dispatcher::with_timeout(stream, config, None, service)
+    }
+
+    /// Create http/1 dispatcher with slow request timeout.
+    pub fn with_timeout(
+        stream: T, config: ServiceConfig, timeout: Option<Delay>, service: S,
+    ) -> Self {
+        let flags = if config.keep_alive_enabled() {
+            Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED | Flags::FLUSHED
+        } else {
+            Flags::FLUSHED
+        };
         let framed = Framed::new(stream, Codec::new());
+
+        let (ka_expire, ka_timer) = if let Some(delay) = timeout {
+            (delay.deadline(), Some(delay))
+        } else if let Some(delay) = config.keep_alive_timer() {
+            (delay.deadline(), Some(delay))
+        } else {
+            (config.now(), None)
+        };
 
         Dispatcher {
             payload: None,
@@ -93,6 +114,8 @@ where
             flags,
             framed,
             config,
+            ka_expire,
+            ka_timer,
         }
     }
 
@@ -358,7 +381,63 @@ where
             }
         }
 
+        if self.ka_timer.is_some() && updated {
+            if let Some(expire) = self.config.keep_alive_expire() {
+                self.ka_expire = expire;
+            }
+        }
         Ok(updated)
+    }
+
+    /// keep-alive timer
+    fn poll_keepalive(&mut self) -> Result<(), DispatchError<S::Error>> {
+        if let Some(ref mut timer) = self.ka_timer {
+            match timer.poll() {
+                Ok(Async::Ready(_)) => {
+                    if timer.deadline() >= self.ka_expire {
+                        // check for any outstanding request handling
+                        if self.state.is_empty() && self.messages.is_empty() {
+                            // if we get timer during shutdown, just drop connection
+                            if self.flags.contains(Flags::SHUTDOWN) {
+                                return Err(DispatchError::DisconnectTimeout);
+                            } else if !self.flags.contains(Flags::STARTED) {
+                                // timeout on first request (slow request) return 408
+                                trace!("Slow request timeout");
+                                self.flags
+                                    .insert(Flags::STARTED | Flags::READ_DISCONNECTED);
+                                self.state =
+                                    State::SendResponse(Some(OutMessage::Response(
+                                        HttpResponse::RequestTimeout().finish(),
+                                    )));
+                            } else {
+                                trace!("Keep-alive timeout, close connection");
+                                self.flags.insert(Flags::SHUTDOWN);
+
+                                // start shutdown timer
+                                if let Some(deadline) =
+                                    self.config.client_disconnect_timer()
+                                {
+                                    timer.reset(deadline)
+                                } else {
+                                    return Ok(());
+                                }
+                            }
+                        } else if let Some(deadline) = self.config.keep_alive_expire() {
+                            timer.reset(deadline)
+                        }
+                    } else {
+                        timer.reset(self.ka_expire)
+                    }
+                }
+                Ok(Async::NotReady) => (),
+                Err(e) => {
+                    error!("Timer error {:?}", e);
+                    return Err(DispatchError::Unknown);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -373,6 +452,8 @@ where
 
     #[inline]
     fn poll(&mut self) -> Poll<(), Self::Error> {
+        self.poll_keepalive()?;
+
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
             if self.flags.contains(Flags::WRITE_DISCONNECTED) {

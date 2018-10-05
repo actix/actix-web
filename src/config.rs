@@ -21,7 +21,7 @@ pub struct ServiceConfig(Rc<Inner>);
 struct Inner {
     keep_alive: Option<Duration>,
     client_timeout: u64,
-    client_shutdown: u64,
+    client_disconnect: u64,
     ka_enabled: bool,
     date: UnsafeCell<(bool, Date)>,
 }
@@ -35,7 +35,7 @@ impl Clone for ServiceConfig {
 impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub(crate) fn new(
-        keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
+        keep_alive: KeepAlive, client_timeout: u64, client_disconnect: u64,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -52,7 +52,7 @@ impl ServiceConfig {
             keep_alive,
             ka_enabled,
             client_timeout,
-            client_shutdown,
+            client_disconnect,
             date: UnsafeCell::new((false, Date::new())),
         }))
     }
@@ -100,9 +100,9 @@ impl ServiceConfig {
         }
     }
 
-    /// Client shutdown timer
-    pub fn client_shutdown_timer(&self) -> Option<Instant> {
-        let delay = self.0.client_shutdown;
+    /// Client disconnect timer
+    pub fn client_disconnect_timer(&self) -> Option<Instant> {
+        let delay = self.0.client_disconnect;
         if delay != 0 {
             Some(self.now() + Duration::from_millis(delay))
         } else {
@@ -184,7 +184,7 @@ impl ServiceConfig {
 pub struct ServiceConfigBuilder {
     keep_alive: KeepAlive,
     client_timeout: u64,
-    client_shutdown: u64,
+    client_disconnect: u64,
     host: String,
     addr: net::SocketAddr,
     secure: bool,
@@ -196,7 +196,7 @@ impl ServiceConfigBuilder {
         ServiceConfigBuilder {
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
-            client_shutdown: 5000,
+            client_disconnect: 0,
             secure: false,
             host: "localhost".to_owned(),
             addr: "127.0.0.1:8080".parse().unwrap(),
@@ -204,10 +204,14 @@ impl ServiceConfigBuilder {
     }
 
     /// Enable secure flag for current server.
+    /// This flags also enables `client disconnect timeout`.
     ///
     /// By default this flag is set to false.
     pub fn secure(mut self) -> Self {
         self.secure = true;
+        if self.client_disconnect == 0 {
+            self.client_disconnect = 3000;
+        }
         self
     }
 
@@ -233,16 +237,16 @@ impl ServiceConfigBuilder {
         self
     }
 
-    /// Set server connection shutdown timeout in milliseconds.
+    /// Set server connection disconnect timeout in milliseconds.
     ///
-    /// Defines a timeout for shutdown connection. If a shutdown procedure does not complete
-    /// within this time, the request is dropped. This timeout affects only secure connections.
+    /// Defines a timeout for disconnect connection. If a disconnect procedure does not complete
+    /// within this time, the request get dropped. This timeout affects secure connections.
     ///
     /// To disable timeout set value to 0.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_shutdown(mut self, val: u64) -> Self {
-        self.client_shutdown = val;
+    /// By default disconnect timeout is set to 3000 milliseconds.
+    pub fn client_disconnect(mut self, val: u64) -> Self {
+        self.client_disconnect = val;
         self
     }
 
@@ -277,9 +281,7 @@ impl ServiceConfigBuilder {
 
     /// Finish service configuration and create `ServiceConfig` object.
     pub fn finish(self) -> ServiceConfig {
-        let client_shutdown = if self.secure { self.client_shutdown } else { 0 };
-
-        ServiceConfig::new(self.keep_alive, self.client_timeout, client_shutdown)
+        ServiceConfig::new(self.keep_alive, self.client_timeout, self.client_disconnect)
     }
 }
 
