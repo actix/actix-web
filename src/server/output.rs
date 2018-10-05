@@ -224,7 +224,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(buf.as_mut(), "{:X}\r", msg.len())
+                    writeln!(Writer(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -268,84 +268,15 @@ impl TransferEncoding {
     }
 }
 
-impl io::Write for TransferEncoding {
-    #[inline]
+struct Writer<'a>(pub &'a mut BytesMut);
+
+impl<'a> io::Write for Writer<'a> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // if self.buf.is_some() {
-        //     self.encode(buf)?;
-        // }
+        self.0.extend_from_slice(buf);
         Ok(buf.len())
     }
-
-    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
-    }
-}
-
-struct AcceptEncoding {
-    encoding: ContentEncoding,
-    quality: f64,
-}
-
-impl Eq for AcceptEncoding {}
-
-impl Ord for AcceptEncoding {
-    fn cmp(&self, other: &AcceptEncoding) -> cmp::Ordering {
-        if self.quality > other.quality {
-            cmp::Ordering::Less
-        } else if self.quality < other.quality {
-            cmp::Ordering::Greater
-        } else {
-            cmp::Ordering::Equal
-        }
-    }
-}
-
-impl PartialOrd for AcceptEncoding {
-    fn partial_cmp(&self, other: &AcceptEncoding) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for AcceptEncoding {
-    fn eq(&self, other: &AcceptEncoding) -> bool {
-        self.quality == other.quality
-    }
-}
-
-impl AcceptEncoding {
-    fn new(tag: &str) -> Option<AcceptEncoding> {
-        let parts: Vec<&str> = tag.split(';').collect();
-        let encoding = match parts.len() {
-            0 => return None,
-            _ => ContentEncoding::from(parts[0]),
-        };
-        let quality = match parts.len() {
-            1 => encoding.quality(),
-            _ => match f64::from_str(parts[1]) {
-                Ok(q) => q,
-                Err(_) => 0.0,
-            },
-        };
-        Some(AcceptEncoding { encoding, quality })
-    }
-
-    /// Parse a raw Accept-Encoding header value into an ordered list.
-    pub fn parse(raw: &str) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw
-            .replace(' ', "")
-            .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .collect();
-        encodings.sort();
-
-        for enc in encodings {
-            if let Some(enc) = enc {
-                return enc.encoding;
-            }
-        }
-        ContentEncoding::Identity
     }
 }
 
@@ -356,14 +287,14 @@ mod tests {
 
     #[test]
     fn test_chunked_te() {
-        let bytes = BytesMut::new();
-        let mut enc = TransferEncoding::chunked(bytes);
+        let mut bytes = BytesMut::new();
+        let mut enc = TransferEncoding::chunked();
         {
-            assert!(!enc.encode(b"test").ok().unwrap());
-            assert!(enc.encode(b"").ok().unwrap());
+            assert!(!enc.encode(b"test", &mut bytes).ok().unwrap());
+            assert!(enc.encode(b"", &mut bytes).ok().unwrap());
         }
         assert_eq!(
-            enc.buf_mut().take().freeze(),
+            bytes.take().freeze(),
             Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n")
         );
     }

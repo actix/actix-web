@@ -510,21 +510,17 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Shutdown;
-    use std::{cmp, io, time};
+    use std::{cmp, io};
 
-    use actix::System;
     use bytes::{Buf, Bytes, BytesMut};
-    use futures::{future, future::ok};
     use http::{Method, Version};
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
     use error::ParseError;
-    use h1::{Dispatcher, InMessage};
+    use h1::InMessage;
     use httpmessage::HttpMessage;
     use request::Request;
-    use server::KeepAlive;
 
     impl InMessage {
         fn message(self) -> Request {
