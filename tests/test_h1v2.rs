@@ -23,7 +23,7 @@ fn test_h1_v2() {
                 let settings = ServiceConfig::build()
                     .keep_alive(KeepAlive::Disabled)
                     .client_timeout(1000)
-                    .client_shutdown(1000)
+                    .client_disconnect(1000)
                     .server_hostname("localhost")
                     .server_address(addr)
                     .finish();
