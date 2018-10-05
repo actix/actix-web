@@ -1,18 +1,18 @@
 //! Basic http responses
 #![allow(non_upper_case_globals)]
 use http::StatusCode;
-use httpresponse::{HttpResponse, HttpResponseBuilder};
+use response::{Response, ResponseBuilder};
 
 macro_rules! STATIC_RESP {
     ($name:ident, $status:expr) => {
         #[allow(non_snake_case, missing_docs)]
-        pub fn $name() -> HttpResponseBuilder {
-            HttpResponse::build($status)
+        pub fn $name() -> ResponseBuilder {
+            Response::build($status)
         }
     };
 }
 
-impl HttpResponse {
+impl Response {
     STATIC_RESP!(Ok, StatusCode::OK);
     STATIC_RESP!(Created, StatusCode::CREATED);
     STATIC_RESP!(Accepted, StatusCode::ACCEPTED);
@@ -74,11 +74,11 @@ impl HttpResponse {
 mod tests {
     use body::Body;
     use http::StatusCode;
-    use httpresponse::HttpResponse;
+    use response::Response;
 
     #[test]
     fn test_build() {
-        let resp = HttpResponse::Ok().body(Body::Empty);
+        let resp = Response::Ok().body(Body::Empty);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

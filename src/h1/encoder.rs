@@ -11,8 +11,8 @@ use http::{StatusCode, Version};
 use body::{Binary, Body};
 use header::ContentEncoding;
 use http::Method;
-use httpresponse::HttpResponse;
 use request::Request;
+use response::Response;
 
 #[derive(Debug)]
 pub(crate) enum ResponseLength {
@@ -41,7 +41,7 @@ impl Default for ResponseEncoder {
 }
 
 impl ResponseEncoder {
-    pub fn update(&mut self, resp: &mut HttpResponse, head: bool, version: Version) {
+    pub fn update(&mut self, resp: &mut Response, head: bool, version: Version) {
         self.head = head;
 
         let version = resp.version().unwrap_or_else(|| version);
@@ -98,7 +98,7 @@ impl ResponseEncoder {
     }
 
     fn streaming_encoding(
-        &mut self, version: Version, resp: &mut HttpResponse,
+        &mut self, version: Version, resp: &mut Response,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {

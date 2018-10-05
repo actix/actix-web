@@ -123,7 +123,7 @@ where
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
+/// use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, Response};
 /// use futures::future::Future;
 ///
 /// #[derive(Deserialize, Debug)]
@@ -131,12 +131,12 @@ where
 ///     name: String,
 /// }
 ///
-/// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
+/// fn index(mut req: HttpRequest) -> Box<Future<Item = Response, Error = Error>> {
 ///     req.json()                   // <- get JsonBody future
 ///        .from_err()
 ///        .and_then(|val: MyObj| {  // <- deserialized value
 ///            println!("==== BODY ==== {:?}", val);
-///            Ok(HttpResponse::Ok().into())
+///            Ok(Response::Ok().into())
 ///        }).responder()
 /// }
 /// # fn main() {}

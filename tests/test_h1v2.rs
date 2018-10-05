@@ -11,7 +11,7 @@ use actix_net::server::Server;
 use actix_web::{client, test};
 use futures::future;
 
-use actix_http::{h1, Error, HttpResponse, KeepAlive, ServiceConfig};
+use actix_http::{h1, Error, KeepAlive, Response, ServiceConfig};
 
 #[test]
 fn test_h1_v2() {
@@ -29,7 +29,7 @@ fn test_h1_v2() {
 
                 h1::H1Service::new(settings, |req| {
                     println!("REQ: {:?}", req);
-                    future::ok::<_, Error>(HttpResponse::Ok().finish())
+                    future::ok::<_, Error>(Response::Ok().finish())
                 })
             }).unwrap()
             .run();

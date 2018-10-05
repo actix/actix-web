@@ -10,9 +10,9 @@ use http::{header, Method, StatusCode};
 
 use body::Binary;
 use error::{PayloadError, ResponseError};
-use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 use payload::PayloadBuffer;
 use request::Request;
+use response::{ConnectionType, Response, ResponseBuilder};
 
 mod frame;
 mod mask;
@@ -85,26 +85,26 @@ pub enum HandshakeError {
 }
 
 impl ResponseError for HandshakeError {
-    fn error_response(&self) -> HttpResponse {
+    fn error_response(&self) -> Response {
         match *self {
-            HandshakeError::GetMethodRequired => HttpResponse::MethodNotAllowed()
+            HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
                 .header(header::ALLOW, "GET")
                 .finish(),
-            HandshakeError::NoWebsocketUpgrade => HttpResponse::BadRequest()
+            HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
                 .reason("No WebSocket UPGRADE header found")
                 .finish(),
-            HandshakeError::NoConnectionUpgrade => HttpResponse::BadRequest()
+            HandshakeError::NoConnectionUpgrade => Response::BadRequest()
                 .reason("No CONNECTION upgrade")
                 .finish(),
-            HandshakeError::NoVersionHeader => HttpResponse::BadRequest()
+            HandshakeError::NoVersionHeader => Response::BadRequest()
                 .reason("Websocket version header is required")
                 .finish(),
-            HandshakeError::UnsupportedVersion => HttpResponse::BadRequest()
+            HandshakeError::UnsupportedVersion => Response::BadRequest()
                 .reason("Unsupported version")
                 .finish(),
-            HandshakeError::BadWebsocketKey => HttpResponse::BadRequest()
-                .reason("Handshake error")
-                .finish(),
+            HandshakeError::BadWebsocketKey => {
+                Response::BadRequest().reason("Handshake error").finish()
+            }
         }
     }
 }
@@ -126,13 +126,13 @@ pub enum Message {
 
 /// Prepare `WebSocket` handshake response.
 ///
-/// This function returns handshake `HttpResponse`, ready to send to peer.
+/// This function returns handshake `Response`, ready to send to peer.
 /// It does not perform any IO.
 ///
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake(req: &Request) -> Result<HttpResponseBuilder, HandshakeError> {
+pub fn handshake(req: &Request) -> Result<ResponseBuilder, HandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(HandshakeError::GetMethodRequired);
@@ -181,7 +181,7 @@ pub fn handshake(req: &Request) -> Result<HttpResponseBuilder, HandshakeError> {
         proto::hash_key(key.as_ref())
     };
 
-    Ok(HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
+    Ok(Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .connection_type(ConnectionType::Upgrade)
         .header(header::UPGRADE, "websocket")
         .header(header::TRANSFER_ENCODING, "chunked")
@@ -278,20 +278,6 @@ where
             }
         }
     }
-}
-
-/// Common writing methods for a websocket.
-pub trait WsWriter {
-    /// Send a text
-    fn send_text<T: Into<Binary>>(&mut self, text: T);
-    /// Send a binary
-    fn send_binary<B: Into<Binary>>(&mut self, data: B);
-    /// Send a ping message
-    fn send_ping(&mut self, message: &str);
-    /// Send a pong message
-    fn send_pong(&mut self, message: &str);
-    /// Close the connection
-    fn send_close(&mut self, reason: Option<CloseReason>);
 }
 
 #[cfg(test)]
@@ -399,17 +385,17 @@ mod tests {
 
     #[test]
     fn test_wserror_http_response() {
-        let resp: HttpResponse = HandshakeError::GetMethodRequired.error_response();
+        let resp: Response = HandshakeError::GetMethodRequired.error_response();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp: HttpResponse = HandshakeError::NoWebsocketUpgrade.error_response();
+        let resp: Response = HandshakeError::NoWebsocketUpgrade.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = HandshakeError::NoConnectionUpgrade.error_response();
+        let resp: Response = HandshakeError::NoConnectionUpgrade.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = HandshakeError::NoVersionHeader.error_response();
+        let resp: Response = HandshakeError::NoVersionHeader.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = HandshakeError::UnsupportedVersion.error_response();
+        let resp: Response = HandshakeError::UnsupportedVersion.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: HttpResponse = HandshakeError::BadWebsocketKey.error_response();
+        let resp: Response = HandshakeError::BadWebsocketKey.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

@@ -12,8 +12,8 @@ use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, Version};
-use httpresponse::HttpResponse;
 use request::RequestPool;
+use response::Response;
 
 bitflags! {
     struct Flags: u8 {
@@ -29,7 +29,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 /// Http response
 pub enum OutMessage {
     /// Http response message
-    Response(HttpResponse),
+    Response(Response),
     /// Payload chunk
     Payload(Bytes),
 }
@@ -87,7 +87,7 @@ impl Codec {
     }
 
     fn encode_response(
-        &mut self, mut msg: HttpResponse, buffer: &mut BytesMut,
+        &mut self, mut msg: Response, buffer: &mut BytesMut,
     ) -> io::Result<()> {
         // prepare transfer encoding
         self.te

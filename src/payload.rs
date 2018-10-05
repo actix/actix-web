@@ -27,7 +27,7 @@ pub(crate) enum PayloadStatus {
 /// `.readany()` method. Payload stream is not thread safe. Payload does not
 /// notify current task when new data is available.
 ///
-/// Payload stream can be used as `HttpResponse` body stream.
+/// Payload stream can be used as `Response` body stream.
 #[derive(Debug)]
 pub struct Payload {
     inner: Rc<RefCell<Inner>>,

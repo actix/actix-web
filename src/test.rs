@@ -25,12 +25,12 @@ use uri::Url as InnerUrl;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate actix_web;
 /// # use actix_web::*;
 /// #
-/// # fn my_handler(req: &HttpRequest) -> HttpResponse {
-/// #     HttpResponse::Ok().into()
+/// # fn my_handler(req: &HttpRequest) -> Response {
+/// #     Response::Ok().into()
 /// # }
 /// #
 /// # fn main() {
@@ -248,20 +248,20 @@ impl Drop for TestServer {
 //     }
 // }
 
-/// Test `HttpRequest` builder
+/// Test `Request` builder
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate http;
 /// # extern crate actix_web;
 /// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
 ///
-/// fn index(req: &HttpRequest) -> HttpResponse {
+/// fn index(req: &HttpRequest) -> Response {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         HttpResponse::Ok().into()
+///         Response::Ok().into()
 ///     } else {
-///         HttpResponse::BadRequest().into()
+///         Response::BadRequest().into()
 ///     }
 /// }
 ///
@@ -403,7 +403,7 @@ impl TestRequest {
 
     // /// This method generates `HttpRequest` instance and runs handler
     // /// with generated request.
-    // pub fn run<H: Handler<S>>(self, h: &H) -> Result<HttpResponse, Error> {
+    // pub fn run<H: Handler<S>>(self, h: &H) -> Result<Response, Error> {
     //     let req = self.finish();
     //     let resp = h.handle(&req);
 
@@ -424,7 +424,7 @@ impl TestRequest {
     // /// with generated request.
     // ///
     // /// This method panics is handler returns actor.
-    // pub fn run_async<H, R, F, E>(self, h: H) -> Result<HttpResponse, E>
+    // pub fn run_async<H, R, F, E>(self, h: H) -> Result<Response, E>
     // where
     //     H: Fn(HttpRequest<S>) -> F + 'static,
     //     F: Future<Item = R, Error = E> + 'static,
@@ -467,7 +467,7 @@ impl TestRequest {
     // }
 
     // /// This method generates `HttpRequest` instance and executes handler
-    // pub fn execute<F, R>(self, f: F) -> Result<HttpResponse, Error>
+    // pub fn execute<F, R>(self, f: F) -> Result<Response, Error>
     // where
     //     F: FnOnce(&HttpRequest<S>) -> R,
     //     R: Responder + 'static,

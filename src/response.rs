@@ -31,54 +31,54 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct HttpResponse(Box<InnerHttpResponse>, &'static HttpResponsePool);
+pub struct Response(Box<InnerResponse>, &'static ResponsePool);
 
-impl HttpResponse {
+impl Response {
     #[inline]
-    fn get_ref(&self) -> &InnerHttpResponse {
+    fn get_ref(&self) -> &InnerResponse {
         self.0.as_ref()
     }
 
     #[inline]
-    fn get_mut(&mut self) -> &mut InnerHttpResponse {
+    fn get_mut(&mut self) -> &mut InnerResponse {
         self.0.as_mut()
     }
 
     /// Create http response builder with specific status.
     #[inline]
-    pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        HttpResponsePool::get(status)
+    pub fn build(status: StatusCode) -> ResponseBuilder {
+        ResponsePool::get(status)
     }
 
     /// Create http response builder
     #[inline]
-    pub fn build_from<T: Into<HttpResponseBuilder>>(source: T) -> HttpResponseBuilder {
+    pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
         source.into()
     }
 
     /// Constructs a response
     #[inline]
-    pub fn new(status: StatusCode) -> HttpResponse {
-        HttpResponsePool::with_body(status, Body::Empty)
+    pub fn new(status: StatusCode) -> Response {
+        ResponsePool::with_body(status, Body::Empty)
     }
 
     /// Constructs a response with body
     #[inline]
-    pub fn with_body<B: Into<Body>>(status: StatusCode, body: B) -> HttpResponse {
-        HttpResponsePool::with_body(status, body.into())
+    pub fn with_body<B: Into<Body>>(status: StatusCode, body: B) -> Response {
+        ResponsePool::with_body(status, body.into())
     }
 
     /// Constructs an error response
     #[inline]
-    pub fn from_error(error: Error) -> HttpResponse {
+    pub fn from_error(error: Error) -> Response {
         let mut resp = error.as_response_error().error_response();
         resp.get_mut().error = Some(error);
         resp
     }
 
-    /// Convert `HttpResponse` to a `HttpResponseBuilder`
+    /// Convert `Response` to a `ResponseBuilder`
     #[inline]
-    pub fn into_builder(self) -> HttpResponseBuilder {
+    pub fn into_builder(self) -> ResponseBuilder {
         // If this response has cookies, load them into a jar
         let mut jar: Option<CookieJar> = None;
         for c in self.cookies() {
@@ -91,7 +91,7 @@ impl HttpResponse {
             }
         }
 
-        HttpResponseBuilder {
+        ResponseBuilder {
             pool: self.1,
             response: Some(self.0),
             err: None,
@@ -282,23 +282,23 @@ impl HttpResponse {
         self.1.release(self.0);
     }
 
-    pub(crate) fn into_parts(self) -> HttpResponseParts {
+    pub(crate) fn into_parts(self) -> ResponseParts {
         self.0.into_parts()
     }
 
-    pub(crate) fn from_parts(parts: HttpResponseParts) -> HttpResponse {
-        HttpResponse(
-            Box::new(InnerHttpResponse::from_parts(parts)),
-            HttpResponsePool::get_pool(),
+    pub(crate) fn from_parts(parts: ResponseParts) -> Response {
+        Response(
+            Box::new(InnerResponse::from_parts(parts)),
+            ResponsePool::get_pool(),
         )
     }
 }
 
-impl fmt::Debug for HttpResponse {
+impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = writeln!(
             f,
-            "\nHttpResponse {:?} {}{}",
+            "\nResponse {:?} {}{}",
             self.get_ref().version,
             self.get_ref().status,
             self.get_ref().reason.unwrap_or("")
@@ -332,16 +332,16 @@ impl<'a> Iterator for CookieIter<'a> {
 
 /// An HTTP response builder
 ///
-/// This type can be used to construct an instance of `HttpResponse` through a
+/// This type can be used to construct an instance of `Response` through a
 /// builder-like pattern.
-pub struct HttpResponseBuilder {
-    pool: &'static HttpResponsePool,
-    response: Option<Box<InnerHttpResponse>>,
+pub struct ResponseBuilder {
+    pool: &'static ResponsePool,
+    response: Option<Box<InnerResponse>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
 }
 
-impl HttpResponseBuilder {
+impl ResponseBuilder {
     /// Set HTTP status code of this response.
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
@@ -366,10 +366,10 @@ impl HttpResponseBuilder {
     ///
     /// ```rust,ignore
     /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
+    /// use actix_web::{http, Request, Response, Result};
     ///
-    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
-    ///     Ok(HttpResponse::Ok()
+    /// fn index(req: HttpRequest) -> Result<Response> {
+    ///     Ok(Response::Ok()
     ///         .set(http::header::IfModifiedSince(
     ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
     ///         ))
@@ -394,10 +394,10 @@ impl HttpResponseBuilder {
     ///
     /// ```rust,ignore
     /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, HttpResponse};
+    /// use actix_web::{http, Request, Response};
     ///
-    /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     HttpResponse::Ok()
+    /// fn index(req: HttpRequest) -> Response {
+    ///     Response::Ok()
     ///         .header("X-TEST", "value")
     ///         .header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
@@ -516,10 +516,10 @@ impl HttpResponseBuilder {
     ///
     /// ```rust,ignore
     /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
+    /// use actix_web::{http, HttpRequest, Response, Result};
     ///
-    /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     HttpResponse::Ok()
+    /// fn index(req: HttpRequest) -> Response {
+    ///     Response::Ok()
     ///         .cookie(
     ///             http::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
@@ -546,10 +546,10 @@ impl HttpResponseBuilder {
     ///
     /// ```rust,ignore
     /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, HttpResponse, Result};
+    /// use actix_web::{http, HttpRequest, Response, Result};
     ///
-    /// fn index(req: &HttpRequest) -> HttpResponse {
-    ///     let mut builder = HttpResponse::Ok();
+    /// fn index(req: &HttpRequest) -> Response {
+    ///     let mut builder = Response::Ok();
     ///
     ///     if let Some(ref cookie) = req.cookie("name") {
     ///         builder.del_cookie(cookie);
@@ -575,7 +575,7 @@ impl HttpResponseBuilder {
     /// true.
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
     where
-        F: FnOnce(&mut HttpResponseBuilder),
+        F: FnOnce(&mut ResponseBuilder),
     {
         if value {
             f(self);
@@ -587,7 +587,7 @@ impl HttpResponseBuilder {
     /// Some.
     pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
     where
-        F: FnOnce(T, &mut HttpResponseBuilder),
+        F: FnOnce(T, &mut ResponseBuilder),
     {
         if let Some(val) = value {
             f(val, self);
@@ -609,10 +609,10 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set a body and generate `HttpResponse`.
+    /// Set a body and generate `Response`.
     ///
-    /// `HttpResponseBuilder` can not be used after this call.
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response {
         if let Some(e) = self.err.take() {
             return Error::from(e).into();
         }
@@ -626,14 +626,14 @@ impl HttpResponseBuilder {
             }
         }
         response.body = body.into();
-        HttpResponse(response, self.pool)
+        Response(response, self.pool)
     }
 
     #[inline]
-    /// Set a streaming body and generate `HttpResponse`.
+    /// Set a streaming body and generate `Response`.
     ///
-    /// `HttpResponseBuilder` can not be used after this call.
-    pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error>,
@@ -641,17 +641,17 @@ impl HttpResponseBuilder {
         self.body(Body::Streaming(Box::new(stream.map_err(|e| e.into()))))
     }
 
-    /// Set a json body and generate `HttpResponse`
+    /// Set a json body and generate `Response`
     ///
-    /// `HttpResponseBuilder` can not be used after this call.
-    pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn json<T: Serialize>(&mut self, value: T) -> Response {
         self.json2(&value)
     }
 
-    /// Set a json body and generate `HttpResponse`
+    /// Set a json body and generate `Response`
     ///
-    /// `HttpResponseBuilder` can not be used after this call.
-    pub fn json2<T: Serialize>(&mut self, value: &T) -> HttpResponse {
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn json2<T: Serialize>(&mut self, value: &T) -> Response {
         match serde_json::to_string(value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
@@ -671,16 +671,16 @@ impl HttpResponseBuilder {
     }
 
     #[inline]
-    /// Set an empty body and generate `HttpResponse`
+    /// Set an empty body and generate `Response`
     ///
-    /// `HttpResponseBuilder` can not be used after this call.
-    pub fn finish(&mut self) -> HttpResponse {
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn finish(&mut self) -> Response {
         self.body(Body::Empty)
     }
 
-    /// This method construct new `HttpResponseBuilder`
-    pub fn take(&mut self) -> HttpResponseBuilder {
-        HttpResponseBuilder {
+    /// This method construct new `ResponseBuilder`
+    pub fn take(&mut self) -> ResponseBuilder {
+        ResponseBuilder {
             pool: self.pool,
             response: self.response.take(),
             err: self.err.take(),
@@ -692,8 +692,8 @@ impl HttpResponseBuilder {
 #[inline]
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
 fn parts<'a>(
-    parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>,
-) -> Option<&'a mut Box<InnerHttpResponse>> {
+    parts: &'a mut Option<Box<InnerResponse>>, err: &Option<HttpError>,
+) -> Option<&'a mut Box<InnerResponse>> {
     if err.is_some() {
         return None;
     }
@@ -701,7 +701,7 @@ fn parts<'a>(
 }
 
 /// Helper converters
-impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse {
+impl<I: Into<Response>, E: Into<Error>> From<Result<I, E>> for Response {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
@@ -710,62 +710,62 @@ impl<I: Into<HttpResponse>, E: Into<Error>> From<Result<I, E>> for HttpResponse 
     }
 }
 
-impl From<HttpResponseBuilder> for HttpResponse {
-    fn from(mut builder: HttpResponseBuilder) -> Self {
+impl From<ResponseBuilder> for Response {
+    fn from(mut builder: ResponseBuilder) -> Self {
         builder.finish()
     }
 }
 
-impl From<&'static str> for HttpResponse {
+impl From<&'static str> for Response {
     fn from(val: &'static str) -> Self {
-        HttpResponse::Ok()
+        Response::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
     }
 }
 
-impl From<&'static [u8]> for HttpResponse {
+impl From<&'static [u8]> for Response {
     fn from(val: &'static [u8]) -> Self {
-        HttpResponse::Ok()
+        Response::Ok()
             .content_type("application/octet-stream")
             .body(val)
     }
 }
 
-impl From<String> for HttpResponse {
+impl From<String> for Response {
     fn from(val: String) -> Self {
-        HttpResponse::Ok()
+        Response::Ok()
             .content_type("text/plain; charset=utf-8")
             .body(val)
     }
 }
 
-impl<'a> From<&'a String> for HttpResponse {
+impl<'a> From<&'a String> for Response {
     fn from(val: &'a String) -> Self {
-        HttpResponse::build(StatusCode::OK)
+        Response::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(val)
     }
 }
 
-impl From<Bytes> for HttpResponse {
+impl From<Bytes> for Response {
     fn from(val: Bytes) -> Self {
-        HttpResponse::Ok()
+        Response::Ok()
             .content_type("application/octet-stream")
             .body(val)
     }
 }
 
-impl From<BytesMut> for HttpResponse {
+impl From<BytesMut> for Response {
     fn from(val: BytesMut) -> Self {
-        HttpResponse::Ok()
+        Response::Ok()
             .content_type("application/octet-stream")
             .body(val)
     }
 }
 
 #[derive(Debug)]
-struct InnerHttpResponse {
+struct InnerResponse {
     version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
@@ -779,7 +779,7 @@ struct InnerHttpResponse {
     error: Option<Error>,
 }
 
-pub(crate) struct HttpResponseParts {
+pub(crate) struct ResponseParts {
     version: Option<Version>,
     headers: HeaderMap,
     status: StatusCode,
@@ -790,10 +790,10 @@ pub(crate) struct HttpResponseParts {
     error: Option<Error>,
 }
 
-impl InnerHttpResponse {
+impl InnerResponse {
     #[inline]
-    fn new(status: StatusCode, body: Body) -> InnerHttpResponse {
-        InnerHttpResponse {
+    fn new(status: StatusCode, body: Body) -> InnerResponse {
+        InnerResponse {
             status,
             body,
             version: None,
@@ -809,7 +809,7 @@ impl InnerHttpResponse {
     }
 
     /// This is for failure, we can not have Send + Sync on Streaming and Actor response
-    fn into_parts(mut self) -> HttpResponseParts {
+    fn into_parts(mut self) -> ResponseParts {
         let body = match mem::replace(&mut self.body, Body::Empty) {
             Body::Empty => None,
             Body::Binary(mut bin) => Some(bin.take()),
@@ -819,7 +819,7 @@ impl InnerHttpResponse {
             }
         };
 
-        HttpResponseParts {
+        ResponseParts {
             body,
             version: self.version,
             headers: self.headers,
@@ -831,14 +831,14 @@ impl InnerHttpResponse {
         }
     }
 
-    fn from_parts(parts: HttpResponseParts) -> InnerHttpResponse {
+    fn from_parts(parts: ResponseParts) -> InnerResponse {
         let body = if let Some(ref body) = parts.body {
             Body::Binary(body.clone().into())
         } else {
             Body::Empty
         };
 
-        InnerHttpResponse {
+        InnerResponse {
             body,
             status: parts.status,
             version: parts.version,
@@ -855,35 +855,35 @@ impl InnerHttpResponse {
 }
 
 /// Internal use only!
-pub(crate) struct HttpResponsePool(RefCell<VecDeque<Box<InnerHttpResponse>>>);
+pub(crate) struct ResponsePool(RefCell<VecDeque<Box<InnerResponse>>>);
 
-thread_local!(static POOL: &'static HttpResponsePool = HttpResponsePool::pool());
+thread_local!(static POOL: &'static ResponsePool = ResponsePool::pool());
 
-impl HttpResponsePool {
-    fn pool() -> &'static HttpResponsePool {
-        let pool = HttpResponsePool(RefCell::new(VecDeque::with_capacity(128)));
+impl ResponsePool {
+    fn pool() -> &'static ResponsePool {
+        let pool = ResponsePool(RefCell::new(VecDeque::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
-    pub fn get_pool() -> &'static HttpResponsePool {
+    pub fn get_pool() -> &'static ResponsePool {
         POOL.with(|p| *p)
     }
 
     #[inline]
     pub fn get_builder(
-        pool: &'static HttpResponsePool, status: StatusCode,
-    ) -> HttpResponseBuilder {
+        pool: &'static ResponsePool, status: StatusCode,
+    ) -> ResponseBuilder {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;
-            HttpResponseBuilder {
+            ResponseBuilder {
                 pool,
                 response: Some(msg),
                 err: None,
                 cookies: None,
             }
         } else {
-            let msg = Box::new(InnerHttpResponse::new(status, Body::Empty));
-            HttpResponseBuilder {
+            let msg = Box::new(InnerResponse::new(status, Body::Empty));
+            ResponseBuilder {
                 pool,
                 response: Some(msg),
                 err: None,
@@ -894,30 +894,30 @@ impl HttpResponsePool {
 
     #[inline]
     pub fn get_response(
-        pool: &'static HttpResponsePool, status: StatusCode, body: Body,
-    ) -> HttpResponse {
+        pool: &'static ResponsePool, status: StatusCode, body: Body,
+    ) -> Response {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;
             msg.body = body;
-            HttpResponse(msg, pool)
+            Response(msg, pool)
         } else {
-            let msg = Box::new(InnerHttpResponse::new(status, body));
-            HttpResponse(msg, pool)
+            let msg = Box::new(InnerResponse::new(status, body));
+            Response(msg, pool)
         }
     }
 
     #[inline]
-    fn get(status: StatusCode) -> HttpResponseBuilder {
-        POOL.with(|pool| HttpResponsePool::get_builder(pool, status))
+    fn get(status: StatusCode) -> ResponseBuilder {
+        POOL.with(|pool| ResponsePool::get_builder(pool, status))
     }
 
     #[inline]
-    fn with_body(status: StatusCode, body: Body) -> HttpResponse {
-        POOL.with(|pool| HttpResponsePool::get_response(pool, status, body))
+    fn with_body(status: StatusCode, body: Body) -> Response {
+        POOL.with(|pool| ResponsePool::get_response(pool, status, body))
     }
 
     #[inline]
-    fn release(&self, mut inner: Box<InnerHttpResponse>) {
+    fn release(&self, mut inner: Box<InnerResponse>) {
         let mut p = self.0.borrow_mut();
         if p.len() < 128 {
             inner.headers.clear();
@@ -946,12 +946,12 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        let resp = HttpResponse::Ok()
+        let resp = Response::Ok()
             .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
             .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
             .finish();
         let dbg = format!("{:?}", resp);
-        assert!(dbg.contains("HttpResponse"));
+        assert!(dbg.contains("Response"));
     }
 
     // #[test]
@@ -962,7 +962,7 @@ mod tests {
     //         .finish();
     //     let cookies = req.cookies().unwrap();
 
-    //     let resp = HttpResponse::Ok()
+    //     let resp = Response::Ok()
     //         .cookie(
     //             http::Cookie::build("name", "value")
     //                 .domain("www.rust-lang.org")
@@ -989,7 +989,7 @@ mod tests {
 
     #[test]
     fn test_update_response_cookies() {
-        let mut r = HttpResponse::Ok()
+        let mut r = Response::Ok()
             .cookie(http::Cookie::new("original", "val100"))
             .finish();
 
@@ -1012,7 +1012,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = HttpResponse::Ok()
+        let resp = Response::Ok()
             .header("X-TEST", "value")
             .version(Version::HTTP_10)
             .finish();
@@ -1022,19 +1022,19 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let resp = HttpResponse::build(StatusCode::OK).upgrade().finish();
+        let resp = Response::build(StatusCode::OK).upgrade().finish();
         assert!(resp.upgrade())
     }
 
     #[test]
     fn test_force_close() {
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let resp = Response::build(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive().unwrap())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = HttpResponse::build(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
@@ -1042,18 +1042,18 @@ mod tests {
 
     #[test]
     fn test_content_encoding() {
-        let resp = HttpResponse::build(StatusCode::OK).finish();
+        let resp = Response::build(StatusCode::OK).finish();
         assert_eq!(resp.content_encoding(), None);
 
         #[cfg(feature = "brotli")]
         {
-            let resp = HttpResponse::build(StatusCode::OK)
+            let resp = Response::build(StatusCode::OK)
                 .content_encoding(ContentEncoding::Br)
                 .finish();
             assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
         }
 
-        let resp = HttpResponse::build(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .content_encoding(ContentEncoding::Gzip)
             .finish();
         assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
@@ -1061,7 +1061,7 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let resp = HttpResponse::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
+        let resp = Response::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
@@ -1072,7 +1072,7 @@ mod tests {
 
     #[test]
     fn test_json_ct() {
-        let resp = HttpResponse::build(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .header(CONTENT_TYPE, "text/json")
             .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
@@ -1085,7 +1085,7 @@ mod tests {
 
     #[test]
     fn test_json2() {
-        let resp = HttpResponse::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
+        let resp = Response::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
@@ -1096,7 +1096,7 @@ mod tests {
 
     #[test]
     fn test_json2_ct() {
-        let resp = HttpResponse::build(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .header(CONTENT_TYPE, "text/json")
             .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
@@ -1120,7 +1120,7 @@ mod tests {
     fn test_into_response() {
         let req = TestRequest::default().finish();
 
-        let resp: HttpResponse = "test".into();
+        let resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1129,7 +1129,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().bin_ref(), &Binary::from("test"));
 
-        let resp: HttpResponse = b"test".as_ref().into();
+        let resp: Response = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1138,7 +1138,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().bin_ref(), &Binary::from(b"test".as_ref()));
 
-        let resp: HttpResponse = "test".to_owned().into();
+        let resp: Response = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1147,7 +1147,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().bin_ref(), &Binary::from("test".to_owned()));
 
-        let resp: HttpResponse = (&"test".to_owned()).into();
+        let resp: Response = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1157,7 +1157,7 @@ mod tests {
         assert_eq!(resp.body().bin_ref(), &Binary::from(&"test".to_owned()));
 
         let b = Bytes::from_static(b"test");
-        let resp: HttpResponse = b.into();
+        let resp: Response = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1170,7 +1170,7 @@ mod tests {
         );
 
         let b = Bytes::from_static(b"test");
-        let resp: HttpResponse = b.into();
+        let resp: Response = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1180,7 +1180,7 @@ mod tests {
         assert_eq!(resp.body().bin_ref(), &Binary::from(BytesMut::from("test")));
 
         let b = BytesMut::from("test");
-        let resp: HttpResponse = b.into();
+        let resp: Response = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -1192,7 +1192,7 @@ mod tests {
 
     #[test]
     fn test_into_builder() {
-        let mut resp: HttpResponse = "test".into();
+        let mut resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.add_cookie(&http::Cookie::new("cookie1", "val100"))

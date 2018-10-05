@@ -112,18 +112,18 @@ pub trait HttpMessage: Sized {
     /// # extern crate futures;
     /// # #[macro_use] extern crate serde_derive;
     /// use actix_web::{
-    ///     AsyncResponder, FutureResponse, HttpMessage, HttpRequest, HttpResponse,
+    ///     AsyncResponder, FutureResponse, HttpMessage, HttpRequest, Response,
     /// };
     /// use bytes::Bytes;
     /// use futures::future::Future;
     ///
-    /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
+    /// fn index(mut req: HttpRequest) -> FutureResponse<Response> {
     ///     req.body()                     // <- get Body future
     ///        .limit(1024)                // <- change max size of the body to a 1kb
     ///        .from_err()
     ///        .and_then(|bytes: Bytes| {  // <- complete body
     ///            println!("==== BODY ==== {:?}", bytes);
-    ///            Ok(HttpResponse::Ok().into())
+    ///            Ok(Response::Ok().into())
     ///        }).responder()
     /// }
     /// # fn main() {}
@@ -148,15 +148,15 @@ pub trait HttpMessage: Sized {
     /// # extern crate futures;
     /// # use futures::Future;
     /// # use std::collections::HashMap;
-    /// use actix_web::{FutureResponse, HttpMessage, HttpRequest, HttpResponse};
+    /// use actix_web::{FutureResponse, HttpMessage, HttpRequest, Response};
     ///
-    /// fn index(mut req: HttpRequest) -> FutureResponse<HttpResponse> {
+    /// fn index(mut req: HttpRequest) -> FutureResponse<Response> {
     ///     Box::new(
     ///         req.urlencoded::<HashMap<String, String>>()  // <- get UrlEncoded future
     ///            .from_err()
     ///            .and_then(|params| {  // <- url encoded parameters
     ///                println!("==== BODY ==== {:?}", params);
-    ///                Ok(HttpResponse::Ok().into())
+    ///                Ok(Response::Ok().into())
     ///           }),
     ///     )
     /// }
@@ -188,12 +188,12 @@ pub trait HttpMessage: Sized {
     ///     name: String,
     /// }
     ///
-    /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {
+    /// fn index(mut req: HttpRequest) -> Box<Future<Item = Response, Error = Error>> {
     ///     req.json()                   // <- get JsonBody future
     ///        .from_err()
     ///        .and_then(|val: MyObj| {  // <- deserialized value
     ///            println!("==== BODY ==== {:?}", val);
-    ///            Ok(HttpResponse::Ok().into())
+    ///            Ok(Response::Ok().into())
     ///        }).responder()
     /// }
     /// # fn main() {}

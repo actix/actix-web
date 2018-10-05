@@ -17,8 +17,8 @@ use body::Body;
 use config::ServiceConfig;
 use error::DispatchError;
 use framed::Framed;
-use httpresponse::HttpResponse;
 use request::Request;
+use response::Response;
 
 use super::codec::{Codec, InMessage, OutMessage};
 
@@ -77,7 +77,7 @@ impl<S: Service> State<S> {
 impl<T, S> Dispatcher<T, S>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = HttpResponse>,
+    S: Service<Request = Request, Response = Response>,
     S::Error: Debug + Display,
 {
     /// Create http/1 dispatcher.
@@ -415,7 +415,7 @@ where
                                     .insert(Flags::STARTED | Flags::READ_DISCONNECTED);
                                 self.state =
                                     State::SendResponse(Some(OutMessage::Response(
-                                        HttpResponse::RequestTimeout().finish(),
+                                        Response::RequestTimeout().finish(),
                                     )));
                             } else {
                                 trace!("Keep-alive timeout, close connection");
@@ -452,7 +452,7 @@ where
 impl<T, S> Future for Dispatcher<T, S>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = HttpResponse>,
+    S: Service<Request = Request, Response = Response>,
     S::Error: Debug + Display,
 {
     type Item = ();

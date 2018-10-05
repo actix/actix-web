@@ -7,8 +7,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use config::ServiceConfig;
 use error::DispatchError;
-use httpresponse::HttpResponse;
 use request::Request;
+use response::Response;
 
 use super::dispatcher::Dispatcher;
 
@@ -36,7 +36,7 @@ where
 impl<T, S> NewService for H1Service<T, S>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = HttpResponse> + Clone,
+    S: NewService<Request = Request, Response = Response> + Clone,
     S::Service: Clone,
     S::Error: Debug + Display,
 {
@@ -65,7 +65,7 @@ pub struct H1ServiceResponse<T, S: NewService> {
 impl<T, S> Future for H1ServiceResponse<T, S>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = HttpResponse>,
+    S: NewService<Request = Request, Response = Response>,
     S::Service: Clone,
     S::Error: Debug + Display,
 {
@@ -90,7 +90,7 @@ pub struct H1ServiceHandler<T, S> {
 
 impl<T, S> H1ServiceHandler<T, S>
 where
-    S: Service<Request = Request, Response = HttpResponse> + Clone,
+    S: Service<Request = Request, Response = Response> + Clone,
     S::Error: Debug + Display,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S> {
@@ -105,7 +105,7 @@ where
 impl<T, S> Service for H1ServiceHandler<T, S>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = HttpResponse> + Clone,
+    S: Service<Request = Request, Response = Response> + Clone,
     S::Error: Debug + Display,
 {
     type Request = T;

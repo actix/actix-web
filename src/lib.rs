@@ -41,8 +41,8 @@
 //!   represents an HTTP server instance and is used to instantiate and
 //!   configure servers.
 //!
-//! * [HttpRequest](struct.HttpRequest.html) and
-//!   [HttpResponse](struct.HttpResponse.html): These structs
+//! * [Request](struct.Request.html) and
+//!   [Response](struct.Response.html): These structs
 //!   represent HTTP requests and responses and expose various methods
 //!   for inspecting, creating and otherwise utilizing them.
 //!
@@ -129,10 +129,10 @@ mod extensions;
 mod header;
 mod httpcodes;
 mod httpmessage;
-mod httpresponse;
 mod json;
 mod payload;
 mod request;
+mod response;
 mod uri;
 
 #[doc(hidden)]
@@ -147,9 +147,9 @@ pub use body::{Binary, Body};
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;
 pub use httpmessage::HttpMessage;
-pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use request::Request;
+pub use response::Response;
 
 pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
 
@@ -166,9 +166,9 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use httpresponse::HttpResponseBuilder;
     pub use json::JsonBody;
     pub use payload::{Payload, PayloadBuffer};
+    pub use response::ResponseBuilder;
 }
 
 pub mod http {
@@ -187,5 +187,5 @@ pub mod http {
         pub use header::*;
     }
     pub use header::ContentEncoding;
-    pub use httpresponse::ConnectionType;
+    pub use response::ConnectionType;
 }

@@ -628,7 +628,7 @@ mod tests {
     //         let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
     //         let readbuf = BytesMut::new();
 
-    //         let mut h1 = Dispatcher::new(buf, |req| ok(HttpResponse::Ok().finish()));
+    //         let mut h1 = Dispatcher::new(buf, |req| ok(Response::Ok().finish()));
     //         assert!(h1.poll_io().is_ok());
     //         assert!(h1.poll_io().is_ok());
     //         assert!(h1.flags.contains(Flags::READ_DISCONNECTED));
