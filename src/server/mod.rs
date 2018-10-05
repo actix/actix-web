@@ -130,19 +130,14 @@ pub(crate) mod output;
 // pub(crate) mod service;
 pub(crate) mod settings;
 
-pub use self::message::Request;
-
 pub use self::error::{AcceptorError, HttpDispatchError};
-pub use self::settings::ServerSettings;
+pub use self::message::Request;
 
 #[doc(hidden)]
 pub mod h1disp;
 
 #[doc(hidden)]
 pub use self::settings::{ServiceConfig, ServiceConfigBuilder};
-
-//#[doc(hidden)]
-//pub use self::service::{H1Service, HttpService, StreamConfiguration};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;

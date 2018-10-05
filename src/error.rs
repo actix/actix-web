@@ -11,7 +11,6 @@ use failure::{self, Backtrace, Fail};
 use futures::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
-use http2::Error as Http2Error;
 use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
@@ -350,9 +349,6 @@ pub enum PayloadError {
     /// Io error
     #[fail(display = "{}", _0)]
     Io(#[cause] IoError),
-    /// Http2 error
-    #[fail(display = "{}", _0)]
-    Http2(#[cause] Http2Error),
 }
 
 impl From<IoError> for PayloadError {

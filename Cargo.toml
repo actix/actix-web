@@ -66,14 +66,11 @@ actix-net = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.9"
 bitflags = "1.0"
-h2 = "0.1"
-htmlescape = "0.3"
 http = "^0.1.8"
 httparse = "1.3"
 log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.0-alpha"
-num_cpus = "1.0"
 percent-encoding = "1.0"
 rand = "0.5"
 regex = "1.0"
@@ -85,8 +82,6 @@ time = "0.1"
 encoding = "0.2"
 language-tags = "0.2"
 lazy_static = "1.0"
-lazycell = "1.0.0"
-parking_lot = "0.6"
 serde_urlencoded = "^0.5.3"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
@@ -96,14 +91,10 @@ flate2 = { version="^1.0.2", optional = true, default-features = false }
 failure = "^0.1.2"
 
 # io
-mio = "^0.6.13"
 net2 = "0.2"
 bytes = "0.4"
 byteorder = "1.2"
 futures = "0.1"
-futures-cpupool = "0.1"
-slab = "0.4"
-tokio = "0.1"
 tokio-codec = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
@@ -132,6 +123,7 @@ tokio-uds = { version="0.2", optional = true }
 actix-web = "0.7"
 env_logger = "0.5"
 serde_derive = "1.0"
+tokio = "0.1"
 
 [build-dependencies]
 version_check = "0.1"

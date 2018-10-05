@@ -99,20 +99,13 @@ extern crate lazy_static;
 #[macro_use]
 extern crate futures;
 extern crate cookie;
-extern crate futures_cpupool;
-extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
-extern crate lazycell;
 extern crate mime;
 extern crate mime_guess;
-extern crate mio;
 extern crate net2;
-extern crate parking_lot;
 extern crate rand;
-extern crate slab;
-extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
@@ -129,8 +122,6 @@ extern crate brotli2;
 extern crate encoding;
 #[cfg(feature = "flate2")]
 extern crate flate2;
-extern crate h2 as http2;
-extern crate num_cpus;
 extern crate serde_urlencoded;
 #[macro_use]
 extern crate percent_encoding;
@@ -148,9 +139,7 @@ mod extensions;
 mod header;
 mod httpcodes;
 mod httpmessage;
-//mod httprequest;
 mod httpresponse;
-mod info;
 mod json;
 mod payload;
 mod uri;
@@ -182,7 +171,6 @@ pub mod dev {
     pub use body::BodyStream;
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;
-    pub use info::ConnectionInfo;
     pub use json::JsonBody;
     pub use payload::{Payload, PayloadBuffer};
 }

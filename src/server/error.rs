@@ -2,7 +2,6 @@ use std::fmt::{Debug, Display};
 use std::io;
 
 use futures::{Async, Poll};
-use http2;
 
 use error::{Error, ParseError};
 use http::{StatusCode, Version};
@@ -44,10 +43,6 @@ pub enum HttpDispatchError<E: Debug + Display> {
     // #[fail(display = "Connection shutdown timeout")]
     ShutdownTimeout,
 
-    /// HTTP2 error
-    // #[fail(display = "HTTP2 error: {}", _0)]
-    Http2(http2::Error),
-
     /// Payload is not consumed
     // #[fail(display = "Task is completed but request's payload is not consumed")]
     PayloadIsNotConsumed,
@@ -65,12 +60,6 @@ pub enum HttpDispatchError<E: Debug + Display> {
     Unknown,
 }
 
-// impl<E: Debug + Display> From<E> for HttpDispatchError<E> {
-//     fn from(err: E) -> Self {
-//         HttpDispatchError::App(err)
-//     }
-// }
-
 impl<E: Debug + Display> From<ParseError> for HttpDispatchError<E> {
     fn from(err: ParseError) -> Self {
         HttpDispatchError::Parse(err)
@@ -80,11 +69,5 @@ impl<E: Debug + Display> From<ParseError> for HttpDispatchError<E> {
 impl<E: Debug + Display> From<io::Error> for HttpDispatchError<E> {
     fn from(err: io::Error) -> Self {
         HttpDispatchError::Io(err)
-    }
-}
-
-impl<E: Debug + Display> From<http2::Error> for HttpDispatchError<E> {
-    fn from(err: http2::Error) -> Self {
-        HttpDispatchError::Http2(err)
     }
 }

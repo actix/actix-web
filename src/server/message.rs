@@ -8,9 +8,7 @@ use http::{header, HeaderMap, Method, Uri, Version};
 
 use extensions::Extensions;
 use httpmessage::HttpMessage;
-use info::ConnectionInfo;
 use payload::Payload;
-use server::ServerSettings;
 use uri::Url as InnerUrl;
 
 bitflags! {
@@ -33,9 +31,7 @@ pub(crate) struct InnerRequest {
     pub(crate) headers: HeaderMap,
     pub(crate) extensions: RefCell<Extensions>,
     pub(crate) addr: Option<SocketAddr>,
-    pub(crate) info: RefCell<ConnectionInfo>,
     pub(crate) payload: RefCell<Option<Payload>>,
-    pub(crate) settings: ServerSettings,
     pub(crate) stream_extensions: Option<Rc<Extensions>>,
     pool: &'static RequestPool,
 }
@@ -70,18 +66,16 @@ impl HttpMessage for Request {
 
 impl Request {
     /// Create new RequestContext instance
-    pub(crate) fn new(pool: &'static RequestPool, settings: ServerSettings) -> Request {
+    pub(crate) fn new(pool: &'static RequestPool) -> Request {
         Request {
             inner: Rc::new(InnerRequest {
                 pool,
-                settings,
                 method: Method::GET,
                 url: InnerUrl::default(),
                 version: Version::HTTP_11,
                 headers: HeaderMap::with_capacity(16),
                 flags: Cell::new(MessageFlags::empty()),
                 addr: None,
-                info: RefCell::new(ConnectionInfo::default()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
                 stream_extensions: None,
@@ -144,9 +138,6 @@ impl Request {
     ///
     /// Peer address is actual socket address, if proxy is used in front of
     /// actix http server, then peer address would be address of this proxy.
-    ///
-    /// To get client connection information `connection_info()` method should
-    /// be used.
     pub fn peer_addr(&self) -> Option<SocketAddr> {
         self.inner().addr
     }
@@ -179,29 +170,10 @@ impl Request {
         self.inner().method == Method::CONNECT
     }
 
-    /// Get *ConnectionInfo* for the correct request.
-    pub fn connection_info(&self) -> Ref<ConnectionInfo> {
-        if self.inner().flags.get().contains(MessageFlags::CONN_INFO) {
-            self.inner().info.borrow()
-        } else {
-            let mut flags = self.inner().flags.get();
-            flags.insert(MessageFlags::CONN_INFO);
-            self.inner().flags.set(flags);
-            self.inner().info.borrow_mut().update(self);
-            self.inner().info.borrow()
-        }
-    }
-
     /// Io stream extensions
     #[inline]
     pub fn stream_extensions(&self) -> Option<&Extensions> {
         self.inner().stream_extensions.as_ref().map(|e| e.as_ref())
-    }
-
-    /// Server settings
-    #[inline]
-    pub fn server_settings(&self) -> &ServerSettings {
-        &self.inner().settings
     }
 
     pub(crate) fn clone(&self) -> Self {
@@ -241,24 +213,18 @@ impl fmt::Debug for Request {
     }
 }
 
-pub struct RequestPool(RefCell<VecDeque<Rc<InnerRequest>>>, RefCell<ServerSettings>);
+pub struct RequestPool(RefCell<VecDeque<Rc<InnerRequest>>>);
 
 thread_local!(static POOL: &'static RequestPool = RequestPool::create());
 
 impl RequestPool {
     fn create() -> &'static RequestPool {
-        let pool = RequestPool(
-            RefCell::new(VecDeque::with_capacity(128)),
-            RefCell::new(ServerSettings::default()),
-        );
+        let pool = RequestPool(RefCell::new(VecDeque::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
-    pub(crate) fn pool(settings: ServerSettings) -> &'static RequestPool {
-        POOL.with(|p| {
-            *p.1.borrow_mut() = settings;
-            *p
-        })
+    pub(crate) fn pool() -> &'static RequestPool {
+        POOL.with(|p| *p)
     }
 
     #[inline]
@@ -266,7 +232,7 @@ impl RequestPool {
         if let Some(msg) = pool.0.borrow_mut().pop_front() {
             Request { inner: msg }
         } else {
-            Request::new(pool, pool.1.borrow().clone())
+            Request::new(pool)
         }
     }
 

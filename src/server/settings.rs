@@ -7,10 +7,7 @@ use std::{env, fmt, net};
 
 use bytes::BytesMut;
 use futures::{future, Future};
-use futures_cpupool::CpuPool;
 use http::StatusCode;
-use lazycell::LazyCell;
-use parking_lot::Mutex;
 use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
@@ -19,109 +16,6 @@ use super::message::{Request, RequestPool};
 use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
-
-/// Env variable for default cpu pool size
-const ENV_CPU_POOL_VAR: &str = "ACTIX_CPU_POOL";
-
-lazy_static! {
-    pub(crate) static ref DEFAULT_CPUPOOL: Mutex<CpuPool> = {
-        let default = match env::var(ENV_CPU_POOL_VAR) {
-            Ok(val) => {
-                if let Ok(val) = val.parse() {
-                    val
-                } else {
-                    error!("Can not parse ACTIX_CPU_POOL value");
-                    20
-                }
-            }
-            Err(_) => 20,
-        };
-        Mutex::new(CpuPool::new(default))
-    };
-}
-
-/// Various server settings
-pub struct ServerSettings {
-    addr: net::SocketAddr,
-    secure: bool,
-    host: String,
-    cpu_pool: LazyCell<CpuPool>,
-    responses: &'static HttpResponsePool,
-}
-
-impl Clone for ServerSettings {
-    fn clone(&self) -> Self {
-        ServerSettings {
-            addr: self.addr,
-            secure: self.secure,
-            host: self.host.clone(),
-            cpu_pool: LazyCell::new(),
-            responses: HttpResponsePool::get_pool(),
-        }
-    }
-}
-
-impl Default for ServerSettings {
-    fn default() -> Self {
-        ServerSettings {
-            addr: "127.0.0.1:8080".parse().unwrap(),
-            secure: false,
-            host: "localhost:8080".to_owned(),
-            responses: HttpResponsePool::get_pool(),
-            cpu_pool: LazyCell::new(),
-        }
-    }
-}
-
-impl ServerSettings {
-    /// Crate server settings instance
-    pub(crate) fn new(
-        addr: net::SocketAddr, host: &str, secure: bool,
-    ) -> ServerSettings {
-        let host = host.to_owned();
-        let cpu_pool = LazyCell::new();
-        let responses = HttpResponsePool::get_pool();
-        ServerSettings {
-            addr,
-            secure,
-            host,
-            cpu_pool,
-            responses,
-        }
-    }
-
-    /// Returns the socket address of the local half of this TCP connection
-    pub fn local_addr(&self) -> net::SocketAddr {
-        self.addr
-    }
-
-    /// Returns true if connection is secure(https)
-    pub fn secure(&self) -> bool {
-        self.secure
-    }
-
-    /// Returns host header value
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-
-    /// Returns default `CpuPool` for server
-    pub fn cpu_pool(&self) -> &CpuPool {
-        self.cpu_pool.borrow_with(|| DEFAULT_CPUPOOL.lock().clone())
-    }
-
-    #[inline]
-    pub(crate) fn get_response(&self, status: StatusCode, body: Body) -> HttpResponse {
-        HttpResponsePool::get_response(&self.responses, status, body)
-    }
-
-    #[inline]
-    pub(crate) fn get_response_builder(
-        &self, status: StatusCode,
-    ) -> HttpResponseBuilder {
-        HttpResponsePool::get_builder(&self.responses, status)
-    }
-}
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -149,7 +43,6 @@ impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub(crate) fn new(
         keep_alive: KeepAlive, client_timeout: u64, client_shutdown: u64,
-        settings: ServerSettings,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -168,7 +61,7 @@ impl ServiceConfig {
             client_timeout,
             client_shutdown,
             bytes: Rc::new(SharedBytesPool::new()),
-            messages: RequestPool::pool(settings),
+            messages: RequestPool::pool(),
             date: UnsafeCell::new((false, Date::new())),
         }))
     }
@@ -211,9 +104,7 @@ impl ServiceConfig {
         // Unsafe: WorkerSetting is !Sync and !Send
         unsafe { (*self.0.date.get()).0 = false };
     }
-}
 
-impl ServiceConfig {
     #[inline]
     /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
@@ -412,15 +303,9 @@ impl ServiceConfigBuilder {
 
     /// Finish service configuration and create `ServiceConfig` object.
     pub fn finish(self) -> ServiceConfig {
-        let settings = ServerSettings::new(self.addr, &self.host, self.secure);
         let client_shutdown = if self.secure { self.client_shutdown } else { 0 };
 
-        ServiceConfig::new(
-            self.keep_alive,
-            self.client_timeout,
-            client_shutdown,
-            settings,
-        )
+        ServiceConfig::new(self.keep_alive, self.client_timeout, client_shutdown)
     }
 }
 
