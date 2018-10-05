@@ -120,6 +120,19 @@ impl<T, U> Framed<T, U> {
         self.inner.into_inner().into_inner().0
     }
 
+    /// Consume the `Frame`, returning `Frame` with different codec.
+    pub fn into_framed<U2>(self, codec: U2) -> Framed<T, U2> {
+        let (inner, read_buf) = self.inner.into_parts();
+        let (inner, write_buf) = inner.into_parts();
+
+        Framed {
+            inner: framed_read2_with_buffer(
+                framed_write2_with_buffer(Fuse(inner.0, codec), write_buf),
+                read_buf,
+            ),
+        }
+    }
+
     /// Consumes the `Frame`, returning its underlying I/O stream, the buffer
     /// with unprocessed data, and the codec.
     ///
