@@ -28,7 +28,7 @@ name = "actix_http"
 path = "src/lib.rs"
 
 [features]
-default = ["session", "brotli", "flate2-c", "cell"]
+default = ["session", "cell"]
 
 # tls
 tls = ["native-tls", "tokio-tls", "actix-net/tls"]
@@ -48,15 +48,6 @@ uds = ["tokio-uds"]
 # sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
 
-# brotli encoding, requires c compiler
-brotli = ["brotli2"]
-
-# miniz-sys backend for flate2 crate
-flate2-c = ["flate2/miniz-sys"]
-
-# rust backend for flate2 crate
-flate2-rust = ["flate2/rust_backend"]
-
 cell = ["actix-net/cell"]
 
 [dependencies]
@@ -70,23 +61,17 @@ http = "^0.1.8"
 httparse = "1.3"
 log = "0.4"
 mime = "0.3"
-mime_guess = "2.0.0-alpha"
 percent-encoding = "1.0"
 rand = "0.5"
-regex = "1.0"
 serde = "1.0"
 serde_json = "1.0"
 sha1 = "0.6"
-smallvec = "0.6"
 time = "0.1"
 encoding = "0.2"
-language-tags = "0.2"
 lazy_static = "1.0"
 serde_urlencoded = "^0.5.3"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
-brotli2 = { version="^0.3.2", optional = true }
-flate2 = { version="^1.0.2", optional = true, default-features = false }
 
 failure = "^0.1.2"
 

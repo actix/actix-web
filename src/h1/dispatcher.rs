@@ -12,14 +12,13 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use error::{ParseError, PayloadError};
-use payload::{Payload, PayloadStatus, PayloadWriter};
+use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 
 use body::Body;
 use config::ServiceConfig;
 use error::DispatchError;
 use httpresponse::HttpResponse;
 use request::Request;
-use server::input::PayloadType;
 
 use super::codec::{Codec, InMessage, OutMessage};
 
@@ -50,7 +49,7 @@ where
     config: ServiceConfig,
 
     state: State<S>,
-    payload: Option<PayloadType>,
+    payload: Option<PayloadSender>,
     messages: VecDeque<Request>,
 
     ka_expire: Instant,
@@ -316,7 +315,7 @@ where
                 // payload
                 let (ps, pl) = Payload::new(false);
                 *msg.inner.payload.borrow_mut() = Some(pl);
-                self.payload = Some(PayloadType::new(&msg.inner.headers, ps));
+                self.payload = Some(ps);
 
                 self.messages.push_back(msg);
             }

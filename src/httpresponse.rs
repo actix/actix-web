@@ -15,8 +15,6 @@ use serde_json;
 use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
-// use httpmessage::HttpMessage;
-// use httprequest::HttpRequest;
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -942,8 +940,8 @@ mod tests {
     use body::Binary;
     use http;
     use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
-    use time::Duration;
 
+    use header::ContentEncoding;
     use test::TestRequest;
 
     #[test]

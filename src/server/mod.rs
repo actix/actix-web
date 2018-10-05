@@ -114,9 +114,6 @@ use tokio_tcp::TcpStream;
 
 pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
 
-pub(crate) mod input;
-pub(crate) mod output;
-
 #[doc(hidden)]
 pub use super::helpers::write_content_length;
 

@@ -88,7 +88,6 @@ extern crate log;
 extern crate base64;
 extern crate byteorder;
 extern crate bytes;
-extern crate regex;
 extern crate sha1;
 extern crate time;
 #[macro_use]
@@ -99,21 +98,16 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate futures;
-#[cfg(feature = "brotli")]
-extern crate brotli2;
 extern crate cookie;
 extern crate encoding;
-#[cfg(feature = "flate2")]
-extern crate flate2;
 extern crate http as modhttp;
 extern crate httparse;
-extern crate language_tags;
 extern crate mime;
-extern crate mime_guess;
 extern crate net2;
 extern crate rand;
 extern crate serde;
 extern crate serde_urlencoded;
+extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
@@ -126,8 +120,6 @@ extern crate url;
 #[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
-extern crate smallvec;
-extern crate tokio;
 
 #[cfg(test)]
 #[macro_use]
@@ -193,9 +185,6 @@ pub mod http {
     /// Various http headers
     pub mod header {
         pub use header::*;
-        pub use header::{
-            Charset, ContentDisposition, DispositionParam, DispositionType, LanguageTag,
-        };
     }
     pub use header::ContentEncoding;
     pub use httpresponse::ConnectionType;

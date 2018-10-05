@@ -6,6 +6,7 @@ use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::H1Decoder;
 pub use super::decoder::InMessage;
+use super::response::{ResponseInfo, ResponseLength};
 use body::Body;
 use error::ParseError;
 use helpers;
@@ -13,7 +14,6 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{Method, Version};
 use httpresponse::HttpResponse;
 use request::RequestPool;
-use server::output::{ResponseInfo, ResponseLength};
 
 /// Http response
 pub enum OutMessage {
