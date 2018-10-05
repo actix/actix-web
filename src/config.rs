@@ -10,10 +10,35 @@ use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
-use server::KeepAlive;
-
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+/// Server keep-alive setting
+pub enum KeepAlive {
+    /// Keep alive in seconds
+    Timeout(usize),
+    /// Relay on OS to shutdown tcp connection
+    Os,
+    /// Disabled
+    Disabled,
+}
+
+impl From<usize> for KeepAlive {
+    fn from(keepalive: usize) -> Self {
+        KeepAlive::Timeout(keepalive)
+    }
+}
+
+impl From<Option<usize>> for KeepAlive {
+    fn from(keepalive: Option<usize>) -> Self {
+        if let Some(keepalive) = keepalive {
+            KeepAlive::Timeout(keepalive)
+        } else {
+            KeepAlive::Disabled
+        }
+    }
+}
 
 /// Http service configuration
 pub struct ServiceConfig(Rc<Inner>);

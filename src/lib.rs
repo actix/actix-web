@@ -106,6 +106,7 @@ extern crate mime;
 extern crate net2;
 extern crate rand;
 extern crate serde;
+extern crate serde_json;
 extern crate serde_urlencoded;
 extern crate tokio;
 extern crate tokio_codec;
@@ -117,9 +118,6 @@ extern crate tokio_timer;
 #[cfg(all(unix, feature = "uds"))]
 extern crate tokio_uds;
 extern crate url;
-#[macro_use]
-extern crate percent_encoding;
-extern crate serde_json;
 
 #[cfg(test)]
 #[macro_use]
@@ -140,7 +138,6 @@ mod uri;
 pub mod error;
 pub mod h1;
 pub(crate) mod helpers;
-pub mod server;
 pub mod test;
 //pub mod ws;
 pub use body::{Binary, Body};
@@ -151,7 +148,7 @@ pub use httpresponse::HttpResponse;
 pub use json::Json;
 pub use request::Request;
 
-pub use self::config::{ServiceConfig, ServiceConfigBuilder};
+pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers

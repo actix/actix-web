@@ -11,8 +11,7 @@ use actix_net::server::Server;
 use actix_web::{client, test};
 use futures::future;
 
-use actix_http::server::KeepAlive;
-use actix_http::{h1, Error, HttpResponse, ServiceConfig};
+use actix_http::{h1, Error, HttpResponse, KeepAlive, ServiceConfig};
 
 #[test]
 fn test_h1_v2() {
