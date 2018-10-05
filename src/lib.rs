@@ -1,7 +1,7 @@
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
-//! ```rust
+//! ```rust,ignore
 //! use actix_web::{server, App, Path, Responder};
 //! # use std::thread;
 //!
@@ -78,10 +78,11 @@
 //!   `gzip`, `deflate` compression.
 //!
 #![cfg_attr(actix_nightly, feature(tool_lints))]
-#![warn(missing_docs)]
-#![allow(unused_imports, unused_variables, dead_code)]
+// #![warn(missing_docs)]
+// #![allow(unused_imports, unused_variables, dead_code)]
 
 extern crate actix;
+extern crate actix_net;
 #[macro_use]
 extern crate log;
 extern crate base64;
@@ -98,7 +99,12 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate futures;
+#[cfg(feature = "brotli")]
+extern crate brotli2;
 extern crate cookie;
+extern crate encoding;
+#[cfg(feature = "flate2")]
+extern crate flate2;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
@@ -106,6 +112,8 @@ extern crate mime;
 extern crate mime_guess;
 extern crate net2;
 extern crate rand;
+extern crate serde;
+extern crate serde_urlencoded;
 extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
@@ -116,19 +124,10 @@ extern crate tokio_timer;
 extern crate tokio_uds;
 extern crate url;
 #[macro_use]
-extern crate serde;
-#[cfg(feature = "brotli")]
-extern crate brotli2;
-extern crate encoding;
-#[cfg(feature = "flate2")]
-extern crate flate2;
-extern crate serde_urlencoded;
-#[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate smallvec;
-
-extern crate actix_net;
+extern crate tokio;
 
 #[cfg(test)]
 #[macro_use]
@@ -150,7 +149,7 @@ pub mod error;
 pub mod h1;
 pub(crate) mod helpers;
 pub mod server;
-//pub mod test;
+pub mod test;
 //pub mod ws;
 pub use body::{Binary, Body};
 pub use error::{Error, ResponseError, Result};
@@ -170,7 +169,7 @@ pub mod dev {
     //!
     //! ```
     //! # #![allow(unused_imports)]
-    //! use actix_web::dev::*;
+    //! use actix_http::dev::*;
     //! ```
 
     pub use body::BodyStream;

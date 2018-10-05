@@ -3,18 +3,13 @@ use futures::{Future, Poll, Stream};
 use http::header::CONTENT_LENGTH;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
 
 use mime;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 use serde_json;
 
-use error::{Error, JsonPayloadError};
-use http::StatusCode;
+use error::JsonPayloadError;
 use httpmessage::HttpMessage;
-// use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
 
 /// Json helper
 ///
@@ -30,7 +25,7 @@ use httpresponse::HttpResponse;
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{App, Json, Result, http};
@@ -57,7 +52,7 @@ use httpresponse::HttpResponse;
 /// to serialize into *JSON*. The type `T` must implement the `Serialize`
 /// trait from *serde*.
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate actix_web;
 /// # #[macro_use] extern crate serde_derive;
 /// # use actix_web::*;
@@ -124,7 +119,7 @@ where
 ///
 /// # Server example
 ///
-/// ```rust
+/// ```rust,ignore
 /// # extern crate actix_web;
 /// # extern crate futures;
 /// # #[macro_use] extern crate serde_derive;
@@ -243,9 +238,7 @@ mod tests {
     use futures::Async;
     use http::header;
 
-    use handler::Handler;
     use test::TestRequest;
-    use with::With;
 
     impl PartialEq for JsonPayloadError {
         fn eq(&self, other: &JsonPayloadError) -> bool {
@@ -266,18 +259,6 @@ mod tests {
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct MyObject {
         name: String,
-    }
-
-    #[test]
-    fn test_json() {
-        let json = Json(MyObject {
-            name: "test".to_owned(),
-        });
-        let resp = json.respond_to(&TestRequest::default().finish()).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json"
-        );
     }
 
     #[test]
@@ -322,25 +303,5 @@ mod tests {
                 name: "test".to_owned()
             })
         );
-    }
-
-    #[test]
-    fn test_with_json() {
-        let mut cfg = JsonConfig::default();
-        cfg.limit(4096);
-        let handler = With::new(|data: Json<MyObject>| data, cfg);
-
-        let req = TestRequest::default().finish();
-        assert!(handler.handle(&req).as_err().is_some());
-
-        let req = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        ).header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        ).set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .finish();
-        assert!(handler.handle(&req).as_err().is_none())
     }
 }

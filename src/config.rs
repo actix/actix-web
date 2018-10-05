@@ -1,20 +1,15 @@
-use std::cell::{RefCell, RefMut, UnsafeCell};
-use std::collections::VecDeque;
+use std::cell::UnsafeCell;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use std::{env, fmt, net};
+use std::{fmt, net};
 
 use bytes::BytesMut;
 use futures::{future, Future};
-use http::StatusCode;
 use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
-use body::Body;
-use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
-use request::{Request, RequestPool};
 use server::KeepAlive;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
@@ -336,13 +331,7 @@ mod tests {
         let mut rt = current_thread::Runtime::new().unwrap();
 
         let _ = rt.block_on(future::lazy(|| {
-            let settings = ServiceConfig::<()>::new(
-                (),
-                KeepAlive::Os,
-                0,
-                0,
-                ServerSettings::default(),
-            );
+            let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
             let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
             settings.set_date(&mut buf1, true);
             let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);

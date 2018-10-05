@@ -106,12 +106,9 @@
 //!     let _ = sys.run();
 //!}
 //! ```
-use std::net::{Shutdown, SocketAddr};
-use std::rc::Rc;
+use std::net::SocketAddr;
 use std::{io, time};
 
-use bytes::{BufMut, BytesMut};
-use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
@@ -123,16 +120,8 @@ pub(crate) mod output;
 #[doc(hidden)]
 pub use super::helpers::write_content_length;
 
-use body::Binary;
-use extensions::Extensions;
-use header::ContentEncoding;
-use httpresponse::HttpResponse;
-
-/// max buffer size 64k
-pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
-
-const LW_BUFFER_SIZE: usize = 4096;
-const HW_BUFFER_SIZE: usize = 32_768;
+// /// max buffer size 64k
+// pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting

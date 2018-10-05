@@ -106,7 +106,7 @@ pub trait HttpMessage: Sized {
     ///
     /// ## Server example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate bytes;
     /// # extern crate actix_web;
     /// # extern crate futures;
@@ -143,7 +143,7 @@ pub trait HttpMessage: Sized {
     ///
     /// ## Server example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # use futures::Future;
@@ -176,7 +176,7 @@ pub trait HttpMessage: Sized {
     ///
     /// ## Server example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # #[macro_use] extern crate serde_derive;

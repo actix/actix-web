@@ -28,7 +28,7 @@ use httpresponse::{HttpResponse, HttpResponseParts};
 /// for actix web operations
 ///
 /// This typedef is generally used to avoid writing out
-/// `actix_web::error::Error` directly and is otherwise a direct mapping to
+/// `actix_http::error::Error` directly and is otherwise a direct mapping to
 /// `Result`.
 pub type Result<T, E = Error> = result::Result<T, E>;
 
@@ -589,13 +589,12 @@ impl From<UrlParseError> for UrlGenerationError {
 /// default.
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// # use actix_web::*;
-/// use actix_web::fs::NamedFile;
+/// # extern crate actix_http;
+/// # use std::io;
+/// # use actix_http::*;
 ///
-/// fn index(req: HttpRequest) -> Result<fs::NamedFile> {
-///     let f = NamedFile::open("test.txt").map_err(error::ErrorBadRequest)?;
-///     Ok(f)
+/// fn index(req: Request) -> Result<&'static str> {
+///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
 /// # fn main() {}
 /// ```
@@ -838,22 +837,11 @@ mod tests {
     use std::io;
 
     #[test]
-    #[cfg(actix_nightly)]
-    fn test_nightly() {
-        let resp: HttpResponse =
-            IoError::new(io::ErrorKind::Other, "test").error_response();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[test]
     fn test_into_response() {
         let resp: HttpResponse = ParseError::Incomplete.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let resp: HttpResponse = CookieParseError::EmptyName.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-
-        let resp: HttpResponse = MultipartError::Boundary.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
@@ -897,14 +885,6 @@ mod tests {
         let e = Error::from(orig);
         let resp: HttpResponse = e.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[test]
-    fn test_expect_error() {
-        let resp: HttpResponse = ExpectError::Encoding.error_response();
-        assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
-        let resp: HttpResponse = ExpectError::UnknownExpect.error_response();
-        assert_eq!(resp.status(), StatusCode::EXPECTATION_FAILED);
     }
 
     macro_rules! from {
@@ -963,10 +943,8 @@ mod tests {
 
     #[test]
     fn test_internal_error() {
-        let err = InternalError::from_response(
-            ExpectError::Encoding,
-            HttpResponse::Ok().into(),
-        );
+        let err =
+            InternalError::from_response(ParseError::Method, HttpResponse::Ok().into());
         let resp: HttpResponse = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
     }

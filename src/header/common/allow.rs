@@ -1,5 +1,5 @@
-use http::Method;
 use http::header;
+use http::Method;
 
 header! {
     /// `Allow` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.4.1)
@@ -23,11 +23,10 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// # extern crate http;
-    /// # extern crate actix_web;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::Allow;
-    /// use http::Method;
+    /// # extern crate actix_http;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::Allow;
+    /// use actix_http::http::Method;
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -38,11 +37,9 @@ header! {
     /// ```
     ///
     /// ```rust
-    /// # extern crate http;
-    /// # extern crate actix_web;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::Allow;
-    /// use http::Method;
+    /// # extern crate actix_http;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::{Method, header::Allow};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();

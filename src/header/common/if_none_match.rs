@@ -32,16 +32,16 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfNoneMatch;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::IfNoneMatch;
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.set(IfNoneMatch::Any);
     /// ```
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{IfNoneMatch, EntityTag};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{IfNoneMatch, EntityTag};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.set(

@@ -8,7 +8,6 @@ use std::thread;
 
 use actix::System;
 use actix_net::server::Server;
-use actix_net::service::{IntoNewService, IntoService};
 use actix_web::{client, test};
 use futures::future;
 

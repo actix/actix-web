@@ -1,7 +1,6 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::fmt;
-use std::net::SocketAddr;
 use std::rc::Rc;
 
 use http::{header, HeaderMap, Method, Uri, Version};
@@ -31,7 +30,6 @@ pub(crate) struct InnerRequest {
     pub(crate) headers: HeaderMap,
     pub(crate) extensions: RefCell<Extensions>,
     pub(crate) payload: RefCell<Option<Payload>>,
-    pub(crate) stream_extensions: Option<Rc<Extensions>>,
     pool: &'static RequestPool,
 }
 
@@ -81,7 +79,6 @@ impl Request {
                 flags: Cell::new(MessageFlags::empty()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
-                stream_extensions: None,
             }),
         }
     }
@@ -170,15 +167,13 @@ impl Request {
             inner: self.inner.clone(),
         }
     }
+}
 
-    pub(crate) fn release(self) {
-        let mut inner = self.inner;
-        if let Some(r) = Rc::get_mut(&mut inner) {
-            r.reset();
-        } else {
-            return;
+impl Drop for Request {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.inner) == 1 {
+            self.inner.pool.release(self.inner.clone());
         }
-        inner.pool.release(inner);
     }
 }
 
@@ -221,11 +216,13 @@ impl RequestPool {
     /// Get Request object
     #[inline]
     pub fn get(pool: &'static RequestPool) -> Request {
-        if let Some(msg) = pool.0.borrow_mut().pop_front() {
-            Request { inner: msg }
-        } else {
-            Request::with_pool(pool)
+        if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
+            if let Some(r) = Rc::get_mut(&mut msg) {
+                r.reset();
+            }
+            return Request { inner: msg };
         }
+        Request::with_pool(pool)
     }
 
     #[inline]

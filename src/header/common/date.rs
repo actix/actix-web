@@ -20,8 +20,8 @@ header! {
     /// # Example
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::Date;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::Date;
     /// use std::time::SystemTime;
     ///
     /// let mut builder = HttpResponse::Ok();

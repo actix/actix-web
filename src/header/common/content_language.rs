@@ -24,10 +24,10 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// # #[macro_use] extern crate language_tags;
-    /// use actix_web::HttpResponse;
-    /// # use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_http::HttpResponse;
+    /// # use actix_http::http::header::{ContentLanguage, qitem};
     /// #
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -40,10 +40,10 @@ header! {
     /// ```
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// # #[macro_use] extern crate language_tags;
-    /// use actix_web::HttpResponse;
-    /// # use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_http::HttpResponse;
+    /// # use actix_http::http::header::{ContentLanguage, qitem};
     /// #
     /// # fn main() {
     ///

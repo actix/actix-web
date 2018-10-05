@@ -18,16 +18,26 @@ pub(crate) struct H1Decoder {
     pool: &'static RequestPool,
 }
 
+/// Incoming http/1 request
 #[derive(Debug)]
 pub enum InMessage {
+    /// Request
     Message(Request),
+    /// Request with payload
     MessageWithPayload(Request),
+    /// Payload chunk
     Chunk(Bytes),
+    /// End of payload
     Eof,
 }
 
 impl H1Decoder {
-    pub fn new(pool: &'static RequestPool) -> H1Decoder {
+    #[cfg(test)]
+    pub fn new() -> H1Decoder {
+        H1Decoder::with_pool(RequestPool::pool())
+    }
+
+    pub fn with_pool(pool: &'static RequestPool) -> H1Decoder {
         H1Decoder {
             pool,
             decoder: None,
@@ -495,5 +505,659 @@ impl ChunkedState {
                 "Invalid chunk end LF",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Shutdown;
+    use std::{cmp, io, time};
+
+    use actix::System;
+    use bytes::{Buf, Bytes, BytesMut};
+    use futures::{future, future::ok};
+    use http::{Method, Version};
+    use tokio_io::{AsyncRead, AsyncWrite};
+
+    use super::*;
+    use error::ParseError;
+    use h1::{Dispatcher, InMessage};
+    use httpmessage::HttpMessage;
+    use request::Request;
+    use server::KeepAlive;
+
+    impl InMessage {
+        fn message(self) -> Request {
+            match self {
+                InMessage::Message(msg) => msg,
+                InMessage::MessageWithPayload(msg) => msg,
+                _ => panic!("error"),
+            }
+        }
+        fn is_payload(&self) -> bool {
+            match *self {
+                InMessage::MessageWithPayload(_) => true,
+                _ => panic!("error"),
+            }
+        }
+        fn chunk(self) -> Bytes {
+            match self {
+                InMessage::Chunk(chunk) => chunk,
+                _ => panic!("error"),
+            }
+        }
+        fn eof(&self) -> bool {
+            match *self {
+                InMessage::Eof => true,
+                _ => false,
+            }
+        }
+    }
+
+    macro_rules! parse_ready {
+        ($e:expr) => {{
+            match H1Decoder::new().decode($e) {
+                Ok(Some(msg)) => msg.message(),
+                Ok(_) => unreachable!("Eof during parsing http request"),
+                Err(err) => unreachable!("Error during parsing http request: {:?}", err),
+            }
+        }};
+    }
+
+    macro_rules! expect_parse_err {
+        ($e:expr) => {{
+            match H1Decoder::new().decode($e) {
+                Err(err) => match err {
+                    ParseError::Io(_) => unreachable!("Parse error expected"),
+                    _ => (),
+                },
+                _ => unreachable!("Error expected"),
+            }
+        }};
+    }
+
+    struct Buffer {
+        buf: Bytes,
+        err: Option<io::Error>,
+    }
+
+    impl Buffer {
+        fn new(data: &'static str) -> Buffer {
+            Buffer {
+                buf: Bytes::from(data),
+                err: None,
+            }
+        }
+    }
+
+    impl AsyncRead for Buffer {}
+    impl io::Read for Buffer {
+        fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+            if self.buf.is_empty() {
+                if self.err.is_some() {
+                    Err(self.err.take().unwrap())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+                }
+            } else {
+                let size = cmp::min(self.buf.len(), dst.len());
+                let b = self.buf.split_to(size);
+                dst[..size].copy_from_slice(&b);
+                Ok(size)
+            }
+        }
+    }
+
+    impl io::Write for Buffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl AsyncWrite for Buffer {
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            Ok(Async::Ready(()))
+        }
+        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+            Ok(Async::NotReady)
+        }
+    }
+
+    // #[test]
+    // fn test_req_parse_err() {
+    //     let mut sys = System::new("test");
+    //     let _ = sys.block_on(future::lazy(|| {
+    //         let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
+    //         let readbuf = BytesMut::new();
+
+    //         let mut h1 = Dispatcher::new(buf, |req| ok(HttpResponse::Ok().finish()));
+    //         assert!(h1.poll_io().is_ok());
+    //         assert!(h1.poll_io().is_ok());
+    //         assert!(h1.flags.contains(Flags::READ_DISCONNECTED));
+    //         assert_eq!(h1.tasks.len(), 1);
+    //         future::ok::<_, ()>(())
+    //     }));
+    // }
+
+    #[test]
+    fn test_parse() {
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
+
+        let mut reader = H1Decoder::new();
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_partial() {
+        let mut buf = BytesMut::from("PUT /test HTTP/1");
+
+        let mut reader = H1Decoder::new();
+        match reader.decode(&mut buf) {
+            Ok(None) => (),
+            _ => unreachable!("Error"),
+        }
+
+        buf.extend(b".1\r\n\r\n");
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let mut req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::PUT);
+                assert_eq!(req.path(), "/test");
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_post() {
+        let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
+
+        let mut reader = H1Decoder::new();
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let mut req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_10);
+                assert_eq!(*req.method(), Method::POST);
+                assert_eq!(req.path(), "/test2");
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_body() {
+        let mut buf =
+            BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+
+        let mut reader = H1Decoder::new();
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let mut req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(
+                    reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+                    b"body"
+                );
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_body_crlf() {
+        let mut buf =
+            BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+
+        let mut reader = H1Decoder::new();
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let mut req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(
+                    reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+                    b"body"
+                );
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_parse_partial_eof() {
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
+        let mut reader = H1Decoder::new();
+        assert!(reader.decode(&mut buf).unwrap().is_none());
+
+        buf.extend(b"\r\n");
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_headers_split_field() {
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
+
+        let mut reader = H1Decoder::new();
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+
+        buf.extend(b"t");
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+
+        buf.extend(b"es");
+        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+
+        buf.extend(b"t: value\r\n\r\n");
+        match reader.decode(&mut buf) {
+            Ok(Some(msg)) => {
+                let req = msg.message();
+                assert_eq!(req.version(), Version::HTTP_11);
+                assert_eq!(*req.method(), Method::GET);
+                assert_eq!(req.path(), "/test");
+                assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
+            }
+            Ok(_) | Err(_) => unreachable!("Error during parsing http request"),
+        }
+    }
+
+    #[test]
+    fn test_headers_multi_value() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             Set-Cookie: c1=cookie1\r\n\
+             Set-Cookie: c2=cookie2\r\n\r\n",
+        );
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        let req = msg.message();
+
+        let val: Vec<_> = req
+            .headers()
+            .get_all("Set-Cookie")
+            .iter()
+            .map(|v| v.to_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(val[0], "c1=cookie1");
+        assert_eq!(val[1], "c2=cookie2");
+    }
+
+    #[test]
+    fn test_conn_default_1_0() {
+        let mut buf = BytesMut::from("GET /test HTTP/1.0\r\n\r\n");
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_default_1_1() {
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_close() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_close_1_0() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_keep_alive_1_0() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: keep-alive\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_keep_alive_1_1() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: keep-alive\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_other_1_0() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: other\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_other_1_1() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: other\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+    }
+
+    #[test]
+    fn test_conn_upgrade() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             upgrade: websockets\r\n\
+             connection: upgrade\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+    }
+
+    #[test]
+    fn test_conn_upgrade_connect_method() {
+        let mut buf = BytesMut::from(
+            "CONNECT /test HTTP/1.1\r\n\
+             content-type: text/plain\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+    }
+
+    #[test]
+    fn test_request_chunked() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        if let Ok(val) = req.chunked() {
+            assert!(val);
+        } else {
+            unreachable!("Error");
+        }
+
+        // type in chunked
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chnked\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        if let Ok(val) = req.chunked() {
+            assert!(!val);
+        } else {
+            unreachable!("Error");
+        }
+    }
+
+    #[test]
+    fn test_headers_content_length_err_1() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             content-length: line\r\n\r\n",
+        );
+
+        expect_parse_err!(&mut buf)
+    }
+
+    #[test]
+    fn test_headers_content_length_err_2() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             content-length: -1\r\n\r\n",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_invalid_header() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             test line\r\n\r\n",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_invalid_name() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             test[]: line\r\n\r\n",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_bad_status_line() {
+        let mut buf = BytesMut::from("getpath \r\n\r\n");
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_upgrade() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade\r\n\
+             upgrade: websocket\r\n\r\n\
+             some raw data",
+        );
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        let req = msg.message();
+        assert!(!req.keep_alive());
+        assert!(req.upgrade());
+        assert_eq!(
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+            b"some raw data"
+        );
+    }
+
+    #[test]
+    fn test_http_request_parser_utf8() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             x-test: тест\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert_eq!(
+            req.headers().get("x-test").unwrap().as_bytes(),
+            "тест".as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_http_request_parser_two_slashes() {
+        let mut buf = BytesMut::from("GET //path HTTP/1.1\r\n\r\n");
+        let req = parse_ready!(&mut buf);
+
+        assert_eq!(req.path(), "//path");
+    }
+
+    #[test]
+    fn test_http_request_parser_bad_method() {
+        let mut buf = BytesMut::from("!12%()+=~$ /get HTTP/1.1\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_parser_bad_version() {
+        let mut buf = BytesMut::from("GET //get HT/11\r\n\r\n");
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn test_http_request_chunked_payload() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        let req = msg.message();
+        assert!(req.chunked().unwrap());
+
+        buf.extend(b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
+        assert_eq!(
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+            b"data"
+        );
+        assert_eq!(
+            reader.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
+            b"line"
+        );
+        assert!(reader.decode(&mut buf).unwrap().unwrap().eof());
+    }
+
+    #[test]
+    fn test_http_request_chunked_payload_and_next_message() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        let req = msg.message();
+        assert!(req.chunked().unwrap());
+
+        buf.extend(
+            b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
+              POST /test2 HTTP/1.1\r\n\
+              transfer-encoding: chunked\r\n\r\n"
+                .iter(),
+        );
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"data");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"line");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.eof());
+
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        let req2 = msg.message();
+        assert!(req2.chunked().unwrap());
+        assert_eq!(*req2.method(), Method::POST);
+        assert!(req2.chunked().unwrap());
+    }
+
+    #[test]
+    fn test_http_request_chunked_payload_chunks() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        let req = msg.message();
+        assert!(req.chunked().unwrap());
+
+        buf.extend(b"4\r\n1111\r\n");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"1111");
+
+        buf.extend(b"4\r\ndata\r");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"data");
+
+        buf.extend(b"\n4");
+        assert!(reader.decode(&mut buf).unwrap().is_none());
+
+        buf.extend(b"\r");
+        assert!(reader.decode(&mut buf).unwrap().is_none());
+        buf.extend(b"\n");
+        assert!(reader.decode(&mut buf).unwrap().is_none());
+
+        buf.extend(b"li");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"li");
+
+        //trailers
+        //buf.feed_data("test: test\r\n");
+        //not_ready!(reader.parse(&mut buf, &mut readbuf));
+
+        buf.extend(b"ne\r\n0\r\n");
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"ne");
+        assert!(reader.decode(&mut buf).unwrap().is_none());
+
+        buf.extend(b"\r\n");
+        assert!(reader.decode(&mut buf).unwrap().unwrap().eof());
+    }
+
+    #[test]
+    fn test_parse_chunked_payload_chunk_extension() {
+        let mut buf = BytesMut::from(
+            &"GET /test HTTP/1.1\r\n\
+              transfer-encoding: chunked\r\n\r\n"[..],
+        );
+
+        let mut reader = H1Decoder::new();
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.is_payload());
+        assert!(msg.message().chunked().unwrap());
+
+        buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
+        let chunk = reader.decode(&mut buf).unwrap().unwrap().chunk();
+        assert_eq!(chunk, Bytes::from_static(b"data"));
+        let chunk = reader.decode(&mut buf).unwrap().unwrap().chunk();
+        assert_eq!(chunk, Bytes::from_static(b"line"));
+        let msg = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.eof());
     }
 }

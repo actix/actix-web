@@ -23,10 +23,10 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// # extern crate language_tags;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, qitem};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -42,10 +42,10 @@ header! {
     /// ```
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// # #[macro_use] extern crate language_tags;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{AcceptLanguage, QualityItem, q, qitem};
     /// #
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();

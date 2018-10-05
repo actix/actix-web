@@ -64,7 +64,7 @@ impl<'a> From<&'a str> for DispositionType {
 ///
 /// # Examples
 /// ```
-/// use actix_web::http::header::DispositionParam;
+/// use actix_http::http::header::DispositionParam;
 ///
 /// let param = DispositionParam::Filename(String::from("sample.txt"));
 /// assert!(param.is_filename());
@@ -226,7 +226,7 @@ impl DispositionParam {
 /// # Example
 ///
 /// ```
-/// use actix_web::http::header::{
+/// use actix_http::http::header::{
 ///     Charset, ContentDisposition, DispositionParam, DispositionType,
 ///     ExtendedValue,
 /// };
@@ -327,7 +327,8 @@ impl ContentDisposition {
                     left = &left[end.ok_or(::error::ParseError::Header)? + 1..];
                     left = split_once(left, ';').1.trim_left();
                     // In fact, it should not be Err if the above code is correct.
-                    String::from_utf8(quoted_string).map_err(|_| ::error::ParseError::Header)?
+                    String::from_utf8(quoted_string)
+                        .map_err(|_| ::error::ParseError::Header)?
                 } else {
                     // token: won't contains semicolon according to RFC 2616 Section 2.2
                     let (token, new_left) = split_once_and_trim(left, ';');
@@ -874,7 +875,7 @@ mod tests {
             "attachment; filename=\"carriage\\\rreturn.png\"",
             display_rendered
         );*/
- // No way to create a HeaderValue containing a carriage return.
+        // No way to create a HeaderValue containing a carriage return.
 
         let a: ContentDisposition = ContentDisposition {
             disposition: DispositionType::Inline,

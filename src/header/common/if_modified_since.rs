@@ -22,8 +22,8 @@ header! {
     /// # Example
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::IfModifiedSince;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::IfModifiedSince;
     /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = HttpResponse::Ok();

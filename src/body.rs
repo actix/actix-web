@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use error::Error;
-use httpresponse::HttpResponse;
 
 /// Type represent streaming body
 pub type BodyStream = Box<Stream<Item = Bytes, Error = Error>>;

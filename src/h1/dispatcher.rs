@@ -1,7 +1,6 @@
 // #![allow(unused_imports, unused_variables, dead_code)]
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
-use std::net::SocketAddr;
 // use std::time::{Duration, Instant};
 
 use actix_net::service::Service;
@@ -16,10 +15,10 @@ use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 
 use body::Body;
+use config::ServiceConfig;
 use error::DispatchError;
 use httpresponse::HttpResponse;
-
-use request::{Request, RequestPool};
+use request::Request;
 use server::input::PayloadType;
 
 use super::codec::{Codec, InMessage, OutMessage};
@@ -52,6 +51,8 @@ where
     state: State<S>,
     payload: Option<PayloadType>,
     messages: VecDeque<Request>,
+
+    config: ServiceConfig,
 }
 
 enum State<S: Service> {
@@ -79,7 +80,7 @@ where
     S::Error: Debug + Display,
 {
     /// Create http/1 dispatcher.
-    pub fn new(stream: T, service: S) -> Self {
+    pub fn new(stream: T, config: ServiceConfig, service: S) -> Self {
         let flags = Flags::FLUSHED;
         let framed = Framed::new(stream, Codec::new());
 
@@ -91,6 +92,7 @@ where
             service,
             flags,
             framed,
+            config,
         }
     }
 
@@ -108,7 +110,7 @@ where
     }
 
     // if checked is set to true, delay disconnect until all tasks have finished.
-    fn client_disconnected(&mut self, checked: bool) {
+    fn client_disconnected(&mut self, _checked: bool) {
         self.flags.insert(Flags::READ_DISCONNECTED);
         if let Some(mut payload) = self.payload.take() {
             payload.set_error(PayloadError::Incomplete);
@@ -187,7 +189,7 @@ where
                         None
                     };
                 },
-                State::Payload(ref mut body) => unimplemented!(),
+                State::Payload(ref mut _body) => unimplemented!(),
                 State::Response(ref mut fut) => {
                     match fut.poll() {
                         Ok(Async::Ready(res)) => {

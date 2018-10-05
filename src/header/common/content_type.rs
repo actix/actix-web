@@ -31,8 +31,8 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::ContentType;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::ContentType;
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -44,10 +44,10 @@ header! {
     ///
     /// ```rust
     /// # extern crate mime;
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// use mime::TEXT_HTML;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::ContentType;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::ContentType;
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();

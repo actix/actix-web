@@ -30,10 +30,10 @@ header! {
     ///
     /// # Examples
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// extern crate mime;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, qitem};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{Accept, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -47,10 +47,10 @@ header! {
     /// ```
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// extern crate mime;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, qitem};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{Accept, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -64,10 +64,10 @@ header! {
     /// ```
     ///
     /// ```rust
-    /// # extern crate actix_web;
+    /// # extern crate actix_http;
     /// extern crate mime;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem, q, qitem};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{Accept, QualityItem, q, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();

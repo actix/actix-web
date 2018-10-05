@@ -1,3 +1,4 @@
+#![allow(unused_imports, unused_variables, dead_code)]
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::str::FromStr;

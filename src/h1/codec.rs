@@ -15,8 +15,11 @@ use httpresponse::HttpResponse;
 use request::RequestPool;
 use server::output::{ResponseInfo, ResponseLength};
 
+/// Http response
 pub enum OutMessage {
+    /// Http response message
     Response(HttpResponse),
+    /// Payload chunk
     Payload(Bytes),
 }
 
@@ -35,7 +38,7 @@ impl Codec {
     /// Create HTTP/1 codec with request's pool
     pub(crate) fn with_pool(pool: &'static RequestPool) -> Self {
         Codec {
-            decoder: H1Decoder::new(pool),
+            decoder: H1Decoder::with_pool(pool),
             encoder: H1Writer::new(),
         }
     }

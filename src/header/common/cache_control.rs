@@ -1,5 +1,5 @@
-use header::{Header, IntoHeaderValue, Writer};
 use header::{fmt_comma_delimited, from_comma_delimited};
+use header::{Header, IntoHeaderValue, Writer};
 use http::header;
 use std::fmt::{self, Write};
 use std::str::FromStr;
@@ -26,16 +26,16 @@ use std::str::FromStr;
 ///
 /// # Examples
 /// ```rust
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{CacheControl, CacheDirective};
+/// use actix_http::HttpResponse;
+/// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = HttpResponse::Ok();
 /// builder.set(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
 /// ```rust
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{CacheControl, CacheDirective};
+/// use actix_http::HttpResponse;
+/// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = HttpResponse::Ok();
 /// builder.set(CacheControl(vec![

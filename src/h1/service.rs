@@ -1,9 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
-use std::time::Duration;
 
 use actix_net::service::{IntoNewService, NewService, Service};
-use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -120,6 +118,6 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        Dispatcher::new(req, self.srv.clone())
+        Dispatcher::new(req, self.cfg.clone(), self.srv.clone())
     }
 }

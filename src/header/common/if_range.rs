@@ -1,7 +1,9 @@
 use error::ParseError;
 use header::from_one_raw_str;
-use header::{EntityTag, Header, HeaderName, HeaderValue, HttpDate, IntoHeaderValue,
-             InvalidHeaderValueBytes, Writer};
+use header::{
+    EntityTag, Header, HeaderName, HeaderValue, HttpDate, IntoHeaderValue,
+    InvalidHeaderValueBytes, Writer,
+};
 use http::header;
 use httpmessage::HttpMessage;
 use std::fmt::{self, Display, Write};
@@ -35,8 +37,8 @@ use std::fmt::{self, Display, Write};
 /// # Examples
 ///
 /// ```rust
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{EntityTag, IfRange};
+/// use actix_http::HttpResponse;
+/// use actix_http::http::header::{EntityTag, IfRange};
 ///
 /// let mut builder = HttpResponse::Ok();
 /// builder.set(IfRange::EntityTag(EntityTag::new(
@@ -46,8 +48,8 @@ use std::fmt::{self, Display, Write};
 /// ```
 ///
 /// ```rust
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::IfRange;
+/// use actix_http::HttpResponse;
+/// use actix_http::http::header::IfRange;
 /// use std::time::{Duration, SystemTime};
 ///
 /// let mut builder = HttpResponse::Ok();

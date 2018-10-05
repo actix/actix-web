@@ -28,16 +28,16 @@ header! {
     /// # Examples
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ETag, EntityTag};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.set(ETag(EntityTag::new(false, "xyzzy".to_owned())));
     /// ```
     ///
     /// ```rust
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ETag, EntityTag};
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.set(ETag(EntityTag::new(true, "xyzzy".to_owned())));

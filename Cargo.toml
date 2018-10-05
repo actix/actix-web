@@ -96,6 +96,7 @@ bytes = "0.4"
 byteorder = "1.2"
 futures = "0.1"
 tokio-codec = "0.1"
+tokio = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
@@ -123,7 +124,6 @@ tokio-uds = { version="0.2", optional = true }
 actix-web = "0.7"
 env_logger = "0.5"
 serde_derive = "1.0"
-tokio = "0.1"
 
 [build-dependencies]
 version_check = "0.1"

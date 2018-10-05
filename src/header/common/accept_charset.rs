@@ -22,9 +22,9 @@ header! {
     ///
     /// # Examples
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
+    /// # extern crate actix_http;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -34,9 +34,9 @@ header! {
     /// # }
     /// ```
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptCharset, Charset, q, QualityItem};
+    /// # extern crate actix_http;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{AcceptCharset, Charset, q, QualityItem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
@@ -49,9 +49,9 @@ header! {
     /// # }
     /// ```
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
+    /// # extern crate actix_http;
+    /// use actix_http::HttpResponse;
+    /// use actix_http::http::header::{AcceptCharset, Charset, qitem};
     ///
     /// # fn main() {
     /// let mut builder = HttpResponse::Ok();
