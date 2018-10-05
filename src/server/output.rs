@@ -13,10 +13,10 @@ use flate2::Compression;
 use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
-use super::message::InnerRequest;
 use body::{Binary, Body};
 use header::ContentEncoding;
 use httpresponse::HttpResponse;
+use request::InnerRequest;
 
 // #[derive(Debug)]
 // pub(crate) struct RequestInfo {

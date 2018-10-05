@@ -12,10 +12,10 @@ use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
-use super::message::{Request, RequestPool};
-use super::KeepAlive;
 use body::Body;
 use httpresponse::{HttpResponse, HttpResponseBuilder, HttpResponsePool};
+use request::{Request, RequestPool};
+use server::KeepAlive;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -28,8 +28,6 @@ struct Inner {
     client_timeout: u64,
     client_shutdown: u64,
     ka_enabled: bool,
-    bytes: Rc<SharedBytesPool>,
-    messages: &'static RequestPool,
     date: UnsafeCell<(bool, Date)>,
 }
 
@@ -60,8 +58,6 @@ impl ServiceConfig {
             ka_enabled,
             client_timeout,
             client_shutdown,
-            bytes: Rc::new(SharedBytesPool::new()),
-            messages: RequestPool::pool(),
             date: UnsafeCell::new((false, Date::new())),
         }))
     }
@@ -81,23 +77,6 @@ impl ServiceConfig {
     /// Return state of connection keep-alive funcitonality
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
-    }
-
-    pub(crate) fn get_bytes(&self) -> BytesMut {
-        self.0.bytes.get_bytes()
-    }
-
-    pub(crate) fn release_bytes(&self, bytes: BytesMut) {
-        self.0.bytes.release_bytes(bytes)
-    }
-
-    pub(crate) fn get_request(&self) -> Request {
-        RequestPool::get(self.0.messages)
-    }
-
-    #[doc(hidden)]
-    pub fn request_pool(&self) -> &'static RequestPool {
-        self.0.messages
     }
 
     fn update_date(&self) {
@@ -338,31 +317,6 @@ impl fmt::Write for Date {
         self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
         self.pos += len;
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct SharedBytesPool(RefCell<VecDeque<BytesMut>>);
-
-impl SharedBytesPool {
-    pub fn new() -> SharedBytesPool {
-        SharedBytesPool(RefCell::new(VecDeque::with_capacity(128)))
-    }
-
-    pub fn get_bytes(&self) -> BytesMut {
-        if let Some(bytes) = self.0.borrow_mut().pop_front() {
-            bytes
-        } else {
-            BytesMut::new()
-        }
-    }
-
-    pub fn release_bytes(&self, mut bytes: BytesMut) {
-        let v = &mut self.0.borrow_mut();
-        if v.len() < 128 {
-            bytes.clear();
-            v.push_front(bytes);
-        }
     }
 }
 

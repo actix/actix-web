@@ -135,6 +135,7 @@ extern crate actix_net;
 extern crate serde_derive;
 
 mod body;
+mod config;
 mod extensions;
 mod header;
 mod httpcodes;
@@ -142,9 +143,12 @@ mod httpmessage;
 mod httpresponse;
 mod json;
 mod payload;
+mod request;
 mod uri;
 
 pub mod error;
+pub mod h1;
+pub(crate) mod helpers;
 pub mod server;
 //pub mod test;
 //pub mod ws;
@@ -152,10 +156,11 @@ pub use body::{Binary, Body};
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;
 pub use httpmessage::HttpMessage;
-//pub use httprequest::HttpRequest;
 pub use httpresponse::HttpResponse;
 pub use json::Json;
-pub use server::Request;
+pub use request::Request;
+
+pub use self::config::{ServiceConfig, ServiceConfigBuilder};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers

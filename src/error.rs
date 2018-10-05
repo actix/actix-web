@@ -377,62 +377,56 @@ impl ResponseError for cookie::ParseError {
     }
 }
 
-/// A set of errors that can occur during parsing multipart streams
-#[derive(Fail, Debug)]
-pub enum MultipartError {
-    /// Content-Type header is not found
-    #[fail(display = "No Content-type header found")]
-    NoContentType,
-    /// Can not parse Content-Type header
-    #[fail(display = "Can not parse Content-Type header")]
-    ParseContentType,
-    /// Multipart boundary is not found
-    #[fail(display = "Multipart boundary is not found")]
-    Boundary,
-    /// Multipart stream is incomplete
-    #[fail(display = "Multipart stream is incomplete")]
-    Incomplete,
-    /// Error during field parsing
-    #[fail(display = "{}", _0)]
-    Parse(#[cause] ParseError),
-    /// Payload error
-    #[fail(display = "{}", _0)]
-    Payload(#[cause] PayloadError),
+#[derive(Debug)]
+/// A set of errors that can occur during dispatching http requests
+pub enum DispatchError<E: fmt::Debug + fmt::Display> {
+    /// Service error
+    // #[fail(display = "Application specific error: {}", _0)]
+    Service(E),
+
+    /// An `io::Error` that occurred while trying to read or write to a network
+    /// stream.
+    // #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+
+    /// Http request parse error.
+    // #[fail(display = "Parse error: {}", _0)]
+    Parse(ParseError),
+
+    /// The first request did not complete within the specified timeout.
+    // #[fail(display = "The first request did not complete within the specified timeout")]
+    SlowRequestTimeout,
+
+    /// Shutdown timeout
+    // #[fail(display = "Connection shutdown timeout")]
+    ShutdownTimeout,
+
+    /// Payload is not consumed
+    // #[fail(display = "Task is completed but request's payload is not consumed")]
+    PayloadIsNotConsumed,
+
+    /// Malformed request
+    // #[fail(display = "Malformed request")]
+    MalformedRequest,
+
+    /// Internal error
+    // #[fail(display = "Internal error")]
+    InternalError,
+
+    /// Unknown error
+    // #[fail(display = "Unknown error")]
+    Unknown,
 }
 
-impl From<ParseError> for MultipartError {
-    fn from(err: ParseError) -> MultipartError {
-        MultipartError::Parse(err)
+impl<E: fmt::Debug + fmt::Display> From<ParseError> for DispatchError<E> {
+    fn from(err: ParseError) -> Self {
+        DispatchError::Parse(err)
     }
 }
 
-impl From<PayloadError> for MultipartError {
-    fn from(err: PayloadError) -> MultipartError {
-        MultipartError::Payload(err)
-    }
-}
-
-/// Return `BadRequest` for `MultipartError`
-impl ResponseError for MultipartError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST)
-    }
-}
-
-/// Error during handling `Expect` header
-#[derive(Fail, PartialEq, Debug)]
-pub enum ExpectError {
-    /// Expect header value can not be converted to utf8
-    #[fail(display = "Expect header value can not be converted to utf8")]
-    Encoding,
-    /// Unknown expect value
-    #[fail(display = "Unknown expect value")]
-    UnknownExpect,
-}
-
-impl ResponseError for ExpectError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::with_body(StatusCode::EXPECTATION_FAILED, "Unknown Expect")
+impl<E: fmt::Debug + fmt::Display> From<io::Error> for DispatchError<E> {
+    fn from(err: io::Error) -> Self {
+        DispatchError::Io(err)
     }
 }
 
@@ -565,28 +559,6 @@ impl From<ContentTypeError> for ReadlinesError {
     }
 }
 
-/// Errors which can occur when attempting to interpret a segment string as a
-/// valid path segment.
-#[derive(Fail, Debug, PartialEq)]
-pub enum UriSegmentError {
-    /// The segment started with the wrapped invalid character.
-    #[fail(display = "The segment started with the wrapped invalid character")]
-    BadStart(char),
-    /// The segment contained the wrapped invalid character.
-    #[fail(display = "The segment contained the wrapped invalid character")]
-    BadChar(char),
-    /// The segment ended with the wrapped invalid character.
-    #[fail(display = "The segment ended with the wrapped invalid character")]
-    BadEnd(char),
-}
-
-/// Return `BadRequest` for `UriSegmentError`
-impl ResponseError for UriSegmentError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST)
-    }
-}
-
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Fail, Debug, PartialEq)]
 pub enum UrlGenerationError {
@@ -607,24 +579,6 @@ impl ResponseError for UrlGenerationError {}
 impl From<UrlParseError> for UrlGenerationError {
     fn from(err: UrlParseError) -> Self {
         UrlGenerationError::ParseError(err)
-    }
-}
-
-/// Errors which can occur when serving static files.
-#[derive(Fail, Debug, PartialEq)]
-pub enum StaticFileError {
-    /// Path is not a directory
-    #[fail(display = "Path is not a directory. Unable to serve static files")]
-    IsNotDirectory,
-    /// Cannot render directory
-    #[fail(display = "Unable to render directory without index file")]
-    IsDirectory,
-}
-
-/// Return `NotFound` for `StaticFileError`
-impl ResponseError for StaticFileError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::NOT_FOUND)
     }
 }
 

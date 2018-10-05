@@ -30,7 +30,6 @@ pub(crate) struct InnerRequest {
     pub(crate) flags: Cell<MessageFlags>,
     pub(crate) headers: HeaderMap,
     pub(crate) extensions: RefCell<Extensions>,
-    pub(crate) addr: Option<SocketAddr>,
     pub(crate) payload: RefCell<Option<Payload>>,
     pub(crate) stream_extensions: Option<Rc<Extensions>>,
     pool: &'static RequestPool,
@@ -65,8 +64,13 @@ impl HttpMessage for Request {
 }
 
 impl Request {
-    /// Create new RequestContext instance
-    pub(crate) fn new(pool: &'static RequestPool) -> Request {
+    /// Create new Request instance
+    pub fn new() -> Request {
+        Request::with_pool(RequestPool::pool())
+    }
+
+    /// Create new Request instance with pool
+    pub(crate) fn with_pool(pool: &'static RequestPool) -> Request {
         Request {
             inner: Rc::new(InnerRequest {
                 pool,
@@ -75,7 +79,6 @@ impl Request {
                 version: Version::HTTP_11,
                 headers: HeaderMap::with_capacity(16),
                 flags: Cell::new(MessageFlags::empty()),
-                addr: None,
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
                 stream_extensions: None,
@@ -134,14 +137,6 @@ impl Request {
         &mut self.inner_mut().headers
     }
 
-    /// Peer socket address
-    ///
-    /// Peer address is actual socket address, if proxy is used in front of
-    /// actix http server, then peer address would be address of this proxy.
-    pub fn peer_addr(&self) -> Option<SocketAddr> {
-        self.inner().addr
-    }
-
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
@@ -168,12 +163,6 @@ impl Request {
             }
         }
         self.inner().method == Method::CONNECT
-    }
-
-    /// Io stream extensions
-    #[inline]
-    pub fn stream_extensions(&self) -> Option<&Extensions> {
-        self.inner().stream_extensions.as_ref().map(|e| e.as_ref())
     }
 
     pub(crate) fn clone(&self) -> Self {
@@ -213,7 +202,8 @@ impl fmt::Debug for Request {
     }
 }
 
-pub struct RequestPool(RefCell<VecDeque<Rc<InnerRequest>>>);
+/// Request's objects pool
+pub(crate) struct RequestPool(RefCell<VecDeque<Rc<InnerRequest>>>);
 
 thread_local!(static POOL: &'static RequestPool = RequestPool::create());
 
@@ -223,16 +213,18 @@ impl RequestPool {
         Box::leak(Box::new(pool))
     }
 
-    pub(crate) fn pool() -> &'static RequestPool {
+    /// Get default request's pool
+    pub fn pool() -> &'static RequestPool {
         POOL.with(|p| *p)
     }
 
+    /// Get Request object
     #[inline]
     pub fn get(pool: &'static RequestPool) -> Request {
         if let Some(msg) = pool.0.borrow_mut().pop_front() {
             Request { inner: msg }
         } else {
-            Request::new(pool)
+            Request::with_pool(pool)
         }
     }
 

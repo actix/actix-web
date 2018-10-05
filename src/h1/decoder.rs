@@ -4,10 +4,10 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use httparse;
 
-use super::message::{MessageFlags, Request, RequestPool};
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HttpTryFrom, Method, Uri, Version};
+use request::{MessageFlags, Request, RequestPool};
 use uri::Url;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -19,7 +19,7 @@ pub(crate) struct H1Decoder {
 }
 
 #[derive(Debug)]
-pub enum Message {
+pub enum InMessage {
     Message(Request),
     MessageWithPayload(Request),
     Chunk(Bytes),
@@ -34,14 +34,16 @@ impl H1Decoder {
         }
     }
 
-    pub fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>, ParseError> {
+    pub fn decode(
+        &mut self, src: &mut BytesMut,
+    ) -> Result<Option<InMessage>, ParseError> {
         // read payload
         if self.decoder.is_some() {
             match self.decoder.as_mut().unwrap().decode(src)? {
-                Async::Ready(Some(bytes)) => return Ok(Some(Message::Chunk(bytes))),
+                Async::Ready(Some(bytes)) => return Ok(Some(InMessage::Chunk(bytes))),
                 Async::Ready(None) => {
                     self.decoder.take();
-                    return Ok(Some(Message::Eof));
+                    return Ok(Some(InMessage::Eof));
                 }
                 Async::NotReady => return Ok(None),
             }
@@ -51,9 +53,9 @@ impl H1Decoder {
             Async::Ready((msg, decoder)) => {
                 self.decoder = decoder;
                 if self.decoder.is_some() {
-                    Ok(Some(Message::MessageWithPayload(msg)))
+                    Ok(Some(InMessage::MessageWithPayload(msg)))
                 } else {
-                    Ok(Some(Message::Message(msg)))
+                    Ok(Some(InMessage::Message(msg)))
                 }
             }
             Async::NotReady => {

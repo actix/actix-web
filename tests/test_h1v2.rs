@@ -12,9 +12,8 @@ use actix_net::service::{IntoNewService, IntoService};
 use actix_web::{client, test};
 use futures::future;
 
-use actix_http::server::h1disp::Http1Dispatcher;
-use actix_http::server::{KeepAlive, ServiceConfig};
-use actix_http::{Error, HttpResponse};
+use actix_http::server::KeepAlive;
+use actix_http::{h1, Error, HttpResponse, ServiceConfig};
 
 #[test]
 fn test_h1_v2() {
@@ -30,17 +29,10 @@ fn test_h1_v2() {
                     .server_address(addr)
                     .finish();
 
-                (move |io| {
-                    let pool = settings.request_pool();
-                    Http1Dispatcher::new(
-                        io,
-                        pool,
-                        (|req| {
-                            println!("REQ: {:?}", req);
-                            future::ok::<_, Error>(HttpResponse::Ok().finish())
-                        }).into_service(),
-                    )
-                }).into_new_service()
+                h1::H1Service::new(settings, |req| {
+                    println!("REQ: {:?}", req);
+                    future::ok::<_, Error>(HttpResponse::Ok().finish())
+                })
             }).unwrap()
             .run();
     });

@@ -9,21 +9,20 @@ use actix_net::service::Service;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use tokio_codec::Framed;
 // use tokio_current_thread::spawn;
-use tokio_io::AsyncWrite;
+use tokio_io::{AsyncRead, AsyncWrite};
 // use tokio_timer::Delay;
 
 use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 
 use body::Body;
+use error::DispatchError;
 use httpresponse::HttpResponse;
 
-use super::error::HttpDispatchError;
-use super::h1codec::{H1Codec, OutMessage};
-use super::h1decoder::Message;
-use super::input::PayloadType;
-use super::message::{Request, RequestPool};
-use super::IoStream;
+use request::{Request, RequestPool};
+use server::input::PayloadType;
+
+use super::codec::{Codec, InMessage, OutMessage};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
@@ -41,15 +40,14 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Http1Dispatcher<T: IoStream, S: Service>
+pub struct Dispatcher<T, S: Service>
 where
     S::Error: Debug + Display,
 {
     service: S,
     flags: Flags,
-    addr: Option<SocketAddr>,
-    framed: Framed<T, H1Codec>,
-    error: Option<HttpDispatchError<S::Error>>,
+    framed: Framed<T, Codec>,
+    error: Option<DispatchError<S::Error>>,
 
     state: State<S>,
     payload: Option<PayloadType>,
@@ -74,26 +72,24 @@ impl<S: Service> State<S> {
     }
 }
 
-impl<T, S> Http1Dispatcher<T, S>
+impl<T, S> Dispatcher<T, S>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = HttpResponse>,
     S::Error: Debug + Display,
 {
-    pub fn new(stream: T, pool: &'static RequestPool, service: S) -> Self {
-        let addr = stream.peer_addr();
+    /// Create http/1 dispatcher.
+    pub fn new(stream: T, service: S) -> Self {
         let flags = Flags::FLUSHED;
-        let codec = H1Codec::new(pool);
-        let framed = Framed::new(stream, codec);
+        let framed = Framed::new(stream, Codec::new());
 
-        Http1Dispatcher {
+        Dispatcher {
             payload: None,
             state: State::None,
             error: None,
             messages: VecDeque::new(),
             service,
             flags,
-            addr,
             framed,
         }
     }
@@ -141,7 +137,7 @@ where
     }
 
     /// Flush stream
-    fn poll_flush(&mut self) -> Poll<(), HttpDispatchError<S::Error>> {
+    fn poll_flush(&mut self) -> Poll<(), DispatchError<S::Error>> {
         if self.flags.contains(Flags::STARTED) && !self.flags.contains(Flags::FLUSHED) {
             match self.framed.poll_complete() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -153,7 +149,7 @@ where
                 Ok(Async::Ready(_)) => {
                     // if payload is not consumed we can not use connection
                     if self.payload.is_some() && self.state.is_empty() {
-                        return Err(HttpDispatchError::PayloadIsNotConsumed);
+                        return Err(DispatchError::PayloadIsNotConsumed);
                     }
                     self.flags.insert(Flags::FLUSHED);
                     Ok(Async::Ready(()))
@@ -164,7 +160,7 @@ where
         }
     }
 
-    pub(self) fn poll_handler(&mut self) -> Result<(), HttpDispatchError<S::Error>> {
+    pub(self) fn poll_handler(&mut self) -> Result<(), DispatchError<S::Error>> {
         self.poll_io()?;
         let mut retry = self.can_read();
 
@@ -185,7 +181,7 @@ where
                                 }
                             }
                             Ok(Async::NotReady) => Some(Ok(State::Response(task))),
-                            Err(err) => Some(Err(HttpDispatchError::App(err))),
+                            Err(err) => Some(Err(DispatchError::Service(err))),
                         }
                     } else {
                         None
@@ -207,7 +203,7 @@ where
                         Err(err) => {
                             // it is not possible to recover from error
                             // during pipe handling, so just drop connection
-                            Some(Err(HttpDispatchError::App(err)))
+                            Some(Err(DispatchError::Service(err)))
                         }
                     }
                 }
@@ -222,7 +218,7 @@ where
                             *item = Some(msg);
                             return Ok(());
                         }
-                        Err(err) => Some(Err(HttpDispatchError::Io(err))),
+                        Err(err) => Some(Err(DispatchError::Io(err))),
                     }
                 }
                 State::SendResponseWithPayload(ref mut item) => {
@@ -236,7 +232,7 @@ where
                             *item = Some((msg, body));
                             return Ok(());
                         }
-                        Err(err) => Some(Err(HttpDispatchError::Io(err))),
+                        Err(err) => Some(Err(DispatchError::Io(err))),
                     }
                 }
             };
@@ -263,14 +259,11 @@ where
         Ok(())
     }
 
-    fn one_message(&mut self, msg: Message) -> Result<(), HttpDispatchError<S::Error>> {
+    fn one_message(&mut self, msg: InMessage) -> Result<(), DispatchError<S::Error>> {
         self.flags.insert(Flags::STARTED);
 
         match msg {
-            Message::Message(mut msg) => {
-                // set remote addr
-                msg.inner_mut().addr = self.addr;
-
+            InMessage::Message(msg) => {
                 // handle request early
                 if self.state.is_empty() {
                     let mut task = self.service.call(msg);
@@ -287,17 +280,14 @@ where
                         Err(err) => {
                             error!("Unhandled application error: {}", err);
                             self.client_disconnected(false);
-                            return Err(HttpDispatchError::App(err));
+                            return Err(DispatchError::Service(err));
                         }
                     }
                 } else {
                     self.messages.push_back(msg);
                 }
             }
-            Message::MessageWithPayload(mut msg) => {
-                // set remote addr
-                msg.inner_mut().addr = self.addr;
-
+            InMessage::MessageWithPayload(msg) => {
                 // payload
                 let (ps, pl) = Payload::new(false);
                 *msg.inner.payload.borrow_mut() = Some(pl);
@@ -305,24 +295,24 @@ where
 
                 self.messages.push_back(msg);
             }
-            Message::Chunk(chunk) => {
+            InMessage::Chunk(chunk) => {
                 if let Some(ref mut payload) = self.payload {
                     payload.feed_data(chunk);
                 } else {
                     error!("Internal server error: unexpected payload chunk");
                     self.flags.insert(Flags::READ_DISCONNECTED | Flags::STARTED);
                     // self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
-                    self.error = Some(HttpDispatchError::InternalError);
+                    self.error = Some(DispatchError::InternalError);
                 }
             }
-            Message::Eof => {
+            InMessage::Eof => {
                 if let Some(mut payload) = self.payload.take() {
                     payload.feed_eof();
                 } else {
                     error!("Internal server error: unexpected eof");
                     self.flags.insert(Flags::READ_DISCONNECTED | Flags::STARTED);
                     // self.push_response_entry(StatusCode::INTERNAL_SERVER_ERROR);
-                    self.error = Some(HttpDispatchError::InternalError);
+                    self.error = Some(DispatchError::InternalError);
                 }
             }
         }
@@ -330,7 +320,7 @@ where
         Ok(())
     }
 
-    pub(self) fn poll_io(&mut self) -> Result<bool, HttpDispatchError<S::Error>> {
+    pub(self) fn poll_io(&mut self) -> Result<bool, DispatchError<S::Error>> {
         let mut updated = false;
 
         if self.messages.len() < MAX_PIPELINED_MESSAGES {
@@ -359,7 +349,7 @@ where
                         // Malformed requests should be responded with 400
                         // self.push_response_entry(StatusCode::BAD_REQUEST);
                         self.flags.insert(Flags::READ_DISCONNECTED | Flags::STARTED);
-                        self.error = Some(HttpDispatchError::MalformedRequest);
+                        self.error = Some(DispatchError::MalformedRequest);
                         break;
                     }
                 }
@@ -370,14 +360,14 @@ where
     }
 }
 
-impl<T, S> Future for Http1Dispatcher<T, S>
+impl<T, S> Future for Dispatcher<T, S>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = HttpResponse>,
     S::Error: Debug + Display,
 {
     type Item = ();
-    type Error = HttpDispatchError<S::Error>;
+    type Error = DispatchError<S::Error>;
 
     #[inline]
     fn poll(&mut self) -> Poll<(), Self::Error> {

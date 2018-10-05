@@ -4,37 +4,45 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::h1decoder::{H1Decoder, Message};
-use super::helpers;
-use super::message::RequestPool;
-use super::output::{ResponseInfo, ResponseLength};
+use super::decoder::H1Decoder;
+pub use super::decoder::InMessage;
 use body::Body;
 use error::ParseError;
+use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::Version;
 use httpresponse::HttpResponse;
+use request::RequestPool;
+use server::output::{ResponseInfo, ResponseLength};
 
-pub(crate) enum OutMessage {
+pub enum OutMessage {
     Response(HttpResponse),
     Payload(Bytes),
 }
 
-pub(crate) struct H1Codec {
+/// HTTP/1 Codec
+pub struct Codec {
     decoder: H1Decoder,
     encoder: H1Writer,
 }
 
-impl H1Codec {
-    pub fn new(pool: &'static RequestPool) -> Self {
-        H1Codec {
+impl Codec {
+    /// Create HTTP/1 codec
+    pub fn new() -> Self {
+        Codec::with_pool(RequestPool::pool())
+    }
+
+    /// Create HTTP/1 codec with request's pool
+    pub(crate) fn with_pool(pool: &'static RequestPool) -> Self {
+        Codec {
             decoder: H1Decoder::new(pool),
             encoder: H1Writer::new(),
         }
     }
 }
 
-impl Decoder for H1Codec {
-    type Item = Message;
+impl Decoder for Codec {
+    type Item = InMessage;
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -42,7 +50,7 @@ impl Decoder for H1Codec {
     }
 }
 
-impl Encoder for H1Codec {
+impl Encoder for Codec {
     type Item = OutMessage;
     type Error = io::Error;
 
