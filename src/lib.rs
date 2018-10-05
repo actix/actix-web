@@ -142,7 +142,7 @@ pub mod error;
 pub mod h1;
 pub(crate) mod helpers;
 pub mod test;
-//pub mod ws;
+pub mod ws;
 pub use body::{Binary, Body};
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;

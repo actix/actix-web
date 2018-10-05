@@ -1,69 +1,23 @@
-//! `WebSocket` support for Actix
+//! `WebSocket` support.
 //!
 //! To setup a `WebSocket`, first do web socket handshake then on success
 //! convert `Payload` into a `WsStream` stream and then use `WsWriter` to
 //! communicate with the peer.
-//!
-//! ## Example
-//!
-//! ```rust
-//! # extern crate actix_web;
-//! # use actix_web::actix::*;
-//! # use actix_web::*;
-//! use actix_web::{ws, HttpRequest, HttpResponse};
-//!
-//! // do websocket handshake and start actor
-//! fn ws_index(req: &HttpRequest) -> Result<HttpResponse> {
-//!     ws::start(req, Ws)
-//! }
-//!
-//! struct Ws;
-//!
-//! impl Actor for Ws {
-//!     type Context = ws::WebsocketContext<Self>;
-//! }
-//!
-//! // Handler for ws::Message messages
-//! impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
-//!     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
-//!         match msg {
-//!             ws::Message::Ping(msg) => ctx.pong(&msg),
-//!             ws::Message::Text(text) => ctx.text(text),
-//!             ws::Message::Binary(bin) => ctx.binary(bin),
-//!             _ => (),
-//!         }
-//!     }
-//! }
-//! #
-//! # fn main() {
-//! #    App::new()
-//! #      .resource("/ws/", |r| r.f(ws_index))  // <- register websocket route
-//! #      .finish();
-//! # }
 //! ```
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{header, Method, StatusCode};
 
-use super::actix::{Actor, StreamHandler};
-
 use body::Binary;
-use error::{Error, PayloadError, ResponseError};
-use httpmessage::HttpMessage;
-use httprequest::HttpRequest;
+use error::{PayloadError, ResponseError};
 use httpresponse::{ConnectionType, HttpResponse, HttpResponseBuilder};
 use payload::PayloadBuffer;
+use request::Request;
 
-mod client;
-mod context;
 mod frame;
 mod mask;
 mod proto;
 
-pub use self::client::{
-    Client, ClientError, ClientHandshake, ClientReader, ClientWriter,
-};
-pub use self::context::WebsocketContext;
 pub use self::frame::{Frame, FramedMessage};
 pub use self::proto::{CloseCode, CloseReason, OpCode};
 
@@ -156,7 +110,7 @@ impl ResponseError for HandshakeError {
 }
 
 /// `WebSocket` Message
-#[derive(Debug, PartialEq, Message)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
     /// Text message
     Text(String),
@@ -170,19 +124,6 @@ pub enum Message {
     Close(Option<CloseReason>),
 }
 
-/// Do websocket handshake and start actor
-pub fn start<A, S>(req: &HttpRequest<S>, actor: A) -> Result<HttpResponse, Error>
-where
-    A: Actor<Context = WebsocketContext<A, S>> + StreamHandler<Message, ProtocolError>,
-    S: 'static,
-{
-    let mut resp = handshake(req)?;
-    let stream = WsStream::new(req.payload());
-
-    let body = WebsocketContext::create(req.clone(), actor, stream);
-    Ok(resp.body(body))
-}
-
 /// Prepare `WebSocket` handshake response.
 ///
 /// This function returns handshake `HttpResponse`, ready to send to peer.
@@ -191,9 +132,7 @@ where
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake<S>(
-    req: &HttpRequest<S>,
-) -> Result<HttpResponseBuilder, HandshakeError> {
+pub fn handshake(req: &Request) -> Result<HttpResponseBuilder, HandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(HandshakeError::GetMethodRequired);
