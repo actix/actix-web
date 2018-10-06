@@ -272,7 +272,7 @@ impl HttpResponse {
         self.get_mut().response_size = size;
     }
 
-    /// Set write buffer capacity
+    /// Get write buffer capacity
     pub fn write_buffer_capacity(&self) -> usize {
         self.get_ref().write_capacity
     }
