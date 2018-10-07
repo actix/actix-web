@@ -69,10 +69,10 @@ impl Body {
 
     /// Is this binary body.
     #[inline]
-    pub(crate) fn binary(self) -> Binary {
+    pub(crate) fn into_binary(self) -> Option<Binary> {
         match self {
-            Body::Binary(b) => b,
-            _ => panic!(),
+            Body::Binary(b) => Some(b),
+            _ => None,
         }
     }
 }
