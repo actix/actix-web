@@ -11,7 +11,7 @@ use actix_net::server::Server;
 use actix_web::{client, test, HttpMessage};
 use futures::future;
 
-use actix_http::{h1, Error, KeepAlive, Request, Response};
+use actix_http::{h1, KeepAlive, Request, Response};
 
 #[test]
 fn test_h1_v2() {
@@ -25,10 +25,11 @@ fn test_h1_v2() {
                     .client_disconnect(1000)
                     .server_hostname("localhost")
                     .server_address(addr)
-                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                    .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
+    thread::sleep(time::Duration::from_millis(100));
 
     let mut sys = System::new("test");
     {
@@ -48,7 +49,7 @@ fn test_slow_request() {
             .bind("test", addr, move || {
                 h1::H1Service::build()
                     .client_timeout(100)
-                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                    .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -69,7 +70,7 @@ fn test_malformed_request() {
             .bind("test", addr, move || {
                 h1::H1Service::build()
                     .client_timeout(100)
-                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                    .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -103,7 +104,7 @@ fn test_content_length() {
                         StatusCode::OK,
                         StatusCode::NOT_FOUND,
                     ];
-                    future::ok::<_, Error>(Response::new(statuses[indx]))
+                    future::ok::<_, ()>(Response::new(statuses[indx]))
                 })
             }).unwrap()
             .run();

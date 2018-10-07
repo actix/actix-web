@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::net;
 
@@ -26,7 +26,7 @@ impl<T, S> H1Service<T, S>
 where
     S: NewService,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoNewService<S>>(service: F) -> Self {
@@ -50,7 +50,7 @@ where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response> + Clone,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     type Request = T;
     type Response = ();
@@ -86,7 +86,7 @@ impl<T, S> H1ServiceBuilder<T, S>
 where
     S: NewService,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> H1ServiceBuilder<T, S> {
@@ -203,7 +203,7 @@ where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response>,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     type Item = H1ServiceHandler<T, S::Service>;
     type Error = S::InitError;
@@ -227,7 +227,7 @@ pub struct H1ServiceHandler<T, S> {
 impl<T, S> H1ServiceHandler<T, S>
 where
     S: Service<Request = Request, Response = Response> + Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S> {
         H1ServiceHandler {
@@ -242,7 +242,7 @@ impl<T, S> Service for H1ServiceHandler<T, S>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = Response> + Clone,
-    S::Error: Debug + Display,
+    S::Error: Debug,
 {
     type Request = T;
     type Response = ();

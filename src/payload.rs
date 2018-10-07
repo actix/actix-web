@@ -522,18 +522,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use failure::Fail;
     use futures::future::{lazy, result};
-    use std::io;
     use tokio::runtime::current_thread::Runtime;
 
     #[test]
     fn test_error() {
-        let err: PayloadError =
-            io::Error::new(io::ErrorKind::Other, "ParseError").into();
-        assert_eq!(format!("{}", err), "ParseError");
-        assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
-
         let err = PayloadError::Incomplete;
         assert_eq!(
             format!("{}", err),

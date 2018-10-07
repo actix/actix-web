@@ -341,15 +341,6 @@ pub enum PayloadError {
     /// A payload length is unknown.
     #[fail(display = "A payload length is unknown.")]
     UnknownLength,
-    /// Io error
-    #[fail(display = "{}", _0)]
-    Io(#[cause] IoError),
-}
-
-impl From<IoError> for PayloadError {
-    fn from(err: IoError) -> PayloadError {
-        PayloadError::Io(err)
-    }
 }
 
 /// `PayloadError` returns two possible results:
@@ -374,7 +365,7 @@ impl ResponseError for cookie::ParseError {
 
 #[derive(Debug)]
 /// A set of errors that can occur during dispatching http requests
-pub enum DispatchError<E: fmt::Display + fmt::Debug> {
+pub enum DispatchError<E: fmt::Debug> {
     /// Service error
     // #[fail(display = "Application specific error: {}", _0)]
     Service(E),
@@ -413,13 +404,13 @@ pub enum DispatchError<E: fmt::Display + fmt::Debug> {
     Unknown,
 }
 
-impl<E: fmt::Display + fmt::Debug> From<ParseError> for DispatchError<E> {
+impl<E: fmt::Debug> From<ParseError> for DispatchError<E> {
     fn from(err: ParseError) -> Self {
         DispatchError::Parse(err)
     }
 }
 
-impl<E: fmt::Display + fmt::Debug> From<io::Error> for DispatchError<E> {
+impl<E: fmt::Debug> From<io::Error> for DispatchError<E> {
     fn from(err: io::Error) -> Self {
         DispatchError::Io(err)
     }

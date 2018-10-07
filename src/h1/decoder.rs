@@ -219,9 +219,7 @@ impl PayloadDecoder {
     }
 
     pub fn eof() -> PayloadDecoder {
-        PayloadDecoder {
-            kind: Kind::Eof(false),
-        }
+        PayloadDecoder { kind: Kind::Eof }
     }
 }
 
@@ -246,7 +244,7 @@ enum Kind {
     /// > the final encoding, the message body length cannot be determined
     /// > reliably; the server MUST respond with the 400 (Bad Request)
     /// > status code and then close the connection.
-    Eof(bool),
+    Eof,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -309,13 +307,11 @@ impl Decoder for PayloadDecoder {
                     }
                 }
             }
-            Kind::Eof(ref mut is_eof) => {
-                if *is_eof {
-                    Ok(Some(PayloadItem::Eof))
-                } else if !src.is_empty() {
-                    Ok(Some(PayloadItem::Chunk(src.take().freeze())))
-                } else {
+            Kind::Eof => {
+                if src.is_empty() {
                     Ok(None)
+                } else {
+                    Ok(Some(PayloadItem::Chunk(src.take().freeze())))
                 }
             }
         }
