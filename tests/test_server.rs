@@ -11,7 +11,7 @@ use actix_net::server::Server;
 use actix_web::{client, test, HttpMessage};
 use futures::future;
 
-use actix_http::{h1, Error, KeepAlive, Request, Response, ServiceConfig};
+use actix_http::{h1, Error, KeepAlive, Request, Response};
 
 #[test]
 fn test_h1_v2() {
@@ -19,17 +19,13 @@ fn test_h1_v2() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                let settings = ServiceConfig::build()
+                h1::H1Service::build()
                     .keep_alive(KeepAlive::Disabled)
                     .client_timeout(1000)
                     .client_disconnect(1000)
                     .server_hostname("localhost")
                     .server_address(addr)
-                    .finish();
-
-                h1::H1Service::new(settings, |_| {
-                    future::ok::<_, Error>(Response::Ok().finish())
-                })
+                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -50,11 +46,9 @@ fn test_slow_request() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                let settings = ServiceConfig::build().client_timeout(100).finish();
-
-                h1::H1Service::new(settings, |_| {
-                    future::ok::<_, Error>(Response::Ok().finish())
-                })
+                h1::H1Service::build()
+                    .client_timeout(100)
+                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -73,10 +67,9 @@ fn test_malformed_request() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                let settings = ServiceConfig::build().client_timeout(100).finish();
-                h1::H1Service::new(settings, |_| {
-                    future::ok::<_, Error>(Response::Ok().finish())
-                })
+                h1::H1Service::build()
+                    .client_timeout(100)
+                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -100,8 +93,7 @@ fn test_content_length() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                let settings = ServiceConfig::build().client_timeout(100).finish();
-                h1::H1Service::new(settings, |req: Request| {
+                h1::H1Service::new(|req: Request| {
                     let indx: usize = req.uri().path()[1..].parse().unwrap();
                     let statuses = [
                         StatusCode::NO_CONTENT,

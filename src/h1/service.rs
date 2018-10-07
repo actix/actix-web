@@ -1,12 +1,13 @@
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
+use std::net;
 
 use actix_net::codec::Framed;
 use actix_net::service::{IntoNewService, NewService, Service};
 use futures::{future, Async, Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use config::ServiceConfig;
+use config::{KeepAlive, ServiceConfig};
 use error::{DispatchError, ParseError};
 use request::Request;
 use response::Response;
@@ -28,12 +29,19 @@ where
     S::Error: Debug + Display,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
+    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+        let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
+
         H1Service {
             cfg,
             srv: service.into_new_service(),
             _t: PhantomData,
         }
+    }
+
+    /// Create builder for `HttpService` instance.
+    pub fn build() -> H1ServiceBuilder<T, S> {
+        H1ServiceBuilder::new()
     }
 }
 
@@ -55,6 +63,130 @@ where
         H1ServiceResponse {
             fut: self.srv.new_service(),
             cfg: Some(self.cfg.clone()),
+            _t: PhantomData,
+        }
+    }
+}
+
+/// A http/1 new service builder
+///
+/// This type can be used to construct an instance of `ServiceConfig` through a
+/// builder-like pattern.
+pub struct H1ServiceBuilder<T, S> {
+    keep_alive: KeepAlive,
+    client_timeout: u64,
+    client_disconnect: u64,
+    host: String,
+    addr: net::SocketAddr,
+    secure: bool,
+    _t: PhantomData<(T, S)>,
+}
+
+impl<T, S> H1ServiceBuilder<T, S>
+where
+    S: NewService,
+    S::Service: Clone,
+    S::Error: Debug + Display,
+{
+    /// Create instance of `ServiceConfigBuilder`
+    pub fn new() -> H1ServiceBuilder<T, S> {
+        H1ServiceBuilder {
+            keep_alive: KeepAlive::Timeout(5),
+            client_timeout: 5000,
+            client_disconnect: 0,
+            secure: false,
+            host: "localhost".to_owned(),
+            addr: "127.0.0.1:8080".parse().unwrap(),
+            _t: PhantomData,
+        }
+    }
+
+    /// Enable secure flag for current server.
+    /// This flags also enables `client disconnect timeout`.
+    ///
+    /// By default this flag is set to false.
+    pub fn secure(mut self) -> Self {
+        self.secure = true;
+        if self.client_disconnect == 0 {
+            self.client_disconnect = 3000;
+        }
+        self
+    }
+
+    /// Set server keep-alive setting.
+    ///
+    /// By default keep alive is set to a 5 seconds.
+    pub fn keep_alive<U: Into<KeepAlive>>(mut self, val: U) -> Self {
+        self.keep_alive = val.into();
+        self
+    }
+
+    /// Set server client timeout in milliseconds for first request.
+    ///
+    /// Defines a timeout for reading client request header. If a client does not transmit
+    /// the entire set headers within this time, the request is terminated with
+    /// the 408 (Request Time-out) error.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default client timeout is set to 5000 milliseconds.
+    pub fn client_timeout(mut self, val: u64) -> Self {
+        self.client_timeout = val;
+        self
+    }
+
+    /// Set server connection disconnect timeout in milliseconds.
+    ///
+    /// Defines a timeout for disconnect connection. If a disconnect procedure does not complete
+    /// within this time, the request get dropped. This timeout affects secure connections.
+    ///
+    /// To disable timeout set value to 0.
+    ///
+    /// By default disconnect timeout is set to 3000 milliseconds.
+    pub fn client_disconnect(mut self, val: u64) -> Self {
+        self.client_disconnect = val;
+        self
+    }
+
+    /// Set server host name.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default host name is set to a "localhost" value.
+    pub fn server_hostname(mut self, val: &str) -> Self {
+        self.host = val.to_owned();
+        self
+    }
+
+    /// Set server ip address.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default server address is set to a "127.0.0.1:8080"
+    pub fn server_address<U: net::ToSocketAddrs>(mut self, addr: U) -> Self {
+        match addr.to_socket_addrs() {
+            Err(err) => error!("Can not convert to SocketAddr: {}", err),
+            Ok(mut addrs) => if let Some(addr) = addrs.next() {
+                self.addr = addr;
+            },
+        }
+        self
+    }
+
+    /// Finish service configuration and create `H1Service` instance.
+    pub fn finish<F: IntoNewService<S>>(self, service: F) -> H1Service<T, S> {
+        let cfg = ServiceConfig::new(
+            self.keep_alive,
+            self.client_timeout,
+            self.client_disconnect,
+        );
+        H1Service {
+            cfg,
+            srv: service.into_new_service(),
             _t: PhantomData,
         }
     }
