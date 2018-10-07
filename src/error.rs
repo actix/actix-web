@@ -374,7 +374,7 @@ impl ResponseError for cookie::ParseError {
 
 #[derive(Debug)]
 /// A set of errors that can occur during dispatching http requests
-pub enum DispatchError<E: fmt::Debug + fmt::Display> {
+pub enum DispatchError<E> {
     /// Service error
     // #[fail(display = "Application specific error: {}", _0)]
     Service(E),
@@ -413,13 +413,13 @@ pub enum DispatchError<E: fmt::Debug + fmt::Display> {
     Unknown,
 }
 
-impl<E: fmt::Debug + fmt::Display> From<ParseError> for DispatchError<E> {
+impl<E> From<ParseError> for DispatchError<E> {
     fn from(err: ParseError) -> Self {
         DispatchError::Parse(err)
     }
 }
 
-impl<E: fmt::Debug + fmt::Display> From<io::Error> for DispatchError<E> {
+impl<E> From<io::Error> for DispatchError<E> {
     fn from(err: io::Error) -> Self {
         DispatchError::Io(err)
     }

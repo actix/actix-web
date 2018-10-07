@@ -54,7 +54,6 @@ pub struct Codec {
 
     // encoder part
     flags: Flags,
-    written: u64,
     headers_size: u32,
     te: ResponseEncoder,
 }
@@ -82,31 +81,30 @@ impl Codec {
             version: Version::HTTP_11,
 
             flags,
-            written: 0,
             headers_size: 0,
             te: ResponseEncoder::default(),
         }
     }
 
-    fn written(&self) -> u64 {
-        self.written
-    }
-
+    /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
         self.flags.contains(Flags::UPGRADE)
     }
 
+    /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE)
+    }
+
+    /// prepare transfer encoding
+    pub fn prepare_te(&mut self, res: &mut Response) {
+        self.te
+            .update(res, self.flags.contains(Flags::HEAD), self.version);
     }
 
     fn encode_response(
         &mut self, mut msg: Response, buffer: &mut BytesMut,
     ) -> io::Result<()> {
-        // prepare transfer encoding
-        self.te
-            .update(&mut msg, self.flags.contains(Flags::HEAD), self.version);
-
         let ka = self.flags.contains(Flags::KEEPALIVE_ENABLED) && msg
             .keep_alive()
             .unwrap_or_else(|| self.flags.contains(Flags::KEEPALIVE));
@@ -131,12 +129,11 @@ impl Codec {
             msg.headers_mut()
                 .insert(CONNECTION, HeaderValue::from_static("close"));
         }
-        let body = msg.replace_body(Body::Empty);
 
         // render message
         {
             let reason = msg.reason().as_bytes();
-            if let Body::Binary(ref bytes) = body {
+            if let Body::Binary(ref bytes) = msg.body() {
                 buffer.reserve(
                     256 + msg.headers().len() * AVERAGE_HEADER_SIZE
                         + bytes.len()
@@ -229,16 +226,6 @@ impl Codec {
             self.headers_size = buffer.len() as u32;
         }
 
-        if let Body::Binary(bytes) = body {
-            self.written = bytes.len() as u64;
-            // buffer.write(bytes.as_ref())?;
-            buffer.extend_from_slice(bytes.as_ref());
-        } else {
-            // capacity, makes sense only for streaming or actor
-            // self.buffer_capacity = msg.write_buffer_capacity();
-
-            msg.replace_body(body);
-        }
         Ok(())
     }
 }
@@ -282,7 +269,6 @@ impl Encoder for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             OutMessage::Response(res) => {
-                self.written = 0;
                 self.encode_response(res, dst)?;
             }
             OutMessage::Payload(bytes) => {

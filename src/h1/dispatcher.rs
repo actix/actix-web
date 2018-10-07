@@ -1,15 +1,15 @@
 use std::collections::VecDeque;
-use std::fmt::{Debug, Display};
 use std::time::Instant;
 
 use actix_net::codec::Framed;
 use actix_net::service::Service;
 
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use log::Level::Debug;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
-use error::{ParseError, PayloadError};
+use error::{Error, ParseError, PayloadError};
 use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 
 use body::Body;
@@ -38,7 +38,7 @@ bitflags! {
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S: Service>
 where
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     service: S,
     flags: Flags,
@@ -81,7 +81,7 @@ impl<T, S> Dispatcher<T, S>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = Response>,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     /// Create http/1 dispatcher.
     pub fn new(stream: T, config: ServiceConfig, service: S) -> Self {
@@ -177,52 +177,34 @@ where
                 State::None => loop {
                     break if let Some(msg) = self.messages.pop_front() {
                         match msg {
-                            Message::Item(msg) => {
-                                let mut task = self.service.call(msg);
-                                match task.poll() {
-                                    Ok(Async::Ready(res)) => {
-                                        if res.body().is_streaming() {
-                                            unimplemented!()
-                                        } else {
-                                            Some(Ok(State::SendResponse(Some(
-                                                OutMessage::Response(res),
-                                            ))))
-                                        }
-                                    }
-                                    Ok(Async::NotReady) => {
-                                        Some(Ok(State::Response(task)))
-                                    }
-                                    Err(err) => Some(Err(DispatchError::Service(err))),
-                                }
-                            }
-                            Message::Error(res) => Some(Ok(State::SendResponse(Some(
+                            Message::Item(req) => Some(self.handle_request(req)),
+                            Message::Error(res) => Some(State::SendResponse(Some(
                                 OutMessage::Response(res),
-                            )))),
+                            ))),
                         }
                     } else {
                         None
                     };
                 },
                 State::Payload(ref mut _body) => unimplemented!(),
-                State::Response(ref mut fut) => {
-                    match fut.poll() {
-                        Ok(Async::Ready(res)) => {
-                            if res.body().is_streaming() {
-                                unimplemented!()
-                            } else {
-                                Some(Ok(State::SendResponse(Some(
-                                    OutMessage::Response(res),
-                                ))))
-                            }
-                        }
-                        Ok(Async::NotReady) => None,
-                        Err(err) => {
-                            // it is not possible to recover from error
-                            // during pipe handling, so just drop connection
-                            Some(Err(DispatchError::Service(err)))
+                State::Response(ref mut fut) => match fut.poll() {
+                    Ok(Async::Ready(mut res)) => {
+                        self.framed.get_codec_mut().prepare_te(&mut res);
+                        if res.body().is_streaming() {
+                            unimplemented!()
+                        } else {
+                            Some(State::SendResponse(Some(OutMessage::Response(res))))
                         }
                     }
-                }
+                    Ok(Async::NotReady) => None,
+                    Err(err) => {
+                        let err = err.into();
+                        if log_enabled!(Debug) {
+                            debug!("{:?}", err);
+                        }
+                        Some(State::SendResponse(Some(OutMessage::Response(err.into()))))
+                    }
+                },
                 State::SendResponse(ref mut item) => {
                     let msg = item.take().expect("SendResponse is empty");
                     match self.framed.start_send(msg) {
@@ -232,13 +214,19 @@ where
                                 self.framed.get_codec().keepalive(),
                             );
                             self.flags.remove(Flags::FLUSHED);
-                            Some(Ok(State::None))
+                            Some(State::None)
                         }
                         Ok(AsyncSink::NotReady(msg)) => {
                             *item = Some(msg);
                             return Ok(());
                         }
-                        Err(err) => Some(Err(DispatchError::Io(err))),
+                        Err(err) => {
+                            self.flags.insert(Flags::READ_DISCONNECTED);
+                            if let Some(mut payload) = self.payload.take() {
+                                payload.set_error(PayloadError::Incomplete);
+                            }
+                            return Err(DispatchError::Io(err));
+                        }
                     }
                 }
                 State::SendResponseWithPayload(ref mut item) => {
@@ -251,23 +239,25 @@ where
                                 self.framed.get_codec().keepalive(),
                             );
                             self.flags.remove(Flags::FLUSHED);
-                            Some(Ok(State::Payload(body)))
+                            Some(State::Payload(body))
                         }
                         Ok(AsyncSink::NotReady(msg)) => {
                             *item = Some((msg, body));
                             return Ok(());
                         }
-                        Err(err) => Some(Err(DispatchError::Io(err))),
+                        Err(err) => {
+                            self.flags.insert(Flags::READ_DISCONNECTED);
+                            if let Some(mut payload) = self.payload.take() {
+                                payload.set_error(PayloadError::Incomplete);
+                            }
+                            return Err(DispatchError::Io(err));
+                        }
                     }
                 }
             };
 
             match state {
-                Some(Ok(state)) => self.state = state,
-                Some(Err(err)) => {
-                    self.client_disconnected();
-                    return Err(err);
-                }
+                Some(state) => self.state = state,
                 None => {
                     // if read-backpressure is enabled and we consumed some data.
                     // we may read more dataand retry
@@ -283,6 +273,28 @@ where
         Ok(())
     }
 
+    fn handle_request(&mut self, req: Request) -> State<S> {
+        let mut task = self.service.call(req);
+        match task.poll() {
+            Ok(Async::Ready(mut res)) => {
+                self.framed.get_codec_mut().prepare_te(&mut res);
+                if res.body().is_streaming() {
+                    unimplemented!()
+                } else {
+                    State::SendResponse(Some(OutMessage::Response(res)))
+                }
+            }
+            Ok(Async::NotReady) => State::Response(task),
+            Err(err) => {
+                let err = err.into();
+                if log_enabled!(Debug) {
+                    debug!("{:?}", err);
+                }
+                State::SendResponse(Some(OutMessage::Response(err.into())))
+            }
+        }
+    }
+
     fn one_message(&mut self, msg: InMessage) -> Result<(), DispatchError<S::Error>> {
         self.flags.insert(Flags::STARTED);
 
@@ -290,23 +302,7 @@ where
             InMessage::Message(msg) => {
                 // handle request early
                 if self.state.is_empty() {
-                    let mut task = self.service.call(msg);
-                    match task.poll() {
-                        Ok(Async::Ready(res)) => {
-                            if res.body().is_streaming() {
-                                unimplemented!()
-                            } else {
-                                self.state =
-                                    State::SendResponse(Some(OutMessage::Response(res)));
-                            }
-                        }
-                        Ok(Async::NotReady) => self.state = State::Response(task),
-                        Err(err) => {
-                            error!("Unhandled application error: {}", err);
-                            self.client_disconnected();
-                            return Err(DispatchError::Service(err));
-                        }
-                    }
+                    self.state = self.handle_request(msg);
                 } else {
                     self.messages.push_back(Message::Item(msg));
                 }
@@ -449,7 +445,7 @@ impl<T, S> Future for Dispatcher<T, S>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = Response>,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     type Item = ();
     type Error = DispatchError<S::Error>;

@@ -1,4 +1,3 @@
-use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 
 use actix_net::codec::Framed;
@@ -7,7 +6,7 @@ use futures::{future, Async, Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use config::ServiceConfig;
-use error::{DispatchError, ParseError};
+use error::{DispatchError, Error, ParseError};
 use request::Request;
 use response::Response;
 
@@ -24,6 +23,8 @@ pub struct H1Service<T, S> {
 impl<T, S> H1Service<T, S>
 where
     S: NewService,
+    S::Service: Clone,
+    S::Error: Into<Error>,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
@@ -40,7 +41,7 @@ where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response> + Clone,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     type Request = T;
     type Response = ();
@@ -69,7 +70,7 @@ where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response>,
     S::Service: Clone,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     type Item = H1ServiceHandler<T, S::Service>;
     type Error = S::InitError;
@@ -93,7 +94,7 @@ pub struct H1ServiceHandler<T, S> {
 impl<T, S> H1ServiceHandler<T, S>
 where
     S: Service<Request = Request, Response = Response> + Clone,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S> {
         H1ServiceHandler {
@@ -108,7 +109,7 @@ impl<T, S> Service for H1ServiceHandler<T, S>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = Response> + Clone,
-    S::Error: Debug + Display,
+    S::Error: Into<Error>,
 {
     type Request = T;
     type Response = ();
