@@ -144,7 +144,6 @@ pub use body::{Binary, Body};
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;
 pub use httpmessage::HttpMessage;
-pub use json::Json;
 pub use request::Request;
 pub use response::Response;
 
