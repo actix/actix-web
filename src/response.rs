@@ -942,7 +942,7 @@ mod tests {
     use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
 
     use header::ContentEncoding;
-    use test::TestRequest;
+    // use test::TestRequest;
 
     #[test]
     fn test_debug() {
@@ -1118,8 +1118,6 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let req = TestRequest::default().finish();
-
         let resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(

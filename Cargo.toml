@@ -10,13 +10,12 @@ repository = "https://github.com/actix/actix-web.git"
 documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
-              "web-programming::http-client",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 
 [package.metadata.docs.rs]
-features = ["tls", "alpn", "rust-tls", "session", "brotli", "flate2-c"]
+features = ["session"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -29,18 +28,6 @@ path = "src/lib.rs"
 
 [features]
 default = ["session", "cell"]
-
-# native-tls
-tls = ["native-tls", "tokio-tls", "actix-net/tls"]
-
-# openssl
-ssl = ["openssl", "tokio-openssl", "actix-net/ssl"]
-
-# rustls
-rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots", "actix-net/rust-tls"]
-
-# unix sockets
-uds = ["tokio-uds"]
 
 # sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
@@ -82,30 +69,10 @@ tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-current-thread = "0.1"
 
-# native-tls
-native-tls = { version="0.2", optional = true }
-tokio-tls = { version="0.2", optional = true }
-
-# openssl
-openssl = { version="0.10", optional = true }
-tokio-openssl = { version="0.2", optional = true }
-
-#rustls
-rustls = { version = "0.14", optional = true }
-tokio-rustls = { version = "0.8", optional = true }
-webpki = { version = "0.18", optional = true }
-webpki-roots = { version = "0.15", optional = true }
-
-# unix sockets
-tokio-uds = { version="0.2", optional = true }
-
 [dev-dependencies]
 actix-web = "0.7"
 env_logger = "0.5"
 serde_derive = "1.0"
-
-[build-dependencies]
-version_check = "0.1"
 
 [profile.release]
 lto = true

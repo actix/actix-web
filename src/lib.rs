@@ -63,21 +63,9 @@
 //!
 //! ## Package feature
 //!
-//! * `tls` - enables ssl support via `native-tls` crate
-//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
-//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
-//! * `uds` - enables support for making client requests via Unix Domain Sockets.
-//!   Unix only. Not necessary for *serving* requests.
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
-//! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler
-//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler
-//! * `flate2-rust` - experimental rust based implementation for
-//!   `gzip`, `deflate` compression.
 //!
-#![cfg_attr(actix_nightly, feature(tool_lints))]
 // #![warn(missing_docs)]
 #![allow(dead_code)]
 
@@ -114,8 +102,6 @@ extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
-#[cfg(all(unix, feature = "uds"))]
-extern crate tokio_uds;
 
 #[cfg(test)]
 #[macro_use]
