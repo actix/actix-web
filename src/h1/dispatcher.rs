@@ -386,21 +386,13 @@ where
         if let Some(ref mut timer) = self.ka_timer {
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
-                    if timer.deadline() >= self.ka_expire {
-                        // check for any outstanding request handling
-                        if self.state.is_empty() && self.messages.is_empty() {
-                            // if we get timer during shutdown, just drop connection
-                            if self.flags.contains(Flags::SHUTDOWN) {
-                                return Err(DispatchError::DisconnectTimeout);
-                            } else if !self.flags.contains(Flags::STARTED) {
-                                // timeout on first request (slow request) return 408
-                                trace!("Slow request timeout");
-                                self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
-                                self.state =
-                                    State::SendResponse(Some(OutMessage::Response(
-                                        Response::RequestTimeout().finish(),
-                                    )));
-                            } else {
+                    // if we get timer during shutdown, just drop connection
+                    if self.flags.contains(Flags::SHUTDOWN) {
+                        return Err(DispatchError::DisconnectTimeout);
+                    } else if timer.deadline() >= self.ka_expire {
+                        // check for any outstanding response processing
+                        if self.state.is_empty() {
+                            if self.flags.contains(Flags::STARTED) {
                                 trace!("Keep-alive timeout, close connection");
                                 self.flags.insert(Flags::SHUTDOWN);
 
@@ -412,6 +404,14 @@ where
                                 } else {
                                     return Ok(());
                                 }
+                            } else {
+                                // timeout on first request (slow request) return 408
+                                trace!("Slow request timeout");
+                                self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
+                                self.state =
+                                    State::SendResponse(Some(OutMessage::Response(
+                                        Response::RequestTimeout().finish(),
+                                    )));
                             }
                         } else if let Some(deadline) = self.config.keep_alive_expire() {
                             timer.reset(deadline)
