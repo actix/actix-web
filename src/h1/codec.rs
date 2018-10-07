@@ -4,15 +4,14 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::decoder::H1Decoder;
-pub use super::decoder::InMessage;
+use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder};
 use super::encoder::{ResponseEncoder, ResponseLength};
 use body::Body;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, Version};
-use request::RequestPool;
+use request::{Request, RequestPool};
 use response::Response;
 
 bitflags! {
@@ -34,9 +33,23 @@ pub enum OutMessage {
     Payload(Bytes),
 }
 
+/// Incoming http/1 request
+#[derive(Debug)]
+pub enum InMessage {
+    /// Request
+    Message(Request),
+    /// Request with payload
+    MessageWithPayload(Request),
+    /// Payload chunk
+    Chunk(Bytes),
+    /// End of payload
+    Eof,
+}
+
 /// HTTP/1 Codec
 pub struct Codec {
-    decoder: H1Decoder,
+    decoder: RequestDecoder,
+    payload: Option<PayloadDecoder>,
     version: Version,
 
     // encoder part
@@ -64,7 +77,8 @@ impl Codec {
             Flags::empty()
         };
         Codec {
-            decoder: H1Decoder::with_pool(pool),
+            decoder: RequestDecoder::with_pool(pool),
+            payload: None,
             version: Version::HTTP_11,
 
             flags,
@@ -234,21 +248,28 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let res = self.decoder.decode(src);
-
-        match res {
-            Ok(Some(InMessage::Message(ref req)))
-            | Ok(Some(InMessage::MessageWithPayload(ref req))) => {
-                self.flags
-                    .set(Flags::HEAD, req.inner.method == Method::HEAD);
-                self.version = req.inner.version;
-                if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
-                    self.flags.set(Flags::KEEPALIVE, req.keep_alive());
-                }
+        if self.payload.is_some() {
+            Ok(match self.payload.as_mut().unwrap().decode(src)? {
+                Some(PayloadItem::Chunk(chunk)) => Some(InMessage::Chunk(chunk)),
+                Some(PayloadItem::Eof) => Some(InMessage::Eof),
+                None => None,
+            })
+        } else if let Some((req, payload)) = self.decoder.decode(src)? {
+            self.flags
+                .set(Flags::HEAD, req.inner.method == Method::HEAD);
+            self.version = req.inner.version;
+            if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
+                self.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }
-            _ => (),
+            self.payload = payload;
+            if self.payload.is_some() {
+                Ok(Some(InMessage::MessageWithPayload(req)))
+            } else {
+                Ok(Some(InMessage::Message(req)))
+            }
+        } else {
+            Ok(None)
         }
-        res
     }
 }
 
