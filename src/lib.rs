@@ -112,12 +112,10 @@ extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
-extern crate tokio_reactor;
 extern crate tokio_tcp;
 extern crate tokio_timer;
 #[cfg(all(unix, feature = "uds"))]
 extern crate tokio_uds;
-extern crate url;
 
 #[cfg(test)]
 #[macro_use]

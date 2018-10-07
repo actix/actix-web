@@ -16,7 +16,6 @@ use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 use tokio_timer::Error as TimerError;
-pub use url::ParseError as UrlParseError;
 
 // re-exports
 pub use cookie::ParseError as CookieParseError;
@@ -195,9 +194,6 @@ impl ResponseError for FormError {}
 
 /// `InternalServerError` for `TimerError`
 impl ResponseError for TimerError {}
-
-/// `InternalServerError` for `UrlParseError`
-impl ResponseError for UrlParseError {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
@@ -549,29 +545,6 @@ impl From<PayloadError> for ReadlinesError {
 impl From<ContentTypeError> for ReadlinesError {
     fn from(err: ContentTypeError) -> Self {
         ReadlinesError::ContentTypeError(err)
-    }
-}
-
-/// Errors which can occur when attempting to generate resource uri.
-#[derive(Fail, Debug, PartialEq)]
-pub enum UrlGenerationError {
-    /// Resource not found
-    #[fail(display = "Resource not found")]
-    ResourceNotFound,
-    /// Not all path pattern covered
-    #[fail(display = "Not all path pattern covered")]
-    NotEnoughElements,
-    /// URL parse error
-    #[fail(display = "{}", _0)]
-    ParseError(#[cause] UrlParseError),
-}
-
-/// `InternalServerError` for `UrlGeneratorError`
-impl ResponseError for UrlGenerationError {}
-
-impl From<UrlParseError> for UrlGenerationError {
-    fn from(err: UrlParseError) -> Self {
-        UrlGenerationError::ParseError(err)
     }
 }
 

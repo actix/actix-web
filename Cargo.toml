@@ -66,7 +66,6 @@ time = "0.1"
 encoding = "0.2"
 lazy_static = "1.0"
 serde_urlencoded = "^0.5.3"
-url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
 
 failure = "^0.1.2"
@@ -81,7 +80,6 @@ tokio = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
-tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
 
 # native-tls
