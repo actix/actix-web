@@ -1,4 +1,4 @@
-use std::cell::{RefCell, RefMut, UnsafeCell};
+use std::cell::{Cell, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
@@ -139,7 +139,7 @@ struct Inner<H> {
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
     node: RefCell<Node<()>>,
-    date: UnsafeCell<(bool, Date)>,
+    date: Cell<Option<Date>>,
 }
 
 impl<H> Clone for ServiceConfig<H> {
@@ -174,7 +174,7 @@ impl<H> ServiceConfig<H> {
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
             node: RefCell::new(Node::head()),
-            date: UnsafeCell::new((false, Date::new())),
+            date: Cell::new(None),
         }))
     }
 
@@ -213,11 +213,6 @@ impl<H> ServiceConfig<H> {
 
     pub(crate) fn get_request(&self) -> Request {
         RequestPool::get(self.0.messages)
-    }
-
-    fn update_date(&self) {
-        // Unsafe: WorkerSetting is !Sync and !Send
-        unsafe { (*self.0.date.get()).0 = false };
     }
 }
 
@@ -272,51 +267,39 @@ impl<H: 'static> ServiceConfig<H> {
         }
     }
 
-    pub(crate) fn set_date(&self, dst: &mut BytesMut, full: bool) {
-        // Unsafe: WorkerSetting is !Sync and !Send
-        let date_bytes = unsafe {
-            let date = &mut (*self.0.date.get());
-            if !date.0 {
-                date.1.update();
-                date.0 = true;
+    fn check_date(&self) {
+        if unsafe { &*self.0.date.as_ptr() }.is_none() {
+            self.0.date.set(Some(Date::new()));
 
-                // periodic date update
-                let s = self.clone();
-                spawn(sleep(Duration::from_millis(500)).then(move |_| {
-                    s.update_date();
-                    future::ok(())
-                }));
-            }
-            &date.1.bytes
-        };
+            // periodic date update
+            let s = self.clone();
+            spawn(sleep(Duration::from_millis(500)).then(move |_| {
+                s.0.date.set(None);
+                future::ok(())
+            }));
+        }
+    }
+
+    pub(crate) fn set_date(&self, dst: &mut BytesMut, full: bool) {
+        self.check_date();
+
+        let date = &unsafe { &*self.0.date.as_ptr() }.as_ref().unwrap().bytes;
+
         if full {
             let mut buf: [u8; 39] = [0; 39];
             buf[..6].copy_from_slice(b"date: ");
-            buf[6..35].copy_from_slice(date_bytes);
+            buf[6..35].copy_from_slice(date);
             buf[35..].copy_from_slice(b"\r\n\r\n");
             dst.extend_from_slice(&buf);
         } else {
-            dst.extend_from_slice(date_bytes);
+            dst.extend_from_slice(date);
         }
     }
 
     #[inline]
     pub(crate) fn now(&self) -> Instant {
-        unsafe {
-            let date = &mut (*self.0.date.get());
-            if !date.0 {
-                date.1.update();
-                date.0 = true;
-
-                // periodic date update
-                let s = self.clone();
-                spawn(sleep(Duration::from_millis(500)).then(move |_| {
-                    s.update_date();
-                    future::ok(())
-                }));
-            }
-            date.1.current
-        }
+        self.check_date();
+        unsafe { &*self.0.date.as_ptr() }.as_ref().unwrap().current
     }
 }
 
@@ -435,6 +418,7 @@ impl<H> ServiceConfigBuilder<H> {
     }
 }
 
+#[derive(Copy, Clone)]
 struct Date {
     current: Instant,
     bytes: [u8; DATE_VALUE_LENGTH],
