@@ -48,17 +48,10 @@
 //!
 //! ## Features
 //!
-//! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
+//! * Supported *HTTP/1.x* protocol
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
 //! * `WebSockets` server/client
-//! * Transparent content compression/decompression (br, gzip, deflate)
-//! * Configurable request routing
-//! * Graceful server shutdown
-//! * Multipart streams
-//! * SSL support with OpenSSL or `native-tls`
-//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
-//! * Built on top of [Actix actor framework](https://github.com/actix/actix)
 //! * Supported Rust version: 1.26 or later
 //!
 //! ## Package feature

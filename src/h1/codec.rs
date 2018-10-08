@@ -7,6 +7,7 @@ use tokio_codec::{Decoder, Encoder};
 use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder};
 use super::encoder::{ResponseEncoder, ResponseLength};
 use body::Body;
+use config::ServiceConfig;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
@@ -48,6 +49,7 @@ pub enum InMessage {
 
 /// HTTP/1 Codec
 pub struct Codec {
+    config: ServiceConfig,
     decoder: RequestDecoder,
     payload: Option<PayloadDecoder>,
     version: Version,
@@ -62,20 +64,19 @@ impl Codec {
     /// Create HTTP/1 codec.
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
-    pub fn new(keepalive_enabled: bool) -> Self {
-        Codec::with_pool(RequestPool::pool(), keepalive_enabled)
+    pub fn new(config: ServiceConfig) -> Self {
+        Codec::with_pool(RequestPool::pool(), config)
     }
 
     /// Create HTTP/1 codec with request's pool
-    pub(crate) fn with_pool(
-        pool: &'static RequestPool, keepalive_enabled: bool,
-    ) -> Self {
-        let flags = if keepalive_enabled {
+    pub(crate) fn with_pool(pool: &'static RequestPool, config: ServiceConfig) -> Self {
+        let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
         } else {
             Flags::empty()
         };
         Codec {
+            config,
             decoder: RequestDecoder::with_pool(pool),
             payload: None,
             version: Version::HTTP_11,
@@ -217,7 +218,7 @@ impl Codec {
 
             // optimized date header, set_date writes \r\n
             if !has_date {
-                // self.settings.set_date(&mut buffer, true);
+                self.config.set_date(buffer);
                 buffer.extend_from_slice(b"\r\n");
             } else {
                 // msg eof

@@ -48,7 +48,7 @@ struct Inner {
     client_timeout: u64,
     client_disconnect: u64,
     ka_enabled: bool,
-    date: UnsafeCell<(bool, Date)>,
+    timer: DateService,
 }
 
 impl Clone for ServiceConfig {
@@ -78,7 +78,7 @@ impl ServiceConfig {
             ka_enabled,
             client_timeout,
             client_disconnect,
-            date: UnsafeCell::new((false, Date::new())),
+            timer: DateService::with(Duration::from_millis(500)),
         }))
     }
 
@@ -99,17 +99,14 @@ impl ServiceConfig {
         self.0.ka_enabled
     }
 
-    fn update_date(&self) {
-        // Unsafe: WorkerSetting is !Sync and !Send
-        unsafe { (*self.0.date.get()).0 = false };
-    }
-
     #[inline]
     /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
         let delay = self.0.client_timeout;
         if delay != 0 {
-            Some(Delay::new(self.now() + Duration::from_millis(delay)))
+            Some(Delay::new(
+                self.0.timer.now() + Duration::from_millis(delay),
+            ))
         } else {
             None
         }
@@ -119,7 +116,7 @@ impl ServiceConfig {
     pub fn client_timer_expire(&self) -> Option<Instant> {
         let delay = self.0.client_timeout;
         if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
+            Some(self.0.timer.now() + Duration::from_millis(delay))
         } else {
             None
         }
@@ -129,7 +126,7 @@ impl ServiceConfig {
     pub fn client_disconnect_timer(&self) -> Option<Instant> {
         let delay = self.0.client_disconnect;
         if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
+            Some(self.0.timer.now() + Duration::from_millis(delay))
         } else {
             None
         }
@@ -139,7 +136,7 @@ impl ServiceConfig {
     /// Return keep-alive timer delay is configured.
     pub fn keep_alive_timer(&self) -> Option<Delay> {
         if let Some(ka) = self.0.keep_alive {
-            Some(Delay::new(self.now() + ka))
+            Some(Delay::new(self.0.timer.now() + ka))
         } else {
             None
         }
@@ -148,57 +145,23 @@ impl ServiceConfig {
     /// Keep-alive expire time
     pub fn keep_alive_expire(&self) -> Option<Instant> {
         if let Some(ka) = self.0.keep_alive {
-            Some(self.now() + ka)
+            Some(self.0.timer.now() + ka)
         } else {
             None
         }
     }
 
-    pub(crate) fn set_date(&self, dst: &mut BytesMut, full: bool) {
-        // Unsafe: WorkerSetting is !Sync and !Send
-        let date_bytes = unsafe {
-            let date = &mut (*self.0.date.get());
-            if !date.0 {
-                date.1.update();
-                date.0 = true;
-
-                // periodic date update
-                let s = self.clone();
-                spawn(sleep(Duration::from_millis(500)).then(move |_| {
-                    s.update_date();
-                    future::ok(())
-                }));
-            }
-            &date.1.bytes
-        };
-        if full {
-            let mut buf: [u8; 39] = [0; 39];
-            buf[..6].copy_from_slice(b"date: ");
-            buf[6..35].copy_from_slice(date_bytes);
-            buf[35..].copy_from_slice(b"\r\n\r\n");
-            dst.extend_from_slice(&buf);
-        } else {
-            dst.extend_from_slice(date_bytes);
-        }
-    }
-
     #[inline]
     pub(crate) fn now(&self) -> Instant {
-        unsafe {
-            let date = &mut (*self.0.date.get());
-            if !date.0 {
-                date.1.update();
-                date.0 = true;
+        self.0.timer.now()
+    }
 
-                // periodic date update
-                let s = self.clone();
-                spawn(sleep(Duration::from_millis(500)).then(move |_| {
-                    s.update_date();
-                    future::ok(())
-                }));
-            }
-            date.1.current
-        }
+    pub(crate) fn set_date(&self, dst: &mut BytesMut) {
+        let mut buf: [u8; 39] = [0; 39];
+        buf[..6].copy_from_slice(b"date: ");
+        buf[6..35].copy_from_slice(&self.0.timer.date().bytes);
+        buf[35..].copy_from_slice(b"\r\n\r\n");
+        dst.extend_from_slice(&buf);
     }
 }
 
@@ -311,7 +274,6 @@ impl ServiceConfigBuilder {
 }
 
 struct Date {
-    current: Instant,
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
 }
@@ -319,7 +281,6 @@ struct Date {
 impl Date {
     fn new() -> Date {
         let mut date = Date {
-            current: Instant::now(),
             bytes: [0; DATE_VALUE_LENGTH],
             pos: 0,
         };
@@ -328,7 +289,6 @@ impl Date {
     }
     fn update(&mut self) {
         self.pos = 0;
-        self.current = Instant::now();
         write!(self, "{}", time::at_utc(time::get_time()).rfc822()).unwrap();
     }
 }
@@ -339,6 +299,68 @@ impl fmt::Write for Date {
         self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
         self.pos += len;
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+struct DateService(Rc<DateServiceInner>);
+
+struct DateServiceInner {
+    interval: Duration,
+    current: UnsafeCell<Option<(Date, Instant)>>,
+}
+
+impl DateServiceInner {
+    fn new(interval: Duration) -> Self {
+        DateServiceInner {
+            interval,
+            current: UnsafeCell::new(None),
+        }
+    }
+
+    fn get_ref(&self) -> &Option<(Date, Instant)> {
+        unsafe { &*self.current.get() }
+    }
+
+    fn reset(&self) {
+        unsafe { (&mut *self.current.get()).take() };
+    }
+
+    fn update(&self) {
+        let now = Instant::now();
+        let date = Date::new();
+        *(unsafe { &mut *self.current.get() }) = Some((date, now));
+    }
+}
+
+impl DateService {
+    fn with(resolution: Duration) -> Self {
+        DateService(Rc::new(DateServiceInner::new(resolution)))
+    }
+
+    fn check_date(&self) {
+        if self.0.get_ref().is_none() {
+            self.0.update();
+
+            // periodic date update
+            let s = self.clone();
+            spawn(sleep(Duration::from_millis(500)).then(move |_| {
+                s.0.reset();
+                future::ok(())
+            }));
+        }
+    }
+
+    fn now(&self) -> Instant {
+        self.check_date();
+        self.0.get_ref().as_ref().unwrap().1
+    }
+
+    fn date(&self) -> &Date {
+        self.check_date();
+
+        let item = self.0.get_ref().as_ref().unwrap();
+        &item.0
     }
 }
 
@@ -360,9 +382,9 @@ mod tests {
         let _ = rt.block_on(future::lazy(|| {
             let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
             let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-            settings.set_date(&mut buf1, true);
+            settings.set_date(&mut buf1);
             let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-            settings.set_date(&mut buf2, true);
+            settings.set_date(&mut buf2);
             assert_eq!(buf1, buf2);
             future::ok::<_, ()>(())
         }));

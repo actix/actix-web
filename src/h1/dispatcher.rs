@@ -97,7 +97,7 @@ where
         } else {
             Flags::FLUSHED
         };
-        let framed = Framed::new(stream, Codec::new(keepalive));
+        let framed = Framed::new(stream, Codec::new(config.clone()));
 
         let (ka_expire, ka_timer) = if let Some(delay) = timeout {
             (delay.deadline(), Some(delay))
