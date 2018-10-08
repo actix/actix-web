@@ -14,22 +14,22 @@ pub struct LowResTimer(Cell<Inner>);
 
 #[derive(Debug)]
 struct Inner {
-    interval: Duration,
+    resolution: Duration,
     current: Option<Instant>,
 }
 
 impl Inner {
-    fn new(interval: Duration) -> Self {
+    fn new(resolution: Duration) -> Self {
         Inner {
-            interval,
+            resolution,
             current: None,
         }
     }
 }
 
 impl LowResTimer {
-    pub fn with_interval(interval: Duration) -> LowResTimer {
-        LowResTimer(Cell::new(Inner::new(interval)))
+    pub fn with(resolution: Duration) -> LowResTimer {
+        LowResTimer(Cell::new(Inner::new(resolution)))
     }
 
     pub fn timer(&self) -> LowResTimerService {
@@ -60,7 +60,7 @@ impl NewService for LowResTimer {
 pub struct LowResTimerService(Cell<Inner>);
 
 impl LowResTimerService {
-    pub fn with_resolution(resolution: Duration) -> LowResTimerService {
+    pub fn with(resolution: Duration) -> LowResTimerService {
         LowResTimerService(Cell::new(Inner::new(resolution)))
     }
 
@@ -76,7 +76,7 @@ impl LowResTimerService {
             let interval = {
                 let mut b = inner.borrow_mut();
                 b.current = Some(now);
-                b.interval
+                b.resolution
             };
 
             spawn(sleep(interval).map_err(|_| panic!()).and_then(move |_| {

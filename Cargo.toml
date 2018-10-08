@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["network", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-net.git"
-documentation = "https://actix.rs/api/actix-net/stable/actix_web/"
+documentation = "https://actix.rs/api/actix-net/stable/actix_net/"
 categories = ["network-programming", "asynchronous"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
@@ -17,7 +17,7 @@ features = ["ssl", "tls", "rust-tls"]
 
 [badges]
 travis-ci = { repository = "actix/actix-net", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+# appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
 codecov = { repository = "actix/actix-net", branch = "master", service = "github" }
 
 [lib]
@@ -58,7 +58,6 @@ tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
 tower-service = "0.1"
-
 trust-dns-resolver = "0.10.0-alpha.2"
 
 # native-tls
