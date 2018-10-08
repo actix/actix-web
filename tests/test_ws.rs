@@ -18,7 +18,7 @@ use bytes::Bytes;
 use futures::future::{ok, Either};
 use futures::{Future, Sink, Stream};
 
-use actix_http::{h1, ws, ResponseError};
+use actix_http::{h1, ws, ResponseError, ServiceConfig};
 
 fn ws_service(req: ws::Message) -> impl Future<Item = ws::Message, Error = io::Error> {
     match req {
@@ -36,7 +36,7 @@ fn test_simple() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                IntoFramed::new(|| h1::Codec::new(false))
+                IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))
                     .and_then(TakeItem::new().map_err(|_| ()))
                     .and_then(|(req, framed): (_, Framed<_, _>)| {
                         // validate request

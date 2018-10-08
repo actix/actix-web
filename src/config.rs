@@ -57,6 +57,12 @@ impl Clone for ServiceConfig {
     }
 }
 
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self::new(KeepAlive::Timeout(5), 0, 0)
+    }
+}
+
 impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub(crate) fn new(
