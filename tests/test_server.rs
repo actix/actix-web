@@ -14,7 +14,7 @@ use bytes::Bytes;
 use futures::future::{self, ok};
 use futures::stream::once;
 
-use actix_http::{h1, Body, KeepAlive, Request, Response};
+use actix_http::{h1, http, Body, KeepAlive, Request, Response};
 
 #[test]
 fn test_h1_v2() {
