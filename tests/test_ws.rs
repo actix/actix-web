@@ -12,6 +12,7 @@ use actix_net::codec::Framed;
 use actix_net::framed::IntoFramed;
 use actix_net::server::Server;
 use actix_net::service::NewServiceExt;
+use actix_net::stream::TakeItem;
 use actix_web::{test, ws as web_ws};
 use bytes::Bytes;
 use futures::future::{ok, Either};
@@ -36,7 +37,7 @@ fn test_simple() {
         Server::new()
             .bind("test", addr, move || {
                 IntoFramed::new(|| h1::Codec::new(false))
-                    .and_then(h1::TakeRequest::new().map_err(|_| ()))
+                    .and_then(TakeItem::new().map_err(|_| ()))
                     .and_then(|(req, framed): (_, Framed<_, _>)| {
                         // validate request
                         if let Some(h1::InMessage::MessageWithPayload(req)) = req {
