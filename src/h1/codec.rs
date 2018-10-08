@@ -158,7 +158,8 @@ impl Codec {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
                 ResponseLength::Zero => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n")
+                    len_is_set = false;
+                    buffer.extend_from_slice(b"\r\n")
                 }
                 ResponseLength::Length(len) => {
                     helpers::write_content_length(len, buffer)
@@ -169,10 +170,6 @@ impl Codec {
                     buffer.extend_from_slice(b"\r\n");
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
-                ResponseLength::HeaderOrZero => {
-                    len_is_set = false;
-                    buffer.extend_from_slice(b"\r\n")
-                }
             }
 
             // write headers
@@ -185,7 +182,7 @@ impl Codec {
                     TRANSFER_ENCODING => continue,
                     CONTENT_LENGTH => match self.te.length {
                         ResponseLength::None => (),
-                        ResponseLength::HeaderOrZero => {
+                        ResponseLength::Zero => {
                             len_is_set = true;
                         }
                         _ => continue,

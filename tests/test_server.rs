@@ -123,6 +123,12 @@ fn test_content_length() {
                 .unwrap();
             let response = sys.block_on(req.send()).unwrap();
             assert_eq!(response.headers().get(&header), None);
+
+            let req = client::ClientRequest::head(format!("http://{}/{}", addr, i))
+                .finish()
+                .unwrap();
+            let response = sys.block_on(req.send()).unwrap();
+            assert_eq!(response.headers().get(&header), None);
         }
 
         for i in 4..6 {
@@ -254,7 +260,6 @@ fn test_head_empty() {
     assert!(response.status().is_success());
 
     {
-        println!("RESP: {:?}", response);
         let len = response
             .headers()
             .get(http::header::CONTENT_LENGTH)

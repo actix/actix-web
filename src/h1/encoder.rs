@@ -17,10 +17,8 @@ use response::Response;
 #[derive(Debug)]
 pub(crate) enum ResponseLength {
     Chunked,
-    /// Content length is 0
-    Zero,
     /// Check if headers contains length or write 0
-    HeaderOrZero,
+    Zero,
     Length(usize),
     Length64(u64),
     /// Do no set content-length
@@ -82,7 +80,7 @@ impl ResponseEncoder {
                     | StatusCode::CONTINUE
                     | StatusCode::SWITCHING_PROTOCOLS
                     | StatusCode::PROCESSING => ResponseLength::None,
-                    _ => ResponseLength::HeaderOrZero,
+                    _ => ResponseLength::Zero,
                 };
                 TransferEncoding::empty()
             }
