@@ -2,6 +2,7 @@ extern crate actix;
 extern crate actix_http;
 extern crate actix_net;
 extern crate actix_web;
+extern crate bytes;
 extern crate futures;
 
 use std::{io::Read, io::Write, net, thread, time};
@@ -9,9 +10,11 @@ use std::{io::Read, io::Write, net, thread, time};
 use actix::System;
 use actix_net::server::Server;
 use actix_web::{client, test, HttpMessage};
-use futures::future;
+use bytes::Bytes;
+use futures::future::{self, ok};
+use futures::stream::once;
 
-use actix_http::{h1, KeepAlive, Request, Response};
+use actix_http::{h1, Body, KeepAlive, Request, Response};
 
 #[test]
 fn test_h1_v2() {
@@ -33,7 +36,7 @@ fn test_h1_v2() {
 
     let mut sys = System::new("test");
     {
-        let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+        let req = client::ClientRequest::get(format!("http://{}/", addr))
             .finish()
             .unwrap();
         let response = sys.block_on(req.send()).unwrap();
@@ -68,9 +71,7 @@ fn test_malformed_request() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                h1::H1Service::build()
-                    .client_timeout(100)
-                    .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+                h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().finish()))
             }).unwrap()
             .run();
     });
@@ -117,21 +118,306 @@ fn test_content_length() {
     let mut sys = System::new("test");
     {
         for i in 0..4 {
-            let req =
-                client::ClientRequest::get(format!("http://{}/{}", addr, i).as_str())
-                    .finish()
-                    .unwrap();
+            let req = client::ClientRequest::get(format!("http://{}/{}", addr, i))
+                .finish()
+                .unwrap();
             let response = sys.block_on(req.send()).unwrap();
             assert_eq!(response.headers().get(&header), None);
         }
 
         for i in 4..6 {
-            let req =
-                client::ClientRequest::get(format!("http://{}/{}", addr, i).as_str())
-                    .finish()
-                    .unwrap();
+            let req = client::ClientRequest::get(format!("http://{}/{}", addr, i))
+                .finish()
+                .unwrap();
             let response = sys.block_on(req.send()).unwrap();
             assert_eq!(response.headers().get(&header), Some(&value));
         }
     }
+}
+
+#[test]
+fn test_headers() {
+    let data = STR.repeat(10);
+    let data2 = data.clone();
+
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                let data = data.clone();
+                h1::H1Service::new(move |_| {
+                    let mut builder = Response::Ok();
+                    for idx in 0..90 {
+                        builder.header(
+                            format!("X-TEST-{}", idx).as_str(),
+                            "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                             TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
+                        );
+                    }
+                    future::ok::<_, ()>(builder.body(data.clone()))
+                })
+            })
+            .unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(400));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::get(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data2));
+}
+
+const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World \
+                   Hello World Hello World Hello World Hello World Hello World";
+
+#[test]
+fn test_body() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            }).unwrap()
+            .run();
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::get(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_head_empty() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| {
+                    ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).finish())
+                })
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::head(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    {
+        println!("RESP: {:?}", response);
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_head_binary() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| {
+                    ok::<_, ()>(
+                        Response::Ok().content_length(STR.len() as u64).body(STR),
+                    )
+                })
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::head(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    {
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_head_binary2() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::head(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    {
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+}
+
+#[test]
+fn test_body_length() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| {
+                    let body = once(Ok(Bytes::from_static(STR.as_ref())));
+                    ok::<_, ()>(
+                        Response::Ok()
+                            .content_length(STR.len() as u64)
+                            .body(Body::Streaming(Box::new(body))),
+                    )
+                })
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::get(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_chunked_explicit() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| {
+                    let body = once(Ok(Bytes::from_static(STR.as_ref())));
+                    ok::<_, ()>(
+                        Response::Ok()
+                            .chunked()
+                            .body(Body::Streaming(Box::new(body))),
+                    )
+                })
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::get(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+
+    // decode
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_body_chunked_implicit() {
+    let addr = test::TestServer::unused_addr();
+    thread::spawn(move || {
+        Server::new()
+            .bind("test", addr, move || {
+                h1::H1Service::new(|_| {
+                    let body = once(Ok(Bytes::from_static(STR.as_ref())));
+                    ok::<_, ()>(Response::Ok().body(Body::Streaming(Box::new(body))))
+                })
+            }).unwrap()
+            .run()
+    });
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut sys = System::new("test");
+    let req = client::ClientRequest::get(format!("http://{}/", addr))
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }

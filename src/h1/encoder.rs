@@ -17,9 +17,13 @@ use response::Response;
 #[derive(Debug)]
 pub(crate) enum ResponseLength {
     Chunked,
+    /// Content length is 0
     Zero,
+    /// Check if headers contains length or write 0
+    HeaderOrZero,
     Length(usize),
     Length64(u64),
+    /// Do no set content-length
     None,
 }
 
@@ -41,6 +45,16 @@ impl Default for ResponseEncoder {
 }
 
 impl ResponseEncoder {
+    /// Encode message
+    pub fn encode(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
+        self.te.encode(msg, buf)
+    }
+
+    /// Encode eof
+    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
+        self.te.encode_eof(buf)
+    }
+
     pub fn update(&mut self, resp: &mut Response, head: bool, version: Version) {
         self.head = head;
 
@@ -63,17 +77,13 @@ impl ResponseEncoder {
 
         let transfer = match resp.body() {
             Body::Empty => {
-                if !self.head {
-                    self.length = match resp.status() {
-                        StatusCode::NO_CONTENT
-                        | StatusCode::CONTINUE
-                        | StatusCode::SWITCHING_PROTOCOLS
-                        | StatusCode::PROCESSING => ResponseLength::None,
-                        _ => ResponseLength::Zero,
-                    };
-                } else {
-                    self.length = ResponseLength::Zero;
-                }
+                self.length = match resp.status() {
+                    StatusCode::NO_CONTENT
+                    | StatusCode::CONTINUE
+                    | StatusCode::SWITCHING_PROTOCOLS
+                    | StatusCode::PROCESSING => ResponseLength::None,
+                    _ => ResponseLength::HeaderOrZero,
+                };
                 TransferEncoding::empty()
             }
             Body::Binary(_) => {
@@ -253,16 +263,22 @@ impl TransferEncoding {
 
     /// Encode eof. Return `EOF` state of encoder
     #[inline]
-    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> bool {
+    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         match self.kind {
-            TransferEncodingKind::Eof => true,
-            TransferEncodingKind::Length(rem) => rem == 0,
+            TransferEncodingKind::Eof => Ok(()),
+            TransferEncodingKind::Length(rem) => {
+                if rem != 0 {
+                    Err(io::Error::new(io::ErrorKind::UnexpectedEof, ""))
+                } else {
+                    Ok(())
+                }
+            }
             TransferEncodingKind::Chunked(ref mut eof) => {
                 if !*eof {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 }
-                true
+                Ok(())
             }
         }
     }

@@ -6,7 +6,7 @@ use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder};
 use super::encoder::{ResponseEncoder, ResponseLength};
-use body::Body;
+use body::{Binary, Body};
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
@@ -26,12 +26,13 @@ bitflags! {
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
+#[derive(Debug)]
 /// Http response
 pub enum OutMessage {
     /// Http response message
     Response(Response),
     /// Payload chunk
-    Payload(Bytes),
+    Payload(Option<Binary>),
 }
 
 /// Incoming http/1 request
@@ -151,6 +152,7 @@ impl Codec {
             buffer.extend_from_slice(reason);
 
             // content length
+            let mut len_is_set = true;
             match self.te.length {
                 ResponseLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
@@ -167,6 +169,10 @@ impl Codec {
                     buffer.extend_from_slice(b"\r\n");
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
+                ResponseLength::HeaderOrZero => {
+                    len_is_set = false;
+                    buffer.extend_from_slice(b"\r\n")
+                }
             }
 
             // write headers
@@ -179,6 +185,9 @@ impl Codec {
                     TRANSFER_ENCODING => continue,
                     CONTENT_LENGTH => match self.te.length {
                         ResponseLength::None => (),
+                        ResponseLength::HeaderOrZero => {
+                            len_is_set = true;
+                        }
                         _ => continue,
                     },
                     DATE => {
@@ -215,11 +224,13 @@ impl Codec {
             unsafe {
                 buffer.advance_mut(pos);
             }
+            if !len_is_set {
+                buffer.extend_from_slice(b"content-length: 0\r\n")
+            }
 
             // optimized date header, set_date writes \r\n
             if !has_date {
                 self.config.set_date(buffer);
-                buffer.extend_from_slice(b"\r\n");
             } else {
                 // msg eof
                 buffer.extend_from_slice(b"\r\n");
@@ -272,8 +283,11 @@ impl Encoder for Codec {
             OutMessage::Response(res) => {
                 self.encode_response(res, dst)?;
             }
-            OutMessage::Payload(bytes) => {
-                dst.extend_from_slice(&bytes);
+            OutMessage::Payload(Some(bytes)) => {
+                self.te.encode(bytes.as_ref(), dst)?;
+            }
+            OutMessage::Payload(None) => {
+                self.te.encode_eof(dst)?;
             }
         }
         Ok(())

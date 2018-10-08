@@ -12,7 +12,7 @@ use tokio_timer::Delay;
 use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 
-use body::Body;
+use body::{Body, BodyStream};
 use config::ServiceConfig;
 use error::DispatchError;
 use request::Request;
@@ -61,9 +61,8 @@ enum Message {
 enum State<S: Service> {
     None,
     ServiceCall(S::Future),
-    SendResponse(Option<OutMessage>),
-    SendResponseWithPayload(Option<(OutMessage, Body)>),
-    Payload(Body),
+    SendResponse(Option<(OutMessage, Body)>),
+    SendPayload(Option<BodyStream>, Option<OutMessage>),
 }
 
 impl<S: Service> State<S> {
@@ -99,6 +98,7 @@ where
         };
         let framed = Framed::new(stream, Codec::new(config.clone()));
 
+        // keep-alive timer
         let (ka_expire, ka_timer) = if let Some(delay) = timeout {
             (delay.deadline(), Some(delay))
         } else if let Some(delay) = config.keep_alive_timer() {
@@ -174,59 +174,32 @@ where
                     break if let Some(msg) = self.messages.pop_front() {
                         match msg {
                             Message::Item(req) => Some(self.handle_request(req)?),
-                            Message::Error(res) => Some(State::SendResponse(Some(
+                            Message::Error(res) => Some(State::SendResponse(Some((
                                 OutMessage::Response(res),
-                            ))),
+                                Body::Empty,
+                            )))),
                         }
                     } else {
                         None
                     };
                 },
-                State::Payload(ref mut _body) => unimplemented!(),
-                State::ServiceCall(ref mut fut) => match fut
-                    .poll()
-                    .map_err(DispatchError::Service)?
-                {
-                    Async::Ready(mut res) => {
-                        self.framed.get_codec_mut().prepare_te(&mut res);
-                        let body = res.replace_body(Body::Empty);
-                        if body.is_empty() {
-                            Some(State::SendResponse(Some(OutMessage::Response(res))))
-                        } else {
-                            Some(State::SendResponseWithPayload(Some((
+                // call inner service
+                State::ServiceCall(ref mut fut) => {
+                    match fut.poll().map_err(DispatchError::Service)? {
+                        Async::Ready(mut res) => {
+                            self.framed.get_codec_mut().prepare_te(&mut res);
+                            let body = res.replace_body(Body::Empty);
+                            Some(State::SendResponse(Some((
                                 OutMessage::Response(res),
                                 body,
                             ))))
                         }
-                    }
-                    Async::NotReady => None,
-                },
-                State::SendResponse(ref mut item) => {
-                    let msg = item.take().expect("SendResponse is empty");
-                    match self.framed.start_send(msg) {
-                        Ok(AsyncSink::Ready) => {
-                            self.flags.set(
-                                Flags::KEEPALIVE,
-                                self.framed.get_codec().keepalive(),
-                            );
-                            self.flags.remove(Flags::FLUSHED);
-                            Some(State::None)
-                        }
-                        Ok(AsyncSink::NotReady(msg)) => {
-                            *item = Some(msg);
-                            return Ok(());
-                        }
-                        Err(err) => {
-                            if let Some(mut payload) = self.payload.take() {
-                                payload.set_error(PayloadError::Incomplete);
-                            }
-                            return Err(DispatchError::Io(err));
-                        }
+                        Async::NotReady => None,
                     }
                 }
-                State::SendResponseWithPayload(ref mut item) => {
-                    let (msg, body) =
-                        item.take().expect("SendResponseWithPayload is empty");
+                // send respons
+                State::SendResponse(ref mut item) => {
+                    let (msg, body) = item.take().expect("SendResponse is empty");
                     match self.framed.start_send(msg) {
                         Ok(AsyncSink::Ready) => {
                             self.flags.set(
@@ -234,7 +207,16 @@ where
                                 self.framed.get_codec().keepalive(),
                             );
                             self.flags.remove(Flags::FLUSHED);
-                            Some(State::Payload(body))
+                            match body {
+                                Body::Empty => Some(State::None),
+                                Body::Binary(bin) => Some(State::SendPayload(
+                                    None,
+                                    Some(OutMessage::Payload(bin.into())),
+                                )),
+                                Body::Streaming(stream) => {
+                                    Some(State::SendPayload(Some(stream), None))
+                                }
+                            }
                         }
                         Ok(AsyncSink::NotReady(msg)) => {
                             *item = Some((msg, body));
@@ -246,6 +228,48 @@ where
                             }
                             return Err(DispatchError::Io(err));
                         }
+                    }
+                }
+                // Send payload
+                State::SendPayload(ref mut stream, ref mut bin) => {
+                    if let Some(item) = bin.take() {
+                        match self.framed.start_send(item) {
+                            Ok(AsyncSink::Ready) => {
+                                self.flags.remove(Flags::FLUSHED);
+                            }
+                            Ok(AsyncSink::NotReady(item)) => {
+                                *bin = Some(item);
+                                return Ok(());
+                            }
+                            Err(err) => return Err(DispatchError::Io(err)),
+                        }
+                    }
+                    if let Some(ref mut stream) = stream {
+                        match stream.poll() {
+                            Ok(Async::Ready(Some(item))) => match self
+                                .framed
+                                .start_send(OutMessage::Payload(Some(item.into())))
+                            {
+                                Ok(AsyncSink::Ready) => {
+                                    self.flags.remove(Flags::FLUSHED);
+                                    continue;
+                                }
+                                Ok(AsyncSink::NotReady(msg)) => {
+                                    *bin = Some(msg);
+                                    return Ok(());
+                                }
+                                Err(err) => return Err(DispatchError::Io(err)),
+                            },
+                            Ok(Async::Ready(None)) => Some(State::SendPayload(
+                                None,
+                                Some(OutMessage::Payload(None)),
+                            )),
+                            Ok(Async::NotReady) => return Ok(()),
+                            // Err(err) => return Err(DispatchError::Io(err)),
+                            Err(_) => return Err(DispatchError::Unknown),
+                        }
+                    } else {
+                        Some(State::None)
                     }
                 }
             };
@@ -275,19 +299,13 @@ where
             Async::Ready(mut res) => {
                 self.framed.get_codec_mut().prepare_te(&mut res);
                 let body = res.replace_body(Body::Empty);
-                if body.is_empty() {
-                    Ok(State::SendResponse(Some(OutMessage::Response(res))))
-                } else {
-                    Ok(State::SendResponseWithPayload(Some((
-                        OutMessage::Response(res),
-                        body,
-                    ))))
-                }
+                Ok(State::SendResponse(Some((OutMessage::Response(res), body))))
             }
             Async::NotReady => Ok(State::ServiceCall(task)),
         }
     }
 
+    /// Process one incoming message
     fn one_message(&mut self, msg: InMessage) -> Result<(), DispatchError<S::Error>> {
         self.flags.insert(Flags::STARTED);
 
@@ -408,10 +426,12 @@ where
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
                                 self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
-                                self.state =
-                                    State::SendResponse(Some(OutMessage::Response(
+                                self.state = State::SendResponse(Some((
+                                    OutMessage::Response(
                                         Response::RequestTimeout().finish(),
-                                    )));
+                                    ),
+                                    Body::Empty,
+                                )));
                             }
                         } else if let Some(deadline) = self.config.keep_alive_expire() {
                             timer.reset(deadline)
