@@ -1355,3 +1355,47 @@ fn test_ssl_handshake_timeout() {
 
     let _ = sys.stop();
 }
+
+#[test]
+fn test_content_length() {
+    use http::StatusCode;
+    use actix_web::http::header::{HeaderName, HeaderValue};
+
+    let mut srv = test::TestServer::new(move |app| {
+        app.resource("/{status}", |r| {
+            r.f(|req: &HttpRequest| {
+                let indx: usize =
+                    req.match_info().get("status").unwrap().parse().unwrap();
+                let statuses = [
+                    StatusCode::NO_CONTENT,
+                    StatusCode::CONTINUE,
+                    StatusCode::SWITCHING_PROTOCOLS,
+                    StatusCode::PROCESSING,
+                    StatusCode::OK,
+                    StatusCode::NOT_FOUND,
+                ];
+                HttpResponse::new(statuses[indx])
+            })
+        });
+    });
+
+    let addr = srv.addr();
+    let mut get_resp = |i| {
+        let url = format!("http://{}/{}", addr, i);
+        let req = srv.get().uri(url).finish().unwrap();
+        srv.execute(req.send()).unwrap()
+    };
+
+    let header = HeaderName::from_static("content-length");
+    let value = HeaderValue::from_static("0");
+
+    for i in 0..4 {
+        let response = get_resp(i);
+        assert_eq!(response.headers().get(&header), None);
+    }
+    for i in 4..6 {
+        let response = get_resp(i);
+        assert_eq!(response.headers().get(&header), Some(&value));
+    }
+}
+
