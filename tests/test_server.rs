@@ -1358,8 +1358,8 @@ fn test_ssl_handshake_timeout() {
 
 #[test]
 fn test_content_length() {
-    use http::StatusCode;
     use actix_web::http::header::{HeaderName, HeaderValue};
+    use http::StatusCode;
 
     let mut srv = test::TestServer::new(move |app| {
         app.resource("/{status}", |r| {
@@ -1398,4 +1398,3 @@ fn test_content_length() {
         assert_eq!(response.headers().get(&header), Some(&value));
     }
 }
-

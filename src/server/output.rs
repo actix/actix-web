@@ -191,15 +191,13 @@ impl Output {
 
         let transfer = match resp.body() {
             Body::Empty => {
-                if !info.head {
-                    info.length = match resp.status() {
-                        StatusCode::NO_CONTENT
-                        | StatusCode::CONTINUE
-                        | StatusCode::SWITCHING_PROTOCOLS
-                        | StatusCode::PROCESSING => ResponseLength::None,
-                        _ => ResponseLength::Zero,
-                    };
-                }
+                info.length = match resp.status() {
+                    StatusCode::NO_CONTENT
+                    | StatusCode::CONTINUE
+                    | StatusCode::SWITCHING_PROTOCOLS
+                    | StatusCode::PROCESSING => ResponseLength::None,
+                    _ => ResponseLength::Zero,
+                };
                 *self = Output::Empty(buf);
                 return;
             }

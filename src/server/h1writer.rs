@@ -176,12 +176,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             buffer.extend_from_slice(reason);
 
             // content length
+            let mut len_is_set = true;
             match info.length {
                 ResponseLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
-                }
-                ResponseLength::Zero => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n")
                 }
                 ResponseLength::Length(len) => {
                     helpers::write_content_length(len, &mut buffer)
@@ -189,6 +187,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 ResponseLength::Length64(len) => {
                     buffer.extend_from_slice(b"\r\ncontent-length: ");
                     write!(buffer.writer(), "{}", len)?;
+                    buffer.extend_from_slice(b"\r\n");
+                }
+                ResponseLength::Zero => {
+                    len_is_set = false;
                     buffer.extend_from_slice(b"\r\n");
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
@@ -212,6 +214,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                     },
                     CONTENT_LENGTH => match info.length {
                         ResponseLength::None => (),
+                        ResponseLength::Zero => {
+                            len_is_set = true;
+                        }
                         _ => continue,
                     },
                     DATE => {
@@ -247,6 +252,9 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             }
             unsafe {
                 buffer.advance_mut(pos);
+            }
+            if !len_is_set {
+                buffer.extend_from_slice(b"content-length: 0\r\n")
             }
 
             // optimized date header, set_date writes \r\n
