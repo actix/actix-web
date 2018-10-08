@@ -197,11 +197,6 @@ where
     }
 
     /// Disable `HTTP/2` support
-    // #[doc(hidden)]
-    // #[deprecated(
-    //     since = "0.7.4",
-    //     note = "please use acceptor service with proper ServerFlags parama"
-    // )]
     pub fn no_http2(mut self) -> Self {
         self.no_http2 = true;
         self

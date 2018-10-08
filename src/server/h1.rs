@@ -203,7 +203,7 @@ where
     #[inline]
     pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
         // check connection keep-alive
-        self.poll_keep_alive()?;
+        self.poll_keepalive()?;
 
         // shutdown
         if self.flags.contains(Flags::SHUTDOWN) {
@@ -277,23 +277,21 @@ where
     }
 
     /// keep-alive timer. returns `true` is keep-alive, otherwise drop
-    fn poll_keep_alive(&mut self) -> Result<(), HttpDispatchError> {
+    fn poll_keepalive(&mut self) -> Result<(), HttpDispatchError> {
         if let Some(ref mut timer) = self.ka_timer {
             match timer.poll() {
                 Ok(Async::Ready(_)) => {
+                    // if we get timer during shutdown, just drop connection
+                    if self.flags.contains(Flags::SHUTDOWN) {
+                        let io = self.stream.get_mut();
+                        let _ = IoStream::set_linger(io, Some(Duration::from_secs(0)));
+                        let _ = IoStream::shutdown(io, Shutdown::Both);
+                        return Err(HttpDispatchError::ShutdownTimeout);
+                    }
                     if timer.deadline() >= self.ka_expire {
                         // check for any outstanding request handling
                         if self.tasks.is_empty() {
-                            // if we get timer during shutdown, just drop connection
-                            if self.flags.contains(Flags::SHUTDOWN) {
-                                let io = self.stream.get_mut();
-                                let _ = IoStream::set_linger(
-                                    io,
-                                    Some(Duration::from_secs(0)),
-                                );
-                                let _ = IoStream::shutdown(io, Shutdown::Both);
-                                return Err(HttpDispatchError::ShutdownTimeout);
-                            } else if !self.flags.contains(Flags::STARTED) {
+                            if !self.flags.contains(Flags::STARTED) {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
                                 self.flags
@@ -315,9 +313,8 @@ where
                                     return Ok(());
                                 }
                             }
-                        } else if let Some(deadline) = self.settings.keep_alive_expire()
-                        {
-                            timer.reset(deadline)
+                        } else if let Some(dl) = self.settings.keep_alive_expire() {
+                            timer.reset(dl)
                         }
                     } else {
                         timer.reset(self.ka_expire)

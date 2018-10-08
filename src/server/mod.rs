@@ -12,7 +12,7 @@
 //! to serve incoming HTTP requests.
 //!
 //! As the server uses worker pool, the factory function is restricted to trait bounds
-//! `Sync + Send + 'static` so that each worker would be able to accept Application
+//! `Send + Clone + 'static` so that each worker would be able to accept Application
 //! without a need for synchronization.
 //!
 //! If you wish to share part of state among all workers you should
@@ -29,12 +29,8 @@
 //! Each TLS implementation is provided with [AcceptorService](trait.AcceptorService.html)
 //! that describes how HTTP Server accepts connections.
 //!
-//! For `bind` and `listen` there are corresponding `bind_with` and `listen_with` that accepts
+//! For `bind` and `listen` there are corresponding `bind_ssl|tls|rustls` and `listen_ssl|tls|rustls` that accepts
 //! these services.
-//!
-//! By default, acceptor would work with both HTTP2 and HTTP1 protocols.
-//! But it can be controlled using [ServerFlags](struct.ServerFlags.html) which
-//! can be supplied when creating `AcceptorService`.
 //!
 //! **NOTE:** `native-tls` doesn't support `HTTP2` yet
 //!
@@ -87,17 +83,13 @@
 //!    // load ssl keys
 //!    let config = load_ssl();
 //!
-//!     // Create acceptor service for only HTTP1 protocol
-//!     // You can use ::new(config) to leave defaults
-//!     let acceptor = server::RustlsAcceptor::with_flags(config, actix_web::server::ServerFlags::HTTP1);
-//!
 //!     // create and start server at once
 //!     server::new(|| {
 //!         App::new()
 //!             // register simple handler, handle all methods
 //!             .resource("/index.html", |r| r.f(index))
 //!             }))
-//!     }).bind_with("127.0.0.1:8080", acceptor)
+//!     }).bind_rustls("127.0.0.1:8443", config)
 //!     .unwrap()
 //!     .start();
 //!
