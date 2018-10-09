@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.10] - 2018-10-09
+
+### Fixed
+
+* Fixed panic during graceful shutdown
+
+
 ## [0.7.9] - 2018-10-09
 
 ### Added

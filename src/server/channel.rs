@@ -20,23 +20,23 @@ pub(crate) enum HttpProtocol<T: IoStream, H: HttpHandler + 'static> {
     None,
 }
 
-impl<T: IoStream, H: HttpHandler + 'static> HttpProtocol<T, H> {
-    pub(crate) fn shutdown(&mut self) {
-        match self {
-            HttpProtocol::H1(ref mut h1) => {
-                let io = h1.io();
-                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
-                let _ = IoStream::shutdown(io, Shutdown::Both);
-            }
-            HttpProtocol::H2(ref mut h2) => h2.shutdown(),
-            HttpProtocol::Unknown(_, io, _) => {
-                let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
-                let _ = IoStream::shutdown(io, Shutdown::Both);
-            }
-            HttpProtocol::None => (),
-        }
-    }
-}
+// impl<T: IoStream, H: HttpHandler + 'static> HttpProtocol<T, H> {
+//     fn shutdown_(&mut self) {
+//         match self {
+//             HttpProtocol::H1(ref mut h1) => {
+//                 let io = h1.io();
+//                 let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
+//                 let _ = IoStream::shutdown(io, Shutdown::Both);
+//             }
+//             HttpProtocol::H2(ref mut h2) => h2.shutdown(),
+//             HttpProtocol::Unknown(_, io, _) => {
+//                 let _ = IoStream::set_linger(io, Some(time::Duration::new(0, 0)));
+//                 let _ = IoStream::shutdown(io, Shutdown::Both);
+//             }
+//             HttpProtocol::None => (),
+//         }
+//     }
+// }
 
 enum ProtocolKind {
     Http1,

@@ -9,7 +9,7 @@ use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 use tokio_timer::{sleep, Delay};
 
-use super::channel::HttpProtocol;
+// use super::channel::HttpProtocol;
 use super::error::AcceptorError;
 use super::handler::HttpHandler;
 use super::settings::ServiceConfig;
@@ -367,9 +367,9 @@ where
             }
             ServerMessage::Shutdown(_) => Either::B(ok(())),
             ServerMessage::ForceShutdown => {
-                self.settings
-                    .head()
-                    .traverse(|proto: &mut HttpProtocol<TcpStream, H>| proto.shutdown());
+                // self.settings
+                //    .head()
+                //    .traverse(|proto: &mut HttpProtocol<TcpStream, H>| proto.shutdown());
                 Either::B(ok(()))
             }
         }
