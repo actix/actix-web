@@ -60,7 +60,6 @@ where
 
             if secure {
                 Either::B(ServerMessageAcceptor::new(
-                    settings.clone(),
                     TcpAcceptor::new(AcceptorTimeout::new(
                         client_timeout,
                         acceptor.create(),
@@ -74,7 +73,6 @@ where
                 ))
             } else {
                 Either::A(ServerMessageAcceptor::new(
-                    settings.clone(),
                     TcpAcceptor::new(acceptor.create().map_err(AcceptorError::Service))
                         .map_err(|_| ())
                         .map_init_err(|_| ())

@@ -89,15 +89,6 @@ where
         }
     }
 
-    pub(crate) fn shutdown(&mut self) {
-        self.state = State::Empty;
-        self.tasks.clear();
-    }
-
-    pub fn settings(&self) -> &ServiceConfig<H> {
-        &self.settings
-    }
-
     pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
         self.poll_keepalive()?;
 

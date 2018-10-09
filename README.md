@@ -8,7 +8,6 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
 * Transparent content compression/decompression (br, gzip, deflate)
 * Configurable [request routing](https://actix.rs/docs/url-dispatch/)
-* Graceful server shutdown
 * Multipart streams
 * Static assets
 * SSL support with OpenSSL or `native-tls`
@@ -51,7 +50,7 @@ fn main() {
 * [Protobuf support](https://github.com/actix/examples/tree/master/protobuf/)
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
-* [Tera](https://github.com/actix/examples/tree/master/template_tera/) / 
+* [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
   [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
@@ -65,8 +64,6 @@ You may consider checking out
 ## Benchmarks
 
 * [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=plaintext)
-
-* Some basic benchmarks could be found in this [repository](https://github.com/fafhrd91/benchmarks).
 
 ## License
 

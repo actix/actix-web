@@ -9,10 +9,7 @@ use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 use tokio_timer::{sleep, Delay};
 
-// use super::channel::HttpProtocol;
 use super::error::AcceptorError;
-use super::handler::HttpHandler;
-use super::settings::ServiceConfig;
 use super::IoStream;
 
 /// This trait indicates types that can create acceptor service for http server.
@@ -275,56 +272,49 @@ impl<T: Service> Future for AcceptorTimeoutResponse<T> {
     }
 }
 
-pub(crate) struct ServerMessageAcceptor<T, H: HttpHandler> {
+pub(crate) struct ServerMessageAcceptor<T> {
     inner: T,
-    settings: ServiceConfig<H>,
 }
 
-impl<T, H> ServerMessageAcceptor<T, H>
+impl<T> ServerMessageAcceptor<T>
 where
-    H: HttpHandler,
     T: NewService<Request = net::TcpStream>,
 {
-    pub(crate) fn new(settings: ServiceConfig<H>, inner: T) -> Self {
-        ServerMessageAcceptor { inner, settings }
+    pub(crate) fn new(inner: T) -> Self {
+        ServerMessageAcceptor { inner }
     }
 }
 
-impl<T, H> NewService for ServerMessageAcceptor<T, H>
+impl<T> NewService for ServerMessageAcceptor<T>
 where
-    H: HttpHandler,
     T: NewService<Request = net::TcpStream>,
 {
     type Request = ServerMessage;
     type Response = ();
     type Error = T::Error;
     type InitError = T::InitError;
-    type Service = ServerMessageAcceptorService<T::Service, H>;
-    type Future = ServerMessageAcceptorResponse<T, H>;
+    type Service = ServerMessageAcceptorService<T::Service>;
+    type Future = ServerMessageAcceptorResponse<T>;
 
     fn new_service(&self) -> Self::Future {
         ServerMessageAcceptorResponse {
             fut: self.inner.new_service(),
-            settings: self.settings.clone(),
         }
     }
 }
 
-pub(crate) struct ServerMessageAcceptorResponse<T, H>
+pub(crate) struct ServerMessageAcceptorResponse<T>
 where
-    H: HttpHandler,
     T: NewService<Request = net::TcpStream>,
 {
     fut: T::Future,
-    settings: ServiceConfig<H>,
 }
 
-impl<T, H> Future for ServerMessageAcceptorResponse<T, H>
+impl<T> Future for ServerMessageAcceptorResponse<T>
 where
-    H: HttpHandler,
     T: NewService<Request = net::TcpStream>,
 {
-    type Item = ServerMessageAcceptorService<T::Service, H>;
+    type Item = ServerMessageAcceptorService<T::Service>;
     type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -332,20 +322,17 @@ where
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(service) => Ok(Async::Ready(ServerMessageAcceptorService {
                 inner: service,
-                settings: self.settings.clone(),
             })),
         }
     }
 }
 
-pub(crate) struct ServerMessageAcceptorService<T, H: HttpHandler> {
+pub(crate) struct ServerMessageAcceptorService<T> {
     inner: T,
-    settings: ServiceConfig<H>,
 }
 
-impl<T, H> Service for ServerMessageAcceptorService<T, H>
+impl<T> Service for ServerMessageAcceptorService<T>
 where
-    H: HttpHandler,
     T: Service<Request = net::TcpStream>,
 {
     type Request = ServerMessage;
