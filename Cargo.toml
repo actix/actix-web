@@ -36,13 +36,14 @@ cell = ["actix-net/cell"]
 
 [dependencies]
 actix = "0.7.0"
-actix-net = { git="https://github.com/actix/actix-net.git" }
-#actix-net = { path = "../actix-net" }
+actix-net = "0.1.0"
+#actix-net = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.9"
 bitflags = "1.0"
 http = "^0.1.8"
 httparse = "1.3"
+failure = "^0.1.2"
 log = "0.4"
 mime = "0.3"
 rand = "0.5"
@@ -54,8 +55,6 @@ encoding = "0.2"
 lazy_static = "1.0"
 serde_urlencoded = "^0.5.3"
 cookie = { version="0.11", features=["percent-encode"] }
-
-failure = "^0.1.2"
 
 # io
 net2 = "0.2"

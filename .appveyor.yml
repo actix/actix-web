@@ -1,6 +1,6 @@
 environment:
   global:
-    PROJECT_NAME: actix
+    PROJECT_NAME: actix-http
   matrix:
     # Stable channel
     - TARGET: i686-pc-windows-msvc
