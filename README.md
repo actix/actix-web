@@ -5,27 +5,28 @@ Actix http
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
-* [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
-* [API Documentation (Releases)](https://actix.rs/api/actix-web/stable/actix_web/)
+* [API Documentation (Development)](https://actix.rs/actix-http/actix_http/)
+* [API Documentation (Releases)](https://actix.rs/api/actix-http/stable/actix_http/)
 * [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web](https://crates.io/crates/actix-web)
+* Cargo package: [actix-http](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.26 or later
 
 ## Example
 
 ```rust
-extern crate actix_web;
-use actix_web::{http, server, App, Path, Responder};
-
-fn index(info: Path<(u32, String)>) -> impl Responder {
-    format!("Hello {}! id:{}", info.1, info.0)
-}
+extern crate actix_http;
+use actix_http::{h1, Response, ServiceConfig};
 
 fn main() {
-    server::new(
-        || App::new()
-            .route("/{id}/{name}/index.html", http::Method::GET, index))
-        .bind("127.0.0.1:8080").unwrap()
+    Server::new()
+        .bind("app", addr, move || {
+            IntoFramed::new(|| h1::Codec::new(ServiceConfig::default())) // <- create h1 codec
+                .and_then(TakeItem::new().map_err(|_| ()))      // <- read one request
+                .and_then(|(req, framed): (_, Framed<_, _>)| {  // <- send response and close conn
+                    framed
+                        .send(h1::OutMessage::Response(Response::Ok().finish()))
+                })
+        })
         .run();
 }
 ```
@@ -41,6 +42,6 @@ at your option.
 
 ## Code of Conduct
 
-Contribution to the actix-web crate is organized under the terms of the
-Contributor Covenant, the maintainer of actix-net, @fafhrd91, promises to
+Contribution to the actix-http crate is organized under the terms of the
+Contributor Covenant, the maintainer of actix-http, @fafhrd91, promises to
 intervene to uphold that code of conduct.
