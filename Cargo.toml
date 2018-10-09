@@ -17,7 +17,7 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 build = "build.rs"
 
 [package.metadata.docs.rs]
-features = ["tls", "alpn", "rust-tls", "session", "brotli", "flate2-c"]
+features = ["tls", "ssl", "rust-tls", "session", "brotli", "flate2-c"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -62,8 +62,7 @@ cell = ["actix-net/cell"]
 
 [dependencies]
 actix = "0.7.0"
-actix-net = { git="https://github.com/actix/actix-net.git" }
-#actix-net = { path = "../actix-net" }
+actix-net = "0.1.0"
 
 base64 = "0.9"
 bitflags = "1.0"
@@ -139,8 +138,3 @@ version_check = "0.1"
 lto = true
 opt-level = 3
 codegen-units = 1
-
-[workspace]
-members = [
-  "./",
-]
