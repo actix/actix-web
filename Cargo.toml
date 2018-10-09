@@ -2,7 +2,7 @@
 name = "actix-net"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix net - framework for the compisible network services for Rust"
+description = "Actix net - framework for the compisible network services for Rust (experimental)"
 readme = "README.md"
 keywords = ["network", "framework", "async", "futures"]
 homepage = "https://actix.rs"

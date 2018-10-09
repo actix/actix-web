@@ -1,6 +1,6 @@
 environment:
   global:
-    PROJECT_NAME: actix
+    PROJECT_NAME: actix-net
   matrix:
     # Stable channel
     - TARGET: i686-pc-windows-msvc
@@ -37,4 +37,5 @@ build: false
 
 # Equivalent to Travis' `script` phase
 test_script:
-  - cargo test --no-default-features
+  - cargo clean
+  - cargo test

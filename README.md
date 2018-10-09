@@ -1,6 +1,6 @@
 # Actix net [![Build Status](https://travis-ci.org/actix/actix-net.svg?branch=master)](https://travis-ci.org/actix/actix-net) [![codecov](https://codecov.io/gh/actix/actix-net/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-net) [![crates.io](https://meritbadge.herokuapp.com/actix-net)](https://crates.io/crates/actix-net) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Actix net - framework for composable network services
+Actix net - framework for composable network services (experimental)
 
 ## Documentation & community resources
 
