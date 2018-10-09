@@ -488,14 +488,13 @@ mod tests {
     impl InMessage {
         fn message(self) -> Request {
             match self {
-                InMessage::Message(msg) => msg,
-                InMessage::MessageWithPayload(msg) => msg,
+                InMessage::Message { req, payload: _ } => req,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                InMessage::MessageWithPayload(_) => true,
+                InMessage::Message { req: _, payload } => payload,
                 _ => panic!("error"),
             }
         }

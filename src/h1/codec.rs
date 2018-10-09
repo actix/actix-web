@@ -32,20 +32,16 @@ pub enum OutMessage {
     /// Http response message
     Response(Response),
     /// Payload chunk
-    Payload(Option<Binary>),
+    Chunk(Option<Binary>),
 }
 
 /// Incoming http/1 request
 #[derive(Debug)]
 pub enum InMessage {
     /// Request
-    Message(Request),
-    /// Request with payload
-    MessageWithPayload(Request),
+    Message { req: Request, payload: bool },
     /// Payload chunk
-    Chunk(Bytes),
-    /// End of payload
-    Eof,
+    Chunk(Option<Bytes>),
 }
 
 /// HTTP/1 Codec
@@ -246,8 +242,8 @@ impl Decoder for Codec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => Some(InMessage::Chunk(chunk)),
-                Some(PayloadItem::Eof) => Some(InMessage::Eof),
+                Some(PayloadItem::Chunk(chunk)) => Some(InMessage::Chunk(Some(chunk))),
+                Some(PayloadItem::Eof) => Some(InMessage::Chunk(None)),
                 None => None,
             })
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
@@ -258,11 +254,10 @@ impl Decoder for Codec {
                 self.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }
             self.payload = payload;
-            if self.payload.is_some() {
-                Ok(Some(InMessage::MessageWithPayload(req)))
-            } else {
-                Ok(Some(InMessage::Message(req)))
-            }
+            Ok(Some(InMessage::Message {
+                req,
+                payload: self.payload.is_some(),
+            }))
         } else {
             Ok(None)
         }
@@ -280,10 +275,10 @@ impl Encoder for Codec {
             OutMessage::Response(res) => {
                 self.encode_response(res, dst)?;
             }
-            OutMessage::Payload(Some(bytes)) => {
+            OutMessage::Chunk(Some(bytes)) => {
                 self.te.encode(bytes.as_ref(), dst)?;
             }
-            OutMessage::Payload(None) => {
+            OutMessage::Chunk(None) => {
                 self.te.encode_eof(dst)?;
             }
         }

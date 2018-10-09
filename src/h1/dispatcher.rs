@@ -211,7 +211,7 @@ where
                                 Body::Empty => Some(State::None),
                                 Body::Binary(bin) => Some(State::SendPayload(
                                     None,
-                                    Some(OutMessage::Payload(bin.into())),
+                                    Some(OutMessage::Chunk(bin.into())),
                                 )),
                                 Body::Streaming(stream) => {
                                     Some(State::SendPayload(Some(stream), None))
@@ -248,7 +248,7 @@ where
                         match stream.poll() {
                             Ok(Async::Ready(Some(item))) => match self
                                 .framed
-                                .start_send(OutMessage::Payload(Some(item.into())))
+                                .start_send(OutMessage::Chunk(Some(item.into())))
                             {
                                 Ok(AsyncSink::Ready) => {
                                     self.flags.remove(Flags::FLUSHED);
@@ -262,7 +262,7 @@ where
                             },
                             Ok(Async::Ready(None)) => Some(State::SendPayload(
                                 None,
-                                Some(OutMessage::Payload(None)),
+                                Some(OutMessage::Chunk(None)),
                             )),
                             Ok(Async::NotReady) => return Ok(()),
                             // Err(err) => return Err(DispatchError::Io(err)),
@@ -305,88 +305,84 @@ where
         }
     }
 
-    /// Process one incoming message
-    fn one_message(&mut self, msg: InMessage) -> Result<(), DispatchError<S::Error>> {
-        self.flags.insert(Flags::STARTED);
-
-        match msg {
-            InMessage::Message(msg) => {
-                // handle request early
-                if self.state.is_empty() {
-                    self.state = self.handle_request(msg)?;
-                } else {
-                    self.messages.push_back(Message::Item(msg));
-                }
-            }
-            InMessage::MessageWithPayload(msg) => {
-                // payload
-                let (ps, pl) = Payload::new(false);
-                *msg.inner.payload.borrow_mut() = Some(pl);
-                self.payload = Some(ps);
-
-                self.messages.push_back(Message::Item(msg));
-            }
-            InMessage::Chunk(chunk) => {
-                if let Some(ref mut payload) = self.payload {
-                    payload.feed_data(chunk);
-                } else {
-                    error!("Internal server error: unexpected payload chunk");
-                    self.flags.insert(Flags::DISCONNECTED);
-                    self.messages.push_back(Message::Error(
-                        Response::InternalServerError().finish(),
-                    ));
-                    self.error = Some(DispatchError::InternalError);
-                }
-            }
-            InMessage::Eof => {
-                if let Some(mut payload) = self.payload.take() {
-                    payload.feed_eof();
-                } else {
-                    error!("Internal server error: unexpected eof");
-                    self.flags.insert(Flags::DISCONNECTED);
-                    self.messages.push_back(Message::Error(
-                        Response::InternalServerError().finish(),
-                    ));
-                    self.error = Some(DispatchError::InternalError);
-                }
-            }
+    /// Process one incoming requests
+    pub(self) fn poll_request(&mut self) -> Result<bool, DispatchError<S::Error>> {
+        // limit a mount of non processed requests
+        if self.messages.len() >= MAX_PIPELINED_MESSAGES {
+            return Ok(false);
         }
 
-        Ok(())
-    }
-
-    pub(self) fn poll_request(&mut self) -> Result<bool, DispatchError<S::Error>> {
         let mut updated = false;
+        'outer: loop {
+            match self.framed.poll() {
+                Ok(Async::Ready(Some(msg))) => {
+                    updated = true;
+                    self.flags.insert(Flags::STARTED);
 
-        if self.messages.len() < MAX_PIPELINED_MESSAGES {
-            'outer: loop {
-                match self.framed.poll() {
-                    Ok(Async::Ready(Some(msg))) => {
-                        updated = true;
-                        self.one_message(msg)?;
-                    }
-                    Ok(Async::Ready(None)) => {
-                        self.client_disconnected();
-                        break;
-                    }
-                    Ok(Async::NotReady) => break,
-                    Err(ParseError::Io(e)) => {
-                        self.client_disconnected();
-                        self.error = Some(DispatchError::Io(e));
-                        break;
-                    }
-                    Err(e) => {
-                        if let Some(mut payload) = self.payload.take() {
-                            payload.set_error(PayloadError::EncodingCorrupted);
+                    match msg {
+                        InMessage::Message { req, payload } => {
+                            if payload {
+                                let (ps, pl) = Payload::new(false);
+                                *req.inner.payload.borrow_mut() = Some(pl);
+                                self.payload = Some(ps);
+                            }
+
+                            // handle request early
+                            if self.state.is_empty() {
+                                self.state = self.handle_request(req)?;
+                            } else {
+                                self.messages.push_back(Message::Item(req));
+                            }
                         }
-
-                        // Malformed requests should be responded with 400
-                        self.messages
-                            .push_back(Message::Error(Response::BadRequest().finish()));
-                        self.flags.insert(Flags::DISCONNECTED);
-                        self.error = Some(e.into());
-                        break;
+                        InMessage::Chunk(Some(chunk)) => {
+                            if let Some(ref mut payload) = self.payload {
+                                payload.feed_data(chunk);
+                            } else {
+                                error!(
+                                    "Internal server error: unexpected payload chunk"
+                                );
+                                self.flags.insert(Flags::DISCONNECTED);
+                                self.messages.push_back(Message::Error(
+                                    Response::InternalServerError().finish(),
+                                ));
+                                self.error = Some(DispatchError::InternalError);
+                            }
+                        }
+                        InMessage::Chunk(None) => {
+                            if let Some(mut payload) = self.payload.take() {
+                                payload.feed_eof();
+                            } else {
+                                error!("Internal server error: unexpected eof");
+                                self.flags.insert(Flags::DISCONNECTED);
+                                self.messages.push_back(Message::Error(
+                                    Response::InternalServerError().finish(),
+                                ));
+                                self.error = Some(DispatchError::InternalError);
+                            }
+                        }
                     }
+                }
+                Ok(Async::Ready(None)) => {
+                    self.client_disconnected();
+                    break;
+                }
+                Ok(Async::NotReady) => break,
+                Err(ParseError::Io(e)) => {
+                    self.client_disconnected();
+                    self.error = Some(DispatchError::Io(e));
+                    break;
+                }
+                Err(e) => {
+                    if let Some(mut payload) = self.payload.take() {
+                        payload.set_error(PayloadError::EncodingCorrupted);
+                    }
+
+                    // Malformed requests should be responded with 400
+                    self.messages
+                        .push_back(Message::Error(Response::BadRequest().finish()));
+                    self.flags.insert(Flags::DISCONNECTED);
+                    self.error = Some(e.into());
+                    break;
                 }
             }
         }
