@@ -96,6 +96,7 @@ impl<H: 'static> Writer for H2Writer<H> {
 
         let mut has_date = false;
         let mut resp = Response::new(());
+        let mut len_is_set = false;
         *resp.status_mut() = msg.status();
         *resp.version_mut() = Version::HTTP_2;
         for (key, value) in msg.headers().iter() {
@@ -107,6 +108,9 @@ impl<H: 'static> Writer for H2Writer<H> {
                 },
                 CONTENT_LENGTH => match info.length {
                     ResponseLength::None => (),
+                    ResponseLength::Zero => {
+                        len_is_set = true;
+                    }
                     _ => continue,
                 },
                 DATE => has_date = true,
@@ -126,8 +130,10 @@ impl<H: 'static> Writer for H2Writer<H> {
         // content length
         match info.length {
             ResponseLength::Zero => {
-                resp.headers_mut()
-                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                if !len_is_set {
+                    resp.headers_mut()
+                        .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                }
                 self.flags.insert(Flags::EOF);
             }
             ResponseLength::Length(len) => {
@@ -143,6 +149,9 @@ impl<H: 'static> Writer for H2Writer<H> {
                 let l = format!("{}", len);
                 resp.headers_mut()
                     .insert(CONTENT_LENGTH, HeaderValue::try_from(l.as_str()).unwrap());
+            }
+            ResponseLength::None => {
+                self.flags.insert(Flags::EOF);
             }
             _ => (),
         }
