@@ -1,6 +1,6 @@
 [package]
 name = "actix-net"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix net - framework for the compisible network services for Rust (experimental)"
 readme = "README.md"
@@ -39,7 +39,7 @@ rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 cell = []
 
 [dependencies]
-actix = "0.7.0"
+actix = "^0.7.5"
 
 log = "0.4"
 num_cpus = "1.0"
@@ -58,7 +58,8 @@ tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
 tower-service = "0.1"
-trust-dns-resolver = "0.10.0-alpha.2"
+trust-dns-proto = "^0.5.0-alpha.3"
+trust-dns-resolver = "^0.10.0-alpha.3"
 
 # native-tls
 native-tls = { version="0.2", optional = true }
