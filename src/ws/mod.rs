@@ -16,8 +16,8 @@ mod mask;
 mod proto;
 mod transport;
 
-pub use self::codec::{Codec, Message};
-pub use self::frame::Frame;
+pub use self::codec::{Codec, Frame, Message};
+pub use self::frame::Parser;
 pub use self::proto::{CloseCode, CloseReason, OpCode};
 pub use self::transport::Transport;
 

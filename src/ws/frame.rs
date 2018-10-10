@@ -9,9 +9,9 @@ use ws::ProtocolError;
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]
-pub struct Frame;
+pub struct Parser;
 
-impl Frame {
+impl Parser {
     fn parse_metadata(
         src: &[u8], server: bool, max_size: usize,
     ) -> Result<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError> {
@@ -87,10 +87,10 @@ impl Frame {
     /// Parse the input stream into a frame.
     pub fn parse(
         src: &mut BytesMut, server: bool, max_size: usize,
-    ) -> Result<Option<(bool, OpCode, Binary)>, ProtocolError> {
+    ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
         let (idx, finished, opcode, length, mask) =
-            match Frame::parse_metadata(src, server, max_size)? {
+            match Parser::parse_metadata(src, server, max_size)? {
                 None => return Ok(None),
                 Some(res) => res,
             };
@@ -105,7 +105,7 @@ impl Frame {
 
         // no need for body
         if length == 0 {
-            return Ok(Some((finished, opcode, Binary::from(""))));
+            return Ok(Some((finished, opcode, None)));
         }
 
         let mut data = src.split_to(length);
@@ -117,7 +117,7 @@ impl Frame {
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some((true, OpCode::Close, Binary::from(""))));
+                return Ok(Some((true, OpCode::Close, None)));
             }
             _ => (),
         }
@@ -127,16 +127,16 @@ impl Frame {
             apply_mask(&mut data, mask);
         }
 
-        Ok(Some((finished, opcode, data.into())))
+        Ok(Some((finished, opcode, Some(data))))
     }
 
     /// Parse the payload of a close frame.
-    pub fn parse_close_payload(payload: &Binary) -> Option<CloseReason> {
+    pub fn parse_close_payload(payload: &[u8]) -> Option<CloseReason> {
         if payload.len() >= 2 {
-            let raw_code = NetworkEndian::read_u16(payload.as_ref());
+            let raw_code = NetworkEndian::read_u16(payload);
             let code = CloseCode::from(raw_code);
             let description = if payload.len() > 2 {
-                Some(String::from_utf8_lossy(&payload.as_ref()[2..]).into())
+                Some(String::from_utf8_lossy(&payload[2..]).into())
             } else {
                 None
             };
@@ -203,33 +203,40 @@ impl Frame {
             }
         };
 
-        Frame::write_message(dst, payload, OpCode::Close, true, mask)
+        Parser::write_message(dst, payload, OpCode::Close, true, mask)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
 
     struct F {
         finished: bool,
         opcode: OpCode,
-        payload: Binary,
+        payload: Bytes,
     }
 
-    fn is_none(frm: &Result<Option<(bool, OpCode, Binary)>, ProtocolError>) -> bool {
+    fn is_none(
+        frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
+    ) -> bool {
         match *frm {
             Ok(None) => true,
             _ => false,
         }
     }
 
-    fn extract(frm: Result<Option<(bool, OpCode, Binary)>, ProtocolError>) -> F {
+    fn extract(
+        frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
+    ) -> F {
         match frm {
             Ok(Some((finished, opcode, payload))) => F {
                 finished,
                 opcode,
-                payload,
+                payload: payload
+                    .map(|b| b.freeze())
+                    .unwrap_or_else(|| Bytes::from("")),
             },
             _ => unreachable!("error"),
         }
@@ -238,12 +245,12 @@ mod tests {
     #[test]
     fn test_parse() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
-        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
+        assert!(is_none(&Parser::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
         buf.extend(b"1");
 
-        let frame = extract(Frame::parse(&mut buf, false, 1024));
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1"[..]);
@@ -252,7 +259,7 @@ mod tests {
     #[test]
     fn test_parse_length0() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0000u8][..]);
-        let frame = extract(Frame::parse(&mut buf, false, 1024));
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert!(frame.payload.is_empty());
@@ -261,13 +268,13 @@ mod tests {
     #[test]
     fn test_parse_length2() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 126u8][..]);
-        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
+        assert!(is_none(&Parser::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b0000_0001u8, 126u8][..]);
         buf.extend(&[0u8, 4u8][..]);
         buf.extend(b"1234");
 
-        let frame = extract(Frame::parse(&mut buf, false, 1024));
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -276,13 +283,13 @@ mod tests {
     #[test]
     fn test_parse_length4() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 127u8][..]);
-        assert!(is_none(&Frame::parse(&mut buf, false, 1024)));
+        assert!(is_none(&Parser::parse(&mut buf, false, 1024)));
 
         let mut buf = BytesMut::from(&[0b0000_0001u8, 127u8][..]);
         buf.extend(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 4u8][..]);
         buf.extend(b"1234");
 
-        let frame = extract(Frame::parse(&mut buf, false, 1024));
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1234"[..]);
@@ -294,12 +301,12 @@ mod tests {
         buf.extend(b"0001");
         buf.extend(b"1");
 
-        assert!(Frame::parse(&mut buf, false, 1024).is_err());
+        assert!(Parser::parse(&mut buf, false, 1024).is_err());
 
-        let frame = extract(Frame::parse(&mut buf, true, 1024));
+        let frame = extract(Parser::parse(&mut buf, true, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, vec![1u8].into());
+        assert_eq!(frame.payload, Bytes::from(vec![1u8]));
     }
 
     #[test]
@@ -307,12 +314,12 @@ mod tests {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
         buf.extend(&[1u8]);
 
-        assert!(Frame::parse(&mut buf, true, 1024).is_err());
+        assert!(Parser::parse(&mut buf, true, 1024).is_err());
 
-        let frame = extract(Frame::parse(&mut buf, false, 1024));
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
-        assert_eq!(frame.payload, vec![1u8].into());
+        assert_eq!(frame.payload, Bytes::from(vec![1u8]));
     }
 
     #[test]
@@ -320,9 +327,9 @@ mod tests {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8][..]);
         buf.extend(&[1u8, 1u8]);
 
-        assert!(Frame::parse(&mut buf, true, 1).is_err());
+        assert!(Parser::parse(&mut buf, true, 1).is_err());
 
-        if let Err(ProtocolError::Overflow) = Frame::parse(&mut buf, false, 0) {
+        if let Err(ProtocolError::Overflow) = Parser::parse(&mut buf, false, 0) {
         } else {
             unreachable!("error");
         }
@@ -331,7 +338,7 @@ mod tests {
     #[test]
     fn test_ping_frame() {
         let mut buf = BytesMut::new();
-        Frame::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
+        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
@@ -341,7 +348,7 @@ mod tests {
     #[test]
     fn test_pong_frame() {
         let mut buf = BytesMut::new();
-        Frame::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
+        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");
@@ -352,7 +359,7 @@ mod tests {
     fn test_close_frame() {
         let mut buf = BytesMut::new();
         let reason = (CloseCode::Normal, "data");
-        Frame::write_close(&mut buf, Some(reason.into()), false);
+        Parser::write_close(&mut buf, Some(reason.into()), false);
 
         let mut v = vec![136u8, 6u8, 3u8, 232u8];
         v.extend(b"data");
@@ -362,7 +369,7 @@ mod tests {
     #[test]
     fn test_empty_close_frame() {
         let mut buf = BytesMut::new();
-        Frame::write_close(&mut buf, None, false);
+        Parser::write_close(&mut buf, None, false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
     }
 }

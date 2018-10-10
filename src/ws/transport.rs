@@ -4,7 +4,7 @@ use actix_net::service::{IntoService, Service};
 use futures::{Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use super::{Codec, Message};
+use super::{Codec, Frame, Message};
 
 pub struct Transport<S, T>
 where
@@ -17,7 +17,7 @@ where
 impl<S, T> Transport<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Message, Response = Message>,
+    S: Service<Request = Frame, Response = Message>,
     S::Future: 'static,
     S::Error: 'static,
 {
@@ -37,7 +37,7 @@ where
 impl<S, T> Future for Transport<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Message, Response = Message>,
+    S: Service<Request = Frame, Response = Message>,
     S::Future: 'static,
     S::Error: 'static,
 {

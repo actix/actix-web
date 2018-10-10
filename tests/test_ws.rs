@@ -20,12 +20,23 @@ use futures::{Future, Sink, Stream};
 
 use actix_http::{h1, ws, ResponseError, ServiceConfig};
 
-fn ws_service(req: ws::Message) -> impl Future<Item = ws::Message, Error = io::Error> {
+fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Error> {
     match req {
-        ws::Message::Ping(msg) => ok(ws::Message::Pong(msg)),
-        ws::Message::Text(text) => ok(ws::Message::Text(text)),
-        ws::Message::Binary(bin) => ok(ws::Message::Binary(bin)),
-        ws::Message::Close(reason) => ok(ws::Message::Close(reason)),
+        ws::Frame::Ping(msg) => ok(ws::Message::Pong(msg)),
+        ws::Frame::Text(text) => {
+            let text = if let Some(pl) = text {
+                String::from_utf8(Vec::from(pl.as_ref())).unwrap()
+            } else {
+                String::new()
+            };
+            ok(ws::Message::Text(text))
+        }
+        ws::Frame::Binary(bin) => ok(ws::Message::Binary(
+            bin.map(|e| e.freeze())
+                .unwrap_or_else(|| Bytes::from(""))
+                .into(),
+        )),
+        ws::Frame::Close(reason) => ok(ws::Message::Close(reason)),
         _ => ok(ws::Message::Close(None)),
     }
 }

@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use tokio_codec::{Decoder, Encoder};
 
-use super::frame::Frame;
+use super::frame::Parser;
 use super::proto::{CloseReason, OpCode};
 use super::ProtocolError;
 use body::Binary;
@@ -13,6 +13,21 @@ pub enum Message {
     Text(String),
     /// Binary message
     Binary(Binary),
+    /// Ping message
+    Ping(String),
+    /// Pong message
+    Pong(String),
+    /// Close message with optional reason
+    Close(Option<CloseReason>),
+}
+
+/// `WebSocket` frame
+#[derive(Debug, PartialEq)]
+pub enum Frame {
+    /// Text frame, codec does not verify utf8 encoding
+    Text(Option<BytesMut>),
+    /// Binary frame
+    Binary(Option<BytesMut>),
     /// Ping message
     Ping(String),
     /// Pong message
@@ -60,29 +75,29 @@ impl Encoder for Codec {
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
             Message::Text(txt) => {
-                Frame::write_message(dst, txt, OpCode::Text, true, !self.server)
+                Parser::write_message(dst, txt, OpCode::Text, true, !self.server)
             }
             Message::Binary(bin) => {
-                Frame::write_message(dst, bin, OpCode::Binary, true, !self.server)
+                Parser::write_message(dst, bin, OpCode::Binary, true, !self.server)
             }
             Message::Ping(txt) => {
-                Frame::write_message(dst, txt, OpCode::Ping, true, !self.server)
+                Parser::write_message(dst, txt, OpCode::Ping, true, !self.server)
             }
             Message::Pong(txt) => {
-                Frame::write_message(dst, txt, OpCode::Pong, true, !self.server)
+                Parser::write_message(dst, txt, OpCode::Pong, true, !self.server)
             }
-            Message::Close(reason) => Frame::write_close(dst, reason, !self.server),
+            Message::Close(reason) => Parser::write_close(dst, reason, !self.server),
         }
         Ok(())
     }
 }
 
 impl Decoder for Codec {
-    type Item = Message;
+    type Item = Frame;
     type Error = ProtocolError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        match Frame::parse(src, self.server, self.max_size) {
+        match Parser::parse(src, self.server, self.max_size) {
             Ok(Some((finished, opcode, payload))) => {
                 // continuation is not supported
                 if !finished {
@@ -93,22 +108,35 @@ impl Decoder for Codec {
                     OpCode::Continue => Err(ProtocolError::NoContinuation),
                     OpCode::Bad => Err(ProtocolError::BadOpCode),
                     OpCode::Close => {
-                        let close_reason = Frame::parse_close_payload(&payload);
-                        Ok(Some(Message::Close(close_reason)))
-                    }
-                    OpCode::Ping => Ok(Some(Message::Ping(
-                        String::from_utf8_lossy(payload.as_ref()).into(),
-                    ))),
-                    OpCode::Pong => Ok(Some(Message::Pong(
-                        String::from_utf8_lossy(payload.as_ref()).into(),
-                    ))),
-                    OpCode::Binary => Ok(Some(Message::Binary(payload))),
-                    OpCode::Text => {
-                        let tmp = Vec::from(payload.as_ref());
-                        match String::from_utf8(tmp) {
-                            Ok(s) => Ok(Some(Message::Text(s))),
-                            Err(_) => Err(ProtocolError::BadEncoding),
+                        if let Some(ref pl) = payload {
+                            let close_reason = Parser::parse_close_payload(pl);
+                            Ok(Some(Frame::Close(close_reason)))
+                        } else {
+                            Ok(Some(Frame::Close(None)))
                         }
+                    }
+                    OpCode::Ping => {
+                        if let Some(ref pl) = payload {
+                            Ok(Some(Frame::Ping(String::from_utf8_lossy(pl).into())))
+                        } else {
+                            Ok(Some(Frame::Ping(String::new())))
+                        }
+                    }
+                    OpCode::Pong => {
+                        if let Some(ref pl) = payload {
+                            Ok(Some(Frame::Pong(String::from_utf8_lossy(pl).into())))
+                        } else {
+                            Ok(Some(Frame::Pong(String::new())))
+                        }
+                    }
+                    OpCode::Binary => Ok(Some(Frame::Binary(payload))),
+                    OpCode::Text => {
+                        Ok(Some(Frame::Text(payload)))
+                        //let tmp = Vec::from(payload.as_ref());
+                        //match String::from_utf8(tmp) {
+                        //    Ok(s) => Ok(Some(Message::Text(s))),
+                        //    Err(_) => Err(ProtocolError::BadEncoding),
+                        //}
                     }
                 }
             }
