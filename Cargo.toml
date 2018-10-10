@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.7.11"
+version = "0.7.12"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -61,11 +61,12 @@ flate2-rust = ["flate2/rust_backend"]
 cell = ["actix-net/cell"]
 
 [dependencies]
-actix = "0.7.0"
-actix-net = "0.1.0"
+actix = "^0.7.5"
+actix-net = "^0.1.1"
 
 base64 = "0.9"
 bitflags = "1.0"
+failure = "^0.1.2"
 h2 = "0.1"
 htmlescape = "0.3"
 http = "^0.1.8"
@@ -92,8 +93,6 @@ url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
 brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
-
-failure = "^0.1.2"
 
 # io
 mio = "^0.6.13"

@@ -1,5 +1,14 @@
 # Changes
 
+## [0.7.12] - 2018-10-10
+
+### Changed
+
+* Set min version for actix
+
+* Set min version for actix-net
+
+
 ## [0.7.11] - 2018-10-09
 
 ### Fixed
