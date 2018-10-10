@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.11] - 2018-10-09
+
+### Fixed
+
+* Fixed 204 responses for http/2
+
+
 ## [0.7.10] - 2018-10-09
 
 ### Fixed

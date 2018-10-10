@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell, RefMut};
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::rc::Rc;
@@ -15,7 +15,6 @@ use time;
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
-use super::channel::Node;
 use super::message::{Request, RequestPool};
 use super::KeepAlive;
 use body::Body;
@@ -138,7 +137,6 @@ struct Inner<H> {
     ka_enabled: bool,
     bytes: Rc<SharedBytesPool>,
     messages: &'static RequestPool,
-    node: RefCell<Node<()>>,
     date: Cell<Option<Date>>,
 }
 
@@ -173,7 +171,6 @@ impl<H> ServiceConfig<H> {
             client_shutdown,
             bytes: Rc::new(SharedBytesPool::new()),
             messages: RequestPool::pool(settings),
-            node: RefCell::new(Node::head()),
             date: Cell::new(None),
         }))
     }
@@ -181,10 +178,6 @@ impl<H> ServiceConfig<H> {
     /// Create worker settings builder.
     pub fn build(handler: H) -> ServiceConfigBuilder<H> {
         ServiceConfigBuilder::new(handler)
-    }
-
-    pub(crate) fn head(&self) -> RefMut<Node<()>> {
-        self.0.node.borrow_mut()
     }
 
     pub(crate) fn handler(&self) -> &H {

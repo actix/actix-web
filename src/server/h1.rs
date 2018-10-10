@@ -148,16 +148,6 @@ where
     }
 
     #[inline]
-    pub fn settings(&self) -> &ServiceConfig<H> {
-        &self.settings
-    }
-
-    #[inline]
-    pub(crate) fn io(&mut self) -> &mut T {
-        self.stream.get_mut()
-    }
-
-    #[inline]
     fn can_read(&self) -> bool {
         if self.flags.contains(Flags::READ_DISCONNECTED) {
             return false;

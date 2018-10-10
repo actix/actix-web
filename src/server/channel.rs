@@ -50,7 +50,6 @@ where
     H: HttpHandler + 'static,
 {
     proto: HttpProtocol<T, H>,
-    node: Option<Node<()>>,
     ka_timeout: Option<Delay>,
 }
 
@@ -64,20 +63,7 @@ where
 
         HttpChannel {
             ka_timeout,
-            node: None,
             proto: HttpProtocol::Unknown(settings, io, BytesMut::with_capacity(8192)),
-        }
-    }
-}
-
-impl<T, H> Drop for HttpChannel<T, H>
-where
-    T: IoStream,
-    H: HttpHandler + 'static,
-{
-    fn drop(&mut self) {
-        if let Some(mut node) = self.node.take() {
-            node.remove()
         }
     }
 }
@@ -112,22 +98,6 @@ where
                 Ok(Async::NotReady) => (),
                 Err(_) => panic!("Something is really wrong"),
             }
-        }
-
-        if self.node.is_none() {
-            self.node = Some(Node::new(()));
-            let _ = match self.proto {
-                HttpProtocol::H1(ref mut h1) => {
-                    self.node.as_mut().map(|n| h1.settings().head().insert(n))
-                }
-                HttpProtocol::H2(ref mut h2) => {
-                    self.node.as_mut().map(|n| h2.settings().head().insert(n))
-                }
-                HttpProtocol::Unknown(ref mut settings, _, _) => {
-                    self.node.as_mut().map(|n| settings.head().insert(n))
-                }
-                HttpProtocol::None => unreachable!(),
-            };
         }
 
         let mut is_eof = false;
@@ -206,7 +176,6 @@ where
     H: HttpHandler + 'static,
 {
     proto: HttpProtocol<T, H>,
-    node: Option<Node<()>>,
 }
 
 impl<T, H> H1Channel<T, H>
@@ -216,7 +185,6 @@ where
 {
     pub(crate) fn new(settings: ServiceConfig<H>, io: T) -> H1Channel<T, H> {
         H1Channel {
-            node: None,
             proto: HttpProtocol::H1(h1::Http1Dispatcher::new(
                 settings,
                 io,
@@ -224,18 +192,6 @@ where
                 false,
                 None,
             )),
-        }
-    }
-}
-
-impl<T, H> Drop for H1Channel<T, H>
-where
-    T: IoStream,
-    H: HttpHandler + 'static,
-{
-    fn drop(&mut self) {
-        if let Some(mut node) = self.node.take() {
-            node.remove();
         }
     }
 }
@@ -249,101 +205,9 @@ where
     type Error = HttpDispatchError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.node.is_none() {
-            self.node = Some(Node::new(()));
-            match self.proto {
-                HttpProtocol::H1(ref mut h1) => {
-                    self.node.as_mut().map(|n| h1.settings().head().insert(n));
-                }
-                _ => unreachable!(),
-            };
-        }
-
         match self.proto {
             HttpProtocol::H1(ref mut h1) => h1.poll(),
             _ => unreachable!(),
-        }
-    }
-}
-
-pub(crate) struct Node<T> {
-    next: Option<*mut Node<T>>,
-    prev: Option<*mut Node<T>>,
-    element: T,
-}
-
-impl<T> Node<T> {
-    fn new(element: T) -> Self {
-        Node {
-            element,
-            next: None,
-            prev: None,
-        }
-    }
-
-    fn insert<I>(&mut self, next_el: &mut Node<I>) {
-        let next: *mut Node<T> = next_el as *const _ as *mut _;
-
-        if let Some(next2) = self.next {
-            unsafe {
-                let n = next2.as_mut().unwrap();
-                n.prev = Some(next);
-            }
-            next_el.next = Some(next2 as *mut _);
-        }
-        self.next = Some(next);
-
-        unsafe {
-            let next: &mut Node<T> = &mut *next;
-            next.prev = Some(self as *mut _);
-        }
-    }
-
-    fn remove(&mut self) {
-        let next = self.next.take();
-        let prev = self.prev.take();
-
-        if let Some(prev) = prev {
-            unsafe {
-                prev.as_mut().unwrap().next = next;
-            }
-        }
-        if let Some(next) = next {
-            unsafe {
-                next.as_mut().unwrap().prev = prev;
-            }
-        }
-    }
-}
-
-impl Node<()> {
-    pub(crate) fn head() -> Self {
-        Node {
-            next: None,
-            prev: None,
-            element: (),
-        }
-    }
-
-    pub(crate) fn traverse<T, H, F: Fn(&mut HttpProtocol<T, H>)>(&self, f: F)
-    where
-        T: IoStream,
-        H: HttpHandler + 'static,
-    {
-        if let Some(n) = self.next.as_ref() {
-            unsafe {
-                let mut next: &mut Node<HttpProtocol<T, H>> =
-                    &mut *(n.as_ref().unwrap() as *const _ as *mut _);
-                loop {
-                    f(&mut next.element);
-
-                    next = if let Some(n) = next.next.as_ref() {
-                        &mut **n
-                    } else {
-                        return;
-                    }
-                }
-            }
         }
     }
 }
