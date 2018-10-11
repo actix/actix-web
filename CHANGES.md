@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.13] - 2018-10-*
+
+### Fixed
+
+* Fixed rustls build
+
 ## [0.7.12] - 2018-10-10
 
 ### Changed
