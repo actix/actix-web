@@ -37,14 +37,8 @@ use {
 ))]
 use {
     rustls::ClientConfig, std::io::Error as SslError, std::sync::Arc,
-    tokio_rustls::ClientConfigExt, webpki::DNSNameRef, webpki_roots,
+    tokio_rustls::TlsConnector as SslConnector, webpki::DNSNameRef, webpki_roots,
 };
-
-#[cfg(all(
-    feature = "rust-tls",
-    not(any(feature = "alpn", feature = "tls", feature = "ssl"))
-))]
-type SslConnector = Arc<ClientConfig>;
 
 #[cfg(not(any(
     feature = "alpn",
@@ -282,7 +276,7 @@ impl Default for ClientConnector {
                 config
                     .root_store
                     .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-                Arc::new(config)
+                SslConnector::from(Arc::new(config))
             }
 
             #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -373,7 +367,7 @@ impl ClientConnector {
     ///         config
     ///             .root_store
     ///             .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-    ///         let conn = ClientConnector::with_connector(Arc::new(config)).start();
+    ///         let conn = ClientConnector::with_connector(config).start();
     ///
     ///         conn.send(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
@@ -390,7 +384,7 @@ impl ClientConnector {
     /// ```
     pub fn with_connector(connector: ClientConfig) -> ClientConnector {
         // keep level of indirection for docstrings matching featureflags
-        Self::with_connector_impl(Arc::new(connector))
+        Self::with_connector_impl(SslConnector::from(Arc::new(connector)))
     }
 
     #[cfg(all(
@@ -832,7 +826,7 @@ impl ClientConnector {
                         let host = DNSNameRef::try_from_ascii_str(&key.host).unwrap();
                         fut::Either::A(
                             act.connector
-                                .connect_async(host, stream)
+                                .connect(host, stream)
                                 .into_actor(act)
                                 .then(move |res, _, _| {
                                     match res {
