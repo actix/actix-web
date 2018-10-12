@@ -32,11 +32,11 @@ fn set_bit(array: &mut [u8], ch: u8) {
 }
 
 lazy_static! {
-    static ref DEFAULT_QUOTER: Quoter = { Quoter::new(b"@:", b"/+") };
+    pub static ref DEFAULT_QUOTER: Quoter = { Quoter::new(b"@:", b"/+") };
 }
 
 #[derive(Default, Clone, Debug)]
-pub(crate) struct Url {
+pub struct Url {
     uri: Uri,
     path: Option<Rc<String>>,
 }
@@ -61,7 +61,7 @@ impl Url {
     }
 }
 
-pub(crate) struct Quoter {
+pub struct Quoter {
     safe_table: [u8; 16],
     protected_table: [u8; 16],
 }

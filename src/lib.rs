@@ -110,7 +110,7 @@ mod json;
 mod payload;
 mod request;
 mod response;
-mod uri;
+pub mod uri;
 
 pub mod error;
 pub mod h1;
@@ -148,10 +148,11 @@ pub mod http {
     //! Various HTTP related types
 
     // re-exports
+    pub use modhttp::header::{HeaderName, HeaderValue};
     pub use modhttp::{Method, StatusCode, Version};
 
     #[doc(hidden)]
-    pub use modhttp::{uri, Error, Extensions, HeaderMap, HttpTryFrom, Uri};
+    pub use modhttp::{uri, Error, HeaderMap, HttpTryFrom, Uri};
 
     pub use cookie::{Cookie, CookieBuilder};
 

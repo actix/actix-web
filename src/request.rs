@@ -8,7 +8,7 @@ use http::{header, HeaderMap, Method, Uri, Version};
 use extensions::Extensions;
 use httpmessage::HttpMessage;
 use payload::Payload;
-use uri::Url as InnerUrl;
+use uri::Url;
 
 bitflags! {
     pub(crate) struct MessageFlags: u8 {
@@ -25,7 +25,7 @@ pub struct Request {
 pub(crate) struct InnerRequest {
     pub(crate) version: Version,
     pub(crate) method: Method,
-    pub(crate) url: InnerUrl,
+    pub(crate) url: Url,
     pub(crate) flags: Cell<MessageFlags>,
     pub(crate) headers: HeaderMap,
     pub(crate) extensions: RefCell<Extensions>,
@@ -73,7 +73,7 @@ impl Request {
             inner: Rc::new(InnerRequest {
                 pool,
                 method: Method::GET,
-                url: InnerUrl::default(),
+                url: Url::default(),
                 version: Version::HTTP_11,
                 headers: HeaderMap::with_capacity(16),
                 flags: Cell::new(MessageFlags::empty()),
@@ -94,7 +94,7 @@ impl Request {
     }
 
     #[inline]
-    pub(crate) fn url(&self) -> &InnerUrl {
+    pub fn url(&self) -> &Url {
         &self.inner().url
     }
 
@@ -162,7 +162,10 @@ impl Request {
         self.inner().method == Method::CONNECT
     }
 
-    pub(crate) fn clone(&self) -> Self {
+    #[doc(hidden)]
+    /// Note: this method should be called only as part of clone operation
+    /// of wrapper type.
+    pub fn clone_request(&self) -> Self {
         Request {
             inner: self.inner.clone(),
         }

@@ -22,7 +22,7 @@ pub struct H1Service<T, S> {
 
 impl<T, S> H1Service<T, S>
 where
-    S: NewService,
+    S: NewService<Request = Request, Response = Response> + Clone,
     S::Service: Clone,
     S::Error: Debug,
 {
