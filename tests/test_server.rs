@@ -9,6 +9,7 @@ use std::{io::Read, io::Write, net, thread, time};
 
 use actix::System;
 use actix_net::server::Server;
+use actix_net::service::NewServiceExt;
 use actix_web::{client, test, HttpMessage};
 use bytes::Bytes;
 use futures::future::{self, ok};
@@ -29,6 +30,7 @@ fn test_h1_v2() {
                     .server_hostname("localhost")
                     .server_address(addr)
                     .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+                    .map(|_| ())
             }).unwrap()
             .run();
     });
@@ -53,6 +55,7 @@ fn test_slow_request() {
                 h1::H1Service::build()
                     .client_timeout(100)
                     .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+                    .map(|_| ())
             }).unwrap()
             .run();
     });
@@ -72,6 +75,7 @@ fn test_malformed_request() {
         Server::new()
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().finish()))
+                    .map(|_| ())
             }).unwrap()
             .run();
     });
@@ -106,7 +110,7 @@ fn test_content_length() {
                         StatusCode::NOT_FOUND,
                     ];
                     future::ok::<_, ()>(Response::new(statuses[indx]))
-                })
+                }).map(|_| ())
             }).unwrap()
             .run();
     });
@@ -172,7 +176,7 @@ fn test_headers() {
                         );
                     }
                     future::ok::<_, ()>(builder.body(data.clone()))
-                })
+                }).map(|_| ())
             })
             .unwrap()
             .run()
@@ -221,6 +225,7 @@ fn test_body() {
         Server::new()
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+                    .map(|_| ())
             }).unwrap()
             .run();
     });
@@ -246,7 +251,7 @@ fn test_head_empty() {
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| {
                     ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).finish())
-                })
+                }).map(|_| ())
             }).unwrap()
             .run()
     });
@@ -282,7 +287,7 @@ fn test_head_binary() {
                     ok::<_, ()>(
                         Response::Ok().content_length(STR.len() as u64).body(STR),
                     )
-                })
+                }).map(|_| ())
             }).unwrap()
             .run()
     });
@@ -314,7 +319,7 @@ fn test_head_binary2() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR)))
+                h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
             }).unwrap()
             .run()
     });
@@ -349,7 +354,7 @@ fn test_body_length() {
                             .content_length(STR.len() as u64)
                             .body(Body::Streaming(Box::new(body))),
                     )
-                })
+                }).map(|_| ())
             }).unwrap()
             .run()
     });
@@ -380,7 +385,7 @@ fn test_body_chunked_explicit() {
                             .chunked()
                             .body(Body::Streaming(Box::new(body))),
                     )
-                })
+                }).map(|_| ())
             }).unwrap()
             .run()
     });
@@ -409,7 +414,7 @@ fn test_body_chunked_implicit() {
                 h1::H1Service::new(|_| {
                     let body = once(Ok(Bytes::from_static(STR.as_ref())));
                     ok::<_, ()>(Response::Ok().body(Body::Streaming(Box::new(body))))
-                })
+                }).map(|_| ())
             }).unwrap()
             .run()
     });

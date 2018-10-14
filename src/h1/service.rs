@@ -12,6 +12,7 @@ use request::Request;
 use response::Response;
 
 use super::dispatcher::Dispatcher;
+use super::H1ServiceResult;
 
 /// `NewService` implementation for HTTP1 transport
 pub struct H1Service<T, S> {
@@ -51,7 +52,7 @@ where
     S::Error: Debug,
 {
     type Request = T;
-    type Response = ();
+    type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type InitError = S::InitError;
     type Service = H1ServiceHandler<T, S::Service>;
@@ -243,7 +244,7 @@ where
     S::Error: Debug,
 {
     type Request = T;
-    type Response = ();
+    type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type Future = Dispatcher<T, S>;
 

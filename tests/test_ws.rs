@@ -51,7 +51,7 @@ fn test_simple() {
                     .and_then(TakeItem::new().map_err(|_| ()))
                     .and_then(|(req, framed): (_, Framed<_, _>)| {
                         // validate request
-                        if let Some(h1::InMessage::Message { req, payload: _ }) = req {
+                        if let Some(h1::InMessage::Message(req, _)) = req {
                             match ws::handshake(&req) {
                                 Err(e) => {
                                     // validation failed

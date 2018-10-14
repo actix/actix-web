@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder};
+use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder, RequestPayloadType};
 use super::encoder::{ResponseEncoder, ResponseLength};
 use body::{Binary, Body};
 use config::ServiceConfig;
@@ -17,10 +17,11 @@ use response::Response;
 
 bitflags! {
     struct Flags: u8 {
-        const HEAD = 0b0000_0001;
-        const UPGRADE = 0b0000_0010;
-        const KEEPALIVE = 0b0000_0100;
-        const KEEPALIVE_ENABLED = 0b0001_0000;
+        const HEAD              = 0b0000_0001;
+        const UPGRADE           = 0b0000_0010;
+        const KEEPALIVE         = 0b0000_0100;
+        const KEEPALIVE_ENABLED = 0b0000_1000;
+        const UNHANDLED         = 0b0001_0000;
     }
 }
 
@@ -39,9 +40,17 @@ pub enum OutMessage {
 #[derive(Debug)]
 pub enum InMessage {
     /// Request
-    Message { req: Request, payload: bool },
+    Message(Request, InMessageType),
     /// Payload chunk
     Chunk(Option<Bytes>),
+}
+
+/// Incoming request type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InMessageType {
+    None,
+    Payload,
+    Unhandled,
 }
 
 /// HTTP/1 Codec
@@ -246,6 +255,8 @@ impl Decoder for Codec {
                 Some(PayloadItem::Eof) => Some(InMessage::Chunk(None)),
                 None => None,
             })
+        } else if self.flags.contains(Flags::UNHANDLED) {
+            Ok(None)
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
             self.flags
                 .set(Flags::HEAD, req.inner.method == Method::HEAD);
@@ -253,11 +264,21 @@ impl Decoder for Codec {
             if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
                 self.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }
-            self.payload = payload;
-            Ok(Some(InMessage::Message {
-                req,
-                payload: self.payload.is_some(),
-            }))
+            let payload = match payload {
+                RequestPayloadType::None => {
+                    self.payload = None;
+                    InMessageType::None
+                }
+                RequestPayloadType::Payload(pl) => {
+                    self.payload = Some(pl);
+                    InMessageType::Payload
+                }
+                RequestPayloadType::Unhandled => {
+                    self.payload = None;
+                    InMessageType::Unhandled
+                }
+            };
+            Ok(Some(InMessage::Message(req, payload)))
         } else {
             Ok(None)
         }

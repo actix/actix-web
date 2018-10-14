@@ -16,6 +16,13 @@ const MAX_HEADERS: usize = 96;
 
 pub struct RequestDecoder(&'static RequestPool);
 
+/// Incoming request type
+pub enum RequestPayloadType {
+    None,
+    Payload(PayloadDecoder),
+    Unhandled,
+}
+
 impl RequestDecoder {
     pub(crate) fn with_pool(pool: &'static RequestPool) -> RequestDecoder {
         RequestDecoder(pool)
@@ -29,7 +36,7 @@ impl Default for RequestDecoder {
 }
 
 impl Decoder for RequestDecoder {
-    type Item = (Request, Option<PayloadDecoder>);
+    type Item = (Request, RequestPayloadType);
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -149,18 +156,18 @@ impl Decoder for RequestDecoder {
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         let decoder = if chunked {
             // Chunked encoding
-            Some(PayloadDecoder::chunked())
+            RequestPayloadType::Payload(PayloadDecoder::chunked())
         } else if let Some(len) = content_length {
             // Content-Length
-            Some(PayloadDecoder::length(len))
+            RequestPayloadType::Payload(PayloadDecoder::length(len))
         } else if has_upgrade || msg.inner.method == Method::CONNECT {
             // upgrade(websocket) or connect
-            Some(PayloadDecoder::eof())
+            RequestPayloadType::Unhandled
         } else if src.len() >= MAX_BUFFER_SIZE {
             error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
             return Err(ParseError::TooLarge);
         } else {
-            None
+            RequestPayloadType::None
         };
 
         Ok(Some((msg, decoder)))
@@ -481,20 +488,36 @@ mod tests {
 
     use super::*;
     use error::ParseError;
-    use h1::InMessage;
+    use h1::{InMessage, InMessageType};
     use httpmessage::HttpMessage;
     use request::Request;
+
+    impl RequestPayloadType {
+        fn unwrap(self) -> PayloadDecoder {
+            match self {
+                RequestPayloadType::Payload(pl) => pl,
+                _ => panic!(),
+            }
+        }
+
+        fn is_unhandled(&self) -> bool {
+            match self {
+                RequestPayloadType::Unhandled => true,
+                _ => false,
+            }
+        }
+    }
 
     impl InMessage {
         fn message(self) -> Request {
             match self {
-                InMessage::Message { req, payload: _ } => req,
+                InMessage::Message(req, _) => req,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                InMessage::Message { req: _, payload } => payload,
+                InMessage::Message(_, payload) => payload == InMessageType::Payload,
                 _ => panic!("error"),
             }
         }
@@ -919,13 +942,9 @@ mod tests {
         );
         let mut reader = RequestDecoder::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        let mut pl = pl.unwrap();
         assert!(!req.keep_alive());
         assert!(req.upgrade());
-        assert_eq!(
-            pl.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
-            b"some raw data"
-        );
+        assert!(pl.is_unhandled());
     }
 
     #[test]

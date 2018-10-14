@@ -18,7 +18,8 @@ use error::DispatchError;
 use request::Request;
 use response::Response;
 
-use super::codec::{Codec, InMessage, OutMessage};
+use super::codec::{Codec, InMessage, InMessageType, OutMessage};
+use super::H1ServiceResult;
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
@@ -41,13 +42,14 @@ where
 {
     service: S,
     flags: Flags,
-    framed: Framed<T, Codec>,
+    framed: Option<Framed<T, Codec>>,
     error: Option<DispatchError<S::Error>>,
     config: ServiceConfig,
 
     state: State<S>,
     payload: Option<PayloadSender>,
     messages: VecDeque<Message>,
+    unhandled: Option<Request>,
 
     ka_expire: Instant,
     ka_timer: Option<Delay>,
@@ -112,9 +114,10 @@ where
             state: State::None,
             error: None,
             messages: VecDeque::new(),
+            framed: Some(framed),
+            unhandled: None,
             service,
             flags,
-            framed,
             config,
             ka_expire,
             ka_timer,
@@ -144,7 +147,7 @@ where
     /// Flush stream
     fn poll_flush(&mut self) -> Poll<(), DispatchError<S::Error>> {
         if !self.flags.contains(Flags::FLUSHED) {
-            match self.framed.poll_complete() {
+            match self.framed.as_mut().unwrap().poll_complete() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Err(err) => {
                     debug!("Error sending data: {}", err);
@@ -187,7 +190,11 @@ where
                 State::ServiceCall(ref mut fut) => {
                     match fut.poll().map_err(DispatchError::Service)? {
                         Async::Ready(mut res) => {
-                            self.framed.get_codec_mut().prepare_te(&mut res);
+                            self.framed
+                                .as_mut()
+                                .unwrap()
+                                .get_codec_mut()
+                                .prepare_te(&mut res);
                             let body = res.replace_body(Body::Empty);
                             Some(State::SendResponse(Some((
                                 OutMessage::Response(res),
@@ -200,11 +207,11 @@ where
                 // send respons
                 State::SendResponse(ref mut item) => {
                     let (msg, body) = item.take().expect("SendResponse is empty");
-                    match self.framed.start_send(msg) {
+                    match self.framed.as_mut().unwrap().start_send(msg) {
                         Ok(AsyncSink::Ready) => {
                             self.flags.set(
                                 Flags::KEEPALIVE,
-                                self.framed.get_codec().keepalive(),
+                                self.framed.as_mut().unwrap().get_codec().keepalive(),
                             );
                             self.flags.remove(Flags::FLUSHED);
                             match body {
@@ -233,7 +240,7 @@ where
                 // Send payload
                 State::SendPayload(ref mut stream, ref mut bin) => {
                     if let Some(item) = bin.take() {
-                        match self.framed.start_send(item) {
+                        match self.framed.as_mut().unwrap().start_send(item) {
                             Ok(AsyncSink::Ready) => {
                                 self.flags.remove(Flags::FLUSHED);
                             }
@@ -248,6 +255,8 @@ where
                         match stream.poll() {
                             Ok(Async::Ready(Some(item))) => match self
                                 .framed
+                                .as_mut()
+                                .unwrap()
                                 .start_send(OutMessage::Chunk(Some(item.into())))
                             {
                                 Ok(AsyncSink::Ready) => {
@@ -297,7 +306,11 @@ where
         let mut task = self.service.call(req);
         match task.poll().map_err(DispatchError::Service)? {
             Async::Ready(mut res) => {
-                self.framed.get_codec_mut().prepare_te(&mut res);
+                self.framed
+                    .as_mut()
+                    .unwrap()
+                    .get_codec_mut()
+                    .prepare_te(&mut res);
                 let body = res.replace_body(Body::Empty);
                 Ok(State::SendResponse(Some((OutMessage::Response(res), body))))
             }
@@ -314,17 +327,24 @@ where
 
         let mut updated = false;
         'outer: loop {
-            match self.framed.poll() {
+            match self.framed.as_mut().unwrap().poll() {
                 Ok(Async::Ready(Some(msg))) => {
                     updated = true;
                     self.flags.insert(Flags::STARTED);
 
                     match msg {
-                        InMessage::Message { req, payload } => {
-                            if payload {
-                                let (ps, pl) = Payload::new(false);
-                                *req.inner.payload.borrow_mut() = Some(pl);
-                                self.payload = Some(ps);
+                        InMessage::Message(req, payload) => {
+                            match payload {
+                                InMessageType::Payload => {
+                                    let (ps, pl) = Payload::new(false);
+                                    *req.inner.payload.borrow_mut() = Some(pl);
+                                    self.payload = Some(ps);
+                                }
+                                InMessageType::Unhandled => {
+                                    self.unhandled = Some(req);
+                                    return Ok(updated);
+                                }
+                                _ => (),
                             }
 
                             // handle request early
@@ -454,15 +474,16 @@ where
     S: Service<Request = Request, Response = Response>,
     S::Error: Debug,
 {
-    type Item = ();
+    type Item = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<(), Self::Error> {
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if self.flags.contains(Flags::SHUTDOWN) {
             self.poll_keepalive()?;
             try_ready!(self.poll_flush());
-            Ok(AsyncWrite::shutdown(self.framed.get_mut())?)
+            let io = self.framed.take().unwrap().into_inner();
+            Ok(Async::Ready(H1ServiceResult::Shutdown(io)))
         } else {
             self.poll_keepalive()?;
             self.poll_request()?;
@@ -474,15 +495,21 @@ where
                 if let Some(err) = self.error.take() {
                     Err(err)
                 } else if self.flags.contains(Flags::DISCONNECTED) {
-                    Ok(Async::Ready(()))
+                    Ok(Async::Ready(H1ServiceResult::Disconnected))
+                }
+                // unhandled request (upgrade or connect)
+                else if self.unhandled.is_some() {
+                    let req = self.unhandled.take().unwrap();
+                    let framed = self.framed.take().unwrap();
+                    Ok(Async::Ready(H1ServiceResult::Unhandled(req, framed)))
                 }
                 // disconnect if keep-alive is not enabled
                 else if self.flags.contains(Flags::STARTED) && !self
                     .flags
                     .intersects(Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED)
                 {
-                    self.flags.insert(Flags::SHUTDOWN);
-                    self.poll()
+                    let io = self.framed.take().unwrap().into_inner();
+                    Ok(Async::Ready(H1ServiceResult::Shutdown(io)))
                 } else {
                     Ok(Async::NotReady)
                 }
