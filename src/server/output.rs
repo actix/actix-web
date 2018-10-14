@@ -299,12 +299,11 @@ impl Output {
         match resp.chunked() {
             Some(true) => {
                 // Enable transfer encoding
-                if version == Version::HTTP_2 {
-                    info.length = ResponseLength::None;
-                    TransferEncoding::eof(buf)
-                } else {
-                    info.length = ResponseLength::Chunked;
+                info.length = ResponseLength::Chunked;
+                if version == Version::HTTP_11 {
                     TransferEncoding::chunked(buf)
+                } else {
+                    TransferEncoding::eof(buf)
                 }
             }
             Some(false) => TransferEncoding::eof(buf),
@@ -337,15 +336,11 @@ impl Output {
                     }
                 } else {
                     // Enable transfer encoding
-                    match version {
-                        Version::HTTP_11 => {
-                            info.length = ResponseLength::Chunked;
-                            TransferEncoding::chunked(buf)
-                        }
-                        _ => {
-                            info.length = ResponseLength::None;
-                            TransferEncoding::eof(buf)
-                        }
+                    info.length = ResponseLength::Chunked;
+                    if version == Version::HTTP_11 {
+                        TransferEncoding::chunked(buf)
+                    } else {
+                        TransferEncoding::eof(buf)
                     }
                 }
             }

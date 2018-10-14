@@ -216,7 +216,7 @@ impl<S> HttpRequest<S> {
         self.url_for(name, &NO_PARAMS)
     }
 
-    /// This method returns reference to current `RouteInfo` object.
+    /// This method returns reference to current `ResourceInfo` object.
     #[inline]
     pub fn resource(&self) -> &ResourceInfo {
         &self.resource

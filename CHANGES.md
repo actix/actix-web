@@ -1,10 +1,13 @@
 # Changes
 
-## [0.7.13] - 2018-10-*
+## [0.7.13] - 2018-10-14
 
 ### Fixed
 
-* Fixed rustls build
+* Fixed rustls support
+
+* HttpServer not sending streamed request body on HTTP/2 requests #544
+
 
 ## [0.7.12] - 2018-10-10
 
