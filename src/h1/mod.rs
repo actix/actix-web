@@ -10,7 +10,7 @@ mod service;
 pub use self::codec::{Codec, InMessage, InMessageType, OutMessage};
 pub use self::decoder::{PayloadDecoder, RequestDecoder};
 pub use self::dispatcher::Dispatcher;
-pub use self::service::{H1Service, H1ServiceHandler, H1SimpleService};
+pub use self::service::{H1Service, H1ServiceHandler, OneRequest};
 
 use request::Request;
 

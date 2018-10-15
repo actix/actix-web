@@ -261,23 +261,23 @@ where
     }
 }
 
-/// `NewService` implementation for `H1SimpleServiceHandler` service
-pub struct H1SimpleService<T> {
+/// `NewService` implementation for `OneRequestService` service
+pub struct OneRequest<T> {
     config: ServiceConfig,
     _t: PhantomData<T>,
 }
 
-impl<T> H1SimpleService<T> {
+impl<T> OneRequest<T> {
     /// Create new `H1SimpleService` instance.
     pub fn new() -> Self {
-        H1SimpleService {
+        OneRequest {
             config: ServiceConfig::default(),
             _t: PhantomData,
         }
     }
 }
 
-impl<T> NewService for H1SimpleService<T>
+impl<T> NewService for OneRequest<T>
 where
     T: AsyncRead + AsyncWrite,
 {
@@ -285,11 +285,11 @@ where
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type InitError = ();
-    type Service = H1SimpleServiceHandler<T>;
+    type Service = OneRequestService<T>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
-        ok(H1SimpleServiceHandler {
+        ok(OneRequestService {
             config: self.config.clone(),
             _t: PhantomData,
         })
@@ -298,40 +298,40 @@ where
 
 /// `Service` implementation for HTTP1 transport. Reads one request and returns
 /// request and framed object.
-pub struct H1SimpleServiceHandler<T> {
+pub struct OneRequestService<T> {
     config: ServiceConfig,
     _t: PhantomData<T>,
 }
 
-impl<T> Service for H1SimpleServiceHandler<T>
+impl<T> Service for OneRequestService<T>
 where
     T: AsyncRead + AsyncWrite,
 {
     type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
-    type Future = H1SimpleServiceHandlerResponse<T>;
+    type Future = OneRequestServiceResponse<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        H1SimpleServiceHandlerResponse {
+        OneRequestServiceResponse {
             framed: Some(Framed::new(req, Codec::new(self.config.clone()))),
         }
     }
 }
 
 #[doc(hidden)]
-pub struct H1SimpleServiceHandlerResponse<T>
+pub struct OneRequestServiceResponse<T>
 where
     T: AsyncRead + AsyncWrite,
 {
     framed: Option<Framed<T, Codec>>,
 }
 
-impl<T> Future for H1SimpleServiceHandlerResponse<T>
+impl<T> Future for OneRequestServiceResponse<T>
 where
     T: AsyncRead + AsyncWrite,
 {
