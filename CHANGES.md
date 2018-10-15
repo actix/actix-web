@@ -13,8 +13,6 @@
 
 ### Changed
 
-* [BREAKING] server::Server struct moved into actix-net
-
 * Set min version for actix
 
 * Set min version for actix-net
@@ -28,6 +26,10 @@
 
 
 ## [0.7.10] - 2018-10-09
+
+### Changed
+
+* [BREAKING] Server is now a part of actix-net, and is no longer in actix-web::server
 
 ### Fixed
 
