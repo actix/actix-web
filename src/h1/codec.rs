@@ -103,6 +103,17 @@ impl Codec {
         self.flags.contains(Flags::KEEPALIVE)
     }
 
+    /// Check last request's message type
+    pub fn message_type(&self) -> InMessageType {
+        if self.flags.contains(Flags::UNHANDLED) {
+            InMessageType::Unhandled
+        } else if self.payload.is_none() {
+            InMessageType::None
+        } else {
+            InMessageType::Payload
+        }
+    }
+
     /// prepare transfer encoding
     pub fn prepare_te(&mut self, res: &mut Response) {
         self.te
@@ -275,6 +286,7 @@ impl Decoder for Codec {
                 }
                 RequestPayloadType::Unhandled => {
                     self.payload = None;
+                    self.flags.insert(Flags::UNHANDLED);
                     InMessageType::Unhandled
                 }
             };
