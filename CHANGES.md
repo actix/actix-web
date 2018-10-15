@@ -13,6 +13,8 @@
 
 ### Changed
 
+* [BREAKING] server::Server struct moved into actix-net
+
 * Set min version for actix
 
 * Set min version for actix-net
