@@ -27,6 +27,10 @@
 
 ## [0.7.10] - 2018-10-09
 
+### Changed
+
+* [BREAKING] Server is now a part of actix-net, and is no longer in actix-web::server
+
 ### Fixed
 
 * Fixed panic during graceful shutdown
