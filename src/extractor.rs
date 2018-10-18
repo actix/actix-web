@@ -111,15 +111,61 @@ impl<T, S> FromRequest<S> for Path<T>
 where
     T: DeserializeOwned,
 {
-    type Config = ();
+    type Config = PathConfig<S>;
     type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         let req = req.clone();
+        let req2 = req.clone();
+        let err = Rc::clone(&cfg.ehandler);
         de::Deserialize::deserialize(PathDeserializer::new(&req))
-            .map_err(ErrorNotFound)
+            .map_err(move |e| (*err)(e, &req2))
             .map(|inner| Path { inner })
+    }
+}
+
+/// Path extractor configuration
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::{error, http, App, HttpResponse, Path, Result};
+///
+/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// fn index(info: Path<(u32, String)>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.1))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/index.html/{id}/{name}", |r| {
+///         r.method(http::Method::GET).with_config(index, |cfg| {
+///             cfg.0.error_handler(|err, req| {
+///                 // <- create custom error response
+///                 error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///             });
+///         })
+///     });
+/// }
+/// ```
+pub struct PathConfig<S> {
+    ehandler: Rc<Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error>,
+}
+impl<S> PathConfig<S> {
+    /// Set custom error handler
+    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error + 'static,
+    {
+        self.ehandler = Rc::new(f);
+        self
+    }
+}
+
+impl<S> Default for PathConfig<S> {
+    fn default() -> Self {
+        PathConfig {
+            ehandler: Rc::new(|e, _| ErrorNotFound(e)),
+        }
     }
 }
 
@@ -1003,11 +1049,11 @@ mod tests {
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
-        let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
+        let s = Path::<MyStruct>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
 
-        let s = Path::<(String, String)>::from_request(&req, &()).unwrap();
+        let s = Path::<(String, String)>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
@@ -1020,11 +1066,11 @@ mod tests {
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
-        let s = Path::<Test2>::from_request(&req, &()).unwrap();
+        let s = Path::<Test2>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&req, &()).unwrap();
+        let s = Path::<(String, u8)>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
@@ -1041,7 +1087,7 @@ mod tests {
         let req = TestRequest::with_uri("/32/").finish();
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
-        assert_eq!(*Path::<i8>::from_request(&req, &()).unwrap(), 32);
+        assert_eq!(*Path::<i8>::from_request(&req, &&PathConfig::default()).unwrap(), 32);
     }
 
     #[test]
