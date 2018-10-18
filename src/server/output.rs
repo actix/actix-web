@@ -300,10 +300,10 @@ impl Output {
             Some(true) => {
                 // Enable transfer encoding
                 info.length = ResponseLength::Chunked;
-                if version == Version::HTTP_11 {
-                    TransferEncoding::chunked(buf)
-                } else {
+                if version == Version::HTTP_2 {
                     TransferEncoding::eof(buf)
+                } else {
+                    TransferEncoding::chunked(buf)
                 }
             }
             Some(false) => TransferEncoding::eof(buf),
@@ -337,10 +337,10 @@ impl Output {
                 } else {
                     // Enable transfer encoding
                     info.length = ResponseLength::Chunked;
-                    if version == Version::HTTP_11 {
-                        TransferEncoding::chunked(buf)
-                    } else {
+                    if version == Version::HTTP_2 {
                         TransferEncoding::eof(buf)
+                    } else {
+                        TransferEncoding::chunked(buf)
                     }
                 }
             }
