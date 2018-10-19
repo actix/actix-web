@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.14] - 2018-10-x
+
+### Fixed
+
+* HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
+
 ## [0.7.13] - 2018-10-14
 
 ### Fixed
