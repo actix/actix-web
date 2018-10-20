@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use futures::unsync::mpsc;
 use futures::{future, Async, Future, Poll, Stream};
-use tokio::executor::current_thread::spawn;
+use tokio_current_thread::spawn;
 
 use super::service::{IntoService, NewService, Service};
 
