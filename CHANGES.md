@@ -6,6 +6,10 @@
 
 * HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
 
+### Added
+
+* Add method to configure custom error handler to `Query` and `Path` extractors.
+
 ## [0.7.13] - 2018-10-14
 
 ### Fixed
