@@ -632,6 +632,13 @@ where
     }
 }
 
+/// Convert Response to a Error
+impl From<Response> for Error {
+    fn from(res: Response) -> Error {
+        InternalError::from_response("", res).into()
+    }
+}
+
 /// Helper function that creates wrapper of any error and generate *BAD
 /// REQUEST* response.
 #[allow(non_snake_case)]

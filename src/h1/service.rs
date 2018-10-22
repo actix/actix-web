@@ -267,7 +267,10 @@ pub struct OneRequest<T> {
     _t: PhantomData<T>,
 }
 
-impl<T> OneRequest<T> {
+impl<T> OneRequest<T>
+where
+    T: AsyncRead + AsyncWrite,
+{
     /// Create new `H1SimpleService` instance.
     pub fn new() -> Self {
         OneRequest {

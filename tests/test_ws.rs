@@ -52,7 +52,7 @@ fn test_simple() {
                     .and_then(|(req, framed): (_, Framed<_, _>)| {
                         // validate request
                         if let Some(h1::InMessage::Message(req, _)) = req {
-                            match ws::handshake(&req) {
+                            match ws::verify_handshake(&req) {
                                 Err(e) => {
                                     // validation failed
                                     let resp = e.error_response();
@@ -63,11 +63,12 @@ fn test_simple() {
                                             .map(|_| ()),
                                     )
                                 }
-                                Ok(mut resp) => Either::B(
+                                Ok(_) => Either::B(
                                     // send response
                                     framed
-                                        .send(h1::OutMessage::Response(resp.finish()))
-                                        .map_err(|_| ())
+                                        .send(h1::OutMessage::Response(
+                                            ws::handshake_response(&req).finish(),
+                                        )).map_err(|_| ())
                                         .and_then(|framed| {
                                             // start websocket service
                                             let framed =

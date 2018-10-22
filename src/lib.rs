@@ -110,6 +110,7 @@ mod json;
 mod payload;
 mod request;
 mod response;
+mod service;
 pub mod uri;
 
 pub mod error;
@@ -123,6 +124,7 @@ pub use extensions::Extensions;
 pub use httpmessage::HttpMessage;
 pub use request::Request;
 pub use response::Response;
+pub use service::{SendError, SendResponse};
 
 pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
 
