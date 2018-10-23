@@ -4,7 +4,7 @@ mod service;
 
 pub use self::connect::Connect;
 pub use self::error::ClientError;
-pub use self::service::Client;
+pub use self::service::{Client, DefaultClient};
 
 #[derive(PartialEq, Hash, Debug, Clone, Copy)]
 pub(crate) enum Protocol {

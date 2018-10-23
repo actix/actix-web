@@ -19,6 +19,9 @@ use ws::Codec;
 
 use super::{ClientError, Connect, Protocol};
 
+/// Default client, uses default connector.
+pub type DefaultClient = Client<DefaultConnector<String>>;
+
 /// WebSocket's client
 pub struct Client<T>
 where
