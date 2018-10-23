@@ -5,38 +5,43 @@ use futures::{Async, Poll};
 use httparse;
 use tokio_codec::Decoder;
 
+use client::ClientResponse;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
-use http::{header, HttpTryFrom, Method, Uri, Version};
-use request::{MessageFlags, Request, RequestPool};
+use http::{header, HttpTryFrom, Method, StatusCode, Uri, Version};
+use request::{MessageFlags, MessagePool, Request};
 use uri::Url;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
-pub struct RequestDecoder(&'static RequestPool);
+/// Client request decoder
+pub struct RequestDecoder(&'static MessagePool);
+
+/// Server response decoder
+pub struct ResponseDecoder(&'static MessagePool);
 
 /// Incoming request type
-pub enum RequestPayloadType {
+pub enum PayloadType {
     None,
     Payload(PayloadDecoder),
     Unhandled,
 }
 
 impl RequestDecoder {
-    pub(crate) fn with_pool(pool: &'static RequestPool) -> RequestDecoder {
+    pub(crate) fn with_pool(pool: &'static MessagePool) -> RequestDecoder {
         RequestDecoder(pool)
     }
 }
 
 impl Default for RequestDecoder {
     fn default() -> RequestDecoder {
-        RequestDecoder::with_pool(RequestPool::pool())
+        RequestDecoder::with_pool(MessagePool::pool())
     }
 }
 
 impl Decoder for RequestDecoder {
-    type Item = (Request, RequestPayloadType);
+    type Item = (Request, PayloadType);
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -77,7 +82,7 @@ impl Decoder for RequestDecoder {
             let slice = src.split_to(len).freeze();
 
             // convert headers
-            let mut msg = RequestPool::get(self.0);
+            let mut msg = MessagePool::get_request(self.0);
             {
                 let inner = msg.inner_mut();
                 inner
@@ -156,18 +161,165 @@ impl Decoder for RequestDecoder {
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         let decoder = if chunked {
             // Chunked encoding
-            RequestPayloadType::Payload(PayloadDecoder::chunked())
+            PayloadType::Payload(PayloadDecoder::chunked())
         } else if let Some(len) = content_length {
             // Content-Length
-            RequestPayloadType::Payload(PayloadDecoder::length(len))
+            PayloadType::Payload(PayloadDecoder::length(len))
         } else if has_upgrade || msg.inner.method == Method::CONNECT {
             // upgrade(websocket) or connect
-            RequestPayloadType::Unhandled
+            PayloadType::Unhandled
         } else if src.len() >= MAX_BUFFER_SIZE {
             error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
             return Err(ParseError::TooLarge);
         } else {
-            RequestPayloadType::None
+            PayloadType::None
+        };
+
+        Ok(Some((msg, decoder)))
+    }
+}
+
+impl ResponseDecoder {
+    pub(crate) fn with_pool(pool: &'static MessagePool) -> ResponseDecoder {
+        ResponseDecoder(pool)
+    }
+}
+
+impl Default for ResponseDecoder {
+    fn default() -> ResponseDecoder {
+        ResponseDecoder::with_pool(MessagePool::pool())
+    }
+}
+
+impl Decoder for ResponseDecoder {
+    type Item = (ClientResponse, PayloadType);
+    type Error = ParseError;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        // Parse http message
+        let mut chunked = false;
+        let mut content_length = None;
+
+        let msg = {
+            // Unsafe: we read only this data only after httparse parses headers into.
+            // performance bump for pipeline benchmarks.
+            let mut headers: [HeaderIndex; MAX_HEADERS] =
+                unsafe { mem::uninitialized() };
+
+            let (len, version, status, headers_len) = {
+                let mut parsed: [httparse::Header; MAX_HEADERS] =
+                    unsafe { mem::uninitialized() };
+
+                let mut res = httparse::Response::new(&mut parsed);
+                match res.parse(src)? {
+                    httparse::Status::Complete(len) => {
+                        let version = if res.version.unwrap() == 1 {
+                            Version::HTTP_11
+                        } else {
+                            Version::HTTP_10
+                        };
+                        let status = StatusCode::from_u16(res.code.unwrap())
+                            .map_err(|_| ParseError::Status)?;
+                        HeaderIndex::record(src, res.headers, &mut headers);
+
+                        (len, version, status, res.headers.len())
+                    }
+                    httparse::Status::Partial => return Ok(None),
+                }
+            };
+
+            let slice = src.split_to(len).freeze();
+
+            // convert headers
+            let mut msg = MessagePool::get_response(self.0);
+            {
+                let inner = msg.inner_mut();
+                inner
+                    .flags
+                    .get_mut()
+                    .set(MessageFlags::KEEPALIVE, version != Version::HTTP_10);
+
+                for idx in headers[..headers_len].iter() {
+                    if let Ok(name) =
+                        HeaderName::from_bytes(&slice[idx.name.0..idx.name.1])
+                    {
+                        // Unsafe: httparse check header value for valid utf-8
+                        let value = unsafe {
+                            HeaderValue::from_shared_unchecked(
+                                slice.slice(idx.value.0, idx.value.1),
+                            )
+                        };
+                        match name {
+                            header::CONTENT_LENGTH => {
+                                if let Ok(s) = value.to_str() {
+                                    if let Ok(len) = s.parse::<u64>() {
+                                        content_length = Some(len);
+                                    } else {
+                                        debug!("illegal Content-Length: {:?}", len);
+                                        return Err(ParseError::Header);
+                                    }
+                                } else {
+                                    debug!("illegal Content-Length: {:?}", len);
+                                    return Err(ParseError::Header);
+                                }
+                            }
+                            // transfer-encoding
+                            header::TRANSFER_ENCODING => {
+                                if let Ok(s) = value.to_str() {
+                                    chunked = s.to_lowercase().contains("chunked");
+                                } else {
+                                    return Err(ParseError::Header);
+                                }
+                            }
+                            // connection keep-alive state
+                            header::CONNECTION => {
+                                let ka = if let Ok(conn) = value.to_str() {
+                                    if version == Version::HTTP_10
+                                        && conn.contains("keep-alive")
+                                    {
+                                        true
+                                    } else {
+                                        version == Version::HTTP_11 && !(conn
+                                            .contains("close")
+                                            || conn.contains("upgrade"))
+                                    }
+                                } else {
+                                    false
+                                };
+                                inner.flags.get_mut().set(MessageFlags::KEEPALIVE, ka);
+                            }
+                            _ => (),
+                        }
+
+                        inner.headers.append(name, value);
+                    } else {
+                        return Err(ParseError::Header);
+                    }
+                }
+
+                inner.status = status;
+                inner.version = version;
+            }
+            msg
+        };
+
+        // https://tools.ietf.org/html/rfc7230#section-3.3.3
+        let decoder = if chunked {
+            // Chunked encoding
+            PayloadType::Payload(PayloadDecoder::chunked())
+        } else if let Some(len) = content_length {
+            // Content-Length
+            PayloadType::Payload(PayloadDecoder::length(len))
+        } else if msg.inner.status == StatusCode::SWITCHING_PROTOCOLS
+            || msg.inner.method == Method::CONNECT
+        {
+            // switching protocol or connect
+            PayloadType::Unhandled
+        } else if src.len() >= MAX_BUFFER_SIZE {
+            error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+            return Err(ParseError::TooLarge);
+        } else {
+            PayloadType::None
         };
 
         Ok(Some((msg, decoder)))
@@ -488,36 +640,30 @@ mod tests {
 
     use super::*;
     use error::ParseError;
-    use h1::{InMessage, InMessageType};
+    use h1::Message;
     use httpmessage::HttpMessage;
     use request::Request;
 
-    impl RequestPayloadType {
+    impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {
             match self {
-                RequestPayloadType::Payload(pl) => pl,
+                PayloadType::Payload(pl) => pl,
                 _ => panic!(),
             }
         }
 
         fn is_unhandled(&self) -> bool {
             match self {
-                RequestPayloadType::Unhandled => true,
+                PayloadType::Unhandled => true,
                 _ => false,
             }
         }
     }
 
-    impl InMessage {
+    impl Message<Request> {
         fn message(self) -> Request {
             match self {
-                InMessage::Message(req, _) => req,
-                _ => panic!("error"),
-            }
-        }
-        fn is_payload(&self) -> bool {
-            match *self {
-                InMessage::Message(_, payload) => payload == InMessageType::Payload,
+                Message::Item(req) => req,
                 _ => panic!("error"),
             }
         }

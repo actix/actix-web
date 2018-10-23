@@ -10,6 +10,7 @@ use http::{header, Method, StatusCode};
 use request::Request;
 use response::{ConnectionType, Response, ResponseBuilder};
 
+mod client;
 mod codec;
 mod frame;
 mod mask;
@@ -17,6 +18,7 @@ mod proto;
 mod service;
 mod transport;
 
+pub use self::client::{Client, ClientError, Connect};
 pub use self::codec::{Codec, Frame, Message};
 pub use self::frame::Parser;
 pub use self::proto::{CloseCode, CloseReason, OpCode};

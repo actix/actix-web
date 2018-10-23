@@ -85,6 +85,7 @@ extern crate http as modhttp;
 extern crate httparse;
 extern crate mime;
 extern crate net2;
+extern crate percent_encoding;
 extern crate rand;
 extern crate serde;
 extern crate serde_json;
@@ -95,12 +96,14 @@ extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+extern crate url as urlcrate;
 
 #[cfg(test)]
 #[macro_use]
 extern crate serde_derive;
 
 mod body;
+pub mod client;
 mod config;
 mod extensions;
 mod header;

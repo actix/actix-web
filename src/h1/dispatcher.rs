@@ -18,8 +18,8 @@ use error::DispatchError;
 use request::Request;
 use response::Response;
 
-use super::codec::{Codec, InMessage, InMessageType, OutMessage};
-use super::H1ServiceResult;
+use super::codec::Codec;
+use super::{H1ServiceResult, Message, MessageType};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
@@ -48,14 +48,14 @@ where
 
     state: State<S>,
     payload: Option<PayloadSender>,
-    messages: VecDeque<Message>,
+    messages: VecDeque<DispatcherMessage>,
     unhandled: Option<Request>,
 
     ka_expire: Instant,
     ka_timer: Option<Delay>,
 }
 
-enum Message {
+enum DispatcherMessage {
     Item(Request),
     Error(Response),
 }
@@ -63,8 +63,8 @@ enum Message {
 enum State<S: Service> {
     None,
     ServiceCall(S::Future),
-    SendResponse(Option<(OutMessage, Body)>),
-    SendPayload(Option<BodyStream>, Option<OutMessage>),
+    SendResponse(Option<(Message<Response>, Body)>),
+    SendPayload(Option<BodyStream>, Option<Message<Response>>),
 }
 
 impl<S: Service> State<S> {
@@ -176,11 +176,12 @@ where
                 State::None => loop {
                     break if let Some(msg) = self.messages.pop_front() {
                         match msg {
-                            Message::Item(req) => Some(self.handle_request(req)?),
-                            Message::Error(res) => Some(State::SendResponse(Some((
-                                OutMessage::Response(res),
-                                Body::Empty,
-                            )))),
+                            DispatcherMessage::Item(req) => {
+                                Some(self.handle_request(req)?)
+                            }
+                            DispatcherMessage::Error(res) => Some(State::SendResponse(
+                                Some((Message::Item(res), Body::Empty)),
+                            )),
                         }
                     } else {
                         None
@@ -196,10 +197,7 @@ where
                                 .get_codec_mut()
                                 .prepare_te(&mut res);
                             let body = res.replace_body(Body::Empty);
-                            Some(State::SendResponse(Some((
-                                OutMessage::Response(res),
-                                body,
-                            ))))
+                            Some(State::SendResponse(Some((Message::Item(res), body))))
                         }
                         Async::NotReady => None,
                     }
@@ -216,9 +214,9 @@ where
                             self.flags.remove(Flags::FLUSHED);
                             match body {
                                 Body::Empty => Some(State::None),
-                                Body::Binary(bin) => Some(State::SendPayload(
+                                Body::Binary(mut bin) => Some(State::SendPayload(
                                     None,
-                                    Some(OutMessage::Chunk(bin.into())),
+                                    Some(Message::Chunk(Some(bin.take()))),
                                 )),
                                 Body::Streaming(stream) => {
                                     Some(State::SendPayload(Some(stream), None))
@@ -257,7 +255,7 @@ where
                                 .framed
                                 .as_mut()
                                 .unwrap()
-                                .start_send(OutMessage::Chunk(Some(item.into())))
+                                .start_send(Message::Chunk(Some(item.into())))
                             {
                                 Ok(AsyncSink::Ready) => {
                                     self.flags.remove(Flags::FLUSHED);
@@ -271,7 +269,7 @@ where
                             },
                             Ok(Async::Ready(None)) => Some(State::SendPayload(
                                 None,
-                                Some(OutMessage::Chunk(None)),
+                                Some(Message::Chunk(None)),
                             )),
                             Ok(Async::NotReady) => return Ok(()),
                             // Err(err) => return Err(DispatchError::Io(err)),
@@ -312,7 +310,7 @@ where
                     .get_codec_mut()
                     .prepare_te(&mut res);
                 let body = res.replace_body(Body::Empty);
-                Ok(State::SendResponse(Some((OutMessage::Response(res), body))))
+                Ok(State::SendResponse(Some((Message::Item(res), body))))
             }
             Async::NotReady => Ok(State::ServiceCall(task)),
         }
@@ -333,14 +331,20 @@ where
                     self.flags.insert(Flags::STARTED);
 
                     match msg {
-                        InMessage::Message(req, payload) => {
-                            match payload {
-                                InMessageType::Payload => {
+                        Message::Item(req) => {
+                            match self
+                                .framed
+                                .as_ref()
+                                .unwrap()
+                                .get_codec()
+                                .message_type()
+                            {
+                                MessageType::Payload => {
                                     let (ps, pl) = Payload::new(false);
                                     *req.inner.payload.borrow_mut() = Some(pl);
                                     self.payload = Some(ps);
                                 }
-                                InMessageType::Unhandled => {
+                                MessageType::Unhandled => {
                                     self.unhandled = Some(req);
                                     return Ok(updated);
                                 }
@@ -351,10 +355,10 @@ where
                             if self.state.is_empty() {
                                 self.state = self.handle_request(req)?;
                             } else {
-                                self.messages.push_back(Message::Item(req));
+                                self.messages.push_back(DispatcherMessage::Item(req));
                             }
                         }
-                        InMessage::Chunk(Some(chunk)) => {
+                        Message::Chunk(Some(chunk)) => {
                             if let Some(ref mut payload) = self.payload {
                                 payload.feed_data(chunk);
                             } else {
@@ -362,19 +366,19 @@ where
                                     "Internal server error: unexpected payload chunk"
                                 );
                                 self.flags.insert(Flags::DISCONNECTED);
-                                self.messages.push_back(Message::Error(
+                                self.messages.push_back(DispatcherMessage::Error(
                                     Response::InternalServerError().finish(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
                             }
                         }
-                        InMessage::Chunk(None) => {
+                        Message::Chunk(None) => {
                             if let Some(mut payload) = self.payload.take() {
                                 payload.feed_eof();
                             } else {
                                 error!("Internal server error: unexpected eof");
                                 self.flags.insert(Flags::DISCONNECTED);
-                                self.messages.push_back(Message::Error(
+                                self.messages.push_back(DispatcherMessage::Error(
                                     Response::InternalServerError().finish(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
@@ -398,8 +402,9 @@ where
                     }
 
                     // Malformed requests should be responded with 400
-                    self.messages
-                        .push_back(Message::Error(Response::BadRequest().finish()));
+                    self.messages.push_back(DispatcherMessage::Error(
+                        Response::BadRequest().finish(),
+                    ));
                     self.flags.insert(Flags::DISCONNECTED);
                     self.error = Some(e.into());
                     break;
@@ -443,9 +448,7 @@ where
                                 trace!("Slow request timeout");
                                 self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
                                 self.state = State::SendResponse(Some((
-                                    OutMessage::Response(
-                                        Response::RequestTimeout().finish(),
-                                    ),
+                                    Message::Item(Response::RequestTimeout().finish()),
                                     Body::Empty,
                                 )));
                             }

@@ -11,12 +11,12 @@ use actix::System;
 use actix_net::codec::Framed;
 use actix_net::framed::IntoFramed;
 use actix_net::server::Server;
-use actix_net::service::NewServiceExt;
+use actix_net::service::{NewServiceExt, Service};
 use actix_net::stream::TakeItem;
 use actix_web::{test, ws as web_ws};
-use bytes::Bytes;
-use futures::future::{ok, Either};
-use futures::{Future, Sink, Stream};
+use bytes::{Bytes, BytesMut};
+use futures::future::{lazy, ok, Either};
+use futures::{Future, IntoFuture, Sink, Stream};
 
 use actix_http::{h1, ws, ResponseError, ServiceConfig};
 
@@ -51,14 +51,14 @@ fn test_simple() {
                     .and_then(TakeItem::new().map_err(|_| ()))
                     .and_then(|(req, framed): (_, Framed<_, _>)| {
                         // validate request
-                        if let Some(h1::InMessage::Message(req, _)) = req {
+                        if let Some(h1::Message::Item(req)) = req {
                             match ws::verify_handshake(&req) {
                                 Err(e) => {
                                     // validation failed
                                     let resp = e.error_response();
                                     Either::A(
                                         framed
-                                            .send(h1::OutMessage::Response(resp))
+                                            .send(h1::Message::Item(resp))
                                             .map_err(|_| ())
                                             .map(|_| ()),
                                     )
@@ -66,7 +66,7 @@ fn test_simple() {
                                 Ok(_) => Either::B(
                                     // send response
                                     framed
-                                        .send(h1::OutMessage::Response(
+                                        .send(h1::Message::Item(
                                             ws::handshake_response(&req).finish(),
                                         )).map_err(|_| ())
                                         .and_then(|framed| {
@@ -116,4 +116,43 @@ fn test_simple() {
             )))
         );
     }
+
+    // client service
+    let mut client = sys
+        .block_on(lazy(|| Ok::<_, ()>(ws::Client::default()).into_future()))
+        .unwrap();
+    let framed = sys
+        .block_on(client.call(ws::Connect::new(format!("http://{}/", addr))))
+        .unwrap();
+
+    let framed = sys
+        .block_on(framed.send(ws::Message::Text("text".to_string())))
+        .unwrap();
+    let (item, framed) = sys.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    assert_eq!(item, Some(ws::Frame::Text(Some(BytesMut::from("text")))));
+
+    let framed = sys
+        .block_on(framed.send(ws::Message::Binary("text".into())))
+        .unwrap();
+    let (item, framed) = sys.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Frame::Binary(Some(Bytes::from_static(b"text").into())))
+    );
+
+    let framed = sys
+        .block_on(framed.send(ws::Message::Ping("text".into())))
+        .unwrap();
+    let (item, framed) = sys.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    assert_eq!(item, Some(ws::Frame::Pong("text".to_string().into())));
+
+    let framed = sys
+        .block_on(framed.send(ws::Message::Close(Some(ws::CloseCode::Normal.into()))))
+        .unwrap();
+
+    let (item, _framed) = sys.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
+    )
 }

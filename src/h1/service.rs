@@ -13,9 +13,9 @@ use error::{DispatchError, ParseError};
 use request::Request;
 use response::Response;
 
-use super::codec::{Codec, InMessage};
+use super::codec::Codec;
 use super::dispatcher::Dispatcher;
-use super::H1ServiceResult;
+use super::{H1ServiceResult, Message};
 
 /// `NewService` implementation for HTTP1 transport
 pub struct H1Service<T, S> {
@@ -344,10 +344,10 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.framed.as_mut().unwrap().poll()? {
             Async::Ready(Some(req)) => match req {
-                InMessage::Message(req, _) => {
+                Message::Item(req) => {
                     Ok(Async::Ready((req, self.framed.take().unwrap())))
                 }
-                InMessage::Chunk(_) => unreachable!("Something is wrong"),
+                Message::Chunk(_) => unreachable!("Something is wrong"),
             },
             Async::Ready(None) => Err(ParseError::Incomplete),
             Async::NotReady => Ok(Async::NotReady),

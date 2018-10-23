@@ -4,15 +4,16 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::decoder::{PayloadDecoder, PayloadItem, RequestDecoder, RequestPayloadType};
+use super::decoder::{PayloadDecoder, PayloadItem, PayloadType, RequestDecoder};
 use super::encoder::{ResponseEncoder, ResponseLength};
+use super::{Message, MessageType};
 use body::{Binary, Body};
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, Version};
-use request::{Request, RequestPool};
+use request::{MessagePool, Request};
 use response::Response;
 
 bitflags! {
@@ -26,32 +27,6 @@ bitflags! {
 }
 
 const AVERAGE_HEADER_SIZE: usize = 30;
-
-#[derive(Debug)]
-/// Http response
-pub enum OutMessage {
-    /// Http response message
-    Response(Response),
-    /// Payload chunk
-    Chunk(Option<Binary>),
-}
-
-/// Incoming http/1 request
-#[derive(Debug)]
-pub enum InMessage {
-    /// Request
-    Message(Request, InMessageType),
-    /// Payload chunk
-    Chunk(Option<Bytes>),
-}
-
-/// Incoming request type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InMessageType {
-    None,
-    Payload,
-    Unhandled,
-}
 
 /// HTTP/1 Codec
 pub struct Codec {
@@ -71,11 +46,11 @@ impl Codec {
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        Codec::with_pool(RequestPool::pool(), config)
+        Codec::with_pool(MessagePool::pool(), config)
     }
 
     /// Create HTTP/1 codec with request's pool
-    pub(crate) fn with_pool(pool: &'static RequestPool, config: ServiceConfig) -> Self {
+    pub(crate) fn with_pool(pool: &'static MessagePool, config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
         } else {
@@ -104,13 +79,13 @@ impl Codec {
     }
 
     /// Check last request's message type
-    pub fn message_type(&self) -> InMessageType {
+    pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::UNHANDLED) {
-            InMessageType::Unhandled
+            MessageType::Unhandled
         } else if self.payload.is_none() {
-            InMessageType::None
+            MessageType::None
         } else {
-            InMessageType::Payload
+            MessageType::Payload
         }
     }
 
@@ -256,14 +231,14 @@ impl Codec {
 }
 
 impl Decoder for Codec {
-    type Item = InMessage;
+    type Item = Message<Request>;
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => Some(InMessage::Chunk(Some(chunk))),
-                Some(PayloadItem::Eof) => Some(InMessage::Chunk(None)),
+                Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
+                Some(PayloadItem::Eof) => Some(Message::Chunk(None)),
                 None => None,
             })
         } else if self.flags.contains(Flags::UNHANDLED) {
@@ -275,22 +250,15 @@ impl Decoder for Codec {
             if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
                 self.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }
-            let payload = match payload {
-                RequestPayloadType::None => {
-                    self.payload = None;
-                    InMessageType::None
-                }
-                RequestPayloadType::Payload(pl) => {
-                    self.payload = Some(pl);
-                    InMessageType::Payload
-                }
-                RequestPayloadType::Unhandled => {
+            match payload {
+                PayloadType::None => self.payload = None,
+                PayloadType::Payload(pl) => self.payload = Some(pl),
+                PayloadType::Unhandled => {
                     self.payload = None;
                     self.flags.insert(Flags::UNHANDLED);
-                    InMessageType::Unhandled
                 }
-            };
-            Ok(Some(InMessage::Message(req, payload)))
+            }
+            Ok(Some(Message::Item(req)))
         } else {
             Ok(None)
         }
@@ -298,20 +266,20 @@ impl Decoder for Codec {
 }
 
 impl Encoder for Codec {
-    type Item = OutMessage;
+    type Item = Message<Response>;
     type Error = io::Error;
 
     fn encode(
         &mut self, item: Self::Item, dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            OutMessage::Response(res) => {
+            Message::Item(res) => {
                 self.encode_response(res, dst)?;
             }
-            OutMessage::Chunk(Some(bytes)) => {
+            Message::Chunk(Some(bytes)) => {
                 self.te.encode(bytes.as_ref(), dst)?;
             }
-            OutMessage::Chunk(None) => {
+            Message::Chunk(None) => {
                 self.te.encode_eof(dst)?;
             }
         }

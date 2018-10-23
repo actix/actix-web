@@ -9,6 +9,7 @@ use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
 use body::{Binary, Body};
+use client::ClientRequest;
 use header::ContentEncoding;
 use http::Method;
 use request::Request;
@@ -162,6 +163,39 @@ impl ResponseEncoder {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RequestEncoder {
+    head: bool,
+    pub length: ResponseLength,
+    pub te: TransferEncoding,
+}
+
+impl Default for RequestEncoder {
+    fn default() -> Self {
+        RequestEncoder {
+            head: false,
+            length: ResponseLength::None,
+            te: TransferEncoding::empty(),
+        }
+    }
+}
+
+impl RequestEncoder {
+    /// Encode message
+    pub fn encode(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
+        self.te.encode(msg, buf)
+    }
+
+    /// Encode eof
+    pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
+        self.te.encode_eof(buf)
+    }
+
+    pub fn update(&mut self, resp: &mut ClientRequest, head: bool, version: Version) {
+        self.head = head;
     }
 }
 

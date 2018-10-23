@@ -54,7 +54,10 @@ time = "0.1"
 encoding = "0.2"
 lazy_static = "1.0"
 serde_urlencoded = "0.5.3"
+
 cookie = { version="0.11", features=["percent-encode"] }
+percent-encoding = "1.0"
+url = { version="1.7", features=["query_encoding"] }
 
 # io
 net2 = "0.2"

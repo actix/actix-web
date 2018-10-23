@@ -8,7 +8,7 @@ use futures::{Async, AsyncSink, Future, Poll, Sink};
 use tokio_io::AsyncWrite;
 
 use error::ResponseError;
-use h1::{Codec, OutMessage};
+use h1::{Codec, Message};
 use response::Response;
 
 pub struct SendError<T, R, E>(PhantomData<(T, R, E)>);
@@ -59,7 +59,7 @@ where
             Ok(r) => Either::A(ok(r)),
             Err((e, framed)) => Either::B(SendErrorFut {
                 framed: Some(framed),
-                res: Some(OutMessage::Response(e.error_response())),
+                res: Some(Message::Item(e.error_response())),
                 err: Some(e),
                 _t: PhantomData,
             }),
@@ -68,7 +68,7 @@ where
 }
 
 pub struct SendErrorFut<T, R, E> {
-    res: Option<OutMessage>,
+    res: Option<Message<Response>>,
     framed: Option<Framed<T, Codec>>,
     err: Option<E>,
     _t: PhantomData<R>,
@@ -149,14 +149,14 @@ where
 
     fn call(&mut self, (res, framed): Self::Request) -> Self::Future {
         SendResponseFut {
-            res: Some(OutMessage::Response(res)),
+            res: Some(Message::Item(res)),
             framed: Some(framed),
         }
     }
 }
 
 pub struct SendResponseFut<T> {
-    res: Option<OutMessage>,
+    res: Option<Message<Response>>,
     framed: Option<Framed<T, Codec>>,
 }
 
