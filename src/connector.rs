@@ -43,23 +43,15 @@ impl From<ResolverError> for ConnectorError {
 #[derive(Eq, PartialEq, Debug)]
 pub struct Connect {
     pub host: String,
-    pub port: Option<u16>,
+    pub port: u16,
     pub timeout: Duration,
 }
 
 impl Connect {
-    pub fn host<T: AsRef<str>>(host: T) -> Connect {
+    pub fn new<T: AsRef<str>>(host: T, port: u16) -> Connect {
         Connect {
+            port,
             host: host.as_ref().to_owned(),
-            port: None,
-            timeout: Duration::from_secs(1),
-        }
-    }
-
-    pub fn host_and_port<T: AsRef<str>>(host: T, port: u16) -> Connect {
-        Connect {
-            host: host.as_ref().to_owned(),
-            port: Some(port),
             timeout: Duration::from_secs(1),
         }
     }
@@ -171,10 +163,21 @@ impl Future for ConnectorFuture {
             return fut.poll();
         }
         match self.fut.poll().map_err(ConnectorError::from)? {
-            Async::Ready((req, _, addrs)) => {
+            Async::Ready((req, _, mut addrs)) => {
                 if addrs.is_empty() {
                     Err(ConnectorError::NoRecords)
                 } else {
+                    for addr in &mut addrs {
+                        match addr {
+                            SocketAddr::V4(ref mut addr) if addr.port() == 0 => {
+                                addr.set_port(req.port)
+                            }
+                            SocketAddr::V6(ref mut addr) if addr.port() == 0 => {
+                                addr.set_port(req.port)
+                            }
+                            _ => (),
+                        }
+                    }
                     self.fut2 = Some(TcpConnector::new(req, addrs));
                     self.poll()
                 }
