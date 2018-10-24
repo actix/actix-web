@@ -1,4 +1,5 @@
 #![allow(unused_imports, unused_variables, dead_code)]
+use std::fmt;
 use std::io::{self, Write};
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -39,6 +40,12 @@ pub struct Codec {
     flags: Flags,
     headers_size: u32,
     te: ResponseEncoder,
+}
+
+impl fmt::Debug for Codec {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "h1::Codec({:?})", self.flags)
+    }
 }
 
 impl Codec {
