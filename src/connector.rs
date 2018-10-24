@@ -232,3 +232,49 @@ impl Future for TcpConnector {
         }
     }
 }
+
+#[derive(Clone)]
+pub struct DefaultConnector(Connector);
+
+impl Default for DefaultConnector {
+    fn default() -> Self {
+        DefaultConnector(Connector::default())
+    }
+}
+
+impl DefaultConnector {
+    pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
+        DefaultConnector(Connector::new(cfg, opts))
+    }
+}
+
+impl Service for DefaultConnector {
+    type Request = Connect;
+    type Response = TcpStream;
+    type Error = ConnectorError;
+    type Future = DefaultConnectorFuture;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.0.poll_ready()
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        DefaultConnectorFuture {
+            fut: self.0.call(req),
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct DefaultConnectorFuture {
+    fut: ConnectorFuture,
+}
+
+impl Future for DefaultConnectorFuture {
+    type Item = TcpStream;
+    type Error = ConnectorError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        Ok(Async::Ready(try_ready!(self.fut.poll()).1))
+    }
+}
